@@ -35,27 +35,25 @@ defmodule Tuist.Runners.Claims do
 
     * `claimed` — INSERTed by `attempt/5`, pre-mint. Stale
       reaper targets these.
-    * `running` — set by `mark_running/2` once the JIT mint
+    * `running` — set by `mark_running/3` once the JIT mint
       lands and we're handing the runner to GitHub. A
       long-running build holds this slot until
       `workflow_job.completed` (or its webhook arrives) calls
       `complete/1`. Stale reaper never touches `running` rows;
       they're healthy cap accounting, not stuck claims.
 
-  ClickHouse `runner_jobs` is the customer-facing view (queued,
-  running, completed, history). The two stores stay in sync via a
-  one-way protocol: PG is the source of truth for "is this
-  claimed and counted?" and every transition that flips that bit
-  pairs the PG write with an INSERT to CH.
+  The claim row sits next to the workflow_job lifecycle row
+  (`Tuist.Runners.WorkflowJobs`), and every claim mutation carries
+  the matching lifecycle transition in the same transaction:
+  `attempt/5` moves the row `queued → claimed`, `mark_running/2`
+  `claimed → running`, and the release paths move it back to
+  `queued`. There is no cross-store ordering to get right — a
+  release either fully returns the job to the queue or does nothing.
 
   Recovery: `list_stale/1` returns `claimed` claims older than the
-  threshold WITHOUT deleting them; the stale-claims worker iterates
-  the result, writes `queued` to ClickHouse first, then calls
-  `release/2` to delete the PG row. CH-first is critical — if PG
-  were deleted first and we crashed, the CH row would stay
-  `claimed`, `Jobs.pick_queued` would skip it, and no PG claim
-  would remain for the next worker run to recover, stranding the
-  workflow_job permanently.
+  threshold WITHOUT deleting them; the stale-claims worker calls
+  `release/2` per row, which deletes the claim and re-queues the
+  lifecycle row atomically.
   """
 
   import Ecto.Query
@@ -67,6 +65,9 @@ defmodule Tuist.Runners.Claims do
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.WorkflowJobs
+
+  require Logger
 
   @doc """
   Attempts to claim `workflow_job_id` for `pod_name` on behalf of
@@ -79,7 +80,7 @@ defmodule Tuist.Runners.Claims do
   Returns one of:
 
     * `{:ok, %Claim{}}` — claim landed; caller should mint the
-      JIT and call `mark_running/2` on success.
+      JIT and call `mark_running/3` on success.
     * `{:error, :account_busy}` — another transaction is currently
       admitting work for this account and platform. The caller should
       try another account instead of waiting.
@@ -102,6 +103,18 @@ defmodule Tuist.Runners.Claims do
                {:ok, claim} <- insert_claim(workflow_job_id, account.id, fleet_name, pod_name, resources),
                {:ok, limit} <- try_lock_concurrency_limit(account.id, resources.platform),
                :ok <- check_reserved_capacity(account.id, limit, resources) do
+            # Same transaction as the claim insert, so the claim and the
+            # lifecycle row's `queued → claimed` commit or roll back
+            # together. A `:noop` does not fail the claim — a completion
+            # that raced it wins, and the caller's post-claim completion
+            # guard releases — but it does mean the store dispatch reads
+            # disagrees with the claim that just landed, so it is logged
+            # rather than swallowed.
+            log_unmoved_lifecycle_row(
+              WorkflowJobs.transition_claimed(claim.workflow_job_id, claim.pod_name, claim.claimed_at),
+              claim
+            )
+
             {:ok, claim}
           end
 
@@ -111,6 +124,18 @@ defmodule Tuist.Runners.Claims do
         end
       end)
     end
+  end
+
+  defp log_unmoved_lifecycle_row(:ok, _claim), do: :ok
+
+  defp log_unmoved_lifecycle_row(:noop, claim) do
+    Logger.warning("runners: claim landed but its lifecycle row did not move to claimed",
+      workflow_job_id: claim.workflow_job_id,
+      pod: claim.pod_name,
+      account_id: claim.account_id
+    )
+
+    :noop
   end
 
   defp validate_claim_inputs(workflow_job_id, account_id, fleet_name, pod_name, resources) do
@@ -286,17 +311,33 @@ defmodule Tuist.Runners.Claims do
   for the stale reaper — it's an active cap slot for a healthy
   build.
 
+  Both writes are guarded on `claimed_at`, so they only ever promote
+  the caller's own claim generation. A mint that finishes after its
+  claim was reaped and the job re-claimed by another Pod matches
+  neither, rather than stamping the losing runner's name on the
+  winner's claim and lifecycle row.
+
   Returns `:ok` whether or not the row is still around (the
   `workflow_job.completed` webhook can arrive between mint and
-  the call to `mark_running/2`, deleting the row out from
+  the call to `mark_running/3`, deleting the row out from
   under us).
   """
-  def mark_running(workflow_job_id, runner_name) when is_integer(workflow_job_id) and is_binary(runner_name) do
-    {_count, _} =
-      Repo.update_all(
-        from(c in Claim, where: c.workflow_job_id == ^workflow_job_id and c.lifecycle_state == "claimed"),
-        set: [lifecycle_state: "running", runner_name: runner_name]
-      )
+  def mark_running(workflow_job_id, runner_name, %DateTime{} = claimed_at)
+      when is_integer(workflow_job_id) and is_binary(runner_name) do
+    {:ok, _} =
+      Repo.transaction(fn ->
+        {_count, _} =
+          Repo.update_all(
+            from(c in Claim,
+              where:
+                c.workflow_job_id == ^workflow_job_id and c.lifecycle_state == "claimed" and
+                  c.claimed_at == ^claimed_at
+            ),
+            set: [lifecycle_state: "running", runner_name: runner_name]
+          )
+
+        WorkflowJobs.transition_running(workflow_job_id, runner_name, claimed_at)
+      end)
 
     :ok
   end
@@ -313,10 +354,24 @@ defmodule Tuist.Runners.Claims do
   is gone or its `claimed_at` has moved on.
   """
   def release(workflow_job_id, %DateTime{} = claimed_at) when is_integer(workflow_job_id) do
-    {count, _} =
-      Repo.delete_all(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id and c.claimed_at == ^claimed_at))
+    {:ok, outcome} =
+      Repo.transaction(fn ->
+        {count, _} =
+          Repo.delete_all(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id and c.claimed_at == ^claimed_at))
 
-    if count == 1, do: :ok, else: {:error, :stale_claim}
+        # The lifecycle row re-queues in the same transaction as the
+        # claim delete, so claim and row state cannot diverge across
+        # a crash. Terminal rows never match `requeue/1`'s guard and
+        # stay completed.
+        if count == 1 do
+          WorkflowJobs.requeue(workflow_job_id)
+          :ok
+        else
+          {:error, :stale_claim}
+        end
+      end)
+
+    outcome
   end
 
   @doc """
@@ -349,7 +404,7 @@ defmodule Tuist.Runners.Claims do
 
     * `list_stale/1` filters `lifecycle_state = 'claimed'`, and these
       sit in `running`.
-    * `OrphanedRunnersWorker` drives off ClickHouse rows still in
+    * `OrphanedRunnersWorker` drives off lifecycle rows still in
       `status = 'running'`. The completion already moved the row out of
       that state, so the scan never returns it.
 
@@ -437,18 +492,27 @@ defmodule Tuist.Runners.Claims do
   the job `in_progress`, so it's left alone) will free — until the
   Pod stops.
 
-  Freeing the budget is only half the recovery: the ClickHouse row
+  Freeing the budget is only half the recovery: the lifecycle row
   stays at `running`, which `pick_queued/2` skips, so the released
   job is invisible to dispatch until something moves it back to
   `queued`. GitHub does not do that for us. A runner that never
   registered leaves the workflow_job `queued` on GitHub's side for
   its whole life, so there is no state change for GitHub to
   announce and no second `queued` webhook ever arrives — the job
-  only moved through `claimed → running` in *our* store. The
-  caller is therefore expected to schedule recovery for each
-  returned id; `OrphanedRunnersWorker` re-checks GitHub's own view
-  before re-queueing, so the released ids are candidates, not
-  verdicts.
+  only moved through `claimed → running` in *our* store. Whether it
+  should run again is GitHub's call, since the runner may be
+  executing a sibling's job, so a `running` row is left for the
+  caller to schedule recovery on; `OrphanedRunnersWorker` re-checks
+  GitHub's own view before re-queueing, and the released ids are
+  candidates, not verdicts.
+
+  A claim still in `claimed` needs no such cross-check: the Pod
+  stopped before the JIT was minted, so nothing is running for that
+  job anywhere. Its lifecycle row is re-queued here, in the same
+  transaction as the delete and guarded on the claim handle, because
+  a `claimed` row with no claim behind it is invisible to everything
+  — not `queued` for dispatch, not `running` for the orphan scans,
+  and with no claim left for `StaleClaimsWorker` to find.
 
   Returns the released `workflow_job_id`s (empty in the common case
   where the job's `completed` webhook already freed the claim
@@ -456,10 +520,26 @@ defmodule Tuist.Runners.Claims do
   crashed-mid-job Pod).
   """
   def release_by_pod_name(pod_name) when is_binary(pod_name) and pod_name != "" do
-    {_count, released} =
-      Repo.delete_all(from(c in Claim, where: c.pod_name == ^pod_name, select: c.workflow_job_id))
+    {:ok, released} =
+      Repo.transaction(fn ->
+        {_count, released} =
+          Repo.delete_all(
+            from(c in Claim,
+              where: c.pod_name == ^pod_name,
+              select: {c.workflow_job_id, c.lifecycle_state, c.claimed_at}
+            )
+          )
 
-    released || []
+        released = released || []
+
+        for {workflow_job_id, "claimed", claimed_at} <- released do
+          WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at)
+        end
+
+        Enum.map(released, &elem(&1, 0))
+      end)
+
+    released
   end
 
   def release_by_pod_name(_pod_name), do: []
@@ -485,17 +565,6 @@ defmodule Tuist.Runners.Claims do
   end
 
   @doc """
-  Returns active claim workflow_job IDs for `fleet_name`.
-
-  Dispatch uses this as an anti-list when selecting queued ClickHouse
-  rows. If ClickHouse still says a job is queued while Postgres already
-  has a live claim for it, that row must not pin the fleet's queue head.
-  """
-  def workflow_job_ids_for_fleet(fleet_name) when is_binary(fleet_name) do
-    Repo.all(from(c in Claim, where: c.fleet_name == ^fleet_name, select: c.workflow_job_id))
-  end
-
-  @doc """
   Counts active claims per account **across all fleets**. Returns
   `%{account_id => count}` — how many runners each account is
   currently using. Not fleet-scoped: an account's jobs spread
@@ -517,13 +586,9 @@ defmodule Tuist.Runners.Claims do
   @doc """
   Returns claims still in `lifecycle_state = 'claimed'` and older
   than `threshold` without deleting them. The stale-claims worker
-  uses this to recover row-by-row: for each stale claim it FIRST
-  writes `queued` to ClickHouse, THEN calls `release/2` with the
-  handle to delete the PG row. Reversing that order would leave a
-  window where the PG row is gone but CH still shows `claimed` —
-  `pick_queued` would skip the row and no PG claim would remain
-  for the next worker run to recover, stranding the workflow_job
-  permanently.
+  recovers row-by-row via `release/2` with the `claimed_at` handle —
+  each release deletes the claim and re-queues the lifecycle row in
+  one transaction, so a partial recovery cannot strand a job.
 
   `running` rows are deliberately excluded: a build running for
   hours is healthy, not stuck mid-mint. Reaping it here would
@@ -682,12 +747,9 @@ defmodule Tuist.Runners.Claims do
 
   Returns the rows WITHOUT deleting them, carrying `pod_missing_since` as
   the release handle. A claim is capacity held by a Pod, and with no Pod
-  there is no runner and no capacity — but the caller still has to
-  reconcile ClickHouse before dropping the Postgres row (see
-  `release_pod_missing/2`), the same CH-first contract `list_stale/1`
-  documents: delete the claim while CH still reads `claimed` and the
-  workflow_job is stranded, because `pick_queued` only selects `queued`
-  and no PG row remains for a later sweep to recover from.
+  there is no runner and no capacity; `release_pod_missing/2` deletes the
+  claim and re-queues the lifecycle row in one transaction so the job is
+  immediately claimable again.
 
   The `limit` bounds the blast radius of a wrong-but-plausible cluster
   read that survives the caller's checks. Anything above it waits for the
@@ -719,14 +781,24 @@ defmodule Tuist.Runners.Claims do
   keys on `claimed_at`.
   """
   def release_pod_missing(workflow_job_id, %DateTime{} = pod_missing_since) when is_integer(workflow_job_id) do
-    {count, _} =
-      Repo.delete_all(
-        from(c in Claim,
-          where: c.workflow_job_id == ^workflow_job_id and c.pod_missing_since == ^pod_missing_since
-        )
-      )
+    {:ok, outcome} =
+      Repo.transaction(fn ->
+        {count, _} =
+          Repo.delete_all(
+            from(c in Claim,
+              where: c.workflow_job_id == ^workflow_job_id and c.pod_missing_since == ^pod_missing_since
+            )
+          )
 
-    if count == 1, do: :ok, else: {:error, :stale_claim}
+        if count == 1 do
+          WorkflowJobs.requeue(workflow_job_id)
+          :ok
+        else
+          {:error, :stale_claim}
+        end
+      end)
+
+    outcome
   end
 
   @doc """
@@ -763,7 +835,7 @@ defmodule Tuist.Runners.Claims do
   Records the workflow_job GitHub actually placed on the runner named
   `runner_name`, learned from the `workflow_job.in_progress` /
   `completed` webhook. The mint-chosen `runner_name` is unique per
-  runner and stored on the claim at `mark_running/2`, so it resolves
+  runner and stored on the claim at `mark_running/3`, so it resolves
   the live claim regardless of which job the claim was minted for.
 
   Scoped to `account_id` (resolved from the webhook's App installation):

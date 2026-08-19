@@ -396,11 +396,7 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  def get_yesterdays_remote_cache_hits_count_for_customer(customer_id) do
-    now = DateTime.utc_now()
-    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
-    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
-
+  def remote_cache_hits_count_for_customer(customer_id, %DateTime{} = period_start, %DateTime{} = period_end) do
     from(p in Project,
       join: a in Account,
       on: p.account_id == a.id,
@@ -416,7 +412,7 @@ defmodule Tuist.CommandEvents do
         ClickHouseRepo.one(
           from(e in Event,
             where:
-              e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday and
+              e.ran_at >= ^period_start and e.ran_at < ^period_end and
                 e.project_id in ^project_ids,
             select:
               sum(
@@ -746,6 +742,11 @@ defmodule Tuist.CommandEvents do
       * `:offset` - Number of events to skip (default: 0)
       * `:git_branch` - Only consider events run on the given branch
       * `:is_ci` - Only consider CI (`true`) or local (`false`) events
+      * `:min_sample_size` - Return `nil` unless the window matched at least this
+        many events. The reversed percentiles degenerate to `min(values)` on
+        short windows (the p90 index floors to 0 below 10 rows, p99 below 100),
+        so callers comparing two windows can use this to reject a window that
+        did not fill up.
 
   ## Returns
     The calculated metric value (0.0-1.0), or `nil` if no data available.
@@ -789,8 +790,15 @@ defmodule Tuist.CommandEvents do
 
     hit_rates = ClickHouseRepo.all(query)
 
-    calculate_metric_from_values(hit_rates, metric)
+    if below_min_sample_size?(hit_rates, Keyword.get(opts, :min_sample_size)) do
+      nil
+    else
+      calculate_metric_from_values(hit_rates, metric)
+    end
   end
+
+  defp below_min_sample_size?(_values, nil), do: false
+  defp below_min_sample_size?(values, min_sample_size), do: length(values) < min_sample_size
 
   defp calculate_metric_from_values([], _metric), do: nil
 

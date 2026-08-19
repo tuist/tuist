@@ -4,6 +4,32 @@ defmodule Tuist.Runners.CatalogTest do
 
   alias Tuist.Runners.Catalog
 
+  describe "billing_multiplier/3" do
+    test "each platform's baseline machine is exactly one compute unit" do
+      assert Catalog.billing_multiplier(:linux, 2, 8) == Catalog.compute_unit_basis_points()
+      assert Catalog.billing_multiplier(:macos, 6, 14) == Catalog.compute_unit_basis_points()
+    end
+
+    test "doubling both resources doubles the multiplier" do
+      assert Catalog.billing_multiplier(:linux, 4, 16) == 2 * Catalog.billing_multiplier(:linux, 2, 8)
+      assert Catalog.billing_multiplier(:linux, 8, 32) == 4 * Catalog.billing_multiplier(:linux, 2, 8)
+      assert Catalog.billing_multiplier(:macos, 12, 28) == 2 * Catalog.billing_multiplier(:macos, 6, 14)
+    end
+
+    test "weights CPU more heavily than memory" do
+      # Same total resources rebalanced toward CPU has to cost more, since
+      # CPU is roughly two thirds of a machine's cost.
+      assert Catalog.billing_multiplier(:linux, 4, 8) > Catalog.billing_multiplier(:linux, 2, 16)
+    end
+
+    test "carries no platform premium, so each platform's Price sets its own rate" do
+      # The premium lives in the Stripe Price, not the multiplier. A macOS
+      # unit and a Linux unit are each one minute on their own baseline, so
+      # the same shape weighs less on the platform whose baseline is bigger.
+      assert Catalog.billing_multiplier(:macos, 2, 8) < Catalog.billing_multiplier(:linux, 2, 8)
+    end
+  end
+
   describe "fleet_name_prefixes/1" do
     test "Linux covers both legacy and shape-catalog pool naming" do
       # Both prefixes are what `runner_jobs.fleet_name` can carry on a

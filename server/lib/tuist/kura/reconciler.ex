@@ -270,7 +270,7 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   # A `:moving_in` target warms with no public endpoint, so its readiness is the
-  # peer-plane bootstrap gate (the pod's /ready probe surfaced as caught_up?),
+  # peer-plane backfill gate (the pod's /ready probe surfaced as caught_up?),
   # not a public /up probe. Once it is up on the desired image and caught up, it
   # is promoted (source -> :moving_out, target -> :none). Its deployment stays
   # open across the promotion so the now-`:none` row activates through the normal
@@ -334,9 +334,9 @@ defmodule Tuist.Kura.Reconciler do
 
           # The workload is up on the desired image but the endpoint is not
           # serving yet: the pod is typically still replicating from mesh peers
-          # behind the /ready bootstrap gate, so it offers no healthy upstream to
+          # behind the /ready backfill gate, so it offers no healthy upstream to
           # the gateway. Surface :replicating so the dashboard shows progress
-          # instead of a stuck "Deploying" for the whole bootstrap.
+          # instead of a stuck "Deploying" for the whole catch-up.
           record(server, :replicating, deployment.image_tag, now())
 
         {:error, :node_port_endpoint_not_ready} ->
@@ -390,7 +390,7 @@ defmodule Tuist.Kura.Reconciler do
 
       {:ok, false} ->
         # Up on the desired image but still replicating from the source behind
-        # the bootstrap gate. Surface :replicating so the move shows progress.
+        # the backfill gate. Surface :replicating so the move shows progress.
         record(server, :replicating, image_tag, now())
 
       {:error, reason} ->

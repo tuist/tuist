@@ -172,7 +172,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -4255,7 +4257,9 @@ final class TestServiceTests: TuistUnitTestCase {
                     projectDerivedDataDirectory: .any,
                     config: .any,
                     shardPlanId: .any,
-                    shardIndex: .any
+                    shardIndex: .any,
+                    onlyTestIdentifiers: .any,
+                    skipTestIdentifiers: .any
                 )
                 .willThrow(TestError("Inspect failed"))
 
@@ -5360,7 +5364,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 ciHost: .any,
                 ciProvider: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -5405,7 +5411,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 ciHost: .any,
                 ciProvider: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .called(1)
     }
@@ -5666,6 +5674,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(shardPlanService)
             .plan(
                 xctestproductsPath: .any,
+                projectPath: .any,
                 reference: .any,
                 shardGranularity: .any,
                 shardMin: .any,
@@ -5702,6 +5711,7 @@ final class TestServiceTests: TuistUnitTestCase {
         verify(shardPlanService)
             .plan(
                 xctestproductsPath: .value(testProductsPath),
+                projectPath: .any,
                 reference: .any,
                 shardGranularity: .any,
                 shardMin: .any,

@@ -104,7 +104,9 @@ added to catch that failed on `admin`'s unwritable cache instead.
   Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
   still gets an *empty* image — the guest can only attach what is there, and no
   image would kill the job rather than cost it warmth.
-  Teardown order is load-bearing: sample the signals that need a live mount (fill
+  Teardown order is load-bearing: **wait for the compilation cache's
+  publications to reach the remote** (`drain_cas_publications`, below), sample
+  the signals that need a live mount (fill
   %), then **detach**, then measure the SETTLED image for the digest this job
   publishes (`capture_settled_inventory` re-attaches the detached file READ-ONLY —
   the same view the verifying host uses), then write `cache-dirty` (only after both
@@ -178,6 +180,28 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `--cache-volume-cap-gib` for both and keep HEAD uploads fast
   (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
   blocks slot reclaim).
+  The one gate the CAS DOES need of its own is `drain_cas_publications`, first in
+  teardown. The store's objects are uploaded to the remote cache
+  asynchronously, through the CAS plugin's spool, while the associations naming
+  them are written into the store immediately — so a promote that outruns those
+  uploads publishes a master whose keys name objects nothing can produce, for
+  every host that later clones it, permanently (the compiler's CAS ABI has no
+  delete, and re-putting a key with a different value is refused, so such a key
+  fails until the store generation rolls). The gate asks the running proxy
+  (`tuist-cas-proxy --drain`, exit 0 drained / 3 owed / anything else "could not
+  ask") and falls back to watching `<cas dir>/tuist-spool` itself when no client
+  can be found — a record is deleted only by a publication that SUCCEEDED, so an
+  empty spool is the proof either way. It runs BEFORE `capture_settled_inventory`
+  because that computes the digest this image is promoted under, and before the
+  detach because the spool is inside the image; it is skipped on a failed job
+  (which never promotes) and is a no-op for a job that never published, which
+  includes every plain `xcodebuild` using Xcode's builtin lane. Not draining
+  within `CAS_DRAIN_TIMEOUT` (120s) withholds the promote via
+  `mark_cache_not_promotable`: the account keeps its previous master and loses
+  this job's warm set, which is the same trade every other teardown that cannot
+  reach a safe state already makes. It cannot be complete — a host that panics or
+  a job cancelled mid-upload promotes without reaching it — so it complements,
+  and does not replace, the plugin's read-side check on a local hit.
   `XCODE_XCCONFIG_FILE` is the mechanism because the common case is a plain
   `xcodebuild build` against a project Tuist never generated and never wraps —
   which the generate-time project mapper and the `tuist xcodebuild` wrapper both

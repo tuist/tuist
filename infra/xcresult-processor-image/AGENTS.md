@@ -188,8 +188,19 @@ inheriting their defaults:
   and Pods normally outlive that between image releases. It reaps only
   short-lived ones; the rest accumulate, and those stale peers stay
   pinned in every VM's `/etc/hosts`, which `tailscale-up.sh` rewrites
-  from `tailscale status` on each boot. Nothing deletes a device today,
-  on this path or the Mac mini one; a reaper is the tracked follow-up.
+  from `tailscale status` on each boot.
+
+  Renaming the device would not help: a device is identified by its node
+  key, not its hostname, and a VM booted from an image has no persisted
+  tailscaled state, so every boot mints a new key and therefore a new
+  device whatever it is called. The tailnet carries pairs of devices
+  sharing a hostname *and* a tag, which is what that looks like from the
+  outside. Deleting the dead ones is the only available fix, and the
+  `tailscale-device-reaper` CronJob in the main chart is it — see
+  `infra/helm/tuist/templates/tailscale-device-reaper.yaml`. Devices on
+  this path match its short `disposable` grace window precisely because
+  their identity is regenerated on every boot; the Mac mini hosts, which
+  join once and keep their identity, sit behind the long one.
 
 Keys minted through an OAuth client are always tagged and carry no
 default tag, so `TAILSCALE_TAGS` must name one (the chart sources it

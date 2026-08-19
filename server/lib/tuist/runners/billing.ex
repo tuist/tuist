@@ -10,28 +10,39 @@ defmodule Tuist.Runners.Billing do
 
   ## Window semantics
 
+  Billing measures the workflow job, not the Pod. A session's
+  `started_at` / `ended_at` bound the Pod: it boots a VM before the
+  job can start and holds the host through post-job cache work and
+  teardown afterwards. That overhead is ours to optimize, so the
+  billable window is GitHub's own `job_started_at` / `job_ended_at`,
+  recorded on the session when the completion webhook arrives.
+
   `compute_milliseconds/3` returns the sum of *interval
-  intersections* between each session's `[started_at, ended_at]`
-  and the billing window `[period_start, period_end]`:
+  intersections* between each session's job window and the billing
+  window `[period_start, period_end]`:
 
-      max(0, min(ended_at, period_end) - max(started_at, period_start))
+      max(0, min(job_ended_at, period_end) - max(job_started_at, period_start))
 
-  That treats cross-boundary sessions correctly — a Pod that ran
-  for two hours across a month boundary contributes only the
-  minutes that fall on each side. It's also retry-safe: each
-  re-claim creates a new session row, so a workflow_job that was
-  released and re-served bills for both Pods.
+  That treats cross-boundary jobs correctly — a job that ran for two
+  hours across a month boundary contributes only the minutes that
+  fall on each side. It's also retry-safe: each re-claim creates a
+  new session row, so a workflow_job that was released and re-served
+  bills for each execution.
 
-  ## Open sessions
+  ## Sessions without a job window
 
-  Sessions with `ended_at IS NULL` are still in flight. Their
-  upper bound clamps to either `period_end` (so the billing
-  query gives a snapshot of "compute consumed so far") or to
-  `now()` whenever the caller queries with `period_end` set to
-  the future. An orphaned Pod (controller never tore it down,
-  no completion webhook) keeps billing up to whichever cap
-  applies — operationally the orphan-runners worker should
-  close those sessions out before they run away.
+  A session bills nothing until both job bounds are recorded. That
+  covers an in-flight job, a job cancelled while still queued (it
+  never ran), and a Pod whose completion webhook never arrived. A
+  missing window is not evidence of execution, so charging nothing
+  is the honest answer and keeps the module's bias toward
+  undercharging. It also removes the orphaned-Pod runaway the
+  Pod-clock window needed a six-hour safety clamp to bound: an
+  unreported job simply has no billable time.
+
+  The trade-off is that a currently-running job contributes zero
+  until it completes, so a mid-period usage figure lags by whatever
+  is still in flight.
 
   ## Precision
 
@@ -39,40 +50,48 @@ defmodule Tuist.Runners.Billing do
   or hours happens at the formatting boundary. Daily series use
   the same interval-intersection but bucketed per UTC day, so a
   session that spans midnight contributes to both days.
+
+  ## Stripe reporting
+
+  Usage is metered as normalized compute units, one Stripe meter per
+  platform. Each platform is normalized to its own baseline machine,
+  so one Linux compute unit is one minute on the 2 vCPU / 8 GB Linux
+  baseline and one macOS compute unit is one minute on the 6 vCPU /
+  14 GB Mac. A session's elapsed milliseconds are scaled by the
+  multiplier frozen on the row when it opened. Each meter receives
+  compute-unit milliseconds and its price transforms 60,000 units
+  into one billed baseline-minute, so a platform's Price is quoted
+  directly per baseline machine-minute.
+
+  Per platform rather than per exact shape: Stripe caps classic
+  subscriptions at 20 items, and a per-shape catalog would burn one
+  item per shape plus a Meter, Price, config key, and backfill for
+  every shape ever added. Two meters keep a subscription at two
+  runner items no matter how many shapes the catalog grows to, while
+  leaving each platform's rate, credit grants, discounts, contract
+  terms, and invoice line items independently movable in Stripe. A
+  single global unit would instead fix both platforms' rates to one
+  hardcoded ratio. Raw shape, raw milliseconds, and the frozen
+  multiplier stay on the row, so analytics lose nothing.
+
+  Usage is always reported gross. Prepaid runner access is a
+  money-denominated Stripe billing credit grant scoped to the runner
+  meter prices, rather than minutes subtracted in Tuist. Scoping a
+  grant to one platform's Price is what lets prepaid terms differ
+  between Linux and macOS.
   """
 
   import Ecto.Query
+  import Tuist.Runners.Catalog, only: [valid_machine_resources: 3]
 
   alias Tuist.Repo
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.RunnerSession
 
+  require Logger
+
   @default_window_days 30
-
-  # Safety clamp for sessions whose `stopped` event was never
-  # delivered (controller crash + Pod garbage-collected from K8s
-  # before recovery). Without this, an indefinitely-open session
-  # bills against `LEAST(now(), period_end)` for as long as it
-  # stays open, which is exactly the over-bill the
-  # controller-reported-close architecture exists to prevent. 6
-  # hours matches the default `workflow_job` hard timeout on
-  # GitHub-hosted runners, so the clamp never trims a legitimate
-  # session — it only bounds the worst case after the
-  # authoritative signal got lost.
-  @max_session_lifetime_seconds 6 * 60 * 60
-
-  @doc """
-  The clamp above, for callers that need to write an `ended_at` this
-  query would have applied anyway.
-
-  `Tuist.Runners.Workers.PodReconciliationWorker` closes a session
-  whose Pod is gone at `LEAST(now, started_at + this)`, which makes the
-  close billing-neutral: the row was already being charged against that
-  bound, so materialising it changes only what the autoscaler counts as
-  occupied.
-  """
-  def max_session_lifetime_seconds, do: @max_session_lifetime_seconds
 
   @doc """
   Total billable minutes for `account_id` over the window, plus a
@@ -129,8 +148,6 @@ defmodule Tuist.Runners.Billing do
   """
   def compute_milliseconds(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
       when is_integer(account_id) do
-    now = DateTime.utc_now()
-
     query =
       account_id
       |> sessions_overlapping(period_start, period_end)
@@ -142,20 +159,13 @@ defmodule Tuist.Runners.Billing do
             COALESCE(SUM(GREATEST(
               0,
               (EXTRACT(EPOCH FROM (
-                LEAST(
-                  COALESCE(?, ?),
-                  ?,
-                  ? + make_interval(secs => ?)
-                ) - GREATEST(?, ?)
+                LEAST(?, ?) - GREATEST(?, ?)
               )) * 1000)::bigint
             )), 0)::bigint
             """,
-            s.ended_at,
-            ^now,
+            s.job_ended_at,
             ^period_end,
-            s.started_at,
-            ^@max_session_lifetime_seconds,
-            s.started_at,
+            s.job_started_at,
             ^period_start
           )
       })
@@ -164,6 +174,101 @@ defmodule Tuist.Runners.Billing do
       %{total_ms: ms} when is_integer(ms) -> ms
       _ -> 0
     end
+  end
+
+  @doc """
+  Returns billable milliseconds grouped by immutable machine
+  specification for the requested window, each entry carrying the
+  effective `billing_multiplier` that machine was admitted under.
+
+  New sessions persist their resource selection and multiplier
+  directly. Rows created during the rollout can have neither; those
+  fall back to the fleet catalog. An unresolvable historical fleet is
+  omitted with a warning so billing remains biased toward
+  undercharging.
+  """
+  def compute_milliseconds_by_machine(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
+      when is_integer(account_id) do
+    account_id
+    |> sessions_overlapping(period_start, period_end)
+    |> scope(opts)
+    |> group_by([s], [s.fleet_name, s.platform, s.vcpus, s.memory_gb, s.billing_multiplier])
+    |> select([s], %{
+      fleet_name: s.fleet_name,
+      platform: s.platform,
+      vcpus: s.vcpus,
+      memory_gb: s.memory_gb,
+      billing_multiplier: s.billing_multiplier,
+      total_ms:
+        fragment(
+          """
+          COALESCE(SUM(GREATEST(
+            0,
+            (EXTRACT(EPOCH FROM (
+              LEAST(?, ?) - GREATEST(?, ?)
+            )) * 1000)::bigint
+          )), 0)::bigint
+          """,
+          s.job_ended_at,
+          ^period_end,
+          s.job_started_at,
+          ^period_start
+        )
+    })
+    |> Repo.all()
+    |> Enum.reduce(%{}, &merge_machine_usage/2)
+    |> Enum.map(fn {{platform, vcpus, memory_gb, multiplier}, total_ms} ->
+      %{
+        platform: platform,
+        vcpus: vcpus,
+        memory_gb: memory_gb,
+        billing_multiplier: multiplier,
+        total_ms: total_ms
+      }
+    end)
+    |> Enum.sort_by(&{&1.platform, &1.vcpus, &1.memory_gb, &1.billing_multiplier})
+  end
+
+  @doc """
+  Billable compute-unit milliseconds grouped by platform for the
+  requested window.
+
+  This is what Stripe is metered on. Each machine group's elapsed
+  milliseconds are scaled by the multiplier frozen on its sessions, so a
+  4 vCPU / 16 GB Linux machine contributes twice the units of the Linux
+  baseline for the same wall-clock time. Because each platform is
+  normalized to its own baseline machine, one macOS compute unit is one
+  minute on the real 6 vCPU / 14 GB Mac, and its Stripe Price is quoted
+  directly in those terms.
+
+  One meter per platform, rather than one per exact shape, keeps a
+  subscription at two runner items no matter how many shapes the catalog
+  grows to, while leaving each platform's rate, credit grants, and
+  contract terms independently movable in Stripe.
+
+  Weighted milliseconds truncate rather than round, keeping the same
+  under-bill bias the rest of this module holds to.
+  """
+  def compute_units_by_platform(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
+      when is_integer(account_id) do
+    account_id
+    |> compute_milliseconds_by_machine(period_start, period_end, opts)
+    |> Enum.reduce(%{}, fn usage, acc ->
+      Map.update(acc, usage.platform, compute_units(usage), &(&1 + compute_units(usage)))
+    end)
+    |> Enum.map(fn {platform, total_units} -> %{platform: platform, total_units: total_units} end)
+    |> Enum.sort_by(& &1.platform)
+  end
+
+  defp compute_units(%{total_ms: total_ms, billing_multiplier: multiplier}) do
+    div(total_ms * multiplier, Catalog.compute_unit_basis_points())
+  end
+
+  @doc """
+  Stable Stripe meter event name for a runner platform.
+  """
+  def meter_event_name(platform) when platform in [:linux, :macos] do
+    "runner_#{platform}_compute_unit_milliseconds"
   end
 
   @doc """
@@ -184,8 +289,6 @@ defmodule Tuist.Runners.Billing do
         opts \\ []
       )
       when is_integer(account_id) and bucket in [:hour, :day] do
-    now = DateTime.utc_now()
-
     # SQL pipeline:
     #   1. `overlapping` — sessions for this account whose window
     #      touches [period_start, period_end] (CTE).
@@ -200,19 +303,8 @@ defmodule Tuist.Runners.Billing do
       |> sessions_overlapping(period_start, period_end)
       |> scope(opts)
       |> select([s], %{
-        started_at: s.started_at,
-        # Clamp the upper bound at `started_at + max_lifetime` so a
-        # session whose `stopped` event was never delivered can't
-        # bill past the safety cap. Mirrors the same clamp in
-        # `compute_milliseconds/4`.
-        effective_end:
-          fragment(
-            "LEAST(COALESCE(?, ?), ? + make_interval(secs => ?))",
-            s.ended_at,
-            ^now,
-            s.started_at,
-            ^@max_session_lifetime_seconds
-          )
+        started_at: s.job_started_at,
+        effective_end: s.job_ended_at
       })
 
     buckets = buckets_query(overlapping, period_start, period_end, bucket)
@@ -302,17 +394,51 @@ defmodule Tuist.Runners.Billing do
     )
   end
 
+  # Only sessions carrying a complete job window are billable, and the
+  # overlap is tested against that window rather than the Pod's. A
+  # session whose job never ran, or whose completion webhook never
+  # arrived, has NULL bounds and is excluded entirely: we bill nothing
+  # we cannot evidence rather than falling back to the Pod's wall clock.
   defp sessions_overlapping(account_id, period_start, period_end) do
-    # A session overlaps the window when:
-    #   started_at <= period_end AND (ended_at IS NULL OR ended_at >= period_start)
-    # i.e. the session started before the window ended AND it
-    # didn't already end before the window began.
     from(s in RunnerSession,
       where: s.account_id == ^account_id,
-      where: s.started_at <= ^period_end,
-      where: is_nil(s.ended_at) or s.ended_at >= ^period_start
+      where: not is_nil(s.job_started_at) and not is_nil(s.job_ended_at),
+      where: s.job_started_at <= ^period_end,
+      where: s.job_ended_at >= ^period_start
     )
   end
+
+  defp merge_machine_usage(row, usage) do
+    case resources_for_session(row) do
+      {:ok, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb}} ->
+        multiplier = multiplier_for_session(row, platform, vcpus, memory_gb)
+        Map.update(usage, {platform, vcpus, memory_gb, multiplier}, row.total_ms, &(&1 + row.total_ms))
+
+      {:error, :invalid_resources} ->
+        Logger.warning(
+          "runners: omitting #{row.total_ms} billing milliseconds with unknown resources for fleet #{row.fleet_name}"
+        )
+
+        usage
+    end
+  end
+
+  defp resources_for_session(%{platform: platform, vcpus: vcpus, memory_gb: memory_gb})
+       when valid_machine_resources(platform, vcpus, memory_gb) do
+    {:ok, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb}}
+  end
+
+  defp resources_for_session(%{fleet_name: fleet_name}), do: Catalog.resources_for_fleet(fleet_name)
+
+  # Sessions opened before the multiplier was persisted fall back to the
+  # current catalog weighting. That is the one case where a rate-card
+  # change can move an old session's price, and it is unavoidable: those
+  # rows never recorded what they were admitted under.
+  defp multiplier_for_session(%{billing_multiplier: multiplier}, _platform, _vcpus, _memory_gb)
+       when is_integer(multiplier) and multiplier > 0, do: multiplier
+
+  defp multiplier_for_session(_row, platform, vcpus, memory_gb),
+    do: Catalog.billing_multiplier(platform, vcpus, memory_gb)
 
   defp scope(query, opts) do
     query

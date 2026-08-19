@@ -18,6 +18,8 @@ The account setup tools require user authentication. They are not available to p
 
 Model Context Protocol tools and <.localized_link href="/guides/features/agentic-coding/skills">skills</.localized_link> can overlap in what they do. Given the current overlap between the two, choose one approach per workflow and use it consistently instead of mixing both in the same flow.
 
+For clients that support plugin installation, use the <.localized_link href="/guides/features/agentic-coding/plugins">Tuist plugins</.localized_link> to install both together.
+
 ## Configuration
 
 Add `https://tuist.dev/mcp` as a remote Model Context Protocol server in your client. Tuist advertises both [Open Authorization](https://oauth.net/2/) discovery metadata and the current [auth.md protocol](https://workos.com/auth-md) at `https://tuist.dev/auth.md`.
@@ -29,6 +31,8 @@ An unauthenticated agent should read the `WWW-Authenticate` header returned by t
 Before an agent starts an email claim, it must ask the user to confirm the email address for their Tuist account. It must not infer that address from a provider profile, Git configuration, environment variable, or session metadata.
 
 The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can discover capabilities and read public integration guidance, but it is not treated as a signed-in user. After claim, the credential is user-scoped and each tool applies its normal authorization checks. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
+
+Tools resolve to the projects the authenticated user can already read. Tuist operators investigating a customer's project are not members of it, so they additionally present an operator grant minted at `ops.tuist.dev` in an `x-tuist-operator-grant` header. The grant is verified on every request, honoured only for the operator it was minted for, and scoped to the single account it names — nothing is stored between requests, so it is sent with each call and cannot outlive its expiry. A header carrying a grant that is not honoured fails the request with `operator_grant_rejected` rather than falling back to unprivileged access.
 
 <details>
 <summary>Claude Code</summary>
@@ -229,7 +233,7 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `list_xcode_builds` | List Xcode build runs for a project. | `account_handle`, `project_handle` |
-| `get_xcode_build` | Get detailed information about a specific Xcode build run. Accepts a build ID or a Tuist dashboard URL. | `build_run_id` |
+| `get_xcode_build` | Get detailed information about a specific Xcode build run, including a temporary download URL for the archive holding the raw `.xcactivitylog`. Accepts a build ID or a Tuist dashboard URL. | `build_run_id` |
 | `list_xcode_build_targets` | List build targets for a specific Xcode build run. | `build_run_id` |
 | `list_xcode_build_files` | List compiled files for a specific Xcode build run. | `build_run_id` |
 | `list_xcode_build_issues` | List build issues (warnings and errors) for a specific build run. | `build_run_id` |
@@ -250,7 +254,7 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `list_test_runs` | List test runs for a project. Supports exact filters such as `git_branch`, `status`, and `scheme`, plus richer `query` expressions such as `-git_branch~"gh-readonly-queue"`. | `account_handle`, `project_handle` |
-| `get_test_run` | Get detailed metrics for a test run. | `test_run_id` |
+| `get_test_run` | Get detailed metrics for a test run, including temporary download URLs for its result bundle (`.xcresult`) and session archive. | `test_run_id` |
 | `list_test_module_runs` | List test module runs for a specific test run. | `test_run_id` |
 | `list_test_suite_runs` | List test suite runs for a specific test run, optionally filtered by module. | `test_run_id` |
 | `list_test_cases` | List test cases for a project (supports filters like `flaky`). | `account_handle`, `project_handle` |

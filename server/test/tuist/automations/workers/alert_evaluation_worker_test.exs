@@ -70,7 +70,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       trigger_config: %{
         "threshold" => 10,
         "window_type" => "rolling",
-        "rolling_window_size" => 76
+        "rolling_window_size" => 1001
       }
     )
     |> Repo.update!()
@@ -83,7 +83,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       end)
 
     assert log =~ "Skipping automation alert #{automation.id}"
-    assert log =~ "rolling trigger windows must be between 1 and 75"
+    assert log =~ "rolling trigger windows must be between 1 and 1000"
   end
 
   test "executes trigger actions for newly triggered test cases and creates alert" do
@@ -378,7 +378,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         "threshold" => 20,
         "comparison" => "gte",
         "window_type" => "rolling",
-        "rolling_window_size" => 76
+        "rolling_window_size" => 1001
       }
     )
     |> Repo.update!()
@@ -771,7 +771,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "rolling recovery above the trigger cap reads raw runs without clamping (real ClickHouse)" do
+  test "rolling recovery counts raw runs without clamping (real ClickHouse)" do
     project = ProjectsFixtures.project_fixture()
 
     automation =

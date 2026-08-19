@@ -5,23 +5,20 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
   import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
 
-  alias Tuist.IngestRepo
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
-  alias Tuist.Runners.Billing
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Claims
-  alias Tuist.Runners.Job
-  alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.PodReconciliationWorker
+  alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobs
 
   setup :verify_on_exit!
 
   setup do
     stub(FunWithFlags, :enabled?, fn :runner_pod_reconciliation_paused -> false end)
-    stub(Jobs, :record_queued, fn _workflow_job_id -> :ok end)
     :ok
   end
 
@@ -72,34 +69,18 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
   defp reload_session(session), do: Repo.reload!(session)
 
   defp completed_job_fixture(account, workflow_job_id, completed_at) do
-    {1, _} =
-      IngestRepo.insert_all(Job, [
-        %{
-          workflow_job_id: workflow_job_id,
-          account_id: account.id,
-          fleet_name: "fleet-a",
-          platform: "macos",
-          vcpus: 6,
-          memory_gb: 14,
-          repository: "acme/cli",
-          workflow_run_id: workflow_job_id * 10,
-          run_attempt: 1,
-          workflow_name: "CI",
-          job_name: "build",
-          head_branch: "main",
-          head_sha: "deadbeef",
-          status: "completed",
-          conclusion: "success",
-          enqueued_at: completed_at,
-          claimed_at: completed_at,
-          started_at: completed_at,
-          completed_at: completed_at,
-          pod_name: "",
-          runner_name: "",
-          requested_dispatch_label: "",
-          updated_at: completed_at
-        }
-      ])
+    Repo.insert!(%WorkflowJob{
+      workflow_job_id: workflow_job_id,
+      account_id: account.id,
+      fleet_name: "fleet-a",
+      status: "completed",
+      conclusion: "success",
+      enqueued_at: completed_at,
+      started_at: completed_at,
+      completed_at: completed_at,
+      inserted_at: DateTime.truncate(completed_at, :second),
+      updated_at: DateTime.truncate(completed_at, :second)
+    })
 
     :ok
   end
@@ -222,40 +203,26 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
       assert claim(9103)
     end
 
-    # CH before PG. A Pod can vanish while ClickHouse still reads
-    # `claimed`, and deleting the claim first would free the slot while
-    # stranding the workflow_job for good, since `pick_queued` only
-    # selects `queued` and no claim would remain to recover from.
-    test "writes the queued state to ClickHouse before dropping the claim" do
+    # The release and the re-queue are one transaction now (#12031), so
+    # a freed slot always comes with a claimable job.
+    test "re-queues the lifecycle row with the claim delete" do
       account = account_fixture()
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: 9301,
+          account_id: account.id,
+          fleet_name: "fleet-a"
+        })
+
       claim_fixture(account, 9301, "pod-dead", missing_for_seconds: 600)
 
-      test_pid = self()
-
-      expect(Jobs, :record_queued, fn 9301 ->
-        send(test_pid, {:recorded_queued, 9301})
-        :ok
-      end)
-
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
 
       assert :ok = PodReconciliationWorker.perform(%Oban.Job{})
 
-      assert_received {:recorded_queued, 9301}
       assert claim(9301) == nil
-    end
-
-    # If ClickHouse is unavailable we must keep the claim, so the pair is
-    # retried intact rather than half-applied.
-    test "keeps the claim when the ClickHouse write fails" do
-      account = account_fixture()
-      claim_fixture(account, 9302, "pod-dead", missing_for_seconds: 600)
-
-      expect(Jobs, :record_queued, fn 9302 -> raise "clickhouse down" end)
-      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
-
-      assert :ok = PodReconciliationWorker.perform(%Oban.Job{})
-      assert claim(9302)
+      assert Repo.get!(WorkflowJob, 9301).status == "queued"
     end
 
     # Guard 5. A wrong-but-plausible read that survives every other
@@ -363,7 +330,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
 
       assert :ok = PodReconciliationWorker.perform(%Oban.Job{})
 
-      expected = DateTime.add(started_at, Billing.max_session_lifetime_seconds(), :second)
+      expected = DateTime.add(started_at, 6 * 3600, :second)
       assert reload_session(session).ended_at |> DateTime.diff(expected, :second) |> abs() <= 5
     end
 
@@ -495,35 +462,18 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
 
       assert :ok = PodReconciliationWorker.perform(%Oban.Job{})
 
-      expected = DateTime.add(started_at, Billing.max_session_lifetime_seconds(), :second)
+      expected = DateTime.add(started_at, 6 * 3600, :second)
       assert reload_session(session).ended_at |> DateTime.diff(expected, :second) |> abs() <= 5
     end
 
-    test "a ClickHouse failure degrades the batch to the clamp instead of blocking the close" do
-      # The capacity fix must not wait on the billing refinement.
-      account = account_fixture()
-      started_at = DateTime.add(DateTime.utc_now(), -5 * 24 * 3600, :second)
-
-      session =
-        session_fixture(account, "pod-ch-down", age_seconds: 5 * 24 * 3600)
-
-      stub(Jobs, :terminal_completions, fn _ids -> raise "clickhouse unavailable" end)
-      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
-
-      assert :ok = PodReconciliationWorker.perform(%Oban.Job{})
-
-      expected = DateTime.add(started_at, Billing.max_session_lifetime_seconds(), :second)
-      assert reload_session(session).ended_at |> DateTime.diff(expected, :second) |> abs() <= 5
-    end
-
-    test "resolves the whole batch with a single ClickHouse query" do
+    test "resolves the whole batch in a single lifecycle-store read" do
       account = account_fixture()
 
       for i <- 1..3 do
         session_fixture(account, "pod-batch-#{i}", workflow_job_id: 79_100 + i, age_seconds: 3600)
       end
 
-      expect(Jobs, :terminal_completions, 1, fn ids ->
+      expect(WorkflowJobs, :terminal_completions, 1, fn ids ->
         assert length(ids) == 3
         %{}
       end)

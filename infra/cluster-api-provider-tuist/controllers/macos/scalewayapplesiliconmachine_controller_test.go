@@ -27,6 +27,7 @@ import (
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/scaleway"
+	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
 // recordUpdateFailure is the safety primitive that bounds the
@@ -1394,5 +1395,113 @@ func TestHandleBootstrapFailure_DisabledThresholdsSkipBothTiers(t *testing.T) {
 	if len(stub.rebootCalls) != 0 || len(stub.releaseCalls) != 0 {
 		t.Fatalf("zero thresholds must skip both tiers; got reboots=%+v releases=%+v",
 			stub.rebootCalls, stub.releaseCalls)
+	}
+}
+
+// The drift loop is only honest if what it pushes is what the operator stamps.
+// hostConfig builds what a given Mac mini receives; desiredHostConfigHash is
+// the fingerprint the reconciler writes to Status.HostConfigHash to mean "this
+// host is converged". If those two ever describe different configs the host is
+// recorded as running something it never received, and the skew is invisible
+// until something downstream needs the part that was dropped.
+//
+// That is not a hypothetical: node_exporter, the log shipper, the cache-volume
+// flags and the Tailscale tags were each lost this way, the last one freezing
+// the production fleet once the credential swap to a Tailscale OAuth client
+// made an untagged join impossible.
+//
+// The per-host/fleet-wide split itself is pinned in the bootstrap package
+// (TestWithPerHostReplacesExactlyThePerHostFields). What is checked here is the
+// operator's side of the contract: that both ends resolve the per-machine
+// fields the same way.
+func TestHostConfig_HashMatchesWhatIsStampedOnTheMachine(t *testing.T) {
+	r := &ScalewayAppleSiliconMachineReconciler{
+		FleetConfig: bootstrap.Config{
+			TartKubeletBinary:       []byte("tart-kubelet-binary"),
+			TailscaleBinaries:       []byte("tailscale-binaries"),
+			NodeExporterBinary:      []byte("node-exporter-binary"),
+			LogShipperBinary:        []byte("log-shipper-binary"),
+			LogShipURL:              "http://alloy.example.ts.net:3100/loki/api/v1/push",
+			LogShipEnv:              "production",
+			TailscaleTags:           []string{"tag:tuist-macmini-production"},
+			TailscaleAcceptRoutes:   true,
+			VMKuraEgressCIDR:        "10.128.0.0/12",
+			VMClusterDNSIP:          "10.96.0.10",
+			VMCachePNCIDR:           "172.16.0.0/22",
+			SSHIngressAllowCIDRs:    []string{"116.202.0.10/32"},
+			HostCPU:                 8,
+			HostMemoryMB:            14336,
+			MaxPods:                 3,
+			RunnerCacheVolumeGiB:    80,
+			CacheVolumeMasterCapGiB: 20,
+			CacheVolumeCASGiB:       11,
+			VNCRelayPort:            DashboardVNCRelayPort,
+		},
+	}
+
+	// Per-host values, all distinct from the fleet config's zeroes, so a field
+	// that leaks into the fingerprint cannot coincidentally match.
+	perHost := bootstrap.PerHost{
+		IP:                   "51.15.1.1",
+		SSHUser:              "m1",
+		UserPassword:         "sudo-password",
+		SSHPrivateKey:        []byte("ssh-private-key"),
+		NodeName:             "tuist-tuist-runners-fleet-mndbc-2t7nk",
+		ProviderID:           "scw-applesilicon://fr-par-1/c0b4b946",
+		Kubeconfig:           "apiVersion: v1\nkind: Config\n",
+		TailscaleAuthKey:     "tskey-client-secret",
+		VNCRelayHost:         "vnc-relay.example",
+		VMCachePNVLAN:        42,
+		KnownHostFingerprint: "SHA256:abc",
+		NodeLabels:           map[string]string{"tuist.dev/fleet": "runners"},
+		DisableVMGC:          true,
+	}
+
+	for _, tc := range []struct {
+		name    string
+		machine *infrav1.ScalewayAppleSiliconMachine
+	}{
+		{
+			name:    "fleet defaults",
+			machine: &infrav1.ScalewayAppleSiliconMachine{},
+		},
+		{
+			// The case a single fleet-wide hash got wrong: the operator pushed
+			// the overridden config and then stamped the fleet's hash on it, so
+			// the host read as converged to a config it had never been sent and
+			// a later change to the overridden field could not drift it.
+			name: "per-machine host size override",
+			machine: func() *infrav1.ScalewayAppleSiliconMachine {
+				m := &infrav1.ScalewayAppleSiliconMachine{}
+				m.Spec.HostCPU = 10
+				m.Spec.HostMemoryMB = 20480
+				return m
+			}(),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pushed := r.hostConfig(tc.machine, perHost)
+			if want, have := r.desiredHostConfigHash(tc.machine), bootstrap.HostConfigHash(pushed); want != have {
+				t.Fatalf("hash of pushed config = %s, stamped hash = %s\n"+
+					"the host would be recorded as converged to a config it never received", have, want)
+			}
+		})
+	}
+}
+
+// A per-machine override must actually move the fingerprint. Without this, a
+// hash that ignored the override would satisfy the test above trivially -- both
+// sides would agree on a value that does not describe the pushed config.
+func TestDesiredHostConfigHash_MovesWithPerMachineOverride(t *testing.T) {
+	r := &ScalewayAppleSiliconMachineReconciler{
+		FleetConfig: bootstrap.Config{HostCPU: 8, HostMemoryMB: 14336, MaxPods: 3},
+	}
+	base := &infrav1.ScalewayAppleSiliconMachine{}
+	overridden := &infrav1.ScalewayAppleSiliconMachine{}
+	overridden.Spec.HostCPU = 10
+
+	if r.desiredHostConfigHash(base) == r.desiredHostConfigHash(overridden) {
+		t.Fatal("a machine overriding HostCPU hashes the same as one on the fleet default; " +
+			"the override is not reaching the fingerprint")
 	}
 }

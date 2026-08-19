@@ -4,9 +4,13 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
   import Mimic
 
   alias Tuist.GitHub.Client, as: GitHubClient
+  alias Tuist.Repo
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Telemetry
   alias Tuist.Runners.Workers.OrphanedRunnersWorker
+  alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobs
 
   setup :verify_on_exit!
 
@@ -17,7 +21,8 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       repository: Keyword.get(opts, :repository, "tuist/tuist"),
       claimed_at: Keyword.get(opts, :claimed_at, ~U[2026-05-16 21:14:06.616167Z]),
       started_at: Keyword.get(opts, :started_at, ~U[2026-05-16 21:14:07.711527Z]),
-      pod_name: Keyword.get(opts, :pod_name, "pod-1")
+      pod_name: Keyword.get(opts, :pod_name, "pod-1"),
+      fleet_name: Keyword.get(opts, :fleet_name, "tuist-tuist-runner-pool-macos-26-6")
     }
   end
 
@@ -46,11 +51,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
       end)
 
-      expect(Jobs, :record_queued, fn wfid ->
-        assert wfid == orphan.workflow_job_id
-        :ok
-      end)
-
       expect(Claims, :release, fn wfid, handle ->
         assert wfid == orphan.workflow_job_id
         assert handle == orphan.claimed_at
@@ -58,6 +58,63 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       end)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "recovery telemetry carries the fleet and how long the job sat stranded" do
+      # A stranded job is invisible to every queue signal: its row is
+      # `running`, so queue depth and queue age both read zero while the
+      # customer watches "waiting for a runner". Recovery is the only
+      # point that knows, via the GitHub cross-check, that the wait was
+      # real — so it has to carry both which pool stranded and how long
+      # the customer actually waited.
+      account = account_fixture()
+
+      orphan =
+        candidate(
+          account_id: account.id,
+          fleet_name: "tuist-tuist-runner-pool-macos-26-6",
+          started_at: DateTime.add(DateTime.utc_now(), -90, :second)
+        )
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [orphan] end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _i, _r, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      expect(Claims, :release, fn _wfid, _handle -> :ok end)
+
+      # Every recovery worker emits this event and telemetry handlers are
+      # VM-global, so `:telemetry_test.attach_event_handlers/2` would forward
+      # a sibling `async: true` module's emission into this mailbox and it
+      # would win the `assert_receive`. The handler runs in the emitting
+      # process, so pinning it to ours keeps only the event this test caused.
+      handler_id = make_ref()
+      test_pid = self()
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      :ok =
+        :telemetry.attach(
+          handler_id,
+          Telemetry.event_name_recovery(),
+          fn _name, measurements, metadata, _config ->
+            if self() == test_pid do
+              send(test_pid, {:recovery, handler_id, measurements, metadata})
+            end
+          end,
+          nil
+        )
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+
+      assert_receive {:recovery, ^handler_id, measurements, metadata}
+      assert metadata.kind == "orphan_requeued"
+      assert metadata.fleet == "tuist-tuist-runner-pool-macos-26-6"
+      assert_in_delta measurements.stranded_ms, 90_000, 5_000
     end
 
     test "leaves real running builds alone when GitHub reports in_progress" do
@@ -77,7 +134,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:ok, %{status: "in_progress", conclusion: nil, runner_name: "runner-x"}}
       end)
 
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
@@ -114,7 +170,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:ok, %{}}
       end)
 
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
@@ -145,7 +200,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
       expect(Jobs, :complete, fn _wfid, "" -> {:ok, %{}} end)
 
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
@@ -168,7 +222,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:error, {:http, 502, "bad gateway"}}
       end)
 
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
@@ -208,11 +261,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
       end)
 
-      expect(Jobs, :record_queued, fn wfid ->
-        assert wfid == orphan.workflow_job_id
-        :ok
-      end)
-
       expect(Claims, :release, fn _wfid, _handle -> :ok end)
 
       assert :ok =
@@ -238,7 +286,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:ok, %{status: "in_progress", conclusion: nil, runner_name: "runner-x"}}
       end)
 
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok =
@@ -268,13 +315,62 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
       reject(&Tuist.VCS.get_github_app_installation_for_account/1)
       reject(&GitHubClient.get_workflow_job/3)
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok =
                OrphanedRunnersWorker.perform(%Oban.Job{
                  args: %{"workflow_job_id" => replacement.workflow_job_id, "pod_name" => "pod-that-stopped"}
                })
+    end
+
+    test "re-queues the lifecycle row when the pod-stopped report already released the claim" do
+      # The real targeted flow: `Claims.release_by_pod_name/1` deleted
+      # the claim at pod stop without touching the lifecycle row, so by
+      # the time this run cross-checks GitHub there is no claim left for
+      # `Claims.release/2` to delete. The row must still move back to
+      # `queued` — dispatch reads it, and GitHub never re-announces a job
+      # it still considers queued — so the worker finishes the release
+      # by handle instead of treating the missing claim as "someone
+      # else's now".
+      account = account_fixture()
+      workflow_job_id = 76_348_428_990
+      pod_name = "pod-stopped"
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          fleet_name: "fleet-targeted",
+          repository: "tuist/tuist"
+        })
+
+      {:ok, _claim} =
+        Claims.attempt(workflow_job_id, account.id, "fleet-targeted", pod_name, %{
+          platform: :linux,
+          vcpus: 1,
+          memory_gb: 1
+        })
+
+      :ok = mark_running!(workflow_job_id, "runner-targeted")
+      assert [^workflow_job_id] = Claims.release_by_pod_name(pod_name)
+      assert Repo.get!(WorkflowJob, workflow_job_id).status == "running"
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _i, _r, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      assert :ok =
+               OrphanedRunnersWorker.perform(%Oban.Job{
+                 args: %{"workflow_job_id" => workflow_job_id, "pod_name" => pod_name}
+               })
+
+      row = Repo.get!(WorkflowJob, workflow_job_id)
+      assert row.status == "queued"
+      assert row.pod_name == nil
     end
 
     test "is a no-op when the job already left the running state" do
@@ -287,5 +383,13 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{args: %{"workflow_job_id" => 42, "pod_name" => "pod-gone"}})
     end
+  end
+
+  # Production threads the caller's own claim handle into `mark_running/3`;
+  # these tests only need "promote the claim that exists", so they read it
+  # back. The guard itself is covered in the `mark_running/3` describe.
+  defp mark_running!(workflow_job_id, runner_name) do
+    claim = Repo.get!(Tuist.Runners.Claim, workflow_job_id)
+    Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
   end
 end

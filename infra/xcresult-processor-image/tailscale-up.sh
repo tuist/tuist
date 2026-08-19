@@ -73,7 +73,11 @@ else
   # this only reaps the short-lived ones (crash loops, quick rollbacks)
   # and the rest accumulate regardless. Note those stale peers stay
   # pinned in every VM's /etc/hosts, which the block below rewrites from
-  # `tailscale status` on each boot. A reaper is the tracked follow-up.
+  # `tailscale status` on each boot. Giving the device a stable name
+  # would not change this: identity is the node key, and an image-booted
+  # VM has no persisted state to carry one across boots. The sweep that
+  # deletes the leftovers is the tailscale-device-reaper CronJob in
+  # infra/helm/tuist/templates/tailscale-device-reaper.yaml.
   #
   # An OAuth-minted key is always tagged and carries no default tag, so
   # the join can't work without TAILSCALE_TAGS; refuse here rather than

@@ -84,7 +84,7 @@ defmodule TuistWeb.RunnerPodsControllerTest do
       {:ok, _} =
         Claims.attempt(99_500, account.id, "fleet-podctrl", pod_name, %{platform: :linux, vcpus: 1, memory_gb: 1})
 
-      :ok = Claims.mark_running(99_500, "runner-stranded")
+      :ok = mark_running!(99_500, "runner-stranded")
 
       ok_tokenreview_stub()
 
@@ -111,7 +111,7 @@ defmodule TuistWeb.RunnerPodsControllerTest do
       {:ok, _} =
         Claims.attempt(99_501, account.id, "fleet-podctrl", pod_name, %{platform: :linux, vcpus: 1, memory_gb: 1})
 
-      :ok = Claims.mark_running(99_501, "runner-stranded-2")
+      :ok = mark_running!(99_501, "runner-stranded-2")
 
       ok_tokenreview_stub()
 
@@ -248,5 +248,13 @@ defmodule TuistWeb.RunnerPodsControllerTest do
 
       assert json_response(conn, 503)["error"] =~ "kubernetes"
     end
+  end
+
+  # Production threads the caller's own claim handle into `mark_running/3`;
+  # these tests only need "promote the claim that exists", so they read it
+  # back. The guard itself is covered in the `mark_running/3` describe.
+  defp mark_running!(workflow_job_id, runner_name) do
+    claim = Repo.get!(Claim, workflow_job_id)
+    Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
   end
 end

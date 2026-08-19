@@ -37,13 +37,12 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
       label change mid-rollout, which is persistent — waiting would
       delay a bad close rather than prevent one.
 
-  ## CH before PG
+  ## Releasing is only half the job
 
-  A released claim writes `queued` to ClickHouse *before* the Postgres
-  row is deleted. Reversed, a Pod that vanished while CH still read
-  `claimed` strands the workflow_job: `pick_queued` only selects
-  `queued`, and with no PG row left nothing can recover it. A CH failure
-  skips that claim so the pair retries intact.
+  The workflow_job also has to become claimable again.
+  `Claims.release_pod_missing/2` deletes the claim and re-queues the
+  lifecycle row in one transaction, so a release either fully returns the
+  job to the queue or does nothing.
 
   Closed sessions resolve their `ended_at` from the job's terminal
   completion where there is one; see `RunnerSessions.close_pod_missing/3`.
@@ -54,9 +53,9 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.Claims
-  alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.WorkflowJobs
 
   require Logger
 
@@ -198,7 +197,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
 
     # Oldest first, so a capped batch drains the worst leaks.
     batch = Enum.take(missing, @max_closes_per_tick)
-    completions = fetch_terminal_completions(batch)
+    completions = terminal_completions(batch)
     closed = Enum.filter(batch, &close_session(&1, completions, now))
     count = length(closed)
 
@@ -241,57 +240,22 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
       Map.get(completions, session.workflow_job_id)
   end
 
-  # One ClickHouse query per tick. A failure degrades the batch to the
-  # billing clamp rather than blocking the close.
-  defp fetch_terminal_completions([]), do: %{}
+  # Freeing the slot is only half the job — the workflow_job must be
+  # claimable again. `release_pod_missing/2` deletes the claim and
+  # re-queues the lifecycle row in one transaction; a terminal row never
+  # matches the requeue guard, so a finished job is never resurrected.
+  defp recover_one(%{workflow_job_id: workflow_job_id, pod_missing_since: handle}) do
+    Claims.release_pod_missing(workflow_job_id, handle) == :ok
+  end
 
-  defp fetch_terminal_completions(candidates) do
+  defp terminal_completions([]), do: %{}
+
+  defp terminal_completions(candidates) do
     candidates
     |> Enum.flat_map(&[&1.executed_workflow_job_id, &1.workflow_job_id])
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
-    |> Jobs.terminal_completions()
-  rescue
-    e ->
-      Logger.warning("runners: terminal completion lookup failed; closing at the billing clamp",
-        ch_error: Exception.message(e)
-      )
-
-      %{}
-  end
-
-  # CH before PG, the contract `Claims.list_stale/1` documents.
-  #
-  # Freeing the slot is only half the job. A Pod can vanish while its
-  # ClickHouse row still reads `claimed` or `running` — the crash window
-  # between `mark_running/2` and `Jobs.record_running/2` produces exactly
-  # that, and production had rows stuck there for over ten days. Deleting
-  # the PG claim first would free the capacity and strand the
-  # workflow_job for good: `pick_queued` only selects `queued`, and with
-  # no PG row left no later sweep can put it back.
-  #
-  # `record_queued/1` no-ops when a completion is already recorded, so a
-  # finished job is never resurrected — it just loses its claim.
-  #
-  # A CH failure means skip: the claim stays, the handle stays, and the
-  # next tick retries the pair.
-  defp recover_one(%{workflow_job_id: workflow_job_id, pod_missing_since: handle}) do
-    case safe_record_queued(workflow_job_id) do
-      :ok -> Claims.release_pod_missing(workflow_job_id, handle) == :ok
-      :error -> false
-    end
-  end
-
-  defp safe_record_queued(workflow_job_id) do
-    Jobs.record_queued(workflow_job_id)
-  rescue
-    e ->
-      Logger.warning("runners: record_queued failed in pod reconciliation; will retry next tick",
-        workflow_job_id: workflow_job_id,
-        ch_error: Exception.message(e)
-      )
-
-      :error
+    |> WorkflowJobs.terminal_completions()
   end
 
   defp observed_pod_names do

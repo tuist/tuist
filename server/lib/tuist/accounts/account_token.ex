@@ -114,6 +114,9 @@ defmodule Tuist.Accounts.AccountToken do
 
   def scim_scope, do: @scim_scope
 
+  @doc "The preset scope a credential needs to act through the MCP endpoint."
+  def mcp_scope, do: @mcp_scope
+
   def expand_scopes(scopes) do
     Enum.flat_map(scopes, fn scope ->
       Map.get(@scope_groups, scope, [scope])
