@@ -35,7 +35,10 @@ defmodule Tuist.Kura.Demand do
 
   Losing a flush window to a crash costs at most that window's worth of
   recency on a clock measured in days, so the buffer is deliberately not
-  durable.
+  durable. Each node buffers and flushes independently for the same reason:
+  a shared buffer would need coordination to protect a clock that does not
+  need protecting, and concurrent flushes cannot lose to each other because
+  the upsert keeps the greater of the two timestamps.
   """
   use GenServer
 
@@ -78,9 +81,18 @@ defmodule Tuist.Kura.Demand do
   def record(_account_id), do: :ok
 
   @doc """
-  Drains the buffer into `kura_account_region_lifecycles`. Called on the flush
-  timer, and directly by the archival sweep so a demand recorded moments
-  earlier is never read as absence.
+  Drains this node's buffer into `kura_account_region_lifecycles`. Called on
+  the flush timer, and directly by the archival sweep so demand recorded
+  moments earlier on the sweeping node is not read as absence.
+
+  Every node runs its own buffer and its own flush timer, so a sweep drains
+  only what its own node holds; the other nodes carry up to a flush interval
+  of demand the sweep cannot see. That is a minute against a window measured
+  in days, and it self-corrects rather than costing an instance: the demand
+  lands on the next flush, and drain resolution cancels an archival the
+  moment it does, well inside the drain window. Making the sweep drain the
+  cluster would trade real coordination for a minute of recency on a 90-day
+  clock.
 
   The drain runs in the calling process rather than in the buffer: the table
   is public and `:ets.take/2` is atomic, so concurrent flushes are safe, and
