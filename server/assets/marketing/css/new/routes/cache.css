@@ -768,7 +768,7 @@
 
           & > [data-part="description"] {
             margin-top: var(--noora-spacing-4);
-            color: var(--noora-surface-label-primary);
+            color: var(--noora-surface-label-secondary);
             font: var(--noora-font-weight-regular) var(--noora-font-body-large);
           }
         }
