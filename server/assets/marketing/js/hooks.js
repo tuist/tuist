@@ -13,7 +13,7 @@ import { CacheChart } from "./hooks/cache-chart.js";
 import { CacheHeroChart } from "./hooks/cache-hero-chart.js";
 import { CacheMinimalOverhead } from "./hooks/cache-minimal-overhead.js";
 import { CacheObservability } from "./hooks/cache-observability.js";
-import { CacheBuildGraph } from "./hooks/cache-build-graph.js";
+import { CacheBuildDecks } from "./hooks/cache-build-decks.js";
 import { CounterAnimation } from "./hooks/counter-animation.js";
 import { PlatformBackground } from "./hooks/platform-background.js";
 import { DitherTexture } from "./hooks/dither-texture.js";
@@ -61,7 +61,7 @@ const Hooks = {
   CacheHeroChart,
   CacheMinimalOverhead,
   CacheObservability,
-  CacheBuildGraph,
+  CacheBuildDecks,
   CounterAnimation,
   BlogViewPreference,
 };
