@@ -1116,7 +1116,7 @@ endpoints, which reads as "no traffic" rather than "no backend".
 
 That is how `registry/registry-pg-1` — the sole instance of a
 CloudNativePG cluster — sat `Pending` in production from 2026-07-06 to
-2026-08-18 without anyone noticing. Its volume had been provisioned
+2026-08-19 without anyone noticing. Its volume had been provisioned
 against a node that was later destroyed, and Hetzner Cloud Volumes are
 location-bound, so the replacement Pod could not satisfy the volume's
 node affinity anywhere in the cluster. All three of that cluster's
@@ -1124,13 +1124,48 @@ Services served zero endpoints for six weeks.
 
 ```promql
 max by (cluster, namespace, pod) (
-  kube_pod_status_unschedulable{namespace!="tuist-runners"}
+  kube_pod_status_unschedulable{
+    cluster="tuist-production",
+    namespace!="tuist-runners"
+  }
 ) == 1
 ```
 
 - Pending period: 30 minutes
 - Severity: warning
+- No-data state: OK, and the same for the execution-error state
 - Summary: `Pod {{ $labels.namespace }}/{{ $labels.pod }} has been unschedulable for 30 minutes in {{ $labels.cluster }}`
+
+The no-data state is not incidental. Production's healthy baseline for
+this query is *no series at all*, so the rule sits in no-data rather than
+at zero whenever nothing is wrong. Left at the `Alerting` default it
+would fire permanently from the moment it is created.
+
+The `cluster` scope is also load-bearing, and this rule was documented
+without it first. Only production has a clean baseline. At the time of
+writing `tuist-staging` carries 15 permanently unschedulable Pods, so the
+unscoped query fires 15 times the instant it is saved:
+
+- 14 in `kura`. Eleven are `kura-<account>-staging` instances stranded in
+  the retired `hetzner-staging-runners` region, whose `kura` node pool was
+  deleted with it; their Postgres rows are gone, so the row-driven
+  reconciler cannot see the orphaned `KuraInstance` CRs and they sit
+  unschedulable indefinitely. The other three belong to
+  `kgw-…-eu-central-controller`, a Deployment left behind when the
+  per-account Kura gateway was removed in
+  [#11644](https://github.com/tuist/tuist/pull/11644).
+- 1 in `tailscale-operator`, from subnet-router Pod churn.
+
+Those are real cruft rather than a reason to widen the rule, but they
+have to be cleared before the scope can extend past production, or the
+alert is noise from its first evaluation. This is the failure mode the
+*Worker node pool stuck mid-rollout* rule warns about in its own pending-
+period note: a rule that cries wolf on the expected path gets muted, and
+a muted rule is worth less than no rule.
+
+Validate any change to this query against live data before saving it. The
+staging noise above was invisible in review and only showed up by running
+the expression over a 48-hour window.
 
 No metric change is needed. The kube-state-metrics tuning in
 [`values.yaml`](./values.yaml) already keeps `kube_pod_status_unschedulable`
@@ -1152,9 +1187,9 @@ scheduler could not place them.
 Thirty minutes clears the ordinary path where a Pod waits on the cluster
 autoscaler to add a node, and is short enough that a volume-affinity or
 taint mistake surfaces the same morning instead of six weeks later. This
-is a warning rather than a page because it fires on any workload in any
-namespace: the Pod that motivated it was critical, but most Pods that
-briefly cannot schedule are not.
+is a warning rather than a page because it fires on any production
+workload in any namespace: the Pod that motivated it was critical, but
+most Pods that briefly cannot schedule are not.
 
 ### Kubernetes request latency
 
