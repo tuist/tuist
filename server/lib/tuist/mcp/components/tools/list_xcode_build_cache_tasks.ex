@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks do
   use Tuist.MCP.Tool,
     name: "list_xcode_build_cache_tasks",
     title: "List Xcode Build Cache Tasks",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{

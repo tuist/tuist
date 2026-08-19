@@ -1006,12 +1006,15 @@ healthy while it silently stops receiving template changes. That is how
 `tuist-runners-linux` went two months — from 2026-06-17 — with two Ready
 Machines, one of them up to date, and no signal at all.
 
-Two distinct failures land here. A bare-metal pool whose hosts are all
-claimed cannot surge a replacement, so the roll never starts (fixed by
-`maxSurge: 0` / `maxUnavailable: 1` on the `bare-metal-worker` class). And a
-drain that cannot complete holds the roll open — expected briefly, since
-runner Pods are drained with `WaitCompleted` and a node waits for its
-in-flight CI jobs, but not for hours.
+This covers a roll that has not yet *produced* every Machine it needs, most
+importantly a bare-metal pool whose hosts are all claimed and so cannot surge
+a replacement, meaning the roll never starts (fixed by `maxSurge: 0` /
+`maxUnavailable: 1` on the `bare-metal-worker` class).
+
+It does **not** cover a drain that cannot finish. Once the last replacement is
+Ready, `up_to_date == spec` even though the old Machine is still stuck in
+`Deleting`, and this query goes quiet. "Worker pool has a Machine it cannot
+delete" below is the rule for that half.
 
 ```promql
 kube_customresource_machinedeployment_up_to_date_replicas{
@@ -1040,6 +1043,118 @@ than firing late — an alert that cries wolf on the expected path gets
 muted, and this is the only signal covering a class of failure that
 previously went unnoticed for two months. Twenty-four hours clears the
 worst case with margin and still catches a wedge the next day.
+
+### Worker pool has a Machine it cannot delete
+
+Catches a Machine whose drain never completes. Cluster API's ClusterClass sets
+`nodeDrainTimeoutSeconds: 0`, meaning wait forever, because runner Pods drain
+with `WaitCompleted` and any finite cap is a promise to kill a customer's CI job.
+The accepted cost is that a drain which can *never* finish holds the roll open
+indefinitely, and the whole arrangement is predicated on that being loud.
+
+Every other exported series is blind to it. The pool keeps producing its full
+complement of up-to-date, Ready Machines, so `up_to_date`, `ready`, and
+`available` all equal `spec` while the surplus Machine sits in `Deleting`.
+Only `status.replicas`, which counts Machines the MachineDeployment still owns
+including ones being deleted, rises above `spec`.
+
+That is how `tuist-md-processor` went 14 days from 2026-07-31 at
+`spec=2 replicas=3 up_to_date=2 ready=2`, blocked on two single-instance CNPG
+clusters (`tuist-ops/tuist-ops-pg`, `once-production/once-postgres`) whose
+`<cluster>-primary` PodDisruptionBudget selects the only pod they have and can
+therefore never allow a disruption.
+
+```promql
+kube_customresource_machinedeployment_replicas{
+  cluster="tuist-management"
+}
+>
+kube_customresource_machinedeployment_spec_replicas{
+  cluster="tuist-management"
+}
+```
+
+- Pending period: 8 hours
+- Summary: `Worker pool {{ $labels.machinedeployment }} ({{ $labels.workload_cluster }}) has a Machine it cannot delete`
+
+Two healthy paths put `replicas` above `spec`, and the pending period has to
+clear the slower of them.
+
+A **rollout** surges a replacement before deleting the old Machine, but only on
+the `hcloud-worker` class: `bare-metal-worker` runs `maxSurge: 0` and never
+surges. On an hcloud pool the slowest legitimate term is CNPG's
+`terminationGracePeriodSeconds: 1800`, so a three-node pool rolling
+sequentially holds a surplus Machine for close to two hours.
+
+A **scale-down** is the binding case, and it is the reason this is not a
+four-hour rule. `maxSurge` governs rollouts only. Lowering `spec.replicas`
+puts `replicas` above `spec` immediately, on every class including bare metal,
+and the gap stays open for the whole drain of the Machine being removed.
+Cluster API drains a scale-down exactly like a rollout, so on a runner pool
+that means `WaitCompleted` waiting on an in-flight CI job, legitimately up to
+six hours. Scaling `runners-linux` from two replicas to one would otherwise
+page at four hours every time. Eight clears the six-hour job ceiling with
+margin.
+
+Excluding the runner pools by name and keeping four hours was the alternative.
+Rejected: it hardcodes pool names that rot, and it would leave a wedged drain
+on exactly the pools where drains are slowest with no coverage at all. One
+rule that fires late on every pool beats a fast rule with a hole in it.
+
+Still far tighter than the 24 hours on "stuck mid-rollout", which additionally
+has to sit above a *whole* multi-node bare-metal roll rather than a single
+Machine's drain.
+
+### Pod cannot be scheduled
+
+Catches a Pod the scheduler has given up placing. Nothing else in this
+document covers it, because an unscheduled Pod produces none of the
+signals the other workload rules read: it has no container, so there is
+no waiting reason, no termination reason, and no restart count, and it
+never had a ready endpoint to lose. Its Services keep existing with zero
+endpoints, which reads as "no traffic" rather than "no backend".
+
+That is how `registry/registry-pg-1` — the sole instance of a
+CloudNativePG cluster — sat `Pending` in production from 2026-07-06 to
+2026-08-18 without anyone noticing. Its volume had been provisioned
+against a node that was later destroyed, and Hetzner Cloud Volumes are
+location-bound, so the replacement Pod could not satisfy the volume's
+node affinity anywhere in the cluster. All three of that cluster's
+Services served zero endpoints for six weeks.
+
+```promql
+max by (cluster, namespace, pod) (
+  kube_pod_status_unschedulable{namespace!="tuist-runners"}
+) == 1
+```
+
+- Pending period: 30 minutes
+- Severity: warning
+- Summary: `Pod {{ $labels.namespace }}/{{ $labels.pod }} has been unschedulable for 30 minutes in {{ $labels.cluster }}`
+
+No metric change is needed. The kube-state-metrics tuning in
+[`values.yaml`](./values.yaml) already keeps `kube_pod_status_unschedulable`
+cluster-wide while dropping the rest of `kube_pod_*` for the runner
+namespace, on the grounds that it is a cheap placement signal — so the
+series for this incident existed in Grafana Cloud the whole time and
+nothing read it.
+
+`tuist-runners` is excluded rather than alerted on. Unschedulable Pods
+are an expected steady state there: the autoscaler deliberately asks for
+more replicas than the fleet can bin-pack, and the surplus stays
+unschedulable until hosts free up. The real runner-side failure is
+already covered by *Runner queue not draining*, which measures queue age
+and does not confuse a capacity ceiling with a fault. Idle Linux runners
+would not have matched this rule in any case — they are `Pending` because
+their dispatch poller runs as an init container, not because the
+scheduler could not place them.
+
+Thirty minutes clears the ordinary path where a Pod waits on the cluster
+autoscaler to add a node, and is short enough that a volume-affinity or
+taint mistake surfaces the same morning instead of six weeks later. This
+is a warning rather than a page because it fires on any workload in any
+namespace: the Pod that motivated it was critical, but most Pods that
+briefly cannot schedule are not.
 
 ### Kubernetes request latency
 

@@ -332,6 +332,17 @@ impl MemoryController {
         self.pressure() == MemoryPressure::Normal
     }
 
+    /// Copy-forward driven by a REAPI read path that vouched for the blob
+    /// (`GetActionResult`, `FindMissingBlobs`) runs one tier deeper than
+    /// serve-path promotion. Those RPCs tell the client the blob will still be
+    /// there for its follow-up fetch, so skipping the refresh at `Constrained`
+    /// withdraws that guarantee in the regime where eviction is most likely to
+    /// collect the blob first. It still stops at `Critical`, where the read
+    /// path's own write would compound the squeeze.
+    pub fn allow_read_triggered_refresh(&self) -> bool {
+        self.pressure() != MemoryPressure::Critical
+    }
+
     /// Gates the *usage* (metering) outbox only. Replication delivery is
     /// deliberately never paused: its durable backlog is bounded by
     /// `KURA_OUTBOX_MAX_DEPTH`, and a full replication outbox rejects cache

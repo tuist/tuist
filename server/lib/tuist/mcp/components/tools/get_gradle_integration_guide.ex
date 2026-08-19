@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleIntegrationGuide do
   use Tuist.MCP.Tool,
     name: "get_gradle_integration_guide",
     title: "Get Gradle Integration Guide",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{

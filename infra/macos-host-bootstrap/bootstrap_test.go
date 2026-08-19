@@ -5,10 +5,14 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -1092,18 +1096,147 @@ func TestRenderTailnetResolverScript_FlushesTheNegativeCache(t *testing.T) {
 	}
 }
 
-// The resolver has to reach existing hosts, not just newly bootstrapped
-// ones. It does that only by being part of the fleet-wide fingerprint the
-// drift loop compares against.
-func TestHostConfigHash_CoversTheTailnetResolver(t *testing.T) {
-	base := Config{NodeName: "n1", SSHUser: "m1", TartKubeletBinary: []byte("bin")}
-	h := HostConfigHash(base)
-	// Recomputing must be stable, or every reconcile would see drift and
-	// re-push to every host forever.
-	if h != HostConfigHash(base) {
-		t.Fatal("HostConfigHash must be deterministic")
+// hashPartInstaller names the step that re-applies each part of
+// HostConfigHash on an already-bootstrapped host, across both of the
+// sections it hashes: the rendered scripts and the embedded binary SHAs.
+//
+// Being in the hash is not the same as reaching a host, and the gap between
+// the two is silent in the worst possible way: a part that moves the
+// fingerprint makes the drift loop roll every mini, and if nothing on the
+// update path re-applies it, the roll succeeds and stamps the host
+// converged without the host ever changing. The fleet then reports itself
+// correct while carrying none of the config. A part is therefore a promise
+// that UpdateTartKubelet keeps, and this table is where the promise is
+// written down.
+//
+// Several parts share an installer, which is why this maps to a step rather
+// than pairing names one to one: installVMEgressFirewall renders both the
+// firewall anchor and the NAT helper, and each binary rides the same step
+// that installs the script driving it.
+//
+// Bootstrap-only work must not appear in the hash at all rather than
+// appear here unmapped: TartTarball is the standing example, omitted
+// because the hypervisor cannot be swapped under running VMs.
+var hashPartInstaller = map[string]string{
+	"firewall":             "installVMEgressFirewall",
+	"vmnat":                "installVMEgressFirewall",
+	"pn-interface":         "installVMCachePNInterface",
+	"runner-cache-volume":  "installRunnerCacheVolume",
+	"launchd":              "loadTartKubeletLaunchd",
+	"launchd-plist":        "loadTartKubeletLaunchd",
+	"tailscale":            "installTailscale",
+	"node-exporter":        "installNodeExporter",
+	"tailnet-resolver":     "installTailnetResolver",
+	"log-shipper":          "installLogShipper",
+	"tart-kubelet-install": "installTartKubelet",
+	"ssh-reachability":     "installSSHReachability",
+	"ssh-ingress-guard":    "installSSHIngressGuard",
+
+	"tart-kubelet":         "installTartKubelet",
+	"tailscale-binaries":   "installTailscale",
+	"node-exporter-binary": "installNodeExporter",
+	"log-shipper-binary":   "installLogShipper",
+}
+
+// Reads the source rather than the behaviour because the invariant is
+// structural: both sides are lists a person edits, and nothing in the type
+// system ties one to the other. Driving a real UpdateTartKubelet would need
+// a live SSH host and would still only prove the steps it happened to
+// reach.
+func TestUpdateTartKubelet_AppliesEveryHashedStep(t *testing.T) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "bootstrap.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse bootstrap.go: %v", err)
 	}
-	if !strings.Contains(renderTailnetResolverScript(), "100.100.100.100") {
-		t.Fatal("resolver script missing from the hashed set")
+
+	parts := hashedPartNames(t, file)
+	if len(parts) == 0 {
+		t.Fatal("found no hashed part names in HostConfigHash; the part table moved or changed shape")
 	}
+	called := calledFunctions(t, file, "UpdateTartKubelet")
+
+	for _, part := range parts {
+		installer, mapped := hashPartInstaller[part]
+		if !mapped {
+			t.Errorf("HostConfigHash part %q has no entry in hashPartInstaller: name the step that re-applies it on the drift path, or drop the part from the hash if the work is bootstrap-only", part)
+			continue
+		}
+		if !called[installer] {
+			t.Errorf("HostConfigHash part %q is applied by %s, which UpdateTartKubelet never calls: a roll would stamp the host converged without applying it", part, installer)
+		}
+	}
+
+	hashed := make(map[string]bool, len(parts))
+	for _, part := range parts {
+		hashed[part] = true
+	}
+	for part := range hashPartInstaller {
+		if !hashed[part] {
+			t.Errorf("hashPartInstaller names %q, which HostConfigHash no longer hashes; drop the stale entry", part)
+		}
+	}
+}
+
+// hashedPartNames returns the `name` field of every element of the
+// `[]struct{ name, script string }` table HostConfigHash iterates.
+func hashedPartNames(t *testing.T, file *ast.File) []string {
+	t.Helper()
+
+	var names []string
+	ast.Inspect(findFunc(t, file, "HostConfigHash"), func(n ast.Node) bool {
+		lit, ok := n.(*ast.CompositeLit)
+		if !ok {
+			return true
+		}
+		// The part table is the only composite literal here whose elements
+		// are themselves two-string literals.
+		for _, elt := range lit.Elts {
+			inner, ok := elt.(*ast.CompositeLit)
+			if !ok || len(inner.Elts) != 2 {
+				return true
+			}
+			name, ok := inner.Elts[0].(*ast.BasicLit)
+			if !ok || name.Kind != token.STRING {
+				return true
+			}
+			unquoted, err := strconv.Unquote(name.Value)
+			if err != nil {
+				t.Fatalf("unquote part name %s: %v", name.Value, err)
+			}
+			names = append(names, unquoted)
+		}
+		return false
+	})
+	return names
+}
+
+// calledFunctions returns the names of the functions called directly in the
+// named function's body.
+func calledFunctions(t *testing.T, file *ast.File, name string) map[string]bool {
+	t.Helper()
+
+	called := map[string]bool{}
+	ast.Inspect(findFunc(t, file, name), func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
+			if ident, ok := call.Fun.(*ast.Ident); ok {
+				called[ident.Name] = true
+			}
+		}
+		return true
+	})
+	return called
+}
+
+func findFunc(t *testing.T, file *ast.File, name string) *ast.FuncDecl {
+	t.Helper()
+
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if ok && fn.Recv == nil && fn.Name.Name == name {
+			return fn
+		}
+	}
+	t.Fatalf("no function %s in bootstrap.go", name)
+	return nil
 }

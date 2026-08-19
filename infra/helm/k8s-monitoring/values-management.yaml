@@ -158,10 +158,35 @@ k8s-monitoring:
                   # receiving template changes. tuist-runners-linux sat that
                   # way from 2026-06-17: two Ready Machines, one up to date,
                   # unnoticed for two months. This is the series that gives
-                  # it away, and it also covers a drain that cannot finish.
+                  # it away.
                   - name: machinedeployment_up_to_date_replicas
                     help: Worker replicas running the current template.
                     each:
                       type: Gauge
                       gauge:
                         path: [status, upToDateReplicas]
+                  # Surplus Machines, which up-to-date-vs-spec cannot see. The
+                  # up-to-date series only covers a roll that has not yet
+                  # *produced* every Machine it needs; it goes blind the moment
+                  # the last replacement is Ready and the only thing left is
+                  # deleting the old one. A drain that cannot finish is exactly
+                  # that shape: up-to-date == spec while a surplus Machine sits
+                  # in Deleting forever.
+                  #
+                  # That is how tuist-md-processor went 14 days from
+                  # 2026-07-31 reporting 2/2 up to date with a third Machine
+                  # stuck draining behind two single-instance CNPG clusters
+                  # whose `<cluster>-primary` PDB can never allow a disruption.
+                  # `nodeDrainTimeoutSeconds: 0` in the ClusterClass waits
+                  # forever on purpose, so this series is the loudness that
+                  # arrangement is predicated on.
+                  #
+                  # status.replicas counts every Machine the MachineDeployment
+                  # still owns, deleting ones included, so it is the only
+                  # exported field that exceeds spec while a drain hangs.
+                  - name: machinedeployment_replicas
+                    help: Current worker replicas, including Machines still being deleted.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, replicas]

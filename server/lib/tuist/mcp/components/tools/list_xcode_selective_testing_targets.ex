@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeTestTargets do
   use Tuist.MCP.Tool,
     name: "list_xcode_test_targets",
     title: "List Xcode Selective Testing Targets",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{

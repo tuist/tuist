@@ -11,6 +11,7 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
   alias Tuist.MCP.Components.Tools.ListXcodeBuilds
   alias Tuist.MCP.Components.Tools.ListXcodeBuildTargets
   alias Tuist.Projects
+  alias Tuist.Storage
 
   defp conn_with_subject do
     %Plug.Conn{assigns: %{current_subject: :subject}}
@@ -64,7 +65,7 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
     end
 
     test "requires :build_read authorization" do
-      project = %{id: 1, name: "app"}
+      project = %{id: 1, name: "app", account: %{name: "acme"}}
       stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
 
       expect(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project ->
@@ -78,13 +79,13 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
         })
 
       assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} = result
-      assert text == "You do not have access to project: acme/app"
+      assert text == ~s(You do not have access to project: acme/app. It belongs to the account "acme".)
     end
   end
 
   describe "get_xcode_build" do
-    test "returns build details" do
-      project = %{id: 1, name: "app"}
+    test "returns build details and an archive download URL" do
+      project = %{id: 1, name: "app", account: %{name: "acme"}}
 
       stub(Builds, :get_build, fn "build-1" ->
         {:ok,
@@ -113,6 +114,15 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       stub(Projects, :get_project_by_id, fn 1 -> project end)
       stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
 
+      # Signed rather than checked for existence, so the caller pays no storage
+      # round trip for build details they may only want the metadata from.
+      stub(Storage, :generate_download_url, fn object_key, _actor, opts ->
+        assert Keyword.fetch!(opts, :expires_in) == 900
+        "https://storage.test/#{object_key}"
+      end)
+
+      reject(&Storage.get_object_size/2)
+
       result = GetXcodeBuild.call(conn_with_subject(), %{"build_run_id" => "build-1"})
 
       assert %{"content" => [%{"type" => "text", "text" => text}]} = result
@@ -120,6 +130,7 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       assert result["id"] == "build-1"
       assert result["duration"] == 5000
       assert result["xcode_version"] == "15.0"
+      assert result["archive_url"] == "https://storage.test/acme/app/builds/build-1/build.zip"
     end
   end
 
