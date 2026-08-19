@@ -59,7 +59,7 @@ Describe 'warm rollout lifecycle'
     The variable liveness_body should include '"status":"ok"'
     The variable liveness_body should not include '"ring_members"'
 
-    capture_into liveness_cluster_body curl -sS "${KURA_US_URL}/up?cluster=true" || return 1
+    capture_into liveness_cluster_body curl -sS "${KURA_US_URL}/status/cluster" || return 1
     The variable liveness_cluster_body should include '"ring_members"'
 
     capture_into draining_headers \

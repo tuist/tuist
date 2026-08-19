@@ -64,10 +64,8 @@ const HTTP_RESPONSE_STREAM_RESERVATION_BYTES: usize =
 const ROUTE_UP: &str = "/up";
 const ROUTE_READY: &str = "/ready";
 const ROUTE_ROLLOUT_STATUS: &str = "/status/rollout";
+const ROUTE_STATUS_CLUSTER: &str = "/status/cluster";
 const ROUTE_METRICS: &str = "/metrics";
-/// Opt-in flag on `/up` that adds the node's cluster view to the liveness
-/// payload. Never set by the Kubernetes probes.
-const UP_CLUSTER_QUERY_PARAM: &str = "cluster";
 const ROUTE_V1_CACHE: &str = "/v1/cache/{hash}";
 const ROUTE_API_METRO_CACHE: &str = "/api/metro/cache/{cache_key}";
 const ROUTE_API_CACHE_KEYVALUE_ID: &str = "/api/cache/keyvalue/{cas_id}";
@@ -88,10 +86,11 @@ const ROUTE_INTERNAL_REPLICATE_ARTIFACT: &str = "/_internal/replicate/artifact";
 const ROUTE_INTERNAL_REPLICATE_NAMESPACE: &str = "/_internal/replicate/namespace";
 const UNMATCHED_ROUTE: &str = "/_unmatched";
 
-const EXACT_ROUTE_TEMPLATES: [&str; 14] = [
+const EXACT_ROUTE_TEMPLATES: [&str; 15] = [
     ROUTE_UP,
     ROUTE_READY,
     ROUTE_ROLLOUT_STATUS,
+    ROUTE_STATUS_CLUSTER,
     ROUTE_METRICS,
     ROUTE_API_CACHE_KEYVALUE,
     ROUTE_API_CACHE_MODULE_START,
@@ -250,6 +249,7 @@ fn public_routes() -> Router<SharedState> {
         .route(ROUTE_UP, get(up))
         .route(ROUTE_READY, get(ready))
         .route(ROUTE_ROLLOUT_STATUS, get(rollout_status))
+        .route(ROUTE_STATUS_CLUSTER, get(cluster_status))
         .route(ROUTE_METRICS, get(metrics_handler))
         .route(ROUTE_V1_CACHE, get(get_nx).put(put_nx))
         .route(ROUTE_API_METRO_CACHE, get(get_metro).put(put_metro))
@@ -1166,7 +1166,7 @@ fn skips_authorization(route: &str) -> bool {
 fn is_probe_route(route: &str) -> bool {
     matches!(
         route,
-        ROUTE_UP | ROUTE_READY | ROUTE_ROLLOUT_STATUS | ROUTE_METRICS
+        ROUTE_UP | ROUTE_READY | ROUTE_ROLLOUT_STATUS | ROUTE_STATUS_CLUSTER | ROUTE_METRICS
     )
 }
 
@@ -1434,42 +1434,23 @@ fn status_from_u16(status: u16) -> StatusCode {
 // Liveness. Answers from process-local configuration only: no peer
 // round-trips, no cluster aggregation, and no lock a loaded request path can
 // hold. A failed probe here restarts the pod, so anything the handler waits
-// on turns "this node is busy" into "this node is dead". The node's view of
-// the cluster is served from the same route behind `?cluster=true`.
-async fn up(
-    Query(params): Query<HashMap<String, String>>,
-    State(state): State<SharedState>,
-) -> Response {
-    match cluster_view_requested(&params) {
-        Ok(true) => Json(up_cluster_payload(&state).await).into_response(),
-        Ok(false) => Json(up_liveness_payload(&state)).into_response(),
-        Err(message) => error_response(StatusCode::BAD_REQUEST, message),
-    }
-}
-
-fn cluster_view_requested(params: &HashMap<String, String>) -> Result<bool, String> {
-    Ok(params
-        .get(UP_CLUSTER_QUERY_PARAM)
-        .map(|value| {
-            value
-                .parse::<bool>()
-                .map_err(|error| format!("Invalid cluster: {error}"))
-        })
-        .transpose()?
-        .unwrap_or(false))
-}
-
-fn up_liveness_payload(state: &SharedState) -> serde_json::Value {
-    serde_json::json!({
+// on turns "this node is busy" into "this node is dead". This route has no
+// variant that relaxes that: the node's view of the cluster lives on
+// ROUTE_STATUS_CLUSTER, where request classification (which keys off the path
+// template, never the query) can tell the two costs apart.
+async fn up(State(state): State<SharedState>) -> impl IntoResponse {
+    Json(serde_json::json!({
         "status": "ok",
         "tenant_id": state.config.tenant_id.clone(),
         "region": state.config.region.clone(),
         "node": state.config.region.clone(),
         "node_url": state.config.node_url.clone(),
-    })
+    }))
 }
 
-async fn up_cluster_payload(state: &SharedState) -> serde_json::Value {
+// The node's own view of the cluster. Aggregates under the readiness lock, so
+// it is deliberately off the liveness path.
+async fn cluster_status(State(state): State<SharedState>) -> impl IntoResponse {
     let cluster = state.cluster_status_report().await;
     let mut regions = cluster.peer_regions;
     regions.push(state.config.region.clone());
@@ -1479,7 +1460,7 @@ async fn up_cluster_payload(state: &SharedState) -> serde_json::Value {
     nodes.push(state.config.node_url.clone());
     nodes.sort();
 
-    serde_json::json!({
+    Json(serde_json::json!({
         "status": "ok",
         "generation": cluster.generation,
         "tenant_id": state.config.tenant_id.clone(),
@@ -1491,7 +1472,7 @@ async fn up_cluster_payload(state: &SharedState) -> serde_json::Value {
         "members": nodes.clone(),
         "regions": regions,
         "nodes": nodes,
-    })
+    }))
 }
 
 async fn ready(State(state): State<SharedState>) -> impl IntoResponse {
@@ -3560,7 +3541,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn up_cluster_view_includes_current_node_and_known_members() {
+    async fn cluster_status_includes_current_node_and_known_members() {
         let context = test_context(|config| {
             config.region = "us-east".into();
         })
@@ -3580,7 +3561,7 @@ mod tests {
         let response = router(context.state.clone())
             .oneshot(
                 Request::builder()
-                    .uri("/up?cluster=true")
+                    .uri("/status/cluster")
                     .body(Body::empty())
                     .expect("failed to build request"),
             )
@@ -3606,7 +3587,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn up_cluster_view_reports_unique_regions_separately_from_node_members() {
+    async fn cluster_status_reports_unique_regions_separately_from_node_members() {
         let context = test_context(|config| {
             config.region = "eu-central".into();
         })
@@ -3632,7 +3613,7 @@ mod tests {
         let response = router(context.state.clone())
             .oneshot(
                 Request::builder()
-                    .uri("/up?cluster=true")
+                    .uri("/status/cluster")
                     .body(Body::empty())
                     .expect("failed to build request"),
             )
@@ -3693,7 +3674,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn up_cluster_view_is_opt_in_per_query_value() {
+    async fn up_serves_only_the_liveness_payload_whatever_the_query() {
         let context = test_context(|_| {}).await;
         context
             .state
@@ -3707,11 +3688,7 @@ mod tests {
             )
             .await;
 
-        for (query, expects_cluster) in [
-            ("", false),
-            ("?cluster=true", true),
-            ("?cluster=false", false),
-        ] {
+        for query in ["", "?cluster=true", "?verbose=1"] {
             let response = public_router(context.state.clone())
                 .oneshot(
                     Request::builder()
@@ -3726,29 +3703,37 @@ mod tests {
             let body: Value = serde_json::from_str(&response_text(response).await)
                 .expect("failed to decode up response");
             assert_eq!(body["status"], "ok", "query {query}");
-            assert_eq!(
-                body.get("ring_members").is_some(),
-                expects_cluster,
-                "query {query}"
+            assert!(
+                body.get("ring_members").is_none(),
+                "liveness must have no cluster variant (query {query})"
             );
         }
+    }
 
-        // Same strictness as the `inline` parameter: only true/false parse, and
-        // anything else is rejected rather than silently read as "no cluster
-        // view", which would look like a node that sees no peers.
-        for query in ["?cluster", "?cluster=1", "?cluster=0", "?cluster=yes"] {
-            let response = public_router(context.state.clone())
+    #[tokio::test]
+    async fn cluster_status_is_metered_apart_from_the_liveness_probe() {
+        let context = test_context(|_| {}).await;
+        let app = public_router(context.state.clone());
+
+        for uri in ["/up", "/status/cluster"] {
+            let response = app
+                .clone()
                 .oneshot(
                     Request::builder()
-                        .uri(format!("/up{query}"))
+                        .uri(uri)
                         .body(Body::empty())
                         .expect("failed to build request"),
                 )
                 .await
                 .expect("request failed");
-
-            assert_eq!(response.status(), StatusCode::BAD_REQUEST, "query {query}");
+            assert_eq!(response.status(), StatusCode::OK, "{uri}");
         }
+
+        // Classification keys off the path template, so the aggregating route
+        // has to be its own template or its latency lands on the probe's series.
+        let metrics = context.state.metrics.render();
+        assert!(metrics.contains("route=\"/up\""));
+        assert!(metrics.contains("route=\"/status/cluster\""));
     }
 
     #[tokio::test]
@@ -3790,6 +3775,10 @@ mod tests {
     fn route_template_for_path_stabilizes_cache_paths() {
         assert_eq!(route_template_for_path(ROUTE_UP), ROUTE_UP);
         assert_eq!(
+            route_template_for_path(ROUTE_STATUS_CLUSTER),
+            ROUTE_STATUS_CLUSTER
+        );
+        assert_eq!(
             route_template_for_path("/api/cache/cas/artifact-one"),
             ROUTE_API_CACHE_CAS
         );
@@ -3822,6 +3811,7 @@ mod tests {
         assert!(is_public_load_route(ROUTE_API_CACHE_CAS));
         assert!(is_public_load_route(ROUTE_API_CACHE_MODULE));
         assert!(!is_public_load_route(ROUTE_UP));
+        assert!(!is_public_load_route(ROUTE_STATUS_CLUSTER));
         assert!(!is_public_load_route(ROUTE_METRICS));
         assert!(!is_public_load_route(ROUTE_INTERNAL_REPLICATE_ARTIFACT));
         assert!(!is_public_load_route(UNMATCHED_ROUTE));
@@ -4008,7 +3998,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn up_cluster_view_and_ready_share_the_same_membership_generation() {
+    async fn cluster_status_and_ready_share_the_same_membership_generation() {
         let context = test_context(|_| {}).await;
         let peer = "http://peer.kura.internal:7443".to_string();
         context
@@ -4026,7 +4016,7 @@ mod tests {
         let up_response = public_router(context.state.clone())
             .oneshot(
                 Request::builder()
-                    .uri("/up?cluster=true")
+                    .uri("/status/cluster")
                     .body(Body::empty())
                     .expect("failed to build up request"),
             )
