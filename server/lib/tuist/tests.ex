@@ -669,10 +669,20 @@ defmodule Tuist.Tests do
 
           # A shard can move through processing, failed_processing, and a
           # successful client retry. Collapse that append-only history before
-          # deciding whether the merged run is complete. Insert the current
-          # row first so concurrent workers cannot both miss each other's
-          # terminal status and leave the merged run in_progress forever.
-          latest_statuses = latest_shard_statuses(existing_test.id)
+          # deciding whether the merged run is complete.
+          #
+          # The row inserted just above is not reliably read back within the
+          # same request, so the reporting shard contributes its status from
+          # memory and the query only supplies the other shards. Reading all
+          # of them back instead made the last shard to report count itself
+          # as still processing, which left the merged run in_progress with
+          # every shard green.
+          latest_statuses =
+            existing_test.id
+            |> latest_shard_statuses()
+            |> Map.put(shard_index || 0, shard_status)
+            |> Map.values()
+
           reported_count = Enum.count(latest_statuses, &(&1 != "processing"))
 
           merged_status = merged_shard_status(latest_statuses, reported_count, expected_shard_count)
@@ -794,13 +804,13 @@ defmodule Tuist.Tests do
   defp blank?(_), do: false
 
   defp latest_shard_statuses(test_run_id) do
-    ClickHouseRepo.all(
-      from(sr in ShardRun,
-        where: sr.test_run_id == ^test_run_id,
-        group_by: sr.shard_index,
-        select: fragment("argMax(?, ?)", sr.status, sr.inserted_at)
-      )
+    from(sr in ShardRun,
+      where: sr.test_run_id == ^test_run_id,
+      group_by: sr.shard_index,
+      select: {sr.shard_index, fragment("argMax(?, ?)", sr.status, sr.inserted_at)}
     )
+    |> ClickHouseRepo.all()
+    |> Map.new()
   end
 
   # A shard whose report never reaches the server holds the merged run at

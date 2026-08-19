@@ -2659,6 +2659,47 @@ defmodule Tuist.TestsTest do
       assert merged_test.status == "in_progress"
     end
 
+    test "the last shard completes the run even when its own shard row is not read back" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 300,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert first_test.status == "in_progress"
+
+      # The row a shard writes for itself is not reliably observable by the
+      # read that immediately follows it, so the last shard to report has to
+      # count itself from memory rather than from `shard_runs`.
+      stub(IngestRepo, :insert_all, fn _schema, _rows -> {0, nil} end)
+
+      {:ok, merged_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 600,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert merged_test.status == "success"
+    end
+
     test "a failing shard fails the run before the remaining shards report" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
