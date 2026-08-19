@@ -261,30 +261,34 @@ public struct GraphLinter: GraphLinting {
     }
 
     private func lintDuplicatedProductNamesInDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
-        return graphTraverser.targets().flatMap { projectPath, projectTargets in
-            return projectTargets.flatMap { targetName, _ in
-                var seenProductNames: Set<String> = []
-                var duplicatedProductNames: Set<String> = []
-                for productName in graphTraverser
-                    .allTargetDependencies(path: projectPath, name: targetName)
-                    .map(\.target.productNameWithExtension)
-                {
-                    if seenProductNames.contains(productName) {
-                        duplicatedProductNames.insert(productName)
-                    } else {
-                        seenProductNames.insert(productName)
-                    }
-                }
-                guard duplicatedProductNames.isEmpty else {
-                    return [LintingIssue(
-                        reason: "The target '\(targetName)' has dependencies with the following duplicated product names: \(duplicatedProductNames.joined(separator: ", "))",
-                        severity: .warning,
-                        category: .duplicateProductNames
-                    )]
-                }
-                return []
-            }
+        // Every target walks its own transitive closure, which on a large graph is the most expensive check in
+        // the linter. The walks only read the graph, so they run concurrently.
+        let targets = graphTraverser.targets().flatMap { projectPath, projectTargets in
+            projectTargets.keys.map { TargetReference(projectPath: projectPath, name: $0) }
         }
+        return targets.map(context: .concurrent) { target -> [LintingIssue] in
+            var seenProductNames: Set<String> = []
+            var duplicatedProductNames: Set<String> = []
+            for productName in graphTraverser
+                .allTargetDependencies(path: target.projectPath, name: target.name)
+                .map(\.target.productNameWithExtension)
+            {
+                if seenProductNames.contains(productName) {
+                    duplicatedProductNames.insert(productName)
+                } else {
+                    seenProductNames.insert(productName)
+                }
+            }
+            guard duplicatedProductNames.isEmpty else {
+                return [LintingIssue(
+                    reason: "The target '\(target.name)' has dependencies with the following duplicated product names: \(duplicatedProductNames.joined(separator: ", "))",
+                    severity: .warning,
+                    category: .duplicateProductNames
+                )]
+            }
+            return []
+        }
+        .flatMap { $0 }
     }
 
     private func lintDependencyRelationships(graphTraverser: GraphTraversing) -> [LintingIssue] {
