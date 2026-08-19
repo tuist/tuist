@@ -139,10 +139,20 @@ defmodule Tuist.Registry.S3 do
 
   # S3 answers CopyObject with 200 even when the copy fails partway through,
   # embedding the failure in the response body instead of the status. ExAws
-  # registers no parser for this operation, so the body arrives raw and a status
-  # check alone reports a copy that never happened as a success. For the repair
-  # path that body is the whole point: a backup believed to exist and absent is
-  # worse than never having taken one.
+  # registers no parser for this operation (`ExAws.Operation.S3`'s parser
+  # defaults to identity), so the body arrives raw and a status check alone
+  # reports a copy that never happened as a success. For the repair path that
+  # body is the whole point: a backup believed to exist and absent is worse than
+  # never having taken one.
+  #
+  # Verified against the staging bucket on Tigris rather than assumed, because
+  # the shape is the whole basis for this function: a successful copy answers
+  # 200 with `<CopyObjectResult>` carrying LastModified and ETag, a missing
+  # source answers 404, and the `X-Tigris-Consistent` header the shared request
+  # helper adds is accepted on this operation. The same probe confirmed that
+  # user metadata survives the copy under the default COPY directive, so a
+  # backup keeps the `x-amz-meta-sha256` a restore later relies on. Do not add a
+  # `metadata_directive` here without re-checking that.
   defp copy_result(body, source_key, destination_key) when is_binary(body) do
     cond do
       String.contains?(body, "<Error") -> {:error, {:copy_failed, source_key, destination_key, body}}

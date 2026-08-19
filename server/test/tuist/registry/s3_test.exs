@@ -167,11 +167,16 @@ defmodule Tuist.Registry.S3Test do
     end
 
     test "succeeds when the response body reports a completed copy" do
+      # The exact body Tigris returned when this was probed against the staging
+      # bucket, rather than a shape invented to match the implementation.
       expect(ExAws, :request, fn _operation, _config ->
         {:ok,
          %{
            status_code: 200,
-           body: ~s(<CopyObjectResult><ETag>"abc"</ETag></CopyObjectResult>)
+           body:
+             ~s(<?xml version="1.0" encoding="UTF-8"?>\n<CopyObjectResult>) <>
+               ~s(<LastModified>2026-08-19T11:50:49.059401146Z</LastModified>) <>
+               ~s(<ETag>&#34;&#34;b77439223b61ed2c23dbd8c5a1f945a6&#34;&#34;</ETag></CopyObjectResult>)
          }}
       end)
 
