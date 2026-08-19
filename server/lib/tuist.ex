@@ -58,6 +58,8 @@ defmodule Tuist do
       Kubernetes.Client,
       Kura,
       Kura.Deployment,
+      Kura.Lifecycle,
+      Kura.LifecycleOperatorAction,
       Kura.Server,
       Kura.Usage,
       Kura.UsageEvent,
