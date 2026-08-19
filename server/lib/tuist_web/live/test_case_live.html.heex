@@ -197,21 +197,97 @@
     <div data-part="widgets">
       <.widget
         loading={!@analytics.ok?}
-        title={dgettext("dashboard_tests", "Test case runs")}
-        legend_color="primary"
+        title={
+          case @selected_runs_type do
+            "failed" -> dgettext("dashboard_tests", "Failed test case runs")
+            "flaky" -> dgettext("dashboard_tests", "Flaky test case runs")
+            _ -> dgettext("dashboard_tests", "Test case runs")
+          end
+        }
+        legend_color={
+          case @selected_runs_type do
+            "failed" -> "destructive"
+            "flaky" -> "flaky"
+            _ -> "primary"
+          end
+        }
         description={
           dgettext(
             "dashboard_tests",
             "Number of times this test case has been executed in the selected period."
           )
         }
-        value={if @analytics.ok?, do: format_number(@analytics.result.total_count)}
+        value={
+          if @analytics.ok? do
+            format_number(
+              case @selected_runs_type do
+                "failed" -> @analytics.result.failed_count
+                "flaky" -> @analytics.result.flaky_count
+                _ -> @analytics.result.total_count
+              end
+            )
+          end
+        }
         id="widget-test-case-runs"
         phx_click="select_widget"
         phx_value_widget="test_case_runs"
         selected={@analytics_selected_widget == "test_case_runs"}
         empty={@analytics.ok? && @analytics.result.total_count == 0}
-      />
+      >
+        <:select>
+          <.dropdown_item
+            value="total"
+            phx-click="select_runs_type"
+            phx-value-type="total"
+            data-selected={@selected_runs_type == "total"}
+          >
+            <div data-part="breakdown-item">
+              <div data-part="dot" data-color="primary"></div>
+              <span data-part="label">{dgettext("dashboard_tests", "All")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if @analytics.ok?,
+                  do: format_number(@analytics.result.total_count),
+                  else: dgettext("dashboard_tests", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+          <.dropdown_item
+            value="failed"
+            phx-click="select_runs_type"
+            phx-value-type="failed"
+            data-selected={@selected_runs_type == "failed"}
+          >
+            <div data-part="breakdown-item">
+              <div data-part="dot" data-color="destructive"></div>
+              <span data-part="label">{dgettext("dashboard_tests", "Failed")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if @analytics.ok?,
+                  do: format_number(@analytics.result.failed_count),
+                  else: dgettext("dashboard_tests", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+          <.dropdown_item
+            value="flaky"
+            phx-click="select_runs_type"
+            phx-value-type="flaky"
+            data-selected={@selected_runs_type == "flaky"}
+          >
+            <div data-part="breakdown-item">
+              <div data-part="dot" data-color="flaky"></div>
+              <span data-part="label">{dgettext("dashboard_tests", "Flaky")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if @analytics.ok?,
+                  do: format_number(@analytics.result.flaky_count),
+                  else: dgettext("dashboard_tests", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+        </:select>
+      </.widget>
       <.widget
         loading={!@flakiness_rate.ok?}
         title={dgettext("dashboard_tests", "Flakiness rate")}
@@ -334,7 +410,6 @@
           id="test-case-runs-chart"
           type="bar"
           stacked
-          bar_radius={2}
           extra_options={
             %{
               legend: %{
@@ -389,11 +464,10 @@
             }
           }
           series={
-            for segment <- run_segments(@series.result),
-                Enum.any?(segment.values, &(&1 > 0)) do
+            for segment <- run_segments(@series.result) do
               %{
                 color: segment.color,
-                data: segment.values,
+                data: segment.data,
                 name: segment.name,
                 type: "bar"
               }
@@ -590,6 +664,46 @@
         />
       </:image>
     </.empty_card_section>
+  </.card>
+
+  <.card
+    :if={@selected_tab == "overview" and Enum.any?(@overview_history_events)}
+    title={dgettext("dashboard_tests", "Test history")}
+    icon="timeline_event"
+    data-part="overview-history-card"
+  >
+    <.card_section data-part="overview-history">
+      <div data-part="overview-history-timeline">
+        <div
+          :for={event <- @overview_history_events}
+          data-part="overview-history-item"
+        >
+          <div data-part="overview-history-icon" data-color={event_color(event.event_type)}>
+            <.icon name={event_icon(event.event_type)} />
+          </div>
+          <div data-part="overview-history-content">
+            <span data-part="overview-history-item-title">{event_title(event.event_type)}</span>
+            <span :if={format_event_subtitle(event)} data-part="overview-history-item-subtitle">
+              {format_event_subtitle(event)}
+            </span>
+          </div>
+          <.relative_time_with_tooltip
+            id={"overview-history-event-#{event.id}-time-tooltip"}
+            part="overview-history-time"
+            time={event.inserted_at}
+            timezone={@user_timezone}
+          />
+        </div>
+      </div>
+      <div :if={@overview_history_has_more} data-part="overview-history-footer">
+        <.button
+          label={dgettext("dashboard_tests", "View more")}
+          variant="secondary"
+          size="small"
+          patch={"?#{Query.put(@uri.query, "tab", "history")}"}
+        />
+      </div>
+    </.card_section>
   </.card>
 
   <.card
@@ -890,46 +1004,6 @@
           end
         }
       />
-    </.card_section>
-  </.card>
-
-  <.card
-    :if={@selected_tab == "overview" and Enum.any?(@overview_history_events)}
-    title={dgettext("dashboard_tests", "Test history")}
-    icon="timeline_event"
-    data-part="overview-history-card"
-  >
-    <.card_section data-part="overview-history">
-      <div data-part="overview-history-timeline">
-        <div
-          :for={event <- @overview_history_events}
-          data-part="overview-history-item"
-        >
-          <div data-part="overview-history-icon" data-color={event_color(event.event_type)}>
-            <.icon name={event_icon(event.event_type)} />
-          </div>
-          <div data-part="overview-history-content">
-            <span data-part="overview-history-item-title">{event_title(event.event_type)}</span>
-            <span :if={format_event_subtitle(event)} data-part="overview-history-item-subtitle">
-              {format_event_subtitle(event)}
-            </span>
-          </div>
-          <.relative_time_with_tooltip
-            id={"overview-history-event-#{event.id}-time-tooltip"}
-            part="overview-history-time"
-            time={event.inserted_at}
-            timezone={@user_timezone}
-          />
-        </div>
-      </div>
-      <div :if={@overview_history_has_more} data-part="overview-history-footer">
-        <.button
-          label={dgettext("dashboard_tests", "View more")}
-          variant="secondary"
-          size="small"
-          patch={"?#{Query.put(@uri.query, "tab", "history")}"}
-        />
-      </div>
     </.card_section>
   </.card>
 

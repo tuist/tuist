@@ -1318,7 +1318,8 @@ defmodule Tuist.Tests.Analytics do
 
   @doc """
   Gets analytics for a specific test case by its identifier including total runs,
-  failed runs, and the duration distribution (average plus p50 / p90 / p99).
+  failed runs, flaky runs, and the duration distribution (average plus p50 / p90
+  / p99).
 
   The percentiles come from the same pass over the same rows as the average, so
   the detail page can offer the whole distribution for the cost it already paid
@@ -1337,6 +1338,7 @@ defmodule Tuist.Tests.Analytics do
           select: %{
             total_count: count(),
             failed_count: fragment("countIf(? = 'failure')", tcr.status),
+            flaky_count: fragment("countIf(?)", tcr.is_flaky),
             avg_duration: avg(tcr.duration),
             p50_duration: fragment("quantile(0.5)(?)", tcr.duration),
             p90_duration: fragment("quantile(0.9)(?)", tcr.duration),
@@ -1350,12 +1352,21 @@ defmodule Tuist.Tests.Analytics do
 
     case result do
       nil ->
-        %{total_count: 0, failed_count: 0, avg_duration: 0, p50_duration: 0, p90_duration: 0, p99_duration: 0}
+        %{
+          total_count: 0,
+          failed_count: 0,
+          flaky_count: 0,
+          avg_duration: 0,
+          p50_duration: 0,
+          p90_duration: 0,
+          p99_duration: 0
+        }
 
       %{total_count: total, failed_count: failed, avg_duration: avg} ->
         %{
           total_count: total,
           failed_count: failed,
+          flaky_count: result.flaky_count,
           avg_duration: normalize_duration(avg),
           p50_duration: normalize_duration(result.p50_duration),
           p90_duration: normalize_duration(result.p90_duration),

@@ -1542,11 +1542,36 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert got == %{
                total_count: 2,
                failed_count: 1,
+               flaky_count: 0,
                avg_duration: 200,
                p50_duration: 200,
                p90_duration: 280,
                p99_duration: 298
              }
+    end
+
+    test "counts the flaky runs beside the failed ones" do
+      # Given - the runs widget reports both, and a flaky run is not a failed one
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      for {status, is_flaky} <- [{0, false}, {1, false}, {0, true}, {0, true}] do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: status,
+          is_flaky: is_flaky,
+          duration: 100
+        )
+      end
+
+      # When
+      got = Analytics.test_case_analytics_by_id(project.id, test_case_id)
+
+      # Then
+      assert got.total_count == 4
+      assert got.failed_count == 1
+      assert got.flaky_count == 2
     end
 
     test "only aggregates runs within the given period" do
@@ -1592,6 +1617,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert got == %{
                total_count: 2,
                failed_count: 1,
+               flaky_count: 0,
                avg_duration: 200,
                p50_duration: 200,
                p90_duration: 280,
@@ -1624,6 +1650,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert got == %{
                total_count: 0,
                failed_count: 0,
+               flaky_count: 0,
                avg_duration: 0,
                p50_duration: 0,
                p90_duration: 0,

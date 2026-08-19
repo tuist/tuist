@@ -123,30 +123,69 @@ defmodule TuistWeb.TestCaseLive do
   # number the widget above it shows. A segment that is zero across the whole
   # window is dropped rather than drawn: an empty "Quarantined" entry in the
   # legend of a test that was never quarantined is noise.
+  #
+  # The corner radius caps the bar, not each segment of it, so it goes on the
+  # topmost segment that actually has runs in that bucket. Which segment that is
+  # varies bar to bar: a day with no flaky runs is capped by its failures.
   defp run_segments(series) do
+    segments =
+      series
+      |> run_outcomes()
+      |> Enum.filter(&Enum.any?(&1.data, fn count -> count > 0 end))
+
+    caps =
+      segments
+      |> Enum.map(& &1.data)
+      |> Enum.zip_with(fn counts ->
+        counts
+        |> Enum.with_index()
+        |> Enum.filter(fn {count, _index} -> count > 0 end)
+        |> List.last()
+        |> case do
+          nil -> nil
+          {_count, index} -> index
+        end
+      end)
+
+    segments
+    |> Enum.with_index()
+    |> Enum.map(fn {segment, index} ->
+      data =
+        segment.data
+        |> Enum.zip(caps)
+        |> Enum.map(fn
+          {count, ^index} -> %{value: count, itemStyle: %{borderRadius: [2, 2, 0, 0]}}
+          {count, _cap} -> count
+        end)
+
+      %{segment | data: data}
+    end)
+  end
+
+  defp run_outcomes(series) do
     [
       %{
-        values: series.successful_counts,
+        data: series.successful_counts,
         name: dgettext("dashboard_tests", "Successful"),
         color: "var:noora-chart-tertiary"
       },
       %{
-        values: series.failed_counts,
+        data: series.failed_counts,
         name: dgettext("dashboard_tests", "Failed"),
         color: "var:noora-chart-destructive"
       },
       %{
-        values: series.flaky_counts,
+        data: series.flaky_counts,
         name: dgettext("dashboard_tests", "Flaky"),
         color: "var:noora-chart-flaky"
       },
       %{
-        values: series.quarantined_counts,
+        data: series.quarantined_counts,
         name: dgettext("dashboard_tests", "Quarantined"),
         color: "var:noora-chart-quaternary"
       },
       %{
-        values: series.skipped_counts,
+        data: series.skipped_counts,
         name: dgettext("dashboard_tests", "Skipped"),
         color: "var:noora-chart-legend-secondary"
       }
@@ -432,6 +471,22 @@ defmodule TuistWeb.TestCaseLive do
      |> push_event("replace-url", %{url: "?" <> query})}
   end
 
+  # The bar already draws every outcome, so this only picks which of them the
+  # widget counts, and the URL so the choice survives a reload.
+  def handle_event("select_runs_type", %{"type" => type}, socket) when type in ["total", "failed", "flaky"] do
+    query =
+      socket.assigns.uri.query
+      |> Query.put("runs-type", type)
+      |> Query.put("analytics-selected-widget", "test_case_runs")
+
+    {:noreply,
+     socket
+     |> assign(:selected_runs_type, type)
+     |> assign(:analytics_selected_widget, "test_case_runs")
+     |> assign(:uri, URI.new!("?" <> query))
+     |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
   # Every series is already loaded, so both of these only change which one the
   # card draws, plus the URL so the choice survives a reload. Picking a
   # statistic also selects the duration chart: choosing p90 while looking at the
@@ -499,6 +554,7 @@ defmodule TuistWeb.TestCaseLive do
     |> assign(:analytics_period, period)
     |> assign(:selected_duration_type, params["duration-type"] || "avg")
     |> assign(:analytics_selected_widget, params["analytics-selected-widget"] || "test_case_runs")
+    |> assign(:selected_runs_type, params["runs-type"] || "total")
     |> assign_async(:reliability, fn ->
       {:ok, %{reliability: Analytics.test_case_reliability_by_id(project.id, test_case_id, project.default_branch, opts)}}
     end)
