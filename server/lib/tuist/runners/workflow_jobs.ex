@@ -23,7 +23,7 @@ defmodule Tuist.Runners.WorkflowJobs do
       the per-job ordering lock) → `upsert_queued/1`
     * `Tuist.Runners.Claims.attempt/5` (same transaction as the claim
       insert) → `transition_claimed/3`
-    * `Tuist.Runners.Claims.mark_running/2` → `transition_running/2`
+    * `Tuist.Runners.Claims.mark_running/3` → `transition_running/3`
     * `Tuist.Runners.Claims.release/2` and `release_pod_missing/2`
       (same transaction as the claim delete) → `requeue/1`
     * `Tuist.Runners.Jobs` completion choke point (webhook `completed`
@@ -97,9 +97,20 @@ defmodule Tuist.Runners.WorkflowJobs do
 
   @doc """
   CAS `claimed → running`, stamping the mint-chosen `runner_name`.
+
+  `claimed_at` binds the transition to the caller's own claim
+  generation. Without it a late mint, from a Pod whose claim was
+  reaped and whose job another Pod has since re-claimed, would stamp
+  the losing runner's name on the winner's row — and since
+  `record_execution/3` resolves rows by `runner_name`, the next
+  `in_progress` webhook would attribute the execution to the wrong
+  job.
   """
-  def transition_running(workflow_job_id, runner_name) when is_integer(workflow_job_id) and is_binary(runner_name) do
-    transition(workflow_job_id, ["claimed"], "running", runner_name: runner_name, started_at: DateTime.utc_now())
+  def transition_running(workflow_job_id, runner_name, %DateTime{} = claimed_at)
+      when is_integer(workflow_job_id) and is_binary(runner_name) do
+    transition(workflow_job_id, ["claimed"], "running", [runner_name: runner_name, started_at: DateTime.utc_now()],
+      claimed_at: claimed_at
+    )
   end
 
   @doc """
@@ -218,8 +229,14 @@ defmodule Tuist.Runners.WorkflowJobs do
       set: [runner_name: runner_name]
     )
 
+    # Restricted to live rows: a runner name is unique per account only
+    # by 32 bits of randomness, and a terminal row has nothing left to
+    # attribute, so bounding the update keeps a collision from rewriting
+    # finished history.
     Repo.update_all(
-      from(j in WorkflowJob, where: j.runner_name == ^runner_name and j.account_id == ^account_id),
+      from(j in WorkflowJob,
+        where: j.runner_name == ^runner_name and j.account_id == ^account_id and j.status in ^@live_statuses
+      ),
       set: [executed_workflow_job_id: executed_workflow_job_id]
     )
 
@@ -434,7 +451,11 @@ defmodule Tuist.Runners.WorkflowJobs do
         from(j in WorkflowJob,
           join: c in JobCompletion,
           on: c.workflow_job_id == j.workflow_job_id,
-          where: j.status in ^@live_statuses,
+          # Literals, not `in ^@live_statuses`: a bound parameter survives
+          # into a generic plan, where Postgres can no longer prove the
+          # predicate implies `runner_workflow_jobs_live_index` and falls
+          # back to scanning both tables whole.
+          where: j.status in ["queued", "claimed", "running"],
           select: {j.workflow_job_id, c.conclusion, c.completed_at}
         )
       )
@@ -453,13 +474,14 @@ defmodule Tuist.Runners.WorkflowJobs do
   Re-queues `claimed` lifecycle rows that no live claim backs. Returns
   the number of rows transitioned.
 
-  Under this release a claim and its `claimed` row are created and
-  released in one transaction, so the state cannot arise on its own.
-  It appears when the previous release's code releases a claim this
-  release made — its stale-claim sweep and pod-stopped path delete
-  the claim without touching this table — leaving the job invisible
-  to dispatch (not `queued`) and to every recovery scan (no claim to
-  list, not `running`). A `claimed` row is by construction pre-mint,
+  Under this release every path that deletes a `claimed` claim also
+  re-queues its row in the same transaction (`release/2`,
+  `release_pod_missing/2`, and `release_by_pod_name/1`), so the state
+  cannot arise on its own. It appears when the previous release's
+  code releases a claim this release made — its stale-claim sweep and
+  pod-stopped path delete the claim without touching this table —
+  leaving the job invisible to dispatch (not `queued`) and to every
+  recovery scan (no claim to list, not `running`). A `claimed` row is by construction pre-mint,
   so nothing can be running for it and the requeue is safe; the
   handle guard leaves a row that was re-claimed in the meantime alone.
   """
@@ -484,7 +506,7 @@ defmodule Tuist.Runners.WorkflowJobs do
   Moves `queued` lifecycle rows that a live claim already backs into
   the claim's state. Returns the number of rows transitioned.
 
-  The previous release's `Claims.attempt/5` and `mark_running/2` write
+  The previous release's `Claims.attempt/5` and `mark_running/3` write
   the claim only, so a job this release enqueued and the old code
   claimed reads `queued` here while a Pod holds it. Dispatch would
   keep offering it (each attempt losing the claim race by primary
@@ -505,7 +527,7 @@ defmodule Tuist.Runners.WorkflowJobs do
     Enum.count(backed, fn {workflow_job_id, pod_name, claimed_at, lifecycle_state, runner_name} ->
       case transition_claimed(workflow_job_id, pod_name, claimed_at) do
         :ok ->
-          if lifecycle_state == "running", do: transition_running(workflow_job_id, runner_name || "")
+          if lifecycle_state == "running", do: transition_running(workflow_job_id, runner_name || "", claimed_at)
           true
 
         :noop ->

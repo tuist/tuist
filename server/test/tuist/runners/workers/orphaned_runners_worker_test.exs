@@ -98,8 +98,11 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
 
-      assert_receive {[:tuist, :runners, :recovery], ^ref, measurements, metadata}
-      assert metadata.kind == "orphan_requeued"
+      # Matching on `kind` in the pattern, not after: the handler
+      # `:telemetry_test` attaches is VM-global, so a concurrent async
+      # test emitting its own recovery event would otherwise satisfy a
+      # bare `assert_receive` and fail here on the wrong message.
+      assert_receive {[:tuist, :runners, :recovery], ^ref, measurements, %{kind: "orphan_requeued"} = metadata}
       assert metadata.fleet == "tuist-tuist-runner-pool-macos-26-6"
       assert_in_delta measurements.stranded_ms, 90_000, 5_000
     end
@@ -349,7 +352,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
           memory_gb: 1
         })
 
-      :ok = Claims.mark_running(workflow_job_id, "runner-targeted")
+      :ok = mark_running!(workflow_job_id, "runner-targeted")
       assert [^workflow_job_id] = Claims.release_by_pod_name(pod_name)
       assert Repo.get!(WorkflowJob, workflow_job_id).status == "running"
 
@@ -383,5 +386,13 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{args: %{"workflow_job_id" => 42, "pod_name" => "pod-gone"}})
     end
+  end
+
+  # Production threads the caller's own claim handle into `mark_running/3`;
+  # these tests only need "promote the claim that exists", so they read it
+  # back. The guard itself is covered in the `mark_running/3` describe.
+  defp mark_running!(workflow_job_id, runner_name) do
+    claim = Repo.get!(Tuist.Runners.Claim, workflow_job_id)
+    Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
   end
 end
