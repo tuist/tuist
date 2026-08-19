@@ -312,7 +312,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
       end)
 
-      expect(Claims, :mark_running, fn ^workflow_job_id, runner_name ->
+      expect(Claims, :mark_running, fn ^workflow_job_id, runner_name, _claimed_at ->
         assert String.starts_with?(runner_name, String.slice(pod_name, 0, 55))
         assert byte_size(runner_name) <= 64
         :ok
@@ -424,7 +424,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: attrs.name}}
       end)
 
-      expect(Claims, :mark_running, fn workflow_job_id, _runner_name ->
+      expect(Claims, :mark_running, fn workflow_job_id, _runner_name, _claimed_at ->
         assert workflow_job_id == eligible_candidate.workflow_job_id
         :ok
       end)
@@ -761,7 +761,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
       end)
 
-      expect(Claims, :mark_running, fn 90_002, runner_name ->
+      expect(Claims, :mark_running, fn 90_002, runner_name, _claimed_at ->
         assert String.starts_with?(runner_name, pod_name)
         :ok
       end)
@@ -981,7 +981,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
       end)
 
-      expect(Claims, :mark_running, fn 92_017, _runner_name -> :ok end)
+      expect(Claims, :mark_running, fn 92_017, _runner_name, _claimed_at -> :ok end)
       expect(Jobs, :record_running, fn 92_017, _runner_name -> :ok end)
 
       assert {:ok, %{workflow_job_id: 92_017}} =

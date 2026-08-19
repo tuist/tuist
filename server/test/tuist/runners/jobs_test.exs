@@ -12,6 +12,8 @@ defmodule Tuist.Runners.JobsTest do
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobs
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -624,8 +626,8 @@ defmodule Tuist.Runners.JobsTest do
       :ok = enqueue_fixture(account, 5201, fleet: "fleet-orphan", repository: "acme/app")
       {:ok, candidate} = Jobs.pick_queued("fleet-orphan", [])
       claimed_at = DateTime.utc_now()
-      :ok = Jobs.record_claimed(candidate, "pod-orphan", claimed_at)
-      :ok = Jobs.record_running(5201, "tuist-runner-orphan")
+      :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-orphan", claimed_at)
+      :ok = WorkflowJobs.transition_running(5201, "tuist-runner-orphan", claimed_at)
 
       # No staleness floor: the caller reaches this having already been
       # told the Pod stopped, which is the evidence the sweep's age gate
@@ -634,7 +636,10 @@ defmodule Tuist.Runners.JobsTest do
                workflow_job_id: 5201,
                account_id: account_id,
                repository: "acme/app",
-               pod_name: "pod-orphan"
+               pod_name: "pod-orphan",
+               fleet_name: "fleet-orphan",
+               claimed_at: %DateTime{},
+               started_at: %DateTime{}
              } = Jobs.get_orphaned_running(5201)
 
       assert account_id == account.id
@@ -644,8 +649,9 @@ defmodule Tuist.Runners.JobsTest do
       account = account_fixture()
       :ok = enqueue_fixture(account, 5202, fleet: "fleet-orphan")
       {:ok, candidate} = Jobs.pick_queued("fleet-orphan", [])
-      :ok = Jobs.record_claimed(candidate, "pod-orphan-2", DateTime.utc_now())
-      :ok = Jobs.record_running(5202, "tuist-runner-orphan-2")
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-orphan-2", claimed_at)
+      :ok = WorkflowJobs.transition_running(5202, "tuist-runner-orphan-2", claimed_at)
       {:ok, _} = Jobs.complete(5202, "success")
 
       refute Jobs.get_orphaned_running(5202)
@@ -1323,6 +1329,8 @@ defmodule Tuist.Runners.JobsTest do
       }
 
       :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(8511, "pod-1", claimed_at)
 
       floor = ~U[2026-04-01 00:00:00.000000Z]
       threshold = ~U[2026-05-15 00:00:00.000000Z]
@@ -1351,6 +1359,8 @@ defmodule Tuist.Runners.JobsTest do
       :ok = enqueue_fixture(account, 8101, fleet: "fleet-trans")
       {:ok, candidate} = Jobs.pick_queued("fleet-trans", [])
       :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(8101, "pod-1", claimed_at)
 
       assert Jobs.queued_count_by_fleet("fleet-trans") == 0
     end
@@ -1406,6 +1416,8 @@ defmodule Tuist.Runners.JobsTest do
       :ok = enqueue_fixture(account, 8321, fleet: "fleet-qca-trans")
       {:ok, candidate} = Jobs.pick_queued("fleet-qca-trans", [])
       :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(8321, "pod-1", claimed_at)
 
       assert Jobs.queued_count_by_fleet_and_account("fleet-qca-trans") == %{}
     end
@@ -1423,6 +1435,143 @@ defmodule Tuist.Runners.JobsTest do
       :ok = enqueue_fixture(account, 8332, fleet: "fleet-qca-look", enqueued_at: stale)
 
       assert Jobs.queued_count_by_fleet_and_account("fleet-qca-look") == %{account.id => 1}
+    end
+  end
+
+  describe "postgres lifecycle writes" do
+    test "enqueue/1 upserts a queued Postgres lifecycle row" do
+      account = account_fixture()
+
+      :ok = enqueue_fixture(account, 9601, fleet: "fleet-pg")
+
+      row = Repo.get!(WorkflowJob, 9601)
+      assert row.status == "queued"
+      assert row.fleet_name == "fleet-pg"
+      assert row.account_id == account.id
+    end
+
+    test "complete/2 transitions the Postgres lifecycle row terminal" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 9602, fleet: "fleet-pg")
+
+      assert {:ok, _} = Jobs.complete(9602, "success")
+
+      row = Repo.get!(WorkflowJob, 9602)
+      assert row.status == "completed"
+      assert row.conclusion == "success"
+    end
+
+    test "record_completed/2 inserts a terminal Postgres lifecycle row when queued never arrived" do
+      account = account_fixture()
+
+      attrs = %{
+        workflow_job_id: 9603,
+        account_id: account.id,
+        fleet_name: "fleet-pg",
+        platform: "linux",
+        vcpus: 4,
+        memory_gb: 16,
+        repository: "acme/cli",
+        workflow_run_id: 96_030,
+        run_attempt: 1,
+        workflow_name: "",
+        job_name: "build",
+        head_branch: "main",
+        head_sha: "deadbeef",
+        requested_dispatch_label: ""
+      }
+
+      assert :ok = Jobs.record_completed(attrs, "cancelled")
+
+      row = Repo.get!(WorkflowJob, 9603)
+      assert row.status == "cancelled"
+      assert row.conclusion == "cancelled"
+    end
+  end
+
+  describe "postgres dispatch reads" do
+    test "pick_queued_top_k/5 serves candidates from the Postgres lifecycle table" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: 9610,
+          account_id: account.id,
+          fleet_name: "fleet-pg-reads",
+          platform: "linux",
+          vcpus: 4,
+          memory_gb: 16,
+          repository: "acme/cli",
+          workflow_run_id: 96_100,
+          workflow_name: "CI",
+          run_attempt: 1,
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef",
+          requested_dispatch_label: "tuist-linux",
+          enqueued_at: DateTime.add(now, -60, :second)
+        })
+
+      assert {:ok, [candidate]} = Jobs.pick_queued_top_k("fleet-pg-reads", [], [], [], 20)
+      assert candidate.workflow_job_id == 9610
+      assert candidate.fleet_name == "fleet-pg-reads"
+      assert candidate.platform == "linux"
+      assert candidate.requested_dispatch_label == "tuist-linux"
+
+      assert {:ok, ^candidate} = Jobs.pick_queued("fleet-pg-reads", [])
+    end
+
+    test "queued counts come from the Postgres lifecycle table" do
+      account = account_fixture()
+
+      for workflow_job_id <- [9620, 9621] do
+        :ok =
+          WorkflowJobs.upsert_queued(%{
+            workflow_job_id: workflow_job_id,
+            account_id: account.id,
+            fleet_name: "fleet-pg-counts"
+          })
+      end
+
+      assert Jobs.queued_count_by_fleet("fleet-pg-counts") == 2
+      assert Jobs.queued_count_by_fleet_and_account("fleet-pg-counts") == %{account.id => 2}
+    end
+
+    test "recovery scans serve from the Postgres lifecycle table" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: 9630,
+          account_id: account.id,
+          fleet_name: "fleet-pg-scans",
+          repository: "acme/cli",
+          enqueued_at: DateTime.add(now, -7_200, :second)
+        })
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: 9631,
+          account_id: account.id,
+          fleet_name: "fleet-pg-scans",
+          repository: "acme/cli"
+        })
+
+      :ok = WorkflowJobs.transition_claimed(9631, "pod-scan", now)
+      :ok = WorkflowJobs.transition_running(9631, "runner-scan", now)
+
+      Repo.update_all(
+        from(j in WorkflowJob, where: j.workflow_job_id == ^9631),
+        set: [started_at: DateTime.add(now, -600, :second)]
+      )
+
+      assert [%{workflow_job_id: 9631, pod_name: "pod-scan"}] =
+               Jobs.list_orphaned_running(DateTime.add(now, -300, :second))
+
+      assert [%{workflow_job_id: 9630, repository: "acme/cli"}] =
+               Jobs.list_stale_queued(DateTime.add(now, -86_400, :second), DateTime.add(now, -3_600, :second))
     end
   end
 end

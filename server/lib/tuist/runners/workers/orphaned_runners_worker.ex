@@ -139,6 +139,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.WorkflowJobs
   alias Tuist.VCS
 
   require Logger
@@ -370,16 +371,23 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
       :error
   end
 
+  # `Claims.release/2` deletes the claim and re-queues the lifecycle
+  # row in one transaction. `:stale_claim` means the claim is already
+  # gone — either the pod-stopped report released it ahead of this
+  # targeted run, or another Pod re-claimed the job with a newer
+  # handle. The lifecycle row tells the two apart: it still carries
+  # our `claimed_at` only in the former case, so the handle-guarded
+  # requeue finishes that release and is a no-op for the latter.
   defp safe_release(workflow_job_id, %DateTime{} = handle) do
     case Claims.release(workflow_job_id, handle) do
       :ok ->
         :ok
 
       {:error, :stale_claim} ->
-        # Someone else released + re-claimed between our CH list
-        # and our PG release. The new claim has a newer claimed_at;
-        # our re-queue won't disturb it. Treat as a no-op.
-        :error
+        case WorkflowJobs.requeue_by_handle(workflow_job_id, handle) do
+          :ok -> :ok
+          :noop -> :error
+        end
     end
   end
 
