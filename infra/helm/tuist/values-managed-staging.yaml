@@ -87,6 +87,15 @@ server:
       # the OVH bare-metal validation region — a geographic id; OVH is an
       # implementation detail behind it (ovhFleet below, replicas 1).
       value: eu-central,scw-fr-par-runners,ca-east
+    - name: TUIST_KURA_REGION_MACHINES
+      # Installed machines per public region, which is what the demand-driven
+      # lifecycle sizes capacity admission and the Air pressure rule from
+      # (`Tuist.Kura.Capacity`). Both staging regions are a single box: one
+      # Dedibox Start-9-M for eu-central (dediboxFleet below) and one OVH SYS-1
+      # for ca-east (ovhFleet, replicas 1). Leaving it unset would read as
+      # "capacity unknown", which admits every provision without a ceiling, so
+      # a single box would take instances until its NVMe ran out.
+      value: eu-central=1,ca-east=1
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
