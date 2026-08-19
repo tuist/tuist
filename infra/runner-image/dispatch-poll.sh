@@ -851,6 +851,29 @@ read_unverifiable_head() {
   printf '%s' "${digest}"
 }
 
+# read_node_name returns this host's Kubernetes Node name, staged by the host into
+# the status share when the VM was created. It rides the promote report purely as
+# attribution: it is the only record of WHICH host published a given HEAD
+# generation, which is the first thing you want when a HEAD turns out to be one no
+# host can reproduce and the account's cache is frozen fleet-wide.
+#
+# Deliberately the Node name and not TUIST_RUNNER_POD_NAME, which the guest also
+# holds: the Pod is deleted minutes after the job, whereas the Node name is what
+# `tuist.dev/cache-master-<account_id>` advertisements and the volume affinities
+# are keyed on, so it still resolves to the host holding that master. An
+# unstaged name reports empty rather than falling back to the Pod name — empty
+# means "not reported", and a column holding two kinds of name identifies neither.
+#
+# Sanitised to the DNS-subdomain alphabet and length a Node name can have, so
+# nothing from a share can escape into the request body.
+read_node_name() {
+  local node=""
+  if [ -r "${STATUS_SHARE}/node-name" ]; then
+    node=$(tr -cd 'A-Za-z0-9.-' < "${STATUS_SHARE}/node-name" 2>/dev/null | cut -c1-253)
+  fi
+  printf '%s' "${node}"
+}
+
 # write_promote_result relays the promote outcome to the host so it can tell a
 # genuine fast-forward REJECTION (409 — a stale base another host advanced past,
 # real cross-host contention) apart from an upload/network/control-plane FAILURE.
@@ -897,7 +920,7 @@ report_volume_head() {
   [ -n "${CACHE_INVENTORY_AFTER}" ] || return 0
   [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ] || return 0
 
-  local base_generation unverifiable promote_body
+  local base_generation unverifiable node_name promote_body
   base_generation=$(read_base_generation)
   # One body for both requests: the mint's pre-flight has to evaluate the same
   # inputs as the bump it precedes, or a promote the bump would accept gets a 409
@@ -906,7 +929,8 @@ report_volume_head() {
   # which the pre-flight would otherwise turn away forever on a base (cold or
   # stale) that can never catch up.
   unverifiable=$(read_unverifiable_head)
-  promote_body="{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation},\"unverifiable_digest\":\"${unverifiable}\"}"
+  node_name=$(read_node_name)
+  promote_body="{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation},\"unverifiable_digest\":\"${unverifiable}\",\"node_name\":\"${node_name}\"}"
   if [ -n "${unverifiable}" ]; then
     echo "$(date -u +%FT%TZ) dispatch-poll: reporting HEAD ${unverifiable} as unverifiable on this host"
   fi
