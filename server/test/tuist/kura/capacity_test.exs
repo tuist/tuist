@@ -21,9 +21,6 @@ defmodule Tuist.Kura.CapacityTest do
   # arithmetic under test is the arithmetic production does.
   @node_allocatable_bytes 847_551_469_804
   @allocatable_gib trunc(@node_allocatable_bytes / @gib)
-  # us-east declares a 50Gi claim and two co-located replicas, so each
-  # instance reserves two claims on the one box.
-  @resident_gib 50 * 2
 
   defp account(plan \\ nil) do
     user = AccountsFixtures.user_fixture()
@@ -47,6 +44,8 @@ defmodule Tuist.Kura.CapacityTest do
 
   describe "resident_gib/1" do
     test "counts every co-located replica of the region's claim" do
+      # us-east declares a 50Gi claim and two replicas, and the bare-metal
+      # regions co-locate an account's replicas, so both land on one box.
       {:ok, region} = Regions.fetch(@region)
 
       assert Capacity.resident_gib(region) == 50 * 2
