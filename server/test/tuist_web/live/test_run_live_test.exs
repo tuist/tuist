@@ -625,7 +625,7 @@ defmodule TuistWeb.TestRunLiveTest do
       assert has_element?(lv, "#shard-balance-table", "Pending")
     end
 
-    test "shows shards that never reported as such once the run is over", %{
+    test "shows shards that never reported as such once the run has outlived the reaper window", %{
       conn: conn,
       organization: organization,
       project: project
@@ -637,6 +637,7 @@ defmodule TuistWeb.TestRunLiveTest do
           project_id: project.id,
           scheme: "AppScheme",
           status: "failure",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7, :hour),
           shard_plan_id: shard_plan.id,
           shard_index: 1
         )
@@ -653,6 +654,76 @@ defmodule TuistWeb.TestRunLiveTest do
       assert has_element?(lv, "#shard-balance-table", "Not reported")
       refute has_element?(lv, "#shard-balance-table", "Pending")
       refute has_element?(lv, "#shard-balance-table", "In Progress")
+    end
+
+    test "keeps outstanding shards pending while a freshly failed run could still hear from them", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 4)
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          shard_plan_id: shard_plan.id,
+          shard_index: 0
+        )
+
+      stub(ShardsAnalytics, :shard_metrics, fn _ ->
+        [
+          %{shard_index: 0, actual_duration_ms: 5000, status: "failure", ran_at: NaiveDateTime.utc_now()}
+        ]
+      end)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert has_element?(lv, "#shard-balance-table", "Pending")
+      assert has_element?(lv, "#shard-balance-table", "In Progress")
+      refute has_element?(lv, "#shard-balance-table", "Not reported")
+    end
+
+    test "refreshes the shard table when the run state reloads", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          status: "in_progress",
+          shard_plan_id: shard_plan.id,
+          shard_index: 0
+        )
+
+      stub(ShardsAnalytics, :shard_metrics, fn _ ->
+        [
+          %{shard_index: 0, actual_duration_ms: 5000, status: "success", ran_at: NaiveDateTime.utc_now()}
+        ]
+      end)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert has_element?(lv, "#shard-balance-table", "Pending")
+
+      stub(ShardsAnalytics, :shard_metrics, fn _ ->
+        [
+          %{shard_index: 0, actual_duration_ms: 5000, status: "success", ran_at: NaiveDateTime.utc_now()},
+          %{shard_index: 1, actual_duration_ms: 7000, status: "success", ran_at: NaiveDateTime.utc_now()}
+        ]
+      end)
+
+      render_hook(lv, "refresh_test_run")
+
+      refute has_element?(lv, "#shard-balance-table", "Pending")
     end
   end
 

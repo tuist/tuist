@@ -148,6 +148,8 @@ defmodule Tuist.Tests do
 
   @terminal_shard_failure_statuses ~w(failed_processing failure)
 
+  @stale_run_window_hours 6
+
   @doc """
   All mute-related event type names (`muted`, `unmuted`).
   """
@@ -4244,10 +4246,17 @@ defmodule Tuist.Tests do
   end
 
   @doc """
-  Marks in-progress test runs older than 6 hours as failed.
+  How long a run is given to hear from every shard before it is presumed
+  abandoned. The dashboard reads the same window to decide when a shard that
+  never reported can be called missing rather than still running.
+  """
+  def stale_run_window_hours, do: @stale_run_window_hours
+
+  @doc """
+  Marks in-progress test runs older than the stale run window as failed.
   """
   def expire_stale_in_progress_test_runs do
-    six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -6, :hour)
+    six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -@stale_run_window_hours, :hour)
     now = NaiveDateTime.utc_now()
 
     # `test_runs` is ReplacingMergeTree, and FINAL re-expands granule
