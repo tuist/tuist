@@ -105,12 +105,17 @@ KURA_CONTROL_PLANE_URL=https://tuist.dev
 KURA_CONTROL_PLANE_CLIENT_ID=<client ID>
 KURA_CONTROL_PLANE_CLIENT_SECRET=<client secret>
 KURA_NODE_URL=https://kura-1.internal:7443
+
+# Destinations enrollment writes the peer certificate material to.
+# These are outputs, not files you have to obtain first.
 KURA_INTERNAL_TLS_CA_CERT_PATH=/var/lib/kura/tls/ca.pem
 KURA_INTERNAL_TLS_CERT_PATH=/var/lib/kura/tls/tls.crt
 KURA_INTERNAL_TLS_KEY_PATH=/var/lib/kura/tls/tls.key
 ```
 
 On boot the node generates a keypair locally, sends a certificate signing request to the control plane with its credential, and receives a signed peer certificate, the account's CA, its tenant identifier, and the current peer list. The private key never leaves the node. The certificate material is written to the `KURA_INTERNAL_TLS_*` paths and the tenant and peers are injected into the node's own environment, so the rest of startup configures itself from nothing but the credential and the node URL.
+
+An enrolling node must have all three `KURA_INTERNAL_TLS_*` paths set, because enrollment has nowhere to write the material it receives otherwise. They point at a directory on the node's persistent volume, and the files do not need to exist beforehand. A single node that does not enroll and has no peers to authenticate needs none of them: omit all three and give `KURA_NODE_URL` an `http://` scheme. A multi-node mesh that does not enroll supplies its own certificates, as described in [Build a cache mesh](#build-a-cache-mesh).
 
 A node joining an account's mesh for the first time pulls the account's existing cache before it becomes a serving member of the ring. Size the data volume for the whole cache, and expect the first join to take a while over a wide-area link. The node reports `joining` until it has caught up, then `serving`.
 
