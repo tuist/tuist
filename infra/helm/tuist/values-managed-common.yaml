@@ -45,24 +45,12 @@ kuraController:
   sharedSecrets:
     kuraIntrospection:
       enabled: true
-    # Every managed node verifies the server's tokens itself. Without this a
-    # node holds no key, so it asks introspection about each request, and the
-    # short-lived cache tokens the CLI exchanges for come back inactive there
-    # by design, being deliberately unresolvable as API credentials.
-    jwtVerifier:
-      enabled: true
     externalSecret:
       enabled: true
       item: kura-introspection
       fields:
         introspectionClientId: KURA_CONTROL_PLANE_CLIENT_ID
         introspectionClientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
-      # The same entry the server reads as TUIST_SECRET_KEY_TOKENS, which is
-      # what Guardian signs with. Rotating it rotates both: the node's pods
-      # roll on the Secret's resourceVersion, so a stale key is a matter of
-      # the refresh interval, and until then verification fails closed onto
-      # introspection rather than accepting anything.
-      jwtSecretRemoteKey: SECRET_KEYS/tokens
 
 codebaseSearch:
   enabled: true
