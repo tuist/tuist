@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
   import Mimic
 
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
@@ -38,6 +39,10 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
         head_branch: "main",
         head_sha: "abc"
       })
+
+    # ClickHouse learns about the job through the transition outbox, and
+    # this controller reads the archive marker from there.
+    :ok = FlushJobTransitionEventsWorker.perform(%Oban.Job{})
   end
 
   test "404s when the job's log archive has not been built yet", %{conn: conn, account: account} do

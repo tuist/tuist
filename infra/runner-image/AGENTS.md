@@ -101,6 +101,16 @@ added to catch that failed on `admin`'s unwritable cache instead.
   for the CLI's LRU self-prune, reads the host-staged base generation
   (`cache-base-generation`) — the HEAD generation the branch was clonefiled from,
   used as the fast-forward base at promote — and snapshots the pre-job inventory.
+  The host also stages its Kubernetes `node-name` there at VM create, which the
+  guest relays with its promote so the HEAD row records WHICH host published a
+  generation — the Node name rather than `TUIST_RUNNER_POD_NAME`, because the Pod
+  is gone minutes later while the Node name is what the
+  `tuist.dev/cache-master-<account_id>` advertisements and the volume affinities
+  are keyed on. Attribution only: nothing in the fast-forward reads it, and an
+  unstaged name reports empty rather than falling back to the Pod name, since a
+  column holding two kinds of name identifies neither. Every value the guest takes
+  off the share is sanitised to its own alphabet and length before it reaches a
+  request body.
   Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
   still gets an *empty* image — the guest can only attach what is there, and no
   image would kill the job rather than cost it warmth.

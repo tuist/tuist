@@ -14,6 +14,7 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.FetchLogsWorker
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -144,6 +145,7 @@ defmodule Tuist.Runners.DispatchTest do
       payload = queued_payload(owner: "DigitalSolutionsPest", labels: ["tuist-macos"])
 
       assert {:ok, :queued} = Dispatch.handle_webhook(payload, 123_975_483)
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
 
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "queued", 0) == 1
@@ -168,6 +170,7 @@ defmodule Tuist.Runners.DispatchTest do
       payload = queued_payload(owner: "shared-login", labels: ["tuist-macos"])
 
       assert {:ok, :queued} = Dispatch.handle_webhook(payload, 555)
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
 
       assert Map.get(Jobs.status_counts(installation_account.id), "queued", 0) == 1
     end
@@ -210,6 +213,7 @@ defmodule Tuist.Runners.DispatchTest do
         |> Map.put("action", "waiting")
 
       assert {:ok, :queued} = Dispatch.handle_webhook(payload, 1)
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
 
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "queued", 0) == 1
@@ -439,6 +443,7 @@ defmodule Tuist.Runners.DispatchTest do
         )
 
       assert {:ok, :queued} = Dispatch.handle_webhook(queued, 1)
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
 
       assert {:ok, job} = Jobs.get_for_account(account.id, workflow_job_id)
       assert job.status == "completed"

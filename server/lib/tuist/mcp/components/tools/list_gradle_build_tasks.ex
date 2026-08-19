@@ -12,7 +12,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
       "properties" => %{
         "build_run_id" => %{
           "type" => "string",
-          "description" => "The ID of the Gradle build run."
+          "description" => "The ID of the Gradle build run, or a Tuist dashboard URL."
         },
         "outcome" => %{
           "type" => "string",
@@ -82,7 +82,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
       "List tasks for a specific Gradle build run. The project is derived from the build run, so no account or project handle is needed. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/gradle/builds/{id}."
 
   def execute(conn, args) do
-    build_run_id = Map.get(args, "build_run_id")
+    build_run_id = MCPTool.resource_id(Map.get(args, "build_run_id"))
 
     with {:ok, _build, _project} <-
            MCPTool.load_and_authorize(

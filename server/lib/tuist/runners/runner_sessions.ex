@@ -51,9 +51,16 @@ defmodule Tuist.Runners.RunnerSessions do
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.RunnerSession
-  alias Tuist.Runners.Telemetry
 
   require Logger
+
+  # Upper bound on how long a session may be assumed to have run when its
+  # close was never reported. Six hours matches GitHub's own workflow_job
+  # ceiling, so it never trims a real session. It used to live in
+  # `Tuist.Runners.Billing` as an invoice clamp; billing now meters
+  # GitHub's job window instead, so the bound is only about not recording
+  # an absurd Pod lifetime on the row.
+  @max_session_lifetime_seconds 6 * 60 * 60
 
   @doc """
   Open a billing session once dispatch has committed and the runner
@@ -223,6 +230,12 @@ defmodule Tuist.Runners.RunnerSessions do
   Pod-stopped event cannot keep speculative capacity warm forever.
   Returns zero on an empty fleet or a query failure; current occupied
   and queued demand still drive safe scale-up in that case.
+
+  The clamp is a last line of defence, not the mechanism: sessions whose
+  Pod is gone are closed by `Tuist.Runners.Workers.PodReconciliationWorker`
+  long before six hours. `clamped_open_session_counts_per_fleet/0` exports
+  how many rows still reach it, which is the signal that the reaper has
+  stopped working.
   """
   def p95_concurrent_last_hour(fleet_name) when is_binary(fleet_name) do
     query = """
@@ -258,25 +271,12 @@ defmodule Tuist.Runners.RunnerSessions do
       COALESCE(
         percentile_disc(0.95) WITHIN GROUP (ORDER BY concurrent_count),
         0
-      )::integer AS p95,
-      (
-        SELECT COUNT(*)::integer
-        FROM runner_sessions
-        WHERE fleet_name = $1
-          AND ended_at IS NULL
-          AND started_at < CURRENT_TIMESTAMP - INTERVAL '6 hours'
-      ) AS clamped_open_sessions
+      )::integer AS p95
     FROM active_buckets
     """
 
     case Repo.query(query, [fleet_name]) do
-      {:ok, %{rows: [[p95, clamped_open_sessions]]}} when is_integer(p95) ->
-        :telemetry.execute(
-          Telemetry.event_name_session_clamp(),
-          %{count: clamped_open_sessions},
-          %{fleet: fleet_name}
-        )
-
+      {:ok, %{rows: [[p95]]}} when is_integer(p95) ->
         p95
 
       {:error, reason} ->
@@ -295,6 +295,138 @@ defmodule Tuist.Runners.RunnerSessions do
 
         0
     end
+  end
+
+  @doc """
+  Open sessions per fleet that have already passed the six-hour safety
+  bound — the rows `p95_concurrent_last_hour/1` clamps out of the
+  forecast and that `occupied_counts_per_fleet/0` has stopped counting.
+
+  Every row here is a Pod-stopped signal we never received *and* a Pod
+  the reaper never managed to confirm gone, so a non-zero value is the
+  leak detector for both paths at once. It is exported as a polled gauge
+  rather than emitted from the forecast: the forecast only runs for
+  fleets the autoscaler happens to be polling, on whichever replica
+  serves that request, which is exactly how the signal stayed invisible
+  while sessions leaked in production.
+
+  Zero-valued fleets are omitted; the caller decides which fleets need
+  an explicit zero (see `Tuist.Runners.PromExPlugin`).
+  """
+  def clamped_open_session_counts_per_fleet do
+    bound = DateTime.add(DateTime.utc_now(), -@max_session_lifetime_seconds, :second)
+
+    RunnerSession
+    |> where([s], is_nil(s.ended_at) and s.started_at < ^bound)
+    |> group_by([s], s.fleet_name)
+    |> select([s], {s.fleet_name, count(s.id)})
+    |> Repo.all()
+    |> Map.new(fn {fleet_name, count} -> {fleet_name || "", count} end)
+  end
+
+  @doc """
+  Open sessions old enough to be judged against the observed Pod set,
+  oldest first so a capped batch drains the longest-standing leaks.
+
+  `threshold` keeps young sessions out. The Pod is already running and
+  polling when it wins a claim, so it is listable before this row is
+  written — the window is not waiting for the Pod to appear. It keeps the
+  arm away from the dispatch and teardown churn entirely, so a session is
+  only ever judged once it is well outside the normal lifecycle, and a
+  read taken either side of a close cannot be mistaken for an orphan.
+
+  Both job ids come back because either can carry the completion the
+  caller resolves an end time from: `executed_workflow_job_id` is what
+  GitHub proved ran on the runner, `workflow_job_id` is what the claim
+  was minted for, and a runner handed a sibling's job has them differ.
+  """
+  def list_open_for_pod_reconciliation(%DateTime{} = threshold) do
+    RunnerSession
+    |> where([s], is_nil(s.ended_at) and s.pod_name != "" and s.started_at < ^threshold)
+    |> order_by([s], asc: s.started_at)
+    |> select([s], %{
+      id: s.id,
+      pod_name: s.pod_name,
+      workflow_job_id: s.workflow_job_id,
+      executed_workflow_job_id: s.executed_workflow_job_id
+    })
+    |> Repo.all()
+  end
+
+  @doc """
+  Closes one session whose Pod the caller has confirmed absent.
+
+  `is_nil(ended_at)` is the race guard: if the controller's pod-stopped
+  report lands between the caller's listing and this write, it sets
+  `ended_at` and the row stops matching, so the accurate timestamp always
+  beats this estimate. That direction is the one that matters — the close
+  is one-way, since `close_by_pod_name/2` only ever moves `ended_at`
+  earlier.
+
+  ## Which `ended_at` gets written
+
+  With `:completed_at` — the terminal completion the caller resolved
+  from ClickHouse — the write is
+  `GREATEST(started_at, LEAST(completed_at, now, started_at + max_session_lifetime))`.
+  That is the runner's real end: the Pod stopped because its job
+  finished, so the customer is billed for the work rather than for how
+  long the reaper took to notice. `LEAST` against `now` keeps the
+  under-bill bias, so a late or bogus completion can never extend the
+  window; `GREATEST` against `started_at` floors it, because GitHub and
+  Postgres clocks can disagree and a `completed_at` before `started_at`
+  would otherwise write an inverted interval the billing query reads as
+  negative time.
+
+  Without it — the job never reached a terminal state, or ClickHouse was
+  unavailable — the write falls back to
+  `LEAST(now, started_at + max_session_lifetime)`, the exact instant the
+  billing query already clamps an open session to. That is
+  billing-neutral for a long-leaked row and the conservative answer when
+  we have no evidence of a real end.
+
+  Returns `:ok` when the row was closed, `{:error, :stale_session}` when
+  it no longer matches.
+  """
+  def close_pod_missing(id, %DateTime{} = now, opts \\ []) when is_integer(id) do
+    {count, _} =
+      RunnerSession
+      |> where([s], s.id == ^id and is_nil(s.ended_at))
+      |> orphan_close_update(Keyword.get(opts, :completed_at), now)
+      |> Repo.update_all([])
+
+    if count == 1, do: :ok, else: {:error, :stale_session}
+  end
+
+  defp orphan_close_update(query, nil, now) do
+    update(query, [s],
+      set: [
+        ended_at:
+          fragment(
+            "LEAST(?, ? + make_interval(secs => ?))",
+            ^now,
+            s.started_at,
+            ^@max_session_lifetime_seconds
+          ),
+        updated_at: ^DateTime.truncate(now, :second)
+      ]
+    )
+  end
+
+  defp orphan_close_update(query, %DateTime{} = completed_at, now) do
+    update(query, [s],
+      set: [
+        ended_at:
+          fragment(
+            "GREATEST(?, LEAST(?, ?, ? + make_interval(secs => ?)))",
+            s.started_at,
+            ^completed_at,
+            ^now,
+            s.started_at,
+            ^@max_session_lifetime_seconds
+          ),
+        updated_at: ^DateTime.truncate(now, :second)
+      ]
+    )
   end
 
   @doc """

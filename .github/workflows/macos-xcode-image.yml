@@ -208,6 +208,7 @@ jobs:
           local-name: macos-tahoe-xcode
           remote-names: ${{ vars.OCI_REGISTRY_HOST }}/macos-tahoe-xcode:${{ steps.build.outputs.tag }}
           chunk-size: "64"
+          concurrency: "4"
 
       - name: Cleanup
         if: always()

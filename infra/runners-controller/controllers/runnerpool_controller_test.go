@@ -2,6 +2,10 @@ package controllers
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -21,6 +25,7 @@ import (
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
+	"github.com/tuist/tuist/infra/runners-controller/internal/sessions"
 )
 
 func nn(ns, name string) types.NamespacedName {
@@ -1525,5 +1530,105 @@ func TestStartTimeoutIgnoresUnboundAndClaimedPods(t *testing.T) {
 	claimed.Labels["tuist.dev/runner-pool-owner"] = "account"
 	if startTimedOut(claimed, pool, now) {
 		t.Fatal("claimed Pod timed out; customer work must be protected")
+	}
+}
+
+// newSessionRecorder stands up a stub of the Tuist server's
+// `pods/stopped` endpoint plus a sessions client pointed at it.
+func newSessionRecorder(t *testing.T) (*sessions.Client, *recorder, func()) {
+	t.Helper()
+
+	rec := &recorder{}
+	server := httptest.NewServer(http.HandlerFunc(rec.handler))
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(tokenPath, []byte("tok"), 0o600); err != nil {
+		t.Fatalf("write token: %v", err)
+	}
+
+	sc := sessions.NewClient(server.URL + "/api/internal/runners")
+	sc.TokenPath = tokenPath
+	return sc, rec, server.Close
+}
+
+func TestReapRunner_ClosesSessionBeforeDeletingPod(t *testing.T) {
+	// The ordering IS the fix. Reporting after the Delete would be the
+	// same race that closed 22% of sessions never.
+	finished := time.Date(2026, 8, 14, 15, 12, 0, 0, time.UTC)
+	pod := runnerPodWithTerminated("tuist-pod-reaped", finished, corev1.PodSucceeded)
+
+	sc, rec, stop := newSessionRecorder(t)
+	defer stop()
+
+	scheme := mustScheme(t)
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(pod).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, SessionsClient: sc}
+
+	if err := r.reapRunner(context.Background(), pod); err != nil {
+		t.Fatalf("reapRunner: %v", err)
+	}
+
+	reqs := rec.all()
+	if len(reqs) != 1 {
+		t.Fatalf("got %d stopped reports, want 1", len(reqs))
+	}
+	if reqs[0].PodName != "tuist-pod-reaped" {
+		t.Errorf("pod_name = %q, want tuist-pod-reaped", reqs[0].PodName)
+	}
+	// The Pod was still in hand, so we resolve the real finishedAt
+	// rather than an upper bound.
+	if !reqs[0].EndedAt.Equal(finished) {
+		t.Errorf("ended_at = %v, want finishedAt %v", reqs[0].EndedAt, finished)
+	}
+
+	remaining := &corev1.Pod{}
+	err := c.Get(context.Background(), nn("tuist-runners", "tuist-pod-reaped"), remaining)
+	if !apierrors.IsNotFound(err) {
+		t.Errorf("Pod still present after reap: err = %v", err)
+	}
+}
+
+func TestReapRunner_DeletesEvenWhenTheReportFails(t *testing.T) {
+	// A Tuist-server outage must not leave terminal Pods and their
+	// ServiceAccounts piling up; the backstop reconciler covers the
+	// close we dropped.
+	pod := runnerPodWithTerminated("tuist-pod-unreportable", time.Now(), corev1.PodSucceeded)
+
+	sc := sessions.NewClient("http://127.0.0.1:1/api/internal/runners")
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(tokenPath, []byte("tok"), 0o600); err != nil {
+		t.Fatalf("write token: %v", err)
+	}
+	sc.TokenPath = tokenPath
+
+	scheme := mustScheme(t)
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(pod).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, SessionsClient: sc}
+
+	if err := r.reapRunner(context.Background(), pod); err != nil {
+		t.Fatalf("reapRunner: %v", err)
+	}
+
+	remaining := &corev1.Pod{}
+	err := c.Get(context.Background(), nn("tuist-runners", "tuist-pod-unreportable"), remaining)
+	if !apierrors.IsNotFound(err) {
+		t.Errorf("Pod survived a failed report: err = %v", err)
+	}
+}
+
+func TestReapRunner_NoSessionsClientStillReaps(t *testing.T) {
+	pod := runnerPodWithTerminated("tuist-pod-unwired", time.Now(), corev1.PodSucceeded)
+
+	scheme := mustScheme(t)
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(pod).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	if err := r.reapRunner(context.Background(), pod); err != nil {
+		t.Fatalf("reapRunner: %v", err)
+	}
+
+	remaining := &corev1.Pod{}
+	if err := c.Get(context.Background(), nn("tuist-runners", "tuist-pod-unwired"), remaining); !apierrors.IsNotFound(err) {
+		t.Errorf("Pod still present after reap: err = %v", err)
 	}
 }
