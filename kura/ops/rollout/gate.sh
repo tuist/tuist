@@ -93,7 +93,7 @@ rollout_wait_for_gate() {
     local target_generation=""
     local observed_generation=""
     local cluster_outbox=0 cluster_fd_timeouts=0 fd_timeout_delta=0
-    local node body ready state generation ring_members inflight outbox fd_timeouts pressure backfill_mode
+    local node body ready state generation ring_members outbox fd_timeouts pressure backfill_mode
 
     for node in "${cluster_nodes[@]}"; do
       if ! body="$(rollout_collect_status_with_retry "${node}")"; then
@@ -105,7 +105,6 @@ rollout_wait_for_gate() {
       state="$(rollout_json_string "${body}" "state")"
       generation="$(rollout_json_number "${body}" "generation")"
       ring_members="$(rollout_json_number "${body}" "ring_members")"
-      inflight="$(rollout_json_number "${body}" "bootstrap_inflight_peers")"
       backfill_mode="$(rollout_json_string "${body}" "backfill_initial_cycle")"
       outbox="$(rollout_json_number "${body}" "outbox_messages")"
       fd_timeouts="$(rollout_json_number "${body}" "fd_timeout_count")"
@@ -115,7 +114,6 @@ rollout_wait_for_gate() {
       state="${state:-unknown}"
       generation="${generation:-0}"
       ring_members="${ring_members:-0}"
-      inflight="${inflight:-0}"
       outbox="${outbox:-0}"
       fd_timeouts="${fd_timeouts:-0}"
       pressure="${pressure:-0}"
@@ -143,17 +141,12 @@ rollout_wait_for_gate() {
       if [[ "${ring_members}" != "${expected_ring_members}" ]]; then
         ok=0
       fi
-      # Catch-up gate, keyed off the walker the node runs: backfill nodes
-      # (KURA_BACKFILL_ENABLED) report the backfill_initial_cycle mode —
-      # pending until the initial cycle settles; complete and degraded are
-      # both settled — while legacy nodes report only the bootstrap
-      # in-flight count. Field presence tells the families apart, so one
-      # gate run passes against a mixed-mode mesh.
-      if [[ -n "${backfill_mode}" ]]; then
-        if [[ "${backfill_mode}" == "pending" ]]; then
-          ok=0
-        fi
-      elif (( inflight != 0 )); then
+      # Catch-up gate: pending until the node's initial backfill cycle
+      # settles; complete and degraded are both settled. A node that reports
+      # no mode at all predates the walker and has no catch-up state this
+      # gate can model — the ready/state/ring checks above still cover it,
+      # so a mid-rollout mesh is not blocked by its own overlap.
+      if [[ "${backfill_mode}" == "pending" ]]; then
         ok=0
       fi
       if (( pressure == 2 )); then

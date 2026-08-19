@@ -161,14 +161,14 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
     assert length(all_jobs) == 1
   end
 
-  test "reports an explicit window when the caller supplies one" do
+  test "reports an explicit window when the caller supplies a closed whole day" do
     customer_id = "account-explicit-#{UUIDv7.generate()}"
     AccountsFixtures.user_fixture(customer_id: customer_id)
 
-    # An arbitrary window, deliberately not yesterday, so the assertion
+    # A closed day that is deliberately not yesterday, so the assertion
     # proves the boundaries came from the args rather than the clock.
-    period_start = ~U[2026-08-18 00:00:00.000000Z]
-    period_end = ~U[2026-08-19 00:00:00.000000Z]
+    period_start = ~U[2026-07-04 00:00:00.000000Z]
+    period_end = ~U[2026-07-05 00:00:00.000000Z]
 
     assert :ok =
              SyncStripeMetersWorker.perform(%Oban.Job{
@@ -183,5 +183,75 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
 
     assert job.args["period_start"] == DateTime.to_unix(period_start, :microsecond)
     assert job.args["period_end"] == DateTime.to_unix(period_end, :microsecond)
+  end
+
+  test "discards a window that has not closed yet" do
+    customer_id = "account-open-#{UUIDv7.generate()}"
+    AccountsFixtures.user_fixture(customer_id: customer_id)
+
+    # Snapshotting a live day would post partial usage under the identifier
+    # for the whole day, and the nightly run's full report would then be
+    # deduplicated away — losing every minute earned after the snapshot.
+    today = DateTime.utc_now() |> DateTime.to_date() |> DateTime.new!(~T[00:00:00.000000])
+    tomorrow = DateTime.add(today, 1, :day)
+
+    assert {:discard, :window_has_not_closed_yet} =
+             SyncStripeMetersWorker.perform(%Oban.Job{
+               args: %{
+                 "period_start" => DateTime.to_unix(today, :microsecond),
+                 "period_end" => DateTime.to_unix(tomorrow, :microsecond)
+               }
+             })
+
+    assert all_enqueued(worker: SyncCustomerStripeMetersWorker) == []
+  end
+
+  test "discards a closed window narrower than a whole day" do
+    customer_id = "account-partial-#{UUIDv7.generate()}"
+    AccountsFixtures.user_fixture(customer_id: customer_id)
+
+    # This window's identifier is one the cron will never produce, so the
+    # cron's whole-day run would report the same usage a second time.
+    assert {:discard, :window_not_aligned_to_utc_midnight} =
+             SyncStripeMetersWorker.perform(%Oban.Job{
+               args: %{
+                 "period_start" => DateTime.to_unix(~U[2026-07-04 00:00:00.000000Z], :microsecond),
+                 "period_end" => DateTime.to_unix(~U[2026-07-04 16:00:00.000000Z], :microsecond)
+               }
+             })
+
+    assert all_enqueued(worker: SyncCustomerStripeMetersWorker) == []
+  end
+
+  test "discards a multi-day window even when both bounds are midnights" do
+    customer_id = "account-span-#{UUIDv7.generate()}"
+    AccountsFixtures.user_fixture(customer_id: customer_id)
+
+    # Aligned but two days wide. The cron reports each day separately, so
+    # this identifier is again one it never produces.
+    assert {:discard, :window_is_not_one_whole_day} =
+             SyncStripeMetersWorker.perform(%Oban.Job{
+               args: %{
+                 "period_start" => DateTime.to_unix(~U[2026-07-04 00:00:00.000000Z], :microsecond),
+                 "period_end" => DateTime.to_unix(~U[2026-07-06 00:00:00.000000Z], :microsecond)
+               }
+             })
+
+    assert all_enqueued(worker: SyncCustomerStripeMetersWorker) == []
+  end
+
+  test "discards a window not aligned to UTC midnight" do
+    customer_id = "account-unaligned-#{UUIDv7.generate()}"
+    AccountsFixtures.user_fixture(customer_id: customer_id)
+
+    assert {:discard, :window_not_aligned_to_utc_midnight} =
+             SyncStripeMetersWorker.perform(%Oban.Job{
+               args: %{
+                 "period_start" => DateTime.to_unix(~U[2026-07-04 09:30:00.000000Z], :microsecond),
+                 "period_end" => DateTime.to_unix(~U[2026-07-05 09:30:00.000000Z], :microsecond)
+               }
+             })
+
+    assert all_enqueued(worker: SyncCustomerStripeMetersWorker) == []
   end
 end

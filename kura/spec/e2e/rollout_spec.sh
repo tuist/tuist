@@ -102,12 +102,12 @@ Describe 'warm rollout lifecycle'
   End
 End
 
-# The 2026-07-24 incident class: under legacy bootstrap, a peer flap or a
-# recovery re-enrollment after a node became Ready cleared its serving state
-# and re-gated readiness, which let a readiness-gated rolling update kill a
-# just-Ready pod mid-catch-up. Under KURA_BACKFILL_ENABLED readiness LATCHES
-# for the process lifetime: nothing on the backfill path may take a node out
-# of rotation once it served, so this suite flaps the only peer and asserts
+# The 2026-07-24 incident class: under the retired bootstrap walker, a peer
+# flap or a recovery re-enrollment after a node became Ready cleared its
+# serving state and re-gated readiness, which let a readiness-gated rolling
+# update kill a just-Ready pod mid-catch-up. Readiness now LATCHES for the
+# process lifetime: nothing on the backfill path may take a node out of
+# rotation once it served, so this suite flaps the only peer and asserts
 # /ready never regresses through loss, rediscovery, and the rejoin pass.
 Describe 'backfill readiness latch survives peer flaps'
   Include spec/e2e/support.sh

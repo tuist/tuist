@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
   use Tuist.MCP.Tool,
     name: "list_xcode_build_cas_outputs",
     title: "List Xcode Build Content-Addressable Storage Outputs",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{

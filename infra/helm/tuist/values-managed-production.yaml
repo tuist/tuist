@@ -79,7 +79,18 @@ server:
   # JSON-encodes this into TUIST_STRIPE_PRICES.
   stripe:
     prices:
-      runners: {}
+      # Reporting-only until a Price id is filled in. The Meters exist in
+      # Stripe and receive real usage, but an empty Price id means no
+      # subscription can carry a runner item, so nothing can be charged.
+      # Filling an id in is what turns billing on, per platform.
+      #
+      # Never blank an id that has already gone live: a plan change would
+      # then stop recognising that subscription item as a runner item and
+      # delete it, taking the cycle's accrued usage with it. Pause billing
+      # by removing the item, not by emptying this map.
+      runners:
+        runner_linux_compute_unit_milliseconds: ""
+        runner_macos_compute_unit_milliseconds: ""
       air:
         usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
         flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]

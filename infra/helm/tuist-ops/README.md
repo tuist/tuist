@@ -18,8 +18,10 @@ cross-call this deployment via the tailnet for the policy lookup.
   `/webhooks/slack/*`**. The Pomerium impersonation policy endpoint
   (`/api/v1/policy`) and any future LiveView paths (`/db`, etc.) are
   reachable only on the tailnet, never publicly.
-- **CNPG Cluster** — single-instance Postgres, 5Gi storage, daily
+- **CNPG Cluster**: two-instance Postgres, 20Gi storage, daily
   backups to Tigris under `s3://tuist-prod-pg-backups/tuist-ops`.
+  The second instance exists so a CAPI node drain can evict the
+  primary; see the comment on `postgresql.instances` in `values.yaml`.
 - **ExternalSecrets** — three of them:
   - `tuist-ops-runtime` — Slack, Tailscale, and GitHub credentials from `TUIST_OPS_BOT`
   - `tuist-ops-app`     — `SECRET_KEY_BASE` from the same 1P item
