@@ -14,6 +14,7 @@ defmodule Tuist.Automations.Holds do
   alias Tuist.Automations.Holds.Hold
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.Tests
 
   @doc """
   Appends a claim row for `(alert, test_case_id)`.
@@ -106,6 +107,51 @@ defmodule Tuist.Automations.Holds do
       expiry_runs: fragment("tupleElement(argMax(tuple(?), ?), 1)", h.expiry_runs, h.inserted_at)
     })
     |> ClickHouseRepo.all()
+  end
+
+  @doc """
+  Recomputes the derived state for the given test cases and appends a state
+  event only where it differs from the currently projected state.
+
+  This is the single choke point between the claims ledger and the test-case
+  state ledger: it folds the live claims per test case with `derive/1`,
+  compares against `Tuist.Tests.get_test_case_states/2`, and emits through
+  `Tuist.Tests.update_test_case/3` (event append, PubSub, event-driven
+  automations, webhooks) only on change — shadowed-claim churn stays silent.
+
+  `cause` carries the provenance of the hold operation that triggered the
+  re-derivation: `:alert_id` and/or `:actor_id` are forwarded onto any
+  emitted event.
+
+  Idempotent by construction: with no claim changes, derived equals
+  projected and nothing is emitted, so it doubles as crash repair — any
+  stale projection is converged by the next invocation.
+
+  Returns `{:ok, %{changed: test_case_ids, unchanged_count: count}}`.
+  """
+  def derive_and_apply(project_id, test_case_ids, cause \\ []) do
+    claims = current_claims(project_id, test_case_ids)
+    projected = Tests.get_test_case_states(project_id, test_case_ids)
+    update_opts = Keyword.take(cause, [:alert_id, :actor_id])
+
+    changed =
+      Enum.filter(test_case_ids, fn test_case_id ->
+        derived_state = derive(Map.get(claims, test_case_id, [])).state
+
+        derived_state != projected[test_case_id].state and
+          apply_derived_state(test_case_id, derived_state, update_opts)
+      end)
+
+    {:ok, %{changed: changed, unchanged_count: length(test_case_ids) - length(changed)}}
+  end
+
+  # A test case that no longer resolves (e.g. absent from `test_cases`) is
+  # left for a later re-derivation rather than failing the whole batch.
+  defp apply_derived_state(test_case_id, state, opts) do
+    case Tests.update_test_case(test_case_id, %{state: state}, opts) do
+      {:ok, _} -> true
+      {:error, _} -> false
+    end
   end
 
   @doc """
