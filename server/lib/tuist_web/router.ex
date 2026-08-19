@@ -387,6 +387,10 @@ defmodule TuistWeb.Router do
         metadata: @marketing_route_metadata,
         private: private
 
+      get Path.join(locale_path_prefix, "/download"), MarketingController, :download,
+        metadata: @marketing_route_metadata,
+        private: private
+
       get Path.join(locale_path_prefix, "/support"), MarketingController, :support,
         metadata: @marketing_route_metadata,
         private: private
@@ -1090,8 +1094,6 @@ defmodule TuistWeb.Router do
       live "/", PreviewLive
     end
   end
-
-  get "/download", TuistWeb.DownloadController, :download
 
   # Dashboards a public account exposes to signed-out visitors. Each
   # LiveView here re-checks `:account_dashboard_read`, which is what
