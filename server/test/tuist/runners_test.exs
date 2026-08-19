@@ -312,7 +312,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
       end)
 
-      expect(Claims, :mark_running, fn ^workflow_job_id, runner_name ->
+      expect(Claims, :mark_running, fn ^workflow_job_id, runner_name, _claimed_at ->
         assert String.starts_with?(runner_name, String.slice(pod_name, 0, 55))
         assert byte_size(runner_name) <= 64
         :ok
@@ -424,7 +424,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: attrs.name}}
       end)
 
-      expect(Claims, :mark_running, fn workflow_job_id, _runner_name ->
+      expect(Claims, :mark_running, fn workflow_job_id, _runner_name, _claimed_at ->
         assert workflow_job_id == eligible_candidate.workflow_job_id
         :ok
       end)
@@ -761,7 +761,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
       end)
 
-      expect(Claims, :mark_running, fn 90_002, runner_name ->
+      expect(Claims, :mark_running, fn 90_002, runner_name, _claimed_at ->
         assert String.starts_with?(runner_name, pod_name)
         :ok
       end)
@@ -981,7 +981,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
       end)
 
-      expect(Claims, :mark_running, fn 92_017, _runner_name -> :ok end)
+      expect(Claims, :mark_running, fn 92_017, _runner_name, _claimed_at -> :ok end)
       expect(Jobs, :record_running, fn 92_017, _runner_name -> :ok end)
 
       assert {:ok, %{workflow_job_id: 92_017}} =
@@ -1142,6 +1142,40 @@ defmodule Tuist.RunnersTest do
       assert {:ok, 2} = Runners.report_volume_head(account.id, "node-3", digest, 1)
       refute VolumeMasterOrphans.exists?(account.id, digest)
     end
+
+    test "lets a cold promote retire a HEAD a host reported unverifiable, and reclaims its object" do
+      account = account_fixture()
+      poisoned = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, "node-1", poisoned, 0)
+
+      # A host downloaded the HEAD's object and proved its inventory is not the
+      # digest the HEAD advertises. Nothing in the fleet can adopt that generation,
+      # so this cold promote takes the lineage over instead of being rejected.
+      cold = String.duplicate("d", 40)
+      assert {:ok, 2} = Runners.report_volume_head(account.id, "node-2", cold, 0, poisoned)
+
+      # And the object nothing can use is now superseded, so it is reclaimed on the
+      # ordinary supersession path rather than lingering forever.
+      assert_enqueued(
+        worker: PruneVolumeMasterWorker,
+        args: %{account_id: account.id, tree_digest: poisoned}
+      )
+    end
+
+    test "ignores a malformed unverifiable digest rather than retiring on it" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, "node-1", digest, 0)
+
+      # The value reaches a query, so it is validated like tree_digest. Anything
+      # that is not a runner inventory digest reads as no report at all, which
+      # leaves the HEAD standing — the conservative direction.
+      for bad <- ["", "not-a-digest", String.duplicate("a", 39), String.upcase(digest), nil, 42] do
+        assert :conflict = Runners.report_volume_head(account.id, "node-2", String.duplicate("e", 40), 0, bad)
+      end
+
+      assert %{generation: 1, tree_digest: ^digest} = VolumeHeads.get_head(account.id)
+    end
   end
 
   describe "prune_orphan_volume_master/2" do
@@ -1296,6 +1330,9 @@ defmodule Tuist.RunnersTest do
                  workflow_job_id: 91_050,
                  account_id: account.id,
                  fleet_name: fleet,
+                 platform: :macos,
+                 vcpus: 6,
+                 memory_gb: 14,
                  pod_name: "pod-session-tail",
                  started_at: DateTime.utc_now()
                })
@@ -1320,7 +1357,35 @@ defmodule Tuist.RunnersTest do
       end
 
       assert Jobs.queued_count_by_fleet(fleet) == queued
-      assert %{queued: ^headroom} = Runners.scaling_signals_for_fleet(fleet)
+      assert %{queued: ^headroom, withheld: 5} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    # The capped depth alone can't distinguish "nothing queued" from
+    # "queued but unservable". Without `withheld` the controller reads
+    # the second as idle and, on a saturated fleet, never grants the
+    # pool the Pod it needs to claim once headroom frees.
+    test "reports work withheld by the cap so a blocked pool is not read as idle" do
+      account = account_fixture()
+      fleet = "macos-signal-blocked"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      headroom = Concurrency.headroom_jobs(account.id, resources)
+
+      for i <- 1..(headroom + 2) do
+        queue_job(account, 91_500 + i, fleet, resources)
+      end
+
+      assert %{queued: ^headroom, withheld: 2} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    test "reports nothing withheld when every queued job is dispatchable" do
+      account = account_fixture()
+      fleet = "macos-signal-unblocked"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      queue_job(account, 91_601, fleet, resources)
+
+      assert %{queued: 1, withheld: 0} = Runners.scaling_signals_for_fleet(fleet)
     end
 
     test "counts each account's headroom independently" do
@@ -1354,7 +1419,7 @@ defmodule Tuist.RunnersTest do
       queue_job(account, 91_401, fleet, %{platform: :linux, vcpus: 4, memory_gb: 16})
 
       assert {:error, _} = Catalog.resources_for_fleet(fleet)
-      assert %{queued: 1} = Runners.scaling_signals_for_fleet(fleet)
+      assert %{queued: 1, withheld: 0} = Runners.scaling_signals_for_fleet(fleet)
     end
   end
 end

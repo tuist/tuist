@@ -61,6 +61,7 @@ enum ManifestLoader {
     }
 
     static func dumpPackage(packageDir: URL, disableSandbox: Bool) async throws -> Any {
+        try await requireManifest(packageDir: packageDir)
         do {
             let data = try await loadPackageJSON(
                 packageDir: packageDir, disableSandbox: disableSandbox
@@ -72,12 +73,29 @@ enum ManifestLoader {
     }
 
     static func dumpPackageJSON(packageDir: URL, disableSandbox: Bool) async throws -> Data {
+        try await requireManifest(packageDir: packageDir)
         do {
             return try await loadPackageJSON(
                 packageDir: packageDir, disableSandbox: disableSandbox
             )
         } catch {
             throw await dumpFailure(packageDir: packageDir, underlying: error)
+        }
+    }
+
+    /// `swift package dump-package` resolves the package root by walking up from its working
+    /// directory, and `--package-path` walks up as well, so a directory that holds no manifest
+    /// does not fail the dump: it produces the nearest ancestor package instead, which swifterpm
+    /// would then cache and resolve under the identity of the package the caller asked for. A
+    /// checkout that lives inside another Swift package is enough to turn a broken local
+    /// dependency into a silently wrong graph, so refuse the dump before it starts.
+    ///
+    /// Only the directory-exists-without-a-manifest case is decided here. A directory that is
+    /// absent or unreadable cannot adopt an ancestor either way, and letting the subprocess fail
+    /// keeps the diagnosis of those states in `dumpFailure`, next to the error they produce.
+    private static func requireManifest(packageDir: URL) async throws {
+        if case .absent = await manifestPresence(packageDir: packageDir) {
+            throw ToolError.message("no Package.swift in \(packageDir.path)")
         }
     }
 
@@ -221,7 +239,8 @@ enum ManifestFileSystemDependencyGraph {
                 throw ToolError.message(
                     """
                     failed to load the manifest for the local package \
-                    \(item.dependency.identity), declared as "\(item.dependency.path)" by \
+                    \(item.dependency.identity), declared as "\(item.dependency.path)"\
+                    \(redirect(declared: item.dependency.path, canonical: canonicalPath)) by \
                     \(item.parentPackageDir.path): \(error)
                     """
                 )
@@ -239,6 +258,14 @@ enum ManifestFileSystemDependencyGraph {
         }
 
         return result
+    }
+
+    /// The failure above names the directory the dump was attempted in, which is the declared
+    /// path only when nothing along the way is a symlink. When the two differ, that sentence
+    /// names a directory nobody declared and reads like a typo, while the redirect is the whole
+    /// diagnosis: a local dependency whose path lands somewhere other than the package.
+    private static func redirect(declared: String, canonical: URL) -> String {
+        canonical.path == declared ? "" : ", which resolves to \(canonical.path),"
     }
 
     static func packagePathForFileSystemDependency(

@@ -316,9 +316,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
-	if err := r.reconcileConfigMap(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
 	if err := r.reconcileHeadlessService(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -406,22 +403,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	logger.Info("reconciled Kura instance", "phase", rollout.phase, "readyReplicas", rollout.readyReplicas)
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-}
-
-func (r *KuraInstanceReconciler) reconcileConfigMap(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	if instance.Spec.ExtensionScript == "" {
-		return nil
-	}
-	configMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: extensionConfigMapName(instance), Namespace: instance.Namespace}}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, configMap, func() error {
-		if err := controllerutil.SetControllerReference(instance, configMap, r.Scheme); err != nil {
-			return err
-		}
-		configMap.Labels = labels(instance)
-		configMap.Data = map[string]string{"hooks.lua": instance.Spec.ExtensionScript}
-		return nil
-	})
-	return err
 }
 
 func (r *KuraInstanceReconciler) reconcileHeadlessService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -1662,15 +1643,24 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 	}
 
 	// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
-	// status endpoint is unreachable for every pod: without the runtime's
-	// bootstrap signal we keep the minPrimaryPodAge buffer so a still-bootstrapping
-	// pod isn't promoted. When the runtime status IS reachable it supersedes this —
-	// a pod that reports Ready+serving has already completed bootstrap (the runtime's
-	// is_serving requires bootstrapped_peers == known_peers), so the runtime-confirmed
-	// path does NOT age-gate. That lets a freshly-rolled but caught-up standby be
-	// promoted immediately, which is what makes a rolling deploy gapless instead of
-	// waiting out the 10-minute age with no eligible primary. The runtime status is
-	// therefore probed for every Ready pod, not just the age-eligible ones.
+	// status endpoint is unreachable for every pod: without the runtime's own
+	// catch-up signal we keep the minPrimaryPodAge buffer so a pod that is still
+	// filling isn't promoted. When the runtime status IS reachable it supersedes
+	// this, and the runtime-confirmed path does NOT age-gate — which is what lets
+	// a freshly-rolled but caught-up standby be promoted immediately, making a
+	// rolling deploy gapless instead of waiting out the 10-minute age with no
+	// eligible primary. The runtime status is therefore probed for every Ready
+	// pod, not just the age-eligible ones.
+	//
+	// Note that Ready+serving is NOT proof of a completed catch-up. It once was
+	// (is_serving required bootstrapped_peers == known_peers), but readiness now
+	// latches at a ring-fullness threshold or when the initial backfill cycle
+	// settles, and a cycle settles even when a peer stays unreachable. A pod that
+	// reports serving can therefore still be filling, or be cold on an empty
+	// volume whose only peer is down. Ring members and the writer lock below are
+	// what this gate actually rests on; `backfill_initial_cycle` on
+	// /status/rollout is the completeness signal, and it is deliberately not
+	// consumed here (see the region-move note in kura/README.md).
 	fallbackReady := map[string]bool{}
 	runtimeHealthy := map[string]bool{}
 	runtimeStatuses := 0
@@ -2717,7 +2707,7 @@ func preStopLifecycle() *corev1.Lifecycle {
 
 // sharedSecretsEnvFrom mounts the kura-shared-secrets Secret if it
 // exists. The Tuist control plane and operator drop credentials such as
-// KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET into this Secret so they
+// KURA_AUTH_JWT_SECRET into this Secret so they
 // stay out of the KuraInstance spec (which is readable by anyone with
 // list/watch on the CR).
 func sharedSecretsEnvFrom() []corev1.EnvFromSource {
@@ -3058,12 +3048,6 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 			env = append(env, defaultEnv)
 		}
 	}
-	if instance.Spec.ExtensionScript != "" {
-		env = append(env,
-			corev1.EnvVar{Name: "KURA_EXTENSION_ENABLED", Value: "true"},
-			corev1.EnvVar{Name: "KURA_EXTENSION_SCRIPT_PATH", Value: "/etc/kura/extensions/hooks.lua"},
-		)
-	}
 	// When the account peer plane is exposed publicly, advertise the public
 	// gateway URL so an off-cluster self-hosted node replicates through the
 	// gateway instead of the managed pods' in-cluster addresses (which it can't
@@ -3119,9 +3103,6 @@ func volumeMounts(instance *kurav1alpha1.KuraInstance) []corev1.VolumeMount {
 		{Name: "data", MountPath: "/var/cache/kura"},
 		{Name: peerTLSVolumeName, MountPath: peerTLSMountPath, ReadOnly: true},
 	}
-	if instance.Spec.ExtensionScript != "" {
-		mounts = append(mounts, corev1.VolumeMount{Name: "extension-script", MountPath: "/etc/kura/extensions", ReadOnly: true})
-	}
 	return mounts
 }
 
@@ -3132,14 +3113,6 @@ func volumes(instance *kurav1alpha1.KuraInstance) []corev1.Volume {
 			SecretName: peerTLSSecretName(instance),
 		}},
 	}}
-	if instance.Spec.ExtensionScript != "" {
-		volumes = append(volumes, corev1.Volume{
-			Name: "extension-script",
-			VolumeSource: corev1.VolumeSource{ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{Name: extensionConfigMapName(instance)},
-			}},
-		})
-	}
 	return volumes
 }
 
@@ -3264,10 +3237,6 @@ func accountPeerServiceName(instance *kurav1alpha1.KuraInstance) string {
 	return strings.TrimRight(name[:63-len(suffix)], "-") + suffix
 }
 
-func extensionConfigMapName(instance *kurav1alpha1.KuraInstance) string {
-	return instance.Name + "-extension"
-}
-
 func ptr[T any](v T) *T {
 	return &v
 }
@@ -3289,7 +3258,6 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
-		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&networkingv1.NetworkPolicy{}).

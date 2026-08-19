@@ -5,10 +5,14 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -630,6 +634,38 @@ func TestRenderSSHIngressGuardScript(t *testing.T) {
 	}
 }
 
+// A Tart VM's egress arrives inbound on the vmnet bridge before it is routed
+// and NAT'd out, so a bare `to any port 22` block also drops every SSH the
+// customer workload makes — private git dependencies, ssh:// submodules, deploy
+// steps — as a silent timeout rather than a refusal. The guard exists to keep
+// scan traffic off the host's own listener, so it must pass VM egress while
+// still denying a VM the host's and a sibling's :22.
+func TestRenderSSHIngressGuardScript_PassesVMEgress(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	for _, want := range []string{
+		"table <vm_ssh_sources> persist { 192.168.64.0/22 }",
+		"pass in quick proto tcp from <vm_ssh_sources> to any port 22 keep state",
+		"block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("renderSSHIngressGuardScript missing %q", want)
+		}
+	}
+	// pf is first-match-wins across `quick` rules. The VM pass has to render
+	// above the catch-all block or VM egress stays dropped, and the VM→VM block
+	// has to render above that pass or a VM reaches the host's :22.
+	vmPass := strings.Index(s, "pass in quick proto tcp from <vm_ssh_sources> to any port 22")
+	if strings.Index(s, "block drop in quick proto tcp to any port 22") < vmPass {
+		t.Error("catch-all block renders before the VM pass; VM egress to :22 stays dropped")
+	}
+	if vmPass < strings.Index(s, "block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22") {
+		t.Error("VM pass renders before the VM→VM block; a VM could reach the host's :22")
+	}
+}
+
 // A malformed allow CIDR must fail closed rather than render a creative
 // ruleset onto a host we can only reach through the port it governs.
 func TestRenderSSHIngressGuardScript_RejectsBadCIDR(t *testing.T) {
@@ -1029,4 +1065,178 @@ func TestRenderLogShipperScript_ChoiceSurvivesTheHashZeroingTheAuthKey(t *testin
 	if !strings.Contains(withKey, "launchctl bootstrap") {
 		t.Fatalf("a configured fleet must render the install, not the uninstall\n%s", withKey)
 	}
+}
+
+// The resolver only redirects `.ts.net`. Scoping it to the whole of
+// tuist.dev would be the obvious shortcut for reaching the registry by its
+// vanity name, and it would break the host: MagicDNS knows nothing of
+// tuist.dev, so every other name under it — the server, the Swift
+// registry — would start resolving nowhere.
+func TestRenderTailnetResolverScript_ScopesToTsNetOnly(t *testing.T) {
+	script := renderTailnetResolverScript()
+	if !strings.Contains(script, "/etc/resolver/ts.net") {
+		t.Fatalf("resolver must be installed for ts.net, got:\n%s", script)
+	}
+	if strings.Contains(script, "/etc/resolver/tuist.dev") {
+		t.Fatalf("resolver must not capture tuist.dev, got:\n%s", script)
+	}
+	if !strings.Contains(script, "nameserver 100.100.100.100") {
+		t.Fatalf("resolver must point at MagicDNS, got:\n%s", script)
+	}
+}
+
+// macOS caches negative answers, and these names answered NXDOMAIN on
+// every host until this file existed. Without a flush the cached
+// negatives outlive the fix, so a roll would look applied while lookups
+// kept failing.
+func TestRenderTailnetResolverScript_FlushesTheNegativeCache(t *testing.T) {
+	script := renderTailnetResolverScript()
+	if !strings.Contains(script, "dscacheutil -flushcache") {
+		t.Fatalf("resolver install must flush the DNS cache, got:\n%s", script)
+	}
+}
+
+// hashPartInstaller names the step that re-applies each part of
+// HostConfigHash on an already-bootstrapped host, across both of the
+// sections it hashes: the rendered scripts and the embedded binary SHAs.
+//
+// Being in the hash is not the same as reaching a host, and the gap between
+// the two is silent in the worst possible way: a part that moves the
+// fingerprint makes the drift loop roll every mini, and if nothing on the
+// update path re-applies it, the roll succeeds and stamps the host
+// converged without the host ever changing. The fleet then reports itself
+// correct while carrying none of the config. A part is therefore a promise
+// that UpdateTartKubelet keeps, and this table is where the promise is
+// written down.
+//
+// Several parts share an installer, which is why this maps to a step rather
+// than pairing names one to one: installVMEgressFirewall renders both the
+// firewall anchor and the NAT helper, and each binary rides the same step
+// that installs the script driving it.
+//
+// Bootstrap-only work must not appear in the hash at all rather than
+// appear here unmapped: TartTarball is the standing example, omitted
+// because the hypervisor cannot be swapped under running VMs.
+var hashPartInstaller = map[string]string{
+	"firewall":             "installVMEgressFirewall",
+	"vmnat":                "installVMEgressFirewall",
+	"pn-interface":         "installVMCachePNInterface",
+	"runner-cache-volume":  "installRunnerCacheVolume",
+	"launchd":              "loadTartKubeletLaunchd",
+	"launchd-plist":        "loadTartKubeletLaunchd",
+	"tailscale":            "installTailscale",
+	"node-exporter":        "installNodeExporter",
+	"tailnet-resolver":     "installTailnetResolver",
+	"log-shipper":          "installLogShipper",
+	"tart-kubelet-install": "installTartKubelet",
+	"ssh-reachability":     "installSSHReachability",
+	"ssh-ingress-guard":    "installSSHIngressGuard",
+
+	"tart-kubelet":         "installTartKubelet",
+	"tailscale-binaries":   "installTailscale",
+	"node-exporter-binary": "installNodeExporter",
+	"log-shipper-binary":   "installLogShipper",
+}
+
+// Reads the source rather than the behaviour because the invariant is
+// structural: both sides are lists a person edits, and nothing in the type
+// system ties one to the other. Driving a real UpdateTartKubelet would need
+// a live SSH host and would still only prove the steps it happened to
+// reach.
+func TestUpdateTartKubelet_AppliesEveryHashedStep(t *testing.T) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "bootstrap.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse bootstrap.go: %v", err)
+	}
+
+	parts := hashedPartNames(t, file)
+	if len(parts) == 0 {
+		t.Fatal("found no hashed part names in HostConfigHash; the part table moved or changed shape")
+	}
+	called := calledFunctions(t, file, "UpdateTartKubelet")
+
+	for _, part := range parts {
+		installer, mapped := hashPartInstaller[part]
+		if !mapped {
+			t.Errorf("HostConfigHash part %q has no entry in hashPartInstaller: name the step that re-applies it on the drift path, or drop the part from the hash if the work is bootstrap-only", part)
+			continue
+		}
+		if !called[installer] {
+			t.Errorf("HostConfigHash part %q is applied by %s, which UpdateTartKubelet never calls: a roll would stamp the host converged without applying it", part, installer)
+		}
+	}
+
+	hashed := make(map[string]bool, len(parts))
+	for _, part := range parts {
+		hashed[part] = true
+	}
+	for part := range hashPartInstaller {
+		if !hashed[part] {
+			t.Errorf("hashPartInstaller names %q, which HostConfigHash no longer hashes; drop the stale entry", part)
+		}
+	}
+}
+
+// hashedPartNames returns the `name` field of every element of the
+// `[]struct{ name, script string }` table HostConfigHash iterates.
+func hashedPartNames(t *testing.T, file *ast.File) []string {
+	t.Helper()
+
+	var names []string
+	ast.Inspect(findFunc(t, file, "HostConfigHash"), func(n ast.Node) bool {
+		lit, ok := n.(*ast.CompositeLit)
+		if !ok {
+			return true
+		}
+		// The part table is the only composite literal here whose elements
+		// are themselves two-string literals.
+		for _, elt := range lit.Elts {
+			inner, ok := elt.(*ast.CompositeLit)
+			if !ok || len(inner.Elts) != 2 {
+				return true
+			}
+			name, ok := inner.Elts[0].(*ast.BasicLit)
+			if !ok || name.Kind != token.STRING {
+				return true
+			}
+			unquoted, err := strconv.Unquote(name.Value)
+			if err != nil {
+				t.Fatalf("unquote part name %s: %v", name.Value, err)
+			}
+			names = append(names, unquoted)
+		}
+		return false
+	})
+	return names
+}
+
+// calledFunctions returns the names of the functions called directly in the
+// named function's body.
+func calledFunctions(t *testing.T, file *ast.File, name string) map[string]bool {
+	t.Helper()
+
+	called := map[string]bool{}
+	ast.Inspect(findFunc(t, file, name), func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
+			if ident, ok := call.Fun.(*ast.Ident); ok {
+				called[ident.Name] = true
+			}
+		}
+		return true
+	})
+	return called
+}
+
+func findFunc(t *testing.T, file *ast.File, name string) *ast.FuncDecl {
+	t.Helper()
+
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if ok && fn.Recv == nil && fn.Name.Name == name {
+			return fn
+		}
+	}
+	t.Fatalf("no function %s in bootstrap.go", name)
+	return nil
 }

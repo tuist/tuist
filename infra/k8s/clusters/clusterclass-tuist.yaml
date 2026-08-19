@@ -146,10 +146,16 @@ spec:
           #
           # The risk this accepts is a drain that never finishes holding
           # the roll open. That is deliberately handled by making it loud
-          # rather than by capping it: "Worker node pool stuck mid-rollout"
-          # in `infra/helm/k8s-monitoring/alerts.md` fires on
-          # `upToDateReplicas < spec.replicas`, which covers a stalled
-          # drain and the all-hosts-claimed wedge alike.
+          # rather than by capping it: "Worker pool has a Machine it
+          # cannot delete" in `infra/helm/k8s-monitoring/alerts.md` fires
+          # on `status.replicas > spec.replicas`.
+          #
+          # Not `upToDateReplicas < spec.replicas`: that is the sibling
+          # "stuck mid-rollout" rule, and it covers the all-hosts-claimed
+          # wedge only. A roll blocked purely on deletion has already
+          # produced every up-to-date Machine it needs, so up-to-date
+          # equals spec and that rule stays quiet. tuist-md-processor sat
+          # in exactly that blind spot for 14 days from 2026-07-31.
           nodeDrainTimeoutSeconds: 0
         healthCheck:
           checks:

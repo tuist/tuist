@@ -255,7 +255,44 @@ defmodule Tuist.Runners do
 
   def volume_master_upload_url(_account_id, _tree_digest), do: :error
 
+  @doc """
+  Whether a promote built on `base_generation` could still win `account_id`'s
+  cache-volume fast-forward — the pre-flight a runner makes before uploading.
+
+  The runner's image upload runs at teardown and blocks the VM halt (and so the
+  host slot's reclaim) for its whole duration, yet under cross-host contention
+  most promotes lose the fast-forward that follows it. Asking this first lets a
+  runner whose base another host has already advanced past skip the transfer
+  entirely instead of paying for it and being rejected.
+
+  `unverifiable_digest` is the HEAD digest the promoting host downloaded and could
+  not verify, when it reported one: it makes a promote viable against a HEAD nothing
+  can adopt, from a cold base or a stale one alike, and must be evaluated here as
+  well as at the bump or the pre-flight would turn away the only promote that can
+  retire it.
+
+  Advisory only: see `Tuist.Runners.VolumeHeads.fast_forward_viable?/4` — the
+  compare-and-swap in `report_volume_head/5` remains what decides the HEAD.
+  """
+  def fast_forward_viable?(account_id, base_generation, unverifiable_digest \\ nil) do
+    VolumeHeads.fast_forward_viable?(
+      account_id,
+      base_generation,
+      VolumeHeads.reserved_tuist_cache(),
+      unverifiable_digest: reported_unverifiable_digest(unverifiable_digest)
+    )
+  end
+
   defp valid_inventory_digest?(digest), do: Regex.match?(~r/^[a-f0-9]{40}$/, digest)
+
+  # A reported unverifiable digest is honored only in the guest's own digest
+  # format. An absent or malformed one reads as no report at all, which simply
+  # leaves the HEAD standing — the conservative direction.
+  defp reported_unverifiable_digest(digest) when is_binary(digest) do
+    if valid_inventory_digest?(digest), do: digest
+  end
+
+  defp reported_unverifiable_digest(_digest), do: nil
 
   @doc """
   Records a runner's promote of `account_id`'s cache volume: fast-forwards the
@@ -271,15 +308,29 @@ defmodule Tuist.Runners do
   escape the account prefix. Validate here too — not just when minting the upload
   URL — since this is the write that the download key is later derived from.
 
+  `unverifiable_digest`, when the runner reports one, is the HEAD digest its host
+  downloaded and found the stored object does not reproduce. It lets the promote
+  retire that lineage instead of being rejected against a HEAD no host can adopt —
+  whether this host holds no master or one at an older generation, both of which are
+  wedged the same way (see `Tuist.Runners.VolumeHeads`). Validated like
+  `tree_digest`, since it too reaches a query.
+
   Returns `{:ok, generation}` on an accepted fast-forward, `:conflict` when the
   base is stale (another host advanced the HEAD first), or `:error` on an invalid
   digest.
   """
-  def report_volume_head(account_id, node_name, tree_digest, base_generation) do
+  def report_volume_head(account_id, node_name, tree_digest, base_generation, unverifiable_digest \\ nil) do
     if is_binary(tree_digest) and valid_inventory_digest?(tree_digest) do
       superseded = VolumeHeads.get_head(account_id)
 
-      case VolumeHeads.bump_head(account_id, node_name, tree_digest, base_generation) do
+      case VolumeHeads.bump_head(
+             account_id,
+             node_name,
+             tree_digest,
+             base_generation,
+             VolumeHeads.reserved_tuist_cache(),
+             unverifiable_digest: reported_unverifiable_digest(unverifiable_digest)
+           ) do
         {:ok, generation} ->
           # This digest is now HEAD, so it is no longer an orphan candidate even if
           # an earlier job's promote of the same inventory was rejected — forget it
@@ -472,7 +523,12 @@ defmodule Tuist.Runners do
       claims and open runner sessions. Unlike `claimed`, this remains
       non-zero through cache work and Pod teardown.
     * `queued` — workflow_jobs still in `runner_jobs.status =
-      'queued'` for this fleet (ClickHouse).
+      'queued'` for this fleet (ClickHouse), capped per account at
+      what dispatch would actually hand out right now.
+    * `withheld` — queued workflow_jobs excluded from `queued`
+      because their account is at its concurrency limit. Real work
+      that cannot be served yet, so the controller can tell a pool
+      that is genuinely idle from one that is blocked.
     * `p95_concurrent_last_hour` — rolling 95th percentile of
       occupied runner sessions over active one-minute buckets in
       the last hour (Postgres). Keeps sparse but real bursts warm
@@ -486,18 +542,23 @@ defmodule Tuist.Runners do
   def scaling_signals_for_fleet(fleet_name) when is_binary(fleet_name) do
     claimed = Map.get(Claims.counts_per_fleet(), fleet_name, 0)
     occupied = max(Map.get(RunnerSessions.occupied_counts_per_fleet(), fleet_name, 0), claimed)
+    {queued, withheld} = dispatchable_queued_count(fleet_name)
 
     %{
       fleet: fleet_name,
       claimed: claimed,
       occupied: occupied,
-      queued: dispatchable_queued_count(fleet_name),
+      queued: queued,
+      withheld: withheld,
       p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name)
     }
   end
 
-  # Queued jobs the fleet could actually be handed right now: each
-  # account's queue depth capped at its remaining concurrency headroom.
+  # Returns `{dispatchable, withheld}`.
+  #
+  # `dispatchable` is the queued jobs the fleet could actually be handed
+  # right now: each account's queue depth capped at its remaining
+  # concurrency headroom.
   #
   # Raw queue depth overstates demand whenever an account queues past its
   # limit. Dispatch declines those jobs and leaves them queued, so they
@@ -506,37 +567,43 @@ defmodule Tuist.Runners do
   # them either, so they idle on hosts that pools with claimable work are
   # then denied — one account at its cap quietly starves the fleet.
   #
+  # `withheld` is what that cap removed. It is returned rather than only
+  # emitted as telemetry because a pool reporting `dispatchable == 0` is
+  # otherwise indistinguishable from an idle one, and the controller has
+  # to tell them apart: blocked work is real work, and a pool holding it
+  # still needs one Pod to be in the race when headroom frees. The
+  # controller decides how much of it counts as demand (one Pod, never
+  # more) — this side just reports it.
+  #
   # Falls back to the raw count when the fleet's shape is unknown: an
   # unrecognised fleet should size on the signal it has rather than
-  # silently report zero demand and scale itself to nothing.
+  # silently report zero demand and scale itself to nothing. Nothing was
+  # capped in that case, so nothing is withheld.
   defp dispatchable_queued_count(fleet_name) do
     queued_by_account = Jobs.queued_count_by_fleet_and_account(fleet_name)
     raw = queued_by_account |> Map.values() |> Enum.sum()
 
-    case Catalog.resources_for_fleet(fleet_name) do
-      {:ok, resources} ->
-        dispatchable =
-          Enum.reduce(queued_by_account, 0, fn {account_id, count}, acc ->
-            acc + min(count, Concurrency.headroom_jobs(account_id, resources))
-          end)
+    {dispatchable, withheld} =
+      case Catalog.resources_for_fleet(fleet_name) do
+        {:ok, resources} ->
+          dispatchable =
+            Enum.reduce(queued_by_account, 0, fn {account_id, count}, acc ->
+              acc + min(count, Concurrency.headroom_jobs(account_id, resources))
+            end)
 
-        :telemetry.execute(
-          Telemetry.event_name_queue_withheld(),
-          %{count: raw - dispatchable},
-          %{fleet: fleet_name}
-        )
+          {dispatchable, raw - dispatchable}
 
-        dispatchable
+        {:error, _reason} ->
+          {raw, 0}
+      end
 
-      {:error, _reason} ->
-        :telemetry.execute(
-          Telemetry.event_name_queue_withheld(),
-          %{count: 0},
-          %{fleet: fleet_name}
-        )
+    :telemetry.execute(
+      Telemetry.event_name_queue_withheld(),
+      %{count: withheld},
+      %{fleet: fleet_name}
+    )
 
-        raw
-    end
+    {dispatchable, withheld}
   end
 
   @doc """
@@ -672,6 +739,10 @@ defmodule Tuist.Runners do
   end
 
   defp attempt_candidate(%{candidate: candidate, fleet_name: fleet_name, sa_name: sa_name} = context, resources) do
+    # The machine shape the claim was admitted under rides along to
+    # `serve_claim/2`, which freezes it onto the billing session.
+    context = Map.put(context, :resources, resources)
+
     candidate.workflow_job_id
     |> Claims.attempt(candidate.account_id, fleet_name, sa_name, resources)
     |> handle_claim_attempt(context)
@@ -958,6 +1029,7 @@ defmodule Tuist.Runners do
       sa_name: sa_name,
       fleet_name: fleet_name,
       candidate: candidate,
+      resources: resources,
       affinity_outcome: affinity_outcome
     } = context
 
@@ -972,7 +1044,7 @@ defmodule Tuist.Runners do
              :ok <- stamp_owner_label(namespace, pod_name, account),
              {:ok, jit, runner_name} <-
                mint_jit(account, github_org, candidate, sa_name, dispatch_label, runner_labels),
-             :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name),
+             :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name, claim.claimed_at),
              :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
           # Fork-exclusion: only a trusted (same-repo, non-fork) job may touch
           # the account's shared cache. Determine trust fail-closed — any
@@ -1003,6 +1075,9 @@ defmodule Tuist.Runners do
             workflow_job_id: candidate.workflow_job_id,
             account_id: candidate.account_id,
             fleet_name: Map.get(candidate, :fleet_name, fleet_name),
+            platform: resources.platform,
+            vcpus: resources.vcpus,
+            memory_gb: resources.memory_gb,
             pod_name: pod_name,
             runner_name: runner_name,
             repository: Map.get(candidate, :repository, ""),
@@ -1057,7 +1132,7 @@ defmodule Tuist.Runners do
   # `Jobs.record_running` can raise on ClickHouse connectivity
   # failures (Tuist.IngestRepo is :async by default but the
   # underlying connection pool surfaces hard errors). A raise
-  # after `Claims.mark_running/2` would leave PG in `running`
+  # after `Claims.mark_running/3` would leave PG in `running`
   # (which `Claims.list_stale/1` skips), the cap consumed
   # forever, and the runner stranded because no JIT ever
   # reached the VM. Catch it, surface as `{:error, _}` so the
