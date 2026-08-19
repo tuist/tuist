@@ -12,7 +12,7 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
       "properties" => %{
         "build_run_id" => %{
           "type" => "string",
-          "description" => "The ID of the build run."
+          "description" => "The ID of the build run, or a Tuist dashboard URL."
         }
       },
       "required" => ["build_run_id"]
@@ -82,7 +82,7 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
         "download. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
 
   def execute(conn, args) do
-    build_run_id = Map.get(args, "build_run_id")
+    build_run_id = MCPTool.resource_id(Map.get(args, "build_run_id"))
 
     with {:ok, build, project} <-
            MCPTool.load_and_authorize(

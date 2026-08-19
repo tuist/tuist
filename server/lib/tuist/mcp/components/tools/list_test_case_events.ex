@@ -69,6 +69,8 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseEvents do
 
   @impl EMCP.Tool
   def call(conn, %{"test_case_id" => test_case_id} = args) when is_binary(test_case_id) do
+    test_case_id = MCPTool.resource_id(test_case_id)
+
     case MCPTool.load_and_authorize(
            Tests.get_test_case_by_id(test_case_id),
            conn.assigns,
