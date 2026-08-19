@@ -1,3 +1,19 @@
+<% # "Minimal overhead" card chart: 7 build columns, each a dither-filled
+# ghost bar (the uncached build time) with the cached time as a purple box
+# at its foot, a 2px breath apart. Column tops align and every column ends
+# at the same baseline. Every column is exactly proportional: box_height =
+# 205 * cached / cold, with the values picked so cached stays under 100s
+# and the heights stay varied — which pairs the smallest boxes with the
+# longest builds (the strongest version of the story). %>
+<% minimal_overhead_columns = [
+  %{label: "CI", cold: "06m50s", cached: "84s", box_height: 42},
+  %{label: "CI", cold: "05m39s", cached: "91s", box_height: 55},
+  %{label: "LOCAL", cold: "16m14s", cached: "95s", box_height: 20},
+  %{label: "CI", cold: "05m56s", cached: "99s", box_height: 57},
+  %{label: "CI", cold: "08m12s", cached: "72s", box_height: 30},
+  %{label: "CI", cold: "11m40s", cached: "82s", box_height: 24},
+  %{label: "LOCAL", cold: "04m50s", cached: "92s", box_height: 65}
+] %>
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
   <main id="marketing-cache">
     <%!-- Hero card: left-aligned on the 1200px frame (Figma: 112px above the
@@ -55,7 +71,52 @@
       real illustrations land. --%>
       <div data-part="grid">
         <div data-part="cell">
-          <figure data-part="illustration" aria-hidden="true"></figure>
+          <figure
+            data-part="illustration"
+            data-illustration="minimal-overhead"
+            aria-hidden="true"
+            id="cache-minimal-overhead"
+            phx-hook="CacheMinimalOverhead"
+            phx-update="ignore"
+          >
+            <%!-- Columns are 50px wide, 30px apart (Figma). Each ghost bar
+            is filled by a DitherTexture canvas — the dividers' Bayer grain,
+            but with a gentler density ramp so the fill stays subtle —
+            phase-shifted per column. The CacheMinimalOverhead hook plays
+            the scroll-triggered collapse entrance: solid cost bars squash
+            down into the cached boxes, leaving the ghosts behind. --%>
+            <div
+              :for={{column, index} <- Enum.with_index(minimal_overhead_columns)}
+              data-part="column"
+              style={"--delay: #{index * 120}ms; --box-height: #{column.box_height}px;"}
+            >
+              <span data-part="label">{column.label}</span>
+              <div data-part="ghost" style={"height: #{203 - column.box_height}px;"}>
+                <canvas
+                  data-part="dither"
+                  id={"cache-minimal-overhead-dither-#{index}"}
+                  phx-hook="DitherTexture"
+                  data-pitch="2"
+                  data-dot="2"
+                  data-top="0.1"
+                  data-bottom="0.35"
+                  data-wave="0.25"
+                  data-wave-scale="2.5"
+                  data-levels="0"
+                  data-speed="1"
+                  data-phase={index * 7}
+                  data-dither="on"
+                  data-opacity="0.25"
+                >
+                </canvas>
+                <span data-part="value">{column.cold}</span>
+              </div>
+              <div data-part="cached" style={"height: #{column.box_height}px;"}>
+                <span data-part="value">{column.cached}</span>
+              </div>
+              <span data-part="collapse"></span>
+            </div>
+          </figure>
           <div data-part="text">
             <h3 data-part="title">{dgettext("marketing", "Minimal overhead")}</h3>
             <p data-part="description">
@@ -67,7 +128,31 @@
           </div>
         </div>
         <div data-part="cell">
-          <figure data-part="illustration" aria-hidden="true"></figure>
+          <%!-- Dither globe: a slowly spinning stippled sphere rendered by
+          the DitherGlobe hook — wireframe, coastlines, and land stipple on
+          the marketing dither ramp, with pulsing purple region markers.
+          The look is tuned entirely through the data attributes below. --%>
+          <figure data-part="illustration" data-illustration="low-latency" aria-hidden="true">
+            <canvas
+              id="cache-low-latency-globe"
+              phx-hook="DitherGlobe"
+              data-size="2.05"
+              data-pitch="2"
+              data-tilt-x="0.07"
+              data-tilt-z="-0.26"
+              data-speed="0.15"
+              data-meridians="0"
+              data-parallels="0"
+              data-density="85"
+              data-shade="13"
+              data-land="55"
+              data-ocean="18"
+              data-offset-x="0"
+              data-offset-y="136"
+            >
+            </canvas>
+            <span data-part="fade"></span>
+          </figure>
           <div data-part="text">
             <h3 data-part="title">{dgettext("marketing", "Low latency, everywhere")}</h3>
             <p data-part="description">
@@ -79,7 +164,54 @@
           </div>
         </div>
         <div data-part="cell">
-          <figure data-part="illustration" aria-hidden="true"></figure>
+          <%!-- Observability dashboard: static HTML rebuild of the Figma
+          comp — a cacheable-targets panel with a segmented distribution
+          bar and legend, three stat cards, and a blurred gradient fade at
+          the bottom edge. Decorative (aria-hidden), so the labels stay
+          untranslated like the other cards' chart annotations. --%>
+          <figure
+            data-part="illustration"
+            data-illustration="observability"
+            aria-hidden="true"
+            id="cache-observability"
+            phx-hook="CacheObservability"
+            phx-update="ignore"
+          >
+            <div data-part="dashboard">
+              <div data-part="panel">
+                <p data-part="heading">
+                  Cacheable targets: <strong>127</strong>
+                </p>
+                <div data-part="bar">
+                  <span data-part="segment" data-segment="local"></span>
+                  <span data-part="segment" data-segment="remote"></span>
+                  <span data-part="segment" data-segment="uploaded"></span>
+                  <span data-part="segment" data-segment="failed"></span>
+                </div>
+                <ul data-part="legend">
+                  <li data-segment="local">Local</li>
+                  <li data-segment="remote">Remote</li>
+                  <li data-segment="uploaded">Uploaded</li>
+                  <li data-segment="failed">Failed to upload</li>
+                </ul>
+              </div>
+              <div data-part="stats">
+                <div data-part="stat">
+                  <span data-part="label">Cache hit rate</span>
+                  <span data-part="value">78%</span>
+                </div>
+                <div data-part="stat">
+                  <span data-part="label">Compilation time saved</span>
+                  <span data-part="value">15m</span>
+                </div>
+                <div data-part="stat">
+                  <span data-part="label">Binary cache pulls</span>
+                  <span data-part="value">200 MB</span>
+                </div>
+              </div>
+            </div>
+            <span data-part="fade"></span>
+          </figure>
           <div data-part="text">
             <h3 data-part="title">{dgettext("marketing", "Built-in observability")}</h3>
             <p data-part="description">
@@ -91,7 +223,24 @@
           </div>
         </div>
         <div data-part="cell">
-          <figure data-part="illustration" aria-hidden="true"></figure>
+          <%!-- Build-system dependency graph, drawn by the CacheBuildGraph
+          hook: the build system's label box in the middle with module
+          branches radiating out — dithered squares are work that would
+          need compiling, purple squares are artifacts resolved from the
+          cache (their branches stop there), thin grey lines are the
+          dependencies. The label cycles XCODE → GRADLE → BAZEL, each with
+          its own architecture. Decorative (aria-hidden). --%>
+          <figure
+            data-part="illustration"
+            data-illustration="build-systems"
+            aria-hidden="true"
+            id="cache-build-graph"
+            phx-hook="CacheBuildGraph"
+            phx-update="ignore"
+          >
+            <canvas data-part="canvas"></canvas>
+            <span data-part="label">XCODE</span>
+          </figure>
           <div data-part="text">
             <h3 data-part="title">{dgettext("marketing", "Built for your build system")}</h3>
             <p data-part="description">

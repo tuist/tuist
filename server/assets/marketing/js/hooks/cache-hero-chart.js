@@ -50,11 +50,11 @@ const REST_DELTA = 0.05;
 
 // Light theme walks purple 100 -> 400 (50 is too faint on the light
 // surface); dark theme needs darker shades (the light end glows on the
-// dark surface), so it walks 800 -> 400 instead. Greys are the two halves
-// of the illustration-neutral ramp the CSS version used.
+// dark surface), so it walks 800 -> 400 instead. Greys and labels are the
+// two halves of --marketing-illustration-neutral-3.
 const PALETTES = {
   light: {
-    grey: "--noora-neutral-light-300",
+    grey: "--noora-neutral-light-400",
     label: "--noora-neutral-light-400",
     purples: [
       "--noora-purple-100",
@@ -65,7 +65,7 @@ const PALETTES = {
     ],
   },
   dark: {
-    grey: "--noora-neutral-dark-900",
+    grey: "--noora-neutral-dark-800",
     label: "--noora-neutral-dark-800",
     purples: [
       "--noora-purple-800",
@@ -338,13 +338,15 @@ class HeroChart {
       const headY = COLD_NODE_TOP + NODE_SIZE / 2 + riseOffset + dropOffset + column.y;
       const color = column.cached ? mix(this.grey, this.purples[column.rampIndex], tint) : this.grey;
 
-      // Stem drawn base-to-head so sideways sway reads as a lean; the base
-      // stays anchored at the column's slot, past the bottom edge while
-      // the head is displaced downward (the canvas clips it).
+      // Stem drawn base-to-head so sideways sway reads as a lean. The base
+      // stays planted on the bottom edge — the line stretches when the head
+      // rises and retracts when it drops (Stripe-style), never lifting off.
+      // The Math.max keeps the base travelling with the column only while
+      // it is still rising in from below the hero.
       ctx.strokeStyle = rgba(color, 0.5);
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(column.x, headY + NODE_SIZE / 2 + stemLength);
+      ctx.moveTo(column.x, Math.max(height, headY + NODE_SIZE / 2 + stemLength));
       ctx.lineTo(headX, headY + NODE_SIZE / 2);
       ctx.stroke();
 
