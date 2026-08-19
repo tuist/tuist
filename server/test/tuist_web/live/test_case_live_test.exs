@@ -305,6 +305,62 @@ defmodule TuistWeb.TestCaseLiveTest do
       refute has_element?(lv, "#test-case-analytics-chart")
     end
 
+    test "compares each widget against the window before it", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - two runs in the last week, one in the week before it
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      test_case_run = Enum.find(test_run.test_case_runs, &(&1.name == "testExample"))
+
+      for days_ago <- [1, 2, 9] do
+        ran_at = DateTime.utc_now() |> DateTime.add(-days_ago, :day) |> DateTime.to_naive()
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_run.test_case_id,
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}?analytics-date-range=last-7-days"
+        )
+
+      render_async(lv)
+
+      # Then - three runs this week against one the week before
+      assert widget_trend(lv, "widget-test-case-runs") =~ "+200.0%"
+      assert widget_trend(lv, "widget-test-case-runs") =~ "since last week"
+    end
+
+    test "leaves a widget without a trend when the window before it was empty", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - runs in this window only
+      test_case_id = seed_runs_across_time(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-date-range=last-24-hours"
+        )
+
+      render_async(lv)
+
+      # Then - a jump from nothing is not a percentage
+      refute has_element?(lv, "#widget-test-case-runs [data-part='trend'] .noora-badge")
+    end
+
     test "charts the run outcomes until another widget is selected", %{
       conn: conn,
       account: account,
@@ -740,6 +796,16 @@ defmodule TuistWeb.TestCaseLiveTest do
     |> Floki.parse_fragment!()
     |> Floki.text()
     |> JSON.decode!()
+  end
+
+  defp widget_trend(lv, widget_id) do
+    lv
+    |> element("##{widget_id} [data-part='trend']")
+    |> render()
+    |> Floki.parse_fragment!()
+    |> Floki.text()
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim()
   end
 
   defp widget_value(lv, widget_id) do

@@ -234,6 +234,17 @@
             phx_click="select_widget"
             phx_value_widget="test_case_runs"
             selected={@analytics_selected_widget == "test_case_runs"}
+            trend_value={
+              if @analytics.ok? and @previous_analytics.ok? do
+                trend(
+                  @previous_analytics.result,
+                  runs_count(@previous_analytics.result, @selected_runs_type),
+                  runs_count(@analytics.result, @selected_runs_type)
+                )
+              end
+            }
+            trend_type={if @selected_runs_type == "total", do: :neutral, else: :inverse}
+            trend_label={@analytics_trend_label}
             empty={@analytics.ok? && @analytics.result.total_count == 0}
           >
             <:select>
@@ -291,7 +302,7 @@
             </:select>
           </.widget>
           <.widget
-            loading={!@flakiness_rate.ok?}
+            loading={!@analytics.ok?}
             title={dgettext("dashboard_tests", "Flakiness rate")}
             legend_color="flaky"
             description={
@@ -300,11 +311,22 @@
                 "Percentage of test runs that were flaky in the selected period."
               )
             }
-            value={if @flakiness_rate.ok?, do: "#{@flakiness_rate.result}%"}
+            value={if @analytics.ok?, do: "#{flakiness_rate(@analytics.result)}%"}
             id="widget-flakiness-rate"
             phx_click="select_widget"
             phx_value_widget="flakiness_rate"
             selected={@analytics_selected_widget == "flakiness_rate"}
+            trend_value={
+              if @analytics.ok? and @previous_analytics.ok? do
+                trend(
+                  @previous_analytics.result,
+                  flakiness_rate(@previous_analytics.result),
+                  flakiness_rate(@analytics.result)
+                )
+              end
+            }
+            trend_type={:inverse}
+            trend_label={@analytics_trend_label}
             empty={@analytics.ok? && @analytics.result.total_count == 0}
             empty_label={dgettext("dashboard_tests", "No data")}
           />
@@ -326,6 +348,17 @@
             phx_click="select_widget"
             phx_value_widget="reliability"
             selected={@analytics_selected_widget == "reliability"}
+            trend_value={
+              if @reliability.ok? and @previous_reliability.ok? and
+                   not is_nil(@reliability.result) and not is_nil(@previous_reliability.result) do
+                Analytics.trend(
+                  previous_value: @previous_reliability.result,
+                  current_value: @reliability.result
+                )
+              end
+            }
+            trend_type={:regular}
+            trend_label={@analytics_trend_label}
             empty={@reliability.ok? && is_nil(@reliability.result)}
             empty_label={dgettext("dashboard_tests", "No data")}
           />
@@ -393,6 +426,17 @@
             phx_click="select_widget"
             phx_value_widget="duration"
             selected={@analytics_selected_widget == "duration"}
+            trend_value={
+              if @analytics.ok? and @previous_analytics.ok? do
+                trend(
+                  @previous_analytics.result,
+                  duration(@previous_analytics.result, @selected_duration_type),
+                  duration(@analytics.result, @selected_duration_type)
+                )
+              end
+            }
+            trend_type={:inverse}
+            trend_label={@analytics_trend_label}
             empty={@analytics.ok? && @analytics.result.total_count == 0}
             empty_label={dgettext("dashboard_tests", "No data")}
           />

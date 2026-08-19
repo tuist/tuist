@@ -85,6 +85,43 @@ defmodule TuistWeb.TestCaseLive do
     """
   end
 
+  defp period_seconds(start_datetime, end_datetime) do
+    DateTime.diff(end_datetime, start_datetime, :second)
+  end
+
+  defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_tests", "since yesterday")
+  defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_tests", "since last week")
+  defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_tests", "since last year")
+  defp analytics_trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
+  defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
+
+  # The flakiness rate is the analytics' own flaky count over its own total, so
+  # the widget and its trend read one pass over one set of runs.
+  defp flakiness_rate(%{total_count: 0}), do: 0.0
+
+  defp flakiness_rate(%{flaky_count: flaky_count, total_count: total_count}) do
+    Float.round(flaky_count / total_count * 100, 1)
+  end
+
+  defp runs_count(analytics, "failed"), do: analytics.failed_count
+  defp runs_count(analytics, "flaky"), do: analytics.flaky_count
+  defp runs_count(analytics, _total), do: analytics.total_count
+
+  defp duration(analytics, "p99"), do: analytics.p99_duration
+  defp duration(analytics, "p90"), do: analytics.p90_duration
+  defp duration(analytics, "p50"), do: analytics.p50_duration
+  defp duration(analytics, _avg), do: analytics.avg_duration
+
+  # `Analytics.trend/1` reports 0.0 when either side is zero, which on this page
+  # would tell a test case that only started running this week that nothing
+  # changed since last week. A window with no runs is not a baseline, so the
+  # widget shows no badge rather than a change of nothing.
+  defp trend(%{total_count: 0}, _previous, _current), do: nil
+
+  defp trend(_previous_analytics, previous, current) do
+    Analytics.trend(previous_value: previous, current_value: current)
+  end
+
   # A period the test case never ran in has a chart's worth of empty buckets and
   # nothing to draw, so the card offers an empty state instead of a flat line.
   defp charted?(%{run_counts: run_counts}), do: Enum.any?(run_counts, &(&1 > 0))
@@ -549,17 +586,40 @@ defmodule TuistWeb.TestCaseLive do
         [start_datetime: start_datetime]
       end
 
+    # The window before this one, of the same length, is what every trend on the
+    # card compares against. A relative preset runs up to now, so its length is
+    # measured to now rather than to the bound it does not carry.
+    previous_opts = [
+      start_datetime: DateTime.add(start_datetime, -period_seconds(start_datetime, end_datetime), :second),
+      end_datetime: start_datetime
+    ]
+
     socket
     |> assign(:analytics_preset, preset)
     |> assign(:analytics_period, period)
     |> assign(:selected_duration_type, params["duration-type"] || "avg")
     |> assign(:analytics_selected_widget, params["analytics-selected-widget"] || "test_case_runs")
     |> assign(:selected_runs_type, params["runs-type"] || "total")
-    |> assign_async(:reliability, fn ->
-      {:ok, %{reliability: Analytics.test_case_reliability_by_id(project.id, test_case_id, project.default_branch, opts)}}
+    |> assign(:analytics_trend_label, analytics_trend_label(preset))
+    |> assign_async([:reliability, :previous_reliability], fn ->
+      {:ok,
+       %{
+         reliability: Analytics.test_case_reliability_by_id(project.id, test_case_id, project.default_branch, opts),
+         previous_reliability:
+           Analytics.test_case_reliability_by_id(
+             project.id,
+             test_case_id,
+             project.default_branch,
+             previous_opts
+           )
+       }}
     end)
-    |> assign_async(:analytics, fn ->
-      {:ok, %{analytics: Analytics.test_case_analytics_by_id(project.id, test_case_id, opts)}}
+    |> assign_async([:analytics, :previous_analytics], fn ->
+      {:ok,
+       %{
+         analytics: Analytics.test_case_analytics_by_id(project.id, test_case_id, opts),
+         previous_analytics: Analytics.test_case_analytics_by_id(project.id, test_case_id, previous_opts)
+       }}
     end)
     |> assign_async(:series, fn ->
       run_series = Analytics.test_case_run_series_by_id(project.id, test_case_id, opts)
@@ -579,15 +639,10 @@ defmodule TuistWeb.TestCaseLive do
            })
        }}
     end)
-    |> assign_async([:flakiness_rate, :flaky_runs_grouped, :flaky_runs_meta], fn ->
+    |> assign_async([:flaky_runs_grouped, :flaky_runs_meta], fn ->
       {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case_id)
 
-      {:ok,
-       %{
-         flakiness_rate: Analytics.get_test_case_flakiness_rate(test_case_detail, opts),
-         flaky_runs_grouped: flaky_runs_grouped,
-         flaky_runs_meta: flaky_runs_meta
-       }}
+      {:ok, %{flaky_runs_grouped: flaky_runs_grouped, flaky_runs_meta: flaky_runs_meta}}
     end)
   end
 
