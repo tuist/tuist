@@ -18,6 +18,8 @@ defmodule Tuist.Kura.PromExPluginTest do
   setup :set_mimic_from_context
 
   @region "us-east"
+  # Roughly what one of the region's real boxes reports allocatable.
+  @node_allocatable_bytes 847_551_469_804
 
   setup do
     stub(Environment, :env, fn -> :prod end)
@@ -25,7 +27,7 @@ defmodule Tuist.Kura.PromExPluginTest do
     stub(Environment, :test?, fn -> false end)
     stub(Environment, :tuist_hosted?, fn -> true end)
     stub(Environment, :kura_available_region_ids, fn -> [@region] end)
-    stub_region_machines([])
+    stub_region_nodes([])
     :ok
   end
 
@@ -69,7 +71,7 @@ defmodule Tuist.Kura.PromExPluginTest do
 
   describe "execute_occupancy_telemetry_event/0" do
     test "reports the region's forecast, installed capacity, and instance count" do
-      stub_region_machines([{@region, 2}])
+      stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 2)}])
       instance(account())
 
       ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :occupancy]])
@@ -78,8 +80,8 @@ defmodule Tuist.Kura.PromExPluginTest do
 
       assert_received {[:tuist, :kura, :capacity, :occupancy], ^ref, measurements, %{region: @region}}
       assert measurements.instances == 1
-      assert measurements.forecast_gib == 24
-      assert measurements.installed_gib == 2210
+      assert measurements.forecast_gib == 24 * 2
+      assert measurements.installed_gib == trunc(2 * @node_allocatable_bytes * 0.85 / (1024 * 1024 * 1024))
     end
 
     test "reports zero installed capacity rather than dropping the series when unconfigured" do
@@ -132,21 +134,28 @@ defmodule Tuist.Kura.PromExPluginTest do
     end
   end
 
-  # `installed_gib/1` counts the Ready nodes carrying the region's node-pool
-  # label, so sizing a region in a test means answering the node list.
-  defp stub_region_machines(machines_by_region) do
+  # `installed_gib/1` sums the allocatable ephemeral storage of a region's
+  # Ready nodes, so sizing a region in a test means answering the node list.
+  defp stub_region_nodes(nodes_by_region) do
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
 
     stub(Client, :list_nodes, fn selector ->
-      machines =
-        Enum.find_value(machines_by_region, 0, fn {region_id, machines} ->
+      allocatable =
+        Enum.find_value(nodes_by_region, [], fn {region_id, allocatable} ->
           {:ok, region} = Regions.fetch(region_id)
-          if selector == Regions.node_label_selector(region), do: machines
+          if selector == Regions.node_label_selector(region), do: allocatable
         end)
 
-      {:ok, %{"items" => List.duplicate(ready_node(), machines)}}
+      {:ok, %{"items" => Enum.map(allocatable, &ready_node/1)}}
     end)
   end
 
-  defp ready_node, do: %{"status" => %{"conditions" => [%{"type" => "Ready", "status" => "True"}]}}
+  defp ready_node(allocatable_bytes) do
+    %{
+      "status" => %{
+        "conditions" => [%{"type" => "Ready", "status" => "True"}],
+        "allocatable" => %{"ephemeral-storage" => Integer.to_string(allocatable_bytes)}
+      }
+    }
+  end
 end

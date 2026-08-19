@@ -500,13 +500,13 @@ defmodule Tuist.Kura.Lifecycle do
 
         forecast =
           Enum.reduce(unconditional, Capacity.forecast_gib(region_id), fn {_s, _l, plan, _r}, gib ->
-            gib - Capacity.warm_quota_gib(plan, region)
+            gib - Capacity.resident_gib(plan, region)
           end)
 
         {_final, needed} =
           Enum.reduce(pressured, {forecast, []}, fn {_s, _l, plan, _r} = candidate, {gib, taken} ->
             if gib > installed do
-              {gib - Capacity.warm_quota_gib(plan, region), [candidate | taken]}
+              {gib - Capacity.resident_gib(plan, region), [candidate | taken]}
             else
               {gib, taken}
             end
@@ -720,12 +720,13 @@ defmodule Tuist.Kura.Lifecycle do
     end
   end
 
-  # Reclaimed bytes are the enforced warm quota the instance held, which is
-  # what the region gets back — not the bytes that happened to be resident,
-  # which the account could refill at any time up to that quota.
+  # Reclaimed bytes are what the region gets back: the quota every replica of
+  # the instance held, not the bytes that happened to be resident, which the
+  # account could refill at any time up to that quota. Archival deletes the
+  # whole StatefulSet, so every replica's directory goes with it.
   defp complete_archival(%Server{} = server, %AccountRegionLifecycle{} = lifecycle, region) do
     plan = Billing.effective_plan(server.account)
-    reclaimed_bytes = Capacity.warm_quota_bytes(plan, region)
+    reclaimed_bytes = Capacity.resident_bytes(plan, region)
     drain_duration_ms = drain_duration_ms(lifecycle)
 
     case Kura.archive_server(server) do

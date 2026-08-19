@@ -20,15 +20,17 @@ defmodule Tuist.Kura.Capacity do
       complete days only while a region's forecast exceeds what is installed.
       When there is room the 90-day target is preserved.
 
-  Installed machines are counted from the cluster: the Ready nodes carrying
-  the region's node-pool label. A hand-maintained count would be a copy of
-  something the cluster already knows, and it would drift in the direction
-  that hurts — scale a pool down and the stale number keeps admitting against
-  machines that are gone. Counting only Ready nodes also means a machine that
-  is down stops counting as installed capacity, which a config value cannot
-  express.
+  Installed capacity is summed from the region's own Ready nodes rather than
+  declared: the regions do not run the same hardware, so a single assumed size
+  per machine is wrong by whatever the real boxes differ by, and wrong in the
+  direction that overcommits. Reading each node also means a machine that is
+  down stops counting, which a declared figure could never express.
 
-  A region whose count cannot be established has unknown capacity:
+  What an instance holds is its per-replica quota times its replica count. The
+  bare-metal regions co-locate an account's replicas on one box, so two
+  replicas are two copies of the quota on the same disk.
+
+  A region whose capacity cannot be established is unknown:
   provisioning is admitted (refusing every account because the apiserver was
   briefly unreachable would be worse than the overcommit it guards against,
   and the per-tick provisioning ceiling still bounds the blast radius) and
@@ -48,9 +50,19 @@ defmodule Tuist.Kura.Capacity do
 
   @gib 1024 * 1024 * 1024
 
-  # Usable filesystem a single machine contributes, after the reserves the
-  # host itself needs. From the regional capacity model in the spec.
-  @usable_gib_per_machine 1105
+  # Share of a node's allocatable filesystem that is actually usable before
+  # kubelet starts evicting. The tighter of kubelet's two thresholds on this
+  # fleet is `imagefs.available<15%`, and imagefs shares the disk the cache
+  # ring lives on, so an instance filling past this line takes the node's
+  # whole region down with it rather than just itself. Applied to allocatable
+  # rather than capacity, which double-counts kubelet's own reserve slightly
+  # and errs toward refusing a provision rather than overcommitting a box.
+  @usable_fraction 0.85
+
+  # Replicas an instance runs when its region declares none, matching the
+  # kura-controller's own default. Guessing lower here would understate what
+  # a region holds, which is the direction that overcommits.
+  @default_replicas 3
 
   # The enforced warm quota per plan. Air's is the spec's figure. Paid plans
   # take the per-instance storage claim the region catalog already provisions
@@ -59,10 +71,25 @@ defmodule Tuist.Kura.Capacity do
   @air_quota_gib 24
   @default_quota_gib 50
 
-  @doc "Bytes of quota-enforced directory an instance of this plan holds."
-  def warm_quota_bytes(plan, region), do: warm_quota_gib(plan, region) * @gib
+  @doc """
+  Bytes of the region's disk an instance of this plan holds, across every
+  replica it runs.
+  """
+  def resident_bytes(plan, region), do: resident_gib(plan, region) * @gib
 
-  @doc "Gibibytes of quota-enforced directory an instance of this plan holds."
+  @doc """
+  Gibibytes of the region's disk an instance of this plan holds.
+
+  An instance is a StatefulSet, and each replica keeps a full copy of the
+  cache on the node it runs on -- the bare-metal regions deliberately
+  co-locate an account's replicas on one box, so two replicas are two copies
+  of the quota on the same disk, not one copy spread across two. Counting a
+  single quota per instance is what let two replicas each size themselves
+  against a whole node in July.
+  """
+  def resident_gib(plan, region), do: warm_quota_gib(plan, region) * replicas(region)
+
+  @doc "Gibibytes one replica of this plan budgets for its cache ring."
   def warm_quota_gib(:air, _region), do: @air_quota_gib
 
   def warm_quota_gib(_plan, %Regions{provisioner_config: %{storage_size: size}}) when is_binary(size) do
@@ -71,54 +98,99 @@ defmodule Tuist.Kura.Capacity do
 
   def warm_quota_gib(_plan, _region), do: @default_quota_gib
 
+  defp replicas(%Regions{provisioner_config: %{replicas: replicas}}) when is_integer(replicas) and replicas > 0,
+    do: replicas
+
+  defp replicas(%Regions{}), do: @default_replicas
+
   @doc """
-  Installed usable capacity of a region in gibibytes, or `nil` when the
-  region's machine count cannot be established.
+  Installed usable capacity of a region in gibibytes, or `nil` when it cannot
+  be established.
   """
   def installed_gib(region_id) do
-    case machines(region_id) do
-      machines when is_integer(machines) and machines > 0 -> machines * @usable_gib_per_machine
-      _ -> nil
-    end
-  end
-
-  # Cached for a tick's worth of provisioning: `admit/2` is called once per
-  # candidate account, and a pool's size does not change between two accounts
-  # in the same pass.
-  defp machines(region_id) do
     KeyValueStore.get_or_update(
-      [__MODULE__, "machines", region_id],
+      [__MODULE__, "installed_gib", region_id],
       [ttl: to_timeout(minute: 1), locking: true],
-      fn -> count_ready_nodes(region_id) end
+      fn -> measure_installed_gib(region_id) end
     )
   end
 
-  defp count_ready_nodes(region_id) do
+  # Summed from the nodes themselves rather than from a machine count times an
+  # assumed size per machine: the regions do not run the same hardware, and an
+  # assumed figure is wrong in whichever direction the real boxes differ.
+  defp measure_installed_gib(region_id) do
     with {:ok, region} <- Regions.fetch(region_id),
          selector when is_binary(selector) <- Regions.node_label_selector(region),
          {:ok, %{"items" => items}} <- Client.list_nodes(selector) do
-      Enum.count(items, &ready?/1)
+      items
+      |> Enum.filter(&ready?/1)
+      |> Enum.map(&allocatable_bytes/1)
+      |> Enum.sum()
+      |> usable_gib()
     else
       _ -> nil
     end
   end
 
+  defp usable_gib(0), do: nil
+  defp usable_gib(bytes), do: trunc(bytes * @usable_fraction / @gib)
+
+  # A node that is not Ready contributes nothing: its disk is not reachable
+  # for scheduling, which a declared machine count could never express.
   defp ready?(%{"status" => %{"conditions" => conditions}}) when is_list(conditions) do
     Enum.any?(conditions, &match?(%{"type" => "Ready", "status" => "True"}, &1))
   end
 
   defp ready?(_node), do: false
 
+  # `ephemeral-storage` is the filesystem kubelet manages, which on every
+  # region in this fleet is the one the cache ring lives on: the bare-metal
+  # boxes whose data disk is separate bind-mount `/var/lib/kubelet` onto it,
+  # and the rest keep both on `/`.
+  defp allocatable_bytes(%{"status" => %{"allocatable" => %{"ephemeral-storage" => quantity}}}) do
+    parse_quantity(quantity) || 0
+  end
+
+  defp allocatable_bytes(_node), do: 0
+
+  @quantity_suffixes %{
+    "" => 1,
+    "k" => 1000,
+    "M" => 1000 ** 2,
+    "G" => 1000 ** 3,
+    "T" => 1000 ** 4,
+    "Ki" => 1024,
+    "Mi" => 1024 ** 2,
+    "Gi" => 1024 ** 3,
+    "Ti" => 1024 ** 4
+  }
+
+  defp parse_quantity(quantity) when is_binary(quantity) do
+    case Integer.parse(quantity) do
+      {value, suffix} ->
+        case Map.fetch(@quantity_suffixes, suffix) do
+          {:ok, multiplier} -> value * multiplier
+          :error -> nil
+        end
+
+      :error ->
+        nil
+    end
+  end
+
+  defp parse_quantity(quantity) when is_integer(quantity), do: quantity
+  defp parse_quantity(_quantity), do: nil
+
   @doc """
-  Gibibytes of enforced warm quota the region's non-archived instances already
-  hold. Destroyed and archived rows hold nothing: their directories are gone.
+  Gibibytes of the region's disk its non-archived instances already hold.
+  Destroyed and archived rows hold nothing: their directories are gone.
   """
   def forecast_gib(region_id) do
     case Regions.fetch(region_id) do
       {:ok, region} ->
         region_id
         |> warm_instance_plans()
-        |> Enum.reduce(0, fn plan, total -> total + warm_quota_gib(plan, region) end)
+        |> Enum.reduce(0, fn plan, total -> total + resident_gib(plan, region) end)
 
       {:error, _reason} ->
         0
@@ -138,7 +210,7 @@ defmodule Tuist.Kura.Capacity do
           :ok
 
         installed ->
-          forecast = forecast_gib(region_id) + warm_quota_gib(plan, region)
+          forecast = forecast_gib(region_id) + resident_gib(plan, region)
 
           if forecast <= installed do
             :ok
@@ -163,8 +235,8 @@ defmodule Tuist.Kura.Capacity do
 
   @doc """
   Region occupancy as `%{forecast_gib:, installed_gib:, instances:, ratio:}`,
-  for the per-machine occupancy metric. `installed_gib` and `ratio` are `nil`
-  when the machine count is not configured.
+  for the region occupancy metric. `installed_gib` and `ratio` are `nil` when
+  the region's installed capacity cannot be established.
   """
   def occupancy(region_id) do
     forecast = forecast_gib(region_id)

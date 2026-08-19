@@ -21,6 +21,13 @@ defmodule Tuist.Kura.LifecycleTest do
   setup :set_mimic_from_context
 
   @region "us-east"
+  # Roughly what one of the region's real boxes reports allocatable.
+  @node_allocatable_bytes 847_551_469_804
+  # us-east runs two co-located replicas, so an Air instance holds two quotas.
+  @air_resident_gib 24 * 2
+  # One more instance than the region's usable capacity fits, derived rather
+  # than counted out so the fixtures track the real sizing.
+  @instances_to_pressure div(trunc(@node_allocatable_bytes * 0.85 / (1024 * 1024 * 1024)), @air_resident_gib) + 1
   @image_tag "0.5.2"
   @gib 1024 * 1024 * 1024
 
@@ -36,7 +43,7 @@ defmodule Tuist.Kura.LifecycleTest do
     stub(Environment, :test?, fn -> false end)
     stub(Environment, :kura_available_region_ids, fn -> [@region] end)
     stub(Environment, :kura_runtime_image_tag, fn -> @image_tag end)
-    stub_region_machines([])
+    stub_region_nodes([])
 
     # Exercise the real buffer rather than the write-through path tests use by
     # default, so the sweep's "flush before reading demand" step is covered.
@@ -146,7 +153,7 @@ defmodule Tuist.Kura.LifecycleTest do
     end
 
     test "leaves an account on authoritative object storage when the region has no safe slot" do
-      stub_region_machines([{@region, 1}])
+      stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 1)}])
 
       # Fill the single machine's usable filesystem with Air instances.
       for _ <- 1..47, do: active_instance(account())
@@ -206,7 +213,7 @@ defmodule Tuist.Kura.LifecycleTest do
     end
 
     test "emits a capacity event when provisioning is refused" do
-      stub_region_machines([{@region, 1}])
+      stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 1)}])
       for _ <- 1..47, do: active_instance(account())
 
       account = account()
@@ -311,14 +318,13 @@ defmodule Tuist.Kura.LifecycleTest do
 
   describe "Air capacity pressure" do
     setup do
-      stub_region_machines([{@region, 1}])
+      stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 1)}])
       :ok
     end
 
     test "drains Air at 60 days only while the region is over capacity" do
-      # 47 Air instances is 1128 GiB against 1105 GiB installed.
       pressured =
-        for _ <- 1..47 do
+        for _ <- 1..@instances_to_pressure do
           account = account()
           server = active_instance(account)
           with_demand(account, 61)
@@ -329,8 +335,8 @@ defmodule Tuist.Kura.LifecycleTest do
 
       drained = Enum.count(pressured, fn {_a, server} -> reload(server).status == :drain_pending end)
 
-      # Only as many as it takes to fit: one 24 GiB Air instance brings 1128
-      # back under 1105.
+      # Only as many as it takes to fit: the region is one instance over, so
+      # reclaiming one brings it back under.
       assert drained == 1
     end
 
@@ -353,7 +359,7 @@ defmodule Tuist.Kura.LifecycleTest do
       coldest_server = active_instance(coldest)
       with_demand(coldest, 80)
 
-      for _ <- 1..45 do
+      for _ <- 1..(@instances_to_pressure - 2) do
         filler = account()
         active_instance(filler)
         with_demand(filler, 10)
@@ -366,7 +372,7 @@ defmodule Tuist.Kura.LifecycleTest do
     end
 
     test "never pressures a paid plan below its 90-day window" do
-      for _ <- 1..47 do
+      for _ <- 1..@instances_to_pressure do
         account = account()
         active_instance(account)
         with_demand(account, 10)
@@ -528,7 +534,7 @@ defmodule Tuist.Kura.LifecycleTest do
       lifecycle = reload_lifecycle(account)
       assert reload(server).status == :archived
       assert lifecycle.archived_at
-      assert lifecycle.last_reclaimed_bytes == 24 * @gib
+      assert lifecycle.last_reclaimed_bytes == 24 * 2 * @gib
       assert lifecycle.last_drain_duration_ms >= Kura.drain_seconds() * 1000
     end
 
@@ -542,7 +548,7 @@ defmodule Tuist.Kura.LifecycleTest do
 
       Lifecycle.reconcile()
 
-      assert reload_lifecycle(account).last_reclaimed_bytes == 50 * @gib
+      assert reload_lifecycle(account).last_reclaimed_bytes == 50 * 2 * @gib
     end
 
     test "clears every field describing a running instance" do
@@ -574,7 +580,7 @@ defmodule Tuist.Kura.LifecycleTest do
       Lifecycle.reconcile()
 
       assert_received {[:tuist, :kura, :lifecycle, :archived], ^ref, measurements, %{region: @region, plan: "air"}}
-      assert measurements.reclaimed_bytes == 24 * @gib
+      assert measurements.reclaimed_bytes == 24 * 2 * @gib
       assert measurements.drain_duration_ms > 0
     end
 
@@ -944,21 +950,28 @@ defmodule Tuist.Kura.LifecycleTest do
     end
   end
 
-  # `installed_gib/1` counts the Ready nodes carrying the region's node-pool
-  # label, so sizing a region in a test means answering the node list.
-  defp stub_region_machines(machines_by_region) do
+  # `installed_gib/1` sums the allocatable ephemeral storage of a region's
+  # Ready nodes, so sizing a region in a test means answering the node list.
+  defp stub_region_nodes(nodes_by_region) do
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
 
     stub(Client, :list_nodes, fn selector ->
-      machines =
-        Enum.find_value(machines_by_region, 0, fn {region_id, machines} ->
+      allocatable =
+        Enum.find_value(nodes_by_region, [], fn {region_id, allocatable} ->
           {:ok, region} = Regions.fetch(region_id)
-          if selector == Regions.node_label_selector(region), do: machines
+          if selector == Regions.node_label_selector(region), do: allocatable
         end)
 
-      {:ok, %{"items" => List.duplicate(ready_node(), machines)}}
+      {:ok, %{"items" => Enum.map(allocatable, &ready_node/1)}}
     end)
   end
 
-  defp ready_node, do: %{"status" => %{"conditions" => [%{"type" => "Ready", "status" => "True"}]}}
+  defp ready_node(allocatable_bytes) do
+    %{
+      "status" => %{
+        "conditions" => [%{"type" => "Ready", "status" => "True"}],
+        "allocatable" => %{"ephemeral-storage" => Integer.to_string(allocatable_bytes)}
+      }
+    }
+  end
 end
