@@ -378,10 +378,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 includedTargets: targetsToBinaryCache
             )
 
-            // No project is generated from this graph — it is loaded to pull binaries and then hashed to
-            // produce the keys artifacts are stored under. `FrameworkSearchPathsGraphMapper` is left out for
-            // the reason given on `hashingGraphNormalizationMappers`, which mirrors this list so that the keys
-            // `tuist generate` looks up match the keys `tuist cache` stores under. The two must move together.
+            mappers.append(FrameworkSearchPathsGraphMapper())
             mappers.append(ForeignBuildSideEffectGraphMapper())
 
             mappers.append(
@@ -477,25 +474,12 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             return mappers
         }
 
-        /// The mappers that bring a focused or tree-shaken graph back to the shape module-cache hashes are
-        /// derived from, so the keys `tuist generate` looks up match the keys `tuist cache` stores under.
-        ///
-        /// This list mirrors the tail of `binaryCacheWarmingPreload`, whose graph is what the warm command
-        /// hashes to produce those storage keys. Anything added or removed here has to be added or removed
-        /// there too, or every lookup misses.
-        ///
-        /// `FrameworkSearchPathsGraphMapper` is deliberately in neither. It writes framework search paths onto
-        /// every target, and target settings feed the hash, so it used to run a second full time over the whole
-        /// graph purely to influence cache keys — on a large binary-cache graph that pass was the single most
-        /// expensive thing a warm generation did. It contributed nothing the hash did not already carry: those
-        /// search paths are a function of the target's precompiled dependencies, and `DependenciesContentHasher`
-        /// already hashes every one of them by content. What they did add was absolute paths to artifacts
-        /// outside the project, which made the hash depend on where those artifacts live on the machine.
         private func hashingGraphNormalizationMappers(
             config: Tuist,
             includeWorkspaceScheme: Bool
         ) -> [GraphMapping] {
             var mappers: [GraphMapping] = [
+                FrameworkSearchPathsGraphMapper(),
                 ForeignBuildSideEffectGraphMapper(),
             ]
             if includeWorkspaceScheme {
