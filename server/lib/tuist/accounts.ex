@@ -2522,19 +2522,36 @@ defmodule Tuist.Accounts do
   a poller.
   """
   def get_cache_resolution_for_handle(account_handle, technology \\ :default) do
-    endpoints = cache_endpoints_for_handle(account_handle, technology)
-
-    %{endpoints: endpoints, provisioning: cache_provisioning?(account_handle, technology)}
-  end
-
-  defp cache_provisioning?(account_handle, :kura) when is_binary(account_handle) do
-    case get_account_by_handle(account_handle) do
-      %Account{} = account -> Demand.instance_expected?(account)
-      _ -> false
+    if Environment.tuist_hosted?() and technology == :kura and is_binary(account_handle) do
+      hosted_kura_resolution(account_handle)
+    else
+      %{endpoints: cache_endpoints_for_handle(account_handle, technology), provisioning: false}
     end
   end
 
-  defp cache_provisioning?(_account_handle, _technology), do: false
+  # Resolved in one pass so `provisioning` is derived from the same Kura
+  # endpoint lookup that produced `endpoints`, rather than a second query that
+  # could disagree with it.
+  defp hosted_kura_resolution(account_handle) do
+    case get_account_by_handle(account_handle) do
+      %Account{} = account ->
+        Demand.record(account.id)
+
+        case kura_cache_endpoint_urls(account) do
+          [] ->
+            %{
+              endpoints: absent_kura_endpoint_urls(account),
+              provisioning: Demand.instance_expected?(account)
+            }
+
+          urls ->
+            %{endpoints: urls, provisioning: false}
+        end
+
+      _ ->
+        %{endpoints: CacheEndpoints.active_endpoint_urls(), provisioning: false}
+    end
+  end
 
   defp cache_endpoints_for_handle(account_handle, technology) when is_binary(account_handle) do
     if Environment.tuist_hosted?() do

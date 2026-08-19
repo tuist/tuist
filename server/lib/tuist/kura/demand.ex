@@ -45,7 +45,6 @@ defmodule Tuist.Kura.Demand do
   alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionLifecycle
-  alias Tuist.Kura.Server
   alias Tuist.Repo
 
   @table __MODULE__
@@ -116,24 +115,22 @@ defmodule Tuist.Kura.Demand do
   Whether a Kura instance is expected to start serving for this account
   shortly, so a client should treat an endpoint answer as short-lived.
 
-  True when the account is under the lifecycle and has no live Kura endpoint
-  right now: archived and asked for by the request that is running this check,
-  still provisioning or catching up, or draining. All three resolve within
-  minutes, and the request itself is what records the demand that starts a
-  cold return.
+  True whenever the account resolves to a service region, which is checked
+  only where no Kura endpoint is being served. That is deliberately broader
+  than "an instance row already exists": the request asking this question is
+  itself the one that records the demand a cold return is provisioned from, so
+  on the first request after an archive there is no row yet and a narrower
+  check would report `false` on the one request where the answer matters most,
+  leaving the client caching a stand-in lane for its full interval.
 
-  Deliberately false when the account has no instance and is not getting one,
-  so a region refusing provisions for capacity does not turn every refused
-  account into a poller.
+  The cost is that an account the region keeps refusing for capacity reports
+  `true` for as long as that lasts, and re-resolves every 30 seconds. That is
+  accepted: a region with no room is an operational problem to be alerted on
+  and fixed by adding a machine, not a steady state to design around. The
+  `capacity_refused` counter is the signal for it.
   """
-  def instance_expected?(%Account{id: account_id} = account) do
-    lifecycle_managed?(account) and
-      Repo.exists?(
-        from(s in Server,
-          where: s.account_id == ^account_id,
-          where: s.status in [:provisioning, :replicating, :drain_pending, :archived]
-        )
-      )
+  def instance_expected?(%Account{} = account) do
+    match?({:ok, _resolution}, AccountPolicies.resolve(account))
   end
 
   @doc """

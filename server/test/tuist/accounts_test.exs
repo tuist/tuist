@@ -4770,20 +4770,60 @@ defmodule Tuist.AccountsTest do
       assert resolution.provisioning
     end
 
-    test "does not report provisioning for an account that is not getting an instance" do
+    test "reports provisioning on the very first request, before any demand row exists" do
       # Given
-      # A region refusing provisions for capacity must not turn every refused
-      # account into a poller.
+      # The request asking the question is the one that records the demand a
+      # cold return is provisioned from, so a check that waited for the row
+      # would answer `false` on the request where it matters most and leave the
+      # client caching a stand-in lane for its full interval.
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
-      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
 
       # When
       resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
 
       # Then
+      assert resolution.endpoints == ["https://default.tuist.dev"]
+      assert resolution.provisioning
+    end
+
+    test "does not report provisioning for an account with no resolvable service region" do
+      # Given
+      # A paid account allowing every region needs a versioned assignment
+      # before Kura can route it, so no instance is coming.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      {:ok, account} = Accounts.update_account(account, %{region: :all})
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      refute resolution.provisioning
+    end
+
+    test "does not report provisioning once an instance is serving" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://acme-us-east-1.kura.tuist.dev",
+          technology: :kura
+        })
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution.endpoints == ["https://acme-us-east-1.kura.tuist.dev"]
       refute resolution.provisioning
     end
 
