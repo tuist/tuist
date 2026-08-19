@@ -9,15 +9,21 @@ defmodule Tuist.Billing.Workers.CreateRunnerPrepaidGrantWorker do
   missing platform scope — is picked up by the retry instead of being
   replayed wrong.
 
+  Runs for every paid invoice, not only ones that look prepaid, because
+  the webhook payload carries at most the first handful of an invoice's
+  lines and a prepaid line further down a busy bill would otherwise go
+  unseen. `Tuist.Runners.Prepaid` pages the lines endpoint and decides
+  on the full picture; an ordinary invoice costs one cheap no-op.
+
   Uniqueness is on the invoice id for all time, so Stripe redelivering
-  `invoice.paid` cannot enqueue a second grant. That is the outermost
-  of three layers: Oban drops the duplicate job, the request carries an
-  idempotency key derived from the invoice, and
-  `Tuist.Runners.Prepaid` checks Stripe for an existing grant against
-  the same invoice before creating one. Oban prunes completed jobs
-  eventually and Stripe expires idempotency keys after 24h, so only the
-  innermost check holds indefinitely — and granting money twice is
-  worth all three.
+  `invoice.paid` cannot enqueue a second run. That is the outermost of
+  three layers: Oban drops the duplicate job, each request carries an
+  idempotency key derived from the invoice and line, and
+  `Tuist.Runners.Prepaid` checks Stripe for a grant against the same
+  line before creating one. Oban prunes completed jobs eventually and
+  Stripe expires idempotency keys after 24h, so only the innermost
+  check holds indefinitely — and granting money twice is worth all
+  three.
   """
   use Oban.Worker,
     max_attempts: 10,
@@ -49,12 +55,12 @@ defmodule Tuist.Billing.Workers.CreateRunnerPrepaidGrantWorker do
   end
 
   defp handle_result({:ok, :not_prepaid}, invoice_id, _attempt) do
-    Logger.info("runners: invoice #{invoice_id} carries no prepaid marker, no credit granted")
+    Logger.info("runners: invoice #{invoice_id} carries no prepaid line, no credit granted")
     :ok
   end
 
-  defp handle_result({:ok, :already_granted}, invoice_id, _attempt) do
-    Logger.info("runners: prepaid credit for invoice #{invoice_id} was already granted")
+  defp handle_result({:ok, grants}, invoice_id, _attempt) when is_list(grants) do
+    Logger.info("runners: granted #{length(grants)} prepaid credit grant(s) for invoice #{invoice_id}")
     :ok
   end
 

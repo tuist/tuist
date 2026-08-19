@@ -17,6 +17,8 @@ This context owns billing, plan management, and Stripe integration.
 - Billing data is customer data; update `server/data-export.md` for schema or usage changes.
 - Never blank a runner Price id in `stripe.prices.runners` once it has gone live. `configured_runner_price_ids/0` filters empty ids, so a later plan change would stop recognising the existing runner subscription item, delete it, and lose the cycle's accrued usage.
 - Credit grants move money. Anything that creates one must stay idempotent against webhook redelivery and job retries.
+- The prepaid marker lives on the Stripe invoice *line*, not the invoice, and a grant is funded from the marked line's amount. A prepaid charge shares an invoice with that month's metered usage, so funding from `amount_paid` would convert the whole bill into runner credit.
+- An invoice's `lines` are paginated and the webhook payload carries only the first few. Read them through `Tuist.Billing.Invoices.list_lines/1` rather than off the payload, or a prepaid line further down a busy bill goes unseen.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

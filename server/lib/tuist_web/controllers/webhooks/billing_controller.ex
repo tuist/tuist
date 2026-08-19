@@ -6,7 +6,6 @@ defmodule TuistWeb.Webhooks.BillingController do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Billing.Workers.CreateRunnerPrepaidGrantWorker
-  alias Tuist.Runners.Prepaid
 
   @impl true
   def handle_event(%Stripe.Event{type: "customer.updated"} = event) do
@@ -52,24 +51,22 @@ defmodule TuistWeb.Webhooks.BillingController do
     :ok
   end
 
-  # Every subscription renewal fires this too, so the marker is checked
-  # here rather than enqueueing a job per invoice that immediately
-  # no-ops. An invoice whose marker is present but malformed still
-  # enqueues, so the mistake surfaces as a failing job instead of being
-  # read as "not prepaid".
+  # Enqueued for every paid invoice rather than only for ones that look
+  # prepaid here. The webhook payload carries at most the first handful
+  # of an invoice's lines, so a prepaid line sitting further down a
+  # busy month's bill would be read as "not prepaid" and the credit
+  # lost. The worker pages the lines endpoint and decides on the full
+  # picture; an ordinary invoice costs it one cheap no-op.
+  #
+  # Let a failed insert raise: the invoice is paid and any credit on it
+  # is owed, so a 500 here buys another delivery from Stripe rather
+  # than dropping the grant on the floor.
   @impl true
   def handle_event(%Stripe.Event{type: "invoice.paid"} = event) do
-    invoice = event.data.object
-
-    # Let a failed insert raise: the invoice is paid and the grant is
-    # owed, so a 500 here buys another delivery from Stripe rather than
-    # dropping the credit on the floor.
-    if Prepaid.prepaid_invoice?(invoice) do
-      {:ok, _job} =
-        %{invoice_id: invoice.id}
-        |> CreateRunnerPrepaidGrantWorker.new()
-        |> Oban.insert()
-    end
+    {:ok, _job} =
+      %{invoice_id: event.data.object.id}
+      |> CreateRunnerPrepaidGrantWorker.new()
+      |> Oban.insert()
 
     :ok
   end

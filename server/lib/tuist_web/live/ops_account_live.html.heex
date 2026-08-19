@@ -105,6 +105,79 @@
     </.card_section>
   </.card>
 
+  <.card title={dgettext("dashboard", "Prepaid runner credit")} icon="asset">
+    <.card_section>
+      <p data-part="prepaid-description">
+        {dgettext(
+          "dashboard",
+          "Prepaid minutes are added to the account's next invoice alongside the rest of the bill. The credit is granted once that invoice is paid, and is spent as money: the minutes below are what it buys on the macOS 6 vCPU / 14 GB baseline, and a larger machine draws it down faster."
+        )}
+      </p>
+      <.alert
+        :if={not @has_subscription}
+        id="prepaid-no-subscription-alert"
+        status="warning"
+        title={dgettext("dashboard", "No active subscription")}
+        description={
+          dgettext(
+            "dashboard",
+            "This account has no subscription, so Stripe never generates an invoice for it. A prepaid charge added now would sit unbilled until one exists."
+          )
+        }
+      />
+      <.table
+        :if={@prepaid_balance}
+        id="prepaid-balance-table"
+        rows={@prepaid_balance.grants}
+      >
+        <:col :let={grant} label={dgettext("dashboard", "Credit")}>
+          <.text_cell label={prepaid_grant_kind_label(grant.kind)} />
+        </:col>
+        <:col :let={grant} label={dgettext("dashboard", "Remaining")}>
+          <.text_cell label={format_money(grant.available)} />
+        </:col>
+        <:col :let={grant} label={dgettext("dashboard", "Expires")}>
+          <.text_cell label={prepaid_expiry_label(grant.expires_at)} />
+        </:col>
+      </.table>
+      <p :if={is_nil(@prepaid_balance)} data-part="prepaid-empty">
+        {dgettext("dashboard", "This account holds no runner credit.")}
+      </p>
+      <.form
+        for={%{}}
+        id="prepaid-minutes-form"
+        phx-change="quote_prepaid_minutes"
+        phx-submit="bill_prepaid_minutes"
+      >
+        <.text_input
+          id="prepaid-minutes-input"
+          name="minutes"
+          value=""
+          input_type="number"
+          min={1}
+          label={dgettext("dashboard", "Prepaid minutes (macOS 6 vCPU / 14 GB)")}
+        />
+        <dl :if={@prepaid_quote} data-part="prepaid-quote">
+          <div>
+            <dt>{dgettext("dashboard", "Added to next invoice")}</dt>
+            <dd data-part="prepaid-quote-invoiced">{format_money(@prepaid_quote.invoiced)}</dd>
+          </div>
+          <div>
+            <dt>{dgettext("dashboard", "Credit granted once paid")}</dt>
+            <dd data-part="prepaid-quote-granted">{format_money(@prepaid_quote.granted)}</dd>
+          </div>
+        </dl>
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Add to next invoice")}
+          />
+        </div>
+      </.form>
+    </.card_section>
+  </.card>
+
   <.card title={dgettext("dashboard", "Plan & billing")} icon="credit_card">
     <.card_section>
       <.table id="account-plan-table" rows={[@account]}>

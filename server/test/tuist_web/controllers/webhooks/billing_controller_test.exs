@@ -29,35 +29,32 @@ defmodule TuistWeb.Webhooks.BillingControllerTest do
   end
 
   describe "handle_event/1 for invoice.paid" do
-    defp invoice_paid(metadata) do
+    defp invoice_paid do
       %Stripe.Event{
         type: "invoice.paid",
-        data: %{object: %Stripe.Invoice{id: "in_#{System.unique_integer([:positive])}", metadata: metadata}}
+        data: %{object: %Stripe.Invoice{id: "in_#{System.unique_integer([:positive])}"}}
       }
     end
 
-    test "enqueues a grant for an invoice marked as prepaid runner credit" do
-      event = invoice_paid(%{"tuist_prepaid_runners" => "true"})
+    # The payload carries at most the first handful of an invoice's
+    # lines, so the controller cannot tell a prepaid invoice from an
+    # ordinary one without truncating its view. It enqueues for every
+    # paid invoice and lets the worker page the lines and decide.
+    test "enqueues for every paid invoice, so a prepaid line further down a bill is not missed" do
+      event = invoice_paid()
 
       assert :ok = BillingController.handle_event(event)
 
       assert_enqueued(worker: CreateRunnerPrepaidGrantWorker, args: %{invoice_id: event.data.object.id})
     end
 
-    test "enqueues for a malformed scope so the mistake surfaces as a failing job" do
-      event = invoice_paid(%{"tuist_prepaid_runners" => "mac0s"})
+    test "enqueues once per invoice however many times Stripe redelivers" do
+      event = invoice_paid()
 
       assert :ok = BillingController.handle_event(event)
-
-      assert_enqueued(worker: CreateRunnerPrepaidGrantWorker, args: %{invoice_id: event.data.object.id})
-    end
-
-    test "ignores the subscription renewals that make up nearly every invoice.paid" do
-      event = invoice_paid(%{})
-
       assert :ok = BillingController.handle_event(event)
 
-      refute_enqueued(worker: CreateRunnerPrepaidGrantWorker)
+      assert [_one] = all_enqueued(worker: CreateRunnerPrepaidGrantWorker)
     end
   end
 end

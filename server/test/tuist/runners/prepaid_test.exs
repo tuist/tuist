@@ -4,6 +4,7 @@ defmodule Tuist.Runners.PrepaidTest do
 
   alias Tuist.Accounts.Account
   alias Tuist.Billing.CreditGrants
+  alias Tuist.Billing.Invoices
   alias Tuist.Environment
   alias Tuist.Runners.Prepaid
 
@@ -31,129 +32,143 @@ defmodule Tuist.Runners.PrepaidTest do
         id: "in_#{System.unique_integer([:positive])}",
         customer: "cus_#{System.unique_integer([:positive])}",
         amount_paid: 800_000,
-        currency: "usd",
+        currency: "usd"
+      },
+      overrides
+    )
+  end
+
+  defp line(overrides \\ %{}) do
+    Map.merge(
+      %{
+        id: "il_#{System.unique_integer([:positive])}",
+        amount: 800_000,
         metadata: %{"tuist_prepaid_runners" => "true"}
       },
       overrides
     )
   end
 
-  describe "prepaid_invoice?/1" do
-    test "is false for an invoice with no marker" do
-      refute Prepaid.prepaid_invoice?(invoice(%{metadata: %{}}))
-      refute Prepaid.prepaid_invoice?(invoice(%{metadata: %{"tuist_prepaid_runners" => "false"}}))
-      refute Prepaid.prepaid_invoice?(invoice(%{metadata: nil}))
-    end
-
-    test "is true for a marked invoice, including one whose scope is malformed" do
-      assert Prepaid.prepaid_invoice?(invoice())
-      assert Prepaid.prepaid_invoice?(invoice(%{metadata: %{"tuist_prepaid_runners" => "macos"}}))
-      # A typo must reach the grant path and fail there rather than being
-      # read as "this invoice was never prepaid".
-      assert Prepaid.prepaid_invoice?(invoice(%{metadata: %{"tuist_prepaid_runners" => "mac0s"}}))
-    end
+  # Stubs the lines endpoint for whatever invoice is asked about, so a
+  # test only has to say what is on the bill.
+  defp stub_lines(lines) do
+    stub(Invoices, :list_lines, fn _invoice_id -> {:ok, lines} end)
   end
 
   describe "grant_for_paid_invoice/1" do
-    test "does nothing for an invoice that is not marked prepaid" do
+    test "does nothing for an invoice with no prepaid line" do
+      stub_lines([line(%{metadata: %{}}), line(%{metadata: nil})])
       reject(&CreditGrants.create/1)
 
-      assert {:ok, :not_prepaid} = Prepaid.grant_for_paid_invoice(invoice(%{metadata: %{}}))
+      assert {:ok, :not_prepaid} = Prepaid.grant_for_paid_invoice(invoice())
     end
 
-    test "funds the grant at 1.25x what was paid, across every configured runner price" do
-      invoice = invoice(%{amount_paid: 800_000})
+    test "funds the grant from the marked line, not the whole bill" do
+      invoice = invoice(%{amount_paid: 950_000})
+      prepaid = line(%{amount: 800_000})
+      # The month's metered usage, sharing the invoice. Funding from
+      # amount_paid would turn this into runner credit too.
+      usage = line(%{amount: 150_000, metadata: %{}})
+
+      stub_lines([usage, prepaid])
 
       expect(CreditGrants, :create, fn attrs ->
-        # $8,000 paid buys $10,000 of usage reported at the on-demand rate.
         assert attrs.amount_cents == 1_000_000
         assert attrs.currency == "usd"
         assert Enum.sort(attrs.price_ids) == Enum.sort([@macos_price, @linux_price])
         assert attrs.category == "paid"
-        assert attrs.idempotency_key == "runner-prepaid-#{invoice.id}"
+        assert attrs.idempotency_key == "runner-prepaid-#{invoice.id}-#{prepaid.id}"
         assert attrs.metadata["tuist_runner_credit"] == "prepaid"
         assert attrs.metadata["tuist_prepaid_invoice_id"] == invoice.id
+        assert attrs.metadata["tuist_prepaid_invoice_line_id"] == prepaid.id
         assert attrs.metadata["tuist_prepaid_paid_cents"] == "800000"
         assert attrs.metadata["tuist_prepaid_funding_ratio_bp"] == "12500"
 
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, %{id: "credgr_1"}} = Prepaid.grant_for_paid_invoice(invoice)
+      assert {:ok, [%{id: "credgr_1"}]} = Prepaid.grant_for_paid_invoice(invoice)
     end
 
-    test "narrows the scope to one platform when the invoice asks for it" do
+    test "gives each prepaid line its own grant on its own terms" do
+      standard = line(%{amount: 800_000})
+
+      deeper =
+        line(%{
+          amount: 700_000,
+          metadata: %{
+            "tuist_prepaid_runners" => "macos",
+            "tuist_prepaid_runners_funding_ratio_bp" => "14286"
+          }
+        })
+
+      stub_lines([standard, deeper])
+
+      expect(CreditGrants, :create, 2, fn attrs ->
+        case attrs.metadata["tuist_prepaid_invoice_line_id"] do
+          id when id == standard.id ->
+            assert attrs.amount_cents == 1_000_000
+            assert Enum.sort(attrs.price_ids) == Enum.sort([@macos_price, @linux_price])
+
+          _ ->
+            # Averaging the two into one balance would misprice both.
+            assert attrs.amount_cents == 1_000_020
+            assert attrs.price_ids == [@macos_price]
+        end
+
+        {:ok, %{id: "credgr_#{attrs.metadata["tuist_prepaid_invoice_line_id"]}"}}
+      end)
+
+      assert {:ok, grants} = Prepaid.grant_for_paid_invoice(invoice())
+      assert length(grants) == 2
+    end
+
+    test "narrows the scope to one platform when the line asks for it" do
+      stub_lines([line(%{metadata: %{"tuist_prepaid_runners" => "macos"}})])
+
       expect(CreditGrants, :create, fn attrs ->
         assert attrs.price_ids == [@macos_price]
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, _grant} =
-               Prepaid.grant_for_paid_invoice(invoice(%{metadata: %{"tuist_prepaid_runners" => "macos"}}))
-    end
-
-    test "accepts a comma-separated platform list" do
-      expect(CreditGrants, :create, fn attrs ->
-        assert Enum.sort(attrs.price_ids) == Enum.sort([@macos_price, @linux_price])
-        {:ok, %{id: "credgr_1"}}
-      end)
-
-      assert {:ok, _grant} =
-               Prepaid.grant_for_paid_invoice(invoice(%{metadata: %{"tuist_prepaid_runners" => "macos, linux"}}))
-    end
-
-    test "honours a per-deal funding ratio" do
-      expect(CreditGrants, :create, fn attrs ->
-        # 30% off: $7,000 paid buys ~$10,000 of usage.
-        assert attrs.amount_cents == 1_000_020
-        assert attrs.metadata["tuist_prepaid_funding_ratio_bp"] == "14286"
-        {:ok, %{id: "credgr_1"}}
-      end)
-
-      assert {:ok, _grant} =
-               Prepaid.grant_for_paid_invoice(
-                 invoice(%{
-                   amount_paid: 700_000,
-                   metadata: %{
-                     "tuist_prepaid_runners" => "true",
-                     "tuist_prepaid_runners_funding_ratio_bp" => "14286"
-                   }
-                 })
-               )
+      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
     end
 
     test "rejects a funding ratio outside the sane band instead of guessing" do
       reject(&CreditGrants.create/1)
 
       for value <- ["1250", "9999", "20001", "125x", "12.5"] do
+        stub_lines([
+          line(%{
+            metadata: %{
+              "tuist_prepaid_runners" => "true",
+              "tuist_prepaid_runners_funding_ratio_bp" => value
+            }
+          })
+        ])
+
         assert {:error, {:invalid_metadata, :funding_ratio_bp, _value}} =
-                 Prepaid.grant_for_paid_invoice(
-                   invoice(%{
-                     metadata: %{
-                       "tuist_prepaid_runners" => "true",
-                       "tuist_prepaid_runners_funding_ratio_bp" => value
-                     }
-                   })
-                 ),
+                 Prepaid.grant_for_paid_invoice(invoice()),
                "expected #{inspect(value)} to be rejected"
       end
     end
 
     test "treats an empty ratio as unset, since that is how Stripe stores one" do
+      stub_lines([
+        line(%{
+          metadata: %{
+            "tuist_prepaid_runners" => "true",
+            "tuist_prepaid_runners_funding_ratio_bp" => "  "
+          }
+        })
+      ])
+
       expect(CreditGrants, :create, fn attrs ->
         assert attrs.amount_cents == 1_000_000
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, _grant} =
-               Prepaid.grant_for_paid_invoice(
-                 invoice(%{
-                   metadata: %{
-                     "tuist_prepaid_runners" => "true",
-                     "tuist_prepaid_runners_funding_ratio_bp" => "  "
-                   }
-                 })
-               )
+      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
     end
 
     test "honours a per-deal expiry and rejects an out-of-range one" do
@@ -161,30 +176,33 @@ defmodule Tuist.Runners.PrepaidTest do
       stub(DateTime, :utc_now, fn -> now end)
       expected = DateTime.add(now, 90, :day)
 
+      stub_lines([
+        line(%{
+          metadata: %{
+            "tuist_prepaid_runners" => "true",
+            "tuist_prepaid_runners_expires_in_days" => "90"
+          }
+        })
+      ])
+
       expect(CreditGrants, :create, fn attrs ->
         assert attrs.expires_at == expected
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, _grant} =
-               Prepaid.grant_for_paid_invoice(
-                 invoice(%{
-                   metadata: %{
-                     "tuist_prepaid_runners" => "true",
-                     "tuist_prepaid_runners_expires_in_days" => "90"
-                   }
-                 })
-               )
+      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+
+      stub_lines([
+        line(%{
+          metadata: %{
+            "tuist_prepaid_runners" => "true",
+            "tuist_prepaid_runners_expires_in_days" => "0"
+          }
+        })
+      ])
 
       assert {:error, {:invalid_metadata, :expires_in_days, "0"}} =
-               Prepaid.grant_for_paid_invoice(
-                 invoice(%{
-                   metadata: %{
-                     "tuist_prepaid_runners" => "true",
-                     "tuist_prepaid_runners_expires_in_days" => "0"
-                   }
-                 })
-               )
+               Prepaid.grant_for_paid_invoice(invoice())
     end
 
     test "defaults the expiry to a year out" do
@@ -192,56 +210,139 @@ defmodule Tuist.Runners.PrepaidTest do
       stub(DateTime, :utc_now, fn -> now end)
       expected = DateTime.add(now, 365, :day)
 
+      stub_lines([line()])
+
       expect(CreditGrants, :create, fn attrs ->
         assert attrs.expires_at == expected
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, _grant} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
     end
 
     test "rejects an unknown platform" do
+      stub_lines([line(%{metadata: %{"tuist_prepaid_runners" => "windows"}})])
       reject(&CreditGrants.create/1)
 
-      assert {:error, {:unknown_platform, "windows"}} =
-               Prepaid.grant_for_paid_invoice(invoice(%{metadata: %{"tuist_prepaid_runners" => "windows"}}))
+      assert {:error, {:unknown_platform, "windows"}} = Prepaid.grant_for_paid_invoice(invoice())
     end
 
-    test "does not grant twice for the same invoice" do
-      invoice = invoice()
+    test "does not grant twice for the same line" do
+      prepaid = line()
+      stub_lines([prepaid])
 
       stub(CreditGrants, :list_for_customer, fn _customer_id ->
-        {:ok, [%{id: "credgr_1", metadata: %{"tuist_prepaid_invoice_id" => invoice.id}}]}
+        {:ok, [%{id: "credgr_1", metadata: %{"tuist_prepaid_invoice_line_id" => prepaid.id}}]}
       end)
 
       reject(&CreditGrants.create/1)
 
-      assert {:ok, :already_granted} = Prepaid.grant_for_paid_invoice(invoice)
+      assert {:ok, []} = Prepaid.grant_for_paid_invoice(invoice())
     end
 
-    test "recognises an existing grant whose metadata keys came back atomized" do
-      invoice = invoice()
+    test "grants only the lines a partial failure left behind" do
+      done = line()
+      pending = line()
+      stub_lines([done, pending])
 
       stub(CreditGrants, :list_for_customer, fn _customer_id ->
-        {:ok, [%{id: "credgr_1", metadata: %{tuist_prepaid_invoice_id: invoice.id}}]}
+        {:ok, [%{id: "credgr_1", metadata: %{tuist_prepaid_invoice_line_id: done.id}}]}
       end)
 
-      reject(&CreditGrants.create/1)
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.metadata["tuist_prepaid_invoice_line_id"] == pending.id
+        {:ok, %{id: "credgr_2"}}
+      end)
 
-      assert {:ok, :already_granted} = Prepaid.grant_for_paid_invoice(invoice)
+      assert {:ok, [%{id: "credgr_2"}]} = Prepaid.grant_for_paid_invoice(invoice())
     end
 
     test "keeps the grant owed when no runner price exists yet" do
       stub(Environment, :stripe_prices, fn -> %{"runners" => %{}} end)
+      stub_lines([line()])
       reject(&CreditGrants.create/1)
 
       assert {:error, :no_runner_prices_configured} = Prepaid.grant_for_paid_invoice(invoice())
     end
 
-    test "refuses to fund a grant from an invoice that collected nothing" do
+    test "refuses to fund a grant from a line that charged nothing" do
+      stub_lines([line(%{amount: 0})])
       reject(&CreditGrants.create/1)
 
-      assert {:error, {:invalid_amount_paid, 0}} = Prepaid.grant_for_paid_invoice(invoice(%{amount_paid: 0}))
+      assert {:error, {:invalid_line_amount, 0}} = Prepaid.grant_for_paid_invoice(invoice())
+    end
+
+    test "propagates a failure to read the invoice's lines" do
+      stub(Invoices, :list_lines, fn _invoice_id -> {:error, :timeout} end)
+      reject(&CreditGrants.create/1)
+
+      assert {:error, :timeout} = Prepaid.grant_for_paid_invoice(invoice())
+    end
+  end
+
+  describe "quote_minutes/1" do
+    test "prices baseline minutes at the prepaid rate and funds them at the gross one" do
+      quoted = Prepaid.quote_minutes(10_000)
+
+      # 10,000 x $0.06 invoiced, funded 1.25x, which buys back exactly
+      # 10,000 minutes at the $0.075 on-demand rate usage is reported at.
+      assert quoted.invoiced == Money.new(60_000, :USD)
+      assert quoted.granted == Money.new(75_000, :USD)
+      assert quoted.funding_ratio_bp == 12_500
+      assert quoted.minutes == 10_000
+    end
+
+    test "the granted credit buys back the minutes sold" do
+      # granted / on-demand rate, in tenths of a cent, is the minutes sold.
+      # Exact whenever the amounts land on whole cents, which any
+      # realistic purchase does.
+      for minutes <- [250, 10_000, 1_000_000] do
+        quoted = Prepaid.quote_minutes(minutes)
+        assert div(quoted.granted.amount * 10, 75) == minutes
+      end
+    end
+
+    test "never over-grants when the arithmetic falls between cents" do
+      # A single minute costs 6 cents and would fund 7.5, which integer
+      # cents cannot hold. Truncating keeps the shortfall under one cent
+      # and never hands out credit that was not paid for.
+      quoted = Prepaid.quote_minutes(1)
+
+      assert quoted.invoiced == Money.new(6, :USD)
+      assert quoted.granted == Money.new(7, :USD)
+    end
+  end
+
+  describe "bill_prepaid_minutes/3" do
+    test "adds a pending invoice item so the charge rides the next monthly bill" do
+      expect(Stripe.Invoiceitem, :create, fn params ->
+        assert params.customer == "cus_bill"
+        assert params.amount == 60_000
+        assert params.currency == "usd"
+        assert params.metadata["tuist_prepaid_runners"] == "linux,macos"
+        assert params.description =~ "10000"
+        {:ok, %{id: "ii_1"}}
+      end)
+
+      assert {:ok, %{id: "ii_1"}} =
+               Prepaid.bill_prepaid_minutes(%Account{customer_id: "cus_bill"}, 10_000)
+    end
+
+    test "can be scoped to one platform" do
+      expect(Stripe.Invoiceitem, :create, fn params ->
+        assert params.metadata["tuist_prepaid_runners"] == "macos"
+        {:ok, %{id: "ii_1"}}
+      end)
+
+      assert {:ok, _item} =
+               Prepaid.bill_prepaid_minutes(%Account{customer_id: "cus_bill"}, 10_000, platforms: [:macos])
+    end
+
+    test "grants nothing on its own, since the money has not arrived" do
+      stub(Stripe.Invoiceitem, :create, fn _params -> {:ok, %{id: "ii_1"}} end)
+      reject(&CreditGrants.create/1)
+
+      assert {:ok, _item} = Prepaid.bill_prepaid_minutes(%Account{customer_id: "cus_bill"}, 10_000)
     end
   end
 

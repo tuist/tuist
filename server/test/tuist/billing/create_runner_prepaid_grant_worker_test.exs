@@ -16,20 +16,20 @@ defmodule Tuist.Billing.Workers.CreateRunnerPrepaidGrantWorkerTest do
     expect(Stripe.Invoice, :retrieve, fn "in_1" -> {:ok, %Stripe.Invoice{id: "in_1"}} end)
 
     expect(Prepaid, :grant_for_paid_invoice, fn %Stripe.Invoice{id: "in_1"} ->
-      {:ok, %{id: "credgr_1"}}
+      {:ok, [%{id: "credgr_1"}]}
     end)
 
-    assert {:ok, %{id: "credgr_1"}} = CreateRunnerPrepaidGrantWorker.perform(job(%{"invoice_id" => "in_1"}))
+    assert :ok = CreateRunnerPrepaidGrantWorker.perform(job(%{"invoice_id" => "in_1"}))
   end
 
-  test "treats an invoice with no prepaid marker as done" do
+  test "treats an invoice with no prepaid line as done" do
     stub(Prepaid, :grant_for_paid_invoice, fn _invoice -> {:ok, :not_prepaid} end)
 
     assert :ok = CreateRunnerPrepaidGrantWorker.perform(job(%{"invoice_id" => "in_1"}))
   end
 
-  test "treats an already-granted invoice as done rather than retrying" do
-    stub(Prepaid, :grant_for_paid_invoice, fn _invoice -> {:ok, :already_granted} end)
+  test "treats a fully already-granted invoice as done rather than retrying" do
+    stub(Prepaid, :grant_for_paid_invoice, fn _invoice -> {:ok, []} end)
 
     assert :ok = CreateRunnerPrepaidGrantWorker.perform(job(%{"invoice_id" => "in_1"}))
   end

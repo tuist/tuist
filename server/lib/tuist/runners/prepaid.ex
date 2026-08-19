@@ -47,14 +47,14 @@ defmodule Tuist.Runners.Prepaid do
   change to either should be a reviewed commit rather than a values
   file edit.
 
-  Per-deal terms come from metadata on the Stripe invoice, because
-  prepay is negotiated per customer and one deal's terms must not bind
-  the next one's. Because a hand-typed ratio is a money multiplier, an
-  out-of-range or unparseable one is rejected outright rather than
-  falling back to the default — a `1250` typed for `12500` should stop
-  the grant, not quietly issue a tenth of the credit.
+  Per-deal terms come from metadata on the Stripe invoice *line*,
+  because prepay is negotiated per customer and one deal's terms must
+  not bind the next one's. Because a hand-typed ratio is a money
+  multiplier, an out-of-range or unparseable one is rejected outright
+  rather than falling back to the default — a `1250` typed for `12500`
+  should stop the grant, not quietly issue a tenth of the credit.
 
-  Invoice metadata keys:
+  Line metadata keys:
 
     * `tuist_prepaid_runners` — required marker, and the platform
       scope. `"true"`/`"all"` covers every configured runner Price;
@@ -65,13 +65,28 @@ defmodule Tuist.Runners.Prepaid do
     * `tuist_prepaid_runners_expires_in_days` — optional, overrides the
       default expiry.
 
-  A prepaid invoice must not carry unrelated line items: the grant is
-  funded from the invoice's `amount_paid`, so anything else billed on
-  the same invoice would be converted into runner credit too.
+  ## Why the line and not the invoice
+
+  A prepaid charge rides along on the customer's ordinary monthly
+  invoice rather than arriving as a separate bill, so the invoice it
+  lands on also carries that month's metered usage. Marking the
+  *invoice* and funding from its `amount_paid` would convert the whole
+  bill into runner credit; marking the *line* and funding from the sum
+  of marked lines takes exactly the prepaid portion and nothing else.
+
+  It also means the prepaid charge is created as a pending Stripe
+  invoice item, which Stripe sweeps onto the next invoice on its own.
+  Nothing here has to know when the billing period closes. Note that a
+  customer with no subscription never has an invoice generated, so a
+  pending item on such an account would sit unbilled indefinitely.
+
+  Each marked line becomes its own grant, carrying that line's own
+  terms. Two top-ups bought in one month at different ratios stay
+  independently priced instead of being averaged into one balance.
 
   ## Top-ups and expiry
 
-  Neither needs machinery here. Every paid prepaid invoice creates its
+  Neither needs machinery here. Every paid prepaid line creates its
   own grant, and Stripe applies whichever grants are live at invoice
   time in priority then expiry order, so a top-up is just another
   grant and an exhausted or expired one simply stops applying —
@@ -91,6 +106,7 @@ defmodule Tuist.Runners.Prepaid do
 
   alias Tuist.Accounts.Account
   alias Tuist.Billing.CreditGrants
+  alias Tuist.Billing.Invoices
   alias Tuist.KeyValueStore
   alias Tuist.Runners.Billing, as: RunnerBilling
 
@@ -99,9 +115,21 @@ defmodule Tuist.Runners.Prepaid do
   @platforms [:linux, :macos]
 
   @bp_basis 10_000
-  # 1.25x credit per unit paid: the 20% prepaid discount, expressed as
-  # over-funding against the gross on-demand rate usage is reported at.
-  @default_funding_ratio_bp 12_500
+
+  # Tenths of a cent per machine-minute on the macOS 6 vCPU / 14 GB
+  # baseline: $0.075 on demand, $0.06 prepaid. Tenths because $0.075 is
+  # not a whole number of cents. These duplicate what the Stripe Price
+  # says, the same way `Tuist.Billing`'s `@unit_prices` does, and have
+  # to be kept in step with it by hand.
+  @macos_on_demand_rate 75
+  @macos_prepaid_rate 60
+
+  # The 20% prepaid discount, expressed as over-funding against the
+  # gross on-demand rate usage is reported at, and derived from the two
+  # rates rather than restated: 75/60 is 1.25x. Only macOS has an
+  # agreed rate, so this is the ratio for every platform until Linux
+  # gets one.
+  @default_funding_ratio_bp div(@bp_basis * @macos_on_demand_rate, @macos_prepaid_rate)
   # Par. Granting less than was paid would be a premium for prepaying,
   # which is only ever a typo.
   @min_funding_ratio_bp @bp_basis
@@ -123,18 +151,21 @@ defmodule Tuist.Runners.Prepaid do
 
   @kind_key "tuist_runner_credit"
   @invoice_key "tuist_prepaid_invoice_id"
+  @line_key "tuist_prepaid_invoice_line_id"
   @paid_cents_key "tuist_prepaid_paid_cents"
   @granted_ratio_key "tuist_prepaid_funding_ratio_bp"
 
   @balance_cache_ttl to_timeout(minute: 5)
 
   @doc """
-  Creates the credit grant a paid prepaid invoice has funded.
+  Creates a credit grant for every prepaid line on a paid invoice.
 
-  Returns `{:ok, grant}` on success, `{:ok, :not_prepaid}` for an
-  invoice that carries no prepaid marker (the overwhelming majority —
-  every subscription renewal lands here), `{:ok, :already_granted}` when
-  a grant for this invoice exists, and `{:error, reason}` otherwise.
+  Returns `{:ok, grants}` with the grants it created, `{:ok,
+  :not_prepaid}` for an invoice carrying no marked line (the
+  overwhelming majority — every ordinary monthly bill lands here), and
+  `{:error, reason}` otherwise. A line that already has a grant is
+  skipped rather than granted twice, so a retry after a partial failure
+  finishes the remaining lines and leaves the rest alone.
 
   `{:error, :no_runner_prices_configured}` is the state every
   environment is in until the runner Prices are created. It is a
@@ -143,20 +174,48 @@ defmodule Tuist.Runners.Prepaid do
   than drop it.
   """
   def grant_for_paid_invoice(invoice) do
-    metadata = invoice_metadata(invoice)
+    with {:ok, customer_id} <- customer_id(invoice),
+         {:ok, invoice_id} <- invoice_id(invoice),
+         {:ok, lines} <- Invoices.list_lines(invoice_id) do
+      case Enum.filter(lines, &prepaid_line?/1) do
+        [] -> {:ok, :not_prepaid}
+        marked -> grant_lines(customer_id, invoice_id, marked, invoice_currency(invoice))
+      end
+    end
+  end
+
+  # Existing grants are read once and matched by line id, rather than
+  # per line, so an invoice carrying several prepaid lines costs one
+  # lookup instead of one each.
+  defp grant_lines(customer_id, invoice_id, lines, currency) do
+    with {:ok, granted_line_ids} <- granted_line_ids(customer_id) do
+      lines
+      |> Enum.reject(&MapSet.member?(granted_line_ids, line_id(&1)))
+      |> Enum.reduce_while({:ok, []}, fn line, {:ok, acc} ->
+        case grant_line(customer_id, invoice_id, line, currency) do
+          {:ok, grant} -> {:cont, {:ok, [grant | acc]}}
+          {:error, reason} -> {:halt, {:error, reason}}
+        end
+      end)
+      |> case do
+        {:ok, grants} -> {:ok, Enum.reverse(grants)}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
+  defp grant_line(customer_id, invoice_id, line, currency) do
+    metadata = line_metadata(line)
 
     with {:ok, platforms} <- platforms_from_metadata(metadata),
-         {:ok, customer_id} <- customer_id(invoice),
-         {:ok, invoice_id} <- invoice_id(invoice),
-         {:ok, amount_paid} <- amount_paid(invoice),
+         {:ok, amount} <- line_amount(line),
          {:ok, ratio_bp} <- funding_ratio_bp(metadata),
          {:ok, expiry_days} <- expiry_days(metadata),
-         {:ok, price_ids} <- price_ids(platforms),
-         {:ok, :absent} <- existing_grant(customer_id, invoice_id) do
+         {:ok, price_ids} <- price_ids(platforms) do
       CreditGrants.create(%{
         customer_id: customer_id,
-        amount_cents: div(amount_paid * ratio_bp, @bp_basis),
-        currency: invoice_currency(invoice),
+        amount_cents: div(amount * ratio_bp, @bp_basis),
+        currency: currency,
         price_ids: price_ids,
         category: "paid",
         name: "Prepaid runner credit",
@@ -165,27 +224,109 @@ defmodule Tuist.Runners.Prepaid do
         metadata: %{
           @kind_key => "prepaid",
           @invoice_key => invoice_id,
-          @paid_cents_key => to_string(amount_paid),
+          @line_key => line_id(line),
+          @paid_cents_key => to_string(amount),
           @granted_ratio_key => to_string(ratio_bp)
         },
-        idempotency_key: "runner-prepaid-#{invoice_id}"
+        idempotency_key: "runner-prepaid-#{invoice_id}-#{line_id(line)}"
       })
     else
-      :not_prepaid -> {:ok, :not_prepaid}
-      {:ok, {:already_granted, _grant}} -> {:ok, :already_granted}
+      # A line marked prepaid whose scope will not parse is a mistake
+      # worth surfacing, not a line to skip: it was paid for.
+      :not_prepaid -> {:error, {:unmarked_line, line_id(line)}}
       {:error, reason} -> {:error, reason}
     end
   end
 
-  @doc """
-  True when `invoice` is marked as funding prepaid runner credit.
+  defp granted_line_ids(customer_id) do
+    case CreditGrants.list_for_customer(customer_id) do
+      {:ok, grants} ->
+        {:ok,
+         grants
+         |> Enum.map(&grant_metadata(&1, @line_key))
+         |> Enum.reject(&is_nil/1)
+         |> MapSet.new()}
 
-  A malformed marker counts as prepaid, so `grant_for_paid_invoice/1`
-  gets the chance to fail on it. Treating an unparseable scope as "not
-  prepaid" would silently swallow a paid invoice.
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp prepaid_line?(line) do
+    line |> line_metadata() |> platforms_from_metadata() != :not_prepaid
+  end
+
+  defp line_id(line), do: Map.get(line, :id)
+
+  defp line_metadata(line) do
+    case Map.get(line, :metadata) do
+      metadata when is_map(metadata) -> stringify_keys(metadata)
+      _ -> %{}
+    end
+  end
+
+  # The line's own amount, which is the prepaid portion of the bill and
+  # nothing else. A zero or credited line funds no grant.
+  defp line_amount(line) do
+    case Map.get(line, :amount) do
+      amount when is_integer(amount) and amount > 0 -> {:ok, amount}
+      amount -> {:error, {:invalid_line_amount, amount}}
+    end
+  end
+
+  @doc """
+  What `minutes` of prepaid runner time costs and buys.
+
+  Quoted against the macOS 6 vCPU / 14 GB baseline, the only machine
+  with an agreed rate. Returns the amount to invoice, the credit that
+  payment funds, and the ratio between them.
+
+  The minute count is honest only for the baseline machine. Credit is
+  money, and a larger machine costs proportionally more per minute, so
+  the same balance buys fewer minutes on one. That is the point of
+  holding the balance in money rather than minutes, and the reason this
+  is a quote rather than a stored figure.
   """
-  def prepaid_invoice?(invoice) do
-    invoice |> invoice_metadata() |> platforms_from_metadata() != :not_prepaid
+  def quote_minutes(minutes) when is_integer(minutes) and minutes > 0 do
+    invoiced_cents = div(minutes * @macos_prepaid_rate, 10)
+
+    %{
+      minutes: minutes,
+      invoiced: Money.new(invoiced_cents, :USD),
+      granted: Money.new(div(invoiced_cents * @default_funding_ratio_bp, @bp_basis), :USD),
+      funding_ratio_bp: @default_funding_ratio_bp
+    }
+  end
+
+  @doc """
+  Bills `account` for `minutes` of prepaid runner time.
+
+  Creates a *pending* Stripe invoice item rather than its own invoice,
+  so the charge rides along on the customer's next ordinary monthly
+  bill instead of arriving as a separate one. Stripe sweeps pending
+  items onto the next invoice it generates; nothing here has to know
+  when the period closes.
+
+  The credit is not granted now. It is granted when that invoice is
+  paid, by `grant_for_paid_invoice/1`, so credit never exists ahead of
+  the money behind it.
+
+  An account with no subscription never has an invoice generated, so a
+  pending item on one would sit unbilled indefinitely. Callers should
+  check before offering this.
+  """
+  def bill_prepaid_minutes(%Account{customer_id: customer_id}, minutes, opts \\ [])
+      when is_binary(customer_id) and is_integer(minutes) and minutes > 0 do
+    quote = quote_minutes(minutes)
+    platforms = Keyword.get(opts, :platforms, @platforms)
+
+    Stripe.Invoiceitem.create(%{
+      customer: customer_id,
+      amount: quote.invoiced.amount,
+      currency: "usd",
+      description: "Prepaid runner minutes (#{minutes} on macOS 6 vCPU / 14 GB)",
+      metadata: %{@marker_key => Enum.map_join(platforms, ",", &to_string/1)}
+    })
   end
 
   @doc """
@@ -324,19 +465,6 @@ defmodule Tuist.Runners.Prepaid do
   defp expired?(nil), do: false
   defp expired?(%DateTime{} = expires_at), do: DateTime.before?(expires_at, DateTime.utc_now())
 
-  defp existing_grant(customer_id, invoice_id) do
-    case CreditGrants.list_for_customer(customer_id) do
-      {:ok, grants} ->
-        case Enum.find(grants, &(grant_metadata(&1, @invoice_key) == invoice_id)) do
-          nil -> {:ok, :absent}
-          grant -> {:ok, {:already_granted, grant}}
-        end
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
   defp price_ids(platforms) do
     configured = configured_runner_prices()
 
@@ -416,27 +544,10 @@ defmodule Tuist.Runners.Prepaid do
     end
   end
 
-  # `amount_paid` is what the invoice actually collected, which is what
-  # the grant is funded from. `total` would fund credit for an invoice
-  # that was only partly paid.
-  defp amount_paid(invoice) do
-    case Map.get(invoice, :amount_paid) do
-      amount when is_integer(amount) and amount > 0 -> {:ok, amount}
-      amount -> {:error, {:invalid_amount_paid, amount}}
-    end
-  end
-
   defp invoice_currency(invoice) do
     case Map.get(invoice, :currency) do
       currency when is_binary(currency) and currency != "" -> currency
       _ -> "usd"
-    end
-  end
-
-  defp invoice_metadata(invoice) do
-    case Map.get(invoice, :metadata) do
-      metadata when is_map(metadata) -> stringify_keys(metadata)
-      _ -> %{}
     end
   end
 

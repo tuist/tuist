@@ -9,6 +9,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
   alias Tuist.Billing
   alias Tuist.Kura
   alias Tuist.Runners.Concurrency
+  alias Tuist.Runners.Prepaid
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -19,6 +20,9 @@ defmodule TuistWeb.OpsAccountLiveTest do
     conn = log_in_user(conn, user)
 
     stub(Accounts, :tuist_operator?, fn _ -> true end)
+    # Default the balance away so no test in this file reaches Stripe on
+    # mount. The balance itself is covered in Tuist.Runners.PrepaidTest.
+    stub(Prepaid, :balance, fn _account -> nil end)
 
     %{conn: conn, user: user}
   end
@@ -147,5 +151,80 @@ defmodule TuistWeb.OpsAccountLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
     render_hook(lv, "cancel_plan", %{})
+  end
+
+  describe "prepaid runner credit" do
+    test "quotes the money as minutes are typed, before anything is charged", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      reject(&Prepaid.bill_prepaid_minutes/3)
+
+      html =
+        lv
+        |> form("#prepaid-minutes-form", %{"minutes" => "10000"})
+        |> render_change()
+
+      assert html =~ "600.00"
+      assert html =~ "750.00"
+    end
+
+    test "adds the charge to the next invoice rather than granting credit now", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      expect(Prepaid, :bill_prepaid_minutes, fn account, minutes ->
+        assert account.id == user.account.id
+        assert minutes == 10_000
+        {:ok, %{id: "ii_1"}}
+      end)
+
+      # `expect` above is the assertion: it pins the account and the
+      # minute count, and verify_on_exit! fails the test if the charge
+      # was never created.
+      lv
+      |> form("#prepaid-minutes-form", %{"minutes" => "10000"})
+      |> render_submit()
+    end
+
+    test "refuses a minute count that is not a positive whole number", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      reject(&Prepaid.bill_prepaid_minutes/3)
+
+      # `reject` is the assertion: nothing may reach Stripe for any of
+      # these, so no charge is created from a malformed minute count.
+      for value <- ["0", "-5", "abc", "1.5", ""] do
+        lv
+        |> form("#prepaid-minutes-form", %{"minutes" => value})
+        |> render_submit()
+      end
+    end
+
+    test "warns when the account has no subscription to bill against", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert has_element?(lv, "#prepaid-no-subscription-alert")
+    end
+
+    test "lists the credit the account already holds", %{conn: conn, user: user} do
+      stub(Prepaid, :balance, fn _account ->
+        %{
+          available: Money.new(75_000, :USD),
+          expires_at: ~U[2027-01-01 00:00:00Z],
+          grants: [
+            %{
+              id: "credgr_1",
+              kind: "prepaid",
+              available: Money.new(75_000, :USD),
+              expires_at: ~U[2027-01-01 00:00:00Z]
+            }
+          ]
+        }
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert has_element?(lv, "#prepaid-balance-table", "Prepaid credit")
+      assert has_element?(lv, "#prepaid-balance-table", "January 1, 2027")
+    end
   end
 end

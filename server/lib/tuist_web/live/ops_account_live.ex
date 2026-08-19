@@ -16,6 +16,7 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Kura
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
+  alias Tuist.Runners.Prepaid
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -29,6 +30,9 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:account, account)
          |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
+         |> assign(:prepaid_balance, Prepaid.balance(account))
+         |> assign(:prepaid_quote, nil)
+         |> assign(:has_subscription, not is_nil(Billing.get_current_active_subscription(account)))
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
 
@@ -79,6 +83,52 @@ defmodule TuistWeb.OpsAccountLive do
          socket
          |> assign(:runner_concurrency_form, to_form(changeset, as: "account"))
          |> put_flash(:error, dgettext("dashboard", "Runner concurrency limits could not be updated."))}
+    end
+  end
+
+  # Quoted live as ops types, so the money leaving the customer is on
+  # screen before the charge is created rather than inferred from a
+  # minute count.
+  @impl true
+  def handle_event("quote_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    {:noreply, assign(socket, :prepaid_quote, quote_minutes(minutes))}
+  end
+
+  @impl true
+  def handle_event("bill_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    case parse_minutes(minutes) do
+      {:ok, minutes} ->
+        account = Accounts.create_customer_when_absent(socket.assigns.account)
+
+        case Prepaid.bill_prepaid_minutes(account, minutes) do
+          {:ok, _item} ->
+            quoted = Prepaid.quote_minutes(minutes)
+
+            {:noreply,
+             socket
+             |> assign(:account, preload_billing(account))
+             |> assign(:prepaid_quote, nil)
+             |> put_flash(
+               :info,
+               dgettext(
+                 "dashboard",
+                 "Added %{amount} of prepaid runner minutes to %{account}'s next invoice. The credit is granted when that invoice is paid.",
+                 amount: format_money(quoted.invoiced),
+                 account: account.name
+               )
+             )}
+
+          {:error, reason} ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               dgettext("dashboard", "Could not bill prepaid minutes: %{reason}", reason: inspect(reason))
+             )}
+        end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes above zero."))}
     end
   end
 
@@ -223,6 +273,28 @@ defmodule TuistWeb.OpsAccountLive do
       }
     }
   end
+
+  defp quote_minutes(raw) do
+    case parse_minutes(raw) do
+      {:ok, minutes} -> Prepaid.quote_minutes(minutes)
+      :error -> nil
+    end
+  end
+
+  defp parse_minutes(raw) when is_binary(raw) do
+    case Integer.parse(String.trim(raw)) do
+      {minutes, ""} when minutes > 0 -> {:ok, minutes}
+      _ -> :error
+    end
+  end
+
+  defp parse_minutes(_raw), do: :error
+
+  def prepaid_grant_kind_label("trial"), do: dgettext("dashboard", "Trial credit")
+  def prepaid_grant_kind_label(_kind), do: dgettext("dashboard", "Prepaid credit")
+
+  def prepaid_expiry_label(nil), do: dgettext("dashboard", "No expiry")
+  def prepaid_expiry_label(%DateTime{} = expires_at), do: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")
 
   defp runner_concurrency_form(account) do
     account
