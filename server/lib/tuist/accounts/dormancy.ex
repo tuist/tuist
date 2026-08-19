@@ -353,8 +353,30 @@ defmodule Tuist.Accounts.Dormancy do
 
   defp as_utc(%DateTime{} = datetime), do: DateTime.truncate(datetime, :second)
 
+  # Deleting the rows stops the next session lookup, but a LiveView socket that
+  # is already connected holds its authenticated user in assigns and never
+  # repeats that lookup, so it would keep working after the sweep disabled the
+  # account. The tokens are collected before the delete so the same disconnect
+  # the password reset flow performs can be broadcast for each one.
   defp revoke_sessions(%User{id: id}) do
+    session_tokens =
+      Repo.all(from(t in UserToken, where: t.user_id == ^id and t.context == "session"))
+
     Repo.delete_all(from(t in UserToken, where: t.user_id == ^id))
+
+    # Published straight to the shared pubsub rather than through the endpoint,
+    # which is what the endpoint does internally, because a `Tuist` module may
+    # not reference `TuistWeb`. The payload matches what a LiveView's
+    # disconnect listener expects.
+    Enum.each(session_tokens, fn token ->
+      topic = UserToken.live_socket_id(token)
+
+      Phoenix.PubSub.broadcast(Tuist.PubSub, topic, %Phoenix.Socket.Broadcast{
+        topic: topic,
+        event: "disconnect",
+        payload: %{}
+      })
+    end)
   end
 
   defp tombstone_email(%User{id: id}), do: "deleted-user-#{id}@#{@tombstone_domain}"

@@ -68,6 +68,22 @@ defmodule Tuist.Accounts.DormancyTest do
       assert Accounts.get_user_by_id(recent.id).active
     end
 
+    test "disconnects live sockets when it disables an account" do
+      # Given a connected LiveView, which holds its authenticated user in
+      # assigns and never repeats the session lookup, so deleting the token
+      # alone would leave it working.
+      user = operator_fixture(last_sign_in_days_ago: 200)
+      token = Accounts.generate_user_session_token(user)
+      live_socket_id = UserToken.live_socket_id(token)
+      Phoenix.PubSub.subscribe(Tuist.PubSub, live_socket_id)
+
+      # When
+      assert user.id in Dormancy.sweep(operator_email_domain: @domain).disabled
+
+      # Then
+      assert_receive %Phoenix.Socket.Broadcast{topic: ^live_socket_id, event: "disconnect"}
+    end
+
     test "does not touch accounts with no recorded activity" do
       # Given
       never = operator_fixture()
