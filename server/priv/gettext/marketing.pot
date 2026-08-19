@@ -422,7 +422,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:217
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:494
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:311
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:42
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Features"
 msgstr ""
@@ -483,7 +483,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:10
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:28
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/new/blog_post.html.heex:99
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:134
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:192
 #: lib/tuist_web/marketing/live/marketing_customers_live/new/customers.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Get started"
@@ -1038,7 +1038,7 @@ msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:829
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:1046
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:132
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "Supercharge your app development"
 msgstr ""
@@ -1074,7 +1074,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:37
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:1054
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/new/blog_post.html.heex:105
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:140
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:198
 #: lib/tuist_web/marketing/live/marketing_customers_live/customers.html.heex:35
 #: lib/tuist_web/marketing/live/marketing_customers_live/new/customers.html.heex:110
 #, elixir-autogen, elixir-format
@@ -2075,7 +2075,7 @@ msgstr ""
 
 #: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:29
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:29
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:36
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:49
 #: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:29
 #: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:29
 #: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:29
@@ -2913,7 +2913,7 @@ msgid "Set up mise"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:110
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:24
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Share build artifacts across your team and CI, so no one waits on code that's already compiled."
 msgstr ""
@@ -3042,7 +3042,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/new/case_study.html.heex:123
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:1045
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/new/blog_post.html.heex:94
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:131
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:189
 #, elixir-autogen, elixir-format
 msgid "What are you waiting for?"
 msgstr ""
@@ -3341,62 +3341,62 @@ msgstr ""
 msgid "with us"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:98
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Accelerate builds with caching designed around how your projects actually compile."
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:74
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Artifacts are served from the region closest to your developers, CI, and agent environments for fast access wherever builds run."
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:96
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Built for your build system"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:84
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "Built-in observability"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:62
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Cache lookups stay lightweight, so every build can check for reusable artifacts without introducing extra build cost."
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:44
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Everything you'd want from a cache"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:47
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "Fast everywhere, with near-zero overhead and built-in observability into cache performance."
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:72
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Low latency, everywhere"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:60
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:118
 #, elixir-autogen, elixir-format
 msgid "Minimal overhead"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:20
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Never build the"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:86
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "See cache hits, misses, and build performance so you can understand what's being reused and where builds can improve."
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:21
+#: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "same thing twice."
 msgstr ""
