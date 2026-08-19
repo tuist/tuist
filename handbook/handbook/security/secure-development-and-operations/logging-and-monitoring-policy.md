@@ -47,7 +47,7 @@ Systems and applications shall log user activity at three levels:
 
 - API requests, including method, endpoint, response status, and originating account
 - Database schema migrations and administrative queries executed outside the application
-- Object storage read and write operations against buckets holding customer data
+- Object storage deletions of customer data, including those performed by scheduled retention and cleanup work. Reads and writes are not recorded at this level: artifact transfers are made directly against the storage provider using pre-signed URLs, so they never reach a Tuist GmbH server, and recording them would require provider-side access logging that is not enabled. The authorization decision that issued each pre-signed URL is recorded as a transaction level interface request.
 - Billing and subscription state changes
 
 ### 1.2 Minimum log content
@@ -107,7 +107,7 @@ Continuous automated monitoring supplements but does not replace periodic review
 
 ### 3.1 Detection
 
-Automated alerting complements periodic review rather than replacing it. It is configured for conditions where a signal arriving in minutes is materially better than one found at the next review, and where the detection can be stated precisely enough to be acted on rather than dismissed:
+The following conditions are checked as part of the periodic review described in section 2. They are performed as reconciliations against an authoritative record, run on the review cadence rather than continuously, and are documented as manual controls because that is what they currently are:
 
 - Repeated authentication failures against a single account, or spread across many accounts
 - Privileged access exercised outside an approved elevation, detected by joining infrastructure access records against the approved elevation window covering them
@@ -116,7 +116,9 @@ Automated alerting complements periodic review rather than replacing it. It is c
 
 The second and third conditions are stated as reconciliations against an authoritative record rather than as behavioural anomalies. An alert that fires on a deviation from a learned baseline is only as good as the baseline; one that fires when an action has no matching authorization is either true or a bug in the authorization path, and both are worth knowing.
 
-Changes to logging configuration held in version control are covered by change review rather than by alerting. Where a provider holds configuration outside version control, the change record available from that provider is what applies.
+Changes to logging configuration held in version control are covered by change review. Where a provider holds configuration outside version control, the change record available from that provider is what applies.
+
+Promoting these checks to continuous automated alerting is the intended end state, and each is written to be expressible as a rule. Until those rules exist, this policy does not claim them: the control is the review, at the frequency section 2 sets, and nothing here should be read as evidence that a condition is being detected in real time.
 
 This list is deliberately short. A condition is added when it can be expressed precisely and someone will act on it, not to broaden coverage on paper.
 
