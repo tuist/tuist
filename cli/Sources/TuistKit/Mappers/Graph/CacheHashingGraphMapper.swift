@@ -1,3 +1,4 @@
+import TuistAlert
 import TuistCore
 import XcodeGraph
 
@@ -21,10 +22,16 @@ public struct CacheHashingGraphMapper: GraphMapping {
         var environment = environment
         if environment.initialGraphWithSources == nil {
             if let normalizationMapper {
-                let (hashingGraph, _, _) = try await normalizationMapper.map(
-                    graph: graph,
-                    environment: environment
-                )
+                // The normalization pass exists only to derive cache hashes, so its alerts are discarded the
+                // same way its side effects and environment are. They describe the graph before focusing and
+                // tree-shaking, so surfacing them would report targets that never reach the generated project
+                // and would restate, with a different target count, what the real mapping pass reports.
+                let (hashingGraph, _, _) = try await AlertController.$current.withValue(AlertController()) {
+                    try await normalizationMapper.map(
+                        graph: graph,
+                        environment: environment
+                    )
+                }
                 environment.initialGraphWithSources = hashingGraph
             } else {
                 environment.initialGraphWithSources = graph

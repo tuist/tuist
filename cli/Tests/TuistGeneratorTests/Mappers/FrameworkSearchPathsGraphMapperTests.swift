@@ -317,19 +317,19 @@ struct FrameworkSearchPathsGraphMapperTests {
     }
 
     @Test(.inTemporaryDirectory, .withScopedAlertController())
-    func warnsWhenATargetResolvesSeveralPrecompiledArtifactsSharingABasename() async throws {
-        // Given: two `Foo.xcframework` artifacts in sibling directories on the same target's framework
-        // search paths. Which one the compiler resolves is decided by the order of the search paths,
-        // which follows where the artifacts happen to live on disk.
+    func warnsWhenTargetResolvesSeveralArtifactsProvidingTheSameFramework() async throws {
+        // Given: two differently named containers that both ship `Foo.framework`. What a target imports is the
+        // framework inside the container, not the container, so these collide even though nothing about their
+        // own names matches.
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
-        let vendored = projectPath.appending(components: "vendor", "Foo.xcframework")
+        let vendored = projectPath.appending(components: "vendor", "VendoredFoo.xcframework")
         let cached = projectPath.appending(components: "cache", "Foo.xcframework")
         let graph = appGraph(
             projectPath: projectPath,
             targetName: "App",
             dependencies: [
-                .testXCFramework(path: vendored, linking: .dynamic),
-                .testXCFramework(path: cached, linking: .dynamic),
+                .testXCFramework(path: vendored, infoPlist: xcframeworkInfoPlist(framework: "Foo"), linking: .dynamic),
+                .testXCFramework(path: cached, infoPlist: xcframeworkInfoPlist(framework: "Foo"), linking: .dynamic),
             ]
         )
 
@@ -341,22 +341,80 @@ struct FrameworkSearchPathsGraphMapperTests {
         #expect(warnings.count == 1)
         let warning = try #require(warnings.first)
         #expect(warning.contains("'App'"))
-        #expect(warning.contains("'Foo.xcframework'"))
+        #expect(warning.contains("'Foo'"))
         #expect(warning.contains(cached.pathString))
         #expect(warning.contains(vendored.pathString))
     }
 
     @Test(.inTemporaryDirectory, .withScopedAlertController())
-    func reportsEachAmbiguousArtifactNameOnceAcrossTargets() async throws {
+    func warnsWhenAFrameworkCollidesWithAnXCFrameworkContainingIt() async throws {
+        // Given: a plain `Foo.framework` alongside an `.xcframework` whose slices ship `Foo.framework`.
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let framework = projectPath.appending(components: "vendor", "Foo.framework")
+        let xcframework = projectPath.appending(components: "cache", "Foo.xcframework")
+        let graph = appGraph(
+            projectPath: projectPath,
+            targetName: "App",
+            dependencies: [
+                .testFramework(path: framework, linking: .dynamic),
+                .testXCFramework(path: xcframework, infoPlist: xcframeworkInfoPlist(framework: "Foo"), linking: .dynamic),
+            ]
+        )
+
+        // When
+        _ = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let warnings = AlertController.current.warnings().map(\.message).map { $0.plain() }
+        #expect(warnings.count == 1)
+        let warning = try #require(warnings.first)
+        #expect(warning.contains("'Foo'"))
+        #expect(warning.contains(framework.pathString))
+        #expect(warning.contains(xcframework.pathString))
+    }
+
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
+    func doesNotWarnWhenIdenticallyNamedContainersShipDifferentFrameworks() async throws {
+        // Given: two containers that share a name but ship unrelated frameworks. Nothing competes for a
+        // framework name, so there is nothing for the search path order to decide.
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = appGraph(
+            projectPath: projectPath,
+            targetName: "App",
+            dependencies: [
+                .testXCFramework(
+                    path: projectPath.appending(components: "vendor", "Shared.xcframework"),
+                    infoPlist: xcframeworkInfoPlist(framework: "Analytics"),
+                    linking: .dynamic
+                ),
+                .testXCFramework(
+                    path: projectPath.appending(components: "cache", "Shared.xcframework"),
+                    infoPlist: xcframeworkInfoPlist(framework: "Networking"),
+                    linking: .dynamic
+                ),
+            ]
+        )
+
+        // When
+        _ = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        #expect(AlertController.current.warnings().isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
+    func reportsEachAmbiguousFrameworkNameOnceAcrossTargets() async throws {
         // Given: the same pair of colliding artifacts on two targets. The ambiguity is a property of the
         // artifacts, so it is reported once no matter how many targets resolve it.
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let vendored = GraphDependency.testXCFramework(
             path: projectPath.appending(components: "vendor", "Foo.xcframework"),
+            infoPlist: xcframeworkInfoPlist(framework: "Foo"),
             linking: .dynamic
         )
         let cached = GraphDependency.testXCFramework(
             path: projectPath.appending(components: "cache", "Foo.xcframework"),
+            infoPlist: xcframeworkInfoPlist(framework: "Foo"),
             linking: .dynamic
         )
         let project = Project.test(
@@ -389,7 +447,7 @@ struct FrameworkSearchPathsGraphMapperTests {
     }
 
     @Test(.inTemporaryDirectory, .withScopedAlertController())
-    func doesNotWarnWhenPrecompiledArtifactNamesAreUnique() async throws {
+    func doesNotWarnWhenFrameworkNamesAreUnique() async throws {
         // Given
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let graph = appGraph(
@@ -398,6 +456,7 @@ struct FrameworkSearchPathsGraphMapperTests {
             dependencies: (0 ..< 25).map { i in
                 .testXCFramework(
                     path: projectPath.appending(components: "Frameworks", "hash\(i)", "Module\(i).xcframework"),
+                    infoPlist: xcframeworkInfoPlist(framework: "Module\(i)"),
                     linking: .dynamic
                 )
             }
@@ -408,6 +467,18 @@ struct FrameworkSearchPathsGraphMapperTests {
 
         // Then
         #expect(AlertController.current.warnings().isEmpty)
+    }
+
+    private func xcframeworkInfoPlist(framework: String) -> XCFrameworkInfoPlist {
+        .test(
+            libraries: [
+                .test(
+                    identifier: "ios-arm64",
+                    // swiftlint:disable:next force_try
+                    path: try! RelativePath(validating: "ios-arm64/\(framework).framework")
+                ),
+            ]
+        )
     }
 
     private func arrayValue(_ value: SettingValue?) -> [String] {

@@ -1,4 +1,5 @@
 import Testing
+import TuistAlert
 import TuistCore
 import XcodeGraph
 @testable import TuistKit
@@ -50,5 +51,23 @@ struct CacheHashingGraphMapperTests {
 
         // Then
         #expect(gotEnvironment.initialGraphWithSources == existingHashingGraph)
+    }
+
+    @Test(.withScopedAlertController())
+    func map_discards_alerts_raised_by_the_normalization_mappers() async throws {
+        // Given: the normalization graph is only used to derive cache hashes, and it is the graph before
+        // focusing and tree-shaking. Alerts about it would name targets the generated project never contains.
+        let subject = CacheHashingGraphMapper(normalizationMappers: [
+            AnyGraphMapper { graph in
+                AlertController.current.warning(.alert("A warning about the pre-focus graph"))
+                return (graph, [], MapperEnvironment())
+            },
+        ])
+
+        // When
+        _ = try await subject.map(graph: Graph.test(), environment: MapperEnvironment())
+
+        // Then
+        #expect(AlertController.current.warnings().isEmpty)
     }
 }

@@ -61,6 +61,33 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
     private struct PrecompiledArtifact: Hashable {
         let path: AbsolutePath
 
+        /// The names the artifact answers to on a framework search path. For an `.xcframework` these come from
+        /// the `LibraryPath` of each framework slice in its `Info.plist`, not from the container's own name:
+        /// the container can be named anything, and what a target imports is the framework inside it.
+        /// Artifacts that contribute no `.framework` (a library slice, a `.a`) resolve through other flags and
+        /// contribute no name here.
+        let frameworkNames: Set<String>
+
+        init?(_ reference: GraphDependencyReference) {
+            guard let path = reference.precompiledPath else { return nil }
+            self.path = path
+            switch reference {
+            case let .xcframework(_, _, infoPlist, _, _):
+                frameworkNames = Set(
+                    infoPlist.libraries
+                        .filter { $0.path.extension == "framework" }
+                        .map(\.binaryName)
+                )
+            default:
+                frameworkNames = path.extension == "framework" ? [path.basenameWithoutExt] : []
+            }
+        }
+
+        /// An artifact is the file it points at, so two references to one path stay a single artifact.
+        static func == (lhs: Self, rhs: Self) -> Bool { lhs.path == rhs.path }
+
+        func hash(into hasher: inout Hasher) { hasher.combine(path) }
+
         var searchPath: LinkGeneratorPath {
             .absolutePath(path.removingLastComponent())
         }
@@ -76,17 +103,11 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         var canBeLinkedIntoSwiftSearchPath: Bool {
             path.extension == "framework"
         }
-
-        /// Whether the artifact is a framework bundle. Two of them sharing a name on one target compete for
-        /// the same module, and the order of the target's framework search paths is what decides between them.
-        var isFrameworkBundle: Bool {
-            path.extension == "framework" || path.extension == "xcframework"
-        }
     }
 
-    /// Several precompiled framework bundles that share a name on one target's framework search paths.
+    /// Several precompiled artifacts that answer to one framework name on a target's search paths.
     private struct AmbiguousFrameworkName: Hashable {
-        let basename: String
+        let name: String
         let paths: [AbsolutePath]
     }
 
@@ -209,7 +230,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         let linkableModules = try graphTraverser
             .searchablePathDependencies(path: input.id.projectPath, name: input.id.targetName).sorted()
 
-        let precompiledArtifacts = Set(linkableModules.compactMap(\.precompiledPath).map(PrecompiledArtifact.init))
+        let precompiledArtifacts = Set(linkableModules.compactMap(PrecompiledArtifact.init))
         let precompiledPaths = Set(precompiledArtifacts.map(\.searchPath))
         let sdkPaths = Set(linkableModules.compactMap { (dependency: GraphDependencyReference) -> LinkGeneratorPath? in
             if case let GraphDependencyReference.sdk(_, _, source, _) = dependency {
@@ -221,13 +242,16 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
 
         guard !precompiledPaths.isEmpty || !sdkPaths.isEmpty else { return nil }
 
-        let ambiguousFrameworkNames = Dictionary(
-            grouping: precompiledArtifacts.filter(\.isFrameworkBundle),
-            by: \.path.basename
-        )
-        .filter { $0.value.count > 1 }
-        .map { AmbiguousFrameworkName(basename: $0.key, paths: $0.value.map(\.path).sorted()) }
-        .sorted { $0.basename < $1.basename }
+        var artifactsByFrameworkName: [String: [AbsolutePath]] = [:]
+        for artifact in precompiledArtifacts {
+            for frameworkName in artifact.frameworkNames {
+                artifactsByFrameworkName[frameworkName, default: []].append(artifact.path)
+            }
+        }
+        let ambiguousFrameworkNames = artifactsByFrameworkName
+            .filter { $0.value.count > 1 }
+            .map { AmbiguousFrameworkName(name: $0.key, paths: $0.value.sorted()) }
+            .sorted { $0.name < $1.name }
 
         var additions: [(key: String, values: [String])] = []
         guard precompiledPaths.count >= Self.consolidationThreshold else {
@@ -316,8 +340,8 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             }
             let paths = ambiguousFrameworkName.paths.map(\.pathString).joined(separator: ", ")
             AlertController.current.warning(.alert(
-                "\(scope) \(verb) on \(ambiguousFrameworkName.paths.count) precompiled artifacts named '\(ambiguousFrameworkName.basename)': \(paths). Only one of them is resolved through the framework search paths, and which one wins follows where the artifacts are stored, so another machine can resolve a different one.",
-                takeaway: "Depend on a single '\(ambiguousFrameworkName.basename)' so the artifact a target builds against doesn't depend on where the artifacts are stored."
+                "\(scope) \(verb) on \(ambiguousFrameworkName.paths.count) precompiled artifacts providing '\(ambiguousFrameworkName.name)': \(paths). Only one of them is resolved through the framework search paths, and which one wins follows where the artifacts are stored, so another machine can resolve a different one.",
+                takeaway: "Depend on a single artifact providing '\(ambiguousFrameworkName.name)' so what a target builds against doesn't depend on where the artifacts are stored."
             ))
         }
     }
