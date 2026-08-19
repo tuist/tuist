@@ -339,6 +339,10 @@ processor:
 swiftRegistrySync:
   enabled: true
   syncAllowlist: alamofire/alamofire
+  # See values-managed-production.yaml for why the mirror authenticates as the
+  # App. Canary's installation is smaller, so its budget is the 5,000/hour
+  # floor rather than production's 12,500, which is ample for a single package.
+  githubAppInstallation: tuist
   # Terminate-then-replace, for the same reason as `registry.strategy` above.
   # This is a pure Oban consumer, so the gap only defers queue work: the jobs
   # stay in Postgres and the replacement Pod picks them up.

@@ -1788,6 +1788,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        git_branch:
+          description: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
+          type: string
+          x-struct:
+          x-validate:
         gradle_build_id:
           description: The UUID of the associated Gradle build.
           format: uuid
@@ -7764,6 +7769,15 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                only_test_identifiers:
+                  description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
                 scheme:
                   description: The scheme used for the test run.
                   type: string
@@ -7778,6 +7792,15 @@ paths:
                 shard_plan_id:
                   description: The shard plan ID if this test run is part of a sharded execution.
                   type: string
+                  x-struct:
+                  x-validate:
+                skip_test_identifiers:
+                  description: The tests the caller asked this run to exclude.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
                   x-struct:
                   x-validate:
                 status:
@@ -16424,6 +16447,11 @@ paths:
                 build_run_id:
                   description: The UUID of the associated Xcode build run.
                   format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_branch:
+                  description: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
                   type: string
                   x-struct:
                   x-validate:
