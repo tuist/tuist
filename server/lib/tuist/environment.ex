@@ -484,6 +484,26 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Cron schedule for the Kura archival sweep, which decides that an instance
+  has gone a full inactive window without cache demand.
+
+  Daily by default, matching the 90-day production window: deciding more often
+  than the window's own granularity changes nothing. It is configurable so a
+  deployment running a short window can sweep at a matching cadence, since a
+  daily sweep against a one-day window would leave an instance eligible for up
+  to another day before anything looked at it.
+
+  Read from `TUIST_KURA_ARCHIVAL_SWEEP_CRON`.
+  """
+  def kura_archival_sweep_cron do
+    case System.get_env("TUIST_KURA_ARCHIVAL_SWEEP_CRON") do
+      nil -> "@daily"
+      "" -> "@daily"
+      schedule -> String.trim(schedule)
+    end
+  end
+
+  @doc """
   Whether Kura cache-demand records bypass the in-memory buffer and are
   written straight through the caller's repo connection.
 

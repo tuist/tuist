@@ -118,6 +118,11 @@ server:
       value: "1"
     - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
       value: "0"
+    - name: TUIST_KURA_ARCHIVAL_SWEEP_CRON
+      # Matches the one-day window above. The production default is @daily,
+      # which suits a 90-day window but would leave a staging instance
+      # eligible for up to another day before the sweep looked at it.
+      value: "*/5 * * * *"
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
