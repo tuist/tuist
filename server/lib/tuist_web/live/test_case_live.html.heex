@@ -300,22 +300,66 @@
             id="widget-failed-test-case-runs"
             empty={@analytics.ok? && @analytics.result.total_count == 0}
           />
-          <.widget
+          <.percentile_dropdown_widget
             loading={!@analytics.ok?}
-            title={dgettext("dashboard_tests", "Avg. test case run duration")}
+            title={
+              case @selected_duration_type do
+                "p99" -> dgettext("dashboard_tests", "p99 test case run duration")
+                "p90" -> dgettext("dashboard_tests", "p90 test case run duration")
+                "p50" -> dgettext("dashboard_tests", "p50 test case run duration")
+                _ -> dgettext("dashboard_tests", "Avg. test case run duration")
+              end
+            }
+            legend_color={
+              case @selected_duration_type do
+                "p99" -> "p99"
+                "p90" -> "p90"
+                "p50" -> "p50"
+                _ -> "secondary"
+              end
+            }
             description={
               dgettext(
                 "dashboard_tests",
-                "Average duration of this test case across the runs in the selected period."
+                "Duration of this test case across the runs in the selected period."
               )
             }
             value={
               if @analytics.ok?,
                 do:
                   Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                    @analytics.result.avg_duration
+                    case @selected_duration_type do
+                      "p99" -> @analytics.result.p99_duration
+                      "p90" -> @analytics.result.p90_duration
+                      "p50" -> @analytics.result.p50_duration
+                      _ -> @analytics.result.avg_duration
+                    end
                   )
             }
+            metrics={
+              if @analytics.ok? do
+                %{
+                  avg:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @analytics.result.avg_duration
+                    ),
+                  p99:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @analytics.result.p99_duration
+                    ),
+                  p90:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @analytics.result.p90_duration
+                    ),
+                  p50:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @analytics.result.p50_duration
+                    )
+                }
+              end
+            }
+            selected_type={@selected_duration_type}
+            event_name="select_duration_type"
             id="widget-avg-duration"
             empty={@analytics.ok? && @analytics.result.total_count == 0}
             empty_label={dgettext("dashboard_tests", "No data")}

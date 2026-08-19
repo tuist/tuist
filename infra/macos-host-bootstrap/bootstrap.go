@@ -539,6 +539,16 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := installTailscale(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
 	}
+	// Re-run on the drift path because the resolver is part of
+	// HostConfigHash: without this step a roll converges the stamped hash
+	// while the host still has no /etc/resolver/ts.net, so the fleet reads
+	// as correct while crane, oras and tart keep getting NXDOMAIN on every
+	// tailnet name. Unconditional, unlike installTailscale above: writing
+	// the file restarts nothing, so it is safe on the tailnet fallback that
+	// sets SkipTailscaleInstall.
+	if err := installTailnetResolver(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install tailnet resolver: %w", err)
+	}
 	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh ssh ingress guard: %w", err)
 	}

@@ -7,6 +7,7 @@ defmodule TuistWeb.TestCaseLive do
   import TuistWeb.Helpers.FailureMessage
   import TuistWeb.Helpers.TestLabels
   import TuistWeb.Helpers.VCSLinks
+  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -352,6 +353,19 @@ defmodule TuistWeb.TestCaseLive do
      |> assign(:history_page, next_page)}
   end
 
+  # The Tests overview has to redraw a chart series here too. This widget is a
+  # standalone stat card, so switching statistic only changes which number the
+  # already-loaded analytics render, and the URL so the choice survives a reload.
+  def handle_event("select_duration_type", %{"type" => type}, socket) do
+    query = Query.put(socket.assigns.uri.query, "duration-type", type)
+
+    {:noreply,
+     socket
+     |> assign(:selected_duration_type, type)
+     |> assign(:uri, URI.new!("?" <> query))
+     |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
   def handle_info({:test_created, %{name: "test"}}, socket) do
     params = URI.decode_query(socket.assigns.uri.query)
 
@@ -399,6 +413,7 @@ defmodule TuistWeb.TestCaseLive do
     socket
     |> assign(:analytics_preset, preset)
     |> assign(:analytics_period, period)
+    |> assign(:selected_duration_type, params["duration-type"] || "avg")
     |> assign_async(:reliability, fn ->
       {:ok, %{reliability: Analytics.test_case_reliability_by_id(project.id, test_case_id, project.default_branch, opts)}}
     end)

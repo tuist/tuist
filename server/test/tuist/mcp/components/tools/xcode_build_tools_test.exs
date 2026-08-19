@@ -17,6 +17,14 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
     %Plug.Conn{assigns: %{current_subject: :subject}}
   end
 
+  @build_run_uuid "38338b32-3437-42e4-bc01-f048d6d3368f"
+
+  defp stub_build_lookup(project) do
+    stub(Builds, :get_build, fn id -> {:ok, %{id: id, project_id: 1}} end)
+    stub(Projects, :get_project_by_id, fn 1 -> project end)
+    stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+  end
+
   describe "list_xcode_builds" do
     test "returns paginated builds" do
       project = %{id: 1, name: "app"}
@@ -132,6 +140,59 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       assert result["xcode_version"] == "15.0"
       assert result["archive_url"] == "https://storage.test/acme/app/builds/build-1/build.zip"
     end
+
+    test "accepts a dashboard URL in place of the build ID" do
+      project = %{id: 1, name: "app", account: %{name: "acme"}}
+
+      stub(Builds, :get_build, fn id ->
+        {:ok,
+         %{
+           id: id,
+           duration: 5000,
+           status: "success",
+           category: "clean",
+           scheme: "App",
+           configuration: "Debug",
+           xcode_version: "15.0",
+           macos_version: "14.0",
+           model_identifier: "MacBookPro18,1",
+           is_ci: false,
+           git_branch: "main",
+           git_commit_sha: "abc123",
+           git_ref: "refs/heads/main",
+           cacheable_tasks_count: 10,
+           cacheable_task_local_hits_count: 5,
+           cacheable_task_remote_hits_count: 3,
+           project_id: 1,
+           inserted_at: ~N[2024-01-01 12:00:00]
+         }}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+      stub(Storage, :generate_download_url, fn object_key, _actor, _opts -> "https://storage.test/#{object_key}" end)
+
+      for build_run_id <- [
+            "https://tuist.dev/acme/app/builds/build-runs/#{@build_run_uuid}",
+            "https://tuist.dev/acme/app/builds/build-runs/#{@build_run_uuid}/",
+            "https://tuist.dev/acme/app/builds/build-runs/#{@build_run_uuid}?tab=targets",
+            @build_run_uuid
+          ] do
+        assert %{"content" => [%{"type" => "text", "text" => text}]} =
+                 GetXcodeBuild.call(conn_with_subject(), %{"build_run_id" => build_run_id})
+
+        assert JSON.decode!(text)["id"] == @build_run_uuid
+      end
+    end
+
+    test "still reports not found for a value that is neither an ID nor a URL" do
+      stub(Builds, :get_build, fn "not-a-build" -> {:error, :not_found} end)
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               GetXcodeBuild.call(conn_with_subject(), %{"build_run_id" => "not-a-build"})
+
+      assert text == "Build not found: not-a-build"
+    end
   end
 
   describe "list_xcode_build_targets" do
@@ -209,6 +270,30 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       result = JSON.decode!(text)
       assert length(result["files"]) == 1
       assert hd(result["files"])["path"] == "Sources/App.swift"
+    end
+
+    test "filters by the ID extracted from a dashboard URL, not by the URL" do
+      project = %{id: 1, name: "app"}
+      stub_build_lookup(project)
+
+      stub(Builds, :list_build_files, fn %{filters: filters} ->
+        assert %{field: :build_run_id, op: :==, value: @build_run_uuid} in filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           total_count: 0,
+           total_pages: 0,
+           current_page: 1,
+           page_size: 20
+         }}
+      end)
+
+      assert %{"content" => [%{"type" => "text"}]} =
+               ListXcodeBuildFiles.call(conn_with_subject(), %{
+                 "build_run_id" => "https://tuist.dev/acme/app/builds/build-runs/#{@build_run_uuid}"
+               })
     end
   end
 

@@ -1002,6 +1002,8 @@ jobs:
           remote-names: |
             ${{ vars.OCI_REGISTRY_HOST }}/tuist-xcresult-processor:${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}
             ${{ vars.OCI_REGISTRY_HOST }}/tuist-xcresult-processor:latest
+          chunk-size: "64"
+          concurrency: "4"
 
       - name: Upload xcresult-processor-image artifacts
         uses: actions/upload-artifact@v4
@@ -1144,6 +1146,8 @@ jobs:
           remote-names: |
             ${{ vars.OCI_REGISTRY_HOST }}/tuist-runner:${{ steps.build.outputs.profile }}-${{ needs.check-releases.outputs.runner-image-next-version-number }}
             ${{ vars.OCI_REGISTRY_HOST }}/tuist-runner:${{ steps.build.outputs.profile }}
+          chunk-size: "64"
+          concurrency: "4"
 
       - name: Cleanup
         if: always()

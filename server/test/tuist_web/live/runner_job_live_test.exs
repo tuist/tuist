@@ -15,6 +15,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
+  alias Tuist.Runners.WorkflowJobs
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -60,6 +62,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         head_sha: "abcdef1234567890"
       })
 
+    flush_outbox!()
+
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/310010/jobs/31001")
 
     assert html =~ "Server · Docker build"
@@ -88,9 +92,12 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, candidate} =
       Jobs.pick_queued(Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}), [])
 
-    :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
-    :ok = Jobs.record_running(31_101, "tuist-runner-x")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_101, "tuist-runner-x", claimed_at)
     {:ok, _completed} = Jobs.complete(31_101, "success")
+
+    flush_outbox!()
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/311010/jobs/31101")
 
@@ -177,6 +184,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       name: "xcodebuild",
       is_ci: true,
       build_run_id: build_run.id,
+      ran_at: ~N[2026-05-28 10:01:00.000000],
+      created_at: ~N[2026-05-28 10:03:00.000000],
+      duration: 120_000,
       cacheable_targets: ["App", "Core", "UI", "Networking"],
       local_cache_target_hits: ["App"],
       remote_cache_target_hits: ["Core", "UI"]
@@ -187,6 +197,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       name: "xcodebuild",
       is_ci: true,
       build_run_id: second_build_run.id,
+      ran_at: ~N[2026-05-28 10:01:00.000000],
+      created_at: ~N[2026-05-28 10:02:00.000000],
+      duration: 60_000,
       cacheable_targets: ["AppClip", "AppClipCore"],
       local_cache_target_hits: ["AppClip"],
       remote_cache_target_hits: []
@@ -256,7 +269,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     )
 
     step_started_at = ~U[2026-05-28 10:00:00.000000Z]
-    step_completed_at = ~U[2026-05-28 10:03:30.000000Z]
+    step_completed_at = ~U[2026-05-28 10:05:00.000000Z]
 
     :ok =
       JobSteps.record([
@@ -301,6 +314,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
           network_bytes_out: 1_524_288
         }
       ])
+
+    flush_outbox!()
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/313010/jobs/31301")
     document = Floki.parse_fragment!(html)
@@ -399,6 +414,131 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert expanded =~ "No logs were captured for this step."
   end
 
+  test "attributes a build only to the step it ran in when steps share a second", %{
+    conn: conn,
+    account: account
+  } do
+    project =
+      ProjectsFixtures.project_fixture(
+        name: "mobile-app-#{System.unique_integer([:positive])}",
+        account: account,
+        vcs_connection: [repository_full_handle: "tuist/tuist"]
+      )
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_401,
+        account_id: account.id,
+        fleet_name: "macos-xcode-26.4",
+        repository: "tuist/tuist",
+        workflow_run_id: 314_010,
+        workflow_name: "Release",
+        run_attempt: 1,
+        job_name: "Archive",
+        head_branch: "main",
+        head_sha: "abcdef1234567890"
+      })
+
+    # Geometry taken from a real archive job: two sequential archive steps
+    # followed by a fan of packaging steps that all start within the same
+    # second, and one skipped step with no timestamps.
+    {:ok, app_build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account.id,
+        scheme: "App",
+        duration: 389_939,
+        inserted_at: ~N[2026-08-19 05:59:30.248190],
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "314010"
+      )
+
+    {:ok, beta_build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account.id,
+        scheme: "AppBeta",
+        duration: 39_405,
+        inserted_at: ~N[2026-08-19 06:00:18.133027],
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "314010"
+      )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "xcodebuild",
+      is_ci: true,
+      build_run_id: app_build.id,
+      ran_at: ~N[2026-08-19 05:52:52.000000],
+      created_at: ~N[2026-08-19 05:59:30.248631],
+      duration: 397_553
+    )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "xcodebuild",
+      is_ci: true,
+      build_run_id: beta_build.id,
+      ran_at: ~N[2026-08-19 05:59:32.000000],
+      created_at: ~N[2026-08-19 06:00:16.558430],
+      duration: 43_750
+    )
+
+    steps = [
+      {16, "Archive App", ~U[2026-08-19 05:52:52.000000Z], ~U[2026-08-19 05:59:32.000000Z]},
+      {17, "Archive AppBeta", ~U[2026-08-19 05:59:32.000000Z], ~U[2026-08-19 06:00:17.000000Z]},
+      {18, "Validate archive outputs", ~U[2026-08-19 06:00:17.000000Z], ~U[2026-08-19 06:00:18.000000Z]},
+      {19, "Collect asset catalog outputs", ~U[2026-08-19 06:00:18.000000Z], ~U[2026-08-19 06:00:18.000000Z]},
+      {20, "Save asset catalog output cache", nil, ~U[2026-08-19 06:00:18.000000Z]},
+      {21, "Package distribution artifacts", ~U[2026-08-19 06:00:18.000000Z], ~U[2026-08-19 06:00:28.000000Z]},
+      {22, "Create build manifest", ~U[2026-08-19 06:00:18.000000Z], ~U[2026-08-19 06:00:18.000000Z]},
+      {23, "Wait for distribution artifacts", ~U[2026-08-19 06:00:18.000000Z], ~U[2026-08-19 06:00:28.000000Z]},
+      {24, "Upload build manifest", ~U[2026-08-19 06:00:28.000000Z], ~U[2026-08-19 06:00:30.000000Z]}
+    ]
+
+    :ok =
+      JobSteps.record(
+        Enum.map(steps, fn {number, name, started_at, completed_at} ->
+          %{
+            workflow_job_id: 31_401,
+            account_id: account.id,
+            number: number,
+            name: name,
+            status: "completed",
+            conclusion: if(started_at, do: "success", else: "skipped"),
+            started_at: started_at,
+            completed_at: completed_at
+          }
+        end)
+      )
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/314010/jobs/31401")
+    document = Floki.parse_fragment!(html)
+
+    chip_schemes = fn number ->
+      document
+      |> Floki.find("#runner-step-#{number} a[data-part='step-insight-chip'][data-kind='build']")
+      |> Enum.map(fn chip ->
+        chip |> Floki.find("[data-part='step-insight-chip-label']") |> Floki.text() |> String.trim()
+      end)
+    end
+
+    assert chip_schemes.(16) == ["App"]
+    assert chip_schemes.(17) == ["AppBeta"]
+
+    # The build ended before any of these ran; they only shared a second with
+    # the moment its result reached the server.
+    for number <- [18, 19, 20, 21, 22, 23, 24] do
+      assert chip_schemes.(number) == [], "step #{number} should not be attributed a build"
+    end
+
+    assert document
+           |> Floki.find("a[data-part='step-insight-chip'][data-kind='build']")
+           |> length() == 2
+  end
+
   test "renders the captured steps for a completed job", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{
@@ -415,8 +555,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("macos-xcode-26.4", [])
-    :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
-    :ok = Jobs.record_running(31_401, "tuist-runner-x")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_401, "tuist-runner-x", claimed_at)
 
     {:ok, _completed} = Jobs.complete(31_401, "failure")
 
@@ -444,6 +585,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         }
       ])
 
+    flush_outbox!()
+
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/314010/jobs/31401")
 
     assert html =~ "Steps"
@@ -470,8 +613,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("macos-xcode-26.4", [])
-    :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
-    :ok = Jobs.record_running(31_402, "tuist-runner-x")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_402, "tuist-runner-x", claimed_at)
     {:ok, _completed} = Jobs.complete(31_402, "failure")
 
     :ok =
@@ -497,6 +641,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
           completed_at: ~U[2026-05-28 10:00:35.000000Z]
         }
       ])
+
+    flush_outbox!()
 
     {:ok, lv, _html} =
       live(conn, ~p"/#{account.name}/runners/runs/314020/jobs/31402?tab=overview&step=2")
@@ -524,6 +670,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         head_branch: "main",
         head_sha: "1234567"
       })
+
+    flush_outbox!()
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315010/jobs/31501")
 
@@ -556,6 +704,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         }
       ])
 
+    flush_outbox!()
+
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/316010/jobs/31601")
 
     assert html =~ "Logs"
@@ -577,6 +727,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         head_branch: "main",
         head_sha: "abc"
       })
+
+    flush_outbox!()
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/316100/jobs/31610?tab=logs")
     assert html =~ "No logs have been captured for this job yet."
@@ -630,6 +782,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         }
       ])
 
+    flush_outbox!()
+
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/316200/jobs/31620?tab=logs")
     refute html =~ "Download logs"
 
@@ -658,8 +812,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
-    :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
-    :ok = Jobs.record_running(31_602, "runner-x")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_602, "runner-x", claimed_at)
 
     {:ok, _} = Jobs.complete(31_602, "success")
 
@@ -740,6 +895,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         }
       ])
 
+    flush_outbox!()
+
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316020/jobs/31602")
 
     # Expanding the Build step (number 2) shows the in-step lines
@@ -770,9 +927,13 @@ defmodule TuistWeb.RunnerJobLiveTest do
         head_sha: "abc"
       })
 
+    flush_outbox!()
+
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/317010/jobs/31701")
     assert has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
     refute has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Logs")
+
+    flush_outbox!()
 
     {:ok, lv2, _html} = live(conn, ~p"/#{account.name}/runners/runs/317010/jobs/31701?tab=logs")
     assert has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Logs")
@@ -800,8 +961,11 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, candidate} =
       Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
 
-    :ok = Jobs.record_claimed(candidate, "macos-pod-vnc", DateTime.utc_now())
-    :ok = Jobs.record_running(31_750, "tuist-runner-vnc")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_750, "tuist-runner-vnc", claimed_at)
+
+    flush_outbox!()
 
     {:ok, lv, html} =
       live(conn, ~p"/#{account.name}/runners/runs/317500/jobs/31750?tab=vnc")
@@ -849,15 +1013,19 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, candidate} =
       Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
 
-    :ok = Jobs.record_claimed(candidate, "macos-pod-ready-vnc", DateTime.utc_now())
-    :ok = Jobs.record_running(31_752, "tuist-runner-ready-vnc")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-ready-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_752, "tuist-runner-ready-vnc", claimed_at)
 
+    flush_outbox!()
     {:ok, job} = Jobs.get_for_account(account.id, 31_752)
     {:ok, session} = InteractiveSessions.request_vnc(job, account, user)
 
     session
     |> InteractiveSession.changeset(%{state: :ready})
     |> Repo.update!()
+
+    flush_outbox!()
 
     {:ok, lv, html} =
       live(conn, ~p"/#{account.name}/runners/runs/317520/jobs/31752?tab=vnc")
@@ -899,15 +1067,19 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, candidate} =
       Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
 
-    :ok = Jobs.record_claimed(candidate, "macos-pod-disconnecting-vnc", DateTime.utc_now())
-    :ok = Jobs.record_running(31_757, "tuist-runner-disconnecting-vnc")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-disconnecting-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_757, "tuist-runner-disconnecting-vnc", claimed_at)
 
+    flush_outbox!()
     {:ok, job} = Jobs.get_for_account(account.id, 31_757)
     {:ok, session} = InteractiveSessions.request_vnc(job, account, user)
 
     session
     |> InteractiveSession.changeset(%{state: :ready})
     |> Repo.update!()
+
+    flush_outbox!()
 
     {:ok, lv, _html} =
       live(conn, ~p"/#{account.name}/runners/runs/317570/jobs/31757?tab=vnc")
@@ -947,8 +1119,11 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, candidate} =
       Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
 
-    :ok = Jobs.record_claimed(candidate, "macos-pod-dev-vnc", DateTime.utc_now())
-    :ok = Jobs.record_running(31_753, "tuist-runner-dev-vnc")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-dev-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_753, "tuist-runner-dev-vnc", claimed_at)
+
+    flush_outbox!()
 
     {:ok, lv, html} =
       live(conn, ~p"/#{account.name}/runners/runs/317530/jobs/31753?tab=vnc")
@@ -983,6 +1158,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         head_sha: "abc"
       })
 
+    flush_outbox!()
+
     {:ok, lv, _html} =
       live(conn, ~p"/#{account.name}/runners/runs/317510/jobs/31751?tab=interactive")
 
@@ -1010,8 +1187,11 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
-    :ok = Jobs.record_claimed(candidate, "linux-pod-shell", DateTime.utc_now())
-    :ok = Jobs.record_running(31_754, "tuist-runner-linux-shell")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-shell", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_754, "tuist-runner-linux-shell", claimed_at)
+
+    flush_outbox!()
 
     {:ok, lv, html} =
       live(conn, ~p"/#{account.name}/runners/runs/317540/jobs/31754?tab=terminal")
@@ -1050,12 +1230,16 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
-    :ok = Jobs.record_claimed(candidate, "linux-pod-shell-ready", DateTime.utc_now())
-    :ok = Jobs.record_running(31_756, "tuist-runner-linux-shell-ready")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-shell-ready", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_756, "tuist-runner-linux-shell-ready", claimed_at)
 
+    flush_outbox!()
     {:ok, job} = Jobs.get_for_account(account.id, 31_756)
     {:ok, session} = InteractiveSessions.request_shell(job, account, user)
     {:ok, _session} = InteractiveSessions.mark_shell_ready(session)
+
+    flush_outbox!()
 
     {:ok, lv, html} =
       live(conn, ~p"/#{account.name}/runners/runs/317560/jobs/31756?tab=terminal")
@@ -1088,12 +1272,16 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
-    :ok = Jobs.record_claimed(candidate, "linux-pod-shell-disconnecting", DateTime.utc_now())
-    :ok = Jobs.record_running(31_758, "tuist-runner-linux-shell-disconnecting")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-shell-disconnecting", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_758, "tuist-runner-linux-shell-disconnecting", claimed_at)
 
+    flush_outbox!()
     {:ok, job} = Jobs.get_for_account(account.id, 31_758)
     {:ok, session} = InteractiveSessions.request_shell(job, account, user)
     {:ok, _session} = InteractiveSessions.mark_shell_ready(session)
+
+    flush_outbox!()
 
     {:ok, lv, _html} =
       live(conn, ~p"/#{account.name}/runners/runs/317580/jobs/31758?tab=terminal")
@@ -1128,6 +1316,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         head_branch: "main",
         head_sha: "abc"
       })
+
+    flush_outbox!()
 
     {:ok, lv, html} =
       live(
@@ -1171,6 +1361,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         }
       ])
 
+    flush_outbox!()
+
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/318010/jobs/31810?tab=metrics")
 
     assert html =~ "CPU I/O Wait"
@@ -1192,6 +1384,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         head_branch: "main",
         head_sha: "abc"
       })
+
+    flush_outbox!()
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/318020/jobs/31820?tab=metrics")
 
@@ -1228,6 +1422,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
           }
         end
       )
+
+    flush_outbox!()
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/318010/jobs/31801?tab=logs")
 
@@ -1273,6 +1469,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         end
       )
 
+    flush_outbox!()
+
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319010/jobs/31901?tab=logs")
 
     refute html =~ "DEEP_MATCH_TOKEN"
@@ -1315,6 +1513,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         }
       ])
 
+    flush_outbox!()
+
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319020/jobs/31902?tab=logs")
     # Hidden by default; the icon points to the action (show) — a plain
     # hourglass, so the hourglass-off variant is absent.
@@ -1347,8 +1547,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
-    :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
-    :ok = Jobs.record_running(31_950, "runner-x")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_950, "runner-x", claimed_at)
 
     {:ok, _} = Jobs.complete(31_950, "success")
 
@@ -1367,6 +1568,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
       ])
 
     # Overview tab is the default, where the Steps card lives.
+    flush_outbox!()
+
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319500/jobs/31950")
 
     assert has_element?(lv, "#steps-timestamps-button")
@@ -1449,5 +1652,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       assert TuistWeb.RunnerJobLive.step_window([]) == nil
       assert TuistWeb.RunnerJobLive.step_window([%{started_at: nil, completed_at: nil}]) == nil
     end
+  end
+
+  defp flush_outbox! do
+    :ok = FlushJobTransitionEventsWorker.perform(%Oban.Job{})
   end
 end
