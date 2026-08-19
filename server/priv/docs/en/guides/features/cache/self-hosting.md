@@ -91,7 +91,7 @@ On the **Tuist-hosted server**, endpoints are not configured by hand. Each node 
 
 In the Tuist dashboard, open your account, go to **Cache**, and find **Self-hosted servers**. Choose **Generate credential** to mint a client ID and secret.
 
-The credential is tenant-scoped: it only ever authorizes traffic for the account that created it. Nodes present it on every control-plane call, and the control plane resolves it back to the owning account, so a node never needs a key that could act for another tenant.
+The credential only authorizes traffic for the account that created it.
 
 The secret is displayed once and is not recoverable after you close the dialog, so copy it straight into the secret store your nodes read from. Revoking a credential immediately stops every node using it from authenticating, so generate a replacement before revoking one that is in service.
 
@@ -107,15 +107,11 @@ KURA_CONTROL_PLANE_CLIENT_SECRET=<client secret>
 KURA_NODE_URL=https://kura-1.internal:7443
 ```
 
-On boot the node generates a keypair locally, sends a certificate signing request to the control plane with its credential, and receives a signed peer certificate, the account's CA, its tenant identifier, and the current peer list. The private key never leaves the node. The certificate material is written under `KURA_DATA_DIR`, and the paths, tenant, and peers are injected into the node's own environment, so the rest of startup configures itself from nothing but the credential and the node URL.
+The node generates its keypair locally, so the private key never leaves it, and receives a signed peer certificate, the account CA, its tenant identifier, and the peer list. That is everything you would otherwise configure by hand: an enrolled node needs no `KURA_TENANT_ID`, no `KURA_PEERS`, and no peer TLS setup.
 
-An enrolling node does not configure `KURA_INTERNAL_TLS_*` at all. Those three variables are the node's peer TLS settings rather than enrollment settings: they tell the TLS listener where its material lives, and enrollment writes into that location rather than owning it. When you leave all three unset, enrollment writes to a `tls` directory under `KURA_DATA_DIR` and publishes the paths itself, so the volume the node already needs is the only storage you configure.
-
-Set them explicitly only when the material has to live elsewhere, or when you supply it yourself instead of enrolling, in which case they usually point at a read-only mount. They are all or nothing: setting some but not all is a configuration error rather than a request to fill in the rest, so a node with a mounted certificate is never handed a derived path for the other two. A single node that does not enroll and has no peers to authenticate needs none of them: omit all three and give `KURA_NODE_URL` an `http://` scheme. A multi-node mesh that does not enroll supplies its own certificates, as described in [Build a cache mesh](#build-a-cache-mesh).
+Leave `KURA_INTERNAL_TLS_*` unset: enrollment writes the certificate material to a `tls` directory under `KURA_DATA_DIR`. Set those paths yourself only when you supply the certificates instead of enrolling, as described in [Build a cache mesh](#build-a-cache-mesh).
 
 A node joining an account's mesh for the first time pulls the account's existing cache before it becomes a serving member of the ring. Size the data volume for the whole cache, and expect the first join to take a while over a wide-area link. The node reports `joining` until it has caught up, then `serving`.
-
-This means an enrolled node needs neither `KURA_TENANT_ID` nor `KURA_PEERS` set by hand, and its peer mTLS is provisioned for you rather than assembled with a private CA. Enrollment reruns on every boot with a fresh certificate, and the node renews in-process before the leaf expires.
 
 ### Advertise the endpoint {#advertise-the-endpoint}
 
@@ -126,13 +122,7 @@ KURA_REGISTRATION_URL=https://tuist.dev/_internal/kura/mesh/registrations
 KURA_ADVERTISED_HTTP_URL=https://kura-1.example.com:4443
 ```
 
-The node then posts a heartbeat every 60 seconds carrying its node identifier, advertised URL, readiness, version, and traffic state. Each heartbeat refreshes a 180-second lease. Endpoint lookup only returns nodes that are ready with an unexpired lease, so a node that stops heartbeating drops out of rotation on its own.
-
-The control plane never calls the node. The outbound heartbeat is the only health signal, which is why a node behind a private network can be advertised to clients that can reach it without the control plane needing a path to it.
-
-The node identifier is derived from the host in `KURA_NODE_URL`, so it stays stable across restarts and a node updates its own row rather than accumulating duplicates.
-
-Set `KURA_REGISTRATION_INTERVAL_MS` to change the heartbeat cadence. Leave it alone unless you have a reason: the default sits several missed beats inside the lease so one dropped request does not flap the endpoint out of rotation.
+The node heartbeats every 60 seconds against a 180-second lease, and drops out of rotation on its own if it stops. Tuist never calls the node, so it only has to be reachable by your clients, not from the internet.
 
 ### Verify the node is serving {#verify-the-node-is-serving}
 
