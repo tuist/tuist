@@ -1,0 +1,153 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-download">
+    <%!-- Hero card: same shell as the brand page header. The CTA follows the
+    visitor's platform (macOS DMG by default, App Store on iOS), with the
+    matching app version underneath. --%>
+    <header data-part="header">
+      <h1 data-part="title">{dgettext("marketing", "Download Tuist")}</h1>
+      <p data-part="subtitle">
+        {dgettext("marketing", "Available for macOS and iOS to help you build and ship faster.")}
+      </p>
+      <div data-part="action">
+        <%= if @hero_platform == :ios do %>
+          <.button
+            href={@hero_download_url}
+            label={dgettext("marketing", "Download on iPhone")}
+            size="large"
+          >
+            <:icon_left><Noora.Icon.icon name="brand_apple" /></:icon_left>
+          </.button>
+        <% else %>
+          <.button
+            href={@hero_download_url}
+            label={dgettext("marketing", "Download for macOS")}
+            size="large"
+          >
+            <:icon_left><Noora.Icon.icon name="brand_apple" /></:icon_left>
+          </.button>
+        <% end %>
+        <span :if={@hero_version} data-part="version">
+          {dgettext("marketing", "Version %{version}", version: @hero_version)}
+        </span>
+      </div>
+    </header>
+
+    <section data-part="section" data-section="macos" aria-labelledby="download-macos-title">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Desktop")}</span>
+        <h2 data-part="title" id="download-macos-title">{dgettext("marketing", "macOS app")}</h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "The Tuist macOS menu bar app makes it easy to launch and manage"
+          )}
+          <a href={TuistWeb.Marketing.MarketingHTML.localized_href("/previews")}>
+            {dgettext("marketing", "Tuist Previews")}
+          </a> {dgettext(
+            "marketing",
+            "on simulators and real devices directly from your Mac."
+          )}
+        </p>
+        <.neutral_button
+          href={@macos_download_url}
+          label={dgettext("marketing", "Download for macOS")}
+        >
+          <:icon_left><Noora.Icon.icon name="brand_apple" /></:icon_left>
+        </.neutral_button>
+      </div>
+      <%!-- Illustration placeholder: the artwork lands in a follow-up; the
+      empty figure keeps the section's reserved space. --%>
+      <figure data-part="illustration" aria-hidden="true"></figure>
+    </section>
+
+    <section data-part="section" data-section="ios" aria-labelledby="download-ios-title">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Mobile")}</span>
+        <h2 data-part="title" id="download-ios-title">{dgettext("marketing", "iOS app")}</h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "The Tuist iOS app lets you manage previews, trigger releases, and inspect project commits from your iPhone."
+          )}
+        </p>
+        <.neutral_button
+          href={@ios_download_url}
+          label={dgettext("marketing", "Download for iOS")}
+        >
+          <:icon_left><Noora.Icon.icon name="brand_apple" /></:icon_left>
+        </.neutral_button>
+      </div>
+      <p data-part="lines">
+        <span data-part="line">
+          {dgettext("marketing", "Brings your latest previews together,")}
+        </span>
+        <span data-part="line">{dgettext("marketing", "lets you inspect them in detail,")}</span>
+        <span data-part="line">
+          {dgettext("marketing", "and runs them directly on your device")}
+        </span>
+      </p>
+      <%!-- Illustration placeholder: the artwork lands in a follow-up; the
+      empty figure keeps the section's reserved space. --%>
+      <figure data-part="illustration" aria-hidden="true"></figure>
+    </section>
+
+    <%!-- CTA framed by dithered divider bands, same recipe as the customers
+    page. --%>
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="download-cta-divider-top-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="22.1"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+
+    <section data-part="cta" aria-labelledby="cta-title">
+      <span data-part="eyebrow">
+        {dgettext("marketing", "Hola! Hello! Hallo! Olá! Namaste!")}
+      </span>
+      <h2 id="cta-title">{dgettext("marketing", "Your platform team, as a service")}</h2>
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+      </nav>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="download-cta-divider-bottom-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="29.6"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>
