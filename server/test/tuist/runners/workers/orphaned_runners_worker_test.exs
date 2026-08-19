@@ -94,15 +94,31 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       expect(Jobs, :record_queued, fn _wfid -> :ok end)
       expect(Claims, :release, fn _wfid, _handle -> :ok end)
 
-      ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_recovery()])
+      # Every recovery worker emits this event and telemetry handlers are
+      # VM-global, so `:telemetry_test.attach_event_handlers/2` would forward
+      # a sibling `async: true` module's emission into this mailbox and it
+      # would win the `assert_receive`. The handler runs in the emitting
+      # process, so pinning it to ours keeps only the event this test caused.
+      handler_id = make_ref()
+      test_pid = self()
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      :ok =
+        :telemetry.attach(
+          handler_id,
+          Telemetry.event_name_recovery(),
+          fn _name, measurements, metadata, _config ->
+            if self() == test_pid do
+              send(test_pid, {:recovery, handler_id, measurements, metadata})
+            end
+          end,
+          nil
+        )
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
 
-      # Matching on `kind` in the pattern, not after: the handler
-      # `:telemetry_test` attaches is VM-global, so a concurrent async
-      # test emitting its own recovery event would otherwise satisfy a
-      # bare `assert_receive` and fail here on the wrong message.
-      assert_receive {[:tuist, :runners, :recovery], ^ref, measurements, %{kind: "orphan_requeued"} = metadata}
+      assert_receive {:recovery, ^handler_id, measurements, metadata}
+      assert metadata.kind == "orphan_requeued"
       assert metadata.fleet == "tuist-tuist-runner-pool-macos-26-6"
       assert_in_delta measurements.stranded_ms, 90_000, 5_000
     end

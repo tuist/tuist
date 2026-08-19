@@ -191,9 +191,10 @@ manages, one instance at a time, ending in a primary switchover governed by
 switchover completes automatically). With synchronous replication the promotion
 is fast and lossless (RPO 0); the write path sees a few seconds of dropped
 connections and errors during the switchover. Because the operator is
-cluster-wide, a bump on the production cluster rolls both the main `tuist`
-cluster and the single-instance `tuist-ops` cluster (the latter takes a brief
-restart, since it has no replica to fail over to).
+cluster-wide, a bump on the production cluster rolls every cluster it manages:
+the main `tuist` cluster, `tuist-ops`, and any single-instance cluster still in
+the fleet. A single-instance cluster takes a brief restart rather than a
+switchover, since it has no replica to fail over to.
 
 Merge an operator-bump PR at the start of a low-traffic window wider than the
 deploy lag (the prod step runs after the canary deploy and acceptance tests, so
@@ -202,6 +203,52 @@ roughly 20-40 min after merge), so the switchover lands inside the quiet period.
 In-tree `barmanObjectStore` backups (the operator's native path, deprecated
 since 1.26) are no longer rendered; every cluster backs up through the Barman
 Cloud Plugin.
+
+## Single-instance clusters deadlock node drains
+
+**A single-instance CNPG cluster on a drainable node will eventually wedge a
+CAPI Machine deletion forever.** Treat two instances as the floor for any
+cluster scheduled on a pool CAPI rolls, however small its data.
+
+CNPG gives every cluster a `<cluster>-primary` PodDisruptionBudget with
+`minAvailable: 1` selecting `cnpg.io/instanceRole: primary`. With one instance
+the primary is the only pod, so:
+
+```
+currentHealthy=1 desiredHealthy=1 expectedPods=1 disruptionsAllowed=0
+```
+
+`disruptionsAllowed` is structurally 0 and no eviction can ever succeed. The
+operator does try. It logs `Primary is running on an unschedulable node, will
+try switching over` and then `no valid candidates`, but with nowhere to
+promote, it cannot clear the budget itself. The ClusterClass sets
+`nodeDrainTimeoutSeconds: 0` so a drain never kills a customer's in-flight CI
+job, which means nothing else breaks the tie either. `tuist-md-processor` sat
+in this state for 14 days from 2026-07-31.
+
+Two instances is enough, and the threshold is worth knowing precisely: CNPG
+only emits the second, replica-scoped `<cluster>` PDB once there are at least
+two replicas (three instances). At two instances the demoted old primary is
+covered by no PDB at all, so the drain proceeds. At three the replica PDB
+allows one disruption, which also works. One is the only broken count.
+
+Audit the fleet by counting instance pods. Any cluster with a count of 1 is a
+latent drain deadlock:
+
+```bash
+kubectl get pods -A -l cnpg.io/podRole=instance \
+  -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.labels.cnpg\.io/cluster}{"\n"}{end}' \
+  | sort | uniq -c
+```
+
+Count pods (or read `spec.instances`), **not** PDBs. The PDB shape does not
+distinguish the broken case: a healthy two-instance cluster also has only a
+`<cluster>-primary` row with `ALLOWED=0`, because the replica-scoped PDB does
+not appear until three instances. `ALLOWED=0` on the primary budget is normal
+at every instance count and is not by itself a fault.
+
+Reading the `Cluster` CR needs JIT elevation (`clusters.postgresql.cnpg.io` is
+forbidden to the normal kubectl identity); the pod count above does not.
 
 ## Backup: Barman Cloud Plugin
 
@@ -233,3 +280,65 @@ base backup.
 `barman_cloud_cloudnative_pg_io_*`. The operator's `cnpg_collector_*` backup
 timestamps do NOT track plugin backups, so point backup panels and alerts at the
 `barman_cloud_*` series.
+
+## Decommissioning a cluster
+
+Deleting the `Cluster` CR deletes the Pods, Services, and PVCs the operator
+owns. It does **not** delete the underlying Hetzner Cloud Volume:
+`hcloud-volumes` sets `reclaimPolicy: Retain` deliberately
+([`infra/k8s/mgmt/bootstrap/hcloud-csi-values.yaml`](../k8s/mgmt/bootstrap/hcloud-csi-values.yaml)),
+so the PV outlives its PVC in `Released` and the volume stays allocated and
+billed. The `released-pv-reaper` CronJob
+([`infra/helm/tuist/templates/released-pv-reaper.yaml`](../helm/tuist/templates/released-pv-reaper.yaml))
+exists for exactly this, but it ships `dryRun: true` and no environment
+overrides it today, so it only logs. Until an environment arms it, the volume
+has to be deleted by hand.
+
+Order matters: once the PVC is gone, the PV is the only object still holding
+the volume handle.
+
+1. Record the handle first — `kubectl get pv <name> -o jsonpath='{.spec.csi.volumeHandle}'`.
+   Cluster-scoped reads on `persistentvolumes` are not available to the normal
+   SSO identity, so this needs JIT elevation.
+2. Confirm the data is disposable, or take a final base backup.
+3. Delete the `Cluster` CR.
+4. Delete the `Released` PV, then delete the volume in the `tuist-workloads`
+   Hetzner project.
+
+### The orphaned `registry` namespace
+
+`registry/registry-pg` is a live example still waiting on this. It was created
+on 2026-06-15 by a standalone `registry` chart that moved the registry's Oban
+journal from SQLite onto CloudNativePG. Two days later the sync workers moved
+to the server under `TUIST_MODE=registry_sync`, the registry app became a
+stateless read frontend with no Repo, and the commit that did it also deleted
+the chart's `cnpg-cluster.yaml`. Neither that chart nor its removal ever landed
+on `main` — the registry moved into the `tuist` chart's `registry-*` templates
+in the `tuist` namespace instead — so nothing has run `helm upgrade` or
+`helm uninstall` against the old release since. Its `Cluster`, three Services,
+and PVC were left running in a namespace no chart owns.
+
+Its Pod has been `Pending` since 2026-07-06, when the node its volume was
+pinned to was destroyed, so the database has served nothing for six weeks with
+no consequence. Nothing depends on the data: the registry's source of truth is
+its Tigris bucket, and the Oban journal the cluster held is regenerable from a
+sync. It should be removed with the steps above, deleting the `registry`
+namespace once the `Cluster` is gone.
+
+### How the volume ended up unschedulable
+
+The PVC's `volume.kubernetes.io/selected-node` names an OVH bare-metal kura
+node, which should never have been a candidate for an `hcloud-volumes` PVC.
+It was, because `hcloud-csi-node` still ran there: the DaemonSet's node
+affinity excluded non-Hetzner pools by enumerating pool names, and the list
+only covered the pools that existed when each entry was written. With the
+driver registered on that node, the scheduler treated it as a valid
+`selected-node` for a `WaitForFirstConsumer` claim and the provisioner bound a
+location-pinned Hetzner volume behind a Pod that could only ever run off
+Hetzner.
+
+That enumeration bug is already fixed — `hcloud-csi-values.yaml` now excludes
+by provider label (`node.cluster.x-k8s.io/instance-type NotIn [ovh, dedibox,
+scaleway]`) so a new region on an existing provider needs no edit — but the fix
+landed on 2026-07-03, after this volume was bound on 2026-06-16. The stranded
+PVC is residue from the window before it, not a live misconfiguration.

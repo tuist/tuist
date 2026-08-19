@@ -46,9 +46,9 @@ pub struct Metrics {
     artifact_egress_duration: Family<ArtifactRouteLabels, Histogram>,
     artifact_egress_throughput: Family<ArtifactRouteLabels, Histogram>,
     artifact_serving_paths: Family<ArtifactServingPathLabels, Counter>,
-    segment_refreshes: Family<ArtifactOpLabels, Counter>,
-    segment_refresh_bytes: Family<ArtifactOpLabels, Counter>,
-    segment_refresh_duration: Family<ArtifactRouteLabels, Histogram>,
+    segment_refreshes: Family<SegmentRefreshLabels, Counter>,
+    segment_refresh_bytes: Family<SegmentRefreshLabels, Counter>,
+    segment_refresh_duration: Family<SegmentRefreshRouteLabels, Histogram>,
     segment_evicted_artifacts: Family<ArtifactOpLabels, Counter>,
     // Action-cache entries removed by the eviction cascade (an evicted blob
     // taking its referencing entries with it). A healthy nonzero rate is the
@@ -189,6 +189,7 @@ pub struct Metrics {
     mmap_partial_page_exemptions: Counter,
     promotion_queue_depth: Gauge,
     promotion_failures: Counter,
+    promotion_drops: Family<RefreshTriggerLabels, Counter>,
 }
 
 #[derive(Default)]
@@ -237,10 +238,10 @@ impl Metrics {
             Family::<ArtifactRouteLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(1024.0, 4.0, 12))
             });
-        let segment_refreshes = Family::<ArtifactOpLabels, Counter>::default();
-        let segment_refresh_bytes = Family::<ArtifactOpLabels, Counter>::default();
+        let segment_refreshes = Family::<SegmentRefreshLabels, Counter>::default();
+        let segment_refresh_bytes = Family::<SegmentRefreshLabels, Counter>::default();
         let segment_refresh_duration =
-            Family::<ArtifactRouteLabels, Histogram>::new_with_constructor(|| {
+            Family::<SegmentRefreshRouteLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
             });
         let segment_evicted_artifacts = Family::<ArtifactOpLabels, Counter>::default();
@@ -400,6 +401,7 @@ impl Metrics {
         let mmap_partial_page_exemptions = Counter::default();
         let promotion_queue_depth = Gauge::default();
         let promotion_failures = Counter::default();
+        let promotion_drops = Family::<RefreshTriggerLabels, Counter>::default();
         let process_start_time_seconds = Gauge::<i64>::default();
         process_start_time_seconds.set(
             SystemTime::now()
@@ -495,17 +497,17 @@ impl Metrics {
         );
         registry.register(
             "kura_segment_refreshes_total",
-            "Segment refreshes by producer and result",
+            "Segment refreshes by producer, result, and the trigger that drove them",
             segment_refreshes.clone(),
         );
         registry.register(
             "kura_segment_refresh_bytes_total",
-            "Bytes copied while refreshing artifacts out of old segments",
+            "Bytes copied while refreshing artifacts out of old segments, by trigger",
             segment_refresh_bytes.clone(),
         );
         registry.register(
             "kura_segment_refresh_duration_seconds",
-            "Time spent refreshing artifacts out of old segments",
+            "Time spent refreshing artifacts out of old segments, by trigger",
             segment_refresh_duration.clone(),
         );
         registry.register(
@@ -1159,6 +1161,11 @@ impl Metrics {
             promotion_failures.clone(),
         );
         registry.register(
+            "kura_promotion_drops_total",
+            "Promotions dropped for lack of queue room, by the trigger that queued them",
+            promotion_drops.clone(),
+        );
+        registry.register(
             "kura_mmap_partial_page_exemptions_total",
             "Times an artifact was served via mmap only because the file's final partial page was exempted from the residency gate while its mincore bit was clear (the path that may fault one cold page on a worker)",
             mmap_partial_page_exemptions.clone(),
@@ -1326,6 +1333,7 @@ impl Metrics {
             mmap_partial_page_exemptions,
             promotion_queue_depth,
             promotion_failures,
+            promotion_drops,
         };
 
         metrics
@@ -1494,12 +1502,14 @@ impl Metrics {
         &self,
         producer: ArtifactProducer,
         result: &str,
+        trigger: &str,
         bytes: u64,
         duration: Duration,
     ) {
-        let labels = ArtifactOpLabels {
+        let labels = SegmentRefreshLabels {
             producer: producer.as_str().to_owned(),
             result: result.to_owned(),
+            trigger: trigger.to_owned(),
         };
         self.segment_refreshes.get_or_create(&labels).inc();
         if bytes > 0 {
@@ -1508,10 +1518,36 @@ impl Metrics {
                 .inc_by(bytes);
         }
         self.segment_refresh_duration
-            .get_or_create(&ArtifactRouteLabels {
+            .get_or_create(&SegmentRefreshRouteLabels {
                 producer: producer.as_str().to_owned(),
+                trigger: trigger.to_owned(),
             })
             .observe(duration.as_secs_f64());
+    }
+
+    /// A promotion the queue had no room for. Split by trigger because the two
+    /// classes mean different things: a dropped `serve` entry costs a later
+    /// read some latency, while a dropped vouched entry means the node made a
+    /// promise to a client it then did nothing to keep.
+    pub fn record_promotion_drop(&self, trigger: &str) {
+        self.promotion_drops
+            .get_or_create(&RefreshTriggerLabels {
+                trigger: trigger.to_owned(),
+            })
+            .inc();
+    }
+
+    /// A refresh the pressure gate declined. Counted on the same family as
+    /// completed refreshes so one query covers both, and deliberately kept off
+    /// the duration and bytes families, which describe work actually done.
+    pub fn record_segment_refresh_skipped(&self, producer: ArtifactProducer, trigger: &str) {
+        self.segment_refreshes
+            .get_or_create(&SegmentRefreshLabels {
+                producer: producer.as_str().to_owned(),
+                result: "pressure_skipped".to_owned(),
+                trigger: trigger.to_owned(),
+            })
+            .inc();
     }
 
     pub fn record_segment_eviction(
@@ -2357,6 +2393,28 @@ struct ArtifactOpLabels {
     result: String,
 }
 
+/// Segment refreshes carry the triggering RPC alongside the producer so the
+/// read-time write amplification each REAPI read path adds is separable from
+/// serve-path promotion. `ArtifactOpLabels` is shared with eviction and other
+/// artifact counters that have no trigger, hence the dedicated pair.
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct SegmentRefreshLabels {
+    producer: String,
+    result: String,
+    trigger: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct SegmentRefreshRouteLabels {
+    producer: String,
+    trigger: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct RefreshTriggerLabels {
+    trigger: String,
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct ArtifactServingPathLabels {
     path: String,
@@ -2624,7 +2682,13 @@ mod tests {
             Duration::from_millis(30),
         );
         metrics.record_artifact_serving_path("mmap");
-        metrics.record_segment_refresh(ArtifactProducer::Xcode, "ok", 5, Duration::from_millis(4));
+        metrics.record_segment_refresh(
+            ArtifactProducer::Xcode,
+            "ok",
+            "action_cache",
+            5,
+            Duration::from_millis(4),
+        );
         metrics.record_segment_eviction(ArtifactProducer::Xcode, "ok", 2);
         metrics.record_replication(
             "https://kura.example.com/internal",

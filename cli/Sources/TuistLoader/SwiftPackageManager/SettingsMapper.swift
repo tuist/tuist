@@ -46,7 +46,7 @@ struct SettingsMapper {
 
         return try map(
             settings: platformSettings,
-            headerSearchPaths: headerSearchPaths
+            headerSearchPaths: platform == nil ? headerSearchPaths : []
         )
     }
 
@@ -198,18 +198,19 @@ struct SettingsMapper {
         -> [PackageInfo.Target.TargetBuildSettingDescription.Setting]
     {
         settings.filter { setting in
-            if let platformName, setting.hasConditions {
-                let hasMacCatalystPlatform = setting.condition?.platformNames.contains("maccatalyst") == true
-                let platformNames: [String]
-                if hasMacCatalystPlatform {
-                    platformNames = (setting.condition?.platformNames ?? []) + ["ios"]
-                } else {
-                    platformNames = setting.condition?.platformNames ?? []
-                }
-                return platformNames.contains(platformName)
-            } else {
+            guard let platformName else {
                 return !setting.hasConditions
             }
+            guard setting.hasConditions else { return false }
+
+            let hasMacCatalystPlatform = setting.condition?.platformNames.contains("maccatalyst") == true
+            let platformNames: [String]
+            if hasMacCatalystPlatform {
+                platformNames = (setting.condition?.platformNames ?? []) + ["ios"]
+            } else {
+                platformNames = setting.condition?.platformNames ?? []
+            }
+            return platformNames.contains(platformName)
         }
     }
 }

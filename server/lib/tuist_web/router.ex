@@ -18,7 +18,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
-  @public_robots_txt [train_ai: true, search: true]
+  @public_robots_txt [train_ai: true, search: true, ai_input: true]
   @marketing_route_metadata %{type: :marketing, robots_txt: @public_robots_txt}
   @docs_route_metadata %{type: :docs, robots_txt: @public_robots_txt}
 
@@ -206,6 +206,11 @@ defmodule TuistWeb.Router do
     plug :put_request_kind, "mcp"
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
+    # Operators are not members of customer accounts, so without this an
+    # operator's MCP session sees only their own projects. Runs after
+    # authentication because the grant is honoured only for the operator it
+    # was minted for.
+    plug :accept_operator_grant_header
     plug TuistWeb.Plugs.MCPRateLimitPlug
   end
 
