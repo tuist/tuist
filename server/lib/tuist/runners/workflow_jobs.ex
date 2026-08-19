@@ -38,8 +38,9 @@ defmodule Tuist.Runners.WorkflowJobs do
   import Ecto.Query
 
   alias Tuist.Repo
-  alias Tuist.Runners.Claim
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobTransitionEvent
 
@@ -92,7 +93,10 @@ defmodule Tuist.Runners.WorkflowJobs do
   """
   def transition_claimed(workflow_job_id, pod_name, %DateTime{} = claimed_at)
       when is_integer(workflow_job_id) and is_binary(pod_name) do
-    transition(workflow_job_id, ["queued"], "claimed", pod_name: pod_name, claimed_at: claimed_at)
+    case transition(workflow_job_id, ["queued"], "claimed", pod_name: pod_name, claimed_at: claimed_at) do
+      {:applied, _row} -> :ok
+      :noop -> :noop
+    end
   end
 
   @doc """
@@ -108,9 +112,12 @@ defmodule Tuist.Runners.WorkflowJobs do
   """
   def transition_running(workflow_job_id, runner_name, %DateTime{} = claimed_at)
       when is_integer(workflow_job_id) and is_binary(runner_name) do
-    transition(workflow_job_id, ["claimed"], "running", [runner_name: runner_name, started_at: DateTime.utc_now()],
-      claimed_at: claimed_at
-    )
+    case transition(workflow_job_id, ["claimed"], "running", [runner_name: runner_name, started_at: DateTime.utc_now()],
+           claimed_at: claimed_at
+         ) do
+      {:applied, _row} -> :ok
+      :noop -> :noop
+    end
   end
 
   @doc """
@@ -118,9 +125,17 @@ defmodule Tuist.Runners.WorkflowJobs do
   Clears the claim/runner binding so the row is a clean dispatch
   candidate again. Terminal rows never match the guard, so a release
   racing a completion leaves the completed state alone.
+
+  An applied requeue emits the requeued telemetry event and the
+  account's lifecycle broadcast — this is the only place the
+  transition happens (`Tuist.Runners.Claims.release/2` and
+  `release_pod_missing/2` both funnel here inside their claim-delete
+  transactions).
   """
   def requeue(workflow_job_id) when is_integer(workflow_job_id) do
-    transition(workflow_job_id, ["claimed", "running"], "queued", requeue_fields())
+    workflow_job_id
+    |> transition(["claimed", "running"], "queued", requeue_fields())
+    |> finish_requeue()
   end
 
   @doc """
@@ -138,7 +153,9 @@ defmodule Tuist.Runners.WorkflowJobs do
   is left alone. Returns `:ok` when applied, `:noop` otherwise.
   """
   def requeue_by_handle(workflow_job_id, %DateTime{} = claimed_at) when is_integer(workflow_job_id) do
-    transition(workflow_job_id, ["claimed", "running"], "queued", requeue_fields(), claimed_at: claimed_at)
+    workflow_job_id
+    |> transition(["claimed", "running"], "queued", requeue_fields(), claimed_at: claimed_at)
+    |> finish_requeue()
   end
 
   defp requeue_fields do
@@ -151,6 +168,31 @@ defmodule Tuist.Runners.WorkflowJobs do
       completed_at: nil,
       executed_workflow_job_id: nil
     ]
+  end
+
+  defp finish_requeue({:applied, row}) do
+    :telemetry.execute(Telemetry.event_name_job_requeued(), %{count: 1}, %{fleet: row.fleet_name})
+    Tuist.PubSub.broadcast(%{status: "queued"}, Jobs.topic(row.account_id), :runner_jobs_status_changed)
+    :ok
+  end
+
+  defp finish_requeue(:noop), do: :noop
+
+  @doc """
+  The terminal status a conclusion maps to: `"cancelled"` for a
+  cancelled conclusion, `"completed"` for everything else.
+  """
+  def terminal_status("cancelled"), do: "cancelled"
+  def terminal_status(_conclusion), do: "completed"
+
+  @doc """
+  Whether a lifecycle row exists for `workflow_job_id`, whatever its
+  status. The webhook enqueue path checks it under the per-job
+  ordering lock so a late `queued`/`waiting` redelivery is a no-op
+  instead of re-emitting enqueue telemetry.
+  """
+  def exists?(workflow_job_id) when is_integer(workflow_job_id) do
+    Repo.exists?(from(j in WorkflowJob, where: j.workflow_job_id == ^workflow_job_id))
   end
 
   @doc """
@@ -376,174 +418,6 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
-  Adopts a lifecycle row for a job that exists only in ClickHouse —
-  enqueued by code that predates this table — in its current
-  ClickHouse status. Returns the number of rows inserted (`0` or `1`).
-
-  Must run inside `Tuist.Runners.Jobs.with_workflow_job_ordering_lock/2`:
-  every completion writer (this release and the one before it) takes
-  that lock, so the completion check and the insert cannot straddle a
-  completion landing in between. `ON CONFLICT DO NOTHING` covers a
-  race with a live transition that created the row first. Adopted rows
-  emit no outbox event — ClickHouse is the source here, so there is
-  nothing to replicate back.
-
-  Transitional, used only by
-  `Tuist.Runners.Workers.ReconcileWorkflowJobsWorker`; deleted with it.
-  """
-  def adopt(ch_row) when is_map(ch_row) do
-    if completion_recorded?(ch_row.workflow_job_id) do
-      0
-    else
-      now = DateTime.truncate(DateTime.utc_now(), :second)
-
-      row =
-        ch_row
-        |> base_row()
-        |> Map.merge(%{
-          status: adopt_status(ch_row),
-          enqueued_at: ch_row.enqueued_at,
-          claimed_at: Map.get(ch_row, :claimed_at),
-          started_at: Map.get(ch_row, :started_at),
-          pod_name: blank_to_nil(Map.get(ch_row, :pod_name)),
-          runner_name: blank_to_nil(Map.get(ch_row, :runner_name)),
-          inserted_at: now,
-          updated_at: now
-        })
-
-      {count, _} = Repo.insert_all(WorkflowJob, [row], on_conflict: :nothing)
-      count
-    end
-  end
-
-  defp adopt_status(%{status: "completed", conclusion: "cancelled"}), do: "cancelled"
-  defp adopt_status(%{status: status}), do: status
-
-  @doc """
-  Which of `workflow_job_ids` already have a completion recorded.
-  Batched prefilter for adoption so the per-row locked check only runs
-  for candidates that might still be live.
-  """
-  def completed_ids(workflow_job_ids) when is_list(workflow_job_ids) do
-    Repo.all(
-      from(c in JobCompletion,
-        where: c.workflow_job_id in ^workflow_job_ids,
-        select: c.workflow_job_id
-      )
-    )
-  end
-
-  @doc """
-  Closes lifecycle rows still non-terminal for a job whose completion
-  is recorded. Returns the number of rows transitioned.
-
-  A `runner_job_completions` row is proof the job is over, written by
-  every completion path — including the previous release's, which
-  never touches this table. While old and new pods overlap (a roll,
-  or a rollback and roll-forward), a job the old code completed keeps
-  its Postgres row wherever it was — `queued` churns dispatch, and
-  `claimed`/`running` looks live to the recovery scans — until this
-  closes it with the completion's own conclusion.
-  """
-  def close_completed do
-    stale =
-      Repo.all(
-        from(j in WorkflowJob,
-          join: c in JobCompletion,
-          on: c.workflow_job_id == j.workflow_job_id,
-          # Literals, not `in ^@live_statuses`: a bound parameter survives
-          # into a generic plan, where Postgres can no longer prove the
-          # predicate implies `runner_workflow_jobs_live_index` and falls
-          # back to scanning both tables whole.
-          where: j.status in ["queued", "claimed", "running"],
-          select: {j.workflow_job_id, c.conclusion, c.completed_at}
-        )
-      )
-
-    Enum.count(stale, fn {workflow_job_id, conclusion, completed_at} ->
-      completed_at = completed_at || DateTime.utc_now()
-
-      transition(workflow_job_id, @live_statuses, terminal_status(conclusion),
-        conclusion: conclusion,
-        completed_at: completed_at
-      ) == :ok
-    end)
-  end
-
-  @doc """
-  Re-queues `claimed` lifecycle rows that no live claim backs. Returns
-  the number of rows transitioned.
-
-  Under this release every path that deletes a `claimed` claim also
-  re-queues its row in the same transaction (`release/2`,
-  `release_pod_missing/2`, and `release_by_pod_name/1`), so the state
-  cannot arise on its own. It appears when the previous release's
-  code releases a claim this release made — its stale-claim sweep and
-  pod-stopped path delete the claim without touching this table —
-  leaving the job invisible to dispatch (not `queued`) and to every
-  recovery scan (no claim to list, not `running`). A `claimed` row is by construction pre-mint,
-  so nothing can be running for it and the requeue is safe; the
-  handle guard leaves a row that was re-claimed in the meantime alone.
-  """
-  def requeue_unbacked_claimed do
-    unbacked =
-      Repo.all(
-        from(j in WorkflowJob,
-          left_join: c in Claim,
-          on: c.workflow_job_id == j.workflow_job_id,
-          where: j.status == "claimed" and is_nil(c.workflow_job_id),
-          select: {j.workflow_job_id, j.claimed_at}
-        )
-      )
-
-    Enum.count(unbacked, fn
-      {workflow_job_id, %DateTime{} = claimed_at} -> requeue_by_handle(workflow_job_id, claimed_at) == :ok
-      {workflow_job_id, nil} -> requeue(workflow_job_id) == :ok
-    end)
-  end
-
-  @doc """
-  Moves `queued` lifecycle rows that a live claim already backs into
-  the claim's state. Returns the number of rows transitioned.
-
-  The previous release's `Claims.attempt/5` and `mark_running/3` write
-  the claim only, so a job this release enqueued and the old code
-  claimed reads `queued` here while a Pod holds it. Dispatch would
-  keep offering it (each attempt losing the claim race by primary
-  key), and the recovery scans would miss it — this brings the row to
-  where the claim says it is.
-  """
-  def sync_claimed_from_claims do
-    backed =
-      Repo.all(
-        from(j in WorkflowJob,
-          join: c in Claim,
-          on: c.workflow_job_id == j.workflow_job_id,
-          where: j.status == "queued",
-          select: {j.workflow_job_id, c.pod_name, c.claimed_at, c.lifecycle_state, c.runner_name}
-        )
-      )
-
-    Enum.count(backed, fn {workflow_job_id, pod_name, claimed_at, lifecycle_state, runner_name} ->
-      case transition_claimed(workflow_job_id, pod_name, claimed_at) do
-        :ok ->
-          if lifecycle_state == "running", do: transition_running(workflow_job_id, runner_name || "", claimed_at)
-          true
-
-        :noop ->
-          false
-      end
-    end)
-  end
-
-  @doc """
-  The terminal status a conclusion maps to: `"cancelled"` for a
-  cancelled conclusion, `"completed"` for everything else.
-  """
-  def terminal_status("cancelled"), do: "cancelled"
-  def terminal_status(_conclusion), do: "completed"
-
-  @doc """
   Decodes a transition event's JSONB payload back into the ClickHouse
   `runner_jobs` insert row: string keys to atoms, ISO-8601 datetimes
   to `DateTime` promoted to microsecond precision for
@@ -596,7 +470,7 @@ defmodule Tuist.Runners.WorkflowJobs do
         case {count, rows} do
           {1, [row]} ->
             emit_transition_event(row, now)
-            :ok
+            {:applied, row}
 
           {0, _} ->
             :noop

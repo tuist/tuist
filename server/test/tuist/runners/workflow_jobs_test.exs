@@ -219,62 +219,6 @@ defmodule Tuist.Runners.WorkflowJobsTest do
     end
   end
 
-  describe "adopt/1" do
-    defp ch_row(account, workflow_job_id, status) do
-      %{
-        workflow_job_id: workflow_job_id,
-        account_id: account.id,
-        fleet_name: "fleet-adopt",
-        platform: "linux",
-        vcpus: 4,
-        memory_gb: 16,
-        repository: "acme/cli",
-        workflow_run_id: workflow_job_id * 10,
-        workflow_name: "CI",
-        run_attempt: 1,
-        job_name: "build",
-        head_branch: "main",
-        head_sha: "deadbeef",
-        requested_dispatch_label: "tuist-linux",
-        status: status,
-        conclusion: "",
-        enqueued_at: DateTime.add(DateTime.utc_now(), -300, :second),
-        claimed_at: nil,
-        started_at: nil,
-        pod_name: "",
-        runner_name: ""
-      }
-    end
-
-    test "inserts the row in its ClickHouse status" do
-      account = account_fixture()
-
-      assert 1 = WorkflowJobs.adopt(ch_row(account, 910_200, "queued"))
-
-      row = get_row!(910_200)
-      assert row.status == "queued"
-      assert row.fleet_name == "fleet-adopt"
-    end
-
-    test "refuses a job whose completion is already recorded" do
-      account = account_fixture()
-      record_completion!(account, 910_201)
-
-      assert 0 = WorkflowJobs.adopt(ch_row(account, 910_201, "running"))
-      assert Repo.get(WorkflowJob, 910_201) == nil
-    end
-
-    test "leaves an existing row untouched" do
-      account = account_fixture()
-      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_202))
-      claimed_at = DateTime.utc_now()
-      :ok = WorkflowJobs.transition_claimed(910_202, "pod-1", claimed_at)
-
-      assert 0 = WorkflowJobs.adopt(ch_row(account, 910_202, "queued"))
-      assert get_row!(910_202).status == "claimed"
-    end
-  end
-
   describe "record_completed/3" do
     test "transitions an existing row from any non-terminal status" do
       account = account_fixture()

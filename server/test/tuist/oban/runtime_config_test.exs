@@ -14,7 +14,6 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Runners.Workers.ExpireInteractiveSessionsWorker
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Runners.Workers.PruneArchivedLogsWorker
-  alias Tuist.Runners.Workers.ReconcileWorkflowJobsWorker
   alias Tuist.Runners.Workers.StaleQueuedJobsWorker
   alias Tuist.Slack.Workers.ReportWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
@@ -131,7 +130,6 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         refute KuraReconciler in workers
         refute StaleQueuedJobsWorker in workers
         refute FlushJobTransitionEventsWorker in workers
-        refute ReconcileWorkflowJobsWorker in workers
       end
     end
 
@@ -258,7 +256,6 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert KuraReconciler in workers
         assert StaleQueuedJobsWorker in workers
         assert FlushJobTransitionEventsWorker in workers
-        assert ReconcileWorkflowJobsWorker in workers
       end
     end
 
