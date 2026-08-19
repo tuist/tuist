@@ -10,11 +10,11 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
-  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.FetchLogsWorker
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
