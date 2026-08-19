@@ -4,7 +4,6 @@ defmodule TuistWeb.TestCaseLive do
   use Noora
 
   import Noora.Filter
-  import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Helpers.FailureMessage
   import TuistWeb.Helpers.TestLabels
   import TuistWeb.Helpers.VCSLinks
@@ -570,10 +569,7 @@ defmodule TuistWeb.TestCaseLive do
     {:noreply, socket}
   end
 
-  defp assign_analytics(
-         %{assigns: %{selected_project: project, test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket,
-         params
-       ) do
+  defp assign_analytics(%{assigns: %{selected_project: project, test_case_id: test_case_id}} = socket, params) do
     %{preset: preset, period: {start_datetime, end_datetime} = period} =
       DatePicker.date_picker_params(params, "analytics")
 
