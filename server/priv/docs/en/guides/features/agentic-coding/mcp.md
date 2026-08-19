@@ -18,6 +18,8 @@ The account setup tools require user authentication. They are not available to p
 
 Model Context Protocol tools and <.localized_link href="/guides/features/agentic-coding/skills">skills</.localized_link> can overlap in what they do. Given the current overlap between the two, choose one approach per workflow and use it consistently instead of mixing both in the same flow.
 
+For clients that support plugin installation, use the <.localized_link href="/guides/features/agentic-coding/plugins">Tuist plugins</.localized_link> to install both together.
+
 ## Configuration
 
 Add `https://tuist.dev/mcp` as a remote Model Context Protocol server in your client. Tuist advertises both [Open Authorization](https://oauth.net/2/) discovery metadata and the current [auth.md protocol](https://workos.com/auth-md) at `https://tuist.dev/auth.md`.
