@@ -10,6 +10,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
   alias Tuist.Kura
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Prepaid
+  alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -23,6 +24,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     # Default the balance away so no test in this file reaches Stripe on
     # mount. The balance itself is covered in Tuist.Runners.PrepaidTest.
     stub(Prepaid, :balance, fn _account -> nil end)
+    stub(Billing, :sync_runner_subscription_items, fn _account -> {:ok, :unchanged} end)
 
     %{conn: conn, user: user}
   end
@@ -225,6 +227,46 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
       assert has_element?(lv, "#prepaid-balance-table", "Prepaid credit")
       assert has_element?(lv, "#prepaid-balance-table", "January 1, 2027")
+    end
+  end
+
+  describe "runner trial" do
+    test "starts a trial, which stops runner usage being billable", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      refute has_element?(lv, "#runner-trial-active-alert")
+
+      lv |> element("button", "Start runner trial") |> render_click()
+
+      assert has_element?(lv, "#runner-trial-active-alert")
+
+      {:ok, account} = Accounts.get_account_by_id(user.account.id)
+      assert Trials.on_trial?(account)
+    end
+
+    test "cancelling puts the account back on billable runner usage", %{conn: conn, user: user} do
+      {:ok, _account} = Trials.start(user.account)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+      assert has_element?(lv, "#runner-trial-active-alert")
+
+      lv |> element("button", "Cancel runner trial") |> render_click()
+
+      refute has_element?(lv, "#runner-trial-active-alert")
+
+      {:ok, account} = Accounts.get_account_by_id(user.account.id)
+      refute Trials.on_trial?(account)
+    end
+
+    test "reconciles the subscription's runner items when the trial changes", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      expect(Billing, :sync_runner_subscription_items, fn account ->
+        assert Trials.on_trial?(account)
+        {:ok, :unchanged}
+      end)
+
+      lv |> element("button", "Start runner trial") |> render_click()
     end
   end
 end

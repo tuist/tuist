@@ -17,6 +17,7 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Prepaid
+  alias Tuist.Runners.Trials
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -31,6 +32,7 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
          |> assign(:prepaid_balance, Prepaid.balance(account))
+         |> assign(:on_runner_trial, Trials.on_trial?(account))
          |> assign(:prepaid_quote, nil)
          |> assign(:has_subscription, not is_nil(Billing.get_current_active_subscription(account)))
          |> assign(:upgrade_target_account, nil)
@@ -83,6 +85,54 @@ defmodule TuistWeb.OpsAccountLive do
          socket
          |> assign(:runner_concurrency_form, to_form(changeset, as: "account"))
          |> put_flash(:error, dgettext("dashboard", "Runner concurrency limits could not be updated."))}
+    end
+  end
+
+  @impl true
+  def handle_event("start_runner_trial", _params, socket) do
+    case Trials.start(socket.assigns.account) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, preload_billing(account))
+         |> assign(:on_runner_trial, true)
+         |> put_flash(
+           :info,
+           dgettext(
+             "dashboard",
+             "%{account} is on a runner trial and will not be billed for runner usage until it is cancelled.",
+             account: account.name
+           )
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("dashboard", "Could not start the trial: %{reason}", reason: inspect(reason)))}
+    end
+  end
+
+  @impl true
+  def handle_event("cancel_runner_trial", _params, socket) do
+    case Trials.cancel(socket.assigns.account) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, preload_billing(account))
+         |> assign(:on_runner_trial, false)
+         |> put_flash(
+           :info,
+           dgettext("dashboard", "%{account}'s runner trial is over. Runner usage is billable from now on.",
+             account: account.name
+           )
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard", "Could not cancel the trial: %{reason}", reason: inspect(reason))
+         )}
     end
   end
 

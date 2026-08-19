@@ -94,14 +94,13 @@ defmodule Tuist.Runners.Prepaid do
   reported at. That is the second dividend of keeping the balance in
   money: there is no merging, no re-basing, and no expiry sweep to run.
 
-  ## Trials
+  ## Trials are not this
 
-  A time-boxed runner trial is the same object with `category:
-  "promotional"` and a short expiry — see `grant_trial/3`. Stripe
-  reports promotional credit separately from purchased credit, which
-  is what keeps free trial usage out of recognised revenue. Trial
-  grants are given a stronger priority than prepaid ones so free
-  credit is consumed before credit the customer paid for.
+  A runner trial is an account that is not billed for runner usage at
+  all, open-ended until cancelled. That cannot be a credit grant, which
+  is a finite pot that runs out, so it lives in `Tuist.Runners.Trials`
+  and works by keeping the runner item off the subscription. Grants here
+  are only ever the paid kind.
   """
 
   alias Tuist.Accounts.Account
@@ -138,12 +137,8 @@ defmodule Tuist.Runners.Prepaid do
 
   @default_expiry_days 365
   @max_expiry_days 1095
-  @default_trial_expiry_days 30
 
-  # Stripe applies the lowest number first. Trial credit is free and
-  # expires sooner, so it burns ahead of the customer's own money.
   @prepaid_priority 50
-  @trial_priority 25
 
   @marker_key "tuist_prepaid_runners"
   @ratio_key "tuist_prepaid_runners_funding_ratio_bp"
@@ -327,38 +322,6 @@ defmodule Tuist.Runners.Prepaid do
       description: "Prepaid runner minutes (#{minutes} on macOS 6 vCPU / 14 GB)",
       metadata: %{@marker_key => Enum.map_join(platforms, ",", &to_string/1)}
     })
-  end
-
-  @doc """
-  Grants `amount_cents` of promotional runner credit to `account`,
-  expiring after `:expires_in_days` (default #{@default_trial_expiry_days}).
-
-  This is the trial: the same grant a prepaid invoice creates, with
-  `category: "promotional"` so Stripe keeps it out of purchased-credit
-  reporting, and a shorter clock. `:platforms` narrows the scope the
-  same way an invoice can.
-
-  There is no automatic enrolment on top of this — a trial is granted
-  deliberately, per account.
-  """
-  def grant_trial(%Account{customer_id: customer_id}, amount_cents, opts \\ [])
-      when is_binary(customer_id) and is_integer(amount_cents) and amount_cents > 0 do
-    platforms = Keyword.get(opts, :platforms, @platforms)
-    expires_in_days = Keyword.get(opts, :expires_in_days, @default_trial_expiry_days)
-
-    with {:ok, price_ids} <- price_ids(platforms) do
-      CreditGrants.create(%{
-        customer_id: customer_id,
-        amount_cents: amount_cents,
-        currency: Keyword.get(opts, :currency, "usd"),
-        price_ids: price_ids,
-        category: "promotional",
-        name: "Runner trial credit",
-        expires_at: DateTime.add(DateTime.utc_now(), expires_in_days, :day),
-        priority: @trial_priority,
-        metadata: %{@kind_key => "trial"}
-      })
-    end
   end
 
   @doc """

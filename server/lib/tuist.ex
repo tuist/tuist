@@ -198,6 +198,7 @@ defmodule Tuist do
       Runners.Billing,
       Runners.Catalog,
       Runners.Prepaid,
+      Runners.Trials,
       Runners.Concurrency,
       Runners.Dispatch,
       Runners.Workers.CloseDisconnectedInteractiveSessionWorker,

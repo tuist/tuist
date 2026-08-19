@@ -55,6 +55,7 @@
   }
 
   & [data-part="runner-concurrency-description"],
+  & [data-part="runner-trial-description"],
   & [data-part="prepaid-description"],
   & [data-part="prepaid-empty"] {
     margin: var(--noora-spacing-0);

@@ -16,6 +16,7 @@ defmodule Tuist.Billing do
   alias Tuist.CommandEvents
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
+  alias Tuist.Runners.Trials
 
   # Unfortunately, this data can't be obtained and cached
   # from the Stripe's API, so we have to make sure it's in sync
@@ -352,7 +353,7 @@ defmodule Tuist.Billing do
 
     current_subscription = get_current_active_subscription(account)
 
-    subscription_items = get_subscription_items(to_string(plan))
+    subscription_items = get_subscription_items(to_string(plan), account)
 
     if is_nil(current_subscription) do
       {:ok, session} =
@@ -420,7 +421,7 @@ defmodule Tuist.Billing do
     |> MapSet.new()
   end
 
-  defp get_subscription_items(plan) do
+  defp get_subscription_items(plan, account) do
     available_prices = Tuist.Environment.stripe_prices()
 
     usage_prices =
@@ -434,7 +435,7 @@ defmodule Tuist.Billing do
       |> Enum.map(&%{price: &1, quantity: 1})
       |> Enum.take(1)
 
-    usage_prices ++ runner_subscription_items(available_prices) ++ flat_prices
+    usage_prices ++ runner_subscription_items(available_prices, account) ++ flat_prices
   end
 
   @doc """
@@ -458,7 +459,7 @@ defmodule Tuist.Billing do
         })
     end
 
-    subscription_items = enterprise_subscription_items(Map.get(params, :cadence, "monthly"))
+    subscription_items = enterprise_subscription_items(Map.get(params, :cadence, "monthly"), account)
     current_subscription = get_current_active_subscription(account)
 
     stripe_sub =
@@ -489,7 +490,7 @@ defmodule Tuist.Billing do
     {:ok, stripe_sub}
   end
 
-  defp enterprise_subscription_items(cadence) do
+  defp enterprise_subscription_items(cadence, account) do
     available_prices = Tuist.Environment.stripe_prices()
     key = if cadence == "yearly", do: "flat_yearly", else: "flat_monthly"
 
@@ -506,10 +507,22 @@ defmodule Tuist.Billing do
       |> Enum.take(1)
       |> Enum.map(&%{price: &1, quantity: 0})
 
-    usage_prices ++ runner_subscription_items(available_prices) ++ flat_prices
+    usage_prices ++ runner_subscription_items(available_prices, account) ++ flat_prices
   end
 
-  defp runner_subscription_items(available_prices) do
+  # An account on a runner trial carries no runner item, which is what
+  # makes its runner usage unbillable: usage is still metered and still
+  # reported gross, but there is nothing on the subscription for Stripe
+  # to invoice it against. See `Tuist.Runners.Trials`.
+  defp runner_subscription_items(available_prices, account) do
+    if Trials.on_trial?(account) do
+      []
+    else
+      configured_runner_prices(available_prices)
+    end
+  end
+
+  defp configured_runner_prices(available_prices) do
     available_prices
     |> Map.get("runners", %{})
     |> Enum.sort_by(&elem(&1, 0))
@@ -517,6 +530,55 @@ defmodule Tuist.Billing do
       {_meter_event_name, price_id} when is_binary(price_id) and price_id != "" -> [%{price: price_id}]
       _ -> []
     end)
+  end
+
+  @doc """
+  Reconciles `account`'s live subscription so its runner items match its
+  trial state: an account on a runner trial carries none, and one off
+  trial carries every configured runner Price.
+
+  Called when a trial starts or ends. Idempotent, and a no-op for an
+  account with no active subscription — that account picks the items up
+  from `get_subscription_items/2` whenever it next gets one.
+
+  Ending a trial mid-period may make that period's earlier usage
+  billable, depending on how Stripe attributes meter events recorded
+  before the item existed. Until that is confirmed, prefer ending a
+  trial at a period boundary.
+  """
+  def sync_runner_subscription_items(%Account{} = account) do
+    case get_current_active_subscription(account) do
+      %Subscription{subscription_id: subscription_id} when is_binary(subscription_id) ->
+        with {:ok, stripe_subscription} <- Stripe.Subscription.retrieve(subscription_id) do
+          apply_runner_item_changes(subscription_id, stripe_subscription, account)
+        end
+
+      _ ->
+        {:ok, :no_subscription}
+    end
+  end
+
+  defp apply_runner_item_changes(subscription_id, stripe_subscription, account) do
+    runner_price_ids = configured_runner_price_ids()
+
+    present =
+      Enum.filter(stripe_subscription.items.data, &MapSet.member?(runner_price_ids, subscription_item_price_id(&1)))
+
+    changes =
+      if Trials.on_trial?(account) do
+        Enum.map(present, &%{id: &1.id, deleted: true})
+      else
+        present_price_ids = MapSet.new(present, &subscription_item_price_id/1)
+
+        (Tuist.Environment.stripe_prices() || %{})
+        |> configured_runner_prices()
+        |> Enum.reject(&MapSet.member?(present_price_ids, &1.price))
+      end
+
+    case changes do
+      [] -> {:ok, :unchanged}
+      changes -> Stripe.Subscription.update(subscription_id, %{items: changes})
+    end
   end
 
   @doc """

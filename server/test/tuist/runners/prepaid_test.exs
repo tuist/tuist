@@ -346,47 +346,6 @@ defmodule Tuist.Runners.PrepaidTest do
     end
   end
 
-  describe "grant_trial/3" do
-    test "is the same grant, marked promotional and expiring sooner" do
-      now = ~U[2026-08-18 12:00:00Z]
-      stub(DateTime, :utc_now, fn -> now end)
-      expected = DateTime.add(now, 30, :day)
-
-      expect(CreditGrants, :create, fn attrs ->
-        assert attrs.customer_id == "cus_trial"
-        assert attrs.amount_cents == 5_000
-        assert attrs.category == "promotional"
-        assert attrs.expires_at == expected
-        # Burns ahead of anything the customer paid for.
-        assert attrs.priority == 25
-        assert attrs.metadata["tuist_runner_credit"] == "trial"
-        assert Enum.sort(attrs.price_ids) == Enum.sort([@macos_price, @linux_price])
-
-        {:ok, %{id: "credgr_trial"}}
-      end)
-
-      assert {:ok, _grant} = Prepaid.grant_trial(%Account{customer_id: "cus_trial"}, 5_000)
-    end
-
-    test "can be scoped to one platform and given a different clock" do
-      now = ~U[2026-08-18 12:00:00Z]
-      stub(DateTime, :utc_now, fn -> now end)
-      expected = DateTime.add(now, 14, :day)
-
-      expect(CreditGrants, :create, fn attrs ->
-        assert attrs.price_ids == [@macos_price]
-        assert attrs.expires_at == expected
-        {:ok, %{id: "credgr_trial"}}
-      end)
-
-      assert {:ok, _grant} =
-               Prepaid.grant_trial(%Account{customer_id: "cus_trial"}, 5_000,
-                 platforms: [:macos],
-                 expires_in_days: 14
-               )
-    end
-  end
-
   describe "balance/2" do
     defp grant(overrides) do
       Map.merge(

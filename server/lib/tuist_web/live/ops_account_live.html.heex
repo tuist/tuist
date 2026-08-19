@@ -105,6 +105,43 @@
     </.card_section>
   </.card>
 
+  <.card title={dgettext("dashboard", "Runner trial")} icon="hourglass">
+    <.card_section>
+      <p data-part="runner-trial-description">
+        {dgettext(
+          "dashboard",
+          "An account on a runner trial is not billed for runner usage. Usage is still metered and still reported, but the subscription carries no runner item for Stripe to invoice it against. The trial runs until it is cancelled here."
+        )}
+      </p>
+      <.alert
+        :if={@on_runner_trial}
+        id="runner-trial-active-alert"
+        status="information"
+        title={dgettext("dashboard", "On a runner trial")}
+        description={
+          dgettext(
+            "dashboard",
+            "Cancelling adds the runner items to this account's subscription, which makes its runner usage billable. Prefer cancelling at the end of a billing period: usage already recorded in the current one may become billable when the item is added."
+          )
+        }
+      />
+      <div data-part="actions">
+        <.button
+          :if={not @on_runner_trial}
+          phx-click="start_runner_trial"
+          variant="primary"
+          label={dgettext("dashboard", "Start runner trial")}
+        />
+        <.button
+          :if={@on_runner_trial}
+          phx-click="cancel_runner_trial"
+          variant="destructive"
+          label={dgettext("dashboard", "Cancel runner trial")}
+        />
+      </div>
+    </.card_section>
+  </.card>
+
   <.card title={dgettext("dashboard", "Prepaid runner credit")} icon="asset">
     <.card_section>
       <p data-part="prepaid-description">
