@@ -154,6 +154,9 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
                  workflow_job_id: workflow_job_id,
                  account_id: account.id,
                  fleet_name: first.fleet_name,
+                 platform: :macos,
+                 vcpus: 6,
+                 memory_gb: 14,
                  pod_name: "live-vnc-runner-session-pod",
                  started_at: DateTime.utc_now()
                })
@@ -276,6 +279,9 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
                  workflow_job_id: workflow_job_id,
                  account_id: account.id,
                  fleet_name: "macos-xcode-26-5",
+                 platform: :macos,
+                 vcpus: 6,
+                 memory_gb: 14,
                  pod_name: "live-macos-shell-pod",
                  started_at: DateTime.utc_now()
                })
@@ -387,6 +393,9 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
                  workflow_job_id: workflow_job_id,
                  account_id: account.id,
                  fleet_name: "macos-xcode-26-5",
+                 platform: :macos,
+                 vcpus: 6,
+                 memory_gb: 14,
                  pod_name: "live-macos-shell-agent-pod",
                  started_at: DateTime.utc_now()
                })

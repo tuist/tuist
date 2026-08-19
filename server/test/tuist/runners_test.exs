@@ -1330,6 +1330,9 @@ defmodule Tuist.RunnersTest do
                  workflow_job_id: 91_050,
                  account_id: account.id,
                  fleet_name: fleet,
+                 platform: :macos,
+                 vcpus: 6,
+                 memory_gb: 14,
                  pod_name: "pod-session-tail",
                  started_at: DateTime.utc_now()
                })
