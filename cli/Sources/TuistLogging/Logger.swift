@@ -51,7 +51,7 @@ public struct LoggingConfig {
 
 /// A simple cross-platform file log handler that writes to a file.
 public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
-    private let storage: SimpleFileLogStorage
+    private let backend: SimpleFileLogBackend
     private let label: String
     private let lineTransformer: @Sendable (String) -> String
     private let shouldLog: @Sendable (Logger.Level, Logger.Message, String) -> Bool
@@ -66,7 +66,7 @@ public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
         shouldLog: @escaping @Sendable (Logger.Level, Logger.Message, String) -> Bool = { _, _, _ in true }
     ) throws {
         self.label = label
-        storage = try SimpleFileLogStorage(fileURL: fileURL, maximumFileSize: maximumFileSize)
+        backend = try SimpleFileLogBackend(fileURL: fileURL, maximumFileSize: maximumFileSize)
         self.lineTransformer = lineTransformer
         self.shouldLog = shouldLog
     }
@@ -91,20 +91,20 @@ public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
         let metadataString = mergedMetadata.isEmpty ? "" : " \(mergedMetadata)"
         let logMessage = lineTransformer("[\(timestamp)] [\(level)] [\(source)] \(message)\(metadataString)\n")
         if let data = logMessage.data(using: .utf8) {
-            storage.write(data)
+            backend.write(data)
         }
     }
 
     var fileURL: URL {
-        storage.fileURL
+        backend.fileURL
     }
 
     func contents() throws -> String {
-        try storage.contents()
+        try backend.contents()
     }
 }
 
-private final class SimpleFileLogStorage: @unchecked Sendable {
+private final class SimpleFileLogBackend: @unchecked Sendable {
     let fileURL: URL
 
     private let fileHandle: FileHandle

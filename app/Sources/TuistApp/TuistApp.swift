@@ -1,6 +1,5 @@
 import SwiftUI
 import TuistAuthentication
-import TuistLogging
 import TuistServer
 
 #if os(macOS)
@@ -64,7 +63,7 @@ import TuistServer
     @main
     struct TuistApp: App {
         init() {
-            ApplicationLogStore.current.bootstrap()
+            AppBootstrapper.bootstrap()
         }
 
         var body: some Scene {

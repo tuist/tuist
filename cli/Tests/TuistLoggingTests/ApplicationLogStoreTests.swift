@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Path
 import Testing
 
 @testable import TuistLogging
@@ -12,7 +13,7 @@ struct ApplicationLogStoreTests {
         let logsDirectory = try temporaryLogsDirectory()
         let date = Date(timeIntervalSince1970: 1_700_000_000)
         let subject = ApplicationLogStore(logsDirectory: logsDirectory)
-        var handler = try subject.makeFileLogHandler(generatedAt: date)
+        var handler = try await subject.makeFileLogHandler(generatedAt: date)
         handler.logLevel = .debug
         let logger = Logger(label: "dev.tuist.app", factory: { _ in handler })
 
@@ -38,10 +39,10 @@ struct ApplicationLogStoreTests {
 
     @Test(.inTemporaryDirectory)
     @MainActor
-    func sensitive_values_are_redacted_before_they_are_stored() throws {
+    func sensitive_values_are_redacted_before_they_are_stored() async throws {
         let logsDirectory = try temporaryLogsDirectory()
         let subject = ApplicationLogStore(logsDirectory: logsDirectory)
-        var handler = try subject.makeFileLogHandler()
+        var handler = try await subject.makeFileLogHandler()
         handler.logLevel = .debug
         let logger = Logger(label: "dev.tuist.app", factory: { _ in handler })
 
@@ -63,10 +64,10 @@ struct ApplicationLogStoreTests {
 
     @Test(.inTemporaryDirectory)
     @MainActor
-    func verbose_http_bodies_are_not_stored() throws {
+    func verbose_http_bodies_are_not_stored() async throws {
         let logsDirectory = try temporaryLogsDirectory()
         let subject = ApplicationLogStore(logsDirectory: logsDirectory)
-        var handler = try subject.makeFileLogHandler()
+        var handler = try await subject.makeFileLogHandler()
         handler.logLevel = .debug
         let logger = Logger(label: "dev.tuist.app", factory: { _ in handler })
         let presignedURL = "https://storage.example.com/build?X-Amz-Credential=credential&X-Amz-Signature=signature"
@@ -78,32 +79,52 @@ struct ApplicationLogStoreTests {
 
     @Test(.inTemporaryDirectory)
     @MainActor
-    func only_the_two_most_recent_launches_are_retained() throws {
+    func only_the_two_most_recent_launches_are_retained() async throws {
         let logsDirectory = try temporaryLogsDirectory()
         let date = Date(timeIntervalSince1970: 1_700_000_000)
-        let oldSessionURL = try makeSessionFile(
+        let fileSystem = FileSystem()
+        let oldSessionPath = try await makeSessionFile(
             named: "session-old.txt",
             contents: "old",
             modificationDate: date,
-            in: logsDirectory
+            in: logsDirectory,
+            fileSystem: fileSystem
         )
-        let recentSessionURL = try makeSessionFile(
+        let recentSessionPath = try await makeSessionFile(
             named: "session-recent.txt",
             contents: "recent",
             modificationDate: date.addingTimeInterval(1),
-            in: logsDirectory
+            in: logsDirectory,
+            fileSystem: fileSystem
         )
-        let subject = ApplicationLogStore(logsDirectory: logsDirectory)
+        let subject = ApplicationLogStore(logsDirectory: logsDirectory, fileSystem: fileSystem)
 
-        _ = try subject.makeFileLogHandler(generatedAt: date.addingTimeInterval(2))
+        _ = try await subject.makeFileLogHandler(generatedAt: date.addingTimeInterval(2))
 
-        let retainedFiles = try FileManager.default.contentsOfDirectory(
-            at: logsDirectory,
-            includingPropertiesForKeys: nil
-        )
+        let retainedFiles = try await fileSystem.contentsOfDirectory(logsDirectory)
         #expect(retainedFiles.count == 2)
-        #expect(!FileManager.default.fileExists(atPath: oldSessionURL.path))
-        #expect(FileManager.default.fileExists(atPath: recentSessionURL.path))
+        #expect(try await !fileSystem.exists(oldSessionPath))
+        #expect(try await fileSystem.exists(recentSessionPath))
+    }
+
+    @Test(.inTemporaryDirectory)
+    @MainActor
+    func expired_launches_are_removed() async throws {
+        let logsDirectory = try temporaryLogsDirectory()
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let fileSystem = FileSystem()
+        let expiredSessionPath = try await makeSessionFile(
+            named: "session-expired.txt",
+            contents: "expired",
+            modificationDate: date.addingTimeInterval(-3 * 24 * 60 * 60 - 1),
+            in: logsDirectory,
+            fileSystem: fileSystem
+        )
+        let subject = ApplicationLogStore(logsDirectory: logsDirectory, fileSystem: fileSystem)
+
+        _ = try await subject.makeFileLogHandler(generatedAt: date)
+
+        #expect(try await !fileSystem.exists(expiredSessionPath))
     }
 
     @Test func current_can_be_overridden_for_a_task() async throws {
@@ -132,33 +153,45 @@ struct ApplicationLogStoreTests {
 
             return try await group.reduce(into: []) { $0.append($1) }
         }
-        defer {
-            for exportedURL in exportedURLs {
-                try? FileManager.default.removeItem(at: exportedURL)
-            }
-        }
-
         #expect(Set(exportedURLs).count == 2)
+        for exportedURL in exportedURLs {
+            try await FileSystem().remove(try AbsolutePath(validating: exportedURL.path))
+        }
     }
 
-    private func temporaryLogsDirectory() throws -> URL {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        return URL(fileURLWithPath: temporaryDirectory.pathString, isDirectory: true)
+    @Test(.inTemporaryDirectory)
+    func plain_text_export_writes_the_report_to_a_unique_file() async throws {
+        let logsDirectory = try temporaryLogsDirectory()
+        let fileSystem = FileSystem()
+        let subject = ApplicationLogStore(logsDirectory: logsDirectory, fileSystem: fileSystem)
+
+        let exportURL = try await subject.plainTextExport()
+        let exportPath = try AbsolutePath(validating: exportURL.path)
+
+        #expect(try await fileSystem.exists(exportPath))
+        #expect(try await fileSystem.readTextFile(at: exportPath).contains("Tuist application logs"))
+        try await fileSystem.remove(exportPath)
+    }
+
+    private func temporaryLogsDirectory() throws -> AbsolutePath {
+        try #require(FileSystem.temporaryTestDirectory)
     }
 
     private func makeSessionFile(
         named name: String,
         contents: String,
         modificationDate: Date,
-        in directory: URL
-    ) throws -> URL {
-        let fileURL = directory.appendingPathComponent(name)
-        try contents.write(to: fileURL, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes(
-            [.modificationDate: modificationDate],
-            ofItemAtPath: fileURL.path
+        in directory: AbsolutePath,
+        fileSystem: FileSysteming
+    ) async throws -> AbsolutePath {
+        let filePath = directory.appending(component: name)
+        try await fileSystem.writeText(contents, at: filePath)
+        try await fileSystem.setFileTimes(
+            of: filePath,
+            lastAccessDate: nil,
+            lastModificationDate: modificationDate
         )
-        return fileURL
+        return filePath
     }
 }
 

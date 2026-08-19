@@ -1,5 +1,7 @@
 #if !os(Linux)
+    import FileSystem
     import Foundation
+    import Path
 
     public protocol ApplicationLogStoring: Sendable {
         @MainActor func bootstrap()
@@ -14,15 +16,20 @@
         private static let maximumSessionSize: UInt64 = 5_000_000
         @MainActor private static var hasBootstrapped = false
 
-        private let logsDirectory: URL
+        private let fileSystem: FileSysteming
+        private let logsDirectory: AbsolutePath
         @MainActor private var activeLogHandler: SimpleFileLogHandler?
 
         public convenience init() {
             self.init(logsDirectory: Self.defaultLogsDirectory)
         }
 
-        init(logsDirectory: URL) {
+        init(
+            logsDirectory: AbsolutePath,
+            fileSystem: FileSysteming = FileSystem()
+        ) {
             self.logsDirectory = logsDirectory
+            self.fileSystem = fileSystem
         }
 
         @MainActor
@@ -30,19 +37,21 @@
             guard !Self.hasBootstrapped else { return }
             Self.hasBootstrapped = true
 
-            do {
-                var fileLogHandler = try makeFileLogHandler()
-                fileLogHandler.logLevel = .debug
-                activeLogHandler = fileLogHandler
-                LoggingSystem.bootstrap { label in
-                    MultiplexLogHandler([
-                        fileLogHandler,
-                        StandardLogHandler(label: label, logLevel: .debug),
-                    ])
-                }
-            } catch {
-                LoggingSystem.bootstrap { label in
-                    StandardLogHandler(label: label, logLevel: .debug)
+            Task { @MainActor in
+                do {
+                    var fileLogHandler = try await makeFileLogHandler()
+                    fileLogHandler.logLevel = .debug
+                    activeLogHandler = fileLogHandler
+                    LoggingSystem.bootstrap { label in
+                        MultiplexLogHandler([
+                            fileLogHandler,
+                            StandardLogHandler(label: label, logLevel: .debug),
+                        ])
+                    }
+                } catch {
+                    LoggingSystem.bootstrap { label in
+                        StandardLogHandler(label: label, logLevel: .debug)
+                    }
                 }
             }
         }
@@ -50,10 +59,10 @@
         public func plainTextExport() async throws -> URL {
             let generatedAt = Date()
             let report = try await plainTextReport(generatedAt: generatedAt)
-            let fileURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("tuist-logs-\(Self.fileNameDate(generatedAt))-\(UUID().uuidString).txt")
-            try report.write(to: fileURL, atomically: true, encoding: .utf8)
-            return fileURL
+            let exportPath = Self.temporaryDirectory
+                .appending(component: "tuist-logs-\(Self.fileNameDate(generatedAt))-\(UUID().uuidString).txt")
+            try await fileSystem.writeText(report, at: exportPath)
+            return URL(fileURLWithPath: exportPath.pathString)
         }
 
         func plainTextReport(
@@ -64,15 +73,16 @@
             generatedAt: Date = Date()
         ) async throws -> String {
             let activeLogHandler = await MainActor.run { self.activeLogHandler }
-            let sessions = try recentSessionFiles(generatedAt: generatedAt).compactMap { fileURL -> String? in
-                let contents = if activeLogHandler?.fileURL == fileURL {
+            var sessions: [String] = []
+            for session in try await recentSessionFiles(generatedAt: generatedAt) {
+                let contents = if activeLogHandler?.fileURL.path == session.path.pathString {
                     try activeLogHandler?.contents() ?? ""
                 } else {
-                    try String(contentsOf: fileURL, encoding: .utf8)
+                    try await fileSystem.readTextFile(at: session.path)
                 }
                 let trimmedContents = contents.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmedContents.isEmpty else { return nil }
-                return "Launch: \(fileURL.lastPathComponent)\n\(trimmedContents)"
+                guard !trimmedContents.isEmpty else { continue }
+                sessions.append("Launch: \(session.path.basename)\n\(trimmedContents)")
             }
 
             return ([
@@ -89,27 +99,27 @@
         }
 
         @MainActor
-        func makeFileLogHandler(generatedAt: Date = Date()) throws -> SimpleFileLogHandler {
-            try FileManager.default.createDirectory(
-                at: logsDirectory,
-                withIntermediateDirectories: true
-            )
-            var logsDirectory = logsDirectory
+        func makeFileLogHandler(generatedAt: Date = Date()) async throws -> SimpleFileLogHandler {
+            if try await !fileSystem.exists(logsDirectory) {
+                try await fileSystem.makeDirectory(at: logsDirectory)
+            }
+
+            var logsDirectoryURL = URL(fileURLWithPath: logsDirectory.pathString)
             var resourceValues = URLResourceValues()
             resourceValues.isExcludedFromBackup = true
-            try? logsDirectory.setResourceValues(resourceValues)
+            try? logsDirectoryURL.setResourceValues(resourceValues)
 
-            let fileURL = logsDirectory.appendingPathComponent(
-                "session-\(Self.fileNameDate(generatedAt))-\(UUID().uuidString).txt"
+            let sessionPath = logsDirectory.appending(
+                component: "session-\(Self.fileNameDate(generatedAt))-\(UUID().uuidString).txt"
             )
             let handler = try SimpleFileLogHandler(
                 label: "dev.tuist.app",
-                fileURL: fileURL,
+                fileURL: URL(fileURLWithPath: sessionPath.pathString),
                 maximumFileSize: Self.maximumSessionSize,
                 lineTransformer: Self.redacted,
                 shouldLog: Self.shouldStore
             )
-            try removeExpiredSessions(generatedAt: generatedAt)
+            try await removeExpiredSessions(generatedAt: generatedAt)
             return handler
         }
 
@@ -139,49 +149,50 @@
                 && !message.description.hasPrefix("Received HTTP response from ")
         }
 
-        private func recentSessionFiles(generatedAt: Date) throws -> [URL] {
+        private func recentSessionFiles(generatedAt: Date) async throws -> [SessionFile] {
             let cutoffDate = generatedAt.addingTimeInterval(-Self.maximumAge)
-            return try sessionFiles()
-                .filter { Self.modificationDate(for: $0) >= cutoffDate }
-                .sorted { Self.modificationDate(for: $0) > Self.modificationDate(for: $1) }
+            return try await sessionFiles()
+                .filter { $0.lastModificationDate >= cutoffDate }
+                .sorted { $0.lastModificationDate > $1.lastModificationDate }
                 .prefix(Self.maximumSessionCount)
                 .map { $0 }
         }
 
-        private func removeExpiredSessions(generatedAt: Date) throws {
+        private func removeExpiredSessions(generatedAt: Date) async throws {
             let cutoffDate = generatedAt.addingTimeInterval(-Self.maximumAge)
-            let sessionFiles = try sessionFiles()
-                .sorted { Self.modificationDate(for: $0) > Self.modificationDate(for: $1) }
+            let sessionFiles = try await sessionFiles()
+                .sorted { $0.lastModificationDate > $1.lastModificationDate }
 
-            for (index, fileURL) in sessionFiles.enumerated()
-                where index >= Self.maximumSessionCount || Self.modificationDate(for: fileURL) < cutoffDate
+            for (index, session) in sessionFiles.enumerated()
+                where index >= Self.maximumSessionCount || session.lastModificationDate < cutoffDate
             {
-                try? FileManager.default.removeItem(at: fileURL)
+                try? await fileSystem.remove(session.path)
             }
         }
 
-        private func sessionFiles() throws -> [URL] {
-            guard FileManager.default.fileExists(atPath: logsDirectory.path) else { return [] }
-            return try FileManager.default.contentsOfDirectory(
-                at: logsDirectory,
-                includingPropertiesForKeys: [.contentModificationDateKey],
-                options: [.skipsHiddenFiles]
-            )
-            .filter { $0.lastPathComponent.hasPrefix("session-") && $0.pathExtension == "txt" }
+        private func sessionFiles() async throws -> [SessionFile] {
+            guard try await fileSystem.exists(logsDirectory) else { return [] }
+
+            var sessions: [SessionFile] = []
+            for path in try await fileSystem.contentsOfDirectory(logsDirectory)
+                where path.basename.hasPrefix("session-") && path.extension == "txt"
+            {
+                guard let metadata = try await fileSystem.fileMetadata(at: path) else { continue }
+                sessions.append(SessionFile(path: path, lastModificationDate: metadata.lastModificationDate))
+            }
+            return sessions
         }
 
-        private static var defaultLogsDirectory: URL {
-            let applicationSupportDirectory = FileManager.default.urls(
-                for: .applicationSupportDirectory,
-                in: .userDomainMask
-            ).first ?? FileManager.default.temporaryDirectory
-            return applicationSupportDirectory
-                .appendingPathComponent(Bundle.main.bundleIdentifier ?? "dev.tuist.app", isDirectory: true)
-                .appendingPathComponent("Logs", isDirectory: true)
+        private static var defaultLogsDirectory: AbsolutePath {
+            try! AbsolutePath(validating: NSHomeDirectory())
+                .appending(component: "Library")
+                .appending(component: "Application Support")
+                .appending(component: Bundle.main.bundleIdentifier ?? "dev.tuist.app")
+                .appending(component: "Logs")
         }
 
-        private static func modificationDate(for fileURL: URL) -> Date {
-            (try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+        private static var temporaryDirectory: AbsolutePath {
+            try! AbsolutePath(validating: NSTemporaryDirectory())
         }
 
         private static func format(_ date: Date) -> String {
@@ -194,6 +205,11 @@
             formatter.timeZone = TimeZone(secondsFromGMT: 0)
             formatter.dateFormat = "yyyy-MM-dd-HH-mm-ss"
             return formatter.string(from: date)
+        }
+
+        private struct SessionFile {
+            let path: AbsolutePath
+            let lastModificationDate: Date
         }
     }
 #endif

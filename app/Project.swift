@@ -284,19 +284,6 @@ let project = Project(
                 .project(target: "TuistConstants", path: "../"),
             ]
         ),
-        .target(
-            name: "TuistApplicationLoggingTests",
-            destinations: .iOS,
-            product: .unitTests,
-            bundleId: "dev.tuist.application-logging-tests",
-            deploymentTargets: .iOS("18.0"),
-            sources: ["Tests/TuistApplicationLoggingTests/**"],
-            dependencies: [
-                .project(target: "TuistLogging", path: "../"),
-                .external(name: "FileSystem"),
-                .external(name: "FileSystemTesting"),
-            ]
-        ),
     ],
     schemes: [
         .scheme(
@@ -330,14 +317,6 @@ let project = Project(
                         "TUIST_URL": serverURLEnvironmentVariable,
                     ]
                 )
-            )
-        ),
-        .scheme(
-            name: "TuistApplicationLogging",
-            buildAction: .buildAction(targets: [.target("TuistApplicationLoggingTests")]),
-            testAction: .targets(
-                [.testableTarget(target: "TuistApplicationLoggingTests")],
-                options: .options(language: "en")
             )
         ),
     ]
