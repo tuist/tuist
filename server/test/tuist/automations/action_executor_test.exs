@@ -4,14 +4,20 @@ defmodule Tuist.Automations.ActionExecutorTest do
 
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Actions.SendSlackAction
+  alias Tuist.Automations.Holds
+  alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.TestCase
+  alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   defp insert_test_case(attrs) do
-    project = ProjectsFixtures.project_fixture()
+    insert_test_case_in(ProjectsFixtures.project_fixture(), attrs)
+  end
+
+  defp insert_test_case_in(project, attrs) do
     test_case = RunsFixtures.test_case_fixture([project_id: project.id] ++ attrs)
     IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
     test_case
@@ -203,6 +209,158 @@ defmodule Tuist.Automations.ActionExecutorTest do
 
     assert {:ok, %{is_flaky: false, state: "enabled"}} = Tests.get_test_case_by_id(test_case.id)
     assert event_types(test_case.id) == []
+  end
+
+  describe "change_state with holds" do
+    setup do
+      project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      %{project: project, alert: alert}
+    end
+
+    test "flag off: state direct-writes as before and a passive claim is recorded", %{
+      project: project,
+      alert: alert
+    } do
+      stub(FeatureFlags, :test_state_holds_enabled?, fn _ -> false end)
+      test_case = insert_test_case_in(project, state: "enabled")
+
+      assert :ok =
+               ActionExecutor.execute_actions(
+                 [%{"type" => "change_state", "state" => "muted"}],
+                 alert,
+                 %{type: :test_case, id: test_case.id}
+               )
+
+      assert {:ok, %{state: "muted"}} = Tests.get_test_case_by_id(test_case.id)
+      assert "muted" in event_types(test_case.id)
+
+      assert [claim] = Holds.current_claims(project.id, [test_case.id])[test_case.id]
+      assert claim.alert_id == alert.id
+      assert claim.state == "muted"
+    end
+
+    test "flag on: change_state places a claim and state projects via derivation", %{
+      project: project,
+      alert: alert
+    } do
+      stub(FeatureFlags, :test_state_holds_enabled?, fn _ -> true end)
+      test_case = insert_test_case_in(project, state: "enabled")
+
+      assert :ok =
+               ActionExecutor.execute_actions(
+                 [%{"type" => "change_state", "state" => "skipped"}],
+                 alert,
+                 %{type: :test_case, id: test_case.id}
+               )
+
+      assert [claim] = Holds.current_claims(project.id, [test_case.id])[test_case.id]
+      assert claim.alert_id == alert.id
+      assert claim.state == "skipped"
+
+      assert Tests.get_test_case_states(project.id, [test_case.id])[test_case.id].state == "skipped"
+
+      {events, _meta} = Tests.list_test_case_events(test_case.id)
+      assert [event] = events
+      assert event.event_type == "skipped"
+      assert event.alert_id == alert.id
+    end
+
+    test "flag on: a Manual enabled claim shadows the trigger and suppresses send_slack", %{
+      project: project,
+      alert: alert
+    } do
+      stub(FeatureFlags, :test_state_holds_enabled?, fn _ -> true end)
+      reject(&SendSlackAction.execute/3)
+      test_case = insert_test_case_in(project, state: "enabled")
+      manual = AutomationsFixtures.manual_automation_alert_fixture(project: project)
+      {:ok, _} = Holds.place_claim(manual, test_case.id, %{state: "enabled", actor_id: 42})
+
+      assert :ok =
+               ActionExecutor.execute_actions(
+                 [
+                   %{"type" => "change_state", "state" => "skipped"},
+                   %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
+                 ],
+                 alert,
+                 %{type: :test_case, id: test_case.id}
+               )
+
+      claims = Holds.current_claims(project.id, [test_case.id])[test_case.id]
+      assert Enum.any?(claims, &(&1.alert_id == alert.id and &1.state == "skipped"))
+
+      assert Tests.get_test_case_states(project.id, [test_case.id])[test_case.id].state == "enabled"
+      assert event_types(test_case.id) == []
+    end
+
+    test "flag on: coalesces is_flaky into one direct call without :state, state via derivation", %{
+      project: project,
+      alert: alert
+    } do
+      stub(FeatureFlags, :test_state_holds_enabled?, fn _ -> true end)
+      test_case = insert_test_case_in(project, is_flaky: false, state: "enabled")
+      test_pid = self()
+
+      stub(Tests, :update_test_case, fn id, attrs, opts ->
+        send(test_pid, {:update_test_case, attrs, opts})
+        Mimic.call_original(Tests, :update_test_case, [id, attrs, opts])
+      end)
+
+      assert :ok =
+               ActionExecutor.execute_actions(
+                 [
+                   %{"type" => "add_label", "label" => "flaky"},
+                   %{"type" => "change_state", "state" => "muted"}
+                 ],
+                 alert,
+                 %{type: :test_case, id: test_case.id}
+               )
+
+      alert_id = alert.id
+
+      assert_received {:update_test_case, direct_attrs, direct_opts}
+      assert direct_attrs == %{is_flaky: true}
+      assert direct_opts[:alert_id] == alert_id
+
+      assert_received {:update_test_case, %{state: "muted"}, derive_opts}
+      assert derive_opts[:alert_id] == alert_id
+
+      refute_received {:update_test_case, _, _}
+
+      assert {:ok, %{is_flaky: true, state: "muted"}} = Tests.get_test_case_by_id(test_case.id)
+
+      {events, _meta} = Tests.list_test_case_events(test_case.id)
+      assert events |> Enum.map(& &1.event_type) |> Enum.sort() == ["marked_flaky", "muted"]
+      assert Enum.all?(events, &(&1.alert_id == alert_id))
+    end
+
+    test "flag on: re-trigger refreshes the owner's single live claim", %{
+      project: project,
+      alert: alert
+    } do
+      stub(FeatureFlags, :test_state_holds_enabled?, fn _ -> true end)
+      test_case = insert_test_case_in(project, state: "enabled")
+      entity = %{type: :test_case, id: test_case.id}
+
+      assert :ok =
+               ActionExecutor.execute_actions(
+                 [%{"type" => "change_state", "state" => "muted"}],
+                 alert,
+                 entity
+               )
+
+      assert :ok =
+               ActionExecutor.execute_actions(
+                 [%{"type" => "change_state", "state" => "skipped"}],
+                 alert,
+                 entity
+               )
+
+      assert [claim] = Holds.current_claims(project.id, [test_case.id])[test_case.id]
+      assert claim.alert_id == alert.id
+      assert claim.state == "skipped"
+      assert Tests.get_test_case_states(project.id, [test_case.id])[test_case.id].state == "skipped"
+    end
   end
 
   test "silently skips unknown action types without touching the row" do
