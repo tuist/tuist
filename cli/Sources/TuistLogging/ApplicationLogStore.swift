@@ -184,7 +184,10 @@
         }
 
         private static var defaultLogsDirectory: AbsolutePath {
-            try! AbsolutePath(validating: NSHomeDirectory())
+            guard let homeDirectory = try? AbsolutePath(validating: NSHomeDirectory()) else {
+                fatalError("The home directory must be an absolute path.")
+            }
+            return homeDirectory
                 .appending(component: "Library")
                 .appending(component: "Application Support")
                 .appending(component: Bundle.main.bundleIdentifier ?? "dev.tuist.app")
@@ -192,7 +195,10 @@
         }
 
         private static var temporaryDirectory: AbsolutePath {
-            try! AbsolutePath(validating: NSTemporaryDirectory())
+            guard let temporaryDirectory = try? AbsolutePath(validating: NSTemporaryDirectory()) else {
+                fatalError("The temporary directory must be an absolute path.")
+            }
+            return temporaryDirectory
         }
 
         private static func format(_ date: Date) -> String {
