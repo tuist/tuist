@@ -199,7 +199,7 @@
     private struct ApplicationLogStoreStub: ApplicationLogStoring {
         let exportURL: URL
 
-        @MainActor func bootstrap() {}
+        @MainActor func bootstrap() async {}
 
         func plainTextExport() async throws -> URL {
             exportURL

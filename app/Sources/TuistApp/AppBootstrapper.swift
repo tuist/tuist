@@ -1,8 +1,14 @@
+import SwiftUI
 import TuistLogging
 
 @MainActor
-enum AppBootstrapper {
-    static func bootstrap() {
-        ApplicationLogStore.current.bootstrap()
+final class AppBootstrapper: ObservableObject {
+    @Published private(set) var isReady = false
+
+    init() {
+        Task {
+            await ApplicationLogStore.current.bootstrap()
+            isReady = true
+        }
     }
 }

@@ -4,7 +4,7 @@
     import Path
 
     public protocol ApplicationLogStoring: Sendable {
-        @MainActor func bootstrap()
+        @MainActor func bootstrap() async
         func plainTextExport() async throws -> URL
     }
 
@@ -33,25 +33,23 @@
         }
 
         @MainActor
-        public func bootstrap() {
+        public func bootstrap() async {
             guard !Self.hasBootstrapped else { return }
             Self.hasBootstrapped = true
 
-            Task { @MainActor in
-                do {
-                    var fileLogHandler = try await makeFileLogHandler()
-                    fileLogHandler.logLevel = .debug
-                    activeLogHandler = fileLogHandler
-                    LoggingSystem.bootstrap { label in
-                        MultiplexLogHandler([
-                            fileLogHandler,
-                            StandardLogHandler(label: label, logLevel: .debug),
-                        ])
-                    }
-                } catch {
-                    LoggingSystem.bootstrap { label in
-                        StandardLogHandler(label: label, logLevel: .debug)
-                    }
+            do {
+                var fileLogHandler = try await makeFileLogHandler()
+                fileLogHandler.logLevel = .debug
+                activeLogHandler = fileLogHandler
+                LoggingSystem.bootstrap { label in
+                    MultiplexLogHandler([
+                        fileLogHandler,
+                        StandardLogHandler(label: label, logLevel: .debug),
+                    ])
+                }
+            } catch {
+                LoggingSystem.bootstrap { label in
+                    StandardLogHandler(label: label, logLevel: .debug)
                 }
             }
         }
