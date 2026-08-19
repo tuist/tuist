@@ -180,22 +180,103 @@ defmodule Tuist.Registry.Swift.RepairTest do
     # catalog checksum. The obvious re-plan must not copy those over the only
     # remaining copy of the pre-repair bytes.
     test "keeps the first backup when one already exists for the published checksum" do
-      expect(Metadata, :get_package, 2, fn _scope, _name -> {:ok, catalog("1.0.0", "abc")} end)
+      stub(Metadata, :get_package, fn _scope, _name -> {:ok, catalog("1.0.0", "abc")} end)
 
-      expect(S3, :head_object, fn "registry/swift/apple/parser/1.0.0/source_archive.zip" ->
-        {:ok, %{"x-amz-meta-sha256" => "rebuilt-bytes"}}
+      stub(S3, :head_object, fn
+        "registry/swift/apple/parser/1.0.0/source_archive.zip" -> {:ok, %{"x-amz-meta-sha256" => "rebuilt-bytes"}}
+        "registry/backups/swift/apple/parser/1.0.0/abc/source_archive.zip" -> {:ok, %{}}
       end)
 
       {:ok, plan} = Repair.plan([{"apple/parser", "1.0.0"}])
-
-      expect(S3, :head_object, fn "registry/backups/swift/apple/parser/1.0.0/abc/source_archive.zip" ->
-        {:ok, %{}}
-      end)
 
       reject(&S3.copy_object/2)
       reject(&S3.upload_content/3)
 
       assert {:ok, %{applied: [%{status: :enqueued}]}} = Repair.apply_plan(plan, approval: plan.approval)
+    end
+
+    # The plan's classification has two halves. Re-reading only the catalog half
+    # left the dangerous case open: an archive restored to the published
+    # checksum in between makes the version healthy again while the catalog
+    # checksum is unchanged, and a stale `:unresolvable` would have carried the
+    # override into replacing it.
+    test "skips a target that became healthy between planning and applying" do
+      stub(Metadata, :get_package, fn _scope, _name -> {:ok, catalog("1.0.0", "abc")} end)
+
+      Agent.start_link(fn -> ["def", "abc"] end, name: :stored_checksums)
+
+      stub(S3, :head_object, fn "registry/swift/apple/parser/1.0.0/source_archive.zip" ->
+        stored =
+          Agent.get_and_update(:stored_checksums, fn
+            [only] -> {only, [only]}
+            [head | rest] -> {head, rest}
+          end)
+
+        {:ok, %{"x-amz-meta-sha256" => stored}}
+      end)
+
+      {:ok, plan} = Repair.plan([{"apple/parser", "1.0.0"}])
+      assert [%{status: :unresolvable}] = plan.targets
+
+      reject(&S3.copy_object/2)
+
+      assert {:ok, %{applied: [], failed: [%{status: :skipped, reason: :already_consistent}]}} =
+               Repair.apply_plan(plan, approval: plan.approval)
+
+      refute_enqueued(worker: SyncWorker)
+    end
+
+    # Without the fence the re-read above would just be a narrower race: a
+    # release could land between reading and enqueuing.
+    test "does not repair a version while a release for it is in flight" do
+      stub(Metadata, :get_package, fn _scope, _name -> {:ok, catalog("1.0.0", "abc")} end)
+      stub(S3, :head_object, fn _key -> {:error, :not_found} end)
+
+      {:ok, plan} = Repair.plan([{"apple/parser", "1.0.0"}])
+
+      expect(Lock, :try_acquire, fn {:release, "apple", "parser", "1.0.0"}, _ttl ->
+        {:error, :already_locked}
+      end)
+
+      reject(&S3.copy_object/2)
+
+      assert {:ok, %{applied: [], failed: [%{status: :failed, reason: :release_in_flight}]}} =
+               Repair.apply_plan(plan, approval: plan.approval)
+
+      refute_enqueued(worker: SyncWorker)
+    end
+
+    test "rejects a threshold that is not a non-negative integer" do
+      assert {:error, {:invalid_max_checksum_changes, "10"}} =
+               Repair.plan([{"apple/parser", "1.0.0"}], max_checksum_changes: "10")
+
+      assert {:error, {:invalid_max_checksum_changes, nil}} =
+               Repair.plan([{"apple/parser", "1.0.0"}], max_checksum_changes: nil)
+    end
+
+    # The digest is not sufficient on its own here. It interpolates the threshold
+    # into a string, so `0` and `"0"` hash identically and a string threshold
+    # sails through approval. Elixir then orders every number below every
+    # binary, making `1 > "0"` false, so the abort gate would pass a batch it
+    # was configured to refuse. The validation at apply time is what catches it.
+    test "fails closed when an applied plan carries a non-integer threshold" do
+      stub(Metadata, :get_package, fn _scope, _name -> {:ok, catalog("1.0.0", "abc")} end)
+      stub(S3, :head_object, fn _key -> {:error, :not_found} end)
+
+      {:ok, plan} = Repair.plan([{"apple/parser", "1.0.0"}], max_checksum_changes: 0)
+
+      # Sanity: as configured, this plan is refused for exceeding its threshold.
+      assert {:error, {:too_many_checksum_changes, 1, 0}} = Repair.apply_plan(plan, approval: plan.approval)
+
+      tampered = %{plan | max_checksum_changes: "0"}
+
+      # The approval still matches, which is the point.
+      reject(&S3.copy_object/2)
+
+      assert {:error, {:invalid_max_checksum_changes, "0"}} =
+               Repair.apply_plan(tampered, approval: plan.approval)
+
+      refute_enqueued(worker: SyncWorker)
     end
 
     test "refuses a plan whose targets were edited after it was approved" do
@@ -252,18 +333,15 @@ defmodule Tuist.Registry.Swift.RepairTest do
     end
 
     test "backs the archive up before enqueuing a rebuild that may replace it" do
-      expect(Metadata, :get_package, 2, fn _scope, _name -> {:ok, catalog("1.0.0", "abc")} end)
+      stub(Metadata, :get_package, fn _scope, _name -> {:ok, catalog("1.0.0", "abc")} end)
 
-      expect(S3, :head_object, fn "registry/swift/apple/parser/1.0.0/source_archive.zip" ->
-        {:ok, %{"x-amz-meta-sha256" => "def"}}
+      # Still unresolvable at apply time, and no backup exists yet.
+      stub(S3, :head_object, fn
+        "registry/swift/apple/parser/1.0.0/source_archive.zip" -> {:ok, %{"x-amz-meta-sha256" => "def"}}
+        "registry/backups/swift/apple/parser/1.0.0/abc/source_archive.zip" -> {:error, :not_found}
       end)
 
       {:ok, plan} = Repair.plan([{"apple/parser", "1.0.0"}])
-
-      # No backup exists yet for this published checksum, so one is taken.
-      expect(S3, :head_object, fn "registry/backups/swift/apple/parser/1.0.0/abc/source_archive.zip" ->
-        {:error, :not_found}
-      end)
 
       expect(S3, :copy_object, fn source, destination ->
         assert source == "registry/swift/apple/parser/1.0.0/source_archive.zip"
@@ -307,7 +385,7 @@ defmodule Tuist.Registry.Swift.RepairTest do
 
     test "stops a target whose published checksum moved between the plan and the apply" do
       expect(Metadata, :get_package, fn _scope, _name -> {:ok, catalog("1.0.0", "abc")} end)
-      expect(S3, :head_object, fn _key -> {:error, :not_found} end)
+      stub(S3, :head_object, fn _key -> {:error, :not_found} end)
 
       {:ok, plan} = Repair.plan([{"apple/parser", "1.0.0"}])
 
@@ -393,8 +471,17 @@ defmodule Tuist.Registry.Swift.RepairTest do
         end)
       end)
 
-      expect(Lock, :try_acquire, fn {:package, "apple", "parser"}, _ttl -> {:ok, :acquired} end)
-      expect(Lock, :release, fn {:package, "apple", "parser"} -> :ok end)
+      # The whole restore is fenced against release execution for this version,
+      # and the catalog write additionally takes the package lock.
+      expect(Lock, :try_acquire, 2, fn
+        {:release, "apple", "parser", "1.0.0"}, _ttl -> {:ok, :acquired}
+        {:package, "apple", "parser"}, _ttl -> {:ok, :acquired}
+      end)
+
+      expect(Lock, :release, 2, fn
+        {:release, "apple", "parser", "1.0.0"} -> :ok
+        {:package, "apple", "parser"} -> :ok
+      end)
 
       stub(S3, :head_object, fn _key -> {:ok, %{}} end)
       stub(S3, :copy_object, fn _source, _destination -> :ok end)
@@ -414,12 +501,48 @@ defmodule Tuist.Registry.Swift.RepairTest do
       stub(Metadata, :get_package, fn "apple", "parser" -> {:ok, catalog("1.0.0", "rebuilt")} end)
       stub(S3, :head_object, fn _key -> {:ok, %{}} end)
       stub(S3, :copy_object, fn _source, _destination -> :ok end)
-      stub(Lock, :try_acquire, fn _key, _ttl -> {:error, :already_locked} end)
+
+      stub(Lock, :try_acquire, fn
+        {:release, _scope, _name, _version}, _ttl -> {:ok, :acquired}
+        {:package, _scope, _name}, _ttl -> {:error, :already_locked}
+      end)
 
       reject(&Metadata.put_package/3)
 
       assert {:error, {:restore_incomplete, :catalog_not_updated, :package_lock_contended}} =
                Repair.restore("apple/parser", "1.0.0", "abc")
+    end
+
+    # A release worker uploads the archive and writes the catalog under this
+    # same key, so a restore that ran alongside one could return success with
+    # rebuilt bytes, or be undone by it.
+    test "refuses to restore while a release for the version is in flight" do
+      stub(Lock, :try_acquire, fn {:release, "apple", "parser", "1.0.0"}, _ttl ->
+        {:error, :already_locked}
+      end)
+
+      reject(&S3.copy_object/2)
+      reject(&Metadata.put_package/3)
+
+      assert {:error, :release_in_flight} = Repair.restore("apple/parser", "1.0.0", "abc")
+    end
+
+    # The first cancellation is a point-in-time snapshot; an executing SyncWorker
+    # can insert a ReleaseWorker after it, and an Oban insert is not blocked by
+    # the fence. Sweeping again before releasing catches those.
+    test "sweeps for repair jobs again before releasing the fence" do
+      stub(Metadata, :get_package, fn "apple", "parser" -> {:ok, catalog("1.0.0", "rebuilt")} end)
+      stub(S3, :head_object, fn _key -> {:ok, %{}} end)
+      stub(S3, :copy_object, fn _source, _destination -> :ok end)
+      stub(Metadata, :put_package, fn _scope, _name, _metadata -> :ok end)
+
+      # Enqueued after the restore began, standing in for a SyncWorker that was
+      # already executing when the first sweep ran.
+      {:ok, job} =
+        Registry.force_resync_swift_package_version("apple/parser", "1.0.0", allow_checksum_change: true)
+
+      assert {:ok, %{cancelled_jobs: 1}} = Repair.restore("apple/parser", "1.0.0", "abc")
+      assert %{state: "cancelled"} = Tuist.Repo.reload!(job)
     end
 
     test "leaves a repair job for a different version alone" do

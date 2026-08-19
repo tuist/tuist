@@ -54,7 +54,9 @@ defmodule Tuist.Registry.Swift.Repair do
   @max_batch 100
   @default_max_checksum_changes 10
 
-  # Same lock and bounds the release worker uses for a package's catalog entry.
+  # Same locks and bounds the release worker uses: `{:release, ...}` for a
+  # version's whole publication, `{:package, ...}` for its catalog entry.
+  @release_lock_ttl_seconds 1_800
   @metadata_lock_ttl_seconds 300
   @metadata_lock_max_attempts 5
   @metadata_lock_backoff_ms 200
@@ -87,9 +89,10 @@ defmodule Tuist.Registry.Swift.Repair do
   through the explicit override the release worker requires.
   """
   def plan(targets, opts \\ []) when is_list(targets) do
-    with {:ok, normalized} <- normalize_targets(targets) do
+    with {:ok, max_checksum_changes} <-
+           validate_max_checksum_changes(Keyword.get(opts, :max_checksum_changes, @default_max_checksum_changes)),
+         {:ok, normalized} <- normalize_targets(targets) do
       inspected = Enum.map(normalized, &inspect_target/1)
-      max_checksum_changes = Keyword.get(opts, :max_checksum_changes, @default_max_checksum_changes)
 
       plan = %{
         targets: inspected,
@@ -151,25 +154,8 @@ defmodule Tuist.Registry.Swift.Repair do
   """
   def restore(repository_full_handle, version, checksum, _opts \\ []) do
     with {:ok, target} <- normalize_target({repository_full_handle, version}),
-         {:ok, cancelled} <- cancel_repair_jobs(target),
-         {:ok, metadata} <- Metadata.get_package(target.scope, target.name),
-         :ok <- ensure_release_in_catalog(target, metadata),
-         :ok <- ensure_backup_exists(target, checksum),
-         :ok <- S3.copy_object(backup_archive_key(target, checksum), archive_key(target)),
-         :ok <- write_restored_checksum(target, checksum) do
-      Logger.warning(
-        "Restored #{target.scope}/#{target.name}@#{target.version} to checksum #{checksum}, " <>
-          "cancelling #{cancelled} outstanding repair job(s)"
-      )
-
-      {:ok,
-       %{
-         scope: target.scope,
-         name: target.name,
-         version: target.version,
-         checksum: checksum,
-         cancelled_jobs: cancelled
-       }}
+         {:ok, result} <- with_release_fence(target, fn -> do_restore(target, checksum) end) do
+      {:ok, result}
     else
       # The archive is back but the catalog still advertises the checksum the
       # repair produced, so the version resolves to a mismatch until this is
@@ -185,6 +171,42 @@ defmodule Tuist.Registry.Swift.Repair do
 
       {:error, _reason} = error ->
         error
+    end
+  end
+
+  # Runs entirely inside the release fence, so no release for this version can
+  # interleave between the archive copy and the catalog write.
+  #
+  # Cancellation runs twice, and the second pass is the load-bearing one. The
+  # first is a point-in-time snapshot: a `SyncWorker` that was already executing
+  # can insert a `ReleaseWorker` after it, and an Oban insert is not blocked by
+  # the fence even though running the job is. Sweeping again before the fence is
+  # released catches anything inserted while the restore was in progress.
+  # Anything inserted after that is a new repair request rather than a leftover
+  # of the one being rolled back.
+  defp do_restore(target, checksum) do
+    with {:ok, cancelled_before} <- cancel_repair_jobs(target),
+         {:ok, metadata} <- Metadata.get_package(target.scope, target.name),
+         :ok <- ensure_release_in_catalog(target, metadata),
+         :ok <- ensure_backup_exists(target, checksum),
+         :ok <- S3.copy_object(backup_archive_key(target, checksum), archive_key(target)),
+         :ok <- write_restored_checksum(target, checksum),
+         {:ok, cancelled_after} <- cancel_repair_jobs(target) do
+      cancelled = cancelled_before + cancelled_after
+
+      Logger.warning(
+        "Restored #{target.scope}/#{target.name}@#{target.version} to checksum #{checksum}, " <>
+          "cancelling #{cancelled} outstanding repair job(s)"
+      )
+
+      {:ok,
+       %{
+         scope: target.scope,
+         name: target.name,
+         version: target.version,
+         checksum: checksum,
+         cancelled_jobs: cancelled
+       }}
     end
   end
 
@@ -278,29 +300,84 @@ defmodule Tuist.Registry.Swift.Repair do
     Map.merge(target, %{status: :skipped, reason: :already_consistent})
   end
 
+  # The whole check-back-up-enqueue sequence runs under the same
+  # `{:release, scope, name, version}` lock `ReleaseWorker.perform/1` holds for
+  # an entire release. That is what makes the classification re-read below
+  # meaningful: without it the reading is just a narrower race, since a release
+  # could land between the read and the enqueue. It also serializes two
+  # concurrent applies for the same version, which is what kept the
+  # check-then-copy in `back_up_archive/1` from being atomic.
   defp repair_target(target) do
-    with :ok <- ensure_published_checksum_unchanged(target),
-         :ok <- back_up_archive(target),
-         {:ok, _job} <-
-           Registry.force_resync_swift_package_version(
-             target.repository_full_handle,
-             target.version,
-             allow_checksum_change: target.status == :unresolvable
-           ) do
-      Map.put(target, :status, :enqueued)
-    else
+    case with_release_fence(target, fn -> attempt_repair(target) end) do
+      {:ok, repaired} -> repaired
+      {:skip, reason} -> Map.merge(target, %{status: :skipped, reason: reason})
       {:error, reason} -> Map.merge(target, %{status: :failed, reason: reason})
     end
   end
 
-  # The plan may have been read minutes ago. Re-reading the published checksum
-  # immediately before the backup is what keeps the backup and the enqueued
-  # rebuild talking about the same bytes.
-  defp ensure_published_checksum_unchanged(target) do
-    case published_checksum(target) do
-      {:ok, checksum} when checksum == target.published_checksum -> :ok
-      {:ok, checksum} -> {:error, {:published_checksum_moved, target.published_checksum, checksum}}
-      {:error, reason} -> {:error, reason}
+  defp attempt_repair(target) do
+    with {:ok, current} <- refreshed_target(target),
+         :ok <- back_up_archive(current),
+         {:ok, _job} <-
+           Registry.force_resync_swift_package_version(
+             current.repository_full_handle,
+             current.version,
+             allow_checksum_change: current.status == :unresolvable
+           ) do
+      {:ok, Map.put(current, :status, :enqueued)}
+    end
+  end
+
+  # The permission to change a published checksum is granted from this reading,
+  # never from the plan's. The plan's classification can be minutes old, and it
+  # has two halves: the catalog checksum and the stored archive. Re-reading only
+  # the catalog half left the dangerous case open — if anything restored the
+  # archive to the published checksum in between, the version is healthy again
+  # while the catalog checksum is unchanged, so a stale `:unresolvable` would
+  # have carried the override into replacing a perfectly good published archive.
+  # That is the exact harm this module exists to prevent.
+  defp refreshed_target(target) do
+    current = inspect_target(target)
+
+    cond do
+      current.status == :uninspectable ->
+        {:error, {:target_uninspectable, Map.get(current, :reason)}}
+
+      current.published_checksum != target.published_checksum ->
+        {:error, {:published_checksum_moved, target.published_checksum, current.published_checksum}}
+
+      # Repaired by something else since the plan was read. Nothing to do, and
+      # nothing that would justify replacing its bytes.
+      current.status == :published ->
+        {:skip, :already_consistent}
+
+      current.status != target.status ->
+        {:error, {:target_state_moved, target.status, current.status}}
+
+      true ->
+        {:ok, current}
+    end
+  end
+
+  # Mutual exclusion with release execution for one version. `ReleaseWorker`
+  # takes this same key for the whole of `do_sync_release/5`, which covers both
+  # the archive upload and the catalog write, so holding it here is what keeps a
+  # release from interleaving with a repair or a rollback of the same version.
+  # `Lock.try_acquire/2` is an `If-None-Match: *` conditional create, so it is a
+  # real mutex rather than a read-then-write check.
+  defp with_release_fence(target, fun) do
+    lock_key = {:release, target.scope, target.name, target.version}
+
+    case Lock.try_acquire(lock_key, @release_lock_ttl_seconds) do
+      {:ok, :acquired} ->
+        try do
+          fun.()
+        after
+          Lock.release(lock_key)
+        end
+
+      {:error, :already_locked} ->
+        {:error, :release_in_flight}
     end
   end
 
@@ -555,15 +632,26 @@ defmodule Tuist.Registry.Swift.Repair do
   # key falls back to the default instead of matching a catch-all clause and
   # skipping the gate entirely.
   defp ensure_within_checksum_change_threshold(%{targets: targets} = plan) do
-    threshold = Map.get(plan, :max_checksum_changes, @default_max_checksum_changes)
-    count = count_status(targets, :unresolvable)
+    with {:ok, threshold} <-
+           validate_max_checksum_changes(Map.get(plan, :max_checksum_changes, @default_max_checksum_changes)) do
+      count = count_status(targets, :unresolvable)
 
-    if count > threshold do
-      {:error, {:too_many_checksum_changes, count, threshold}}
-    else
-      :ok
+      if count > threshold do
+        {:error, {:too_many_checksum_changes, count, threshold}}
+      else
+        :ok
+      end
     end
   end
+
+  # Validated at both ends, and never coerced. Elixir orders every number below
+  # every binary and atom, so `count > "10"` and `count > nil` are both false:
+  # a threshold typed as a string, or a key present with a nil value, would
+  # silently disable the abort gate for every batch it guards rather than
+  # erroring. A gate that fails open is worse than no gate, because the plan
+  # still reads as though it has one.
+  defp validate_max_checksum_changes(value) when is_integer(value) and value >= 0, do: {:ok, value}
+  defp validate_max_checksum_changes(value), do: {:error, {:invalid_max_checksum_changes, value}}
 
   defp count_status(targets, status), do: Enum.count(targets, &(&1.status == status))
 
