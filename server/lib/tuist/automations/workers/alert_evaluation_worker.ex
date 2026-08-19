@@ -38,7 +38,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       project_id
       |> Automations.list_alerts()
       |> Enum.filter(fn alert ->
-        alert.enabled and Alert.scoped_evaluation?(alert) and
+        alert.kind == "standard" and alert.enabled and Alert.scoped_evaluation?(alert) and
           Alert.cadence_seconds(alert.cadence) == cadence_seconds and
           trigger_window_supported?(alert)
       end)
@@ -50,6 +50,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     case Automations.get_alert(alert_id) do
       {:ok, alert} ->
         cond do
+          Alert.manual?(alert) ->
+            :ok
+
           not alert.enabled ->
             :ok
 

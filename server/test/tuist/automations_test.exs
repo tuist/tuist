@@ -35,6 +35,52 @@ defmodule Tuist.AutomationsTest do
       project = ProjectsFixtures.project_fixture(with_default_alert: true)
       assert [%{name: "Flaky test detection"}] = Automations.list_alerts(project.id)
     end
+
+    test "excludes the Manual automation" do
+      project = ProjectsFixtures.project_fixture()
+      standard = AutomationsFixtures.automation_alert_fixture(project: project)
+      {:ok, _manual} = Automations.get_or_create_manual_alert(project.id)
+
+      assert [%{id: id}] = Automations.list_alerts(project.id)
+      assert id == standard.id
+    end
+  end
+
+  describe "get_or_create_manual_alert/1" do
+    test "creates the Manual alert on first call and returns the same row after" do
+      project = ProjectsFixtures.project_fixture()
+
+      assert {:ok, %Alert{} = alert} = Automations.get_or_create_manual_alert(project.id)
+      assert alert.kind == "manual"
+      assert alert.name == "Manual"
+      assert alert.enabled
+      assert alert.monitor_type == nil
+
+      assert {:ok, again} = Automations.get_or_create_manual_alert(project.id)
+      assert again.id == alert.id
+
+      manual_rows =
+        Repo.all(from(a in Alert, where: a.project_id == ^project.id, where: a.kind == "manual"))
+
+      assert [%{id: id}] = manual_rows
+      assert id == alert.id
+    end
+
+    test "returns the surviving row when a concurrent insert wins the race" do
+      project = ProjectsFixtures.project_fixture()
+      {:ok, existing} = Automations.get_or_create_manual_alert(project.id)
+
+      # Simulate the race: the pre-insert read misses the row a concurrent
+      # writer just committed, forcing this call down the on_conflict insert
+      # path against the partial unique index.
+      expect(Repo, :get_by, fn Alert, _clauses -> nil end)
+
+      assert {:ok, alert} = Automations.get_or_create_manual_alert(project.id)
+      assert alert.id == existing.id
+
+      assert [_only_row] =
+               Repo.all(from(a in Alert, where: a.project_id == ^project.id, where: a.kind == "manual"))
+    end
   end
 
   describe "get_alert/1" do
@@ -98,6 +144,17 @@ defmodule Tuist.AutomationsTest do
       assert updated.baseline_established_at == automation.baseline_established_at
       assert updated.baseline_generation == automation.baseline_generation
     end
+
+    test "refuses to update the Manual automation" do
+      project = ProjectsFixtures.project_fixture()
+      {:ok, manual} = Automations.get_or_create_manual_alert(project.id)
+
+      assert {:error, :manual_alert} = Automations.update_alert(manual, %{"enabled" => false})
+
+      assert {:ok, reloaded} = Automations.get_alert(manual.id)
+      assert reloaded.enabled
+      assert reloaded.kind == "manual"
+    end
   end
 
   describe "delete_alert/1" do
@@ -105,6 +162,14 @@ defmodule Tuist.AutomationsTest do
       automation = AutomationsFixtures.automation_alert_fixture()
       assert {:ok, _} = Automations.delete_alert(automation)
       assert {:error, :not_found} = Automations.get_alert(automation.id)
+    end
+
+    test "refuses to delete the Manual automation" do
+      project = ProjectsFixtures.project_fixture()
+      {:ok, manual} = Automations.get_or_create_manual_alert(project.id)
+
+      assert {:error, :manual_alert} = Automations.delete_alert(manual)
+      assert {:ok, _still_there} = Automations.get_alert(manual.id)
     end
   end
 
@@ -206,6 +271,15 @@ defmodule Tuist.AutomationsTest do
              ] = all_enqueued(worker: AlertEvaluationWorker)
 
       assert project_id == project.id
+    end
+
+    test "ignores the Manual automation" do
+      project = ProjectsFixtures.project_fixture()
+      {:ok, _manual} = Automations.get_or_create_manual_alert(project.id)
+
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [Ecto.UUID.generate()])
+
+      assert [] = all_enqueued(worker: AlertEvaluationWorker)
     end
 
     test "leaves calendar-window alerts and rolling baselines to the scheduler" do
@@ -481,6 +555,16 @@ defmodule Tuist.AutomationsTest do
       other_project = ProjectsFixtures.project_fixture()
       test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
       test_updated_alert(other_project)
+
+      reject(&ActionExecutor.execute_actions/3)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+    end
+
+    test "never dispatches to the Manual automation" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      {:ok, _manual} = Automations.get_or_create_manual_alert(project.id)
 
       reject(&ActionExecutor.execute_actions/3)
 

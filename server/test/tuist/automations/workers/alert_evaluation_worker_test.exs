@@ -997,6 +997,18 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     end
   end
 
+  describe "manual alerts" do
+    test "no-ops for the Manual automation without evaluating or establishing a baseline" do
+      manual = AutomationsFixtures.manual_automation_alert_fixture()
+
+      reject(&Automations.establish_alert_baseline/2)
+      reject(&Automations.list_active_alert_events/1)
+      reject(&ActionExecutor.execute_actions/3)
+
+      assert :ok = run(manual.id)
+    end
+  end
+
   describe "default-branch validation gate" do
     test "skips trigger actions for a test case with no successful default-branch run" do
       automation =

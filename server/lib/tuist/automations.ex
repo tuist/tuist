@@ -40,9 +40,11 @@ defmodule Tuist.Automations do
     optimize_aggregation_in_order: 1
   ]
 
+  # The per-project Manual automation is an internal hold owner, not a
+  # user-managed automation, so listings only return standard alerts.
   def list_alerts(project_id) do
     Alert
-    |> where(project_id: ^project_id)
+    |> where(project_id: ^project_id, kind: "standard")
     |> order_by(asc: :inserted_at)
     |> Repo.all()
   end
@@ -79,6 +81,34 @@ defmodule Tuist.Automations do
       recovery_actions: [%{"type" => "remove_label", "label" => "flaky"}]
     }
   end
+
+  @doc """
+  Returns the project's Manual automation, creating it on first use.
+
+  Race-safe: two concurrent first calls contend on the partial unique index
+  over `(project_id) WHERE kind = 'manual'`, so the insert uses
+  `on_conflict: :nothing` against it and the re-select returns the single
+  surviving row either way.
+  """
+  def get_or_create_manual_alert(project_id) do
+    case Repo.get_by(Alert, project_id: project_id, kind: "manual") do
+      %Alert{} = alert ->
+        {:ok, alert}
+
+      nil ->
+        with {:ok, _inserted} <-
+               %Alert{}
+               |> Alert.manual_changeset(%{project_id: project_id})
+               |> Repo.insert(
+                 on_conflict: :nothing,
+                 conflict_target: {:unsafe_fragment, "(project_id) WHERE kind = 'manual'"}
+               ) do
+          {:ok, Repo.get_by!(Alert, project_id: project_id, kind: "manual")}
+        end
+    end
+  end
+
+  def update_alert(%Alert{kind: "manual"}, _attrs), do: {:error, :manual_alert}
 
   def update_alert(%Alert{id: alert_id}, attrs) do
     {:ok, result} =
@@ -140,6 +170,8 @@ defmodule Tuist.Automations do
     end
   end
 
+  def delete_alert(%Alert{kind: "manual"}), do: {:error, :manual_alert}
+
   def delete_alert(%Alert{} = alert) do
     Repo.delete(alert)
   end
@@ -189,6 +221,7 @@ defmodule Tuist.Automations do
         Repo.all(
           from(a in Alert,
             where: a.project_id == ^project_id,
+            where: a.kind == "standard",
             where: a.enabled == true,
             where: a.monitor_type in ^@flaky_monitor_types
           )
@@ -828,6 +861,7 @@ defmodule Tuist.Automations do
     Repo.all(
       from(a in Alert,
         where: a.project_id == ^project_id,
+        where: a.kind == "standard",
         where: a.monitor_type == "test_updated",
         where: a.enabled == true
       )

@@ -10,6 +10,7 @@ defmodule Tuist.Automations.Alerts.Alert do
   @recovery_ledger_monitor_types ~w(flakiness_rate flaky_run_count reliability_rate)
   @monitor_types @recovery_ledger_monitor_types ++ @event_driven_monitor_types
   @comparisons ~w(gte gt lt lte)
+  @valid_kinds ~w(standard manual)
   @valid_states ~w(enabled muted skipped)
   @test_updated_events ~w(
     marked_flaky
@@ -90,11 +91,20 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   def scoped_evaluation?(_alert), do: false
 
+  @doc """
+  The per-project Manual automation (`kind: "manual"`) owns human-placed
+  holds. It has no monitor definition, is excluded from every evaluation
+  entry point, and cannot be edited or deleted through the public context
+  functions.
+  """
+  def manual?(%__MODULE__{kind: kind}), do: kind == "manual"
+
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
 
   schema "automation_alerts" do
     field :name, :string
+    field :kind, :string, default: "standard"
     field :enabled, :boolean, default: true
     field :monitor_type, :string
     field :trigger_config, :map, default: %{}
@@ -131,6 +141,7 @@ defmodule Tuist.Automations.Alerts.Alert do
     |> cast(attrs, [
       :project_id,
       :name,
+      :kind,
       :enabled,
       :monitor_type,
       :trigger_config,
@@ -142,12 +153,39 @@ defmodule Tuist.Automations.Alerts.Alert do
       :baseline_established_at
     ])
     |> validate_required([:project_id, :name, :monitor_type])
+    |> validate_inclusion(:kind, @valid_kinds)
+    |> validate_kind_not_manual()
     |> validate_inclusion(:monitor_type, @monitor_types)
     |> validate_cadence()
     |> validate_actions(:trigger_actions, require_present: true)
     |> validate_actions(:recovery_actions, require_present: false)
     |> validate_config()
     |> foreign_key_constraint(:project_id)
+  end
+
+  @doc """
+  Changeset for the per-project Manual automation row. It carries no monitor
+  definition or actions — the holds it owns are placed directly by humans —
+  so the standard monitor validations do not apply.
+  """
+  def manual_changeset(alert \\ %__MODULE__{}, attrs) do
+    alert
+    |> cast(attrs, [:project_id])
+    |> put_change(:kind, "manual")
+    |> put_change(:name, "Manual")
+    |> put_change(:enabled, true)
+    |> validate_required([:project_id])
+    |> foreign_key_constraint(:project_id)
+  end
+
+  # The Manual row is only ever created through `manual_changeset/2`; a
+  # standard changeset must not be able to flip a row into the manual kind
+  # and bypass its guards.
+  defp validate_kind_not_manual(changeset) do
+    case fetch_change(changeset, :kind) do
+      {:ok, "manual"} -> add_error(changeset, :kind, "cannot be manual")
+      _ -> changeset
+    end
   end
 
   defp validate_cadence(changeset) do
