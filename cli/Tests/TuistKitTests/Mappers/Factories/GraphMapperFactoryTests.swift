@@ -527,7 +527,11 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             XCTAssertEqual(preloadMapperTypes, generationMapperTypes)
         }
 
-        func test_binaryCacheWarmingPreload_appliesFrameworkSearchPathsBeforeCacheHashesAreComputed() {
+        /// `tuist cache` hashes the graph this pipeline produces to derive the keys artifacts are stored
+        /// under, and `tuist generate` reproduces that shape through `CacheHashingGraphMapper`'s normalization
+        /// mappers. Framework search paths are applied by neither, so the two stay aligned; applying them on
+        /// one side only makes every lookup miss. See `hashingGraphNormalizationMappers` for why they are out.
+        func test_binaryCacheWarmingPreload_doesNotApplyFrameworkSearchPathsBeforeCacheHashesAreComputed() {
             // Given
             let targets: Set<TargetQuery> = [.named("MyTarget")]
 
@@ -538,7 +542,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertContainsElementOfType(got, FrameworkSearchPathsGraphMapper.self)
+            XCTAssertFalse(got.contains { $0 is FrameworkSearchPathsGraphMapper })
         }
 
         func test_generation_preserves_cache_hashing_graph_before_cache_replacement_without_focused_targets() {
