@@ -3,6 +3,7 @@ import Foundation
 import struct TSCUtility.Version
 import TuistConfig
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 
@@ -48,24 +49,47 @@ public struct GraphLinter: GraphLinting {
     ) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         try await issues.append(
-            contentsOf: graphTraverser.projects.concurrentMap { _, project async throws -> [LintingIssue] in
-                try await projectLinter.lint(project)
+            contentsOf: measure("projectLinter.lint") {
+                try await graphTraverser.projects.concurrentMap { _, project async throws -> [LintingIssue] in
+                    try await projectLinter.lint(project)
+                }
+                .flatMap { $0 }
             }
-            .flatMap { $0 }
         )
         try await issues.append(contentsOf: lintDependencies(
             graphTraverser: graphTraverser,
             configGeneratedProjectOptions: configGeneratedProjectOptions
         ))
-        issues.append(contentsOf: lintMismatchingConfigurations(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintWatchBundleIndentifiers(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintCodeCoverageMode(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintSchemesUnknownTargets(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintSchemesRunAction(graphTraverser: graphTraverser))
+        await issues.append(contentsOf: measure("lintMismatchingConfigurations") {
+            lintMismatchingConfigurations(graphTraverser: graphTraverser)
+        })
+        await issues.append(contentsOf: measure("lintWatchBundleIndentifiers") {
+            lintWatchBundleIndentifiers(graphTraverser: graphTraverser)
+        })
+        await issues.append(contentsOf: measure("lintCodeCoverageMode") {
+            lintCodeCoverageMode(graphTraverser: graphTraverser)
+        })
+        await issues.append(contentsOf: measure("lintSchemesUnknownTargets") {
+            lintSchemesUnknownTargets(graphTraverser: graphTraverser)
+        })
+        await issues.append(contentsOf: measure("lintSchemesRunAction") {
+            lintSchemesRunAction(graphTraverser: graphTraverser)
+        })
         return issues.promotingWarnings(with: configGeneratedProjectOptions.generationOptions.warningsAsErrors)
     }
 
     // MARK: - Fileprivate
+
+    /// Times an individual check so the linter's cost is attributable in the session log the same way the graph
+    /// mappers that run just before it are.
+    private func measure<T>(_ name: String, _ check: () async throws -> T) async rethrows -> T {
+        let startedAt = DispatchTime.now().uptimeNanoseconds
+        defer {
+            let duration = Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000_000
+            Logger.current.debug("Lint check \(name) finished in \(String(format: "%.3f", duration))s")
+        }
+        return try await check()
+    }
 
     private func lintSchemesUnknownTargets(graphTraverser: GraphTraversing) -> [LintingIssue] {
         let targets = graphTraverser.targets()
@@ -163,16 +187,30 @@ public struct GraphLinter: GraphLinting {
     ) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        issues.append(contentsOf: lintDuplicatedProductNamesInDependencies(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintDependencyRelationships(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintLinkableDependencies(graphTraverser: graphTraverser))
-        issues.append(contentsOf: staticProductsLinter.lint(
-            graphTraverser: graphTraverser,
-            configGeneratedProjectOptions: configGeneratedProjectOptions
-        ))
-        try await issues.append(contentsOf: lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser))
-        await issues.append(contentsOf: lintPackageDependencies(graphTraverser: graphTraverser))
-        try await issues.append(contentsOf: lintAppClip(graphTraverser: graphTraverser))
+        await issues.append(contentsOf: measure("lintDuplicatedProductNamesInDependencies") {
+            lintDuplicatedProductNamesInDependencies(graphTraverser: graphTraverser)
+        })
+        await issues.append(contentsOf: measure("lintDependencyRelationships") {
+            lintDependencyRelationships(graphTraverser: graphTraverser)
+        })
+        await issues.append(contentsOf: measure("lintLinkableDependencies") {
+            lintLinkableDependencies(graphTraverser: graphTraverser)
+        })
+        await issues.append(contentsOf: measure("staticProductsLinter.lint") {
+            staticProductsLinter.lint(
+                graphTraverser: graphTraverser,
+                configGeneratedProjectOptions: configGeneratedProjectOptions
+            )
+        })
+        try await issues.append(contentsOf: measure("lintPrecompiledFrameworkDependencies") {
+            try await lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser)
+        })
+        await issues.append(contentsOf: measure("lintPackageDependencies") {
+            await lintPackageDependencies(graphTraverser: graphTraverser)
+        })
+        try await issues.append(contentsOf: measure("lintAppClip") {
+            try await lintAppClip(graphTraverser: graphTraverser)
+        })
 
         return issues
     }
