@@ -531,6 +531,10 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 			// before the VM boots (the whole shared quota volume's free space
 			// would be the wrong, far-too-large budget over a virtio-fs share).
 			writeCacheBudget(statusDir, r.Volumes.CapGiB, r.Volumes.CASGiB)
+			// Stage this host's Node name too, so the promote report can say
+			// which host published the HEAD it advances to. Attribution only —
+			// nothing in the promote path reads it back.
+			writeNodeName(statusDir, r.NodeName)
 		} else {
 			statusDir = ""
 		}

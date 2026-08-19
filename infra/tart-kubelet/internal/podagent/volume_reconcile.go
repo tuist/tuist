@@ -372,6 +372,29 @@ func writeBaseGeneration(statusDir string, generation int) {
 	_ = os.WriteFile(filepath.Join(statusDir, baseGenerationFile), []byte(strconv.Itoa(generation)), 0o644)
 }
 
+// nodeNameFile carries this host's Kubernetes Node name into the writable status
+// share. The guest relays it with its promote report, which is how a HEAD row
+// records the host that published it — the only attribution the fleet has for a
+// generation once it stands. It is the Node name rather than the Pod name
+// deliberately: the Pod is gone minutes later, whereas the Node name is what the
+// `tuist.dev/cache-master-<account>` advertisements and the volume affinities are
+// keyed on, so a HEAD can be traced back to the host still holding its master.
+//
+// Staged at VM create alongside the branch budget, not at materialize: it is a
+// property of the host, constant for the VM's whole life, and known before
+// dispatch binds the VM to an account.
+const nodeNameFile = "node-name"
+
+// writeNodeName stages the host's Node name for the guest to relay at promote.
+// Best-effort, like every other host to guest signal here: an unstaged name
+// leaves the attribution field empty, which is exactly the status quo.
+func writeNodeName(statusDir, nodeName string) {
+	if statusDir == "" || nodeName == "" {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(statusDir, nodeNameFile), []byte(nodeName), 0o644)
+}
+
 // promoteResultFile carries the outcome of this job's HEAD fast-forward, written
 // by the guest after the bump. It distinguishes the three cases the host must not
 // conflate: "accepted <generation>" (200 — install the branch as the local master

@@ -109,7 +109,7 @@ defmodule TuistWeb.RunnersController do
   # can only advance the HEAD of the account it actually ran.
   def report_volume_head(conn, params) do
     digest = Map.get(params, "tree_digest", "")
-    node = Map.get(params, "node_name", "")
+    node = node_name(params)
     base_generation = parse_base_generation(Map.get(params, "base_generation"))
 
     with {:ok, token} <- bearer_token(conn),
@@ -159,6 +159,25 @@ defmodule TuistWeb.RunnersController do
     case Map.get(params, "unverifiable_digest") do
       digest when is_binary(digest) -> digest
       _ -> nil
+    end
+  end
+
+  # The Node name of the host that published this HEAD, for attribution only —
+  # nothing in the fast-forward reads it, so a name that does not check out is
+  # dropped rather than failing the promote.
+  #
+  # Checked against the shape a Kubernetes Node name can have rather than
+  # truncated: the column is a varchar(255) and the body comes from a VM running
+  # customer job code, so an over-long value would otherwise raise on insert and
+  # lose an otherwise valid promote. Missing, malformed or non-binary all read as
+  # unreported, which is what every row held before the guest began sending it.
+  defp node_name(params) do
+    case Map.get(params, "node_name") do
+      name when is_binary(name) ->
+        if Regex.match?(~r/\A[A-Za-z0-9.-]{1,253}\z/, name), do: name, else: ""
+
+      _ ->
+        ""
     end
   end
 
