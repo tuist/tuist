@@ -7,9 +7,13 @@ defmodule Tuist.AutomationsTest do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
+  alias Tuist.Automations.Holds
   alias Tuist.Automations.Workers.AlertEvaluationWorker
+  alias Tuist.FeatureFlags
+  alias Tuist.IngestRepo
   alias Tuist.Repo
   alias Tuist.Tests
+  alias Tuist.Tests.TestCase
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -155,6 +159,20 @@ defmodule Tuist.AutomationsTest do
       assert reloaded.enabled
       assert reloaded.kind == "manual"
     end
+
+    test "a disable and re-enable cycle leaves live claims untouched" do
+      project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      test_case_id = Ecto.UUID.generate()
+
+      {:ok, _} = Holds.place_claim(alert, test_case_id, %{state: "skipped"})
+
+      assert {:ok, disabled} = Automations.update_alert(alert, %{"enabled" => false})
+      assert [%{state: "skipped"}] = Holds.live_claims_for_alert(alert)
+
+      assert {:ok, _reenabled} = Automations.update_alert(disabled, %{"enabled" => true})
+      assert [%{state: "skipped", test_case_id: ^test_case_id}] = Holds.live_claims_for_alert(alert)
+    end
   end
 
   describe "delete_alert/1" do
@@ -170,6 +188,48 @@ defmodule Tuist.AutomationsTest do
 
       assert {:error, :manual_alert} = Automations.delete_alert(manual)
       assert {:ok, _still_there} = Automations.get_alert(manual.id)
+    end
+
+    test "releases live claims with re-derivation when the holds flag is on" do
+      project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      other_alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      co_claimed_id = clickhouse_test_case(project).id
+      solely_claimed_id = clickhouse_test_case(project).id
+
+      {:ok, _} = Holds.place_claim(alert, co_claimed_id, %{state: "skipped"})
+      {:ok, _} = Holds.place_claim(other_alert, co_claimed_id, %{state: "skipped"})
+      {:ok, _} = Holds.place_claim(alert, solely_claimed_id, %{state: "skipped"})
+
+      {:ok, _} =
+        Holds.derive_and_apply(project.id, [co_claimed_id, solely_claimed_id], alert_id: alert.id)
+
+      stub(FeatureFlags, :test_state_holds_enabled?, fn _project_id -> true end)
+
+      assert {:ok, _} = Automations.delete_alert(alert)
+      assert {:error, :not_found} = Automations.get_alert(alert.id)
+
+      assert Holds.live_claims_for_alert(alert) == []
+      assert [%{test_case_id: ^co_claimed_id}] = Holds.live_claims_for_alert(other_alert)
+
+      states = Tests.get_test_case_states(project.id, [co_claimed_id, solely_claimed_id])
+      assert states[co_claimed_id].state == "skipped"
+      assert states[solely_claimed_id].state == "enabled"
+    end
+
+    test "withdraws claims without touching state when the holds flag is off" do
+      project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      test_case_id = clickhouse_test_case(project).id
+
+      {:ok, _} = Holds.place_claim(alert, test_case_id, %{state: "skipped"})
+      {:ok, _} = Holds.derive_and_apply(project.id, [test_case_id], alert_id: alert.id)
+
+      assert {:ok, _} = Automations.delete_alert(alert)
+      assert {:error, :not_found} = Automations.get_alert(alert.id)
+
+      assert Holds.live_claims_for_alert(alert) == []
+      assert Tests.get_test_case_states(project.id, [test_case_id])[test_case_id].state == "skipped"
     end
   end
 
@@ -692,5 +752,13 @@ defmodule Tuist.AutomationsTest do
       # executor invocations before the guard trips on the 11th level.
       assert :counters.get(counter, 1) == 10
     end
+  end
+
+  # `update_test_case/3` resolves the test case from ClickHouse, so derivation
+  # tests need a real `test_cases` row, not just the fixture struct.
+  defp clickhouse_test_case(project) do
+    test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled")
+    IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+    test_case
   end
 end

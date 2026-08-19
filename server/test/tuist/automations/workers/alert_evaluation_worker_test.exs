@@ -4,15 +4,19 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
+  alias Tuist.Automations.Holds
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
+  alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Repo
   alias Tuist.Tests
+  alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup do
     # By default, treat every triggered test case as validated on the default
@@ -1084,6 +1088,161 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     end
   end
 
+  describe "claim release on recovery" do
+    @state_recovery_actions [
+      %{"type" => "change_state", "state" => "enabled"},
+      %{"type" => "send_slack", "channel" => "C1", "message" => "recovered"}
+    ]
+
+    defp recovery_alert(project, opts \\ []) do
+      AutomationsFixtures.automation_alert_fixture(
+        Keyword.merge(
+          [
+            project: project,
+            recovery_enabled: true,
+            recovery_config: %{"window_type" => "last_days", "window" => "1d"},
+            recovery_actions: @state_recovery_actions
+          ],
+          opts
+        )
+      )
+    end
+
+    defp expect_recovery_candidate(test_case_id) do
+      expect(FlakyTestsMonitor, :evaluate, fn _alert -> %{triggered: [], all: [test_case_id]} end)
+
+      expect(Automations, :list_active_alert_events, fn _id ->
+        [%{test_case_id: test_case_id, triggered_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)}]
+      end)
+    end
+
+    test "flag on: withdraws only its own claim and stays silent when another rule still claims the test" do
+      project = ProjectsFixtures.project_fixture()
+      alert = recovery_alert(project)
+      other_alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      test_case_id = clickhouse_test_case(project).id
+
+      {:ok, _} = Holds.place_claim(alert, test_case_id, %{state: "skipped"})
+      {:ok, _} = Holds.place_claim(other_alert, test_case_id, %{state: "skipped"})
+      {:ok, _} = Holds.derive_and_apply(project.id, [test_case_id], alert_id: alert.id)
+
+      stub(FeatureFlags, :test_state_holds_enabled?, fn _project_id -> true end)
+      expect_recovery_candidate(test_case_id)
+
+      # The release is shadowed by the other rule's claim, so no
+      # state-narrating recovery actions run, but the alert still re-arms.
+      expect(ActionExecutor, :execute_actions, fn actions, _alert, %{type: :test_case, id: ^test_case_id} ->
+        assert actions == []
+        :ok
+      end)
+
+      expect(Automations, :create_alert_event, fn %{test_case_id: ^test_case_id, status: "recovered"} -> :ok end)
+
+      assert :ok = run(alert.id)
+
+      assert Holds.live_claims_for_alert(alert) == []
+      assert [%{alert_id: other_alert_id}] = Holds.live_claims_for_alert(other_alert)
+      assert other_alert_id == other_alert.id
+      assert Tests.get_test_case_states(project.id, [test_case_id])[test_case_id].state == "skipped"
+    end
+
+    test "flag on: releases the sole claim, re-derives to enabled, and runs the remaining actions" do
+      project = ProjectsFixtures.project_fixture()
+      alert = recovery_alert(project)
+      test_case_id = clickhouse_test_case(project).id
+
+      {:ok, _} = Holds.place_claim(alert, test_case_id, %{state: "skipped"})
+      {:ok, _} = Holds.derive_and_apply(project.id, [test_case_id], alert_id: alert.id)
+
+      stub(FeatureFlags, :test_state_holds_enabled?, fn _project_id -> true end)
+      expect_recovery_candidate(test_case_id)
+
+      # The absolute change_state write is subsumed by the claim withdrawal;
+      # only the notification action remains.
+      expect(ActionExecutor, :execute_actions, fn actions, _alert, %{type: :test_case, id: ^test_case_id} ->
+        assert actions == [%{"type" => "send_slack", "channel" => "C1", "message" => "recovered"}]
+        :ok
+      end)
+
+      expect(Automations, :create_alert_event, fn %{test_case_id: ^test_case_id, status: "recovered"} -> :ok end)
+
+      assert :ok = run(alert.id)
+
+      assert Holds.live_claims_for_alert(alert) == []
+      assert Tests.get_test_case_states(project.id, [test_case_id])[test_case_id].state == "enabled"
+
+      {events, _meta} = Tests.list_test_case_events(test_case_id)
+      assert [latest | _] = events
+      assert latest.event_type == "unskipped"
+      assert latest.alert_id == alert.id
+    end
+
+    test "flag off: recovery actions run unchanged and the withdraw row still lands" do
+      project = ProjectsFixtures.project_fixture()
+      alert = recovery_alert(project)
+      test_case_id = Ecto.UUID.generate()
+
+      {:ok, _} = Holds.place_claim(alert, test_case_id, %{state: "muted"})
+
+      expect_recovery_candidate(test_case_id)
+
+      expect(ActionExecutor, :execute_actions, fn actions, _alert, %{type: :test_case, id: ^test_case_id} ->
+        assert actions == @state_recovery_actions
+        :ok
+      end)
+
+      expect(Automations, :create_alert_event, fn %{test_case_id: ^test_case_id, status: "recovered"} -> :ok end)
+
+      assert :ok = run(alert.id)
+
+      assert Holds.live_claims_for_alert(alert) == []
+    end
+
+    test "flag on: a candidate with a triggered event but no claim re-arms without crashing" do
+      project = ProjectsFixtures.project_fixture()
+      alert = recovery_alert(project)
+      test_case_id = Ecto.UUID.generate()
+
+      stub(FeatureFlags, :test_state_holds_enabled?, fn _project_id -> true end)
+      expect_recovery_candidate(test_case_id)
+
+      # Baseline-established candidate: the withdraw is a no-op and nothing
+      # changes state, so no actions run but re-arming proceeds.
+      expect(ActionExecutor, :execute_actions, fn actions, _alert, %{type: :test_case, id: ^test_case_id} ->
+        assert actions == []
+        :ok
+      end)
+
+      expect(Automations, :create_alert_event, fn %{test_case_id: ^test_case_id, status: "recovered"} -> :ok end)
+
+      assert :ok = run(alert.id)
+
+      assert Holds.live_claims_for_alert(alert) == []
+    end
+
+    test "flag on: recovery actions without change_state keep running unconditionally" do
+      project = ProjectsFixtures.project_fixture()
+
+      alert = recovery_alert(project, recovery_actions: [%{"type" => "remove_label", "label" => "flaky"}])
+
+      test_case_id = Ecto.UUID.generate()
+
+      stub(FeatureFlags, :test_state_holds_enabled?, fn _project_id -> true end)
+      expect_recovery_candidate(test_case_id)
+
+      # A label-only recovery has nothing state-narrating to gate on the
+      # derived-state change, so it behaves exactly as with the flag off.
+      expect(ActionExecutor, :execute_actions, fn actions, _alert, %{type: :test_case, id: ^test_case_id} ->
+        assert actions == [%{"type" => "remove_label", "label" => "flaky"}]
+        :ok
+      end)
+
+      expect(Automations, :create_alert_event, fn %{test_case_id: ^test_case_id, status: "recovered"} -> :ok end)
+
+      assert :ok = run(alert.id)
+    end
+  end
+
   test "dispatches lt-comparison alerts to the metric's evaluator" do
     automation =
       AutomationsFixtures.automation_alert_fixture(
@@ -1157,6 +1316,14 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     end)
 
     assert :ok = run(automation.id)
+  end
+
+  # `update_test_case/3` resolves the test case from ClickHouse, so derivation
+  # tests need a real `test_cases` row, not just the fixture struct.
+  defp clickhouse_test_case(project) do
+    test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled")
+    IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+    test_case
   end
 
   defp insert_test_case_runs(rows), do: IngestRepo.insert_all(TestCaseRun, rows)

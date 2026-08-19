@@ -7,9 +7,11 @@ defmodule Tuist.Automations do
   alias Tuist.Automations.Alerts.BaselineAttempt
   alias Tuist.Automations.Alerts.BaselineResult
   alias Tuist.Automations.Alerts.Event, as: AlertEvent
+  alias Tuist.Automations.Holds
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Repo
   alias Tuist.Tests
@@ -34,6 +36,7 @@ defmodule Tuist.Automations do
   @max_scoped_evaluation_window_seconds [minute: 15] |> to_timeout() |> div(1000)
   @baseline_evaluation_batch_size 2000
   @baseline_event_batch_size 500
+  @claim_release_chunk_size 100
   @baseline_enumeration_settings [
     max_threads: 1,
     max_memory_usage: 128 * 1024 * 1024,
@@ -172,8 +175,41 @@ defmodule Tuist.Automations do
 
   def delete_alert(%Alert{kind: "manual"}), do: {:error, :manual_alert}
 
+  @doc """
+  Deletes a standard alert, releasing its live claims first.
+
+  Tombstone-first: the alert is disabled before the release sweep so
+  evaluation stops picking it up and no new claims land mid-release. The
+  claims ledger has no FK to `automation_alerts`, so a crash mid-sweep
+  leaves orphaned claims for the reconciliation fold to treat as withdrawn.
+
+  Note this contrasts with merely disabling an alert, which leaves its
+  claims untouched (a paused rule must not un-quarantine its tests).
+  """
   def delete_alert(%Alert{} = alert) do
-    Repo.delete(alert)
+    with {:ok, alert} <- alert |> Ecto.Changeset.change(enabled: false) |> Repo.update() do
+      release_alert_claims(alert)
+      Repo.delete(alert)
+    end
+  end
+
+  # Withdrawing claims with the holds flag off is harmless ledger hygiene,
+  # but state writes must keep today's semantics, so re-derivation only runs
+  # when the flag is on for the project.
+  defp release_alert_claims(alert) do
+    holds_enabled? = FeatureFlags.test_state_holds_enabled?(alert.project_id)
+
+    alert
+    |> Holds.live_claims_for_alert()
+    |> Enum.map(& &1.test_case_id)
+    |> Enum.chunk_every(@claim_release_chunk_size)
+    |> Enum.each(fn test_case_ids ->
+      Enum.each(test_case_ids, &Holds.withdraw_claim(alert, &1))
+
+      if holds_enabled? do
+        {:ok, _} = Holds.derive_and_apply(alert.project_id, test_case_ids, alert_id: alert.id)
+      end
+    end)
   end
 
   @doc """
