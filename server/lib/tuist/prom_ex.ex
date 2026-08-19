@@ -79,6 +79,7 @@ defmodule Tuist.PromEx do
         Tuist.HTTP.PromExPlugin,
         Tuist.License.PromExPlugin,
         Tuist.Runners.PromExPlugin,
+        Tuist.Registry.Swift.PromExPlugin,
         TuistCommon.HTTP.TransportPromExPlugin,
         TuistCommon.GitHub.PromExPlugin
       ]

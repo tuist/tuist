@@ -543,6 +543,34 @@ swiftRegistrySync:
   # The legacy cache writer is disabled, so this deployment is the sole
   # registry synchronization writer.
   enabled: true
+  # Each package in a pass costs at least one tag-listing request, plus one per
+  # extra page of tags, so the batch size is what decides whether a pass fits
+  # inside the GitHub request budget. Production ran the old 1,000 default and
+  # exhausted the budget mid-pass, which the July 2026 postmortem records as
+  # 2,566 rate-limit failures and nine discarded passes in a little over six
+  # hours on a pod that stayed Ready throughout.
+  #
+  # Set explicitly rather than left to the (now also 600) release default, so
+  # the number production runs is visible next to the deployment that runs it.
+  # This is a static floor under the budget, not a measurement: replacing it
+  # with a limit derived from the live remaining quota and the measured
+  # per-package pagination cost is tracked separately.
+  syncLimit: "600"
+  # Authenticate as the Tuist GitHub App installation rather than as a user.
+  # The personal access token spends one user-scoped budget of 5,000 requests
+  # an hour across the whole catalog rotation and every release job, and it is
+  # that budget the July 2026 incident exhausted. This installation reports
+  # 12,500, the documented ceiling, and it is not shared with anything else.
+  #
+  # Given as the organization the App is installed on rather than as the
+  # numeric installation id, which the release resolves and caches.
+  #
+  # Verified against the production App before enabling: an installation token
+  # reads tags, repository contents, zipballs and git clone credentials for
+  # public repositories outside its own installation, which is what the mirror
+  # does for every package it syncs. The personal access token remains
+  # configured and is used automatically if the App cannot issue a token.
+  githubAppInstallation: tuist
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod
