@@ -6,6 +6,7 @@ defmodule TuistWeb.BillingLive do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Runners.Prepaid
+  alias Tuist.Runners.Trials
 
   @impl true
   def mount(params, _uri, %{assigns: %{current_user: current_user, selected_account: selected_account}} = socket) do
@@ -67,6 +68,7 @@ defmodule TuistWeb.BillingLive do
     socket =
       socket
       |> assign(:prepaid_runner_credit, Prepaid.balance(selected_account))
+      |> assign(:on_runner_trial, Trials.on_trial?(selected_account))
       |> assign(:estimated_next_payment, estimated_next_payment)
       |> assign(:plan, plan)
       |> assign(:next_charge_date, next_charge_date)

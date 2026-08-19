@@ -2,6 +2,18 @@
   <div data-part="header">
     <h1 data-part="title">{dgettext("dashboard_account", "Billing")}</h1>
   </div>
+  <.alert
+    :if={@on_runner_trial}
+    id="runner-trial-banner"
+    status="information"
+    title={dgettext("dashboard_account", "Runner trial")}
+    description={
+      dgettext(
+        "dashboard_account",
+        "Runner usage isn't billed while your trial is running. Everything else on your plan is billed as usual."
+      )
+    }
+  />
   <.card
     data-part="current-plan-card"
     icon="package"

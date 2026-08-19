@@ -7,6 +7,7 @@ defmodule TuistWeb.BillingLiveTest do
 
   alias Tuist.Billing
   alias Tuist.Runners.Prepaid
+  alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} = context do
@@ -252,6 +253,31 @@ defmodule TuistWeb.BillingLiveTest do
       assert has_element?(lv, "#prepaid-runner-credit-table", "Prepaid credit")
       assert has_element?(lv, "#prepaid-runner-credit-table", "September 1, 2026")
       assert has_element?(lv, "#prepaid-runner-credit-table", "January 1, 2027")
+    end
+  end
+
+  describe "runner trial" do
+    test "is not mentioned for an account that is not on one", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      refute has_element?(lv, "#runner-trial-banner")
+    end
+
+    test "explains why runner usage is not being billed", %{conn: conn, account: account} do
+      {:ok, _account} = Trials.start(account)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      assert has_element?(lv, "#runner-trial-banner")
+    end
+
+    test "is gone once the trial is cancelled", %{conn: conn, account: account} do
+      {:ok, account} = Trials.start(account)
+      {:ok, _account} = Trials.cancel(account)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      refute has_element?(lv, "#runner-trial-banner")
     end
   end
 end
