@@ -316,13 +316,44 @@ defmodule Tuist.Runners.Dispatch do
       # the durable session here. `runner_name` is null for a job
       # cancelled while still queued (no runner ever ran it), so this
       # is a no-op for that class.
-      if runner_name != "" and account_id,
-        do: RunnerSessions.record_execution(runner_name, workflow_job_id, account_id)
+      case record_session_execution(runner_name, workflow_job_id, account_id, job) do
+        :ok ->
+          mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps(job), installation_id, repository)
 
-      mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps(job), installation_id, repository)
+        {:error, reason} ->
+          # Leave the delivery unacknowledged so it retries. The billable
+          # job window is recorded nowhere else, and a session missing
+          # either bound bills nothing, so acknowledging here would turn a
+          # transient Postgres failure into permanently lost usage.
+          {:error, reason}
+      end
     else
       :ignored
     end
+  end
+
+  # No runner name means nothing ran (a job cancelled while queued), and no
+  # account means this delivery authenticates as nobody we can attribute to
+  # — neither is a failure, and neither has a window to record.
+  defp record_session_execution("", _workflow_job_id, _account_id, _job), do: :ok
+  defp record_session_execution(_runner_name, _workflow_job_id, nil, _job), do: :ok
+
+  defp record_session_execution(runner_name, workflow_job_id, account_id, job) do
+    case RunnerSessions.record_execution(runner_name, workflow_job_id, account_id, job_execution_window(job)) do
+      {:error, changeset} -> {:error, {:session_execution_write_failed, inspect(changeset.errors)}}
+      _outcome -> :ok
+    end
+  end
+
+  # GitHub's own bounds for the job, which is what the customer is
+  # charged for. The Pod that ran it boots before this window and tears
+  # down after it, and that overhead is ours rather than theirs. Missing
+  # or unparseable timestamps yield an empty window, which bills nothing.
+  defp job_execution_window(job) do
+    %{
+      started_at: parse_step_time(Map.get(job, "started_at")),
+      ended_at: parse_step_time(Map.get(job, "completed_at"))
+    }
   end
 
   defp mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps, installation_id, repository) do

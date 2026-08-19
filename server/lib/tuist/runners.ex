@@ -744,6 +744,10 @@ defmodule Tuist.Runners do
   end
 
   defp attempt_candidate(%{candidate: candidate, fleet_name: fleet_name, sa_name: sa_name} = context, resources) do
+    # The machine shape the claim was admitted under rides along to
+    # `serve_claim/2`, which freezes it onto the billing session.
+    context = Map.put(context, :resources, resources)
+
     candidate.workflow_job_id
     |> Claims.attempt(candidate.account_id, fleet_name, sa_name, resources)
     |> handle_claim_attempt(context)
@@ -1030,6 +1034,7 @@ defmodule Tuist.Runners do
       sa_name: sa_name,
       fleet_name: fleet_name,
       candidate: candidate,
+      resources: resources,
       affinity_outcome: affinity_outcome
     } = context
 
@@ -1075,6 +1080,9 @@ defmodule Tuist.Runners do
             workflow_job_id: candidate.workflow_job_id,
             account_id: candidate.account_id,
             fleet_name: Map.get(candidate, :fleet_name, fleet_name),
+            platform: resources.platform,
+            vcpus: resources.vcpus,
+            memory_gb: resources.memory_gb,
             pod_name: pod_name,
             runner_name: runner_name,
             repository: Map.get(candidate, :repository, ""),
