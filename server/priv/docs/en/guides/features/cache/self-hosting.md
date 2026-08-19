@@ -19,6 +19,8 @@ The goal is low-latency caching everywhere, not only in the one environment wher
 
 The Tuist server tells clients which cache endpoints to use. This keeps endpoint discovery centralized while allowing the cache itself to stay decentralized and close to the compute that needs it.
 
+A self-hosted Tuist server takes those endpoints from static configuration. On the Tuist-hosted server, nodes authenticate with a credential and register themselves. Deploy a node first with one of the two sections below, then see [Connect nodes to Tuist](#connect-nodes-to-tuist).
+
 ## Deploy on Kubernetes {#deploy-on-kubernetes}
 
 Kura is distributed as a Helm chart through GitHub Container Registry. It deploys Kura as a `StatefulSet` with persistent volumes, a headless service for peer discovery, and a regular service for HTTP and gRPC traffic.
@@ -72,6 +74,84 @@ Then configure the Tuist server with the URLs that clients can reach:
 TUIST_CACHE_ENDPOINTS=https://kura-1.example.com,https://kura-2.example.com
 ```
 
+## Connect nodes to Tuist {#connect-nodes-to-tuist}
+
+Running a node is only half of the setup. Tuist also has to know the node exists before it can hand the endpoint to clients. How that happens depends on which Tuist server you use.
+
+On a **self-hosted Tuist server**, you declare endpoints statically with `TUIST_CACHE_ENDPOINTS`, as shown in the deployment sections above. The server hands clients exactly what you list.
+
+On the **Tuist-hosted server**, endpoints are not configured by hand. Each node authenticates with a credential you generate, then registers itself and reports its own liveness. This section covers that flow.
+
+> [!IMPORTANT]
+> **Enterprise plan**
+>
+> Self-hosted cache nodes are available on the Enterprise plan. The **Self-hosted servers** section described below only appears for accounts on that plan.
+
+### Generate a node credential {#generate-a-node-credential}
+
+In the Tuist dashboard, open your account, go to **Cache**, and find **Self-hosted servers**. Choose **Generate credential** to mint a client ID and secret.
+
+The credential is tenant-scoped: it only ever authorizes traffic for the account that created it. Nodes present it on every control-plane call, and the control plane resolves it back to the owning account, so a node never needs a key that could act for another tenant.
+
+The secret is displayed once and is not recoverable after you close the dialog, so copy it straight into the secret store your nodes read from. Revoking a credential immediately stops every node using it from authenticating, so generate a replacement before revoking one that is in service.
+
+### Enroll the node on boot {#enroll-the-node-on-boot}
+
+Enrollment is the recommended way to bring a node up. Set `KURA_ENROLL_ON_BOOT` and give the node its credential and its own peer URL:
+
+```bash
+KURA_ENROLL_ON_BOOT=true
+KURA_CONTROL_PLANE_URL=https://tuist.dev
+KURA_CONTROL_PLANE_CLIENT_ID=<client ID>
+KURA_CONTROL_PLANE_CLIENT_SECRET=<client secret>
+KURA_NODE_URL=https://kura-1.internal:7443
+KURA_INTERNAL_TLS_CA_CERT_PATH=/var/lib/kura/tls/ca.pem
+KURA_INTERNAL_TLS_CERT_PATH=/var/lib/kura/tls/tls.crt
+KURA_INTERNAL_TLS_KEY_PATH=/var/lib/kura/tls/tls.key
+```
+
+On boot the node generates a keypair locally, sends a certificate signing request to the control plane with its credential, and receives a signed peer certificate, the account's CA, its tenant identifier, and the current peer list. The private key never leaves the node. The certificate material is written to the `KURA_INTERNAL_TLS_*` paths and the tenant and peers are injected into the node's own environment, so the rest of startup configures itself from nothing but the credential and the node URL.
+
+A node joining an account's mesh for the first time pulls the account's existing cache before it becomes a serving member of the ring. Size the data volume for the whole cache, and expect the first join to take a while over a wide-area link. The node reports `joining` until it has caught up, then `serving`.
+
+This means an enrolled node needs neither `KURA_TENANT_ID` nor `KURA_PEERS` set by hand, and its peer mTLS is provisioned for you rather than assembled with a private CA. Enrollment reruns on every boot with a fresh certificate, and the node renews in-process before the leaf expires.
+
+### Advertise the endpoint {#advertise-the-endpoint}
+
+Enrollment joins the mesh. Advertising is what makes clients route to the node. Add the registration variables:
+
+```bash
+KURA_REGISTRATION_URL=https://tuist.dev/_internal/kura/mesh/registrations
+KURA_ADVERTISED_HTTP_URL=https://kura-1.example.com:4443
+```
+
+The node then posts a heartbeat every 60 seconds carrying its node identifier, advertised URL, readiness, version, and traffic state. Each heartbeat refreshes a 180-second lease. Endpoint lookup only returns nodes that are ready with an unexpired lease, so a node that stops heartbeating drops out of rotation on its own.
+
+The control plane never calls the node. The outbound heartbeat is the only health signal, which is why a node behind a private network can be advertised to clients that can reach it without the control plane needing a path to it.
+
+The node identifier is derived from the host in `KURA_NODE_URL`, so it stays stable across restarts and a node updates its own row rather than accumulating duplicates.
+
+Set `KURA_REGISTRATION_INTERVAL_MS` to change the heartbeat cadence. Leave it alone unless you have a reason: the default sits several missed beats inside the lease so one dropped request does not flap the endpoint out of rotation.
+
+### Verify the node is serving {#verify-the-node-is-serving}
+
+Back in **Cache** in the dashboard, the node appears under **Registered nodes** with its endpoint, region, status, and last heartbeat. A node that never appears is not reaching the registration endpoint or is failing authorization. A node that appears and then disappears has stopped heartbeating or has stopped reporting itself ready.
+
+### Match the tenant identifier to your account handle {#match-the-tenant-identifier}
+
+`KURA_TENANT_ID` must equal your Tuist account handle. The control plane compares the heartbeat's tenant against the account resolved from the credential and rejects a mismatch with `409 tenant_mismatch`, so a node with the wrong value authenticates successfully and still never registers.
+
+> [!IMPORTANT]
+> Both the Helm chart and the container example earlier in this guide default this to `default`. That value is correct for a self-hosted Tuist server, where the tenant is a local label, and wrong for an account on the Tuist-hosted server, where it has to name the account. Enrolling the node avoids the question entirely, because the control plane supplies the value.
+
+An unset `KURA_TENANT_ID` does not skip the check. It disables registration altogether: the node keeps serving cache traffic, nothing appears in the dashboard, and no error is reported. If a node is healthy but missing from **Registered nodes**, check this variable first.
+
+### Choose an advertised URL your clients can reach {#choose-an-advertised-url}
+
+The advertised URL is handed to every client on the account, not only the ones near the node. Developer machines resolve it the same way runners do.
+
+An internal-only hostname is therefore only appropriate when every client that will receive it can resolve and reach that name. If your nodes sit on a network your developers are not always on, either keep the advertisement to environments that can reach it, publish a name that resolves from everywhere clients build, or run a node near each population and let the mesh replicate between them.
+
 ## Build a cache mesh {#build-a-cache-mesh}
 
 A cache mesh lets you place cache capacity next to the compute that needs it. A company might run one node near its main CI runners, another close to developers in Europe, and another near a US office or regional build cluster. Each location reads and writes against the closest node, while Kura replicates artifacts and metadata in the background so later builds in other locations can reuse the same outputs.
@@ -79,6 +159,9 @@ A cache mesh lets you place cache capacity next to the compute that needs it. A 
 The mesh only works if nodes can reach each other on Kura's internal peer port. That peer plane is separate from the public cache endpoints that Tuist clients use. Kura uses it to check membership, backfill newly joined nodes, and replicate artifacts after local writes are accepted.
 
 We strongly recommend securing the peer plane with [mTLS](https://en.wikipedia.org/wiki/Mutual_authentication) when nodes communicate across regions, clouds, VPCs, offices, or any network that is not fully private to the cache deployment. With mTLS enabled, Kura only serves internal replication endpoints to peers presenting a certificate signed by the configured CA. The peer certificates must cover the DNS names nodes use to call each other, and peer URLs must use `https://` on the internal port.
+
+> [!NOTE]
+> Nodes that enroll against a Tuist-hosted control plane receive their peer certificate and the account CA during enrollment, so the manual steps below apply to meshes that do not enroll.
 
 For example, this generates a private CA and one peer certificate that can be mounted by every node in a small mesh. Replace the DNS names with the internal names your nodes use in `KURA_NODE_URL` and `KURA_PEERS`.
 
@@ -183,5 +266,12 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_AUTH_JWT_ISSUER` | Issuer that tokens must carry. | No | Unchecked | `extraEnv` |
 | `KURA_AUTH_JWT_AUDIENCES` | Comma-separated audiences that tokens must carry. | No | Unchecked | `extraEnv` |
 | `KURA_AUTH_CACHE_MAX_ENTRIES` | Maximum entries kept in each of the authentication and authorization caches. | No | `100000` | `extraEnv` |
+| `KURA_ENROLL_ON_BOOT` | Enrolls the node with the control plane on every boot, provisioning its peer certificate and supplying `KURA_TENANT_ID` and `KURA_PEERS`. | No | Disabled | `extraEnv` |
+| `KURA_CONTROL_PLANE_URL` | Tuist server the node enrolls against. | Required when enrolling | No default | `extraEnv` |
+| `KURA_CONTROL_PLANE_CLIENT_ID` | Client ID of the node credential generated in the dashboard. | Required when enrolling or registering | No default | `extraEnv` |
+| `KURA_CONTROL_PLANE_CLIENT_SECRET` | Client secret paired with `KURA_CONTROL_PLANE_CLIENT_ID`. | Required when enrolling or registering | No default | `extraEnv` |
+| `KURA_REGISTRATION_URL` | Absolute URL the node posts registration heartbeats to, advertising its client-facing endpoint. | Required when registering | No default | `extraEnv` |
+| `KURA_ADVERTISED_HTTP_URL` | Client-facing cache URL the control plane hands to clients. Must be reachable by every client on the account. | Required when registering | No default | `extraEnv` |
+| `KURA_REGISTRATION_INTERVAL_MS` | Registration heartbeat cadence. The lease is several missed heartbeats wide, so a single dropped heartbeat does not drop the endpoint. | No | `60000` | `extraEnv` |
 
 If you enable internal peer mTLS, set `KURA_INTERNAL_TLS_CA_CERT_PATH`, `KURA_INTERNAL_TLS_CERT_PATH`, and `KURA_INTERNAL_TLS_KEY_PATH` together. `KURA_NODE_URL` and every value in `KURA_PEERS` must then use `https://` with the internal peer port.
