@@ -55,6 +55,15 @@ defmodule Tuist.Repo.Migrations.CreateRunnerWorkflowJobs do
              name: :runner_workflow_jobs_queued_enqueued_at_index
            )
 
+    # `record_execution/3` resolves the runner GitHub reports back to the
+    # claim that minted it, on the `in_progress` webhook path. Rows here
+    # are kept for the account's lifetime, so without this the lookup
+    # degrades into a scan over every job the account has ever run — the
+    # sibling `runner_claims` and `runner_sessions` tables carry the same
+    # index for the same lookup.
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
+    create index(:runner_workflow_jobs, [:account_id, :runner_name])
+
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:runner_workflow_jobs, [:status, :workflow_job_id],
              where: "status IN ('queued', 'claimed', 'running')",

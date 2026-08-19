@@ -51,8 +51,9 @@ defmodule TuistWeb.RunnersLiveTest do
     # Recent jobs card only surfaces completed work, so walk the job
     # through the full state machine before asserting it shows up.
     {:ok, candidate} = Jobs.pick_queued("fleet-x", [])
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-1", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(70_001, "runner-x")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-1", claimed_at)
+    :ok = WorkflowJobs.transition_running(70_001, "runner-x", claimed_at)
     {:ok, _} = Jobs.complete(70_001, "success")
 
     flush_outbox!()
@@ -223,8 +224,9 @@ defmodule TuistWeb.RunnersLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("fleet-x", [])
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-#{workflow_job_id}", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(workflow_job_id, "runner-#{workflow_job_id}")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-#{workflow_job_id}", claimed_at)
+    :ok = WorkflowJobs.transition_running(workflow_job_id, "runner-#{workflow_job_id}", claimed_at)
     {:ok, _} = Jobs.complete(workflow_job_id, conclusion)
     flush_outbox!()
   end

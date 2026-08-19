@@ -39,7 +39,7 @@ defmodule Tuist.Runners.AnalyticsTest do
         memory_gb: 1
       })
 
-    :ok = Claims.mark_running(workflow_job_id, "runner-#{workflow_job_id}")
+    :ok = mark_running!(workflow_job_id, "runner-#{workflow_job_id}")
     Process.sleep(Keyword.get(opts, :run_ms, 20))
     {:ok, _} = Jobs.complete(workflow_job_id, conclusion)
     :ok = Claims.complete(workflow_job_id)
@@ -263,5 +263,13 @@ defmodule Tuist.Runners.AnalyticsTest do
       assert %{count: 2} = Analytics.jobs_count(account.id, platform: "linux")
       assert %{count: 0} = Analytics.jobs_count(account.id, platform: "macos")
     end
+  end
+
+  # Production threads the caller's own claim handle into `mark_running/3`;
+  # these tests only need "promote the claim that exists", so they read it
+  # back. The guard itself is covered in the `mark_running/3` describe.
+  defp mark_running!(workflow_job_id, runner_name) do
+    claim = Tuist.Repo.get!(Tuist.Runners.Claim, workflow_job_id)
+    Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
   end
 end

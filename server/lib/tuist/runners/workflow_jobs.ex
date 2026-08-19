@@ -23,7 +23,7 @@ defmodule Tuist.Runners.WorkflowJobs do
       the per-job ordering lock) → `upsert_queued/1`
     * `Tuist.Runners.Claims.attempt/5` (same transaction as the claim
       insert) → `transition_claimed/3`
-    * `Tuist.Runners.Claims.mark_running/2` → `transition_running/2`
+    * `Tuist.Runners.Claims.mark_running/3` → `transition_running/3`
     * `Tuist.Runners.Claims.release/2` and `release_pod_missing/2`
       (same transaction as the claim delete) → `requeue/1`
     * `Tuist.Runners.Jobs` completion choke point (webhook `completed`
@@ -45,6 +45,7 @@ defmodule Tuist.Runners.WorkflowJobs do
   alias Tuist.Runners.WorkflowJobTransitionEvent
 
   @terminal_statuses ~w(completed cancelled)
+  @live_statuses ~w(queued claimed running)
 
   @doc """
   Inserts a `queued` row for the workflow_job when none exists.
@@ -100,9 +101,20 @@ defmodule Tuist.Runners.WorkflowJobs do
 
   @doc """
   CAS `claimed → running`, stamping the mint-chosen `runner_name`.
+
+  `claimed_at` binds the transition to the caller's own claim
+  generation. Without it a late mint, from a Pod whose claim was
+  reaped and whose job another Pod has since re-claimed, would stamp
+  the losing runner's name on the winner's row — and since
+  `record_execution/3` resolves rows by `runner_name`, the next
+  `in_progress` webhook would attribute the execution to the wrong
+  job.
   """
-  def transition_running(workflow_job_id, runner_name) when is_integer(workflow_job_id) and is_binary(runner_name) do
-    case transition(workflow_job_id, ["claimed"], "running", runner_name: runner_name, started_at: DateTime.utc_now()) do
+  def transition_running(workflow_job_id, runner_name, %DateTime{} = claimed_at)
+      when is_integer(workflow_job_id) and is_binary(runner_name) do
+    case transition(workflow_job_id, ["claimed"], "running", [runner_name: runner_name, started_at: DateTime.utc_now()],
+           claimed_at: claimed_at
+         ) do
       {:applied, _row} -> :ok
       :noop -> :noop
     end
@@ -259,8 +271,14 @@ defmodule Tuist.Runners.WorkflowJobs do
       set: [runner_name: runner_name]
     )
 
+    # Restricted to live rows: a runner name is unique per account only
+    # by 32 bits of randomness, and a terminal row has nothing left to
+    # attribute, so bounding the update keeps a collision from rewriting
+    # finished history.
     Repo.update_all(
-      from(j in WorkflowJob, where: j.runner_name == ^runner_name and j.account_id == ^account_id),
+      from(j in WorkflowJob,
+        where: j.runner_name == ^runner_name and j.account_id == ^account_id and j.status in ^@live_statuses
+      ),
       set: [executed_workflow_job_id: executed_workflow_job_id]
     )
 

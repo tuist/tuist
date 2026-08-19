@@ -132,7 +132,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
                  memory_gb: 14
                })
 
-      assert :ok = Claims.mark_running(70_004, "runner-vnc")
+      assert :ok = mark_running!(70_004, "runner-vnc")
 
       assert {:ok, second} = InteractiveSessions.request_vnc(job, account, user)
 
@@ -249,7 +249,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
                  memory_gb: 8
                })
 
-      assert :ok = Claims.mark_running(workflow_job_id, "runner-shell")
+      assert :ok = mark_running!(workflow_job_id, "runner-shell")
 
       assert {:ok, %InteractiveSession{} = session} =
                InteractiveSessions.request_shell(
@@ -358,7 +358,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
                  memory_gb: 8
                })
 
-      assert :ok = Claims.mark_running(workflow_job_id, "runner-shell-agent")
+      assert :ok = mark_running!(workflow_job_id, "runner-shell-agent")
 
       assert InteractiveSessions.current_shell_for_pod("live-shell-agent-pod").id == session.id
       assert Repo.get!(InteractiveSession, session.id).pod_name == "live-shell-agent-pod"
@@ -773,5 +773,13 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert expired.close_reason == "expired"
       assert DateTime.compare(expired.closed_at, ~U[2026-07-06 12:00:00Z]) == :eq
     end
+  end
+
+  # Production threads the caller's own claim handle into `mark_running/3`;
+  # these tests only need "promote the claim that exists", so they read it
+  # back. The guard itself is covered in the `mark_running/3` describe.
+  defp mark_running!(workflow_job_id, runner_name) do
+    claim = Repo.get!(Tuist.Runners.Claim, workflow_job_id)
+    Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
   end
 end

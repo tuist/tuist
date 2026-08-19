@@ -47,8 +47,9 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
     # real value (otherwise the success_rate query returns nil and the
     # widget would just say '–').
     {:ok, candidate} = Jobs.pick_queued("fleet-w", [])
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-w", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(90_001, "runner-w")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-w", claimed_at)
+    :ok = WorkflowJobs.transition_running(90_001, "runner-w", claimed_at)
     {:ok, _} = Jobs.complete(90_001, "success")
 
     flush_outbox!()

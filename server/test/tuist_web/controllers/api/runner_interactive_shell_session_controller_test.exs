@@ -4,8 +4,8 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionControllerTest do
   alias Tuist.Repo
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.Jobs
-  alias Tuist.Runners.WorkflowJobs
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
+  alias Tuist.Runners.WorkflowJobs
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   defp running_job(account, workflow_job_id, workflow_run_id, pod_name \\ "pod-api-shell") do
@@ -24,8 +24,9 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionControllerTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, pod_name, DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(workflow_job_id, "tuist-runner-shell-api")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, pod_name, claimed_at)
+    :ok = WorkflowJobs.transition_running(workflow_job_id, "tuist-runner-shell-api", claimed_at)
     :ok = FlushJobTransitionEventsWorker.perform(%Oban.Job{})
   end
 

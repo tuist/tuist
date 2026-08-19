@@ -92,8 +92,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, candidate} =
       Jobs.pick_queued(Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}), [])
 
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(31_101, "tuist-runner-x")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_101, "tuist-runner-x", claimed_at)
     {:ok, _completed} = Jobs.complete(31_101, "success")
 
     flush_outbox!()
@@ -423,8 +424,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("macos-xcode-26.4", [])
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(31_401, "tuist-runner-x")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_401, "tuist-runner-x", claimed_at)
 
     {:ok, _completed} = Jobs.complete(31_401, "failure")
 
@@ -480,8 +482,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("macos-xcode-26.4", [])
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(31_402, "tuist-runner-x")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_402, "tuist-runner-x", claimed_at)
     {:ok, _completed} = Jobs.complete(31_402, "failure")
 
     :ok =
@@ -678,8 +681,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(31_602, "runner-x")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_602, "runner-x", claimed_at)
 
     {:ok, _} = Jobs.complete(31_602, "success")
 
@@ -826,8 +830,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, candidate} =
       Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
 
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-vnc", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(31_750, "tuist-runner-vnc")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_750, "tuist-runner-vnc", claimed_at)
 
     flush_outbox!()
 
@@ -877,8 +882,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, candidate} =
       Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
 
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-ready-vnc", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(31_752, "tuist-runner-ready-vnc")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-ready-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_752, "tuist-runner-ready-vnc", claimed_at)
 
     flush_outbox!()
     {:ok, job} = Jobs.get_for_account(account.id, 31_752)
@@ -930,8 +936,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, candidate} =
       Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
 
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-disconnecting-vnc", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(31_757, "tuist-runner-disconnecting-vnc")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-disconnecting-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_757, "tuist-runner-disconnecting-vnc", claimed_at)
 
     flush_outbox!()
     {:ok, job} = Jobs.get_for_account(account.id, 31_757)
@@ -981,8 +988,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, candidate} =
       Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
 
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-dev-vnc", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(31_753, "tuist-runner-dev-vnc")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-dev-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_753, "tuist-runner-dev-vnc", claimed_at)
 
     flush_outbox!()
 
@@ -1048,8 +1056,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-shell", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(31_754, "tuist-runner-linux-shell")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-shell", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_754, "tuist-runner-linux-shell", claimed_at)
 
     flush_outbox!()
 
@@ -1090,8 +1099,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-shell-ready", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(31_756, "tuist-runner-linux-shell-ready")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-shell-ready", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_756, "tuist-runner-linux-shell-ready", claimed_at)
 
     flush_outbox!()
     {:ok, job} = Jobs.get_for_account(account.id, 31_756)
@@ -1131,8 +1141,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-shell-disconnecting", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(31_758, "tuist-runner-linux-shell-disconnecting")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-shell-disconnecting", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_758, "tuist-runner-linux-shell-disconnecting", claimed_at)
 
     flush_outbox!()
     {:ok, job} = Jobs.get_for_account(account.id, 31_758)
@@ -1405,8 +1416,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
-    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", DateTime.utc_now())
-    :ok = WorkflowJobs.transition_running(31_950, "runner-x")
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_950, "runner-x", claimed_at)
 
     {:ok, _} = Jobs.complete(31_950, "success")
 

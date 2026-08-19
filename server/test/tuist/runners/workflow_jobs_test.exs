@@ -67,7 +67,8 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       account = account_fixture()
 
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_002))
-      :ok = WorkflowJobs.transition_claimed(910_002, "pod-1", DateTime.utc_now())
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_002, "pod-1", claimed_at)
 
       assert :ok = WorkflowJobs.upsert_queued(attrs(account, 910_002))
       assert get_row!(910_002).status == "claimed"
@@ -101,22 +102,25 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_011))
       :ok = WorkflowJobs.record_completed(attrs(account, 910_011), "success", DateTime.utc_now())
 
-      assert :noop = WorkflowJobs.transition_claimed(910_011, "pod-1", DateTime.utc_now())
+      claimed_at = DateTime.utc_now()
+      assert :noop = WorkflowJobs.transition_claimed(910_011, "pod-1", claimed_at)
       assert get_row!(910_011).status == "completed"
     end
 
     test "is a :noop when the row is missing" do
-      assert :noop = WorkflowJobs.transition_claimed(910_012, "pod-1", DateTime.utc_now())
+      claimed_at = DateTime.utc_now()
+      assert :noop = WorkflowJobs.transition_claimed(910_012, "pod-1", claimed_at)
     end
   end
 
-  describe "transition_running/2" do
+  describe "transition_running/3" do
     test "CAS claimed → running stamps runner_name and started_at" do
       account = account_fixture()
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_020))
-      :ok = WorkflowJobs.transition_claimed(910_020, "pod-1", DateTime.utc_now())
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_020, "pod-1", claimed_at)
 
-      assert :ok = WorkflowJobs.transition_running(910_020, "runner-x")
+      assert :ok = WorkflowJobs.transition_running(910_020, "runner-x", claimed_at)
 
       row = get_row!(910_020)
       assert row.status == "running"
@@ -128,7 +132,7 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       account = account_fixture()
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_021))
 
-      assert :noop = WorkflowJobs.transition_running(910_021, "runner-x")
+      assert :noop = WorkflowJobs.transition_running(910_021, "runner-x", DateTime.utc_now())
       assert get_row!(910_021).status == "queued"
     end
   end
@@ -137,7 +141,8 @@ defmodule Tuist.Runners.WorkflowJobsTest do
     test "moves a claimed row back to queued and clears the claim binding" do
       account = account_fixture()
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_030))
-      :ok = WorkflowJobs.transition_claimed(910_030, "pod-1", DateTime.utc_now())
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_030, "pod-1", claimed_at)
 
       assert :ok = WorkflowJobs.requeue(910_030)
 
@@ -152,8 +157,9 @@ defmodule Tuist.Runners.WorkflowJobsTest do
     test "moves a running row back to queued" do
       account = account_fixture()
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_031))
-      :ok = WorkflowJobs.transition_claimed(910_031, "pod-1", DateTime.utc_now())
-      :ok = WorkflowJobs.transition_running(910_031, "runner-x")
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_031, "pod-1", claimed_at)
+      :ok = WorkflowJobs.transition_running(910_031, "runner-x", claimed_at)
 
       assert :ok = WorkflowJobs.requeue(910_031)
       assert get_row!(910_031).status == "queued"
@@ -175,7 +181,7 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_035))
       claimed_at = DateTime.utc_now()
       :ok = WorkflowJobs.transition_claimed(910_035, "pod-1", claimed_at)
-      :ok = WorkflowJobs.transition_running(910_035, "runner-x")
+      :ok = WorkflowJobs.transition_running(910_035, "runner-x", claimed_at)
 
       assert :ok = WorkflowJobs.requeue_by_handle(910_035, claimed_at)
 
@@ -217,7 +223,8 @@ defmodule Tuist.Runners.WorkflowJobsTest do
     test "transitions an existing row from any non-terminal status" do
       account = account_fixture()
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_040))
-      :ok = WorkflowJobs.transition_claimed(910_040, "pod-1", DateTime.utc_now())
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_040, "pod-1", claimed_at)
       completed_at = DateTime.utc_now()
 
       assert :ok = WorkflowJobs.record_completed(attrs(account, 910_040), "failure", completed_at)
@@ -266,8 +273,9 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       account = account_fixture()
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_050))
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_051))
-      :ok = WorkflowJobs.transition_claimed(910_050, "pod-1", DateTime.utc_now())
-      :ok = WorkflowJobs.transition_running(910_050, "runner-x")
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_050, "pod-1", claimed_at)
+      :ok = WorkflowJobs.transition_running(910_050, "runner-x", claimed_at)
 
       # GitHub ran 910_051 on the runner minted for 910_050.
       assert :ok = WorkflowJobs.record_execution("runner-x", 910_051, account.id)
@@ -362,7 +370,8 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_091))
       :ok = WorkflowJobs.upsert_queued(attrs(other_account, 910_092))
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_093, fleet: "fleet-b"))
-      :ok = WorkflowJobs.transition_claimed(910_091, "pod-1", DateTime.utc_now())
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_091, "pod-1", claimed_at)
 
       assert WorkflowJobs.queued_count_by_fleet("fleet-a", floor) == 2
 
@@ -380,7 +389,7 @@ defmodule Tuist.Runners.WorkflowJobsTest do
 
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_101))
       :ok = WorkflowJobs.transition_claimed(910_101, "pod-1", claimed_at)
-      :ok = WorkflowJobs.transition_running(910_101, "runner-x")
+      :ok = WorkflowJobs.transition_running(910_101, "runner-x", claimed_at)
       :ok = WorkflowJobs.record_completed(attrs(account, 910_101), "success", DateTime.utc_now())
 
       events = Repo.all(from(e in WorkflowJobTransitionEvent, order_by: [asc: e.id]))
@@ -440,7 +449,7 @@ defmodule Tuist.Runners.WorkflowJobsTest do
 
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_130))
       :ok = WorkflowJobs.transition_claimed(910_130, "pod-1", claimed_at)
-      :ok = WorkflowJobs.transition_running(910_130, "runner-x")
+      :ok = WorkflowJobs.transition_running(910_130, "runner-x", claimed_at)
 
       Repo.update_all(
         from(j in WorkflowJob, where: j.workflow_job_id == ^910_130),
@@ -449,10 +458,10 @@ defmodule Tuist.Runners.WorkflowJobsTest do
 
       # Still claimed (not running) and recently running rows are not candidates.
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_131))
-      :ok = WorkflowJobs.transition_claimed(910_131, "pod-2", DateTime.utc_now())
+      :ok = WorkflowJobs.transition_claimed(910_131, "pod-2", claimed_at)
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_132))
-      :ok = WorkflowJobs.transition_claimed(910_132, "pod-3", DateTime.utc_now())
-      :ok = WorkflowJobs.transition_running(910_132, "runner-z")
+      :ok = WorkflowJobs.transition_claimed(910_132, "pod-3", claimed_at)
+      :ok = WorkflowJobs.transition_running(910_132, "runner-z", claimed_at)
 
       threshold = DateTime.add(DateTime.utc_now(), -300, :second)
 
