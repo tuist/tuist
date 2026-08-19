@@ -1,0 +1,265 @@
+/* Cache feature page (/cache): left-aligned hero card followed by the
+   features frame (intro text + 2x2 hairline grid) on the 1200px page frame
+   with 2px seams. The legacy design lives in routes/cache.css. */
+#marketing-cache {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-1);
+
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  /* Both frames share the page shell: stroke border, primary surface, the
+     same margin/width override that beats pages.css (its :not counts an
+     ID, but the #id selector here still wins). */
+  & > header[data-part="header"],
+  & > [data-part="features"] {
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+  }
+
+  /* Hero card: fixed 600px frame with the copy bottom-aligned on the left
+     (Figma: 8px left, 64px right/bottom padding, 32px gaps). */
+  & > header[data-part="header"] {
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-start;
+    gap: var(--noora-spacing-9);
+    padding: 0 var(--noora-spacing-13) var(--noora-spacing-13) var(--noora-spacing-4);
+    height: 600px;
+    /* Clips the chart columns while they rise from below the hero, and the
+       cached stems once they've dropped past the bottom edge. */
+    overflow: hidden;
+
+    @media (max-width: 720px) {
+      padding: var(--noora-spacing-13) var(--noora-spacing-10) var(--noora-spacing-10) var(--noora-spacing-4);
+      height: auto;
+    }
+
+    /* Tab mode: the hero runs edge to edge — the 1200px cap only kicks in
+       on wide desktop viewports (narrower ones already stretch via the
+       base margin rule). */
+    @media (min-width: 1024px) and (max-width: 1439px) {
+      align-self: stretch;
+      margin: 0;
+      max-width: none;
+    }
+
+    /* The hero copy sits above the background chart. */
+    & > :not([data-part="illustration"]) {
+      position: relative;
+      z-index: var(--noora-z-index-1);
+    }
+
+    /* Background lollipop chart: the COLD row, the CACHED staircase, the
+       one-shot entrance, and the pointer-repel springs are all drawn on
+       this canvas by the CacheHeroChart hook. */
+    & > [data-part="illustration"] {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+
+      @media (max-width: 720px) {
+        display: none;
+      }
+
+      & > canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+    }
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-large);
+      letter-spacing: -0.035em;
+      text-wrap: balance;
+
+      & > [data-part="line"] {
+        display: block;
+      }
+    }
+
+    & > [data-part="subtitle"] {
+      max-width: 540px;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      text-wrap: pretty;
+    }
+  }
+
+  /* Features frame: intro text (96px above the eyebrow, 8px sides — the
+     same convention as the other pages' sections) followed by the grid. */
+  & > [data-part="features"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-11);
+    padding-top: var(--noora-spacing-16);
+
+    & > [data-part="text"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 0 var(--noora-spacing-4);
+
+      & > [data-part="eyebrow"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+        text-transform: uppercase;
+      }
+
+      /* Same eyebrow → h2 → p ramp as the brand and download pages. */
+      & > [data-part="title"] {
+        margin-top: var(--noora-spacing-7);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      }
+
+      & > [data-part="description"] {
+        margin-top: var(--noora-spacing-4);
+        max-width: 720px;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      }
+    }
+
+    /* 2x2 feature grid. Hairlines close each cell: one above every cell
+       (the grid's top edge and the seam between the rows) and one between
+       the columns. */
+    & > [data-part="grid"] {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+
+      @media (max-width: 720px) {
+        grid-template-columns: 1fr;
+      }
+
+      /* Cell structure (Figma: 600x412): 20px top/bottom card padding, a
+         full-bleed 600x250 illustration, then the text block flush against
+         it (0 gap) carrying its own 20px padding on all sides. */
+      & > [data-part="cell"] {
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+        border-top: 1px solid var(--marketing-stroke-default);
+        padding: var(--noora-spacing-7) 0;
+
+        @media (min-width: 721px) {
+          &:nth-child(2n) {
+            border-left: 1px solid var(--marketing-stroke-default);
+          }
+        }
+
+        @media (max-width: 720px) {
+          &:not(:first-child) {
+            border-top: 1px solid var(--marketing-stroke-default);
+          }
+        }
+
+        /* Illustration placeholder: reserves the artwork's slot until the
+           real illustrations land. */
+        & > [data-part="illustration"] {
+          margin: 0;
+          width: 100%;
+          height: 250px;
+        }
+
+        & > [data-part="text"] {
+          padding: var(--noora-spacing-7);
+
+          & > [data-part="title"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+          }
+
+          & > [data-part="description"] {
+            margin-top: var(--noora-spacing-4);
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+          }
+        }
+      }
+    }
+  }
+
+  /* Full-width dithered divider bands framing the CTA — same Bayer texture
+     and shell as the home page's section dividers. */
+  & > [data-part="features-divider"] {
+    position: relative;
+    z-index: var(--noora-z-index-2);
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    height: 120px;
+    overflow: hidden;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="dither"] {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+  }
+
+  /* CTA box: exact replica of the home page CTA shell and text ramp. The
+     margin/width override beats pages.css's `[id^="marketing-"] > section`
+     margins and 1296px max-width. */
+  & > [data-part="cta"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-14) var(--noora-spacing-4);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="eyebrow"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    & > h2 {
+      margin-top: var(--noora-spacing-7);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      text-align: center;
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-9);
+    }
+  }
+}
