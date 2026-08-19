@@ -170,12 +170,485 @@
           }
         }
 
-        /* Illustration placeholder: reserves the artwork's slot until the
-           real illustrations land. */
+        /* Illustration slot (600x250); still a reserved blank for the cards
+           whose artwork hasn't landed yet. */
         & > [data-part="illustration"] {
+          display: flex;
+          justify-content: center;
+          align-items: center;
           margin: 0;
           width: 100%;
           height: 250px;
+
+          & > svg {
+            display: block;
+            max-width: 100%;
+          }
+        }
+
+        /* "Minimal overhead" chart: 50px columns, 30px apart. Each ghost
+           bar (the uncached build time) is filled by a DitherTexture
+           canvas — the same Bayer recipe as the page dividers — with the
+           cached time as a purple box 2px below it. */
+        & > [data-part="illustration"][data-illustration="minimal-overhead"] {
+          position: relative;
+          gap: 30px;
+          overflow: hidden;
+
+          & > [data-part="column"] {
+            display: flex;
+            position: relative;
+            flex-direction: column;
+            align-items: stretch;
+            width: 50px;
+            font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+
+            & > [data-part="label"] {
+              margin-bottom: var(--noora-spacing-4);
+              color: var(--marketing-illustration-neutral-4);
+              text-align: center;
+            }
+
+            & > [data-part="ghost"] {
+              display: flex;
+              position: relative;
+              justify-content: center;
+              align-items: center;
+              box-sizing: border-box;
+              margin-bottom: 2px;
+              border: 1px solid var(--marketing-stroke-default);
+              /* Keeps the value's backdrop inside the frame so it never
+                 paints over the border (the values fit the 50px bar). */
+              overflow: hidden;
+
+              & > [data-part="dither"] {
+                display: block;
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+              }
+
+              /* The value sits on top of the dither and may run wider than
+                 the bar, like the comp; its surface-colored backdrop knocks
+                 the grain out behind the glyphs so they stay legible. */
+              & > [data-part="value"] {
+                position: relative;
+                background: var(--noora-surface-background-primary);
+                padding: 0 var(--noora-spacing-2);
+                color: var(--marketing-illustration-neutral-4);
+                white-space: nowrap;
+              }
+            }
+
+            & > [data-part="cached"] {
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              box-sizing: border-box;
+              border: 1px solid var(--noora-purple-400);
+              background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+              color: light-dark(var(--noora-purple-500), var(--noora-purple-300));
+
+              & > [data-part="value"] {
+                white-space: nowrap;
+              }
+            }
+
+            /* The solid cost bar: covers the column below the label and
+               squashes down into the cached box when the entrance plays. */
+            & > [data-part="collapse"] {
+              display: none;
+              position: absolute;
+              right: 0;
+              bottom: 0;
+              left: 0;
+              z-index: var(--noora-z-index-1);
+              background: var(--marketing-illustration-neutral-1);
+              height: calc(100% - 24px);
+            }
+          }
+
+          /* Armed (JS will animate): the cached boxes wait for their pop
+             and the solid cost bars cover the ghosts. The animations
+             (declared under [data-play]) fill both ways, so they own the
+             boxes' opacity once playing. Without JS or with reduced
+             motion, the card just shows its final frame. */
+          &[data-armed] [data-part="cached"] {
+            opacity: 0;
+          }
+
+          &[data-armed] [data-part="collapse"] {
+            display: block;
+          }
+
+          /* Labels start as shimmering skeletons and resolve to text as
+             their column's bar lands. The shimmer runs from the moment the
+             card is armed and fades out at each label's reveal. */
+          &[data-armed] [data-part="label"] {
+            position: relative;
+            border-radius: var(--noora-radius-2);
+            background: var(--marketing-illustration-neutral-1);
+            overflow: hidden;
+            color: transparent;
+
+            &::after {
+              position: absolute;
+              transform: translateX(-100%);
+              animation: marketing-cache-mo-shimmer 1.2s linear infinite;
+              inset: 0;
+              background: linear-gradient(
+                90deg,
+                transparent,
+                light-dark(rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.08)),
+                transparent
+              );
+              content: "";
+            }
+          }
+
+          &[data-play] [data-part="label"] {
+            animation: marketing-cache-mo-label 0.25s linear calc(var(--delay) + 0.5s) both;
+
+            &::after {
+              animation:
+                marketing-cache-mo-shimmer 1.2s linear infinite,
+                marketing-cache-mo-fade 0.1s linear calc(var(--delay) + 0.5s) forwards;
+            }
+          }
+
+          &[data-play] [data-part="collapse"] {
+            animation:
+              marketing-cache-mo-collapse 0.5s var(--ease-out-cubic) var(--delay) both,
+              marketing-cache-mo-fade 0.2s linear calc(var(--delay) + 0.55s) forwards;
+          }
+
+          &[data-play] [data-part="cached"] {
+            animation: marketing-cache-mo-pop 0.35s var(--ease-out-cubic) calc(var(--delay) + 0.5s) both;
+          }
+
+          /* The columns are fixed-width (7 x 50px + 30px gaps ≈ 530px), so
+             narrower cells shed trailing columns instead of clipping one
+             mid-bar. Two ladders: the 2-column grid (cell ≈ half the
+             viewport) sheds early; the single-column grid (cell ≈ full
+             viewport) fits all seven again until phone widths. */
+          @media (min-width: 721px) and (max-width: 1180px) {
+            & > [data-part="column"]:nth-child(n + 7) {
+              display: none;
+            }
+          }
+
+          @media (min-width: 721px) and (max-width: 1020px) {
+            & > [data-part="column"]:nth-child(n + 6) {
+              display: none;
+            }
+          }
+
+          @media (min-width: 721px) and (max-width: 860px) {
+            & > [data-part="column"]:nth-child(n + 5) {
+              display: none;
+            }
+          }
+
+          @media (max-width: 610px) {
+            & > [data-part="column"]:nth-child(n + 7) {
+              display: none;
+            }
+          }
+
+          @media (max-width: 540px) {
+            & > [data-part="column"]:nth-child(n + 6) {
+              display: none;
+            }
+          }
+
+          @media (max-width: 460px) {
+            & > [data-part="column"]:nth-child(n + 5) {
+              display: none;
+            }
+          }
+
+          @media (max-width: 390px) {
+            & > [data-part="column"]:nth-child(n + 4) {
+              display: none;
+            }
+          }
+        }
+
+        /* "Low latency, everywhere" globe: a spinning stippled sphere
+           drawn by the DitherGlobe hook on the shared 2px dither grain.
+           Neutral ramp topping out at the illustrations' neutral-4, the
+           same tone the other cards' linework uses. */
+        & > [data-part="illustration"][data-illustration="low-latency"] {
+          --marketing-cache-globe-dither-shallow: var(--marketing-illustration-neutral-2);
+          --marketing-cache-globe-dither-mid: var(--marketing-illustration-neutral-3);
+          --marketing-cache-globe-dither-deep: var(--marketing-illustration-neutral-4);
+          /* Region markers: light brand purple against the neutral globe
+             in both themes. */
+          --marketing-cache-globe-marker: var(--noora-purple-300);
+          position: relative;
+          overflow: hidden;
+
+          & > canvas {
+            display: block;
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+            /* Vertical pans still scroll the page on touch; horizontal
+               drags rotate the globe. */
+            touch-action: pan-y;
+
+            &.dragging {
+              cursor: grabbing;
+            }
+          }
+        }
+
+        /* "Built-in observability" dashboard: a cacheable-targets panel
+           with a segmented distribution bar and legend, three stat cards
+           below, and a blurred gradient fade over the bottom edge so the
+           dashboard trails off before the text block. Purple fills follow
+           the cached-box recipe (solid tints in light mode, alpha/deep
+           tints in dark). */
+        & > [data-part="illustration"][data-illustration="observability"] {
+          --observability-local: light-dark(var(--noora-purple-100), var(--noora-alpha-purple));
+          --observability-remote: light-dark(var(--noora-purple-200), var(--noora-purple-700));
+          --observability-uploaded: light-dark(var(--noora-purple-400), var(--noora-purple-500));
+          --observability-failed: var(--noora-red-400);
+          position: relative;
+          flex-direction: column;
+          justify-content: center;
+          box-sizing: border-box;
+          padding: var(--noora-spacing-8) var(--noora-spacing-10) 0;
+          overflow: hidden;
+
+          & > [data-part="dashboard"] {
+            display: flex;
+            flex-direction: column;
+            gap: var(--noora-spacing-4);
+            margin: 0 auto;
+            width: 100%;
+            max-width: 520px;
+
+            & [data-part="panel"] {
+              box-sizing: border-box;
+              box-shadow: var(--noora-border-light-default);
+              background: var(--noora-surface-background-primary);
+              padding: var(--noora-spacing-6) var(--noora-spacing-7);
+
+              & > [data-part="heading"] {
+                margin: 0;
+                color: var(--noora-surface-label-primary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+
+                & > strong {
+                  font-weight: 700;
+                  /* The value counts up on entrance — fixed-width digits
+                     keep it from jittering while it rolls. */
+                  font-variant-numeric: tabular-nums;
+                }
+              }
+
+              & > [data-part="bar"] {
+                display: flex;
+                gap: 2px;
+                margin-top: var(--noora-spacing-6);
+                border-radius: 6px;
+                height: 24px;
+                overflow: hidden;
+
+                & > [data-part="segment"] {
+                  position: relative;
+                  background: var(--segment-color);
+
+                  &[data-segment="local"] {
+                    flex: 12.5;
+                    --segment-color: var(--observability-local);
+                  }
+
+                  &[data-segment="remote"] {
+                    flex: 66;
+                    --segment-color: var(--observability-remote);
+                  }
+
+                  &[data-segment="uploaded"] {
+                    flex: 12.5;
+                    --segment-color: var(--observability-uploaded);
+                  }
+
+                  &[data-segment="failed"] {
+                    flex: 9;
+                    --segment-color: var(--observability-failed);
+                  }
+                }
+              }
+
+              & > [data-part="legend"] {
+                display: flex;
+                flex-wrap: wrap;
+                gap: var(--noora-spacing-2) var(--noora-spacing-6);
+                margin: var(--noora-spacing-5) 0 0;
+                padding: 0;
+                list-style: none;
+                color: var(--noora-surface-label-secondary);
+                font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+
+                & > li {
+                  display: flex;
+                  align-items: center;
+                  gap: var(--noora-spacing-2);
+
+                  &::before {
+                    display: inline-block;
+                    border-radius: 999px;
+                    width: 10px;
+                    height: 4px;
+                    content: "";
+                  }
+
+                  &[data-segment="local"]::before {
+                    background: var(--observability-local);
+                  }
+
+                  &[data-segment="remote"]::before {
+                    background: var(--observability-remote);
+                  }
+
+                  &[data-segment="uploaded"]::before {
+                    background: var(--observability-uploaded);
+                  }
+
+                  &[data-segment="failed"]::before {
+                    background: var(--observability-failed);
+                  }
+                }
+              }
+            }
+
+            & > [data-part="stats"] {
+              display: grid;
+              /* minmax(0, …): a bare 1fr can't shrink below the labels'
+                 min-content width, which forces the page wider than small
+                 viewports. */
+              grid-template-columns: repeat(3, minmax(0, 1fr));
+              gap: var(--noora-spacing-4);
+
+              & > [data-part="stat"] {
+                display: flex;
+                flex-direction: column;
+                gap: var(--noora-spacing-3);
+                box-sizing: border-box;
+                box-shadow: var(--noora-border-light-default);
+                background: var(--noora-surface-background-primary);
+                padding: var(--noora-spacing-5) var(--noora-spacing-6);
+                min-width: 0;
+
+                & > [data-part="label"] {
+                  color: var(--noora-surface-label-secondary);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+                  font-size: 10px;
+                  line-height: 1.4;
+                }
+
+                & > [data-part="value"] {
+                  color: var(--noora-surface-label-primary);
+                  font: var(--noora-font-weight-medium) var(--noora-font-display-small);
+                  font-size: 24px;
+                  line-height: 1.2;
+                  /* Counts up on entrance — tabular digits stop the roll
+                     from jittering. */
+                  font-variant-numeric: tabular-nums;
+                }
+              }
+            }
+          }
+
+          /* Compact treatment for narrow viewports: tighter paddings and
+             smaller values keep the three stat cards on one row without
+             their content clipping. Top-aligned — the compact dashboard
+             is shorter, and centering it leaves a hole above the panel. */
+          @media (max-width: 720px) {
+            justify-content: flex-start;
+            /* Same side inset as the other cards' content (spacing-7),
+               so the dashboard keeps a consistent gap to the cell edges. */
+            padding: var(--noora-spacing-6) var(--noora-spacing-7) 0;
+
+            & > [data-part="dashboard"] {
+              & [data-part="panel"] {
+                padding: var(--noora-spacing-5) var(--noora-spacing-6);
+              }
+
+              & > [data-part="stats"] {
+                gap: var(--noora-spacing-3);
+
+                & > [data-part="stat"] {
+                  gap: var(--noora-spacing-2);
+                  padding: var(--noora-spacing-4) var(--noora-spacing-5);
+
+                  & > [data-part="value"] {
+                    font-size: 18px;
+                  }
+                }
+              }
+            }
+          }
+
+        }
+
+        /* Shared illustration fade (Figma: a 600x123 band): a gradient
+           down to the cell surface with a 1px backdrop blur, both ramping
+           in through the same mask, so each illustration's bottom edge
+           melts away into the text block instead of being cut. Used by
+           the observability, globe, and build-system cards. */
+        & > [data-part="illustration"] > [data-part="fade"] {
+          position: absolute;
+          right: 0;
+          bottom: 0;
+          left: 0;
+          height: 123px;
+          pointer-events: none;
+          backdrop-filter: blur(1px);
+          background: linear-gradient(180deg, transparent, var(--noora-surface-background-primary));
+          mask-image: linear-gradient(180deg, transparent, black);
+        }
+
+        /* "Built for your build system" dependency graph: the build
+           system's label box centered over the CacheBuildGraph canvas —
+           module branches radiate out as dithered squares on thin grey
+           dependency lines, with cached artifacts in solid purple ending
+           their branches. The label cycles between systems (the hook
+           swaps its text and fades it with the canvas). */
+        & > [data-part="illustration"][data-illustration="build-systems"] {
+          --marketing-cache-graph-edge: var(--marketing-illustration-neutral-2);
+          /* Module dots in the illustration neutral ramp; purple marks
+             the artifacts resolved from the cache. */
+          --marketing-cache-graph-node-1: var(--marketing-illustration-neutral-3);
+          --marketing-cache-graph-node-2: var(--marketing-illustration-neutral-4);
+          --marketing-cache-graph-node-3: var(--marketing-illustration-neutral-5);
+          --marketing-cache-graph-cached: var(--noora-purple-400);
+          position: relative;
+          overflow: hidden;
+
+          & > [data-part="canvas"] {
+            display: block;
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+          }
+
+          /* The hub. */
+          & > [data-part="label"] {
+            position: relative;
+            border: 1px solid var(--marketing-stroke-default);
+            background: var(--noora-surface-background-primary);
+            padding: var(--noora-spacing-4) var(--noora-spacing-7);
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+          }
         }
 
         & > [data-part="text"] {
@@ -261,5 +734,57 @@
       gap: var(--noora-spacing-4);
       margin-top: var(--noora-spacing-9);
     }
+  }
+}
+
+/* "Minimal overhead" card entrance prototypes (see CacheMinimalOverhead). */
+@keyframes marketing-cache-mo-collapse {
+  from {
+    height: calc(100% - 24px);
+  }
+
+  to {
+    height: var(--box-height);
+  }
+}
+
+@keyframes marketing-cache-mo-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes marketing-cache-mo-pop {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+
+  60% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes marketing-cache-mo-label {
+  from {
+    background: var(--marketing-illustration-neutral-1);
+    color: transparent;
+  }
+
+  to {
+    background: transparent;
+    color: var(--marketing-illustration-neutral-4);
+  }
+}
+
+@keyframes marketing-cache-mo-shimmer {
+  to {
+    transform: translateX(100%);
   }
 }
