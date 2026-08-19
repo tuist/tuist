@@ -2145,3 +2145,132 @@ extension GraphDependencyReference {
         }
     }
 }
+
+/// The framework search path inputs a target needs, without materializing a `GraphDependencyReference` for
+/// every dependency reachable from it.
+public struct PrecompiledSearchPathDependencies: Equatable, Sendable {
+    /// Paths of the precompiled artifacts the target can see: xcframeworks, frameworks, libraries and
+    /// foreign build outputs.
+    public let precompiledPaths: Set<AbsolutePath>
+    /// The `FRAMEWORK_SEARCH_PATHS` entries contributed by SDK dependencies.
+    public let sdkSearchPaths: Set<String>
+
+    public init(precompiledPaths: Set<AbsolutePath>, sdkSearchPaths: Set<String>) {
+        self.precompiledPaths = precompiledPaths
+        self.sdkSearchPaths = sdkSearchPaths
+    }
+}
+
+extension GraphTraverser {
+    /// The same search path inputs `searchablePathDependencies` carries, derived directly rather than by
+    /// projecting a set of `GraphDependencyReference`.
+    ///
+    /// `searchablePathDependencies` builds one reference per reachable dependency per target, and its only
+    /// consumers — the framework search paths mapper and the cached-modules debugger — immediately reduce
+    /// those to artifact paths and SDK search paths. On a binary-cache-substituted graph that is hundreds of
+    /// references per target that exist to be thrown away.
+    ///
+    /// This is an independent derivation of the same answer, so it is verified against the reference
+    /// implementation by `PrecompiledSearchPathsDifferentialTests` rather than by construction.
+    public func precompiledSearchPathDependencies(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> PrecompiledSearchPathDependencies {
+        guard let target = target(path: path, name: name) else {
+            return PrecompiledSearchPathDependencies(precompiledPaths: [], sdkSearchPaths: [])
+        }
+        let from = GraphDependency.target(name: name, path: path)
+
+        var precompiledPaths: Set<AbsolutePath> = []
+        var sdkSearchPaths: Set<String> = []
+
+        // Mirrors `dependencyReference(to:from:)`'s condition filtering, which drops dependencies whose
+        // combined platform condition is incompatible. For the kinds that carry a path that guard is the
+        // only thing between the dependency and a reference, so checking it here is equivalent.
+        func admit(_ dependency: GraphDependency) {
+            guard case .condition = combinedCondition(to: dependency, from: from) else { return }
+            switch dependency {
+            case let .xcframework(xcframework):
+                precompiledPaths.insert(xcframework.path)
+            case let .framework(path, _, _, _, _, _, _):
+                precompiledPaths.insert(path)
+            case let .library(path, _, _, _, _):
+                precompiledPaths.insert(path)
+            case let .foreignBuildOutput(output):
+                precompiledPaths.insert(output.path)
+            case let .sdk(_, _, _, source):
+                if let searchPath = source.frameworkSearchPath { sdkSearchPaths.insert(searchPath) }
+            case .bundle, .macro, .packageProduct, .target:
+                break
+            }
+        }
+
+        let directDependencies = graph.dependencies[from, default: []]
+
+        // Precompiled dynamic libraries and frameworks reachable through the target's precompiled dependencies.
+        for dependency in precompiledDynamicLibrariesAndFrameworks(path: path, name: name) {
+            admit(dependency)
+        }
+
+        // Directly declared SDKs, and only those: a directly declared precompiled artifact reaches the search
+        // paths through the rules below, not by being declared. The App Clip SDK that `linkableDependencies`
+        // synthesizes is deliberately not reproduced: it is a `.system` SDK, and only `.developer` SDKs carry
+        // a framework search path.
+        for dependency in directDependencies {
+            if case .sdk = dependency { admit(dependency) }
+        }
+
+        if target.target.canLinkStaticProducts() {
+            let transitiveStatics = transitiveStaticDependencies(from: from)
+            for dependency in transitiveStatics {
+                admit(dependency)
+                // The SDKs and linkable precompiled artifacts hanging off each transitive static dependency.
+                for child in graph.dependencies[dependency, default: []] {
+                    switch child {
+                    case .sdk:
+                        admit(child)
+                    default:
+                        if child.isPrecompiled, child.isLinkable { admit(child) }
+                    }
+                }
+            }
+        }
+
+        // Static precompiled frameworks declared directly, and everything reachable below them.
+        let directStaticFrameworks = Set(
+            directDependencies.filter { dependency in
+                if case let .framework(_, _, _, _, linking, _, _) = dependency { linking == .static } else { false }
+            }
+        )
+        if !directStaticFrameworks.isEmpty {
+            for dependency in directStaticFrameworks {
+                admit(dependency)
+            }
+            for dependency in filterDependencies(from: directStaticFrameworks) {
+                admit(dependency)
+            }
+        }
+
+        // The statics behind the target's directly declared dynamic library and framework targets.
+        for dependency in directDependencies
+            where isDependencyDynamicLibrary(dependency: dependency) || isDependencyFramework(dependency: dependency)
+        {
+            for transitive in transitiveStaticDependencies(from: dependency) {
+                admit(transitive)
+            }
+        }
+
+        // The static xcframeworks a dynamic xcframework absorbed, plus the SDKs they link.
+        for dependency in staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(path: path, name: name) {
+            admit(dependency)
+            for child in graph.dependencies[dependency, default: []] {
+                if case .sdk = child { admit(child) }
+            }
+        }
+
+        return PrecompiledSearchPathDependencies(
+            precompiledPaths: precompiledPaths,
+            sdkSearchPaths: sdkSearchPaths
+        )
+    }
+}
