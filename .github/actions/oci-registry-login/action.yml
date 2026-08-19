@@ -37,7 +37,7 @@ description: >-
 
 inputs:
   host:
-    description: Registry host, e.g. `oci.tuist.dev`
+    description: Registry host, e.g. `tuist-oci-production.taild6d7bb.ts.net`
     required: true
   op-service-account-token:
     description: 1Password service-account token, scoped to the vault below
@@ -88,17 +88,47 @@ runs:
           echo "TART_REGISTRY_PASSWORD=${password}"
         } >> "$GITHUB_ENV"
 
+        # Resolve first: a failure here is the scoped resolver missing
+        # from this host, not a credential problem, and the two look
+        # nothing alike once you know which you are reading.
+        #
+        # The check has to go through getaddrinfo, because that is the
+        # only resolver every client here shares. `dig` and `host` read
+        # /etc/resolv.conf and ignore the scoped resolvers under
+        # /etc/resolver, so on macOS they answer NXDOMAIN for exactly the
+        # tailnet names crane resolves fine. A guard built on either
+        # fails the job once the resolver is in place. `host` is also
+        # wrong in the other direction: it exits 0 for a name that
+        # returns no records, which is how the withdrawn `oci.tuist.dev`
+        # walked straight past this guard and surfaced as an opaque
+        # crane error instead. And `getent` does not exist on macOS, so
+        # the check it fronted never ran on these builders at all.
+        resolves_via_getaddrinfo() {
+          if command -v python3 >/dev/null 2>&1; then
+            python3 -c 'import socket, sys; socket.getaddrinfo(sys.argv[1], 443)' "$1" >/dev/null 2>&1
+          elif command -v dscacheutil >/dev/null 2>&1; then
+            dscacheutil -q host -a name "$1" 2>/dev/null | grep -qE '^ipv?6?_?address:'
+          else
+            getent hosts "$1" >/dev/null 2>&1
+          fi
+        }
+
+        if ! resolves_via_getaddrinfo "$REGISTRY_HOST"; then
+          case "$REGISTRY_HOST" in
+            *.ts.net)
+              echo "::error::${REGISTRY_HOST} does not resolve on this runner. It is a tailnet name, and tailscaled on macOS does not rewrite the system resolver, so it only resolves through the scoped /etc/resolver/ts.net pointing at 100.100.100.100. That file is installed by the CAPI host bootstrap (installTailnetResolver), on both the first-bootstrap and the drift path; check the host carries it and that the operator is new enough to apply it on drift."
+              ;;
+            *)
+              echo "::error::${REGISTRY_HOST} does not resolve on this runner."
+              ;;
+          esac
+          exit 1
+        fi
+
         # crane and oras both persist to ~/.docker/config.json, which
         # Tart reads through the Docker credential-helper protocol. That
         # sidesteps the macOS keychain, whose "User interaction" prompt
         # is not reachable from the LaunchAgent these builders run under.
-        # Resolve first: a failure here is the scoped resolver missing
-        # from this host, not a credential problem, and the two look
-        # nothing alike once you know which you are reading.
-        if ! getent hosts "$REGISTRY_HOST" >/dev/null 2>&1 && ! host "$REGISTRY_HOST" >/dev/null 2>&1; then
-          echo "::error::${REGISTRY_HOST} does not resolve on this runner. It is a tailnet name; check that /etc/resolver/ts.net exists and points at 100.100.100.100 (installed by the CAPI host bootstrap)."
-          exit 1
-        fi
 
         printf '%s' "$password" | crane auth login --username "$username" --password-stdin "$REGISTRY_HOST"
         printf '%s' "$password" | oras login "$REGISTRY_HOST" --username "$username" --password-stdin
