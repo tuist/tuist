@@ -223,23 +223,48 @@
           </div>
         </div>
         <div data-part="cell">
-          <%!-- Build-system dependency graph, drawn by the CacheBuildGraph
-          hook: the build system's label box in the middle with module
-          branches radiating out — dithered squares are work that would
-          need compiling, purple squares are artifacts resolved from the
-          cache (their branches stop there), thin grey lines are the
-          dependencies. The label cycles XCODE → GRADLE → BAZEL, each with
-          its own architecture. Decorative (aria-hidden). --%>
+          <%!-- Build-system blueprint card (Figma: 382x182): the system and
+          its ecosystem in the header, a faint drafting grid below, and
+          Apple's app-icon grid system — rounded square, concentric
+          circles, diagonals, center axes — drawn over it as an inline
+          SVG. Decorative (aria-hidden), labels untranslated like the
+          other cards' chart annotations. --%>
           <figure
             data-part="illustration"
             data-illustration="build-systems"
             aria-hidden="true"
-            id="cache-build-graph"
-            phx-hook="CacheBuildGraph"
+            id="cache-build-decks"
+            phx-hook="CacheBuildDecks"
             phx-update="ignore"
           >
-            <canvas data-part="canvas"></canvas>
-            <span data-part="label">XCODE</span>
+            <%!-- One blueprint panel per build system, stacked like a
+            deck: Xcode in front, Bazel and Gradle behind it, each peeking
+            only its header row and drawn slightly narrower the deeper it
+            sits. Each system carries its own drafting pattern — a square
+            grid for Xcode, a diamond lattice for Bazel, an arc-stencil
+            tessellation for Gradle. --%>
+            <div data-part="panel" data-system="xcode">
+              <header data-part="header">
+                <span data-part="system">XCODE</span>
+                <span data-part="platform">APPLE&nbsp;ECOSYSTEM</span>
+              </header>
+              <div data-part="grid"></div>
+            </div>
+            <div data-part="panel" data-system="bazel">
+              <header data-part="header">
+                <span data-part="system">BAZEL</span>
+                <span data-part="platform">GOOGLE&nbsp;OPEN&nbsp;SOURCE</span>
+              </header>
+              <div data-part="grid"></div>
+            </div>
+            <div data-part="panel" data-system="gradle">
+              <header data-part="header">
+                <span data-part="system">GRADLE</span>
+                <span data-part="platform">GRADLE&nbsp;PROJECT</span>
+              </header>
+              <div data-part="grid"></div>
+            </div>
+            <span data-part="fade"></span>
           </figure>
           <div data-part="text">
             <h3 data-part="title">{dgettext("marketing", "Built for your build system")}</h3>

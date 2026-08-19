@@ -605,6 +605,8 @@
            the observability, globe, and build-system cards. */
         & > [data-part="illustration"] > [data-part="fade"] {
           position: absolute;
+          /* Above every stacked layer in the illustrations. */
+          z-index: var(--noora-z-index-2);
           right: 0;
           bottom: 0;
           left: 0;
@@ -615,39 +617,144 @@
           mask-image: linear-gradient(180deg, transparent, black);
         }
 
-        /* "Built for your build system" dependency graph: the build
-           system's label box centered over the CacheBuildGraph canvas —
-           module branches radiate out as dithered squares on thin grey
-           dependency lines, with cached artifacts in solid purple ending
-           their branches. The label cycles between systems (the hook
-           swaps its text and fades it with the canvas). */
+        /* "Built for your build system" blueprint cards: one panel per
+           system, stacked like a deck — Xcode in front, Bazel behind with
+           only its header row peeking above. Each panel is a header row
+           (system + ecosystem) over its own drafting pattern: a square
+           grid for Xcode, a diamond lattice for Bazel. The front panel
+           sits low in the slot, its bottom edge melting into the shared
+           fade band. */
         & > [data-part="illustration"][data-illustration="build-systems"] {
-          --marketing-cache-graph-edge: var(--marketing-illustration-neutral-2);
-          /* Module dots in the illustration neutral ramp; purple marks
-             the artifacts resolved from the cache. */
-          --marketing-cache-graph-node-1: var(--marketing-illustration-neutral-3);
-          --marketing-cache-graph-node-2: var(--marketing-illustration-neutral-4);
-          --marketing-cache-graph-node-3: var(--marketing-illustration-neutral-5);
-          --marketing-cache-graph-cached: var(--noora-purple-400);
+          --marketing-cache-build-grid: var(--marketing-illustration-neutral-1);
+          /* The front card's dither halo, drawn by the CacheBuildDecks
+             hook — plus the sparse full-strength accent dots that make
+             the hover pop: deep purple in light mode, bright in dark. */
+          --marketing-cache-build-halo: var(--noora-purple-400);
+          --marketing-cache-build-halo-accent: light-dark(var(--noora-purple-600), var(--noora-purple-200));
           position: relative;
+          /* Own stacking context, so the back cards' negative z-index
+             stays inside the figure instead of dropping behind the
+             section background. */
+          z-index: 0;
+          align-items: flex-end;
           overflow: hidden;
 
-          & > [data-part="canvas"] {
-            display: block;
+          /* Panels are positioned purely by data-pos (rotated by the
+             CacheBuildDecks hook on click): 0 = front, deeper positions
+             sit higher and narrower, peeking only their header rows. */
+          & > [data-part="panel"] {
+            display: flex;
             position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            transition:
+              bottom 0.45s var(--ease-out-cubic),
+              width 0.45s var(--ease-out-cubic),
+              box-shadow 0.3s ease;
+            flex-direction: column;
+            box-sizing: border-box;
+            box-shadow: var(--noora-border-light-default);
+            background: var(--noora-surface-background-primary);
+            padding: var(--noora-spacing-6) var(--noora-spacing-7);
+            width: 500px;
+            max-width: calc(100% - 2 * var(--noora-spacing-7));
+            height: 182px;
+
+            & > [data-part="header"] {
+              display: flex;
+              justify-content: space-between;
+              gap: var(--noora-spacing-6);
+              /* Same breath below the title as the panel's top padding
+                 gives it above. */
+              margin-bottom: var(--noora-spacing-6);
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+            }
+
+            & > [data-part="grid"] {
+              --cell: 24px;
+              position: relative;
+              flex: 1;
+              box-sizing: border-box;
+              /* Frames the pattern field, closing the outer cells. */
+              border: 1px solid var(--marketing-cache-build-grid);
+              min-height: 0;
+              background-image:
+                linear-gradient(var(--marketing-cache-build-grid) 1px, transparent 1px),
+                linear-gradient(90deg, var(--marketing-cache-build-grid) 1px, transparent 1px);
+              background-size: var(--cell) var(--cell);
+              background-position: calc(50% + var(--cell) / 2) calc(50% + var(--cell) / 2);
+              overflow: hidden;
+            }
           }
 
-          /* The hub. */
-          & > [data-part="label"] {
-            position: relative;
-            border: 1px solid var(--marketing-stroke-default);
-            background: var(--noora-surface-background-primary);
-            padding: var(--noora-spacing-4) var(--noora-spacing-7);
-            color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+          & > [data-part="panel"][data-pos="0"] {
+            bottom: -16px;
+            z-index: var(--noora-z-index-1);
+            /* Only the front card carries the purple ring; the back cards
+               keep the default hairline. Hovering adds the purple glow —
+             the hook fades the inner dither rim in alongside it. */
+            box-shadow: 0 0 0 1px var(--noora-purple-400);
+            cursor: pointer;
+
+            &:hover {
+              box-shadow:
+                0 0 0 1px var(--noora-purple-400),
+                0 0 28px 0 var(--noora-alpha-purple);
+            }
+          }
+
+          & > [data-part="panel"][data-pos="1"] {
+            bottom: 20px;
+            z-index: 0;
+            width: 460px;
+          }
+
+          & > [data-part="panel"][data-pos="2"] {
+            bottom: 56px;
+            z-index: -1;
+            width: 420px;
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            & > [data-part="panel"] {
+              transition: none;
+            }
+          }
+
+          /* The diamond lattice: the square grid rotated 45 degrees. */
+          & > [data-part="panel"][data-system="bazel"] > [data-part="grid"] {
+            background-image:
+              repeating-linear-gradient(
+                45deg,
+                var(--marketing-cache-build-grid) 0 1px,
+                transparent 1px var(--cell)
+              ),
+              repeating-linear-gradient(
+                -45deg,
+                var(--marketing-cache-build-grid) 0 1px,
+                transparent 1px var(--cell)
+              );
+            background-size: auto;
+            background-position: center;
+          }
+
+          /* Intersecting wavy lines: horizontal and vertical S-curve
+             families crossing each other (alternate rows/columns phase
+             flipped), applied as a mask over the token color so it stays
+             theme-reactive (data-URI SVGs can't read CSS vars). */
+          & > [data-part="panel"][data-system="gradle"] > [data-part="grid"] {
+            background-image: none;
+
+            &::before {
+              position: absolute;
+              inset: 0;
+              mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48' fill='none' stroke='white'%3E%3Cpath d='M0 12 C8 4 16 4 24 12 S40 20 48 12 M0 36 C8 44 16 44 24 36 S40 28 48 36 M12 0 C4 8 4 16 12 24 S20 40 12 48 M36 0 C44 8 44 16 36 24 S28 40 36 48'/%3E%3C/svg%3E");
+              mask-position: center;
+              mask-size: 48px 48px;
+              background: var(--marketing-cache-build-grid);
+              content: "";
+            }
           }
         }
 
