@@ -37,7 +37,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMvI
   test "seeds the read window, leaves history out of it, and repeats without double counting" do
     project_id = 1_000_000_000 + :rand.uniform(1_000_000_000)
     in_window = UUIDv7.generate()
-    out_of_window = UUIDv7.generate()
+    just_outside = UUIDv7.generate()
+    long_before = UUIDv7.generate()
     today = Date.utc_today()
 
     runs =
@@ -46,13 +47,16 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMvI
           run_attrs(project_id, in_window, Date.add(today, -days_ago), duration, is_ci)
         end
       end) ++
-        [run_attrs(project_id, out_of_window, Date.add(today, -120), 700, true)]
+        [
+          run_attrs(project_id, just_outside, Date.add(today, -20), 700, true),
+          run_attrs(project_id, long_before, Date.add(today, -120), 700, true)
+        ]
 
     IngestRepo.insert_all(TestCaseRun, runs)
 
     CreateTestCaseDurationDailyStatsPerCaseMv.up()
 
-    assert stats(project_id) == expected_stats(project_id, Date.add(today, -30))
+    assert stats(project_id) == expected_stats(project_id, Date.add(today, -16))
     assert Enum.all?(stats(project_id), fn row -> row.test_case_id == in_window end)
 
     seeded = stats(project_id)

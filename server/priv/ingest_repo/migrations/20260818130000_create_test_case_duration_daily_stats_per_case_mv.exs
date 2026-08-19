@@ -77,9 +77,23 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMv 
   and it deliberately exposes no date-window option, so no query can reach a
   row older than that window. Seeding all history therefore aggregated years of
   runs nothing would read, and it was that volume rather than the feature that
-  could not fit in the ClickHouse memory budget. The seeded window is wider
-  than the read window, so the view has filled forward well past the seam long
-  before the read window arrives at it.
+  could not fit in the ClickHouse memory budget.
+
+  The seam sits at the day this runs: the backfill ends there and the view
+  carries everything after it. A reader that day asks for the 14 days before
+  it, and every later day asks for a window the view has already covered more
+  of, so the widest gap the backfill ever has to close is the read window
+  itself. The extra days on top of it are slack, not coverage.
+
+  The window cannot go to zero. `list_test_cases/3` renders a test case below
+  the sample floor as "N/A" and explains it as "has run 0 times in the last 14
+  days", which of an unseeded row is untrue rather than merely incomplete, and
+  the Tests overview drops those rows from "Slowest test cases" entirely. The
+  projects that would sit that way longest are the ones that run their suites
+  least often: sampled against the current data, the four largest projects
+  recover 94-99% of their populated duration cells after a single day of
+  filling forward, while several low-frequency projects recover none of theirs
+  in seven.
 
   ## Surviving the memory budget
 
@@ -111,7 +125,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMv 
   @disable_ddl_transaction true
   @disable_migration_lock true
 
-  @backfill_window_days 30
+  @backfill_window_days 16
   @project_throttle_ms 250
   @range_attempts 2
   @max_memory_usage 1_073_741_824
