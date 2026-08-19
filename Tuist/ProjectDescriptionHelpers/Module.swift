@@ -1839,6 +1839,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .generator:
                 [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),

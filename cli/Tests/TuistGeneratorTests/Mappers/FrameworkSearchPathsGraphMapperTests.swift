@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Path
 import Testing
+import TuistAlert
 import XcodeGraph
 @testable import TuistCore
 @testable import TuistGenerator
@@ -313,6 +314,100 @@ struct FrameworkSearchPathsGraphMapperTests {
                 projectPath.appending(components: "Derived", "FrameworkSearchPaths")
             )
         )
+    }
+
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
+    func warnsWhenATargetResolvesSeveralPrecompiledArtifactsSharingABasename() async throws {
+        // Given: two `Foo.xcframework` artifacts in sibling directories on the same target's framework
+        // search paths. Which one the compiler resolves is decided by the order of the search paths,
+        // which follows where the artifacts happen to live on disk.
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let vendored = projectPath.appending(components: "vendor", "Foo.xcframework")
+        let cached = projectPath.appending(components: "cache", "Foo.xcframework")
+        let graph = appGraph(
+            projectPath: projectPath,
+            targetName: "App",
+            dependencies: [
+                .testXCFramework(path: vendored, linking: .dynamic),
+                .testXCFramework(path: cached, linking: .dynamic),
+            ]
+        )
+
+        // When
+        _ = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let warnings = AlertController.current.warnings().map(\.message).map { $0.plain() }
+        #expect(warnings.count == 1)
+        let warning = try #require(warnings.first)
+        #expect(warning.contains("'App'"))
+        #expect(warning.contains("'Foo.xcframework'"))
+        #expect(warning.contains(cached.pathString))
+        #expect(warning.contains(vendored.pathString))
+    }
+
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
+    func reportsEachAmbiguousArtifactNameOnceAcrossTargets() async throws {
+        // Given: the same pair of colliding artifacts on two targets. The ambiguity is a property of the
+        // artifacts, so it is reported once no matter how many targets resolve it.
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let vendored = GraphDependency.testXCFramework(
+            path: projectPath.appending(components: "vendor", "Foo.xcframework"),
+            linking: .dynamic
+        )
+        let cached = GraphDependency.testXCFramework(
+            path: projectPath.appending(components: "cache", "Foo.xcframework"),
+            linking: .dynamic
+        )
+        let project = Project.test(
+            path: projectPath,
+            sourceRootPath: projectPath,
+            targets: [
+                Target.test(name: "App", product: .app),
+                Target.test(name: "Feature", product: .framework),
+            ]
+        )
+        let graph = Graph.test(
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "App", path: projectPath): Set([vendored, cached]),
+                .target(name: "Feature", path: projectPath): Set([vendored, cached]),
+                vendored: Set(),
+                cached: Set(),
+            ]
+        )
+
+        // When
+        _ = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let warnings = AlertController.current.warnings().map(\.message).map { $0.plain() }
+        #expect(warnings.count == 1)
+        let warning = try #require(warnings.first)
+        #expect(warning.contains("'App'"))
+        #expect(warning.contains("1 other target"))
+    }
+
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
+    func doesNotWarnWhenPrecompiledArtifactNamesAreUnique() async throws {
+        // Given
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = appGraph(
+            projectPath: projectPath,
+            targetName: "App",
+            dependencies: (0 ..< 25).map { i in
+                .testXCFramework(
+                    path: projectPath.appending(components: "Frameworks", "hash\(i)", "Module\(i).xcframework"),
+                    linking: .dynamic
+                )
+            }
+        )
+
+        // When
+        _ = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        #expect(AlertController.current.warnings().isEmpty)
     }
 
     private func arrayValue(_ value: SettingValue?) -> [String] {

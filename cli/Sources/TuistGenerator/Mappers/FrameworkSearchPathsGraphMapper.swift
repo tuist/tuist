@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistAlert
 import TuistConstants
 import TuistCore
 import TuistLogging
@@ -49,6 +50,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         let id: TargetID
         let responseFileDirectory: AbsolutePath
         let additions: [(key: String, values: [String])]
+        let ambiguousFrameworkNames: [AmbiguousFrameworkName]
         var responseFile: FileDescriptor?
         /// Non-nil for targets that went through consolidation, including when the set is empty: the cleanup
         /// directory has to be registered either way so links left by earlier Tuist versions are still removed.
@@ -74,6 +76,18 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         var canBeLinkedIntoSwiftSearchPath: Bool {
             path.extension == "framework"
         }
+
+        /// Whether the artifact is a framework bundle. Two of them sharing a name on one target compete for
+        /// the same module, and the order of the target's framework search paths is what decides between them.
+        var isFrameworkBundle: Bool {
+            path.extension == "framework" || path.extension == "xcframework"
+        }
+    }
+
+    /// Several precompiled framework bundles that share a name on one target's framework search paths.
+    private struct AmbiguousFrameworkName: Hashable {
+        let basename: String
+        let paths: [AbsolutePath]
     }
 
     public init() {}
@@ -126,9 +140,17 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         var generatedSymbolicLinkSideEffects: [SideEffectDescriptor] = []
         var activeFilesByDirectory: [AbsolutePath: Set<AbsolutePath>] = [:]
         var activeFrameworkLinksByDirectory: [AbsolutePath: Set<AbsolutePath>] = [:]
+        var ambiguousFrameworkNames: [AmbiguousFrameworkName] = []
+        var targetsByAmbiguousFrameworkName: [AmbiguousFrameworkName: [String]] = [:]
 
         for output in outputs {
             settingsByTarget[output.id] = output.additions
+            for ambiguousFrameworkName in output.ambiguousFrameworkNames {
+                if targetsByAmbiguousFrameworkName[ambiguousFrameworkName] == nil {
+                    ambiguousFrameworkNames.append(ambiguousFrameworkName)
+                }
+                targetsByAmbiguousFrameworkName[ambiguousFrameworkName, default: []].append(output.id.targetName)
+            }
             if let responseFile = output.responseFile {
                 activeFilesByDirectory[output.responseFileDirectory, default: []].insert(responseFile.path)
                 generatedFileSideEffects.append(.file(responseFile))
@@ -139,6 +161,8 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             }
             generatedSymbolicLinkSideEffects.append(contentsOf: output.symbolicLinks)
         }
+
+        warnAboutAmbiguousFrameworkNames(ambiguousFrameworkNames, targets: targetsByAmbiguousFrameworkName)
 
         var graph = graph
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
@@ -197,6 +221,14 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
 
         guard !precompiledPaths.isEmpty || !sdkPaths.isEmpty else { return nil }
 
+        let ambiguousFrameworkNames = Dictionary(
+            grouping: precompiledArtifacts.filter(\.isFrameworkBundle),
+            by: \.path.basename
+        )
+        .filter { $0.value.count > 1 }
+        .map { AmbiguousFrameworkName(basename: $0.key, paths: $0.value.map(\.path).sorted()) }
+        .sorted { $0.basename < $1.basename }
+
         var additions: [(key: String, values: [String])] = []
         guard precompiledPaths.count >= Self.consolidationThreshold else {
             additions.append((
@@ -206,7 +238,8 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             return TargetOutput(
                 id: input.id,
                 responseFileDirectory: input.responseFileDirectory,
-                additions: additions
+                additions: additions,
+                ambiguousFrameworkNames: ambiguousFrameworkNames
             )
         }
 
@@ -250,10 +283,43 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             id: input.id,
             responseFileDirectory: input.responseFileDirectory,
             additions: additions,
+            ambiguousFrameworkNames: ambiguousFrameworkNames,
             responseFile: FileDescriptor(path: responseFilePath, contents: Data(responseFileContents.utf8)),
             frameworkLinkPaths: swiftSearchPaths.linkPaths,
             symbolicLinks: swiftSearchPaths.symbolicLinks
         )
+    }
+
+    /// Reports framework bundles that share a name on one target rather than letting the framework search
+    /// path order pick between them silently. That order comes from the artifacts' paths, and an artifact
+    /// vendored outside the repository has no machine-independent identity to order it by, so the same
+    /// graph can otherwise build against a different artifact on another machine.
+    private func warnAboutAmbiguousFrameworkNames(
+        _ ambiguousFrameworkNames: [AmbiguousFrameworkName],
+        targets targetsByAmbiguousFrameworkName: [AmbiguousFrameworkName: [String]]
+    ) {
+        for ambiguousFrameworkName in ambiguousFrameworkNames {
+            guard let targetNames = targetsByAmbiguousFrameworkName[ambiguousFrameworkName],
+                  let firstTargetName = targetNames.first else { continue }
+            let scope: String
+            let verb: String
+            switch targetNames.count {
+            case 1:
+                scope = "The target '\(firstTargetName)'"
+                verb = "depends"
+            case 2:
+                scope = "The target '\(firstTargetName)' and 1 other target"
+                verb = "depend"
+            default:
+                scope = "The target '\(firstTargetName)' and \(targetNames.count - 1) other targets"
+                verb = "depend"
+            }
+            let paths = ambiguousFrameworkName.paths.map(\.pathString).joined(separator: ", ")
+            AlertController.current.warning(.alert(
+                "\(scope) \(verb) on \(ambiguousFrameworkName.paths.count) precompiled artifacts named '\(ambiguousFrameworkName.basename)': \(paths). Only one of them is resolved through the framework search paths, and which one wins follows where the artifacts are stored, so another machine can resolve a different one.",
+                takeaway: "Depend on a single '\(ambiguousFrameworkName.basename)' so the artifact a target builds against doesn't depend on where the artifacts are stored."
+            ))
+        }
     }
 
     private func xcodeValues(of paths: Set<LinkGeneratorPath>, sourceRootPath: AbsolutePath) -> [String] {
