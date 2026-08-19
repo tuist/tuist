@@ -1440,17 +1440,23 @@ async fn up(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
-    if cluster_view_requested(&params) {
-        return Json(up_cluster_payload(&state).await).into_response();
+    match cluster_view_requested(&params) {
+        Ok(true) => Json(up_cluster_payload(&state).await).into_response(),
+        Ok(false) => Json(up_liveness_payload(&state)).into_response(),
+        Err(message) => error_response(StatusCode::BAD_REQUEST, message),
     }
-
-    Json(up_liveness_payload(&state)).into_response()
 }
 
-fn cluster_view_requested(params: &HashMap<String, String>) -> bool {
-    params
+fn cluster_view_requested(params: &HashMap<String, String>) -> Result<bool, String> {
+    Ok(params
         .get(UP_CLUSTER_QUERY_PARAM)
-        .is_some_and(|value| matches!(value.as_str(), "" | "1" | "true" | "yes"))
+        .map(|value| {
+            value
+                .parse::<bool>()
+                .map_err(|error| format!("Invalid cluster: {error}"))
+        })
+        .transpose()?
+        .unwrap_or(false))
 }
 
 fn up_liveness_payload(state: &SharedState) -> serde_json::Value {
@@ -3703,11 +3709,8 @@ mod tests {
 
         for (query, expects_cluster) in [
             ("", false),
-            ("?cluster", true),
             ("?cluster=true", true),
-            ("?cluster=1", true),
             ("?cluster=false", false),
-            ("?cluster=0", false),
         ] {
             let response = public_router(context.state.clone())
                 .oneshot(
@@ -3719,7 +3722,7 @@ mod tests {
                 .await
                 .expect("request failed");
 
-            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.status(), StatusCode::OK, "query {query}");
             let body: Value = serde_json::from_str(&response_text(response).await)
                 .expect("failed to decode up response");
             assert_eq!(body["status"], "ok", "query {query}");
@@ -3728,6 +3731,23 @@ mod tests {
                 expects_cluster,
                 "query {query}"
             );
+        }
+
+        // Same strictness as the `inline` parameter: only true/false parse, and
+        // anything else is rejected rather than silently read as "no cluster
+        // view", which would look like a node that sees no peers.
+        for query in ["?cluster", "?cluster=1", "?cluster=0", "?cluster=yes"] {
+            let response = public_router(context.state.clone())
+                .oneshot(
+                    Request::builder()
+                        .uri(format!("/up{query}"))
+                        .body(Body::empty())
+                        .expect("failed to build request"),
+                )
+                .await
+                .expect("request failed");
+
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST, "query {query}");
         }
     }
 
