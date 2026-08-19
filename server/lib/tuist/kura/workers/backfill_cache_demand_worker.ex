@@ -5,11 +5,11 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorker do
 
   Enabling archival against an empty `last_cache_demand_at` would read every
   provisioned instance as inactive and archive the fleet on the first sweep.
-  This worker is what stands between those two things: it is run once before
-  `:kura_archival` is turned on, and the sweep additionally refuses to archive
-  any account-region whose tracking is younger than its grace period, so a row
-  this worker writes is inert until the live hook has had a full window to
-  correct it.
+  This worker is what stands between those two things: the sweep refuses to
+  archive any account-region whose tracking is younger than its grace period
+  (`TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS`, a week by default), so a row this
+  worker writes is inert until the live request-boundary hook has had a full
+  window to correct it.
 
   Every live account-region is seeded first, at the lookback boundary, so an
   instance whose account has been silent for longer than the window still gets

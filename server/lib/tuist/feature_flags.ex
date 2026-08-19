@@ -39,22 +39,6 @@ defmodule Tuist.FeatureFlags do
     not Environment.tuist_hosted?() or FunWithFlags.enabled?(:kura, for: account)
   end
 
-  @doc """
-  Whether the demand-driven Kura lifecycle may archive this account's
-  inactive instances (`Tuist.Kura.Lifecycle`).
-
-  Off until an operator enables `:kura_archival`, so a sweep can never run
-  against demand data that has not been seeded yet. Once on, FunWithFlags
-  precedence gives the rollback the spec requires: an actor gate switches one
-  account off and a group gate switches a whole plan off, both while the
-  boolean gate keeps archival on for everyone else. Provisioning is never
-  gated by this flag, so disabling archival during an incident does not also
-  stop archived accounts from getting their instances back.
-  """
-  def kura_archival_enabled?(account) do
-    FunWithFlags.enabled?(:kura_archival, for: account)
-  end
-
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"
@@ -64,17 +48,6 @@ defmodule Tuist.FeatureFlags do
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.Account do
     def id(%{id: id}) do
       "account:#{id}"
-    end
-  end
-
-  # An account's groups are its effective billing plan, so a flag can be
-  # switched for a whole tier — `:kura_archival` off for `air` during an
-  # incident, say — without enumerating accounts. FunWithFlags only consults
-  # this for flags that actually carry group gates, so flags gated by actor or
-  # boolean alone pay nothing for it.
-  defimpl FunWithFlags.Group, for: Tuist.Accounts.Account do
-    def in?(account, group) do
-      to_string(Tuist.Billing.effective_plan(account)) == to_string(group)
     end
   end
 

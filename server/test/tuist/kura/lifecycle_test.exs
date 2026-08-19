@@ -34,7 +34,6 @@ defmodule Tuist.Kura.LifecycleTest do
     stub(Environment, :kura_available_region_ids, fn -> [@region] end)
     stub(Environment, :kura_runtime_image_tag, fn -> @image_tag end)
     stub(Environment, :kura_region_machines, fn _ -> nil end)
-    stub(FunWithFlags, :enabled?, fn :kura_archival, [for: _account] -> true end)
 
     # Exercise the real buffer rather than the write-through path tests use by
     # default, so the sweep's "flush before reading demand" step is covered.
@@ -238,18 +237,6 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(server).status == :active
     end
 
-    test "does not archive when the flag is off for the account" do
-      stub(FunWithFlags, :enabled?, fn :kura_archival, [for: _account] -> false end)
-
-      account = account()
-      server = active_instance(account)
-      with_demand(account, 200)
-
-      assert :ok = Lifecycle.sweep()
-
-      assert reload(server).status == :active
-    end
-
     test "never archives an Enterprise instance, however long it has been inactive" do
       account = account(plan: :enterprise, region: :usa)
       server = active_instance(account)
@@ -270,17 +257,6 @@ defmodule Tuist.Kura.LifecycleTest do
 
         assert reload(server).status == :drain_pending
       end
-    end
-
-    test "keeps provisioning while archival is disabled" do
-      stub(FunWithFlags, :enabled?, fn :kura_archival, [for: _account] -> false end)
-
-      account = account()
-      Demand.record(account.id)
-
-      assert :ok = Lifecycle.reconcile()
-
-      assert [%Server{status: :provisioning}] = servers_for(account)
     end
   end
 
@@ -414,22 +390,6 @@ defmodule Tuist.Kura.LifecycleTest do
       Lifecycle.reconcile()
 
       assert_received {[:tuist, :kura, :lifecycle, :archive_cancelled], ^ref, %{count: 1}, %{region: @region}}
-    end
-
-    test "returns a draining instance to service when archival is disabled mid-drain" do
-      account = account()
-      server = active_instance(account)
-      start_drain(account, server)
-
-      # The incident rollback has to reach a drain already in flight: the sweep
-      # selected this instance minutes before teardown is due.
-      stub(FunWithFlags, :enabled?, fn :kura_archival, [for: _account] -> false end)
-
-      assert :ok = Lifecycle.reconcile()
-
-      assert reload(server).status == :active
-      assert reload_lifecycle(account).drain_started_at == nil
-      reject(&Provisioner.destroy/1)
     end
 
     test "returns a draining instance to service when the account upgrades to Enterprise" do

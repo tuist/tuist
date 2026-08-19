@@ -62,10 +62,8 @@ defmodule Tuist.Kura.Lifecycle do
     * a lifecycle row younger than the tracking grace period is never
       archived, so the backfill has a full window to land before any row it
       wrote can be acted on.
-    * archival is gated behind the `:kura_archival` flag, which is off until
-      an operator turns it on. Provisioning is not gated by it, so archival
-      can be switched off for a plan or for one account during an incident
-      without also stopping accounts from getting instances back.
+    * `keep_warm` holds a named account-region out of archival entirely, for
+      the cases where a directory must survive inactivity.
 
   ## Plans
 
@@ -89,7 +87,6 @@ defmodule Tuist.Kura.Lifecycle do
   alias Tuist.Accounts.Account
   alias Tuist.Billing
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Kura
   alias Tuist.Kura.AccountRegionLifecycle
   alias Tuist.Kura.Capacity
@@ -448,9 +445,6 @@ defmodule Tuist.Kura.Lifecycle do
       not archivable_plan?(plan) ->
         []
 
-      not archival_enabled?(server.account) ->
-        []
-
       DateTime.before?(lifecycle.last_cache_demand_at, default_cutoff) ->
         [{server, lifecycle, plan, :inactive}]
 
@@ -560,17 +554,6 @@ defmodule Tuist.Kura.Lifecycle do
       # it back, rather than being reclaimed under the plan it just left.
       not archivable_plan?(plan) ->
         Logger.info("[Kura.Lifecycle] instance #{server.id} is on a plan that is never archived; returning it to service")
-
-        cancel_drain(server, lifecycle, plan)
-
-      # The flag is re-read here, not just where the sweep selected this
-      # instance. Selection and teardown are minutes apart, so a kill switch
-      # that only gated selection could not stop an archival already in
-      # flight, which is exactly the case the incident rollback exists for.
-      # Turning archival off returns the instance to service rather than
-      # parking it mid-drain with its endpoint unpublished.
-      not archival_enabled?(server.account) ->
-        Logger.info("[Kura.Lifecycle] archival disabled for account #{server.account_id}; returning instance to service")
 
         cancel_drain(server, lifecycle, plan)
 
@@ -793,21 +776,9 @@ defmodule Tuist.Kura.Lifecycle do
   # at 90 days against 55 at 30), so archiving them frees a fraction of a
   # machine while handing the accounts with the highest support expectations
   # two cold builds on their return. A policy rather than a setting, so it does
-  # not depend on anyone remembering to set the `:kura_archival` plan gate.
+  # not depend on anyone remembering to configure it.
   defp archivable_plan?(:enterprise), do: false
   defp archivable_plan?(_plan), do: true
-
-  @doc """
-  Whether archival may run for an account.
-
-  Off until an operator enables `:kura_archival`, so a sweep can never fire
-  against unseeded demand data. Once on, a FunWithFlags actor gate switches
-  one account off and a group gate switches a whole plan off, both without
-  touching provisioning.
-  """
-  def archival_enabled?(%Account{} = account) do
-    FeatureFlags.kura_archival_enabled?(account)
-  end
 
   defp image_tag do
     case Environment.kura_runtime_image_tag() do
