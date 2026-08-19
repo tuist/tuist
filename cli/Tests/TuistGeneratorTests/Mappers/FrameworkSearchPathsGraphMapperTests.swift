@@ -4,6 +4,7 @@ import Foundation
 import Path
 import Testing
 import TuistAlert
+import TuistEnvironment
 import XcodeGraph
 @testable import TuistCore
 @testable import TuistGenerator
@@ -467,6 +468,61 @@ struct FrameworkSearchPathsGraphMapperTests {
 
         // Then
         #expect(AlertController.current.warnings().isEmpty)
+    }
+
+    /// The framework search paths of a target that resolves a cached `Foo.xcframework` and a vendored one,
+    /// with the cache stored under `cacheRoot`.
+    private func searchPathOrder(cacheRoot: String, vendored: String) async throws -> [String] {
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.cacheDirectory = try AbsolutePath(validating: cacheRoot)
+
+        let sourceRoot = try AbsolutePath(validating: "/repo/Project")
+        let cached = GraphDependency.testXCFramework(
+            // Content-addressed, so the path below the cache root is the same on every machine.
+            path: try AbsolutePath(validating: "\(cacheRoot)/binaries/8f2c1d/Foo.xcframework"),
+            infoPlist: xcframeworkInfoPlist(framework: "Foo"),
+            linking: .dynamic
+        )
+        let vendored = GraphDependency.testXCFramework(
+            path: try AbsolutePath(validating: "\(vendored)/Foo.xcframework"),
+            infoPlist: xcframeworkInfoPlist(framework: "Foo"),
+            linking: .dynamic
+        )
+        let target = Target.test(name: "App", product: .app)
+        let project = Project.test(path: sourceRoot, sourceRootPath: sourceRoot, targets: [target])
+        let graph = Graph.test(
+            projects: [sourceRoot: project],
+            dependencies: [
+                .target(name: "App", path: sourceRoot): Set([cached, vendored]),
+                cached: Set(),
+                vendored: Set(),
+            ]
+        )
+
+        let (mapped, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let settings = try #require(mapped.projects[sourceRoot]?.targets["App"]?.settings)
+        guard case let .array(values) = settings.base["FRAMEWORK_SEARCH_PATHS"] else { return [] }
+        return values.filter { $0 != "$(inherited)" }
+    }
+
+    @Test(.withMockedEnvironment(), .withScopedAlertController())
+    func ordersACachedArtifactAheadOfAVendoredOneWhereverTheCacheIsStored() async throws {
+        // Given: the same graph on two machines whose cache directories sort to opposite sides of the
+        // vendored artifact's path. Ordering on the rendered value put the cached artifact first on one and
+        // second on the other, which decides which `Foo` the target compiles against.
+        let vendored = "/Users/nate/vendor"
+
+        // When
+        let alice = try await searchPathOrder(cacheRoot: "/Users/alice/cache", vendored: vendored)
+        let zoe = try await searchPathOrder(cacheRoot: "/Users/zoe/cache", vendored: vendored)
+
+        // Then: the cached artifact leads on both, so both resolve the same `Foo`.
+        #expect(alice.first?.contains("/Users/alice/cache/binaries/8f2c1d") == true)
+        #expect(zoe.first?.contains("/Users/zoe/cache/binaries/8f2c1d") == true)
+        #expect(alice.last == "$(SRCROOT)/../../Users/nate/vendor")
+        #expect(zoe.last == "$(SRCROOT)/../../Users/nate/vendor")
+        #expect(alice.count == 2)
+        #expect(zoe.count == 2)
     }
 
     private func xcframeworkInfoPlist(framework: String) -> XCFrameworkInfoPlist {

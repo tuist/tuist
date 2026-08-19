@@ -3,6 +3,7 @@ import Path
 import TuistAlert
 import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistLogging
 import TuistSupport
 import XcodeGraph
@@ -50,7 +51,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         let id: TargetID
         let responseFileDirectory: AbsolutePath
         let additions: [(key: String, values: [String])]
-        let ambiguousFrameworkNames: [AmbiguousFrameworkName]
+        let ambiguities: [FrameworkNameAmbiguity]
         var responseFile: FileDescriptor?
         /// Non-nil for targets that went through consolidation, including when the set is empty: the cleanup
         /// directory has to be registered either way so links left by earlier Tuist versions are still removed.
@@ -60,25 +61,6 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
 
     private struct PrecompiledArtifact: Hashable {
         let path: AbsolutePath
-
-        /// The names the artifact answers to on a framework search path. For an `.xcframework` these come from
-        /// the `LibraryPath` of each framework slice in its `Info.plist`, not from the container's own name:
-        /// the container can be named anything, and what a target imports is the framework inside it.
-        /// Artifacts that contribute no `.framework` (a library slice, a `.a`) resolve through other flags and
-        /// contribute no name here.
-        let frameworkNames: Set<String>
-
-        init(path: AbsolutePath, xcframeworkFrameworkNames: [AbsolutePath: Set<String>]) {
-            self.path = path
-            // Only an `.xcframework` needs the index: every other artifact is the bundle it is named after.
-            frameworkNames = xcframeworkFrameworkNames[path]
-                ?? (path.extension == "framework" ? [path.basenameWithoutExt] : [])
-        }
-
-        /// An artifact is the file it points at, so two references to one path stay a single artifact.
-        static func == (lhs: Self, rhs: Self) -> Bool { lhs.path == rhs.path }
-
-        func hash(into hasher: inout Hasher) { hasher.combine(path) }
 
         var searchPath: LinkGeneratorPath {
             .absolutePath(path.removingLastComponent())
@@ -97,10 +79,16 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         }
     }
 
-    /// Several precompiled artifacts that answer to one framework name on a target's search paths.
-    private struct AmbiguousFrameworkName: Hashable {
-        let name: String
-        let paths: [AbsolutePath]
+    /// Where a search path sits in the emitted list. `identity` is what makes the order the same on every
+    /// machine; `value` is the string that ends up in the build setting, and breaks ties.
+    private struct SearchPathOrder: Comparable {
+        let rank: Int
+        let identity: String
+        let value: String
+
+        static func < (lhs: Self, rhs: Self) -> Bool {
+            (lhs.rank, lhs.identity, lhs.value) < (rhs.rank, rhs.identity, rhs.value)
+        }
     }
 
     public init() {}
@@ -136,7 +124,10 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             }
         }
 
-        let xcframeworkFrameworkNames = xcframeworkFrameworkNames(in: graph)
+        let ambiguityDetector = FrameworkNameAmbiguityDetector(graph: graph)
+        // Read here rather than inside the concurrent map: `Environment.current` is a task local, and the
+        // concurrent map runs its iterations outside the current task.
+        let cacheDirectory = Environment.current.cacheDirectory
 
         // Each target's search paths depend only on the (immutable) graph, so they are computed concurrently.
         // This is the dominant cost of a binary-cache generation, and it runs twice: once over the unfocused
@@ -151,7 +142,8 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
                 try targetOutput(
                     for: $0,
                     graphTraverser: graphTraverser,
-                    xcframeworkFrameworkNames: xcframeworkFrameworkNames
+                    ambiguityDetector: ambiguityDetector,
+                    cacheDirectory: cacheDirectory
                 )
             }
             .compactMap { $0 }
@@ -161,16 +153,16 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         var generatedSymbolicLinkSideEffects: [SideEffectDescriptor] = []
         var activeFilesByDirectory: [AbsolutePath: Set<AbsolutePath>] = [:]
         var activeFrameworkLinksByDirectory: [AbsolutePath: Set<AbsolutePath>] = [:]
-        var ambiguousFrameworkNames: [AmbiguousFrameworkName] = []
-        var targetsByAmbiguousFrameworkName: [AmbiguousFrameworkName: [String]] = [:]
+        var ambiguities: [FrameworkNameAmbiguity] = []
+        var targetNamesByAmbiguity: [FrameworkNameAmbiguity: [String]] = [:]
 
         for output in outputs {
             settingsByTarget[output.id] = output.additions
-            for ambiguousFrameworkName in output.ambiguousFrameworkNames {
-                if targetsByAmbiguousFrameworkName[ambiguousFrameworkName] == nil {
-                    ambiguousFrameworkNames.append(ambiguousFrameworkName)
+            for ambiguity in output.ambiguities {
+                if targetNamesByAmbiguity[ambiguity] == nil {
+                    ambiguities.append(ambiguity)
                 }
-                targetsByAmbiguousFrameworkName[ambiguousFrameworkName, default: []].append(output.id.targetName)
+                targetNamesByAmbiguity[ambiguity, default: []].append(output.id.targetName)
             }
             if let responseFile = output.responseFile {
                 activeFilesByDirectory[output.responseFileDirectory, default: []].insert(responseFile.path)
@@ -183,7 +175,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             generatedSymbolicLinkSideEffects.append(contentsOf: output.symbolicLinks)
         }
 
-        warnAboutAmbiguousFrameworkNames(ambiguousFrameworkNames, targets: targetsByAmbiguousFrameworkName)
+        FrameworkNameAmbiguityReporter().report(ambiguities, targets: targetNamesByAmbiguity)
 
         var graph = graph
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
@@ -226,7 +218,8 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
     private func targetOutput(
         for input: TargetInput,
         graphTraverser: GraphTraverser,
-        xcframeworkFrameworkNames: [AbsolutePath: Set<String>]
+        ambiguityDetector: FrameworkNameAmbiguityDetector,
+        cacheDirectory: AbsolutePath
     ) throws -> TargetOutput? {
         // `precompiledSearchPathDependencies` rather than `searchablePathDependencies`: the latter builds a
         // `GraphDependencyReference` for every dependency reachable from the target, and everything below
@@ -236,46 +229,38 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         let searchPathDependencies = graphTraverser
             .precompiledSearchPathDependencies(path: input.id.projectPath, name: input.id.targetName)
 
-        let precompiledArtifacts = Set(
-            searchPathDependencies.precompiledPaths.map {
-                PrecompiledArtifact(path: $0, xcframeworkFrameworkNames: xcframeworkFrameworkNames)
-            }
-        )
+        let precompiledArtifacts = Set(searchPathDependencies.precompiledPaths.map(PrecompiledArtifact.init))
         let precompiledPaths = Set(precompiledArtifacts.map(\.searchPath))
         let sdkPaths = Set(searchPathDependencies.sdkSearchPaths.map { LinkGeneratorPath.string($0) })
 
         guard !precompiledPaths.isEmpty || !sdkPaths.isEmpty else { return nil }
 
-        var artifactsByFrameworkName: [String: [AbsolutePath]] = [:]
-        for artifact in precompiledArtifacts {
-            for frameworkName in artifact.frameworkNames {
-                artifactsByFrameworkName[frameworkName, default: []].append(artifact.path)
-            }
-        }
-        let ambiguousFrameworkNames = artifactsByFrameworkName
-            .filter { $0.value.count > 1 }
-            .map { AmbiguousFrameworkName(name: $0.key, paths: $0.value.sorted()) }
-            .sorted { $0.name < $1.name }
+        let ambiguities = ambiguityDetector.ambiguities(among: searchPathDependencies.precompiledPaths)
 
         var additions: [(key: String, values: [String])] = []
         guard precompiledPaths.count >= Self.consolidationThreshold else {
             additions.append((
                 Self.frameworkSearchPathsSetting,
-                xcodeValues(of: precompiledPaths.union(sdkPaths), sourceRootPath: input.sourceRootPath)
+                xcodeValues(
+                    of: precompiledPaths.union(sdkPaths),
+                    sourceRootPath: input.sourceRootPath,
+                    cacheDirectory: cacheDirectory
+                )
             ))
             return TargetOutput(
                 id: input.id,
                 responseFileDirectory: input.responseFileDirectory,
                 additions: additions,
-                ambiguousFrameworkNames: ambiguousFrameworkNames
+                ambiguities: ambiguities
             )
         }
 
         let responseFilePath = input.responseFileDirectory.appending(component: "\(input.id.targetName).resp")
-        let precompiledXcodeValues = precompiledPaths
-            .map { $0.xcodeValue(sourceRootPath: input.sourceRootPath) }
-            .uniqued()
-            .sorted()
+        let precompiledXcodeValues = xcodeValues(
+            of: precompiledPaths,
+            sourceRootPath: input.sourceRootPath,
+            cacheDirectory: cacheDirectory
+        )
         // The response file must contain absolute paths since clang doesn't expand build
         // setting variables. Convert $(SRCROOT)/... to absolute paths.
         let responseFileContents = precompiledXcodeValues
@@ -291,13 +276,14 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         let swiftSearchPaths = swiftSearchPathValues(
             precompiledArtifacts: precompiledArtifacts,
             swiftFrameworkSearchPath: swiftFrameworkSearchPath,
-            sourceRootPath: input.sourceRootPath
+            sourceRootPath: input.sourceRootPath,
+            cacheDirectory: cacheDirectory
         )
         // FRAMEWORK_SEARCH_PATHS keeps only platform framework paths; Clang and the linker read the
         // precompiled paths from the response file via @file to keep command lines short.
         additions.append((
             Self.frameworkSearchPathsSetting,
-            xcodeValues(of: sdkPaths, sourceRootPath: input.sourceRootPath)
+            xcodeValues(of: sdkPaths, sourceRootPath: input.sourceRootPath, cacheDirectory: cacheDirectory)
         ))
         additions.append((Self.otherCFlagsSetting, [responseFileReference]))
         // OTHER_SWIFT_FLAGS gets -F flags instead of @file because the Xcode 26 ClangImporter and
@@ -311,79 +297,63 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             id: input.id,
             responseFileDirectory: input.responseFileDirectory,
             additions: additions,
-            ambiguousFrameworkNames: ambiguousFrameworkNames,
+            ambiguities: ambiguities,
             responseFile: FileDescriptor(path: responseFilePath, contents: Data(responseFileContents.utf8)),
             frameworkLinkPaths: swiftSearchPaths.linkPaths,
             symbolicLinks: swiftSearchPaths.symbolicLinks
         )
     }
 
-    /// The framework names each `.xcframework` in the graph answers to, keyed by the container's path.
+    private func xcodeValues(
+        of paths: Set<LinkGeneratorPath>,
+        sourceRootPath: AbsolutePath,
+        cacheDirectory: AbsolutePath
+    ) -> [String] {
+        var ordersByValue: [String: SearchPathOrder] = [:]
+        for path in paths {
+            let order = searchPathOrder(for: path, sourceRootPath: sourceRootPath, cacheDirectory: cacheDirectory)
+            // Distinct paths can render to one value, so keep the lower order: the result must not depend on
+            // which of them the set happened to iterate first.
+            if let existing = ordersByValue[order.value], existing < order { continue }
+            ordersByValue[order.value] = order
+        }
+        return ordersByValue.values.sorted().map(\.value)
+    }
+
+    /// Orders one search path by an identity that stays put across machines.
     ///
-    /// The search path inputs carry artifact paths, and an `.xcframework` container can be named anything: what
-    /// a target imports is the framework its slices carry. Reading that from the graph's dependencies once,
-    /// rather than per target, keeps this off the per-target path that `precompiledSearchPathDependencies` was
-    /// introduced to make cheap.
-    private func xcframeworkFrameworkNames(in graph: Graph) -> [AbsolutePath: Set<String>] {
-        var namesByPath: [AbsolutePath: Set<String>] = [:]
-        func index(_ dependency: GraphDependency) {
-            guard case let .xcframework(xcframework) = dependency else { return }
-            namesByPath[xcframework.path] = Set(
-                xcframework.infoPlist.libraries
-                    .filter { $0.path.extension == "framework" }
-                    .map(\.binaryName)
-            )
+    /// Ordering by the rendered value lets a machine-specific directory decide precedence: the value of a
+    /// path outside the source root carries the directories it is stored under, so `/Users/alice/...` and
+    /// `/Users/zoe/...` do not sort the same way against a third path. That decides real behaviour, because
+    /// when two artifacts answer to one framework name the search path listed first is the one the build
+    /// resolves.
+    ///
+    /// A path under Tuist's cache directory is ordered on its path within that directory, which is the
+    /// content hash and the artifact name, and so is identical everywhere the same graph is generated. That
+    /// covers the collision the cache itself creates, a cached artifact against a vendored one. Everything
+    /// else keeps its position relative to the source root, which is already stable for paths that do not
+    /// escape the repository, and cached paths sort ahead of it, which is where they land today anyway by
+    /// virtue of leading with `..`.
+    ///
+    /// What remains is two artifacts both stored at machine-specific locations outside the cache. Those have
+    /// no machine-independent identity to order them by, which is what the ambiguity warning is for.
+    private func searchPathOrder(
+        for path: LinkGeneratorPath,
+        sourceRootPath: AbsolutePath,
+        cacheDirectory: AbsolutePath
+    ) -> SearchPathOrder {
+        let value = path.xcodeValue(sourceRootPath: sourceRootPath)
+        guard case let .absolutePath(absolutePath) = path, absolutePath.isDescendant(of: cacheDirectory) else {
+            return SearchPathOrder(rank: 1, identity: value, value: value)
         }
-        // Both sides of every edge: a leaf artifact is reachable as a value without ever being a key.
-        for (dependency, dependencies) in graph.dependencies {
-            index(dependency)
-            for dependency in dependencies {
-                index(dependency)
-            }
-        }
-        return namesByPath
-    }
-
-    /// Reports framework bundles that share a name on one target rather than letting the framework search
-    /// path order pick between them silently. That order comes from the artifacts' paths, and an artifact
-    /// vendored outside the repository has no machine-independent identity to order it by, so the same
-    /// graph can otherwise build against a different artifact on another machine.
-    private func warnAboutAmbiguousFrameworkNames(
-        _ ambiguousFrameworkNames: [AmbiguousFrameworkName],
-        targets targetsByAmbiguousFrameworkName: [AmbiguousFrameworkName: [String]]
-    ) {
-        for ambiguousFrameworkName in ambiguousFrameworkNames {
-            guard let targetNames = targetsByAmbiguousFrameworkName[ambiguousFrameworkName],
-                  let firstTargetName = targetNames.first else { continue }
-            let scope: String
-            let verb: String
-            switch targetNames.count {
-            case 1:
-                scope = "The target '\(firstTargetName)'"
-                verb = "depends"
-            case 2:
-                scope = "The target '\(firstTargetName)' and 1 other target"
-                verb = "depend"
-            default:
-                scope = "The target '\(firstTargetName)' and \(targetNames.count - 1) other targets"
-                verb = "depend"
-            }
-            let paths = ambiguousFrameworkName.paths.map(\.pathString).joined(separator: ", ")
-            AlertController.current.warning(.alert(
-                "\(scope) \(verb) on \(ambiguousFrameworkName.paths.count) precompiled artifacts providing '\(ambiguousFrameworkName.name)': \(paths). Only one of them is resolved through the framework search paths, and which one wins follows where the artifacts are stored, so another machine can resolve a different one.",
-                takeaway: "Depend on a single artifact providing '\(ambiguousFrameworkName.name)' so what a target builds against doesn't depend on where the artifacts are stored."
-            ))
-        }
-    }
-
-    private func xcodeValues(of paths: Set<LinkGeneratorPath>, sourceRootPath: AbsolutePath) -> [String] {
-        paths.map { $0.xcodeValue(sourceRootPath: sourceRootPath) }.uniqued().sorted()
+        return SearchPathOrder(rank: 0, identity: absolutePath.relative(to: cacheDirectory).pathString, value: value)
     }
 
     private func swiftSearchPathValues(
         precompiledArtifacts: Set<PrecompiledArtifact>,
         swiftFrameworkSearchPath: AbsolutePath,
-        sourceRootPath: AbsolutePath
+        sourceRootPath: AbsolutePath,
+        cacheDirectory: AbsolutePath
     ) -> (values: [String], linkPaths: Set<AbsolutePath>, symbolicLinks: [SideEffectDescriptor]) {
         let frameworkArtifacts = precompiledArtifacts.filter(\.canBeLinkedIntoSwiftSearchPath)
         let frameworkArtifactsByBasename = Dictionary(grouping: frameworkArtifacts, by: \.path.basename)
@@ -425,7 +395,8 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         values.append(
             contentsOf: xcodeValues(
                 of: Set(conflictingFrameworkSearchPaths + inlineSearchPaths),
-                sourceRootPath: sourceRootPath
+                sourceRootPath: sourceRootPath,
+                cacheDirectory: cacheDirectory
             )
         )
 
