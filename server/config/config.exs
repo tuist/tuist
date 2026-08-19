@@ -125,6 +125,9 @@ config :logger, :console,
     :status,
     :duration_ms,
     :auth_account_handle,
+    # Source of the request. A failed authentication carries no account, so
+    # this is the only thing it can be attributed to.
+    :client_address,
     :selected_account_handle,
     :selected_project_handle,
     # Operator project-access grant (forensic join key for the audit trail)

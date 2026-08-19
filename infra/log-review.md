@@ -11,11 +11,12 @@ and not the other.
 retrospectively, so the monthly review has to land in the first week of the
 period it covers.
 
-**Before the first run**, open each query in Grafana Explore and confirm the
-parser and field names against real data. The server writes Logger metadata
-into the log line as `key=value` pairs after the timestamp, so `logfmt` should
-work, but the leading timestamp and level may need `pattern` instead. Fix the
-queries here once rather than rediscovering it every month.
+These queries were validated against production data on 19 August 2026 over a
+thirty day window. The server writes Logger metadata as `key=value` pairs after
+a bare timestamp, and `logfmt` parses that cleanly despite the timestamp.
+Pomerium writes JSON, so its queries use `json` and its field names are
+hyphenated in the source (`allow-why-true` and the like), which the parser
+exposes with underscores.
 
 ## 1. Privileged cluster access without an approved elevation
 
@@ -27,11 +28,21 @@ design, so only mutating calls are in scope.
 
 ```logql
 {cluster="tuist-production", namespace="pomerium"}
-  | logfmt
+  |= "authorize check"
+  | json
+  | host = "kube-prod.tuist.dev"
   | method =~ "POST|PUT|PATCH|DELETE"
-  | path !~ ".*subjectaccessreviews.*"
-  | line_format "{{.user_email}} {{.method}} {{.path}} {{.response_code}}"
+  | path !~ ".*selfsubject.*"
+  | line_format "{{.email}} {{.method}} {{.path}} allow={{.allow}}"
 ```
+
+Three filters here were learned the hard way and should not be dropped. Without
+the `host` filter the results are dominated by the operations app's own webhook
+traffic, which is not cluster access at all. Without the `selfsubject` filter
+you get `kubectl auth whoami` and `kubectl auth can-i`, which are POSTs that
+mutate nothing. And `allow` is worth reading rather than filtering on: a denied
+mutating call is an attempted write without elevation, which is its own finding
+even though the control worked.
 
 **From the tuist-ops database**, the windows they should fall inside:
 
@@ -58,8 +69,11 @@ this reconciles the log against the grants that were actually issued.
 {cluster="tuist-production", namespace="tuist"}
   |= "operator_grant_jti"
   | logfmt
-  | line_format "{{.operator_grant_sub}} {{.operator_grant_jti}} {{.selected_account_handle}} {{.route}} {{.status}}"
+  | line_format "{{.operator_grant_sub}} {{.operator_grant_jti}} {{.selected_account_handle}} {{.request_path}} {{.status}}"
 ```
+
+The server does not emit a `route` field on every record, so the path is
+`request_path`.
 
 **From the tuist-ops database**, the grants that were issued and why.
 
@@ -70,22 +84,29 @@ recorded justification does not match what was actually accessed.
 ## 3. Authentication failures
 
 ```logql
-sum by (auth_account_handle) (
+sum by (client_address) (
   count_over_time(
     {cluster="tuist-production", namespace="tuist"}
+      |= "Request completed"
       | logfmt
-      | route = "/users/log_in"
+      | request_path = "/users/log_in"
+      | method = "POST"
       | status =~ "4.."
       [1h]
   )
 )
 ```
 
-Run it a second time grouped by source address instead of account, to catch a
-spray across many accounts rather than a brute force against one.
+The `method` filter matters: without it the results are mostly people loading
+the login page, which is a GET returning 200 and not an attempt at anything. A
+successful login is a 302, and a failure is a 4xx.
 
-**A finding is** anything sustained. A handful of failures is someone
-mistyping a password.
+Group by `client_address` rather than by account. A failed login has no
+authenticated account, so `auth_account_handle` is empty on exactly the records
+this query is about.
+
+**A finding is** anything sustained from one address. A handful of failures is
+someone mistyping a password.
 
 ## 4. Loss of log ingestion
 
@@ -117,6 +138,21 @@ Findings and dispositions:
 A finding is closed with a severity, what was investigated, the conclusion,
 and either the action taken or why none was needed. See section 3.2 of the
 policy for the severity definitions and their response times.
+
+## Known shape of the data
+
+Measured over the thirty days to 19 August 2026, so the first review knows what
+normal looks like before deciding anything is abnormal:
+
+- Mutating cluster calls run to several hundred in a month across three
+  engineers, plus a small number of denials from unauthenticated sessions. The
+  bulk are job creation and pod subresource calls.
+- Operator grant usage is present but low volume.
+- Login POSTs run a few hundred a month, roughly 200 successful, with fewer
+  than 100 failures and no evidence of a spray.
+
+These are baselines, not thresholds. Re-measure rather than trusting them once
+the fleet or the team changes.
 
 ## Not covered here
 
