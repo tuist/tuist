@@ -514,6 +514,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         end)
       )
 
+    flush_outbox!()
+
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/314010/jobs/31401")
     document = Floki.parse_fragment!(html)
 
