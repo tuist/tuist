@@ -34,7 +34,7 @@ defmodule Tuist.Application.RuntimeChildrenTest do
         assert RuntimeChildren.open_graph_image_renderer(mode) == [],
                "expected no Tuist.OpenGraphImageRenderer child for #{inspect(mode)} — " <>
                  "non-web images have no Chrome installed, so Browse.Pool.init_worker/1 " <>
-                 "raises :chrome_not_found and the supervisor restarts the pool in a hot loop"
+                 "raises :chrome_not_found and NimblePool retries it forever without backoff"
       end
     end
   end
