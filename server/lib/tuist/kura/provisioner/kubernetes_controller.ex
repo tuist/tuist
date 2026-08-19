@@ -20,7 +20,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-08-17-node-location-config-v1"
+  @manifest_revision "2026-08-19-ephemeral-storage-request-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
   # Mirrors Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x

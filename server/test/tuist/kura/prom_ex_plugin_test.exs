@@ -70,8 +70,11 @@ defmodule Tuist.Kura.PromExPluginTest do
   end
 
   describe "execute_occupancy_telemetry_event/0" do
-    test "reports the region's forecast, installed capacity, and instance count" do
-      stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 2)}])
+    test "reports the region's reservation, allocatable disk, and instance count" do
+      stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 2)}],
+        pods: [reserved_pod(50), reserved_pod(50)]
+      )
+
       instance(account())
 
       ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :occupancy]])
@@ -80,18 +83,18 @@ defmodule Tuist.Kura.PromExPluginTest do
 
       assert_received {[:tuist, :kura, :capacity, :occupancy], ^ref, measurements, %{region: @region}}
       assert measurements.instances == 1
-      assert measurements.forecast_gib == 24 * 2
-      assert measurements.installed_gib == trunc(2 * @node_allocatable_bytes * 0.85 / (1024 * 1024 * 1024))
+      assert measurements.reserved_gib == 100
+      assert measurements.allocatable_gib == trunc(2 * @node_allocatable_bytes / (1024 * 1024 * 1024))
     end
 
-    test "reports zero installed capacity rather than dropping the series when unconfigured" do
+    test "reports zero rather than dropping the series when the cluster cannot be read" do
       instance(account())
 
       ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :occupancy]])
 
       PromExPlugin.execute_occupancy_telemetry_event()
 
-      assert_received {[:tuist, :kura, :capacity, :occupancy], ^ref, %{installed_gib: 0}, _metadata}
+      assert_received {[:tuist, :kura, :capacity, :occupancy], ^ref, %{allocatable_gib: 0, reserved_gib: 0}, _metadata}
     end
   end
 
@@ -134,10 +137,11 @@ defmodule Tuist.Kura.PromExPluginTest do
     end
   end
 
-  # `installed_gib/1` sums the allocatable ephemeral storage of a region's
-  # Ready nodes, so sizing a region in a test means answering the node list.
-  defp stub_region_nodes(nodes_by_region) do
+  # Capacity reads the region's nodes and pods, so sizing a region in a test
+  # means answering both lists.
+  defp stub_region_nodes(nodes_by_region, opts \\ []) do
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+    stub_region_pods(Keyword.get(opts, :pods, []))
 
     stub(Client, :list_nodes, fn selector ->
       allocatable =
@@ -148,6 +152,19 @@ defmodule Tuist.Kura.PromExPluginTest do
 
       {:ok, %{"items" => Enum.map(allocatable, &ready_node/1)}}
     end)
+  end
+
+  defp stub_region_pods(pods) do
+    stub(Client, :list_pods, fn _namespace, _selector -> {:ok, pods} end)
+  end
+
+  defp reserved_pod(gib) do
+    %{
+      "status" => %{"phase" => "Running"},
+      "spec" => %{
+        "containers" => [%{"resources" => %{"requests" => %{"ephemeral-storage" => "#{gib}Gi"}}}]
+      }
+    }
   end
 
   defp ready_node(allocatable_bytes) do

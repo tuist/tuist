@@ -23,11 +23,11 @@ defmodule Tuist.Kura.LifecycleTest do
   @region "us-east"
   # Roughly what one of the region's real boxes reports allocatable.
   @node_allocatable_bytes 847_551_469_804
-  # us-east runs two co-located replicas, so an Air instance holds two quotas.
-  @air_resident_gib 24 * 2
-  # One more instance than the region's usable capacity fits, derived rather
-  # than counted out so the fixtures track the real sizing.
-  @instances_to_pressure div(trunc(@node_allocatable_bytes * 0.85 / (1024 * 1024 * 1024)), @air_resident_gib) + 1
+  # us-east declares a 50Gi claim and two co-located replicas.
+  @resident_gib 50 * 2
+  # One more instance than fits under the region's pressure line, derived
+  # rather than counted out so the fixtures track the real sizing.
+  @instances_to_pressure div(trunc(@node_allocatable_bytes * 0.85 / (1024 * 1024 * 1024)), @resident_gib) + 1
   @image_tag "0.5.2"
   @gib 1024 * 1024 * 1024
 
@@ -152,18 +152,19 @@ defmodule Tuist.Kura.LifecycleTest do
       assert servers_for(account) == []
     end
 
-    test "leaves an account on authoritative object storage when the region has no safe slot" do
+    test "provisions regardless of how full the region is, because the scheduler decides that" do
+      # Admission is the scheduler's: every cache pod requests its claim's
+      # worth of ephemeral storage, so a region with no room leaves the
+      # instance Pending rather than this pass declining to create it.
       stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 1)}])
-
-      # Fill the single machine's usable filesystem with Air instances.
-      for _ <- 1..47, do: active_instance(account())
+      stub_region_pods(List.duplicate(reserved_pod(50), 100))
 
       account = account()
       Demand.record(account.id)
 
       assert :ok = Lifecycle.reconcile()
 
-      assert servers_for(account) == []
+      assert [%Server{status: :provisioning}] = servers_for(account)
     end
 
     test "does not recreate an instance the account explicitly destroyed" do
@@ -210,22 +211,6 @@ defmodule Tuist.Kura.LifecycleTest do
       assert :ok = Lifecycle.reconcile()
 
       assert servers_for(account) == []
-    end
-
-    test "emits a capacity event when provisioning is refused" do
-      stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 1)}])
-      for _ <- 1..47, do: active_instance(account())
-
-      account = account()
-      Demand.record(account.id)
-
-      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :capacity_refused]])
-
-      Lifecycle.reconcile()
-
-      assert_received {[:tuist, :kura, :lifecycle, :capacity_refused], ^ref, measurements, metadata}
-      assert measurements.forecast_gib > measurements.installed_gib
-      assert metadata.region == @region
     end
   end
 
@@ -322,7 +307,7 @@ defmodule Tuist.Kura.LifecycleTest do
       :ok
     end
 
-    test "drains Air at 60 days only while the region is over capacity" do
+    test "drains Air at 60 days only while the region is over its pressure line" do
       pressured =
         for _ <- 1..@instances_to_pressure do
           account = account()
@@ -331,16 +316,19 @@ defmodule Tuist.Kura.LifecycleTest do
           {account, server}
         end
 
+      over_pressure_line()
+
       assert :ok = Lifecycle.sweep()
 
       drained = Enum.count(pressured, fn {_a, server} -> reload(server).status == :drain_pending end)
 
-      # Only as many as it takes to fit: the region is one instance over, so
-      # reclaiming one brings it back under.
+      # Only as many as it takes to fit: the region is one instance past its
+      # line, so reclaiming one brings it back under.
       assert drained == 1
     end
 
     test "preserves the 90-day target when there is room" do
+      stub_region_pods([reserved_pod(50)])
       account = account()
       server = active_instance(account)
       with_demand(account, 61)
@@ -365,6 +353,8 @@ defmodule Tuist.Kura.LifecycleTest do
         with_demand(filler, 10)
       end
 
+      over_pressure_line()
+
       assert :ok = Lifecycle.sweep()
 
       assert reload(coldest_server).status == :drain_pending
@@ -381,6 +371,8 @@ defmodule Tuist.Kura.LifecycleTest do
       pro = account(plan: :pro, region: :usa)
       server = active_instance(pro)
       with_demand(pro, 61)
+
+      over_pressure_line()
 
       assert :ok = Lifecycle.sweep()
 
@@ -534,7 +526,7 @@ defmodule Tuist.Kura.LifecycleTest do
       lifecycle = reload_lifecycle(account)
       assert reload(server).status == :archived
       assert lifecycle.archived_at
-      assert lifecycle.last_reclaimed_bytes == 24 * 2 * @gib
+      assert lifecycle.last_reclaimed_bytes == 50 * 2 * @gib
       assert lifecycle.last_drain_duration_ms >= Kura.drain_seconds() * 1000
     end
 
@@ -580,7 +572,7 @@ defmodule Tuist.Kura.LifecycleTest do
       Lifecycle.reconcile()
 
       assert_received {[:tuist, :kura, :lifecycle, :archived], ^ref, measurements, %{region: @region, plan: "air"}}
-      assert measurements.reclaimed_bytes == 24 * 2 * @gib
+      assert measurements.reclaimed_bytes == 50 * 2 * @gib
       assert measurements.drain_duration_ms > 0
     end
 
@@ -952,8 +944,28 @@ defmodule Tuist.Kura.LifecycleTest do
 
   # `installed_gib/1` sums the allocatable ephemeral storage of a region's
   # Ready nodes, so sizing a region in a test means answering the node list.
+  # Answers the pod list with exactly the reservation the fixtures imply, so
+  # the region reads as one instance past its pressure line.
+  defp over_pressure_line do
+    stub_region_pods(List.duplicate(reserved_pod(50), @instances_to_pressure * 2))
+  end
+
+  defp stub_region_pods(pods) do
+    stub(Client, :list_pods, fn _namespace, _selector -> {:ok, pods} end)
+  end
+
+  defp reserved_pod(gib) do
+    %{
+      "status" => %{"phase" => "Running"},
+      "spec" => %{
+        "containers" => [%{"resources" => %{"requests" => %{"ephemeral-storage" => "#{gib}Gi"}}}]
+      }
+    }
+  end
+
   defp stub_region_nodes(nodes_by_region) do
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+    stub_region_pods([])
 
     stub(Client, :list_nodes, fn selector ->
       allocatable =

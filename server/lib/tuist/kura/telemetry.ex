@@ -12,8 +12,6 @@ defmodule Tuist.Kura.Telemetry do
       cold return is the latency an archived account pays to come back.
     * `drain_pending`, `archive_cancelled`, and `archived` bracket the
       reclamation, with reclaimed bytes and drain duration on the last.
-    * `capacity_refused` fires when a provision is refused for lack of a safe
-      slot, with the forecast that refused it.
 
   `plan` and `region` are both bounded (four plans, a handful of regions), so
   tagging by them is safe. Account is never a tag.
@@ -26,7 +24,6 @@ defmodule Tuist.Kura.Telemetry do
   def event_name_drain_pending, do: @prefix ++ [:drain_pending]
   def event_name_archive_cancelled, do: @prefix ++ [:archive_cancelled]
   def event_name_archived, do: @prefix ++ [:archived]
-  def event_name_capacity_refused, do: @prefix ++ [:capacity_refused]
 
   def provisioned(plan, region, cold_return?) do
     :telemetry.execute(event_name_provisioned(), %{count: 1}, %{
@@ -63,14 +60,6 @@ defmodule Tuist.Kura.Telemetry do
     :telemetry.execute(
       event_name_archived(),
       %{count: 1, reclaimed_bytes: reclaimed_bytes, drain_duration_ms: drain_duration_ms},
-      %{plan: to_string(plan), region: region}
-    )
-  end
-
-  def capacity_refused(plan, region, forecast_gib, installed_gib) do
-    :telemetry.execute(
-      event_name_capacity_refused(),
-      %{count: 1, forecast_gib: forecast_gib, installed_gib: installed_gib},
       %{plan: to_string(plan), region: region}
     )
   end

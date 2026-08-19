@@ -2794,6 +2794,28 @@ func defaultResources(instance *kurav1alpha1.KuraInstance, binPackCeiling bool) 
 		r.Requests[memoryCeilingResource] = q
 		r.Limits[memoryCeilingResource] = q
 	}
+	// Disk: reserve the instance's declared storage as an ephemeral-storage
+	// request so the scheduler bin-packs cache pods against the node's disk.
+	// The data volume is a local-path PV -- a directory on the node's
+	// ephemeral-storage filesystem -- so the claim's size is a label and
+	// nothing in Kubernetes stops a region filling its box; a full box crosses
+	// kubelet's eviction line and takes down every tenant on it, not just the
+	// one that filled it. A request is what the scheduler admits against, so
+	// this is the admission control that claim never provided.
+	//
+	// Deliberately a request with no limit. A limit is enforced against the
+	// pod's writable layer, logs and emptyDir, none of which is where the cache
+	// lives, so it would evict on the wrong signal while leaving the real
+	// consumption unbounded. Kura bounds its own ring with
+	// KURA_CAS_CAPACITY_BYTES; this reserves the room that ring will need.
+	//
+	// Unlike the two extended resources below, ephemeral-storage is built in
+	// and every node already advertises it, so there is no pool to roll first.
+	// Each replica requests one claim's worth, so co-located replicas reserve
+	// their sum without the controller having to reason about placement.
+	if storage := storageQuantity(instance); !storage.IsZero() {
+		r.Requests[corev1.ResourceEphemeralStorage] = storage
+	}
 	// Egress floor: reserve the region's guaranteed Mbps as the
 	// tuist.dev/egress-mbps extended resource (request == limit; extended
 	// resources are integer and non-overcommittable) so the scheduler bin-packs

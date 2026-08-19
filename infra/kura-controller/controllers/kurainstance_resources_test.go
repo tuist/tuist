@@ -172,3 +172,44 @@ func TestCeilingBudgetAdvertisedGatesOnLiveNodeCapacity(t *testing.T) {
 		t.Fatalf("spec flag off must stay off regardless of node state, got %v (err %v)", got, err)
 	}
 }
+
+// The data volume is a local-path PV -- a directory on the node's
+// ephemeral-storage filesystem -- so the claim's size bounds nothing and the
+// scheduler would otherwise place cache pods onto a node until it filled and
+// kubelet evicted the whole region. The ephemeral-storage request is the only
+// thing that reserves that disk, so a change that drops it silently restores
+// the overcommit.
+func TestDefaultResourcesReservesDeclaredStorage(t *testing.T) {
+	r := defaultResources(&kurav1alpha1.KuraInstance{
+		Spec: kurav1alpha1.KuraInstanceSpec{StorageSize: "50Gi"},
+	}, false)
+
+	request, ok := r.Requests[corev1.ResourceEphemeralStorage]
+	if !ok {
+		t.Fatal("expected an ephemeral-storage request")
+	}
+	if got := request.String(); got != "50Gi" {
+		t.Fatalf("ephemeral-storage request = %q, want 50Gi", got)
+	}
+
+	// A limit is enforced against the pod's writable layer, logs and emptyDir,
+	// none of which is where the cache lives, so it would evict on the wrong
+	// signal while leaving the real consumption unbounded.
+	if _, ok := r.Limits[corev1.ResourceEphemeralStorage]; ok {
+		t.Fatal("expected no ephemeral-storage limit")
+	}
+}
+
+// An instance that declares no size still reserves the controller's fallback
+// claim, so an unset field cannot quietly reserve nothing.
+func TestDefaultResourcesReservesFallbackStorage(t *testing.T) {
+	r := defaultResources(&kurav1alpha1.KuraInstance{}, false)
+
+	request, ok := r.Requests[corev1.ResourceEphemeralStorage]
+	if !ok {
+		t.Fatal("expected an ephemeral-storage request")
+	}
+	if got := request.String(); got != "200Gi" {
+		t.Fatalf("ephemeral-storage request = %q, want 200Gi", got)
+	}
+}

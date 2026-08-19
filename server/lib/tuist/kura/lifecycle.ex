@@ -199,9 +199,7 @@ defmodule Tuist.Kura.Lifecycle do
   defp reconcile_provisions(region_id, pressure?, image_tag) do
     region_id
     |> eligible_account_regions(pressure?)
-    |> Enum.map(&provision(&1, region_id, image_tag))
-    |> Enum.filter(&match?({:refused, _details}, &1))
-    |> report_capacity_event(region_id)
+    |> Enum.each(&provision(&1, region_id, image_tag))
   end
 
   # Without pressure the query returns only eligible rows, so one page fills
@@ -292,9 +290,10 @@ defmodule Tuist.Kura.Lifecycle do
     end
   end
 
-  # Admission is re-evaluated per account rather than once for the batch: each
-  # provision that succeeds consumes a slot, so a region with room for one
-  # more instance must admit one account and refuse the rest.
+  # Nothing here decides whether the region has room. Every cache pod requests
+  # its claim's worth of ephemeral storage, so the scheduler declines to place
+  # an instance that does not fit and the KuraInstance stays Pending, which is
+  # exact per node in a way a forecast computed here never was.
   defp provision(%AccountRegionLifecycle{account: %Account{} = account} = lifecycle, region_id, image_tag) do
     # The lifecycle row records where demand *was* served; the policy decides
     # where it belongs *now*. They diverge when an account changes plan or
@@ -302,24 +301,10 @@ defmodule Tuist.Kura.Lifecycle do
     # a reassignment away from this region — and provisioning from the stored
     # row would resurrect the account in a region it no longer belongs to.
     case AccountPolicies.resolve(account) do
-      {:ok, %{plan: plan, service_region: ^region_id}} -> admit(lifecycle, account, plan, region_id, image_tag)
-      _other -> :ok
-    end
-  end
-
-  defp admit(lifecycle, account, plan, region_id, image_tag) do
-    case Capacity.admit(region_id, plan) do
-      :ok ->
+      {:ok, %{plan: plan, service_region: ^region_id}} ->
         do_provision(lifecycle, account, plan, region_id, image_tag)
 
-      {:error, {:no_safe_slot, %{forecast_gib: forecast, installed_gib: installed}}} ->
-        refuse_for_capacity(account, plan, region_id, forecast, installed)
-
-      {:error, reason} ->
-        Logger.warning(
-          "[Kura.Lifecycle] could not evaluate capacity for account #{account.id} in #{region_id}: #{inspect(reason)}"
-        )
-
+      _other ->
         :ok
     end
   end
@@ -362,41 +347,6 @@ defmodule Tuist.Kura.Lifecycle do
 
         :ok
     end
-  end
-
-  # Refusing is a capacity event, not an error: the account keeps building,
-  # without a cache in front of it, and the region is not overcommitted. A cold
-  # build is the correct answer to "no room"; overcommitting the node is not.
-  defp refuse_for_capacity(account, plan, region_id, forecast, installed) do
-    Telemetry.capacity_refused(plan, region_id, forecast, installed)
-
-    Logger.warning(
-      "[Kura.Lifecycle] refused provisioning for account #{account.id} in #{region_id}: " <>
-        "forecast #{forecast}GiB exceeds installed #{installed}GiB"
-    )
-
-    {:refused, %{forecast_gib: forecast, installed_gib: installed}}
-  end
-
-  # One capacity event per region per tick rather than one per refused
-  # account. A full region refuses the same accounts every tick, so
-  # per-account reporting would bury the signal — that the region is out of
-  # room — under a repeating list of who noticed.
-  defp report_capacity_event([], _region_id), do: :ok
-
-  defp report_capacity_event([{:refused, details} | _] = refusals, region_id) do
-    Sentry.capture_message("Kura region has no safe slot for new instances",
-      level: :warning,
-      tags: %{region: region_id},
-      extra: %{
-        accounts_refused: length(refusals),
-        forecast_gib: details.forecast_gib,
-        installed_gib: details.installed_gib,
-        region: region_id
-      }
-    )
-
-    :ok
   end
 
   defp mark_returned(%AccountRegionLifecycle{} = lifecycle) do
@@ -487,32 +437,31 @@ defmodule Tuist.Kura.Lifecycle do
   # Pressure archival reclaims only as much as it takes to fit. Instances past
   # the full 90-day window are unconditional and are not counted against that
   # budget; the 60-day ones are taken in least-recent-demand order until the
-  # forecast is back under the installed floor.
+  # region is back under its pressure line.
   defp take_pressure_candidates(candidates, region_id) do
     {pressured, unconditional} = Enum.split_with(candidates, fn {_s, _l, _p, reason} -> reason == :capacity_pressure end)
 
-    case Capacity.installed_gib(region_id) do
-      nil ->
-        unconditional
+    with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
+         reserved when is_integer(reserved) <- Capacity.reserved_gib(region_id) do
+      {:ok, region} = Regions.fetch(region_id)
+      per_instance = Capacity.resident_gib(region)
 
-      installed ->
-        {:ok, region} = Regions.fetch(region_id)
+      # The unconditional archivals happen regardless, so the room they free
+      # counts before deciding how many more the pressure rule has to take.
+      after_unconditional = reserved - length(unconditional) * per_instance
 
-        forecast =
-          Enum.reduce(unconditional, Capacity.forecast_gib(region_id), fn {_s, _l, plan, _r}, gib ->
-            gib - Capacity.resident_gib(plan, region)
-          end)
+      {_final, needed} =
+        Enum.reduce(pressured, {after_unconditional, []}, fn candidate, {gib, taken} ->
+          if gib > target do
+            {gib - per_instance, [candidate | taken]}
+          else
+            {gib, taken}
+          end
+        end)
 
-        {_final, needed} =
-          Enum.reduce(pressured, {forecast, []}, fn {_s, _l, plan, _r} = candidate, {gib, taken} ->
-            if gib > installed do
-              {gib - Capacity.resident_gib(plan, region), [candidate | taken]}
-            else
-              {gib, taken}
-            end
-          end)
-
-        unconditional ++ Enum.reverse(needed)
+      unconditional ++ Enum.reverse(needed)
+    else
+      _ -> unconditional
     end
   end
 
@@ -726,7 +675,7 @@ defmodule Tuist.Kura.Lifecycle do
   # whole StatefulSet, so every replica's directory goes with it.
   defp complete_archival(%Server{} = server, %AccountRegionLifecycle{} = lifecycle, region) do
     plan = Billing.effective_plan(server.account)
-    reclaimed_bytes = Capacity.resident_bytes(plan, region)
+    reclaimed_bytes = Capacity.resident_bytes(region)
     drain_duration_ms = drain_duration_ms(lifecycle)
 
     case Kura.archive_server(server) do

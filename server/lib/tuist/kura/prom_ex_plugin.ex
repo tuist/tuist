@@ -105,12 +105,6 @@ defmodule Tuist.Kura.PromExPlugin do
             reporter_options: [buckets: @ready_buckets],
             tags: [:plan, :region],
             unit: :millisecond
-          ),
-          counter(
-            @metric_prefix ++ [:capacity_refused, :count],
-            event_name: Telemetry.event_name_capacity_refused(),
-            description: "Provisions refused because the region had no safe slot.",
-            tags: [:plan, :region]
           )
         ]
       )
@@ -126,17 +120,17 @@ defmodule Tuist.Kura.PromExPlugin do
         {__MODULE__, :execute_occupancy_telemetry_event, []},
         [
           last_value(
-            [:tuist, :kura, :capacity, :forecast, :gibibytes],
+            [:tuist, :kura, :capacity, :reserved, :gibibytes],
             event_name: [:tuist, :kura, :capacity, :occupancy],
-            measurement: :forecast_gib,
-            description: "Enforced warm quota the region's live instances hold.",
+            measurement: :reserved_gib,
+            description: "Disk the region's cache pods have reserved.",
             tags: [:region]
           ),
           last_value(
-            [:tuist, :kura, :capacity, :installed, :gibibytes],
+            [:tuist, :kura, :capacity, :allocatable, :gibibytes],
             event_name: [:tuist, :kura, :capacity, :occupancy],
-            measurement: :installed_gib,
-            description: "Usable filesystem the region's installed machines provide.",
+            measurement: :allocatable_gib,
+            description: "Allocatable disk across the region's Ready nodes.",
             tags: [:region]
           ),
           last_value(
@@ -180,11 +174,11 @@ defmodule Tuist.Kura.PromExPlugin do
       :telemetry.execute(
         [:tuist, :kura, :capacity, :occupancy],
         %{
-          forecast_gib: occupancy.forecast_gib,
-          # An unconfigured machine count reports zero installed rather than
-          # skipping the series, so a region that loses its configuration is
-          # visibly at zero instead of holding its last good sample forever.
-          installed_gib: occupancy.installed_gib || 0,
+          # A region whose cluster cannot be read reports zero rather than
+          # skipping the series, so it is visibly at zero instead of holding
+          # its last good sample forever.
+          reserved_gib: occupancy.reserved_gib || 0,
+          allocatable_gib: occupancy.allocatable_gib || 0,
           instances: occupancy.instances
         },
         %{region: region_id}
