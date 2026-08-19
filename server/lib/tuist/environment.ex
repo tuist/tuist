@@ -352,76 +352,24 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  How many machines a Kura region has installed, or `nil` when the region is
-  not listed. Read from `TUIST_KURA_REGION_MACHINES` as a `region=count` comma
-  list (e.g. `us-east=4,eu-central=2`).
+  The region Air instances run in. `us-east` unless
+  `TUIST_KURA_AIR_REGION` names another.
 
-  Capacity admission and the Air pressure rule both size a region from this
-  (see `Tuist.Kura.Capacity`). Leaving a region out means its capacity is
-  unknown, which admits provisioning and never pressure-archives.
+  Air carries no storage-residency guarantee to uphold, so where the free
+  tier runs is a deployment decision rather than a policy one. Paid regions
+  are not configurable for the opposite reason: a paid account restricted to
+  Europe or the USA chose that, and no deployment setting may move it.
+
+  Staging has no `us-east` pool, so without this every Air account there
+  resolves to a region whose instances can never schedule, and the Air-only
+  pressure rule cannot be exercised at all.
   """
-  def kura_region_machines(region_id, env_value \\ System.get_env("TUIST_KURA_REGION_MACHINES", ""))
-
-  def kura_region_machines(region_id, env_value) when is_binary(region_id) do
-    env_value
-    |> String.split(",", trim: true)
-    |> Enum.find_value(fn pair ->
-      case pair |> String.split("=", parts: 2) |> Enum.map(&String.trim/1) do
-        [^region_id, count] -> parse_region_machines!(region_id, count)
-        _ -> nil
-      end
-    end)
-  end
-
-  def kura_region_machines(_region_id, _env_value), do: nil
-
-  # A listed region with an unreadable count raises rather than reading as an
-  # omitted one. `nil` disables both capacity admission and pressure archival,
-  # so letting `us-east=O` mean "unknown" would silently remove the control
-  # that stops a region being overcommitted. Absence is a decision; a typo is
-  # not, and the two must not look alike.
-  defp parse_region_machines!(region_id, count) do
-    case Integer.parse(count) do
-      {machines, ""} when machines > 0 ->
-        machines
-
-      _ ->
-        raise ArgumentError,
-              "TUIST_KURA_REGION_MACHINES has an invalid machine count for #{region_id}: " <>
-                "#{inspect(count)}. Expected a positive integer, as in #{region_id}=4."
+  def kura_air_region do
+    case System.get_env("TUIST_KURA_AIR_REGION") do
+      nil -> "us-east"
+      "" -> "us-east"
+      region -> region
     end
-  end
-
-  @doc """
-  The region a deployment serves in place of `region_id`, or `region_id`
-  itself when there is no substitution.
-
-  Read from `TUIST_KURA_SERVICE_REGION_SUBSTITUTIONS` as a `from=to` comma
-  list (e.g. `us-east=ca-east`).
-
-  This exists because the service region an account resolves to is a policy
-  decision (`Tuist.Kura.AccountPolicies`) while the regions a deployment
-  actually has hardware in is a deployment fact, and outside production the
-  two disagree. Staging has no `us-east` pool, so every Air account and every
-  paid account restricted to the USA would resolve to a region whose instances
-  could never schedule.
-
-  It is deliberately an explicit operator statement rather than a fallback to
-  whatever region happens to be available: an account restricted to Europe
-  resolving to a US region would break the guarantee that restriction exists
-  to make, and a silent fallback would do exactly that.
-  """
-  def kura_service_region(region_id, env_value \\ System.get_env("TUIST_KURA_SERVICE_REGION_SUBSTITUTIONS", ""))
-
-  def kura_service_region(region_id, env_value) when is_binary(region_id) do
-    env_value
-    |> String.split(",", trim: true)
-    |> Enum.find_value(region_id, fn pair ->
-      case pair |> String.split("=", parts: 2) |> Enum.map(&String.trim/1) do
-        [^region_id, replacement] when replacement != "" -> replacement
-        _ -> nil
-      end
-    end)
   end
 
   @doc """

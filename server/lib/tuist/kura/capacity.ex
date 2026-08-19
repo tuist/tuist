@@ -20,20 +20,28 @@ defmodule Tuist.Kura.Capacity do
       complete days only while a region's forecast exceeds what is installed.
       When there is room the 90-day target is preserved.
 
-  Installed machine counts come from the environment because they are a
-  property of what has been racked, not of the code. A region with no
-  configured count has unknown capacity: provisioning is admitted (refusing
-  every account because an operator has not filled in a number would be worse
-  than the overcommit it guards against, and the per-tick provisioning ceiling
-  still bounds the blast radius) and pressure archival never runs, so the
-  90-day target holds.
+  Installed machines are counted from the cluster: the Ready nodes carrying
+  the region's node-pool label. A hand-maintained count would be a copy of
+  something the cluster already knows, and it would drift in the direction
+  that hurts — scale a pool down and the stale number keeps admitting against
+  machines that are gone. Counting only Ready nodes also means a machine that
+  is down stops counting as installed capacity, which a config value cannot
+  express.
+
+  A region whose count cannot be established has unknown capacity:
+  provisioning is admitted (refusing every account because the apiserver was
+  briefly unreachable would be worse than the overcommit it guards against,
+  and the per-tick provisioning ceiling still bounds the blast radius) and
+  pressure archival never runs, so the 90-day target holds. That covers the
+  local controller, which has no node pool, and any transient API failure.
   """
 
   import Ecto.Query
 
   alias Tuist.Accounts.Account
   alias Tuist.Billing
-  alias Tuist.Environment
+  alias Tuist.KeyValueStore
+  alias Tuist.Kubernetes.Client
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
@@ -65,14 +73,41 @@ defmodule Tuist.Kura.Capacity do
 
   @doc """
   Installed usable capacity of a region in gibibytes, or `nil` when the
-  region's machine count is not configured.
+  region's machine count cannot be established.
   """
   def installed_gib(region_id) do
-    case Environment.kura_region_machines(region_id) do
+    case machines(region_id) do
       machines when is_integer(machines) and machines > 0 -> machines * @usable_gib_per_machine
       _ -> nil
     end
   end
+
+  # Cached for a tick's worth of provisioning: `admit/2` is called once per
+  # candidate account, and a pool's size does not change between two accounts
+  # in the same pass.
+  defp machines(region_id) do
+    KeyValueStore.get_or_update(
+      [__MODULE__, "machines", region_id],
+      [ttl: to_timeout(minute: 1), locking: true],
+      fn -> count_ready_nodes(region_id) end
+    )
+  end
+
+  defp count_ready_nodes(region_id) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         selector when is_binary(selector) <- Regions.node_label_selector(region),
+         {:ok, %{"items" => items}} <- Client.list_nodes(selector) do
+      Enum.count(items, &ready?/1)
+    else
+      _ -> nil
+    end
+  end
+
+  defp ready?(%{"status" => %{"conditions" => conditions}}) when is_list(conditions) do
+    Enum.any?(conditions, &match?(%{"type" => "Ready", "status" => "True"}, &1))
+  end
+
+  defp ready?(_node), do: false
 
   @doc """
   Gibibytes of enforced warm quota the region's non-archived instances already

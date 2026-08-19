@@ -87,24 +87,14 @@ server:
       # the OVH bare-metal validation region — a geographic id; OVH is an
       # implementation detail behind it (ovhFleet below, replicas 1).
       value: eu-central,scw-fr-par-runners,ca-east
-    - name: TUIST_KURA_REGION_MACHINES
-      # Installed machines per public region, which is what the demand-driven
-      # lifecycle sizes capacity admission and the Air pressure rule from
-      # (`Tuist.Kura.Capacity`). Both staging regions are a single box: one
-      # Dedibox Start-9-M for eu-central (dediboxFleet below) and one OVH SYS-1
-      # for ca-east (ovhFleet, replicas 1). Leaving it unset would read as
-      # "capacity unknown", which admits every provision without a ceiling, so
-      # a single box would take instances until its NVMe ran out.
-      value: eu-central=1,ca-east=1
-    - name: TUIST_KURA_SERVICE_REGION_SUBSTITUTIONS
-      # Staging has no `us-east` pool, so the Air region and the USA paid
-      # region both resolve to a region whose instances could never schedule:
-      # every Air account and every USA-restricted paid account would sit
-      # permanently unprovisionable, and the Air-only 60-day pressure rule
-      # could not be exercised at all. Serve them from the `ca-east` OVH
-      # validation box instead. Production serves us-east for real and sets no
-      # substitution, so its policy is unchanged.
-      value: us-east=ca-east
+    - name: TUIST_KURA_AIR_REGION
+      # Staging has no `us-east` pool, so every Air account would resolve to a
+      # region whose instances could never schedule, and the Air-only 60-day
+      # pressure rule could not be exercised at all. Run the free tier on the
+      # `ca-east` OVH validation box instead. Production omits this and serves
+      # us-east. Only Air moves: a paid account restricted to Europe or the
+      # USA chose that, and no deployment setting may relocate it.
+      value: ca-east
     - name: TUIST_KURA_INACTIVE_DAYS
       # Production reclaims after 90 days, which no environment can wait out,
       # so the archival half of the lifecycle would first run for real against

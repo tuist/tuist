@@ -5,8 +5,11 @@ defmodule Tuist.Kura.PromExPluginTest do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.IngestRepo
+  alias Tuist.KeyValueStore
+  alias Tuist.Kubernetes.Client
   alias Tuist.Kura.Demand
   alias Tuist.Kura.PromExPlugin
+  alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Kura.UsageEvent
   alias Tuist.Repo
@@ -22,7 +25,7 @@ defmodule Tuist.Kura.PromExPluginTest do
     stub(Environment, :test?, fn -> false end)
     stub(Environment, :tuist_hosted?, fn -> true end)
     stub(Environment, :kura_available_region_ids, fn -> [@region] end)
-    stub(Environment, :kura_region_machines, fn _ -> nil end)
+    stub_region_machines([])
     :ok
   end
 
@@ -66,7 +69,7 @@ defmodule Tuist.Kura.PromExPluginTest do
 
   describe "execute_occupancy_telemetry_event/0" do
     test "reports the region's forecast, installed capacity, and instance count" do
-      stub(Environment, :kura_region_machines, fn @region -> 2 end)
+      stub_region_machines([{@region, 2}])
       instance(account())
 
       ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :occupancy]])
@@ -128,4 +131,22 @@ defmodule Tuist.Kura.PromExPluginTest do
                        %{returned_hit_rate: +0.0, steady_hit_rate: +0.0}, _metadata}
     end
   end
+
+  # `installed_gib/1` counts the Ready nodes carrying the region's node-pool
+  # label, so sizing a region in a test means answering the node list.
+  defp stub_region_machines(machines_by_region) do
+    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+    stub(Client, :list_nodes, fn selector ->
+      machines =
+        Enum.find_value(machines_by_region, 0, fn {region_id, machines} ->
+          {:ok, region} = Regions.fetch(region_id)
+          if selector == Regions.node_label_selector(region), do: machines
+        end)
+
+      {:ok, %{"items" => List.duplicate(ready_node(), machines)}}
+    end)
+  end
+
+  defp ready_node, do: %{"status" => %{"conditions" => [%{"type" => "Ready", "status" => "True"}]}}
 end

@@ -236,39 +236,38 @@ defmodule Tuist.Kura.AccountPoliciesTest do
     account
   end
 
-  describe "deployment region substitutions" do
-    test "map a policy region onto one the deployment actually serves" do
-      # Staging has no us-east pool, so Air and USA-restricted paid accounts
-      # would otherwise resolve to a region whose instances never schedule.
-      assert Environment.kura_service_region("us-east", "us-east=ca-east") == "ca-east"
-      assert Environment.kura_service_region("eu-central", "us-east=ca-east") == "eu-central"
+  describe "the Air region" do
+    test "is United States East unless the deployment names another" do
+      assert Environment.kura_air_region() == "us-east"
     end
 
-    test "are absent by default, so production policy is unchanged" do
-      assert Environment.kura_service_region("us-east", "") == "us-east"
-      assert Environment.kura_service_region("us-east") == "us-east"
-    end
-
-    test "apply to a resolved account region" do
+    test "is where an Air account resolves" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
-      stub(Environment, :kura_service_region, fn
-        "us-east" -> "ca-east"
-        region -> region
-      end)
+      stub(Environment, :kura_air_region, fn -> "ca-east" end)
 
       assert {:ok, %{plan: :air, service_region: "ca-east"}} = AccountPolicies.resolve(account)
     end
 
-    test "never turn a restricted account into a resolvable one" do
-      # A substitution is a deployment fact, not a licence to serve an account
-      # from a region its storage restriction forbids.
+    test "does not move a paid account restricted to a storage region" do
+      # Where the free tier runs is a deployment decision. A paid account that
+      # chose Europe or the USA chose it, and no deployment setting relocates
+      # it.
+      account = update_region!(organization_account(), :europe)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+
+      stub(Environment, :kura_air_region, fn -> "ca-east" end)
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "eu-central"}}
+    end
+
+    test "does not turn a restricted Air account into a resolvable one" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       {:ok, account} = Accounts.update_account(account, %{region: :europe})
 
-      stub(Environment, :kura_service_region, fn region -> region end)
+      stub(Environment, :kura_air_region, fn -> "eu-central" end)
 
       assert {:error, :service_region_unavailable} = AccountPolicies.resolve(account)
     end

@@ -4,6 +4,8 @@ defmodule Tuist.Kura.CapacityTest do
 
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.KeyValueStore
+  alias Tuist.Kubernetes.Client
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -34,7 +36,7 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   defp installed(machines) do
-    stub(Environment, :kura_region_machines, fn @region -> machines end)
+    stub_region_machines([{@region, machines}])
   end
 
   describe "warm_quota_gib/2" do
@@ -84,7 +86,7 @@ defmodule Tuist.Kura.CapacityTest do
     end
 
     test "admits when the region's machine count is not configured" do
-      stub(Environment, :kura_region_machines, fn _ -> nil end)
+      stub_region_machines([])
 
       for _ <- 1..100, do: instance(account())
 
@@ -113,7 +115,7 @@ defmodule Tuist.Kura.CapacityTest do
     end
 
     test "is false when capacity is unknown, so pressure archival never runs uninformed" do
-      stub(Environment, :kura_region_machines, fn _ -> nil end)
+      stub_region_machines([])
 
       for _ <- 1..100, do: instance(account())
 
@@ -122,32 +124,12 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   describe "environment configuration" do
-    test "an unreadable machine count raises rather than reading as unknown capacity" do
-      # `nil` disables admission and pressure archival, so a typo must not be
-      # indistinguishable from deliberately omitting the region.
-      for value <- ["O", "4x", "", "0", "-2"] do
-        assert_raise ArgumentError, ~r/invalid machine count for us-east/, fn ->
-          Environment.kura_region_machines("us-east", "us-east=#{value}")
-        end
-      end
-    end
-
     test "the lifecycle windows default to the spec's values and are overridable" do
       # Configurable so the archival half can be exercised outside production
       # rather than first running for real against customer instances.
       assert Environment.kura_inactive_days() == 90
       assert Environment.kura_pressure_inactive_days() == 60
       assert Environment.kura_demand_tracking_grace_days() == 7
-    end
-
-    test "a region that is simply absent reads as unknown" do
-      assert Environment.kura_region_machines("us-east", "eu-central=2") == nil
-      assert Environment.kura_region_machines("eu-central", "eu-central=2") == 2
-      assert Environment.kura_region_machines("us-east", "") == nil
-    end
-
-    test "reads a well-formed list" do
-      assert Environment.kura_region_machines("us-east", "us-east=4, eu-central=2") == 4
     end
   end
 
@@ -166,7 +148,7 @@ defmodule Tuist.Kura.CapacityTest do
     end
 
     test "leaves installed capacity and ratio unknown when the machine count is not configured" do
-      stub(Environment, :kura_region_machines, fn _ -> nil end)
+      stub_region_machines([])
       instance(account())
 
       occupancy = Capacity.occupancy(@region)
@@ -175,4 +157,22 @@ defmodule Tuist.Kura.CapacityTest do
       assert occupancy.ratio == nil
     end
   end
+
+  # `installed_gib/1` counts the Ready nodes carrying the region's node-pool
+  # label, so sizing a region in a test means answering the node list.
+  defp stub_region_machines(machines_by_region) do
+    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+    stub(Client, :list_nodes, fn selector ->
+      machines =
+        Enum.find_value(machines_by_region, 0, fn {region_id, machines} ->
+          {:ok, region} = Regions.fetch(region_id)
+          if selector == Regions.node_label_selector(region), do: machines
+        end)
+
+      {:ok, %{"items" => List.duplicate(ready_node(), machines)}}
+    end)
+  end
+
+  defp ready_node, do: %{"status" => %{"conditions" => [%{"type" => "Ready", "status" => "True"}]}}
 end

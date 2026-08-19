@@ -5,11 +5,14 @@ defmodule Tuist.Kura.LifecycleTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Environment
+  alias Tuist.KeyValueStore
+  alias Tuist.Kubernetes.Client
   alias Tuist.Kura
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Lifecycle
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -33,7 +36,7 @@ defmodule Tuist.Kura.LifecycleTest do
     stub(Environment, :test?, fn -> false end)
     stub(Environment, :kura_available_region_ids, fn -> [@region] end)
     stub(Environment, :kura_runtime_image_tag, fn -> @image_tag end)
-    stub(Environment, :kura_region_machines, fn _ -> nil end)
+    stub_region_machines([])
 
     # Exercise the real buffer rather than the write-through path tests use by
     # default, so the sweep's "flush before reading demand" step is covered.
@@ -143,7 +146,7 @@ defmodule Tuist.Kura.LifecycleTest do
     end
 
     test "leaves an account on authoritative object storage when the region has no safe slot" do
-      stub(Environment, :kura_region_machines, fn @region -> 1 end)
+      stub_region_machines([{@region, 1}])
 
       # Fill the single machine's usable filesystem with Air instances.
       for _ <- 1..47, do: active_instance(account())
@@ -203,7 +206,7 @@ defmodule Tuist.Kura.LifecycleTest do
     end
 
     test "emits a capacity event when provisioning is refused" do
-      stub(Environment, :kura_region_machines, fn @region -> 1 end)
+      stub_region_machines([{@region, 1}])
       for _ <- 1..47, do: active_instance(account())
 
       account = account()
@@ -308,7 +311,7 @@ defmodule Tuist.Kura.LifecycleTest do
 
   describe "Air capacity pressure" do
     setup do
-      stub(Environment, :kura_region_machines, fn @region -> 1 end)
+      stub_region_machines([{@region, 1}])
       :ok
     end
 
@@ -940,4 +943,22 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(server).status == :drain_pending
     end
   end
+
+  # `installed_gib/1` counts the Ready nodes carrying the region's node-pool
+  # label, so sizing a region in a test means answering the node list.
+  defp stub_region_machines(machines_by_region) do
+    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+    stub(Client, :list_nodes, fn selector ->
+      machines =
+        Enum.find_value(machines_by_region, 0, fn {region_id, machines} ->
+          {:ok, region} = Regions.fetch(region_id)
+          if selector == Regions.node_label_selector(region), do: machines
+        end)
+
+      {:ok, %{"items" => List.duplicate(ready_node(), machines)}}
+    end)
+  end
+
+  defp ready_node, do: %{"status" => %{"conditions" => [%{"type" => "Ready", "status" => "True"}]}}
 end
