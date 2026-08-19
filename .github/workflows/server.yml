@@ -286,6 +286,14 @@ jobs:
         run: mise run --no-deps db:reset
       - name: Run tests
         run: mix test --warnings-as-errors
+  migration-versions:
+    name: Migration Versions
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for duplicate migration versions
+        run: mise/tasks/db/check-migration-versions.sh
   credo:
     name: Credo
     runs-on: tuist-linux
