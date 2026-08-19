@@ -13,6 +13,7 @@ defmodule Tuist.Kura.AccountPolicies do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
   alias Tuist.Billing
+  alias Tuist.Environment
   alias Tuist.Kura.AccountRegionPolicy
   alias Tuist.Repo
   alias Tuist.Time
@@ -33,7 +34,14 @@ defmodule Tuist.Kura.AccountPolicies do
     plan = Billing.effective_plan(account)
 
     case effective_service_region(account, plan) do
-      {:ok, service_region} -> {:ok, %{plan: plan, service_region: service_region}}
+      # The policy decides which region an account belongs in; the deployment
+      # decides which regions exist. Outside production those disagree, so the
+      # policy's answer is mapped through the deployment's substitutions before
+      # anything provisions against it. A substitution pointing at a region the
+      # deployment does not serve simply never matches a region pass, which
+      # leaves the account on the fallback lane rather than stranding an
+      # instance that cannot schedule.
+      {:ok, service_region} -> {:ok, %{plan: plan, service_region: Environment.kura_service_region(service_region)}}
       {:error, reason} -> {:error, reason}
     end
   end

@@ -1,11 +1,15 @@
 defmodule Tuist.Kura.AccountPoliciesTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionPolicy
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
+
+  setup :set_mimic_from_context
 
   describe "resolve/1" do
     test "resolves an account without a subscription to Air in United States East" do
@@ -203,5 +207,43 @@ defmodule Tuist.Kura.AccountPoliciesTest do
   defp update_region!(account, region) do
     {:ok, account} = Accounts.update_account(account, %{region: region})
     account
+  end
+
+  describe "deployment region substitutions" do
+    test "map a policy region onto one the deployment actually serves" do
+      # Staging has no us-east pool, so Air and USA-restricted paid accounts
+      # would otherwise resolve to a region whose instances never schedule.
+      assert Environment.kura_service_region("us-east", "us-east=ca-east") == "ca-east"
+      assert Environment.kura_service_region("eu-central", "us-east=ca-east") == "eu-central"
+    end
+
+    test "are absent by default, so production policy is unchanged" do
+      assert Environment.kura_service_region("us-east", "") == "us-east"
+      assert Environment.kura_service_region("us-east") == "us-east"
+    end
+
+    test "apply to a resolved account region" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      stub(Environment, :kura_service_region, fn
+        "us-east" -> "ca-east"
+        region -> region
+      end)
+
+      assert {:ok, %{plan: :air, service_region: "ca-east"}} = AccountPolicies.resolve(account)
+    end
+
+    test "never turn a restricted account into a resolvable one" do
+      # A substitution is a deployment fact, not a licence to serve an account
+      # from a region its storage restriction forbids.
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, account} = Accounts.update_account(account, %{region: :europe})
+
+      stub(Environment, :kura_service_region, fn region -> region end)
+
+      assert {:error, :service_region_unavailable} = AccountPolicies.resolve(account)
+    end
   end
 end

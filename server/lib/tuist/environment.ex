@@ -393,6 +393,38 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  The region a deployment serves in place of `region_id`, or `region_id`
+  itself when there is no substitution.
+
+  Read from `TUIST_KURA_SERVICE_REGION_SUBSTITUTIONS` as a `from=to` comma
+  list (e.g. `us-east=ca-east`).
+
+  This exists because the service region an account resolves to is a policy
+  decision (`Tuist.Kura.AccountPolicies`) while the regions a deployment
+  actually has hardware in is a deployment fact, and outside production the
+  two disagree. Staging has no `us-east` pool, so every Air account and every
+  paid account restricted to the USA would resolve to a region whose instances
+  could never schedule.
+
+  It is deliberately an explicit operator statement rather than a fallback to
+  whatever region happens to be available: an account restricted to Europe
+  resolving to a US region would break the guarantee that restriction exists
+  to make, and a silent fallback would do exactly that.
+  """
+  def kura_service_region(region_id, env_value \\ System.get_env("TUIST_KURA_SERVICE_REGION_SUBSTITUTIONS", ""))
+
+  def kura_service_region(region_id, env_value) when is_binary(region_id) do
+    env_value
+    |> String.split(",", trim: true)
+    |> Enum.find_value(region_id, fn pair ->
+      case pair |> String.split("=", parts: 2) |> Enum.map(&String.trim/1) do
+        [^region_id, replacement] when replacement != "" -> replacement
+        _ -> nil
+      end
+    end)
+  end
+
+  @doc """
   Whether Kura cache-demand records bypass the in-memory buffer and are
   written straight through the caller's repo connection.
 
