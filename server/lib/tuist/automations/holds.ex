@@ -80,6 +80,11 @@ defmodule Tuist.Automations.Holds do
     |> IngestRepo.insert()
   end
 
+  # The ClickHouse HTTP interface sends each array-parameter element as its
+  # own form field and rejects requests past its form-field cap, so id lists
+  # must stay well below it per query.
+  @claims_query_batch_size 500
+
   @doc """
   Returns a map of `test_case_id => [live claim]` for the given test cases.
 
@@ -87,9 +92,13 @@ defmodule Tuist.Automations.Holds do
   with no live claims are absent from the map.
   """
   def current_claims(project_id, test_case_ids) do
-    Hold
-    |> where([h], h.project_id == ^project_id and h.test_case_id in ^test_case_ids)
-    |> live_claims()
+    test_case_ids
+    |> Enum.chunk_every(@claims_query_batch_size)
+    |> Enum.flat_map(fn chunk ->
+      Hold
+      |> where([h], h.project_id == ^project_id and h.test_case_id in ^chunk)
+      |> live_claims()
+    end)
     |> Enum.group_by(& &1.test_case_id)
   end
 

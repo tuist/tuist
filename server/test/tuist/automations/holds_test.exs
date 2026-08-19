@@ -11,6 +11,20 @@ defmodule Tuist.Automations.HoldsTest do
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "place_claim/3 + current_claims/2" do
+    test "reads id lists larger than one query batch" do
+      project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      test_case_ids = Enum.map(1..600, fn _ -> Ecto.UUID.generate() end)
+
+      claimed = Enum.take(test_case_ids, 550)
+      Enum.each(claimed, fn id -> {:ok, _} = Holds.place_claim(alert, id, %{state: "skipped"}) end)
+
+      claims = Holds.current_claims(project.id, test_case_ids)
+
+      assert map_size(claims) == 550
+      assert Enum.all?(claimed, &match?([%{state: "skipped"}], claims[&1]))
+    end
+
     test "a placed claim reads back live" do
       project = ProjectsFixtures.project_fixture()
       alert = AutomationsFixtures.automation_alert_fixture(project: project)
