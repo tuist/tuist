@@ -31,9 +31,9 @@ Describe 'memory pressure resilience'
     wait_for_http "${KURA_US_URL}/up"
     wait_for_http "${KURA_EU_URL}/up"
     wait_for_http "${KURA_AP_URL}/up"
-    capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":3' || return 1
-    capture_into eu_up wait_for_contains "${KURA_EU_URL}/up" '"ring_members":3' || return 1
-    capture_into ap_up wait_for_contains "${KURA_AP_URL}/up" '"ring_members":3' || return 1
+    capture_into us_up wait_for_contains "${KURA_US_URL}/up?cluster=true" '"ring_members":3' || return 1
+    capture_into eu_up wait_for_contains "${KURA_EU_URL}/up?cluster=true" '"ring_members":3' || return 1
+    capture_into ap_up wait_for_contains "${KURA_AP_URL}/up?cluster=true" '"ring_members":3' || return 1
     [[ "${us_up}" == *'"ring_members":3'* ]]
     [[ "${eu_up}" == *'"ring_members":3'* ]]
     [[ "${ap_up}" == *'"ring_members":3'* ]]
@@ -110,9 +110,9 @@ PY
     wait "${keyvalue_eu_pid}" || return 1
     wait "${keyvalue_ap_pid}" || return 1
 
-    capture_into us_after wait_for_contains "${KURA_US_URL}/up" '"ring_members":3' || return 1
-    capture_into eu_after wait_for_contains "${KURA_EU_URL}/up" '"ring_members":3' || return 1
-    capture_into ap_after wait_for_contains "${KURA_AP_URL}/up" '"ring_members":3' || return 1
+    capture_into us_after wait_for_contains "${KURA_US_URL}/up?cluster=true" '"ring_members":3' || return 1
+    capture_into eu_after wait_for_contains "${KURA_EU_URL}/up?cluster=true" '"ring_members":3' || return 1
+    capture_into ap_after wait_for_contains "${KURA_AP_URL}/up?cluster=true" '"ring_members":3' || return 1
     The variable us_after should include '"ring_members":3'
     The variable eu_after should include '"ring_members":3'
     The variable ap_after should include '"ring_members":3'

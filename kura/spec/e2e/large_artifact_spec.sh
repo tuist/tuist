@@ -30,9 +30,9 @@ Describe 'module artifact larger than the segment size'
     wait_for_http "${KURA_US_URL}/up"
     wait_for_http "${KURA_EU_URL}/up"
     wait_for_http "${KURA_AP_URL}/up"
-    capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":3' || return 1
-    capture_into eu_up wait_for_contains "${KURA_EU_URL}/up" '"ring_members":3' || return 1
-    capture_into ap_up wait_for_contains "${KURA_AP_URL}/up" '"ring_members":3' || return 1
+    capture_into us_up wait_for_contains "${KURA_US_URL}/up?cluster=true" '"ring_members":3' || return 1
+    capture_into eu_up wait_for_contains "${KURA_EU_URL}/up?cluster=true" '"ring_members":3' || return 1
+    capture_into ap_up wait_for_contains "${KURA_AP_URL}/up?cluster=true" '"ring_members":3' || return 1
   }
 
   teardown_suite() {

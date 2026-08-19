@@ -22,7 +22,7 @@ Describe 'eventual-consistency fault recovery'
     dc up -d kura-us >/dev/null 2>&1
     resolve_http_node KURA_US kura-us
     wait_for_http "${KURA_US_URL}/up"
-    capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":1' || return 1
+    capture_into us_up wait_for_contains "${KURA_US_URL}/up?cluster=true" '"ring_members":1' || return 1
     [[ "${us_up}" == *'"ring_members":1'* ]]
   }
 
@@ -54,8 +54,8 @@ Describe 'eventual-consistency fault recovery'
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
     resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
-    capture_into us_ring wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
-    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
+    capture_into us_ring wait_for_contains "${KURA_US_URL}/up?cluster=true" '"ring_members":2' || return 1
+    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up?cluster=true" '"ring_members":2' || return 1
     The variable us_ring should include '"ring_members":2'
     The variable us2_ring should include '"ring_members":2'
 
@@ -72,8 +72,8 @@ Describe 'eventual-consistency fault recovery'
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
     resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
-    capture_into us_ring wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
-    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
+    capture_into us_ring wait_for_contains "${KURA_US_URL}/up?cluster=true" '"ring_members":2' || return 1
+    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up?cluster=true" '"ring_members":2' || return 1
     The variable us_ring should include '"ring_members":2'
     The variable us2_ring should include '"ring_members":2'
 
@@ -94,8 +94,8 @@ Describe 'eventual-consistency fault recovery'
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
     resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
-    capture_into us_ring_after wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
-    capture_into us2_ring_after wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
+    capture_into us_ring_after wait_for_contains "${KURA_US_URL}/up?cluster=true" '"ring_members":2' || return 1
+    capture_into us2_ring_after wait_for_contains "${KURA_US_2_URL}/up?cluster=true" '"ring_members":2' || return 1
     The variable us_ring_after should include '"ring_members":2'
     The variable us2_ring_after should include '"ring_members":2'
 
@@ -155,7 +155,7 @@ Describe 'eventual-consistency fault recovery through backfill'
     dc up -d kura-us >/dev/null 2>&1
     resolve_http_node KURA_US kura-us
     wait_for_http "${KURA_US_URL}/up"
-    capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":1' || return 1
+    capture_into us_up wait_for_contains "${KURA_US_URL}/up?cluster=true" '"ring_members":1' || return 1
     [[ "${us_up}" == *'"ring_members":1'* ]]
   }
 
@@ -187,8 +187,8 @@ Describe 'eventual-consistency fault recovery through backfill'
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
     resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
-    capture_into us_ring wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
-    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
+    capture_into us_ring wait_for_contains "${KURA_US_URL}/up?cluster=true" '"ring_members":2' || return 1
+    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up?cluster=true" '"ring_members":2' || return 1
     The variable us_ring should include '"ring_members":2'
     The variable us2_ring should include '"ring_members":2'
 
@@ -210,8 +210,8 @@ Describe 'eventual-consistency fault recovery through backfill'
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
     resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
-    capture_into us_ring wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
-    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
+    capture_into us_ring wait_for_contains "${KURA_US_URL}/up?cluster=true" '"ring_members":2' || return 1
+    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up?cluster=true" '"ring_members":2' || return 1
     The variable us_ring should include '"ring_members":2'
     The variable us2_ring should include '"ring_members":2'
     capture_into us2_rollout \
@@ -236,8 +236,8 @@ Describe 'eventual-consistency fault recovery through backfill'
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
     resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
-    capture_into us_ring_after wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
-    capture_into us2_ring_after wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
+    capture_into us_ring_after wait_for_contains "${KURA_US_URL}/up?cluster=true" '"ring_members":2' || return 1
+    capture_into us2_ring_after wait_for_contains "${KURA_US_2_URL}/up?cluster=true" '"ring_members":2' || return 1
     The variable us_ring_after should include '"ring_members":2'
     The variable us2_ring_after should include '"ring_members":2'
 

@@ -65,6 +65,9 @@ const ROUTE_UP: &str = "/up";
 const ROUTE_READY: &str = "/ready";
 const ROUTE_ROLLOUT_STATUS: &str = "/status/rollout";
 const ROUTE_METRICS: &str = "/metrics";
+/// Opt-in flag on `/up` that adds the node's cluster view to the liveness
+/// payload. Never set by the Kubernetes probes.
+const UP_CLUSTER_QUERY_PARAM: &str = "cluster";
 const ROUTE_V1_CACHE: &str = "/v1/cache/{hash}";
 const ROUTE_API_METRO_CACHE: &str = "/api/metro/cache/{cache_key}";
 const ROUTE_API_CACHE_KEYVALUE_ID: &str = "/api/cache/keyvalue/{cas_id}";
@@ -1428,7 +1431,39 @@ fn status_from_u16(status: u16) -> StatusCode {
     StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-async fn up(State(state): State<SharedState>) -> impl IntoResponse {
+// Liveness. Answers from process-local configuration only: no peer
+// round-trips, no cluster aggregation, and no lock a loaded request path can
+// hold. A failed probe here restarts the pod, so anything the handler waits
+// on turns "this node is busy" into "this node is dead". The node's view of
+// the cluster is served from the same route behind `?cluster=true`.
+async fn up(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<SharedState>,
+) -> Response {
+    if cluster_view_requested(&params) {
+        return Json(up_cluster_payload(&state).await).into_response();
+    }
+
+    Json(up_liveness_payload(&state)).into_response()
+}
+
+fn cluster_view_requested(params: &HashMap<String, String>) -> bool {
+    params
+        .get(UP_CLUSTER_QUERY_PARAM)
+        .is_some_and(|value| matches!(value.as_str(), "" | "1" | "true" | "yes"))
+}
+
+fn up_liveness_payload(state: &SharedState) -> serde_json::Value {
+    serde_json::json!({
+        "status": "ok",
+        "tenant_id": state.config.tenant_id.clone(),
+        "region": state.config.region.clone(),
+        "node": state.config.region.clone(),
+        "node_url": state.config.node_url.clone(),
+    })
+}
+
+async fn up_cluster_payload(state: &SharedState) -> serde_json::Value {
     let cluster = state.cluster_status_report().await;
     let mut regions = cluster.peer_regions;
     regions.push(state.config.region.clone());
@@ -1438,7 +1473,7 @@ async fn up(State(state): State<SharedState>) -> impl IntoResponse {
     nodes.push(state.config.node_url.clone());
     nodes.sort();
 
-    Json(serde_json::json!({
+    serde_json::json!({
         "status": "ok",
         "generation": cluster.generation,
         "tenant_id": state.config.tenant_id.clone(),
@@ -1450,7 +1485,7 @@ async fn up(State(state): State<SharedState>) -> impl IntoResponse {
         "members": nodes.clone(),
         "regions": regions,
         "nodes": nodes,
-    }))
+    })
 }
 
 async fn ready(State(state): State<SharedState>) -> impl IntoResponse {
@@ -3519,7 +3554,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn up_includes_current_node_and_known_members() {
+    async fn up_cluster_view_includes_current_node_and_known_members() {
         let context = test_context(|config| {
             config.region = "us-east".into();
         })
@@ -3539,7 +3574,7 @@ mod tests {
         let response = router(context.state.clone())
             .oneshot(
                 Request::builder()
-                    .uri("/up")
+                    .uri("/up?cluster=true")
                     .body(Body::empty())
                     .expect("failed to build request"),
             )
@@ -3565,7 +3600,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn up_reports_unique_regions_separately_from_node_members() {
+    async fn up_cluster_view_reports_unique_regions_separately_from_node_members() {
         let context = test_context(|config| {
             config.region = "eu-central".into();
         })
@@ -3591,7 +3626,7 @@ mod tests {
         let response = router(context.state.clone())
             .oneshot(
                 Request::builder()
-                    .uri("/up")
+                    .uri("/up?cluster=true")
                     .body(Body::empty())
                     .expect("failed to build request"),
             )
@@ -3605,6 +3640,130 @@ mod tests {
         assert_eq!(body["regions"], serde_json::json!(["eu-central"]));
         assert_eq!(body["members"].as_array().expect("members array").len(), 3);
         assert_eq!(body["nodes"].as_array().expect("nodes array").len(), 3);
+    }
+
+    #[tokio::test]
+    async fn up_answers_liveness_while_the_readiness_lock_is_held() {
+        let context = test_context(|config| {
+            config.region = "us-east".into();
+        })
+        .await;
+
+        let readiness_guard = context.state.readiness.lock().await;
+
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            public_router(context.state.clone()).oneshot(
+                Request::builder()
+                    .uri("/up")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            ),
+        )
+        .await
+        .expect("liveness must not wait on cluster state")
+        .expect("request failed");
+
+        drop(readiness_guard);
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("failed to decode up response");
+        assert_eq!(body["status"], "ok");
+        assert_eq!(body["region"], "us-east");
+        for field in [
+            "generation",
+            "connected_nodes",
+            "ring_members",
+            "members",
+            "regions",
+            "nodes",
+        ] {
+            assert!(
+                body.get(field).is_none(),
+                "liveness payload must not carry cluster field {field}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn up_cluster_view_is_opt_in_per_query_value() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["remote".to_string()]),
+                std::collections::BTreeMap::from([(
+                    "http://peer.kura.internal:7443".to_string(),
+                    "remote".to_string(),
+                )]),
+                true,
+            )
+            .await;
+
+        for (query, expects_cluster) in [
+            ("", false),
+            ("?cluster", true),
+            ("?cluster=true", true),
+            ("?cluster=1", true),
+            ("?cluster=false", false),
+            ("?cluster=0", false),
+        ] {
+            let response = public_router(context.state.clone())
+                .oneshot(
+                    Request::builder()
+                        .uri(format!("/up{query}"))
+                        .body(Body::empty())
+                        .expect("failed to build request"),
+                )
+                .await
+                .expect("request failed");
+
+            assert_eq!(response.status(), StatusCode::OK);
+            let body: Value = serde_json::from_str(&response_text(response).await)
+                .expect("failed to decode up response");
+            assert_eq!(body["status"], "ok", "query {query}");
+            assert_eq!(
+                body.get("ring_members").is_some(),
+                expects_cluster,
+                "query {query}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn up_stays_ok_while_draining_and_before_discovery() {
+        let context = test_context(|_| {}).await;
+
+        for stage in ["before discovery", "draining"] {
+            let response = public_router(context.state.clone())
+                .oneshot(
+                    Request::builder()
+                        .uri("/up")
+                        .body(Body::empty())
+                        .expect("failed to build request"),
+                )
+                .await
+                .expect("up route should respond");
+
+            assert_eq!(response.status(), StatusCode::OK, "{stage}");
+            let body: Value = serde_json::from_str(&response_text(response).await)
+                .expect("failed to decode up response");
+            assert_eq!(body["status"], "ok", "{stage}");
+
+            context.state.enter_draining();
+        }
+
+        let ready_response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("ready route should respond");
+        assert_eq!(ready_response.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
     #[test]
@@ -3829,7 +3988,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn up_and_ready_share_the_same_membership_generation() {
+    async fn up_cluster_view_and_ready_share_the_same_membership_generation() {
         let context = test_context(|_| {}).await;
         let peer = "http://peer.kura.internal:7443".to_string();
         context
@@ -3847,7 +4006,7 @@ mod tests {
         let up_response = public_router(context.state.clone())
             .oneshot(
                 Request::builder()
-                    .uri("/up")
+                    .uri("/up?cluster=true")
                     .body(Body::empty())
                     .expect("failed to build up request"),
             )

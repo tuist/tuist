@@ -69,7 +69,7 @@ Describe 'backfill pass fault tolerance'
     dc up -d kura-us >/dev/null 2>&1
     resolve_http_node KURA_US kura-us
     wait_for_http "${KURA_US_URL}/up"
-    capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":1' || return 1
+    capture_into us_up wait_for_contains "${KURA_US_URL}/up?cluster=true" '"ring_members":1' || return 1
     [[ "${us_up}" == *'"ring_members":1'* ]]
   }
 
@@ -382,7 +382,7 @@ Describe 'backfill capacity completion with an undersized ring'
     dc up -d kura-us >/dev/null 2>&1
     resolve_http_node KURA_US kura-us
     wait_for_http "${KURA_US_URL}/up" || return 1
-    capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":1' || return 1
+    capture_into us_up wait_for_contains "${KURA_US_URL}/up?cluster=true" '"ring_members":1' || return 1
     [[ "${us_up}" == *'"ring_members":1'* ]]
   }
 

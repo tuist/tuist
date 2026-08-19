@@ -451,7 +451,7 @@ The repository includes a Helm chart at `ops/helm/kura` that deploys Kura as a `
 - 🚪 optional ingress for the HTTP API
 - 🚪 optional ingress for the gRPC Remote Execution API
 - 🔐 optional peer mTLS for `/_internal/*` traffic via a mounted Kubernetes `Secret`
-- 🚦 `/ready` for public readiness and `/up` for liveness, with a `preStop` `SIGUSR1` drain hook that removes pods from traffic before `SIGTERM`
+- 🚦 `/ready` for public readiness and `/up` for liveness (process-local only; add `?cluster=true` for the node's cluster view), with a `preStop` `SIGUSR1` drain hook that removes pods from traffic before `SIGTERM`
 - ⏱️ a pod grace period derived from Kura's own drain timeout plus small lifecycle buffers so Kubernetes does not cut shutdown short
 
 Lint and render the chart:
