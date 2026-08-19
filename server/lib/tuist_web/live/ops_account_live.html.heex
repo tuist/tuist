@@ -37,53 +37,6 @@
               </.link>
           <% end %>
         </:col>
-        <:col :let={server} label={dgettext("dashboard", "Lifecycle")}>
-          <.button
-            :if={server.status == :active}
-            type="button"
-            label={dgettext("dashboard", "Archive")}
-            variant="secondary"
-            size="small"
-            phx-click="archive_kura_server"
-            phx-value-id={server.id}
-            data-confirm={
-              dgettext(
-                "dashboard",
-                "Archive the Kura instance in %{region}? It drains, then its cache is reclaimed. The account gets a new empty instance on its next build.",
-                region: server.region
-              )
-            }
-          />
-          <.button
-            :if={server.status == :archived}
-            type="button"
-            label={dgettext("dashboard", "Unarchive")}
-            variant="secondary"
-            size="small"
-            phx-click="unarchive_kura_server"
-            phx-value-id={server.id}
-          />
-        </:col>
-      </.table>
-    </.card_section>
-    <.card_section :if={@kura_operator_actions != []}>
-      <.table id="account-kura-operator-actions-table" rows={@kura_operator_actions}>
-        <:col :let={action} label={dgettext("dashboard", "Operator action")}>
-          <.text_cell label={action.action |> Atom.to_string() |> String.capitalize()} />
-        </:col>
-        <:col :let={action} label={dgettext("dashboard", "Region")}>
-          <.text_cell label={action.service_region} />
-        </:col>
-        <:col :let={action} label={dgettext("dashboard", "By")}>
-          <.text_cell label={
-            if action.performed_by_user,
-              do: action.performed_by_user.email,
-              else: dgettext("dashboard", "Removed user")
-          } />
-        </:col>
-        <:col :let={action} label={dgettext("dashboard", "When")}>
-          <.text_cell label={Tuist.Utilities.DateFormatter.from_now(action.inserted_at)} />
-        </:col>
       </.table>
     </.card_section>
   </.card>

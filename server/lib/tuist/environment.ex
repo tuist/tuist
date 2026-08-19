@@ -425,6 +425,65 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Days without cache demand before a Kura instance is drained and reclaimed,
+  and the shortened window Air may use under capacity pressure.
+
+  Defaults are the spec's 90 and 60. They are configurable because otherwise
+  the archival half of the lifecycle cannot be exercised in any environment
+  without waiting a quarter: its first real run would be in production against
+  customer instances. Staging runs short windows so every deploy re-validates
+  the whole cycle.
+
+  Read from `TUIST_KURA_INACTIVE_DAYS` and
+  `TUIST_KURA_PRESSURE_INACTIVE_DAYS`.
+  """
+  def kura_inactive_days, do: positive_env_integer("TUIST_KURA_INACTIVE_DAYS", 90)
+
+  def kura_pressure_inactive_days, do: positive_env_integer("TUIST_KURA_PRESSURE_INACTIVE_DAYS", 60)
+
+  @doc """
+  Days an account-region's demand must have been tracked before it can be
+  archived, however old the recorded demand looks.
+
+  This is what makes enabling archival against freshly backfilled data safe, so
+  it defaults to a week. Staging sets it to zero, where the backfill is not the
+  concern and waiting a week to exercise archival would defeat the point.
+
+  Read from `TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS`.
+  """
+  def kura_demand_tracking_grace_days do
+    case System.get_env("TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS") do
+      nil -> 7
+      value -> parse_non_negative_days!("TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS", value)
+    end
+  end
+
+  defp positive_env_integer(name, default) do
+    case System.get_env(name) do
+      nil ->
+        default
+
+      value ->
+        case parse_non_negative_days!(name, value) do
+          0 -> raise ArgumentError, "#{name} must be greater than 0"
+          days -> days
+        end
+    end
+  end
+
+  # An unreadable window must not silently fall back to the default: a typo
+  # would leave an operator believing they had shortened or lengthened it.
+  defp parse_non_negative_days!(name, value) do
+    case Integer.parse(String.trim(value)) do
+      {days, ""} when days >= 0 ->
+        days
+
+      _ ->
+        raise ArgumentError, "#{name} must be a non-negative integer number of days, got: #{inspect(value)}"
+    end
+  end
+
+  @doc """
   Whether Kura cache-demand records bypass the in-memory buffer and are
   written straight through the caller's repo connection.
 

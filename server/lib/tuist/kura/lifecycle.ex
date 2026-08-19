@@ -2,8 +2,10 @@ defmodule Tuist.Kura.Lifecycle do
   @moduledoc """
   Converges account-region Kura instances with cache demand.
 
-  Every plan that is archived at all follows the same default 90-day lifecycle,
-  and the identity rule converges in both directions:
+  Every plan that is archived at all follows the same default 90-day lifecycle
+  (`Tuist.Environment.kura_inactive_days/0`, shortened outside production so
+  the archival half is exercised rather than first running for real against
+  customers), and the identity rule converges in both directions:
 
     * an account with cache demand inside its inactivity window should have
       exactly one live instance in its service region, and
@@ -85,7 +87,6 @@ defmodule Tuist.Kura.Lifecycle do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
-  alias Tuist.Accounts.User
   alias Tuist.Billing
   alias Tuist.Environment
   alias Tuist.FeatureFlags
@@ -94,7 +95,6 @@ defmodule Tuist.Kura.Lifecycle do
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
-  alias Tuist.Kura.LifecycleOperatorAction
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -102,15 +102,6 @@ defmodule Tuist.Kura.Lifecycle do
   alias Tuist.Repo
 
   require Logger
-
-  @default_inactive_days 90
-  @pressure_inactive_days 60
-
-  # An account-region whose demand has been tracked for less than this is
-  # never archived, however old its recorded demand looks. This is what makes
-  # enabling archival against freshly backfilled data safe: a seeded row is
-  # inert until the request-boundary hook has had a full window to correct it.
-  @demand_tracking_grace_days 7
 
   # Ceilings on how much converge work one pass does, matching the rest of the
   # reconciler. Provisioning is the tighter of the two because each one starts
@@ -259,7 +250,7 @@ defmodule Tuist.Kura.Lifecycle do
         select: 1
       )
 
-    default_cutoff = DateTime.add(now(), -@default_inactive_days * 86_400, :second)
+    default_cutoff = DateTime.add(now(), -Environment.kura_inactive_days() * 86_400, :second)
 
     Repo.all(
       from(l in AccountRegionLifecycle,
@@ -281,7 +272,7 @@ defmodule Tuist.Kura.Lifecycle do
   # pressure rule had already judged too old to keep warm.
   defp demand_inside_window?(%AccountRegionLifecycle{} = lifecycle, pressure?) do
     if pressure? and Billing.effective_plan(lifecycle.account) == :air do
-      cutoff = DateTime.add(now(), -@pressure_inactive_days * 86_400, :second)
+      cutoff = DateTime.add(now(), -Environment.kura_pressure_inactive_days() * 86_400, :second)
       DateTime.compare(lifecycle.last_cache_demand_at, cutoff) != :lt
     else
       true
@@ -417,9 +408,9 @@ defmodule Tuist.Kura.Lifecycle do
   # the one whose reclamation costs least.
   defp archival_candidates(region_id, pressure?) do
     now = now()
-    default_cutoff = DateTime.add(now, -@default_inactive_days * 86_400, :second)
-    pressure_cutoff = DateTime.add(now, -@pressure_inactive_days * 86_400, :second)
-    tracking_cutoff = DateTime.add(now, -@demand_tracking_grace_days * 86_400, :second)
+    default_cutoff = DateTime.add(now, -Environment.kura_inactive_days() * 86_400, :second)
+    pressure_cutoff = DateTime.add(now, -Environment.kura_pressure_inactive_days() * 86_400, :second)
+    tracking_cutoff = DateTime.add(now, -Environment.kura_demand_tracking_grace_days() * 86_400, :second)
 
     region_id
     |> active_instances_with_lifecycle(pressure_cutoff, tracking_cutoff)
@@ -793,123 +784,6 @@ defmodule Tuist.Kura.Lifecycle do
 
   defp cold_return?(%AccountRegionLifecycle{last_returned_at: returned_at}, started_at) do
     DateTime.compare(returned_at, started_at) != :lt
-  end
-
-  ## Operator overrides
-
-  @doc """
-  Archives an account-region instance now, on an operator's instruction,
-  regardless of how recently the account asked for cache.
-
-  Deliberately bypasses the `:kura_archival` flag and the plan exclusion:
-  those gate the automatic sweep, and this is someone deciding for themselves.
-  What it does *not* bypass is the drain: the instance unpublishes its
-  endpoint and waits out `Kura.drain_seconds/0` like any other, so in-flight
-  work still finishes, and the reconciler completes the teardown.
-
-  It is deliberately a one-shot rather than a suspension. The identity rule
-  still governs afterwards, so an account that is genuinely being built
-  against comes back on its next request, and only an idle one stays
-  reclaimed. That makes the action safe by construction: an operator cannot
-  starve an active account with it, and freeing a box for good is what
-  `Kura.destroy_server/1` is for.
-  """
-  def archive_now(%Server{} = server, %User{} = performed_by) do
-    with {:ok, lifecycle} <- fetch_lifecycle(server),
-         {:ok, _server} <- enter_drain_now(server, lifecycle) do
-      record_operator_action(server, :archive, performed_by)
-    end
-  end
-
-  @doc """
-  Returns an archived account-region instance to service now, on an operator's
-  instruction, without waiting for the account's next cache request.
-
-  Takes the same cold-provision path a demand-driven return takes, on the same
-  row, so there is no second way for an instance to come back.
-  """
-  def unarchive_now(%Server{} = server, %User{} = performed_by) do
-    case image_tag() do
-      nil ->
-        {:error, :no_runtime_image}
-
-      image_tag ->
-        with {:ok, _server} <- Kura.return_from_archive(server, image_tag) do
-          clear_archival_clocks(server)
-          record_operator_action(server, :unarchive, performed_by)
-        end
-    end
-  end
-
-  defp enter_drain_now(%Server{} = server, %AccountRegionLifecycle{} = lifecycle) do
-    Repo.transaction(fn ->
-      with {:ok, drained} <- Kura.begin_drain(server),
-           {:ok, _lifecycle} <-
-             lifecycle
-             |> AccountRegionLifecycle.phase_changeset(%{drain_started_at: now(), teardown_started_at: nil})
-             |> Repo.update() do
-        drained
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
-    end)
-  end
-
-  # An operator archiving an account that has never asked for cache still needs
-  # a row to hold the drain clock, so one is created at the current time. Its
-  # demand timestamp is honest: nothing has been observed since.
-  defp fetch_lifecycle(%Server{account_id: account_id, region: region}) do
-    case Demand.get(account_id, region) do
-      %AccountRegionLifecycle{} = lifecycle ->
-        {:ok, lifecycle}
-
-      nil ->
-        with {:ok, _count} <- Demand.upsert(account_id, region, now()) do
-          {:ok, Demand.get(account_id, region)}
-        end
-    end
-  end
-
-  defp clear_archival_clocks(%Server{account_id: account_id, region: region}) do
-    case Demand.get(account_id, region) do
-      nil ->
-        :ok
-
-      lifecycle ->
-        {:ok, _lifecycle} =
-          lifecycle
-          |> AccountRegionLifecycle.phase_changeset(%{
-            drain_started_at: nil,
-            teardown_started_at: nil,
-            last_returned_at: now()
-          })
-          |> Repo.update()
-
-        :ok
-    end
-  end
-
-  defp record_operator_action(%Server{account_id: account_id, region: region}, action, %User{id: user_id}) do
-    %{
-      account_id: account_id,
-      service_region: region,
-      action: action,
-      performed_by_user_id: user_id
-    }
-    |> LifecycleOperatorAction.create_changeset()
-    |> Repo.insert()
-  end
-
-  @doc "Operator archive and unarchive actions for an account, newest first."
-  def operator_actions(account_id, limit \\ 20) do
-    Repo.all(
-      from(action in LifecycleOperatorAction,
-        where: action.account_id == ^account_id,
-        order_by: [desc: action.inserted_at, desc: action.id],
-        limit: ^limit,
-        preload: [:performed_by_user]
-      )
-    )
   end
 
   ## Gates

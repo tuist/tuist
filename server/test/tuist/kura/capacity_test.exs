@@ -132,6 +132,14 @@ defmodule Tuist.Kura.CapacityTest do
       end
     end
 
+    test "the lifecycle windows default to the spec's values and are overridable" do
+      # Configurable so the archival half can be exercised outside production
+      # rather than first running for real against customer instances.
+      assert Environment.kura_inactive_days() == 90
+      assert Environment.kura_pressure_inactive_days() == 60
+      assert Environment.kura_demand_tracking_grace_days() == 7
+    end
+
     test "a region that is simply absent reads as unknown" do
       assert Environment.kura_region_machines("us-east", "eu-central=2") == nil
       assert Environment.kura_region_machines("eu-central", "eu-central=2") == 2

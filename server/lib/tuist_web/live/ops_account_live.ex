@@ -14,7 +14,6 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
   alias Tuist.Kura
-  alias Tuist.Kura.Lifecycle
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
 
@@ -29,7 +28,6 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:head_title, "#{account.name} · Tuist Ops")
          |> assign(:account, account)
          |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
-         |> assign(:kura_operator_actions, Lifecycle.operator_actions(account.id))
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
@@ -65,38 +63,6 @@ defmodule TuistWeb.OpsAccountLive do
   ## Plan & billing event handlers (moved from OpsAccountsLive)
 
   @impl true
-  def handle_event("archive_kura_server", %{"id" => id}, socket) do
-    account = socket.assigns.account
-
-    case Kura.get_server(account.id, id) do
-      %Kura.Server{status: :active} = server ->
-        handle_operator_action(
-          socket,
-          Lifecycle.archive_now(server, socket.assigns.current_user),
-          dgettext("dashboard", "Archiving the Kura instance. It drains before teardown.")
-        )
-
-      _ ->
-        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Only a serving instance can be archived."))}
-    end
-  end
-
-  def handle_event("unarchive_kura_server", %{"id" => id}, socket) do
-    account = socket.assigns.account
-
-    case Kura.get_server(account.id, id) do
-      %Kura.Server{status: :archived} = server ->
-        handle_operator_action(
-          socket,
-          Lifecycle.unarchive_now(server, socket.assigns.current_user),
-          dgettext("dashboard", "Returning the Kura instance from archive.")
-        )
-
-      _ ->
-        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Only an archived instance can be returned."))}
-    end
-  end
-
   def handle_event("update_runner_concurrency_limits", %{"account" => params}, socket) do
     case Concurrency.update_limits(socket.assigns.account, params) do
       {:ok, account} ->
@@ -256,28 +222,6 @@ defmodule TuistWeb.OpsAccountLive do
         country: String.upcase(params["address_country"] || "")
       }
     }
-  end
-
-  defp handle_operator_action(socket, result, success_message) do
-    account = socket.assigns.account
-
-    socket =
-      case result do
-        {:ok, _record} ->
-          put_flash(socket, :info, success_message)
-
-        {:error, reason} ->
-          put_flash(
-            socket,
-            :error,
-            dgettext("dashboard", "Could not change the Kura instance: %{reason}", reason: inspect(reason))
-          )
-      end
-
-    {:noreply,
-     socket
-     |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
-     |> assign(:kura_operator_actions, Lifecycle.operator_actions(account.id))}
   end
 
   defp runner_concurrency_form(account) do

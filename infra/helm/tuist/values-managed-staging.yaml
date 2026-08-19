@@ -105,6 +105,19 @@ server:
       # validation box instead. Production serves us-east for real and sets no
       # substitution, so its policy is unchanged.
       value: us-east=ca-east
+    - name: TUIST_KURA_INACTIVE_DAYS
+      # Production reclaims after 90 days, which no environment can wait out,
+      # so the archival half of the lifecycle would first run for real against
+      # customer instances. Staging runs a one-day window and a zero-day
+      # tracking grace so a deploy, one build, and a day of quiet exercise the
+      # whole cycle: drain, teardown, archive, and cold return on the next
+      # request. The grace period guards against archiving on freshly
+      # backfilled demand, which is not a concern here.
+      value: "1"
+    - name: TUIST_KURA_PRESSURE_INACTIVE_DAYS
+      value: "1"
+    - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
+      value: "0"
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
