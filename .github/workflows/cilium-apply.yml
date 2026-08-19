@@ -8,11 +8,12 @@ name: Cilium Apply
 # `max-parallel` only caps concurrency), and because `preview` loads its
 # kubeconfig differently from the three 1Password-backed envs.
 #
-# The rollout is the only step here with real blast radius. It is gated on
-# the agents genuinely not running the current config, tracked durably via
-# a pod-template annotation rather than by diffing the ConfigMap across
-# this run — see the "Roll the agents" step for why that distinction
-# matters.
+# The rollouts are the only steps here with real blast radius. Each is
+# gated on that workload genuinely not running its current config, tracked
+# durably via a pod-template annotation rather than by diffing the
+# ConfigMap across this run — see the "Roll any workload" step for why
+# that distinction matters, and why it covers all four workloads rather
+# than the agent alone.
 
 on:
   workflow_call:
@@ -41,15 +42,22 @@ jobs:
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
-    # Hold the same lane as server-deployment.yml's deploy + observability
-    # jobs (and hccm/csi-deployment.yml) so CNI upgrades and server
-    # rollouts can't race for the kube apiserver on the same cluster.
+    # Shares a lane with hccm-deployment.yml and csi-deployment.yml, which
+    # use this exact group. It does NOT serialize against
+    # server-deployment.yml: that workflow suffixes its groups
+    # (`server-deploy-<env>-deploy`, `-observability`, `-tailscale`,
+    # `-platform`) and GitHub matches concurrency groups by exact string.
+    # So a server rollout can be in flight while this rolls the CNI, which
+    # could plausibly make its `helm --atomic` read the cluster as
+    # unhealthy and roll itself back. Closing that needs one shared group
+    # across all four workflows rather than a unilateral change here.
     concurrency:
       group: server-deploy-${{ inputs.environment }}
       cancel-in-progress: false
-    # Longer than the HCCM/CSI siblings: the agent rollout walks the
-    # cluster maxUnavailable=2 at a time, and --atomic may add a rollback.
-    timeout-minutes: 35
+    # Longer than the HCCM/CSI siblings: this can roll up to four
+    # workloads, the agent DaemonSet walks the cluster maxUnavailable=2 at
+    # a time, and --atomic may add a rollback on top.
+    timeout-minutes: 45
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
@@ -89,6 +97,23 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+
+      - name: Snapshot linux nodes that are already not Ready
+        # The post-rollout check compares against this rather than
+        # asserting the whole fleet is healthy. An absolute assertion
+        # would fail staging over a node that was already sick for
+        # unrelated reasons, and the cascade would then keep canary and
+        # production from ever receiving the change. Only a node that
+        # goes unready *during* this run is evidence about this run.
+        #
+        # `!~ /^Ready/` rather than `!= "Ready"`: a cordoned node prints
+        # `Ready,SchedulingDisabled` and is entirely healthy.
+        run: |
+          set -euo pipefail
+          kubectl get nodes -l kubernetes.io/os=linux --no-headers \
+            | awk '$2 !~ /^Ready/ { print $1 }' | sort > "$RUNNER_TEMP/nodes-before.txt"
+          echo "Linux nodes not Ready before the rollout:"
+          cat "$RUNNER_TEMP/nodes-before.txt" || true
 
       - name: Resolve chart version and apiserver endpoint
         # The chart version is read out of bootstrap-workload.sh rather
@@ -171,63 +196,88 @@ jobs:
             --set "k8sServicePort=${K8S_SERVICE_PORT}" \
             --atomic --timeout 10m
 
-      - name: Roll the agents if they are not already running this config
-        # Most of cilium-values.yaml renders into the `cilium-config`
-        # ConfigMap, and the cilium-agent pod template carries no checksum
-        # annotation over it. So `helm upgrade` alone rewrites the
-        # ConfigMap and leaves every agent on its old in-memory config:
-        # success reported, nothing changed. That silent no-op is how the
-        # #12401 Hubble fix went missing from production for two days.
+      - name: Roll any workload not already running its current config
+        # Cilium renders three ConfigMaps and none of the four workloads
+        # carries a checksum annotation over them, so `helm upgrade` alone
+        # rewrites config and leaves the running pods on their old
+        # in-memory copy: success reported, nothing changed. That silent
+        # no-op is how the #12401 Hubble fix went missing from production
+        # for two days. It is not specific to the agent, so this reconciles
+        # every (ConfigMap -> workload) pair rather than the agent alone.
         #
-        # The desired state is compared against an annotation persisted on
-        # the DaemonSet pod template, NOT against a before/after diff of
-        # the ConfigMap within this run. A diff would be a correctness bug:
-        # if helm writes the ConfigMap and the run then dies, is cancelled,
-        # or times out before the rollout, the next run would snapshot the
+        # Desired state is compared against an annotation persisted on each
+        # workload's pod template, NOT against a before/after diff of the
+        # ConfigMap within this run. A diff would be a correctness bug: if
+        # helm writes the ConfigMap and the run then dies, is cancelled, or
+        # times out before the rollout, the next run would snapshot the
         # already-new hash, see no change, and skip the rollout forever
-        # while the agents still serve the old config. Recording what the
-        # agents actually run makes the check durable and self-healing
-        # across interrupted runs.
+        # while the pods still serve the old config. Recording what the
+        # pods actually run makes the check durable and self-healing.
         #
         # Writing the annotation is itself what triggers the rolling
         # update, since it mutates the pod template. If helm ever strips
-        # the annotation, the next run reads it empty and re-rolls: an
-        # extra restart, never a missed one.
+        # it, the next run reads it empty and re-rolls: an extra restart,
+        # never a missed one.
         env:
           FORCE_RESTART: ${{ inputs.force_restart }}
         run: |
           set -euo pipefail
-          DESIRED="$(kubectl -n kube-system get configmap cilium-config \
-            -o json | jq -S -c '.data' | sha256sum | awk '{print $1}')"
-          APPLIED="$(kubectl -n kube-system get daemonset cilium \
-            -o jsonpath='{.spec.template.metadata.annotations.tuist\.dev/cilium-config-hash}' 2>/dev/null || true)"
 
-          echo "desired cilium-config: $DESIRED"
-          echo "running on agents:     ${APPLIED:-<unrecorded>}"
+          reconcile() {
+            local cm="$1" kind="$2" name="$3" desired applied
+            if ! kubectl -n kube-system get configmap "$cm" >/dev/null 2>&1; then
+              echo "== $kind/$name: configmap/$cm absent, skipping"
+              return 0
+            fi
+            if ! kubectl -n kube-system get "$kind" "$name" >/dev/null 2>&1; then
+              echo "== $kind/$name: not deployed here, skipping"
+              return 0
+            fi
 
-          if [ "$DESIRED" = "$APPLIED" ] && [ "${FORCE_RESTART:-false}" != "true" ]; then
-            echo "Agents already run this config. Skipping rollout."
-            exit 0
-          fi
-          if [ "$DESIRED" = "$APPLIED" ]; then
-            echo "Agents already run this config, but force_restart was requested."
-          fi
+            desired="$(kubectl -n kube-system get configmap "$cm" \
+              -o json | jq -S -c '.data' | sha256sum | awk '{print $1}')"
+            applied="$(kubectl -n kube-system get "$kind" "$name" -o json \
+              | jq -r '.spec.template.metadata.annotations["tuist.dev/config-hash"] // empty')"
 
-          kubectl -n kube-system patch daemonset cilium --type merge -p \
-            "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"tuist.dev/cilium-config-hash\":\"${DESIRED}\"}}}}}"
-          # A forced roll with an unchanged annotation would not mutate the
-          # pod template, so ask for the restart explicitly in that case.
-          if [ "$DESIRED" = "$APPLIED" ]; then
-            kubectl -n kube-system rollout restart daemonset/cilium
-          fi
-          kubectl -n kube-system rollout status daemonset/cilium --timeout=20m
+            echo "== $kind/$name (from $cm)"
+            echo "   desired: $desired"
+            echo "   running: ${applied:-<unrecorded>}"
+
+            if [ "$desired" = "$applied" ] && [ "${FORCE_RESTART:-false}" != "true" ]; then
+              echo "   already current, skipping rollout"
+              return 0
+            fi
+
+            kubectl -n kube-system patch "$kind" "$name" --type merge -p \
+              "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"tuist.dev/config-hash\":\"${desired}\"}}}}}"
+            # A forced roll with an unchanged annotation does not mutate the
+            # pod template, so ask for the restart explicitly in that case.
+            if [ "$desired" = "$applied" ]; then
+              echo "   already current, but force_restart was requested"
+              kubectl -n kube-system rollout restart "$kind" "$name"
+            fi
+            kubectl -n kube-system rollout status "$kind" "$name" --timeout=15m
+          }
+
+          # Agent first: it is the dataplane, and the rest are useless if it
+          # does not come back. Operator also reads cilium-config; envoy and
+          # relay own their own.
+          reconcile cilium-config       daemonset  cilium
+          reconcile cilium-envoy-config daemonset  cilium-envoy
+          reconcile cilium-config       deployment cilium-operator
+          reconcile hubble-relay-config deployment hubble-relay
 
       - name: Verify the dataplane came back
         # Scoped to linux nodes on purpose. The chart's node affinity keeps
         # cilium off the macOS Tart nodes, so their readiness says nothing
-        # about this rollout — and gating the cascade on them would let an
+        # about this rollout, and gating the cascade on them would let an
         # unrelated Mac mini blocking on its own bootstrap fail a Cilium
-        # deploy. Only the nodes cilium actually runs on are evidence here.
+        # deploy.
+        #
+        # Compared against the pre-rollout snapshot rather than asserted
+        # absolutely, so a node that was already sick going in cannot fail
+        # this run and wedge the cascade. Only a node that went unready
+        # during the run is evidence about the run.
         run: |
           set -euo pipefail
           kubectl -n kube-system get daemonset cilium \
@@ -237,7 +287,19 @@ jobs:
             echo "ERROR: $UNAVAILABLE cilium agents still unavailable after rollout" >&2
             exit 1
           fi
+
           kubectl get nodes -l kubernetes.io/os=linux --no-headers \
-            | awk '$2 != "Ready" { print; bad=1 } END { exit bad+0 }' \
-            || { echo "ERROR: a linux node is not Ready after the Cilium rollout" >&2; exit 1; }
-          echo "All cilium agents ready and all linux nodes Ready."
+            | awk '$2 !~ /^Ready/ { print $1 }' | sort > "$RUNNER_TEMP/nodes-after.txt"
+          REGRESSED="$(comm -13 "$RUNNER_TEMP/nodes-before.txt" "$RUNNER_TEMP/nodes-after.txt")"
+          if [ -n "$REGRESSED" ]; then
+            echo "ERROR: linux nodes became not Ready during the Cilium rollout:" >&2
+            echo "$REGRESSED" >&2
+            exit 1
+          fi
+
+          STILL_DOWN="$(cat "$RUNNER_TEMP/nodes-before.txt")"
+          if [ -n "$STILL_DOWN" ]; then
+            echo "NOTE: these linux nodes were already not Ready before this run and are not treated as a regression:"
+            echo "$STILL_DOWN"
+          fi
+          echo "All cilium agents ready; no linux node regressed during the rollout."

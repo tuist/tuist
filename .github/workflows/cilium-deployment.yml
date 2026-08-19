@@ -77,12 +77,12 @@ jobs:
   preview:
     needs: staging
     # Off the production path: it must not block canary, and a targeted
-    # dispatch has to reach it with staging skipped. `!cancelled()` keeps
-    # the job alive through a skipped dependency, which a bare `needs`
-    # would not.
+    # dispatch has to reach it with staging skipped. An allow-list rather
+    # than `!= 'failure'`, which would also admit `cancelled` — and
+    # `!cancelled()` does not cover that, since it reports whether this
+    # run was cancelled, not whether the dependency was.
     if: >-
-      !cancelled()
-      && needs.staging.result != 'failure'
+      contains(fromJSON('["success","skipped"]'), needs.staging.result)
       && (github.event_name != 'workflow_dispatch'
           || inputs.environment == 'all'
           || inputs.environment == 'preview')
@@ -95,9 +95,14 @@ jobs:
 
   canary:
     needs: staging
+    # See the preview job for why this is an allow-list. A cancelled
+    # staging must not let canary through: job-level concurrency cancels a
+    # *pending* job when a newer one enters the same group, and this lane
+    # is shared with hccm and csi, so a csi job queueing at the wrong
+    # moment could evict staging and leave the cascade rolling a change
+    # staging never applied.
     if: >-
-      !cancelled()
-      && needs.staging.result != 'failure'
+      contains(fromJSON('["success","skipped"]'), needs.staging.result)
       && (github.event_name != 'workflow_dispatch'
           || inputs.environment == 'all'
           || inputs.environment == 'canary')
@@ -110,9 +115,8 @@ jobs:
   production:
     needs: [staging, canary]
     if: >-
-      !cancelled()
-      && needs.staging.result != 'failure'
-      && needs.canary.result != 'failure'
+      contains(fromJSON('["success","skipped"]'), needs.staging.result)
+      && contains(fromJSON('["success","skipped"]'), needs.canary.result)
       && (github.event_name != 'workflow_dispatch'
           || inputs.environment == 'all'
           || inputs.environment == 'production')
