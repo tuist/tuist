@@ -69,6 +69,12 @@ const (
 	// preStop for liveness restarts too, so this gives the hook time to remove
 	// the endpoint while bounding an otherwise unbounded cache outage.
 	livenessTerminationGraceSeconds int64 = 30
+	// Kura opens its store, including RocksDB WAL replay after an unclean
+	// shutdown, before it binds the listener that answers /up, so store
+	// recovery is spent against the startup budget. With the 10s period
+	// this allows 300 seconds, matching kura/ops/helm/kura/templates/
+	// statefulset.yaml so controller-managed and chart-managed pods agree.
+	startupFailureThreshold int32 = 30
 
 	// podNameLabel is the per-pod label the StatefulSet controller stamps
 	// on every pod (<statefulset>-<ordinal>). The public backend Service
@@ -2660,7 +2666,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 				Lifecycle:       preStopLifecycle(),
 				ReadinessProbe:  httpProbe("/ready", 5, 10),
 				LivenessProbe:   livenessProbe(),
-				StartupProbe:    httpProbe("/up", 0, 10),
+				StartupProbe:    startupProbe(),
 			}},
 			Volumes: volumes(instance),
 		},
@@ -3147,6 +3153,12 @@ func httpProbe(path string, initialDelay, period int32) *corev1.Probe {
 		PeriodSeconds:       period,
 		TimeoutSeconds:      5,
 	}
+}
+
+func startupProbe() *corev1.Probe {
+	probe := httpProbe("/up", 0, 10)
+	probe.FailureThreshold = startupFailureThreshold
+	return probe
 }
 
 func livenessProbe() *corev1.Probe {
