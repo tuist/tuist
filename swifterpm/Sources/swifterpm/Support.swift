@@ -412,6 +412,27 @@ enum ConcurrentTasks {
     }
 }
 
+/// Memoises one asynchronous computation per key for the lifetime of the process, and lets
+/// concurrent callers join a single in-flight run instead of each starting their own.
+///
+/// A nil result is memoised like any other. For credential discovery the negative answer is
+/// the expensive one to recompute, since it costs a subprocess and a network round trip, and
+/// restores ask for it once per package.
+actor AsyncMemo<Key: Hashable & Sendable, Value: Sendable> {
+    private var tasks: [Key: Task<Value, Never>] = [:]
+
+    func value(for key: Key, compute: @Sendable @escaping () async -> Value) async -> Value {
+        if let task = tasks[key] {
+            return await task.value
+        }
+        // Recorded before the first suspension point, so a caller that arrives while this
+        // one is still computing awaits the same task rather than starting a second.
+        let task = Task { await compute() }
+        tasks[key] = task
+        return await task.value
+    }
+}
+
 final class PathLock: @unchecked Sendable {
     private let fd: Int32
 

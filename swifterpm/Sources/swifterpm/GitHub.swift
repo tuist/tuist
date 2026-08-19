@@ -21,43 +21,7 @@ struct GitHubRepo {
     }
 }
 
-private actor GitHubTokenCache {
-    /// Memoises the in-flight resolution rather than a `loaded` flag: resolving awaits
-    /// `gh` and a network probe, and restores run up to 32 tasks at once, so a flag set
-    /// before the first suspension hands every concurrent caller a nil token while the
-    /// first one is still resolving.
-    private var resolution: Task<String?, Never>?
-
-    func token() async -> String? {
-        if let resolution {
-            return await resolution.value
-        }
-        let task = Task { await Self.resolveToken() }
-        resolution = task
-        return await task.value
-    }
-
-    private static func resolveToken() async -> String? {
-        guard let token = await discoveredToken() else { return nil }
-        return await GitHubTokenProbe.acceptsGitHubDotCom(token: token) ? token : nil
-    }
-
-    private static func discoveredToken() async -> String? {
-        let env = ProcessInfo.processInfo.environment
-        if let token = env["GITHUB_TOKEN"] ?? env["GH_TOKEN"],
-           !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            return token
-        }
-
-        guard let output = try? await SystemProcess.output("/usr/bin/env", ["gh", "auth", "token"])
-        else {
-            return nil
-        }
-        let token = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        return token.isEmpty ? nil : token
-    }
-}
+private let gitHubTokenCache = AsyncMemo<String, String?>()
 
 /// A token discovered from the environment or from `gh` is not necessarily a github.com
 /// token. An enterprise CI exports its GitHub Enterprise `GITHUB_TOKEN` under the same
@@ -114,15 +78,32 @@ enum GitHubArchiveURL {
     }
 }
 
-private let githubTokenCache = GitHubTokenCache()
-
 enum GitHubAuth {
     static func token() async -> String? {
-        await githubTokenCache.token()
+        await gitHubTokenCache.value(for: "github.com") {
+            guard let token = await discoveredToken() else { return nil }
+            return await GitHubTokenProbe.acceptsGitHubDotCom(token: token) ? token : nil
+        }
     }
 
     static func hasSession() async -> Bool {
         await token() != nil
+    }
+
+    private static func discoveredToken() async -> String? {
+        let env = ProcessInfo.processInfo.environment
+        if let token = env["GITHUB_TOKEN"] ?? env["GH_TOKEN"],
+           !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            return token
+        }
+
+        guard let output = try? await SystemProcess.output("/usr/bin/env", ["gh", "auth", "token"])
+        else {
+            return nil
+        }
+        let token = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return token.isEmpty ? nil : token
     }
 }
 

@@ -344,3 +344,74 @@ struct SupportTests {
         }
     }
 }
+
+private actor CallCounter {
+    private(set) var calls: [String: Int] = [:]
+
+    func record(_ key: String) {
+        calls[key, default: 0] += 1
+    }
+}
+
+struct AsyncMemoTests {
+    @Test
+    func concurrentCallersShareASingleComputation() async {
+        let memo = AsyncMemo<String, String?>()
+        let counter = CallCounter()
+
+        let values = await withTaskGroup(of: String?.self) { group in
+            for _ in 0 ..< 32 {
+                group.addTask {
+                    await memo.value(for: "github.com") {
+                        await counter.record("github.com")
+                        await Task.yield()
+                        return "token"
+                    }
+                }
+            }
+            return await group.reduce(into: [String?]()) { $0.append($1) }
+        }
+
+        #expect(values.count == 32)
+        #expect(values.allSatisfy { $0 == "token" })
+        #expect(await counter.calls["github.com"] == 1)
+    }
+
+    @Test
+    func nilResultsAreMemoisedRatherThanRecomputed() async {
+        // Discovering that there is no usable credential costs a subprocess and a network
+        // round trip, and restores ask once per package, so the negative answer has to stick.
+        let memo = AsyncMemo<String, String?>()
+        let counter = CallCounter()
+
+        for _ in 0 ..< 3 {
+            let value = await memo.value(for: "github.com") {
+                await counter.record("github.com")
+                return nil
+            }
+            #expect(value == nil)
+        }
+
+        #expect(await counter.calls["github.com"] == 1)
+    }
+
+    @Test
+    func distinctKeysAreComputedIndependently() async {
+        let memo = AsyncMemo<String, String?>()
+        let counter = CallCounter()
+
+        let first = await memo.value(for: "gitlab.com") {
+            await counter.record("gitlab.com")
+            return "gitlab"
+        }
+        let second = await memo.value(for: "gitlab.example.com") {
+            await counter.record("gitlab.example.com")
+            return "self-hosted"
+        }
+
+        #expect(first == "gitlab")
+        #expect(second == "self-hosted")
+        #expect(await counter.calls["gitlab.com"] == 1)
+        #expect(await counter.calls["gitlab.example.com"] == 1)
+    }
+}

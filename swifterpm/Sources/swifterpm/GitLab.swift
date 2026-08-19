@@ -132,7 +132,9 @@ enum GitLabAuth {
     }
 
     static func token(host: String) async -> Token? {
-        await gitLabTokenCache.token(host: host)
+        await gitLabTokenCache.value(for: host) {
+            await GitLabTokenDiscovery.loadToken(host: host)
+        }
     }
 
     static func hasSession(host: String) async -> Bool {
@@ -140,20 +142,10 @@ enum GitLabAuth {
     }
 }
 
-private actor GitLabTokenCache {
-    private var cachedTokens: [String: GitLabAuth.Token?] = [:]
+private let gitLabTokenCache = AsyncMemo<String, GitLabAuth.Token?>()
 
-    func token(host: String) async -> GitLabAuth.Token? {
-        if let cached = cachedTokens[host] {
-            return cached
-        }
-
-        let token = await loadToken(host: host)
-        cachedTokens[host] = token
-        return token
-    }
-
-    private func loadToken(host: String) async -> GitLabAuth.Token? {
+private enum GitLabTokenDiscovery {
+    static func loadToken(host: String) async -> GitLabAuth.Token? {
         let env = ProcessInfo.processInfo.environment
         if let token = nonEmpty(env["GITLAB_TOKEN"] ?? env["GITLAB_ACCESS_TOKEN"]) {
             return .privateToken(token)
@@ -176,7 +168,7 @@ private actor GitLabTokenCache {
         return .privateToken(token)
     }
 
-    private func nonEmpty(_ value: String?) -> String? {
+    private static func nonEmpty(_ value: String?) -> String? {
         guard let token = value?.trimmingCharacters(in: .whitespacesAndNewlines),
               !token.isEmpty
         else {
@@ -185,8 +177,6 @@ private actor GitLabTokenCache {
         return token
     }
 }
-
-private let gitLabTokenCache = GitLabTokenCache()
 
 enum GitLabAPI {
     static func remoteVersions(repo: GitLabRepo) async throws -> [RemoteVersion] {
