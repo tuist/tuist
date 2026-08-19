@@ -138,7 +138,11 @@
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 shardPlanId: nil,
-                shardIndex: nil
+                shardIndex: nil,
+                // `tuist inspect test` analyses a bundle someone else produced; how that run was
+                // invoked isn't knowable from here.
+                onlyTestIdentifiers: [],
+                skipTestIdentifiers: []
             )
 
             AlertController.current.success(
@@ -156,7 +160,9 @@
                 quarantinedTests: [],
                 buildRunId: nil,
                 shardPlanId: nil,
-                shardIndex: nil
+                shardIndex: nil,
+                onlyTestIdentifiers: [],
+                skipTestIdentifiers: []
             )
 
             AlertController.current.success(

@@ -80,6 +80,11 @@ defmodule TuistWeb.API.ShardsController do
              enum: ["module", "suite"],
              description: "Sharding granularity level."
            },
+           git_branch: %Schema{
+             type: :string,
+             description:
+               "The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch."
+           },
            build_run_id: %Schema{
              type: :string,
              format: :uuid,
@@ -113,6 +118,7 @@ defmodule TuistWeb.API.ShardsController do
       shard_total: Map.get(body_params, :shard_total),
       shard_max_duration: Map.get(body_params, :shard_max_duration),
       granularity: Map.get(body_params, :granularity, "module"),
+      git_branch: Map.get(body_params, :git_branch),
       build_run_id: Map.get(body_params, :build_run_id),
       gradle_build_id: Map.get(body_params, :gradle_build_id)
     }
