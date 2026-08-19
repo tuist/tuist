@@ -315,7 +315,7 @@ defmodule Tuist.Runners.PromExPlugin do
             @metric_prefix ++ [:session, :clamped, :count],
             event_name: Telemetry.event_name_session_clamp(),
             description:
-              "Open runner sessions per fleet past the six-hour session safety bound — rows the autoscaler has stopped counting as occupied and billing has stopped charging for, i.e. sessions the orphan reaper failed to close.",
+              "Open runner sessions per fleet whose start is more than the six-hour safety bound ago — the rows the autoscaler has stopped counting as occupied and billing has stopped charging for. Counts by age alone, with no check on whether the Pod is still there, so a job running near GitHub's own six-hour ceiling crosses the bound while alive and legitimately counted here.",
             measurement: :count,
             tags: [:fleet]
           )

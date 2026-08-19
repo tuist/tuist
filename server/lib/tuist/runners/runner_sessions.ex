@@ -312,9 +312,12 @@ defmodule Tuist.Runners.RunnerSessions do
   Open sessions old enough to be judged against the observed Pod set,
   oldest first so a capped batch drains the longest-standing leaks.
 
-  `threshold` keeps young sessions out: the row is written at claim-win,
-  before the Pod exists to be listed, so a session can legitimately have
-  no Pod for a while after it opens.
+  `threshold` keeps young sessions out. The Pod is already running and
+  polling when it wins a claim, so it is listable before this row is
+  written — the window is not waiting for the Pod to appear. It keeps the
+  arm away from the dispatch and teardown churn entirely, so a session is
+  only ever judged once it is well outside the normal lifecycle, and a
+  read taken either side of a close cannot be mistaken for an orphan.
 
   Both job ids come back because either can carry the completion the
   caller resolves an end time from: `executed_workflow_job_id` is what

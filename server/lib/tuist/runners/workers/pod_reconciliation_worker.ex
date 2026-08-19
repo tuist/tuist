@@ -26,8 +26,10 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
 
     * Any API error, or an empty Pod list while rows are open, aborts
       the tick — a partial read is indistinguishable from mass absence.
-    * Rows younger than their arm's threshold are skipped; both are
-      written before the Pod is listable.
+    * Rows younger than their arm's threshold are skipped, keeping both
+      arms clear of the dispatch and teardown churn. Neither waits for
+      the Pod to appear — it is created and polling before either row is
+      written.
     * Per-tick caps bound a wrong-but-plausible read, overflow logged.
     * Claims additionally require absence across consecutive ticks
       (`pod_missing_since`). Sessions do not: `list_pods/2` reads at

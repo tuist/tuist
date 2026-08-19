@@ -668,7 +668,7 @@ func (r *RunnerPoolReconciler) reportStopped(ctx context.Context, pod *corev1.Po
 		return
 	}
 
-	if err := r.SessionsClient.Stopped(ctx, pod.Name, podEndedAt(pod, time.Now())); err != nil {
+	if err := r.SessionsClient.Stopped(ctx, pod.Name, podEndedAt(pod, r.now())); err != nil {
 		log.FromContext(ctx).Error(err, "close session before reap; backstop will retry", "pod", pod.Name)
 	}
 }
