@@ -485,7 +485,12 @@ topk(10, sum by (source, destination) (
 An in-cluster source resolves to a pod name; a mis-sourced runner VM or a SNATed
 path resolves to a bare IP, which is the distinction that matters here. Those
 labels come from `drop:sourceContext=pod|ip;destinationContext=pod` in
-[`cilium-values.yaml`](../../k8s/mgmt/bootstrap/cilium-values.yaml). A cluster
+[`cilium-values.yaml`](../../k8s/mgmt/bootstrap/cilium-values.yaml), which
+reaches existing clusters through
+[`cilium-deployment.yml`](../../../.github/workflows/cilium-deployment.yml) —
+editing the values file alone does nothing until that workflow runs, and it was
+this gap that left production unattributable for two days after the value
+merged. A cluster
 that has not had that Cilium value applied still reports `hubble_drop_total`
 aggregated to `(protocol, reason)` only, and needs the job caught live
 (`kubectl get pod -o wide`) with `pfctl -a com.apple/tuist.vmnat -s nat` plus

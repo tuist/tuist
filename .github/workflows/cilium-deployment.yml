@@ -1,0 +1,202 @@
+name: Cilium Deployment
+
+# Roll the Cilium chart values onto every workload cluster on push to main.
+#
+# Like HCCM (hccm-deployment.yml) and the node CSI drivers
+# (csi-deployment.yml), Cilium lives in kube-system and was only ever
+# installed during fresh-cluster onboarding via
+# `mise run k8s:bootstrap-workload`. Edits to
+# infra/k8s/mgmt/bootstrap/cilium-values.yaml therefore had no effect on
+# existing clusters until someone re-ran bootstrap by hand.
+#
+# That gap has already cost us. #12401 added
+# `drop:sourceContext=pod|ip;destinationContext=pod` to the Hubble drop
+# metric so a policy-denied kura cache node could be attributed to a
+# source. It merged, and production never picked it up: two days later
+# the "Kura Cache Rejecting Runner Traffic" alert fired again and
+# hubble_drop_total still carried no `source` label, so the drops were
+# still unattributable. A merged PR was mistaken for a deployed change.
+#
+# Two things make this workflow differ from its HCCM / CSI siblings:
+#
+#   1. It CASCADES staging -> canary -> production (max-parallel 1 +
+#      fail-fast) instead of fanning out in parallel. HCCM is a Deployment
+#      and the CSI drivers are peripheral, so a bad values change there
+#      degrades one subsystem. Cilium is the CNI: a bad values change plus
+#      the agent restart below can partition every node in the cluster.
+#      Each env must prove itself before the next one starts.
+#
+#   2. It explicitly restarts the agent DaemonSet. Most of what
+#      cilium-values.yaml controls (hubble.metrics among it) is rendered
+#      into the `cilium-config` ConfigMap, and the cilium-agent pod
+#      template carries no checksum annotation over that ConfigMap. So
+#      `helm upgrade` alone rewrites the ConfigMap and leaves every agent
+#      running its old in-memory config — the upgrade reports success and
+#      changes nothing. That silent no-op is exactly how #12401 would have
+#      failed a second time. The rollout is what makes the values real,
+#      and it is also the step with the blast radius, which is why the
+#      cascade above exists.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - infra/k8s/mgmt/bootstrap/cilium-values.yaml
+      - .github/workflows/cilium-deployment.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    name: Cilium (${{ matrix.environment }})
+    strategy:
+      # Sequential, ordered, and abandoned on the first failure. This is
+      # the cascade: canary never starts if staging broke, production
+      # never starts if canary did.
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        environment:
+          - staging
+          - canary
+          - production
+    runs-on: tuist-linux
+    environment:
+      name: server-k8s-${{ matrix.environment }}
+    # Hold the same lane as server-deployment.yml's deploy + observability
+    # jobs (and hccm/csi-deployment.yml) so CNI upgrades and server
+    # rollouts can't race for the kube apiserver on the same cluster.
+    concurrency:
+      group: server-deploy-${{ matrix.environment }}
+      cancel-in-progress: false
+    # Longer than the HCCM/CSI siblings: the agent rollout walks every
+    # node in the cluster one batch at a time.
+    timeout-minutes: 25
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "--locked helm kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ matrix.environment }}" \
+            --vault "tuist-k8s-${{ matrix.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+
+      - name: Verify cluster reachability
+        # Same pre-flight as server-deployment.yml — fail fast if the
+        # 1P-stored kubeconfig points at a phantom apiserver instead of
+        # letting helm hang for the full --timeout.
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+
+      - name: Resolve chart version and apiserver endpoint
+        # The chart version is read out of bootstrap-workload.sh rather
+        # than pinned again here, so a fresh cluster and an existing one
+        # can never be installed at different Cilium versions. Same
+        # single-source-of-truth reasoning as k8s:lint-version-drift.
+        #
+        # k8sServiceHost/Port are per-cluster. Bootstrap reads them from
+        # the mgmt Cluster CR's controlPlaneEndpoint; this workflow has no
+        # mgmt access, so it derives them from the workload kubeconfig's
+        # server URL, which clusterctl minted from that same endpoint. The
+        # guard in the next step is what makes that equivalence explicit
+        # rather than assumed.
+        run: |
+          set -euo pipefail
+          VERSION="$(grep -E '^\s+--version [0-9]' infra/mise/tasks/k8s/bootstrap-workload.sh \
+            | head -1 | awk '{print $2}')"
+          if [ -z "$VERSION" ]; then
+            echo "ERROR: could not parse the Cilium chart version from infra/mise/tasks/k8s/bootstrap-workload.sh" >&2
+            exit 2
+          fi
+
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          API="${API#https://}"
+          HOST="${API%:*}"
+          PORT="${API##*:}"
+          if [ -z "$HOST" ] || [ -z "$PORT" ] || [ "$HOST" = "$PORT" ]; then
+            echo "ERROR: could not split host/port out of the kubeconfig server URL: $API" >&2
+            exit 2
+          fi
+
+          echo "CILIUM_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "K8S_SERVICE_HOST=$HOST" >> "$GITHUB_ENV"
+          echo "K8S_SERVICE_PORT=$PORT" >> "$GITHUB_ENV"
+          echo "Cilium $VERSION -> ${HOST}:${PORT}"
+
+      - name: Guard against repointing the CNI at a different apiserver
+        # If the derived endpoint disagrees with what the live release
+        # already runs, something is wrong with the kubeconfig — stop
+        # rather than hand the CNI a new apiserver address and take the
+        # cluster's networking down. A first-ever install has no prior
+        # values, which is not this workflow's job (bootstrap owns that).
+        run: |
+          set -euo pipefail
+          if ! helm -n kube-system status cilium >/dev/null 2>&1; then
+            echo "ERROR: no existing 'cilium' release in kube-system." >&2
+            echo "This workflow reconciles existing clusters; onboard new ones with mise run k8s:bootstrap-workload." >&2
+            exit 1
+          fi
+          LIVE_HOST="$(helm -n kube-system get values cilium -o json | jq -r '.k8sServiceHost // empty')"
+          LIVE_PORT="$(helm -n kube-system get values cilium -o json | jq -r '.k8sServicePort // empty')"
+          if [ -n "$LIVE_HOST" ] && [ "$LIVE_HOST" != "$K8S_SERVICE_HOST" ]; then
+            echo "ERROR: derived k8sServiceHost ($K8S_SERVICE_HOST) != live release value ($LIVE_HOST)" >&2
+            exit 1
+          fi
+          if [ -n "$LIVE_PORT" ] && [ "$LIVE_PORT" != "$K8S_SERVICE_PORT" ]; then
+            echo "ERROR: derived k8sServicePort ($K8S_SERVICE_PORT) != live release value ($LIVE_PORT)" >&2
+            exit 1
+          fi
+          echo "Endpoint matches the live release."
+
+      - name: helm upgrade --install cilium
+        run: |
+          set -euo pipefail
+          helm repo add cilium https://helm.cilium.io >/dev/null
+          helm repo update cilium >/dev/null
+          helm upgrade --install cilium cilium/cilium \
+            --version "$CILIUM_VERSION" \
+            --namespace kube-system \
+            -f infra/k8s/mgmt/bootstrap/cilium-values.yaml \
+            --set "k8sServiceHost=${K8S_SERVICE_HOST}" \
+            --set "k8sServicePort=${K8S_SERVICE_PORT}" \
+            --wait --timeout 5m
+
+      - name: Restart the agent DaemonSet so ConfigMap changes take effect
+        # Unconditional and idempotent. Values that land only in
+        # `cilium-config` do not roll the pod template on their own (no
+        # checksum annotation), so without this the upgrade is a silent
+        # no-op for the most common kind of edit to this file. Restarting
+        # every time costs one rolling restart on a workflow that fires
+        # only when cilium-values.yaml actually changes.
+        run: |
+          set -euo pipefail
+          kubectl -n kube-system rollout restart daemonset/cilium
+          kubectl -n kube-system rollout status daemonset/cilium --timeout=15m
+
+      - name: Verify the dataplane came back
+        run: |
+          set -euo pipefail
+          kubectl -n kube-system get daemonset cilium \
+            -o custom-columns=DESIRED:.status.desiredNumberScheduled,READY:.status.numberReady,UNAVAILABLE:.status.numberUnavailable
+          UNAVAILABLE="$(kubectl -n kube-system get daemonset cilium -o jsonpath='{.status.numberUnavailable}')"
+          if [ -n "${UNAVAILABLE:-}" ] && [ "$UNAVAILABLE" != "0" ]; then
+            echo "ERROR: $UNAVAILABLE cilium agents still unavailable after rollout" >&2
+            exit 1
+          fi
+          kubectl get nodes --no-headers | awk '$2 != "Ready" { print; bad=1 } END { exit bad+0 }' \
+            || { echo "ERROR: not every node is Ready after the Cilium rollout" >&2; exit 1; }
+          echo "All cilium agents ready and all nodes Ready."
