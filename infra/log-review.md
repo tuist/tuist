@@ -84,24 +84,24 @@ recorded justification does not match what was actually accessed.
 ## 3. Authentication failures
 
 ```logql
-sum by (client_address) (
+sum by (client_address, auth_outcome) (
   count_over_time(
     {cluster="tuist-production", namespace="tuist"}
-      |= "Request completed"
+      |= "authentication attempt"
       | logfmt
-      | request_path = "/users/log_in"
-      | method = "POST"
-      | status =~ "4.."
+      | auth_outcome != "success"
       [1h]
   )
 )
 ```
 
-The `method` filter matters: without it the results are mostly people loading
-the login page, which is a GET returning 200 and not an attempt at anything. A
-successful login is a 302, and a failure is a 4xx.
+Do not try to infer the outcome from the response status. Every result of a
+sign-in attempt redirects, a wrong password just as much as a success, so the
+status cannot separate them and a `4..` filter matches neither. The controller
+emits an explicit `auth_outcome` of `success`, `invalid_credentials`,
+`rate_limited` or `unconfirmed`, and that is the field to count.
 
-Group by `client_address` rather than by account. A failed login has no
+Group by `client_address` rather than by account. A failed sign-in has no
 authenticated account, so `auth_account_handle` is empty on exactly the records
 this query is about.
 
@@ -148,8 +148,10 @@ normal looks like before deciding anything is abnormal:
   engineers, plus a small number of denials from unauthenticated sessions. The
   bulk are job creation and pod subresource calls.
 - Operator grant usage is present but low volume.
-- Login POSTs run a few hundred a month, roughly 200 successful, with fewer
-  than 100 failures and no evidence of a spray.
+- Sign-in attempts run a few hundred a month. The split between successes and
+  failures has not been measured against `auth_outcome`, because that field
+  ships with this runbook; the earlier figures were derived from response
+  status, which cannot distinguish the two.
 
 These are baselines, not thresholds. Re-measure rather than trusting them once
 the fleet or the team changes.

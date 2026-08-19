@@ -128,6 +128,9 @@ config :logger, :console,
     # Source of the request. A failed authentication carries no account, so
     # this is the only thing it can be attributed to.
     :client_address,
+    # Explicit sign-in outcome. Every outcome redirects, so the response status
+    # cannot distinguish a failure from a success.
+    :auth_outcome,
     :selected_account_handle,
     :selected_project_handle,
     # Operator project-access grant (forensic join key for the audit trail)
