@@ -105,17 +105,13 @@ KURA_CONTROL_PLANE_URL=https://tuist.dev
 KURA_CONTROL_PLANE_CLIENT_ID=<client ID>
 KURA_CONTROL_PLANE_CLIENT_SECRET=<client secret>
 KURA_NODE_URL=https://kura-1.internal:7443
-
-# Destinations enrollment writes the peer certificate material to.
-# These are outputs, not files you have to obtain first.
-KURA_INTERNAL_TLS_CA_CERT_PATH=/var/lib/kura/tls/ca.pem
-KURA_INTERNAL_TLS_CERT_PATH=/var/lib/kura/tls/tls.crt
-KURA_INTERNAL_TLS_KEY_PATH=/var/lib/kura/tls/tls.key
 ```
 
-On boot the node generates a keypair locally, sends a certificate signing request to the control plane with its credential, and receives a signed peer certificate, the account's CA, its tenant identifier, and the current peer list. The private key never leaves the node. The certificate material is written to the `KURA_INTERNAL_TLS_*` paths and the tenant and peers are injected into the node's own environment, so the rest of startup configures itself from nothing but the credential and the node URL.
+On boot the node generates a keypair locally, sends a certificate signing request to the control plane with its credential, and receives a signed peer certificate, the account's CA, its tenant identifier, and the current peer list. The private key never leaves the node. The certificate material is written under `KURA_DATA_DIR`, and the paths, tenant, and peers are injected into the node's own environment, so the rest of startup configures itself from nothing but the credential and the node URL.
 
-An enrolling node must have all three `KURA_INTERNAL_TLS_*` paths set, because enrollment has nowhere to write the material it receives otherwise. These are the node's peer TLS settings rather than enrollment settings: they tell the TLS listener where its material lives, and enrollment writes into that location rather than owning it. That is why you choose it. A node whose certificates you supply yourself points them at a read-only mount, so there is no default that would suit both cases. When enrolling, point them somewhere writable and persistent on the node's own volume. The files do not need to exist beforehand. A single node that does not enroll and has no peers to authenticate needs none of them: omit all three and give `KURA_NODE_URL` an `http://` scheme. A multi-node mesh that does not enroll supplies its own certificates, as described in [Build a cache mesh](#build-a-cache-mesh).
+An enrolling node does not configure `KURA_INTERNAL_TLS_*` at all. Those three variables are the node's peer TLS settings rather than enrollment settings: they tell the TLS listener where its material lives, and enrollment writes into that location rather than owning it. When you leave all three unset, enrollment writes to a `tls` directory under `KURA_DATA_DIR` and publishes the paths itself, so the volume the node already needs is the only storage you configure.
+
+Set them explicitly only when the material has to live elsewhere, or when you supply it yourself instead of enrolling, in which case they usually point at a read-only mount. They are all or nothing: setting some but not all is a configuration error rather than a request to fill in the rest, so a node with a mounted certificate is never handed a derived path for the other two. A single node that does not enroll and has no peers to authenticate needs none of them: omit all three and give `KURA_NODE_URL` an `http://` scheme. A multi-node mesh that does not enroll supplies its own certificates, as described in [Build a cache mesh](#build-a-cache-mesh).
 
 A node joining an account's mesh for the first time pulls the account's existing cache before it becomes a serving member of the ring. Size the data volume for the whole cache, and expect the first join to take a while over a wide-area link. The node reports `joining` until it has caught up, then `serving`.
 
@@ -229,9 +225,9 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | Yes | No default | Derived from the pod DNS name and `peerTls.internalPort` |
 | `KURA_PEERS` | Seed peer list used before discovery converges. | No | `KURA_NODE_URL` | Derived from the StatefulSet replicas |
 | `KURA_DISCOVERY_DNS_NAME` | DNS name used for automatic peer discovery. | No | Disabled | Enabled by `config.discovery.enabled` |
-| `KURA_INTERNAL_TLS_CA_CERT_PATH` | CA certificate used to verify peer mTLS. | No | Disabled | `peerTls.enabled` and `peerTls.caCertFileName` |
-| `KURA_INTERNAL_TLS_CERT_PATH` | Certificate used by the internal peer mTLS listener. | No | Disabled | `peerTls.enabled` and `peerTls.certFileName` |
-| `KURA_INTERNAL_TLS_KEY_PATH` | Private key used by the internal peer mTLS listener. | No | Disabled | `peerTls.enabled` and `peerTls.keyFileName` |
+| `KURA_INTERNAL_TLS_CA_CERT_PATH` | CA certificate used to verify peer mTLS. | No | Disabled, or derived under `KURA_DATA_DIR` when the node enrolls | `peerTls.enabled` and `peerTls.caCertFileName` |
+| `KURA_INTERNAL_TLS_CERT_PATH` | Certificate used by the internal peer mTLS listener. | No | Disabled, or derived under `KURA_DATA_DIR` when the node enrolls | `peerTls.enabled` and `peerTls.certFileName` |
+| `KURA_INTERNAL_TLS_KEY_PATH` | Private key used by the internal peer mTLS listener. | No | Disabled, or derived under `KURA_DATA_DIR` when the node enrolls | `peerTls.enabled` and `peerTls.keyFileName` |
 | `KURA_PUBLIC_TLS_CERT_PATH` | Certificate used to terminate TLS on the co-hosted HTTPS listener (`KURA_HTTPS_PORT`). | No | Disabled | `extraEnv` |
 | `KURA_PUBLIC_TLS_KEY_PATH` | Private key paired with `KURA_PUBLIC_TLS_CERT_PATH`. | No | Disabled | `extraEnv` |
 | `KURA_HTTPS_PORT` | TLS port serving the same co-hosted HTTP + gRPC surface (ALPN-negotiated). Only bound when the public TLS paths are set. | No | `4443` | `extraEnv` |
