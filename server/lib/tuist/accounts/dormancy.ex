@@ -97,9 +97,16 @@ defmodule Tuist.Accounts.Dormancy do
     disable_candidates = list_disable_candidates(now, domain, limit)
     scrub_candidates = list_scrub_candidates(now, domain, limit)
 
-    disabled = Enum.map(disable_candidates, &disable(&1, now))
-    scrubbed = Enum.map(scrub_candidates, &scrub/1)
-    clock_started = Enum.map(list_disabled_without_clock(domain, limit), &start_disabled_clock(&1, now))
+    # Both the disable and the scrub re-assert eligibility in the WHERE clause
+    # of the write itself, so a candidate that signs in between being selected
+    # and being actioned is skipped rather than locked out. Selecting and then
+    # writing unconditionally would let a sweep disable someone who came back
+    # while it was running.
+    clock_candidates = list_disabled_without_clock(domain, limit)
+
+    disabled = Enum.flat_map(disable_candidates, &disable_if_still_dormant(&1, now))
+    scrubbed = Enum.flat_map(scrub_candidates, &scrub_if_still_eligible(&1, now))
+    clock_started = Enum.map(clock_candidates, &start_disabled_clock(&1, now))
     unknown = list_unknown_activity(domain)
 
     result = %{
@@ -107,7 +114,9 @@ defmodule Tuist.Accounts.Dormancy do
       scrubbed: Enum.map(scrubbed, & &1.id),
       clock_started: Enum.map(clock_started, & &1.id),
       unknown_activity: Enum.map(unknown, & &1.id),
-      more_pending: length(disable_candidates) == limit or length(scrub_candidates) == limit
+      more_pending:
+        length(disable_candidates) == limit or length(scrub_candidates) == limit or
+          length(clock_candidates) == limit
     }
 
     log_sweep(result)
@@ -242,6 +251,77 @@ defmodule Tuist.Accounts.Dormancy do
 
     scrubbed
   end
+
+  # The sweep's writes re-assert the condition that selected the account, so
+  # they are a no-op if it stopped being true after selection. Returns a list
+  # so the caller can flat_map and drop a skipped account without a sentinel.
+  defp disable_if_still_dormant(%User{} = user, now) do
+    {count, _} =
+      Repo.update_all(
+        from(u in User,
+          where: u.id == ^user.id,
+          where: u.active == true,
+          where: not is_nil(u.last_sign_in_at),
+          where: u.last_sign_in_at <= ^cutoff(now, @disable_after_days)
+        ),
+        set: [active: false, disabled_at: as_utc(now), updated_at: naive(now)]
+      )
+
+    if count == 1 do
+      revoke_sessions(user)
+      [%{user | active: false}]
+    else
+      []
+    end
+  end
+
+  # Same guarantee on the irreversible step, where it matters most. The
+  # tombstone write carries every condition that made the account a candidate,
+  # so an account that was re-enabled or that signed in after selection cannot
+  # be scrubbed by a sweep already in flight.
+  defp scrub_if_still_eligible(%User{} = user, now) do
+    result =
+      Repo.transaction(fn ->
+        {count, _} =
+          Repo.update_all(
+            from(u in User,
+              where: u.id == ^user.id,
+              where: u.active == false,
+              where: not is_nil(u.last_sign_in_at),
+              where: u.last_sign_in_at <= ^cutoff(now, @scrub_after_days),
+              where: not is_nil(u.disabled_at),
+              where: u.disabled_at <= ^utc_cutoff(now, @disabled_grace_days)
+            ),
+            set: tombstone_attrs(user, now)
+          )
+
+        if count == 1 do
+          revoke_sessions(user)
+          Repo.delete_all(from(o in Oauth2Identity, where: o.user_id == ^user.id))
+          user
+        else
+          Repo.rollback(:no_longer_eligible)
+        end
+      end)
+
+    case result do
+      {:ok, scrubbed} -> [scrubbed]
+      {:error, :no_longer_eligible} -> []
+    end
+  end
+
+  defp tombstone_attrs(%User{} = user, now) do
+    [
+      active: false,
+      email: tombstone_email(user),
+      encrypted_password: "",
+      token: tombstone_token(),
+      updated_at: naive(now)
+    ]
+  end
+
+  defp naive(nil), do: NaiveDateTime.truncate(Tuist.Time.naive_utc_now(), :second)
+  defp naive(%NaiveDateTime{} = now), do: NaiveDateTime.truncate(now, :second)
 
   defp operator_scope(domain) do
     # Anyone holding an address on the operator domain is workforce, so the

@@ -176,6 +176,58 @@ defmodule Tuist.Accounts.DormancyTest do
       assert Accounts.get_user_by_id(user.id).disabled_at
     end
 
+    test "does not disable an account that signs in after being selected" do
+      # Given a sweep that has already chosen its candidates, and the account
+      # coming back to life before the write lands.
+      user = operator_fixture(last_sign_in_days_ago: 200)
+      candidates = Dormancy.list_disable_candidates(NaiveDateTime.utc_now(:second), @domain)
+      assert user.id in Enum.map(candidates, & &1.id)
+
+      Repo.update_all(
+        from(u in User, where: u.id == ^user.id),
+        set: [last_sign_in_at: NaiveDateTime.utc_now(:second)]
+      )
+
+      # When
+      result = Dormancy.sweep(operator_email_domain: @domain)
+
+      # Then
+      refute user.id in result.disabled
+      assert Accounts.get_user_by_id(user.id).active
+    end
+
+    test "does not scrub an account that is re-enabled after being selected" do
+      # Given
+      user = operator_fixture(last_sign_in_days_ago: 400)
+      disable(user)
+      candidates = Dormancy.list_scrub_candidates(NaiveDateTime.utc_now(:second), @domain)
+      assert user.id in Enum.map(candidates, & &1.id)
+
+      Repo.update_all(from(u in User, where: u.id == ^user.id), set: [active: true])
+
+      # When
+      result = Dormancy.sweep(operator_email_domain: @domain)
+
+      # Then
+      refute user.id in result.scrubbed
+      assert Accounts.get_user_by_id(user.id).email == user.email
+    end
+
+    test "reports work left when the clock-start batch fills the window" do
+      # Given
+      for _ <- 1..3 do
+        u = operator_fixture(last_sign_in_days_ago: 10)
+        disable_without_clock(u)
+      end
+
+      # When
+      result = Dormancy.sweep(operator_email_domain: @domain, limit: 2)
+
+      # Then
+      assert length(result.clock_started) == 2
+      assert result.more_pending
+    end
+
     test "bounds how many accounts one run actions and says work is left" do
       # Given
       users = for _ <- 1..3, do: operator_fixture(last_sign_in_days_ago: 200)

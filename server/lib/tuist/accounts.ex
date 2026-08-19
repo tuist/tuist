@@ -1747,7 +1747,20 @@ defmodule Tuist.Accounts do
     now = NaiveDateTime.truncate(Tuist.Time.naive_utc_now(), :second)
 
     if last_sign_in_stale?(user.last_sign_in_at, now) do
-      Repo.update_all(from(u in User, where: u.id == ^user.id), set: [last_sign_in_at: now])
+      # The staleness test is repeated in the WHERE clause rather than trusted
+      # from the struct the caller is holding. Concurrent requests all read the
+      # same stale row, so an in-memory check alone lets every one of them
+      # write; re-asserting it in SQL makes them serialize on the row and all
+      # but the first find the condition no longer true.
+      stale_before = NaiveDateTime.add(now, -@last_sign_in_touch_interval_seconds, :second)
+
+      Repo.update_all(
+        from(u in User,
+          where: u.id == ^user.id,
+          where: is_nil(u.last_sign_in_at) or u.last_sign_in_at <= ^stale_before
+        ),
+        set: [last_sign_in_at: now]
+      )
 
       %{user | last_sign_in_at: now}
     else

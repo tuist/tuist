@@ -454,9 +454,14 @@ defmodule Tuist.Storage do
         :s3 -> delete_objects_from_bucket(object_keys, bucket_name, ExAws.Config.new(:s3), opts)
       end
 
+    # This path carries no account, because retention sweeps delete across
+    # accounts in one call. The leading key segment is what identifies whose
+    # data went, so a bounded sample of distinct prefixes goes in rather than
+    # leaving the record unable to answer that at all.
     log_object_deletion("delete_objects_from_bucket", nil, result,
       storage_bucket: bucket_name,
-      storage_object_count: length(object_keys)
+      storage_object_count: length(object_keys),
+      storage_key_prefixes: key_prefixes(object_keys)
     )
 
     result
@@ -795,6 +800,15 @@ defmodule Tuist.Storage do
         storage_outcome: deletion_outcome(result)
       ] ++ fields
     )
+  end
+
+  @key_prefix_sample 10
+
+  defp key_prefixes(object_keys) do
+    object_keys
+    |> Enum.map(&(&1 |> String.split("/", parts: 2) |> hd()))
+    |> Enum.uniq()
+    |> Enum.take(@key_prefix_sample)
   end
 
   defp account_handle(%Account{name: name}), do: name

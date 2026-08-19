@@ -113,6 +113,28 @@ defmodule Tuist.AuthenticationTest do
     assert Checks.scopes_permit(result, target_project, "project:cache:read") == false
   end
 
+  test "authenticated_subject counts personal account token use as activity" do
+    # Given an operator who only ever reaches the API through a command line
+    # token. Without this the inactivity sweep sees no activity at all and
+    # eventually retires an account in daily use.
+    user = AccountsFixtures.user_fixture(preload: [:account])
+
+    Repo.update_all(
+      from(u in User, where: u.id == ^user.id),
+      set: [last_sign_in_at: NaiveDateTime.add(NaiveDateTime.utc_now(:second), -200, :day)]
+    )
+
+    {:ok, {_, token_value}} =
+      Accounts.create_account_token(%{account: user.account, scopes: ["project:cache:read"], name: "test-token"})
+
+    # When
+    assert %AuthenticatedAccount{} = Authentication.authenticated_subject(token_value)
+
+    # Then
+    refreshed = Accounts.get_user_by_id(user.id)
+    assert NaiveDateTime.diff(NaiveDateTime.utc_now(:second), refreshed.last_sign_in_at, :day) == 0
+  end
+
   test "authenticated_subject returns nil for account tokens owned by inactive personal users" do
     # Given
     user = AccountsFixtures.user_fixture(preload: [:account])

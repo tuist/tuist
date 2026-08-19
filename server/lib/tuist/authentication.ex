@@ -38,12 +38,33 @@ defmodule Tuist.Authentication do
 
   defp reject_if_inactive_account_user(%AuthenticatedAccount{account: %Account{} = account} = resource) do
     case Tuist.Repo.preload(account, :user) do
-      %Account{user: %User{active: false}} -> nil
-      account -> %{resource | account: account}
+      %Account{user: %User{active: false}} ->
+        nil
+
+      %Account{user: %User{} = user} = account ->
+        Accounts.touch_last_sign_in(user)
+        %{resource | account: account}
+
+      account ->
+        %{resource | account: account}
     end
   end
 
   defp reject_if_inactive_account_user(resource), do: resource
+
+  # A personal account token is how most operators actually reach the API, so
+  # authenticating with one is activity. Without this an operator who only ever
+  # uses the command line looks dormant to the inactivity sweep and is
+  # eventually retired while working every day. Organization accounts have no
+  # user behind them and are skipped.
+  defp touch_account_owner_sign_in(%Account{} = account) do
+    case Tuist.Repo.preload(account, :user) do
+      %Account{user: %User{} = user} -> Accounts.touch_last_sign_in(user)
+      _ -> :ok
+    end
+  end
+
+  defp touch_account_owner_sign_in(_), do: :ok
 
   defp account_or_project_token(token) do
     project_token = Projects.get_project_by_full_token(token)
@@ -51,6 +72,8 @@ defmodule Tuist.Authentication do
     if is_nil(project_token) do
       case Accounts.account_token(token, preload: [:account, :account_token_projects]) do
         {:ok, account_token} ->
+          touch_account_owner_sign_in(account_token.account)
+
           %AuthenticatedAccount{
             account: account_token.account,
             scopes: account_token.scopes,
