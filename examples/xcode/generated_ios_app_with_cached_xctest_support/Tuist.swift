@@ -1,3 +1,7 @@
 import ProjectDescription
 
-let tuist = Tuist()
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(keepSourceTargets: true)
+    )
+)
