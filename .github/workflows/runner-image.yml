@@ -153,6 +153,7 @@ jobs:
           local-name: tuist-runner
           remote-names: ${{ vars.OCI_REGISTRY_HOST }}/tuist-runner:${{ steps.build.outputs.profile }}-${{ steps.image-tag.outputs.value }}
           chunk-size: "64"
+          concurrency: "4"
 
       - name: Cleanup
         if: always()
