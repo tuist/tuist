@@ -88,6 +88,7 @@ defmodule Tuist.Kura.Lifecycle do
   alias Tuist.Billing
   alias Tuist.Environment
   alias Tuist.Kura
+  alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionLifecycle
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Demand
@@ -247,6 +248,20 @@ defmodule Tuist.Kura.Lifecycle do
         select: 1
       )
 
+    # A destroy is an instruction, not a fault, so the demand that predates it
+    # does not get to undo it. Without this the identity rule would recreate
+    # the instance on the next tick and the destroy control would do nothing.
+    # Demand recorded *after* the destroy is a different matter: that is a new
+    # request for a cache, and it provisions like any other.
+    destroyed_since_demand_exists =
+      from(s in Server,
+        where: s.account_id == parent_as(:lifecycle).account_id,
+        where: s.region == ^region_id,
+        where: s.status == :destroyed,
+        where: s.updated_at >= parent_as(:lifecycle).last_cache_demand_at,
+        select: 1
+      )
+
     default_cutoff = DateTime.add(now(), -Environment.kura_inactive_days() * 86_400, :second)
 
     Repo.all(
@@ -255,6 +270,7 @@ defmodule Tuist.Kura.Lifecycle do
         where: l.service_region == ^region_id,
         where: l.last_cache_demand_at >= ^default_cutoff,
         where: not exists(live_server_exists),
+        where: not exists(destroyed_since_demand_exists),
         order_by: [desc: l.last_cache_demand_at, asc: l.id],
         limit: ^limit,
         offset: ^offset,
@@ -280,8 +296,18 @@ defmodule Tuist.Kura.Lifecycle do
   # provision that succeeds consumes a slot, so a region with room for one
   # more instance must admit one account and refuse the rest.
   defp provision(%AccountRegionLifecycle{account: %Account{} = account} = lifecycle, region_id, image_tag) do
-    plan = Billing.effective_plan(account)
+    # The lifecycle row records where demand *was* served; the policy decides
+    # where it belongs *now*. They diverge when an account changes plan or
+    # storage region while it has no instance — a downgrade to Open Source, or
+    # a reassignment away from this region — and provisioning from the stored
+    # row would resurrect the account in a region it no longer belongs to.
+    case AccountPolicies.resolve(account) do
+      {:ok, %{plan: plan, service_region: ^region_id}} -> admit(lifecycle, account, plan, region_id, image_tag)
+      _other -> :ok
+    end
+  end
 
+  defp admit(lifecycle, account, plan, region_id, image_tag) do
     case Capacity.admit(region_id, plan) do
       :ok ->
         do_provision(lifecycle, account, plan, region_id, image_tag)

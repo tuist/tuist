@@ -209,11 +209,15 @@ defmodule Tuist.Kura.Demand do
         {account_id, DateTime.from_unix!(recorded_at)}
       end)
 
-    demand_at_by_account
-    |> Map.keys()
-    |> accounts_with_subscriptions()
-    |> Enum.flat_map(fn account ->
-      case AccountPolicies.resolve(account) do
+    accounts =
+      demand_at_by_account
+      |> Map.keys()
+      |> accounts_with_subscriptions()
+
+    resolutions = AccountPolicies.resolve_all(accounts)
+
+    Enum.flat_map(accounts, fn account ->
+      case Map.fetch!(resolutions, account.id) do
         {:ok, %{service_region: service_region}} ->
           [
             %{

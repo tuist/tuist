@@ -156,6 +156,52 @@ defmodule Tuist.Kura.LifecycleTest do
       assert servers_for(account) == []
     end
 
+    test "does not recreate an instance the account explicitly destroyed" do
+      account = account()
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+
+      [server] = servers_for(account)
+      {:ok, _} = Kura.destroy_server(server)
+      server |> Ecto.Changeset.change(%{status: :destroyed}) |> Repo.update!()
+
+      assert :ok = Lifecycle.reconcile()
+
+      assert [%Server{status: :destroyed}] = servers_for(account)
+    end
+
+    test "provisions again when the account asks for the cache after destroying it" do
+      account = account()
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+
+      [server] = servers_for(account)
+      {:ok, _} = Kura.destroy_server(server)
+
+      server
+      |> Ecto.Changeset.change(%{status: :destroyed, updated_at: ago_usec(1)})
+      |> Repo.update!()
+
+      Demand.record(account.id)
+
+      assert :ok = Lifecycle.reconcile()
+
+      assert [_destroyed, %Server{status: :provisioning}] =
+               Enum.sort_by(servers_for(account), & &1.status)
+    end
+
+    test "does not provision an account whose plan no longer supports a cache" do
+      account = account(plan: :pro, region: :usa)
+      Demand.record(account.id)
+      Demand.flush()
+
+      {:ok, _} = Accounts.update_account(account, %{region: :europe})
+
+      assert :ok = Lifecycle.reconcile()
+
+      assert servers_for(account) == []
+    end
+
     test "emits a capacity event when provisioning is refused" do
       stub(Environment, :kura_region_machines, fn @region -> 1 end)
       for _ <- 1..47, do: active_instance(account())

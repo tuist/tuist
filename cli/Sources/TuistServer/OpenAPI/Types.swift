@@ -3876,25 +3876,15 @@ public enum Components {
         public struct CacheEndpoints: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CacheEndpoints/endpoints`.
             public var endpoints: [Swift.String]
-            /// Whether a dedicated cache instance for this account is not serving yet but is expected to be shortly. Clients should treat the endpoint list as short-lived and re-resolve sooner rather than caching it for the usual interval.
-            ///
-            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/provisioning`.
-            public var provisioning: Swift.Bool?
             /// Creates a new `CacheEndpoints`.
             ///
             /// - Parameters:
             ///   - endpoints:
-            ///   - provisioning: Whether a dedicated cache instance for this account is not serving yet but is expected to be shortly. Clients should treat the endpoint list as short-lived and re-resolve sooner rather than caching it for the usual interval.
-            public init(
-                endpoints: [Swift.String],
-                provisioning: Swift.Bool? = nil
-            ) {
+            public init(endpoints: [Swift.String]) {
                 self.endpoints = endpoints
-                self.provisioning = provisioning
             }
             public enum CodingKeys: String, CodingKey {
                 case endpoints
-                case provisioning
             }
         }
         /// The page number to return.
@@ -12570,6 +12560,22 @@ public enum Operations {
         }
         @frozen public enum Output: Sendable, Hashable {
             public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/headers/cache-control`.
+                    public var cache_hyphen_control: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - cache_hyphen_control: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+                    public init(cache_hyphen_control: Swift.String? = nil) {
+                        self.cache_hyphen_control = cache_hyphen_control
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCacheEndpoints.Output.Ok.Headers
                 /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// List of available cache endpoints
@@ -12578,25 +12584,15 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/endpoints`.
                         public var endpoints: [Swift.String]
-                        /// Whether a dedicated cache instance for this account is not serving yet but is expected to be shortly. Clients should treat the endpoint list as short-lived and re-resolve sooner rather than caching it for the usual interval.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/provisioning`.
-                        public var provisioning: Swift.Bool?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - endpoints:
-                        ///   - provisioning: Whether a dedicated cache instance for this account is not serving yet but is expected to be shortly. Clients should treat the endpoint list as short-lived and re-resolve sooner rather than caching it for the usual interval.
-                        public init(
-                            endpoints: [Swift.String],
-                            provisioning: Swift.Bool? = nil
-                        ) {
+                        public init(endpoints: [Swift.String]) {
                             self.endpoints = endpoints
-                            self.provisioning = provisioning
                         }
                         public enum CodingKeys: String, CodingKey {
                             case endpoints
-                            case provisioning
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/application\/json`.
@@ -12619,8 +12615,13 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getCacheEndpoints.Output.Ok.Body) {
+                public init(
+                    headers: Operations.getCacheEndpoints.Output.Ok.Headers = .init(),
+                    body: Operations.getCacheEndpoints.Output.Ok.Body
+                ) {
+                    self.headers = headers
                     self.body = body
                 }
             }

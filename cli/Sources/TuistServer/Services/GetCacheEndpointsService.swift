@@ -2,18 +2,21 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 
-/// The server's answer to "where should cache traffic go".
+/// The server's answer to "where should cache traffic go", and how long that
+/// answer stays good for.
 ///
-/// `provisioning` is true when a dedicated instance for the account is not
-/// serving yet but is expected to be shortly, so the answer is short-lived and
-/// should not be cached for the usual interval.
+/// `maxAge` comes from the response's `Cache-Control`. The server shortens it
+/// while a dedicated instance is being provisioned back, because a stand-in
+/// answer stops being right the moment that instance starts serving. It is the
+/// server that knows which case this is, so it is the server that sets the
+/// interval rather than the client guessing one.
 public struct CacheEndpointsResolution: Equatable, Sendable {
     public let endpoints: [String]
-    public let provisioning: Bool
+    public let maxAge: TimeInterval?
 
-    public init(endpoints: [String], provisioning: Bool) {
+    public init(endpoints: [String], maxAge: TimeInterval?) {
         self.endpoints = endpoints
-        self.provisioning = provisioning
+        self.maxAge = maxAge
     }
 }
 
@@ -42,6 +45,24 @@ enum GetCacheEndpointsServiceError: LocalizedError {
 public struct GetCacheEndpointsService: GetCacheEndpointsServicing {
     public init() {}
 
+    /// Reads `max-age` out of a `Cache-Control` value, ignoring the other
+    /// directives, which say nothing about how long this answer is good for.
+    static func maxAge(from cacheControl: String?) -> TimeInterval? {
+        guard let cacheControl else { return nil }
+
+        for directive in cacheControl.split(separator: ",") {
+            let parts = directive.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2,
+                  parts[0].trimmingCharacters(in: .whitespaces).lowercased() == "max-age",
+                  let seconds = TimeInterval(parts[1].trimmingCharacters(in: .whitespaces))
+            else { continue }
+
+            return seconds
+        }
+
+        return nil
+    }
+
     public func getCacheEndpoints(
         serverURL: URL,
         accountHandle: String?
@@ -56,11 +77,11 @@ public struct GetCacheEndpointsService: GetCacheEndpointsServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(payload):
-                // A server that predates the field simply omits it, which
-                // reads as not provisioning and keeps the previous behaviour.
+                // A server that predates the header simply omits it, leaving
+                // `maxAge` nil and the client on its own default.
                 return CacheEndpointsResolution(
                     endpoints: payload.endpoints,
-                    provisioning: payload.provisioning ?? false
+                    maxAge: Self.maxAge(from: okResponse.headers.cache_hyphen_control)
                 )
             }
         case let .forbidden(forbidden):

@@ -54,28 +54,42 @@ defmodule TuistWeb.API.CacheController do
        ]}
     ],
     responses: %{
-      ok:
-        {"List of cache endpoints", "application/json",
-         %Schema{
-           title: "CacheEndpoints",
-           description: "List of available cache endpoints",
-           type: :object,
-           required: [:endpoints],
-           properties: %{
-             endpoints: %Schema{
-               type: :array,
-               items: %Schema{type: :string}
-             },
-             provisioning: %Schema{
-               type: :boolean,
-               description:
-                 "Whether a dedicated cache instance for this account is not serving yet but is expected to be shortly. Clients should treat the endpoint list as short-lived and re-resolve sooner rather than caching it for the usual interval."
-             }
-           }
-         }},
+      ok: %OpenApiSpex.Response{
+        description: "List of cache endpoints",
+        headers: %{
+          "cache-control" => %OpenApiSpex.Header{
+            description:
+              "How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.",
+            schema: %Schema{type: :string}
+          }
+        },
+        content: %{
+          "application/json" => %OpenApiSpex.MediaType{
+            schema: %Schema{
+              title: "CacheEndpoints",
+              description: "List of available cache endpoints",
+              type: :object,
+              required: [:endpoints],
+              properties: %{
+                endpoints: %Schema{
+                  type: :array,
+                  items: %Schema{type: :string}
+                }
+              }
+            }
+          }
+        }
+      },
       forbidden: {"Not authorized to perform this action", "application/json", Error}
     }
   )
+
+  # Freshness rather than a body field: how long an endpoint answer stays good
+  # for is exactly what `Cache-Control` is for, and putting it on the server
+  # means the interval is set by the side that knows whether an instance is
+  # minutes away or already serving.
+  @serving_cache_max_age 3600
+  @provisioning_cache_max_age 30
 
   def endpoints(conn, params) do
     %{endpoints: endpoints, provisioning: provisioning} =
@@ -83,7 +97,11 @@ defmodule TuistWeb.API.CacheController do
       |> authorized_account_handle(conn)
       |> Accounts.get_cache_resolution_for_handle(technology(conn))
 
-    json(conn, %{endpoints: Enum.reject(endpoints, &is_nil/1), provisioning: provisioning})
+    max_age = if provisioning, do: @provisioning_cache_max_age, else: @serving_cache_max_age
+
+    conn
+    |> put_resp_header("cache-control", "private, max-age=#{max_age}")
+    |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1)})
   end
 
   defp authorized_account_handle(nil, _conn), do: nil

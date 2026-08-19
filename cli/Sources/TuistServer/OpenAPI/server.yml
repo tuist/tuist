@@ -890,11 +890,6 @@ components:
           type: array
           x-struct:
           x-validate:
-        provisioning:
-          description: Whether a dedicated cache instance for this account is not serving yet but is expected to be shortly. Clients should treat the endpoint list as short-lived and re-resolve sooner rather than caching it for the usual interval.
-          type: boolean
-          x-struct:
-          x-validate:
       required:
         - endpoints
       title: CacheEndpoints
@@ -6740,11 +6735,6 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
-                  provisioning:
-                    description: Whether a dedicated cache instance for this account is not serving yet but is expected to be shortly. Clients should treat the endpoint list as short-lived and re-resolve sooner rather than caching it for the usual interval.
-                    type: boolean
-                    x-struct:
-                    x-validate:
                 required:
                   - endpoints
                 title: CacheEndpoints
@@ -6752,6 +6742,14 @@ paths:
                 x-struct:
                 x-validate:
           description: List of cache endpoints
+          headers:
+            cache-control:
+              description: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '403':
           content:
             application/json:

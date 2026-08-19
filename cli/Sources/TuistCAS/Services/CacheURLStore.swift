@@ -17,7 +17,6 @@ public struct CacheURLStore: CacheURLStoring {
     private let getCacheEndpointsService: GetCacheEndpointsServicing
     private let endpointLatencyService: EndpointLatencyServicing
     private let localCache: NSCache<NSString, NSString>
-    private let provisioningCacheTTL: TimeInterval
 
     public init() {
         self.init(
@@ -38,13 +37,11 @@ public struct CacheURLStore: CacheURLStoring {
     init(
         cachedValueStore: CachedValueStoring,
         getCacheEndpointsService: GetCacheEndpointsServicing,
-        endpointLatencyService: EndpointLatencyServicing,
-        provisioningCacheTTL: TimeInterval = CacheURLStore.defaultProvisioningCacheTTL
+        endpointLatencyService: EndpointLatencyServicing
     ) {
         self.cachedValueStore = cachedValueStore
         self.getCacheEndpointsService = getCacheEndpointsService
         self.endpointLatencyService = endpointLatencyService
-        self.provisioningCacheTTL = provisioningCacheTTL
         localCache = NSCache<NSString, NSString>()
     }
 
@@ -120,7 +117,7 @@ public struct CacheURLStore: CacheURLStoring {
 
         if endpoints.count == 1 {
             Logger.current.debug("Only one endpoint available, using it directly: \(endpoints[0])")
-            return (value: endpoints[0], expiresAt: expiration(provisioning: resolution.provisioning))
+            return (value: endpoints[0], expiresAt: expiration(maxAge: resolution.maxAge))
         }
 
         let endpointLatencies: [(String, TimeInterval?)] = try await endpoints.concurrentMap { endpoint in
@@ -156,26 +153,23 @@ public struct CacheURLStore: CacheURLStoring {
                 "Selected endpoint \(bestEndpoint.0) with latency \(String(format: "%.3f", bestEndpoint.1))s"
             )
 
-        return (value: bestEndpoint.0, expiresAt: expiration(provisioning: resolution.provisioning))
+        return (value: bestEndpoint.0, expiresAt: expiration(maxAge: resolution.maxAge))
     }
 
     /// How long a resolved endpoint stays good for.
     ///
-    /// An hour normally, because the answer is stable and the latency race is
-    /// not worth repeating. Seconds while the account's own cache instance is
-    /// still being provisioned: that answer is a stand-in that stops being
-    /// right the moment the instance starts serving, and caching it for the
-    /// usual interval would keep a build on the wrong lane long after its own
-    /// cache was available.
-    private func expiration(provisioning: Bool) -> Date? {
-        if provisioning {
-            return Date().addingTimeInterval(provisioningCacheTTL)
+    /// The server says, through `Cache-Control`: a long interval while a
+    /// dedicated instance is serving, seconds while one is being provisioned
+    /// back, since that answer is a stand-in that stops being right the moment
+    /// the instance starts serving. Falling back to an hour covers a server
+    /// that sends no directive.
+    private func expiration(maxAge: TimeInterval?) -> Date? {
+        guard let maxAge else {
+            return Calendar.current.date(byAdding: .hour, value: 1, to: Date())
         }
 
-        return Calendar.current.date(byAdding: .hour, value: 1, to: Date())
+        return Date().addingTimeInterval(maxAge)
     }
-
-    static let defaultProvisioningCacheTTL: TimeInterval = 30
 
     private func currentCacheEndpointKeySuffix() -> String {
         if ClientFeatureFlags.contains("kura") {

@@ -31,7 +31,7 @@
 
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn(CacheEndpointsResolution(endpoints: [endpoint, endpointTwo], provisioning: false))
+                .willReturn(CacheEndpointsResolution(endpoints: [endpoint, endpointTwo], maxAge: nil))
 
             given(latencyService)
                 .measureLatency(for: .value(URL(string: endpoint)!))
@@ -61,7 +61,7 @@
 
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn(CacheEndpointsResolution(endpoints: [endpoint], provisioning: false))
+                .willReturn(CacheEndpointsResolution(endpoints: [endpoint], maxAge: nil))
 
             // When
             let result = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
@@ -89,7 +89,7 @@
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
                 .willReturn(CacheEndpointsResolution(
                     endpoints: [slowEndpoint, fastEndpoint, mediumEndpoint],
-                    provisioning: false
+                    maxAge: nil
                 ))
 
             given(latencyService)
@@ -120,7 +120,7 @@
 
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn(CacheEndpointsResolution(endpoints: [unreachableEndpoint, reachableEndpoint], provisioning: false))
+                .willReturn(CacheEndpointsResolution(endpoints: [unreachableEndpoint, reachableEndpoint], maxAge: nil))
 
             given(latencyService)
                 .measureLatency(for: .value(URL(string: unreachableEndpoint)!))
@@ -146,7 +146,7 @@
 
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn(CacheEndpointsResolution(endpoints: [endpoint1, endpoint2], provisioning: false))
+                .willReturn(CacheEndpointsResolution(endpoints: [endpoint1, endpoint2], maxAge: nil))
 
             given(latencyService)
                 .measureLatency(for: .any)
@@ -165,7 +165,7 @@
 
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn(CacheEndpointsResolution(endpoints: [], provisioning: false))
+                .willReturn(CacheEndpointsResolution(endpoints: [], maxAge: nil))
 
             // When/Then
             await #expect(throws: CacheURLStoreError.noEndpointsAvailable) {
@@ -186,12 +186,7 @@
         }
 
         @Test(.withMockedEnvironment())
-        func caches_a_serving_answer_for_an_hour_and_a_provisioning_one_briefly() {
-            #expect(CacheURLStore.defaultProvisioningCacheTTL == 30)
-        }
-
-        @Test(.withMockedEnvironment())
-        func re_resolves_quickly_while_the_account_instance_is_still_provisioning() async throws {
+        func honours_the_max_age_the_server_puts_on_a_stand_in_answer() async throws {
             // Given
             // The stand-in endpoint stops being the right answer the moment the
             // account's own instance starts serving, so it must not be cached
@@ -203,20 +198,19 @@
             let whileProvisioning = MockGetCacheEndpointsServicing()
             given(whileProvisioning)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn(CacheEndpointsResolution(endpoints: [standIn], provisioning: true))
+                .willReturn(CacheEndpointsResolution(endpoints: [standIn], maxAge: 0))
 
             let onceServing = MockGetCacheEndpointsServicing()
             given(onceServing)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn(CacheEndpointsResolution(endpoints: [instance], provisioning: false))
+                .willReturn(CacheEndpointsResolution(endpoints: [instance], maxAge: nil))
 
-            // A zero TTL stands in for "the provisioning window has passed";
-            // in production it is `defaultProvisioningCacheTTL`.
+            // A zero max-age stands in for "the short window the server asked
+            // for has passed"; in production it is seconds.
             let provisioningSubject = CacheURLStore(
                 cachedValueStore: cachedValueStore,
                 getCacheEndpointsService: whileProvisioning,
-                endpointLatencyService: latencyService,
-                provisioningCacheTTL: 0
+                endpointLatencyService: latencyService
             )
             let servingSubject = CacheURLStore(
                 cachedValueStore: cachedValueStore,
@@ -248,12 +242,12 @@
             let whileProvisioning = MockGetCacheEndpointsServicing()
             given(whileProvisioning)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn(CacheEndpointsResolution(endpoints: [], provisioning: false))
+                .willReturn(CacheEndpointsResolution(endpoints: [], maxAge: nil))
 
             let onceServing = MockGetCacheEndpointsServicing()
             given(onceServing)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn(CacheEndpointsResolution(endpoints: [endpoint], provisioning: false))
+                .willReturn(CacheEndpointsResolution(endpoints: [endpoint], maxAge: nil))
 
             let provisioningSubject = CacheURLStore(
                 cachedValueStore: cachedValueStore,
@@ -289,7 +283,7 @@
                     serverURL: .value(serverURL),
                     accountHandle: .value(accountHandle)
                 )
-                .willReturn(CacheEndpointsResolution(endpoints: [endpoint], provisioning: false))
+                .willReturn(CacheEndpointsResolution(endpoints: [endpoint], maxAge: nil))
 
             // When
             let result = try await subject.getCacheURL(for: serverURL, accountHandle: accountHandle)
@@ -351,14 +345,14 @@
 
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn(CacheEndpointsResolution(endpoints: [defaultEndpoint], provisioning: false))
+                .willReturn(CacheEndpointsResolution(endpoints: [defaultEndpoint], maxAge: nil))
 
             // When
             let defaultResult = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
             Environment.mocked?.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
             given(kuraGetCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
-                .willReturn(CacheEndpointsResolution(endpoints: [kuraEndpoint], provisioning: false))
+                .willReturn(CacheEndpointsResolution(endpoints: [kuraEndpoint], maxAge: nil))
             let kuraResult = try await kuraSubject.getCacheURL(for: serverURL, accountHandle: nil)
 
             // Then

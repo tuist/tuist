@@ -1128,6 +1128,44 @@ defmodule Tuist.KuraTest do
     end
   end
 
+  describe "lifecycle transitions against a concurrent destroy" do
+    setup do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+
+      %{account: account, server: server}
+    end
+
+    test "begin_drain/1 refuses a server destroyed since it was read", %{server: server} do
+      {:ok, _} = Kura.destroy_server(server)
+
+      assert {:error, :not_drainable} = Kura.begin_drain(server)
+      assert Repo.get!(Server, server.id).status == :destroying
+    end
+
+    test "cancel_drain/1 refuses a server destroyed since it was read", %{account: account, server: server} do
+      {:ok, draining} = Kura.begin_drain(server)
+      {:ok, _} = Kura.destroy_server(draining)
+
+      assert {:error, :not_draining} = Kura.cancel_drain(draining)
+      assert Repo.get!(Server, server.id).status == :destroying
+      assert Accounts.list_account_cache_endpoints(account, :kura) == []
+    end
+
+    test "archive_server/1 refuses a server destroyed since it was read", %{server: server} do
+      {:ok, draining} = Kura.begin_drain(server)
+      {:ok, _} = Kura.destroy_server(draining)
+
+      assert {:error, :not_archivable} = Kura.archive_server(draining)
+      assert Repo.get!(Server, server.id).status == :destroying
+    end
+  end
+
   describe "destroy_server/1" do
     test "marks destroying and removes the cache endpoint" do
       user = AccountsFixtures.user_fixture()

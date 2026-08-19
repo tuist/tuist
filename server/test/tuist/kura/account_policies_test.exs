@@ -6,6 +6,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
   alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionPolicy
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -57,6 +58,32 @@ defmodule Tuist.Kura.AccountPoliciesTest do
 
       assert AccountPolicies.resolve(account) ==
                {:ok, %{plan: :pro, service_region: "eu-central"}}
+    end
+
+    test "resolve_all/1 matches resolve/1 across a mixed batch" do
+      air = organization_account()
+
+      restricted = update_region!(organization_account(), :europe)
+      BillingFixtures.subscription_fixture(account_id: restricted.id, plan: :pro)
+
+      unassigned = organization_account()
+      BillingFixtures.subscription_fixture(account_id: unassigned.id, plan: :pro)
+
+      assigned = organization_account()
+      BillingFixtures.subscription_fixture(account_id: assigned.id, plan: :pro)
+
+      assert {:ok, _} =
+               AccountPolicies.assign_service_region(
+                 assigned,
+                 "eu-central",
+                 AccountsFixtures.user_fixture(),
+                 "Customer residency requirement"
+               )
+
+      accounts = Enum.map([air, restricted, unassigned, assigned], &Repo.preload(&1, :subscriptions))
+
+      assert AccountPolicies.resolve_all(accounts) ==
+               Map.new(accounts, &{&1.id, AccountPolicies.resolve(&1)})
     end
 
     test "falls back to Air when a paid subscription is inactive" do

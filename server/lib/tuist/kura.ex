@@ -914,6 +914,8 @@ defmodule Tuist.Kura do
   """
   def begin_drain(%Server{status: :active} = server) do
     case Repo.transaction(fn ->
+           server = lock_with_status(server, :active, :not_drainable)
+
            with {:ok, server} <- server |> Server.lifecycle_changeset(%{status: :drain_pending}) |> Repo.update(),
                 :ok <- cancel_open_deployments(server),
                 :ok <- remove_cache_endpoint(server) do
@@ -973,6 +975,8 @@ defmodule Tuist.Kura do
 
   defp cancel_drain_transaction(server, account) do
     Repo.transaction(fn ->
+      server = lock_with_status(server, :drain_pending, :not_draining)
+
       with {:ok, server} <- server |> Server.lifecycle_changeset(%{status: :active}) |> Repo.update(),
            :ok <- ensure_cache_endpoint_for_region(account, server) do
         server
@@ -980,6 +984,20 @@ defmodule Tuist.Kura do
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
+  end
+
+  # The status on a preloaded struct is what was true when it was read. A
+  # destroy committing between that read and this write would be silently
+  # replaced by the stale lifecycle status — and for `cancel_drain/1` that
+  # would republish the endpoint of a server being torn down. Locking the row
+  # and re-reading its status is what makes the transition act on the server
+  # as it is now, and is the same guard activation already uses.
+  defp lock_with_status(%Server{} = server, expected_status, mismatch_reason) do
+    case lock_server(server.id, server.account_id) do
+      %Server{status: ^expected_status} = locked_server -> locked_server
+      %Server{} -> Repo.rollback(mismatch_reason)
+      nil -> Repo.rollback(:not_found)
+    end
   end
 
   # Private regions never mirror their URL into `account_cache_endpoints` (the
@@ -1005,19 +1023,29 @@ defmodule Tuist.Kura do
   describe.
   """
   def archive_server(%Server{status: :drain_pending} = server) do
-    {:ok, server} =
-      server
-      |> Server.lifecycle_changeset(%{
-        status: :archived,
-        url: nil,
-        current_image_tag: nil,
-        observed_image_tag: nil,
-        last_ready_at: nil
-      })
-      |> Repo.update()
+    case Repo.transaction(fn ->
+           server = lock_with_status(server, :drain_pending, :not_archivable)
 
-    broadcast_server(server, :updated)
-    {:ok, server}
+           case server
+                |> Server.lifecycle_changeset(%{
+                  status: :archived,
+                  url: nil,
+                  current_image_tag: nil,
+                  observed_image_tag: nil,
+                  last_ready_at: nil
+                })
+                |> Repo.update() do
+             {:ok, server} -> server
+             {:error, reason} -> Repo.rollback(reason)
+           end
+         end) do
+      {:ok, server} ->
+        broadcast_server(server, :updated)
+        {:ok, server}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   def archive_server(%Server{}), do: {:error, :not_archivable}

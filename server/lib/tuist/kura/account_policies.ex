@@ -31,9 +31,30 @@ defmodule Tuist.Kura.AccountPolicies do
   implicit region so callers can retain authoritative object-storage routing.
   """
   def resolve(%Account{} = account) do
+    resolve(account, &current_service_region_assignment/1)
+  end
+
+  @doc """
+  Resolves many accounts at once, loading every explicit service-region
+  assignment in a single query.
+
+  `resolve/1` costs one query per account that allows every storage region,
+  which is fine for a handful of accounts and not fine on the demand-flush
+  hot path, where the batch is every account that used the cache in the last
+  minute.
+  """
+  def resolve_all(accounts) when is_list(accounts) do
+    assignments = current_service_region_assignments(accounts)
+
+    Map.new(accounts, fn %Account{id: id} = account ->
+      {id, resolve(account, fn _account -> Map.get(assignments, id) end)}
+    end)
+  end
+
+  defp resolve(%Account{} = account, assignment_fun) do
     plan = Billing.effective_plan(account)
 
-    case effective_service_region(account, plan) do
+    case effective_service_region(account, plan, assignment_fun) do
       # The policy decides which region an account belongs in; the deployment
       # decides which regions exist. Outside production those disagree, so the
       # policy's answer is mapped through the deployment's substitutions before
@@ -121,24 +142,36 @@ defmodule Tuist.Kura.AccountPolicies do
     )
   end
 
-  defp effective_service_region(%Account{region: region}, :air) when region in [:all, :usa], do: {:ok, @air_region}
+  defp effective_service_region(%Account{region: region}, :air, _assignment_fun) when region in [:all, :usa],
+    do: {:ok, @air_region}
 
-  defp effective_service_region(%Account{region: :europe}, :air), do: {:error, :service_region_unavailable}
+  defp effective_service_region(%Account{region: :europe}, :air, _assignment_fun),
+    do: {:error, :service_region_unavailable}
 
-  defp effective_service_region(%Account{region: region}, plan)
+  defp effective_service_region(%Account{region: region}, plan, _assignment_fun)
        when plan in [:pro, :enterprise] and region in [:europe, :usa],
        do: {:ok, Map.fetch!(@paid_service_regions, region)}
 
-  defp effective_service_region(%Account{region: :all} = account, plan) when plan in [:pro, :enterprise] do
-    case current_service_region_assignment(account) do
+  defp effective_service_region(%Account{region: :all} = account, plan, assignment_fun)
+       when plan in [:pro, :enterprise] do
+    case assignment_fun.(account) do
       %AccountRegionPolicy{service_region: service_region} -> {:ok, service_region}
       nil -> {:error, :service_region_unassigned}
     end
   end
 
-  defp effective_service_region(%Account{}, :open_source), do: {:error, :plan_not_supported}
+  defp effective_service_region(%Account{}, :open_source, _assignment_fun), do: {:error, :plan_not_supported}
 
-  defp effective_service_region(%Account{}, _plan), do: {:error, :service_region_unavailable}
+  defp effective_service_region(%Account{}, _plan, _assignment_fun), do: {:error, :service_region_unavailable}
+
+  defp current_service_region_assignments(accounts) do
+    account_ids = Enum.map(accounts, & &1.id)
+
+    AccountRegionPolicy
+    |> where([policy], policy.account_id in ^account_ids and is_nil(policy.superseded_at))
+    |> Repo.all()
+    |> Map.new(&{&1.account_id, &1})
+  end
 
   defp validate_explicit_assignment(account, service_region) do
     plan = Billing.effective_plan(account)

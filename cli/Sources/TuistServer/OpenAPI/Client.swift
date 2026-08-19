@@ -458,6 +458,11 @@ public struct Client: APIProtocol {
             deserializer: { response, responseBody in
                 switch response.status.code {
                 case 200:
+                    let headers: Operations.getCacheEndpoints.Output.Ok.Headers = .init(cache_hyphen_control: try converter.getOptionalHeaderFieldAsURI(
+                        in: response.headerFields,
+                        name: "cache-control",
+                        as: Swift.String.self
+                    ))
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.getCacheEndpoints.Output.Ok.Body
                     let chosenContentType = try converter.bestContentType(
@@ -478,7 +483,10 @@ public struct Client: APIProtocol {
                     default:
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
-                    return .ok(.init(body: body))
+                    return .ok(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 case 403:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.getCacheEndpoints.Output.Forbidden.Body
