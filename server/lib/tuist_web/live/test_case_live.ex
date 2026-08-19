@@ -87,12 +87,70 @@ defmodule TuistWeb.TestCaseLive do
 
   # A period the test case never ran in has a chart's worth of empty buckets and
   # nothing to draw, so the card offers an empty state instead of a flat line.
-  defp charted_durations?(%{values: values}), do: Enum.any?(values, &(not is_nil(&1)))
+  defp charted?(%{run_counts: run_counts}), do: Enum.any?(run_counts, &(&1 > 0))
 
-  defp duration_series_points(series, statistic) do
-    series.dates
-    |> Enum.zip(Map.fetch!(series, statistic))
+  defp chart_points(dates, values) do
+    dates
+    |> Enum.zip(values)
     |> Enum.map(&Tuple.to_list/1)
+  end
+
+  # Rates are bounded, so their axis is pinned to 0-100 rather than scaled to the
+  # data: a test that sat between 98% and 100% all month should read as flat, not
+  # as a cliff.
+  defp selected_chart("flakiness_rate", series) do
+    %{
+      values: series.flakiness_rates,
+      name: dgettext("dashboard_tests", "Flakiness rate"),
+      color: "var:noora-chart-flaky",
+      formatter: "{value}%",
+      y_axis: %{max: 100}
+    }
+  end
+
+  defp selected_chart(_reliability, series) do
+    %{
+      values: series.reliability_rates,
+      name: dgettext("dashboard_tests", "Test reliability"),
+      color: "var:noora-chart-tertiary",
+      formatter: "{value}%",
+      y_axis: %{max: 100}
+    }
+  end
+
+  # One bar per bucket, split by how those runs came out. The segments are
+  # mutually exclusive and sum to the run count, so the bar's height is the
+  # number the widget above it shows. A segment that is zero across the whole
+  # window is dropped rather than drawn: an empty "Quarantined" entry in the
+  # legend of a test that was never quarantined is noise.
+  defp run_segments(series) do
+    [
+      %{
+        values: series.successful_counts,
+        name: dgettext("dashboard_tests", "Successful"),
+        color: "var:noora-chart-tertiary"
+      },
+      %{
+        values: series.failed_counts,
+        name: dgettext("dashboard_tests", "Failed"),
+        color: "var:noora-chart-destructive"
+      },
+      %{
+        values: series.flaky_counts,
+        name: dgettext("dashboard_tests", "Flaky"),
+        color: "var:noora-chart-flaky"
+      },
+      %{
+        values: series.quarantined_counts,
+        name: dgettext("dashboard_tests", "Quarantined"),
+        color: "var:noora-chart-quaternary"
+      },
+      %{
+        values: series.skipped_counts,
+        name: dgettext("dashboard_tests", "Skipped"),
+        color: "var:noora-chart-legend-secondary"
+      }
+    ]
   end
 
   defp define_filters(project) do
@@ -364,15 +422,30 @@ defmodule TuistWeb.TestCaseLive do
      |> assign(:history_page, next_page)}
   end
 
-  # The Tests overview has to redraw a chart series here too. This widget is a
-  # standalone stat card, so switching statistic only changes which number the
-  # already-loaded analytics render, and the URL so the choice survives a reload.
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+
+    {:noreply,
+     socket
+     |> assign(:analytics_selected_widget, widget)
+     |> assign(:uri, URI.new!("?" <> query))
+     |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
+  # Every series is already loaded, so both of these only change which one the
+  # card draws, plus the URL so the choice survives a reload. Picking a
+  # statistic also selects the duration chart: choosing p90 while looking at the
+  # run count would otherwise change a number off screen.
   def handle_event("select_duration_type", %{"type" => type}, socket) do
-    query = Query.put(socket.assigns.uri.query, "duration-type", type)
+    query =
+      socket.assigns.uri.query
+      |> Query.put("duration-type", type)
+      |> Query.put("analytics-selected-widget", "duration")
 
     {:noreply,
      socket
      |> assign(:selected_duration_type, type)
+     |> assign(:analytics_selected_widget, "duration")
      |> assign(:uri, URI.new!("?" <> query))
      |> push_event("replace-url", %{url: "?" <> query})}
   end
@@ -425,14 +498,30 @@ defmodule TuistWeb.TestCaseLive do
     |> assign(:analytics_preset, preset)
     |> assign(:analytics_period, period)
     |> assign(:selected_duration_type, params["duration-type"] || "avg")
+    |> assign(:analytics_selected_widget, params["analytics-selected-widget"] || "test_case_runs")
     |> assign_async(:reliability, fn ->
       {:ok, %{reliability: Analytics.test_case_reliability_by_id(project.id, test_case_id, project.default_branch, opts)}}
     end)
     |> assign_async(:analytics, fn ->
       {:ok, %{analytics: Analytics.test_case_analytics_by_id(project.id, test_case_id, opts)}}
     end)
-    |> assign_async(:duration_series, fn ->
-      {:ok, %{duration_series: Analytics.test_case_duration_series_by_id(project.id, test_case_id, opts)}}
+    |> assign_async(:series, fn ->
+      run_series = Analytics.test_case_run_series_by_id(project.id, test_case_id, opts)
+
+      {:ok,
+       %{
+         series:
+           Map.merge(run_series, %{
+             reliability_rates:
+               Analytics.test_case_reliability_series_by_id(
+                 project.id,
+                 test_case_id,
+                 project.default_branch,
+                 opts
+               ).values,
+             duration: Analytics.test_case_duration_series_by_id(project.id, test_case_id, opts)
+           })
+       }}
     end)
     |> assign_async([:flakiness_rate, :flaky_runs_grouped, :flaky_runs_meta], fn ->
       {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case_id)

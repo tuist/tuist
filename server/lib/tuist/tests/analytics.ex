@@ -1387,18 +1387,7 @@ defmodule Tuist.Tests.Analytics do
       count.
   """
   def test_case_duration_series_by_id(project_id, test_case_id, opts \\ []) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
-    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
-
-    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-
-    date_format =
-      date_period
-      |> time_bucket_for_date_period()
-      |> time_bucket_to_clickhouse_interval()
-      |> get_clickhouse_date_format()
-
-    buckets = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
+    {start_datetime, end_datetime, date_period, date_format, buckets} = series_window(opts)
 
     rows =
       apply_period_filter(
@@ -1414,27 +1403,177 @@ defmodule Tuist.Tests.Analytics do
             p99: fragment("quantile(0.99)(?)", tcr.duration)
           }
         ),
-        Keyword.put(opts, :start_datetime, start_datetime)
+        Keyword.merge(opts, start_datetime: start_datetime, end_datetime: end_datetime)
       )
 
     rows = ClickHouseRepo.all(rows)
 
     %{
       dates: buckets,
-      values: duration_bucket_series(rows, :avg, buckets, date_period),
-      p50_values: duration_bucket_series(rows, :p50, buckets, date_period),
-      p90_values: duration_bucket_series(rows, :p90, buckets, date_period),
-      p99_values: duration_bucket_series(rows, :p99, buckets, date_period)
+      values: bucket_series(rows, :avg, buckets, date_period, nil, &normalize_duration/1),
+      p50_values: bucket_series(rows, :p50, buckets, date_period, nil, &normalize_duration/1),
+      p90_values: bucket_series(rows, :p90, buckets, date_period, nil, &normalize_duration/1),
+      p99_values: bucket_series(rows, :p99, buckets, date_period, nil, &normalize_duration/1)
     }
   end
 
-  defp duration_bucket_series(rows, statistic, buckets, date_period) do
-    durations = Map.new(rows, &{normalise_date(&1.date, date_period), Map.fetch!(&1, statistic)})
+  @doc """
+  How a single test case's runs came out over time, bucketed to the selected
+  period: the total, the outcome each run had, and the flakiness rate.
+
+  Reads the same rows as `test_case_analytics_by_id/3` and
+  `get_test_case_flakiness_rate/2`, so the charts and the widgets above them
+  cannot state two different numbers for one window.
+
+  The outcome segments are mutually exclusive and sum to `run_counts`, which is
+  what lets them stack into one bar per bucket. A run can be quarantined and
+  flaky and failed at once, so it is counted under the most specific of those it
+  belongs to: quarantined first, since those runs gate nothing and their
+  failures are expected; then flaky, the more actionable label for a run that
+  did not settle; then the status the run finished with.
+
+  Counts are zero-filled: a bucket with no runs really did have no runs. The
+  flakiness rate is `nil` there instead, since a rate needs runs to be a rate
+  and a zero would claim the test ran and never flaked.
+
+  Options:
+    * `:start_datetime` - start of the window (default: 30 days ago).
+    * `:end_datetime` - end of the window (default: now).
+  """
+  def test_case_run_series_by_id(project_id, test_case_id, opts \\ []) do
+    {start_datetime, end_datetime, date_period, date_format, buckets} = series_window(opts)
+
+    rows =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.test_case_id == ^test_case_id,
+        group_by: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
+          total: count(),
+          flaky_total: fragment("countIf(?)", tcr.is_flaky),
+          quarantined: fragment("countIf(?)", tcr.is_quarantined),
+          flaky: fragment("countIf(? AND NOT ?)", tcr.is_flaky, tcr.is_quarantined),
+          successful:
+            fragment(
+              "countIf(? = 'success' AND NOT ? AND NOT ?)",
+              tcr.status,
+              tcr.is_flaky,
+              tcr.is_quarantined
+            ),
+          failed:
+            fragment(
+              "countIf(? = 'failure' AND NOT ? AND NOT ?)",
+              tcr.status,
+              tcr.is_flaky,
+              tcr.is_quarantined
+            ),
+          skipped:
+            fragment(
+              "countIf(? = 'skipped' AND NOT ? AND NOT ?)",
+              tcr.status,
+              tcr.is_flaky,
+              tcr.is_quarantined
+            )
+        }
+      )
+      |> apply_period_filter(Keyword.merge(opts, start_datetime: start_datetime, end_datetime: end_datetime))
+      |> ClickHouseRepo.all()
+
+    # The rate counts every flaky run, including the quarantined ones the stack
+    # files elsewhere: it answers "how often did this test not settle", which
+    # quarantining a test does not change.
+    rate_rows = Enum.map(rows, &%{date: &1.date, rate: percentage(&1.flaky_total, &1.total)})
+
+    %{
+      dates: buckets,
+      run_counts: bucket_series(rows, :total, buckets, date_period, 0, & &1),
+      successful_counts: bucket_series(rows, :successful, buckets, date_period, 0, & &1),
+      failed_counts: bucket_series(rows, :failed, buckets, date_period, 0, & &1),
+      skipped_counts: bucket_series(rows, :skipped, buckets, date_period, 0, & &1),
+      flaky_counts: bucket_series(rows, :flaky, buckets, date_period, 0, & &1),
+      quarantined_counts: bucket_series(rows, :quarantined, buckets, date_period, 0, & &1),
+      flakiness_rates: bucket_series(rate_rows, :rate, buckets, date_period, nil, & &1)
+    }
+  end
+
+  @doc """
+  The success rate of a single test case over time, bucketed to the selected
+  period.
+
+  Scoped the way `test_case_reliability_by_id/4` scopes its number: runs on the
+  project's default branch, falling back to every branch when the default branch
+  has none in the window. The fallback is decided once for the whole window
+  rather than per bucket, so the chart and the widget describe the same set of
+  runs rather than each bucket silently choosing its own branch scope.
+
+  A bucket with no runs carries `nil`: not knowing whether a test passed is not
+  the same as knowing it failed every time.
+
+  Options:
+    * `:start_datetime` - start of the window (default: 30 days ago).
+    * `:end_datetime` - end of the window (default: now).
+  """
+  def test_case_reliability_series_by_id(project_id, test_case_id, default_branch, opts \\ []) do
+    {start_datetime, end_datetime, date_period, date_format, buckets} = series_window(opts)
+
+    rows =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.test_case_id == ^test_case_id,
+        group_by: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
+          branch_success: fragment("countIf(? = 'success' AND ? = ?)", tcr.status, tcr.git_branch, ^default_branch),
+          branch_total: fragment("countIf(? = ?)", tcr.git_branch, ^default_branch),
+          success: fragment("countIf(? = 'success')", tcr.status),
+          total: count()
+        }
+      )
+      |> apply_period_filter(Keyword.merge(opts, start_datetime: start_datetime, end_datetime: end_datetime))
+      |> ClickHouseRepo.all()
+
+    on_default_branch? = Enum.any?(rows, &(&1.branch_total > 0))
+
+    rate_rows =
+      Enum.map(rows, fn row ->
+        if on_default_branch? do
+          %{date: row.date, rate: percentage(row.branch_success, row.branch_total)}
+        else
+          %{date: row.date, rate: percentage(row.success, row.total)}
+        end
+      end)
+
+    %{dates: buckets, values: bucket_series(rate_rows, :rate, buckets, date_period, nil, & &1)}
+  end
+
+  defp series_window(opts) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+
+    date_format =
+      date_period
+      |> time_bucket_for_date_period()
+      |> time_bucket_to_clickhouse_interval()
+      |> get_clickhouse_date_format()
+
+    buckets = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
+
+    {start_datetime, end_datetime, date_period, date_format, buckets}
+  end
+
+  defp percentage(_part, 0), do: nil
+  defp percentage(part, whole), do: Float.round(part / whole * 100, 1)
+
+  defp bucket_series(rows, statistic, buckets, date_period, empty, mapper) do
+    values = Map.new(rows, &{normalise_date(&1.date, date_period), Map.fetch!(&1, statistic)})
 
     Enum.map(buckets, fn bucket ->
-      case Map.get(durations, normalise_date(bucket, date_period)) do
-        nil -> nil
-        duration -> normalize_duration(duration)
+      case Map.get(values, normalise_date(bucket, date_period)) do
+        nil -> empty
+        value -> mapper.(value)
       end
     end)
   end

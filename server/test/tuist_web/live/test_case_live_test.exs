@@ -185,7 +185,10 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       # When
       {:ok, lv, _html} =
-        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-selected-widget=duration"
+        )
 
       render_async(lv)
 
@@ -205,7 +208,10 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       # When
       {:ok, lv, _html} =
-        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-selected-widget=duration"
+        )
 
       render_async(lv)
 
@@ -240,7 +246,171 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       # Then
       refute has_element?(lv, "#test-case-duration-chart")
-      assert has_element?(lv, "[data-part='test-case-duration-card'] [data-empty]")
+      refute has_element?(lv, "#test-case-runs-chart")
+      assert has_element?(lv, "[data-part='analytics'] [data-empty]")
+    end
+
+    test "charts the run outcomes until another widget is selected", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - the card opens on the runs, split by how they came out
+      assert [%{"name" => "Successful", "type" => "bar", "stack" => "total"}] =
+               chart_option(lv, "test-case-runs-chart")["series"]
+
+      # When
+      render_hook(lv, "select_widget", %{"widget" => "flakiness_rate"})
+
+      # Then - no refetch, the series was already loaded
+      assert [%{"name" => "Flakiness rate"}] =
+               chart_option(lv, "test-case-analytics-chart")["series"]
+    end
+
+    test "stacks each bar to the run count of its bucket", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - one run of every outcome on the same day
+      test_case_id = seed_runs_of_every_outcome(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - every segment is drawn and they add up to the day's runs
+      series = chart_option(lv, "test-case-runs-chart")["series"]
+
+      assert Enum.map(series, & &1["name"]) == [
+               "Successful",
+               "Failed",
+               "Flaky",
+               "Quarantined",
+               "Skipped"
+             ]
+
+      totals =
+        series
+        |> Enum.map(& &1["data"])
+        |> Enum.zip_with(&Enum.sum/1)
+
+      assert Enum.max(totals) == 5
+    end
+
+    test "drops an outcome the test case never had from the bar", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - runs that all passed
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - a legend entry for an outcome that never happened is noise
+      assert Enum.map(chart_option(lv, "test-case-runs-chart")["series"], & &1["name"]) == [
+               "Successful"
+             ]
+    end
+
+    test "charts a rate against a fixed axis so a steady test reads as steady", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-selected-widget=reliability"
+        )
+
+      render_async(lv)
+
+      # Then
+      option = chart_option(lv, "test-case-analytics-chart")
+
+      assert [%{"name" => "Test reliability"}] = option["series"]
+      assert option["yAxis"]["max"] == 100
+    end
+
+    test "leaves a bucket without runs off a rate chart", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - runs today and three days ago, nothing in between
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-selected-widget=flakiness_rate"
+        )
+
+      render_async(lv)
+
+      # Then - a day with no runs has no flakiness rate, and 0% would claim otherwise
+      [flakiness] = chart_option(lv, "test-case-analytics-chart")["series"]
+      values = Enum.map(flakiness["data"], &List.last/1)
+
+      assert Enum.any?(values, &is_nil/1)
+    end
+
+    test "counts a day without runs as zero rather than as a gap", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - no runs really is a count of zero, unlike a duration or a rate
+      [runs] = chart_option(lv, "test-case-runs-chart")["series"]
+
+      refute Enum.any?(runs["data"], &is_nil/1)
+      assert 0 in runs["data"]
+    end
+
+    test "picking a duration statistic switches the card to the duration chart", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - the run count is selected, so p90 would otherwise change a number off screen
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # When
+      render_hook(lv, "select_duration_type", %{"type" => "p90"})
+
+      # Then
+      assert has_element?(lv, "#test-case-duration-chart")
+      refute has_element?(lv, "#test-case-runs-chart")
     end
 
     test "muting a test case via set-state", %{
@@ -383,9 +553,10 @@ defmodule TuistWeb.TestCaseLiveTest do
   end
 
   defp seed_runs_across_time(project) do
-    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
-    test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
-    [test_case_run | _] = test_run.test_case_runs
+    # `test_fixture/1` seeds one passing and one failing test case, and which
+    # comes back first is not fixed. The charts count outcomes, so the tests pin
+    # the passing one rather than asserting on whichever arrived.
+    test_case_run = passing_test_case_run(project)
 
     for days_ago <- [3, 40] do
       ran_at = DateTime.utc_now() |> DateTime.add(-days_ago, :day) |> DateTime.to_naive()
@@ -399,6 +570,39 @@ defmodule TuistWeb.TestCaseLiveTest do
     end
 
     test_case_run.test_case_id
+  end
+
+  defp seed_runs_of_every_outcome(project) do
+    test_case_run = passing_test_case_run(project)
+
+    ran_at = DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_naive()
+
+    for {status, is_flaky, is_quarantined} <- [
+          {0, false, false},
+          {1, false, false},
+          {2, false, false},
+          {0, true, false},
+          {0, false, true}
+        ] do
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_run.test_case_id,
+        status: status,
+        is_flaky: is_flaky,
+        is_quarantined: is_quarantined,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      )
+    end
+
+    test_case_run.test_case_id
+  end
+
+  defp passing_test_case_run(project) do
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+    test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+
+    Enum.find(test_run.test_case_runs, &(&1.name == "testExample"))
   end
 
   defp chart_option(lv, chart_id) do
