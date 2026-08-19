@@ -492,7 +492,7 @@ defmodule TuistWeb.TestCaseLiveTest do
       refute has_element?(lv, "#test-case-runs-chart")
     end
 
-    test "puts the recent history above the runs table, not below it", %{
+    test "runs the recent history beside the metrics it explains", %{
       conn: conn,
       account: account,
       project: project
@@ -508,16 +508,32 @@ defmodule TuistWeb.TestCaseLiveTest do
       )
 
       # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+
+      # Then - a state change and the chart it explains belong on one screen
+      assert has_element?(
+               lv,
+               "[data-part='analytics'] [data-part='analytics-history'] [data-part='timeline-item']"
+             )
+    end
+
+    test "opens the timeline on the run that introduced the test case", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - a test case nobody has quarantined, muted or marked
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      # When
       {:ok, _lv, html} =
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
 
-      # Then - a card below a paginated table is a card nobody scrolls to
-      assert html =~ "overview-history-card"
-
-      history_at = html |> :binary.match("overview-history-card") |> elem(0)
-      runs_at = html |> :binary.match("test-case-runs-card") |> elem(0)
-
-      assert history_at < runs_at
+      # Then - every test case has a first run, so the column is never an empty frame
+      assert html =~ "First run of this test"
     end
 
     test "muting a test case via set-state", %{
