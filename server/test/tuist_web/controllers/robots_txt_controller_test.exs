@@ -7,11 +7,11 @@ defmodule TuistWeb.RobotsTxtControllerTest do
       body = response(conn, 200)
 
       assert body =~ "Content-Signal: ai-train=no, search=no, ai-input=no"
-      assert body =~ "Content-Usage: /$ train-ai=y, search=y"
-      assert body =~ "Content-Usage: /blog train-ai=y, search=y"
-      assert body =~ "Content-Usage: /customers train-ai=y, search=y"
-      assert body =~ "Content-Usage: /en/docs train-ai=y, search=y"
-      assert body =~ "Content-Usage: /en/docs-markdown train-ai=y, search=y"
+      assert body =~ "Content-Usage: /$ train-ai=y, search=y, ai-input=y"
+      assert body =~ "Content-Usage: /blog train-ai=y, search=y, ai-input=y"
+      assert body =~ "Content-Usage: /customers train-ai=y, search=y, ai-input=y"
+      assert body =~ "Content-Usage: /en/docs train-ai=y, search=y, ai-input=y"
+      assert body =~ "Content-Usage: /en/docs-markdown train-ai=y, search=y, ai-input=y"
       assert body =~ "Disallow: /api/"
       assert body =~ "Disallow: /docs"
       assert body =~ "Disallow: /*/module-cache"

@@ -231,7 +231,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Over cap"})
       render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
-      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "76"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "1001"})
 
       # The Save button itself is rendered as disabled, so the user can't
       # click it and the changeset's cap is never exercised silently.
@@ -253,7 +253,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Within cap"})
       render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
-      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "76"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "1001"})
       render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "75"})
 
       render_hook(lv, "save_automation", %{})
@@ -508,7 +508,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
         trigger_config: %{
           "threshold" => 10,
           "window_type" => "rolling",
-          "rolling_window_size" => 100
+          "rolling_window_size" => 1001
         }
       )
       |> Repo.update!()
@@ -540,7 +540,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
         trigger_config: %{
           "threshold" => 10,
           "window_type" => "rolling",
-          "rolling_window_size" => 100
+          "rolling_window_size" => 1001
         }
       )
       |> Repo.update!()

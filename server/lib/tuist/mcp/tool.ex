@@ -51,7 +51,13 @@ defmodule Tuist.MCP.Tool do
                               )
       @mcp_tool_resolved_output_schema ExJsonSchema.Schema.resolve(@mcp_tool_output_schema)
       @mcp_tool_title Keyword.fetch!(unquote(opts), :title)
-      @mcp_tool_read_only_hint Keyword.get(unquote(opts), :read_only_hint, true)
+      # Required rather than defaulted. A tool author who says nothing is exactly
+      # the case this cannot guess at, and guessing "read-only" hands every
+      # client that trusts the annotation a write tool wearing a safe label —
+      # the annotation is advisory in the protocol, but proxies and agent
+      # harnesses gate on it. Failing to compile puts the decision in front of
+      # the person introducing the risk, while it is still cheap to make.
+      @mcp_tool_read_only_hint Keyword.fetch!(unquote(opts), :read_only_hint)
       @mcp_tool_open_world_hint Keyword.get(unquote(opts), :open_world_hint, false)
       @mcp_tool_destructive_hint Keyword.get(unquote(opts), :destructive_hint, false)
 
@@ -272,10 +278,35 @@ defmodule Tuist.MCP.Tool do
   end
 
   defp authorize_project(assigns, project, action, category, message \\ "You do not have access to this resource.") do
-    if Authorization.authorize(authenticated_subject(assigns), action, project, category) do
+    if Authorization.authorize_request(assigns, action, project, category) do
       :ok
     else
-      {:error, message}
+      {:error, denial_message(message, project)}
     end
+  end
+
+  # A caller refused for want of an operator grant cannot act on that without
+  # knowing which account to request one for, and a tool call names a record
+  # rather than an account. Naming the owner here is what lets a client turn
+  # the refusal into a next step instead of a dead end.
+  #
+  # The shape is a contract, not prose: `Tuist.MCP.ToolTest` pins it, and
+  # Atlas parses it to build a pre-filled access request. Change the wording
+  # and that client stops recognising it — it fails closed, to a refusal with
+  # no link, but it does fail.
+  #
+  # This tells a caller who cannot read the record which account owns it. They
+  # are an authenticated Tuist user, and the handle is the name they would ask
+  # for access to by, so the disclosure is the point rather than a leak.
+  defp denial_message(message, %{account: %{name: handle}}) when is_binary(handle) do
+    ~s(#{end_sentence(message)} It belongs to the account "#{handle}".)
+  end
+
+  # An unloaded association would render as a struct rather than a handle, so
+  # say nothing rather than something wrong.
+  defp denial_message(message, _project), do: message
+
+  defp end_sentence(message) do
+    if String.ends_with?(message, [".", "!", "?"]), do: message, else: message <> "."
   end
 end
