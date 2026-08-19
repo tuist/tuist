@@ -148,6 +148,7 @@ jobs:
           local-name: tuist-xcresult-processor
           remote-names: ${{ vars.OCI_REGISTRY_HOST }}/tuist-xcresult-processor:${{ steps.image-tag.outputs.value }}
           chunk-size: "64"
+          concurrency: "4"
 
       - name: Cleanup
         if: always()

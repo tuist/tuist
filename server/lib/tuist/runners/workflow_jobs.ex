@@ -48,6 +48,38 @@ defmodule Tuist.Runners.WorkflowJobs do
   @live_statuses ~w(queued claimed running)
 
   @doc """
+  Terminal completion timestamps for `workflow_job_ids`, as
+  `%{workflow_job_id => completed_at}`.
+
+  A job appears only when its status is terminal **and** `completed_at`
+  is set. Both matter to the caller,
+  `Tuist.Runners.Workers.PodReconciliationWorker`: `completed_at` is when
+  the runner's work actually finished, which is the honest close for a
+  session whose Pod-stopped report was lost, and the status check stops a
+  stale completion from closing a session belonging to a live re-claim —
+  a retry inserts a new `runner_sessions` row per claim while this table
+  is keyed on `workflow_job_id` alone.
+
+  `cancelled` counts. It is a first-class status here where ClickHouse
+  models it as `completed` with a `cancelled` conclusion, and a cancelled
+  workflow tears its Pod down abruptly — exactly the shape that loses the
+  pod-stopped report — so excluding it would push that whole class back
+  to the billing clamp.
+  """
+  def terminal_completions([]), do: %{}
+
+  def terminal_completions(workflow_job_ids) when is_list(workflow_job_ids) do
+    from(j in WorkflowJob,
+      where:
+        j.workflow_job_id in ^workflow_job_ids and j.status in ^@terminal_statuses and
+          not is_nil(j.completed_at),
+      select: {j.workflow_job_id, j.completed_at}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
   Inserts a `queued` row for the workflow_job when none exists.
   `ON CONFLICT DO NOTHING` on the primary key plus the
   `runner_job_completions` guard make redeliveries safe: an existing

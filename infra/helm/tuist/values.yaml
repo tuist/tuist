@@ -2301,7 +2301,19 @@ ociRegistry:
         cpu: 50m
         memory: 64Mi
       limits:
-        cpu: 500m
+        # Every byte in or out of the registry crosses this daemon, so
+        # its ceiling is the registry's ceiling. Measured 2026-08-19
+        # pushing a base image from a builder: the sidecar sat pinned at
+        # 498m against the previous 500m limit while the registry
+        # container idled at 115m of its 2000m and the host node ran at
+        # 12% of 16 cores. Throughput tracked the cap exactly, 3.2 MB/s
+        # with one upload in flight and 6.3 MB/s with four, which is
+        # this daemon saturating rather than the registry, the disk or
+        # the link. Raising the cap is the only thing that moves it:
+        # TS_USERSPACE is already false, so the faster kernel-TUN path
+        # is in use and the remaining cost is WireGuard crypto in
+        # tailscaled, which parallelises across concurrent streams.
+        cpu: "2"
         memory: 256Mi
     # The cert sidecar is idle almost always: one `tailscale cert` call,
     # then a day's sleep.

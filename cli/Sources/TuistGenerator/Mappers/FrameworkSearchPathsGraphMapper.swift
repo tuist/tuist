@@ -68,19 +68,11 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         /// contribute no name here.
         let frameworkNames: Set<String>
 
-        init?(_ reference: GraphDependencyReference) {
-            guard let path = reference.precompiledPath else { return nil }
+        init(path: AbsolutePath, xcframeworkFrameworkNames: [AbsolutePath: Set<String>]) {
             self.path = path
-            switch reference {
-            case let .xcframework(_, _, infoPlist, _, _):
-                frameworkNames = Set(
-                    infoPlist.libraries
-                        .filter { $0.path.extension == "framework" }
-                        .map(\.binaryName)
-                )
-            default:
-                frameworkNames = path.extension == "framework" ? [path.basenameWithoutExt] : []
-            }
+            // Only an `.xcframework` needs the index: every other artifact is the bundle it is named after.
+            frameworkNames = xcframeworkFrameworkNames[path]
+                ?? (path.extension == "framework" ? [path.basenameWithoutExt] : [])
         }
 
         /// An artifact is the file it points at, so two references to one path stay a single artifact.
@@ -144,6 +136,8 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             }
         }
 
+        let xcframeworkFrameworkNames = xcframeworkFrameworkNames(in: graph)
+
         // Each target's search paths depend only on the (immutable) graph, so they are computed concurrently.
         // This is the dominant cost of a binary-cache generation, and it runs twice: once over the unfocused
         // source graph to derive stable cache hashes, and again after binary substitution.
@@ -153,7 +147,13 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         // effects come out the same on every run.
         let outputs = try targetInputs
             .sorted { $0.id < $1.id }
-            .map(context: .concurrent) { try targetOutput(for: $0, graphTraverser: graphTraverser) }
+            .map(context: .concurrent) {
+                try targetOutput(
+                    for: $0,
+                    graphTraverser: graphTraverser,
+                    xcframeworkFrameworkNames: xcframeworkFrameworkNames
+                )
+            }
             .compactMap { $0 }
 
         var settingsByTarget: [TargetID: [(key: String, values: [String])]] = [:]
@@ -225,20 +225,24 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
 
     private func targetOutput(
         for input: TargetInput,
-        graphTraverser: GraphTraverser
+        graphTraverser: GraphTraverser,
+        xcframeworkFrameworkNames: [AbsolutePath: Set<String>]
     ) throws -> TargetOutput? {
-        let linkableModules = try graphTraverser
-            .searchablePathDependencies(path: input.id.projectPath, name: input.id.targetName).sorted()
+        // `precompiledSearchPathDependencies` rather than `searchablePathDependencies`: the latter builds a
+        // `GraphDependencyReference` for every dependency reachable from the target, and everything below
+        // reduces those to artifact paths and SDK search paths. On a binary-cache-substituted graph that is
+        // hundreds of references per target materialized to be discarded. The two are held in agreement by
+        // `PrecompiledSearchPathsDifferentialTests`.
+        let searchPathDependencies = graphTraverser
+            .precompiledSearchPathDependencies(path: input.id.projectPath, name: input.id.targetName)
 
-        let precompiledArtifacts = Set(linkableModules.compactMap(PrecompiledArtifact.init))
-        let precompiledPaths = Set(precompiledArtifacts.map(\.searchPath))
-        let sdkPaths = Set(linkableModules.compactMap { (dependency: GraphDependencyReference) -> LinkGeneratorPath? in
-            if case let GraphDependencyReference.sdk(_, _, source, _) = dependency {
-                return source.frameworkSearchPath.map { LinkGeneratorPath.string($0) }
-            } else {
-                return nil
+        let precompiledArtifacts = Set(
+            searchPathDependencies.precompiledPaths.map {
+                PrecompiledArtifact(path: $0, xcframeworkFrameworkNames: xcframeworkFrameworkNames)
             }
-        })
+        )
+        let precompiledPaths = Set(precompiledArtifacts.map(\.searchPath))
+        let sdkPaths = Set(searchPathDependencies.sdkSearchPaths.map { LinkGeneratorPath.string($0) })
 
         guard !precompiledPaths.isEmpty || !sdkPaths.isEmpty else { return nil }
 
@@ -312,6 +316,32 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             frameworkLinkPaths: swiftSearchPaths.linkPaths,
             symbolicLinks: swiftSearchPaths.symbolicLinks
         )
+    }
+
+    /// The framework names each `.xcframework` in the graph answers to, keyed by the container's path.
+    ///
+    /// The search path inputs carry artifact paths, and an `.xcframework` container can be named anything: what
+    /// a target imports is the framework its slices carry. Reading that from the graph's dependencies once,
+    /// rather than per target, keeps this off the per-target path that `precompiledSearchPathDependencies` was
+    /// introduced to make cheap.
+    private func xcframeworkFrameworkNames(in graph: Graph) -> [AbsolutePath: Set<String>] {
+        var namesByPath: [AbsolutePath: Set<String>] = [:]
+        func index(_ dependency: GraphDependency) {
+            guard case let .xcframework(xcframework) = dependency else { return }
+            namesByPath[xcframework.path] = Set(
+                xcframework.infoPlist.libraries
+                    .filter { $0.path.extension == "framework" }
+                    .map(\.binaryName)
+            )
+        }
+        // Both sides of every edge: a leaf artifact is reachable as a value without ever being a key.
+        for (dependency, dependencies) in graph.dependencies {
+            index(dependency)
+            for dependency in dependencies {
+                index(dependency)
+            }
+        }
+        return namesByPath
     }
 
     /// Reports framework bundles that share a name on one target rather than letting the framework search
