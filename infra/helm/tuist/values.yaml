@@ -213,7 +213,9 @@ kuraController:
     # StatefulSet picks them up via envFrom on every Kura pod. Leave
     # empty if you populate the Secret out-of-band; the manifest will
     # still be created so envFrom doesn't 404, and stringData will be
-    # absent, which Kubernetes accepts.
+    # absent, which Kubernetes accepts. Example shape, never to be committed
+    # with real values:
+    #   KURA_SENTRY_DSN: "<Sentry DSN>"
     data: {}
     # Internal OAuth client shared by the Tuist server and Kura runtime
     # for Kura control-plane calls and token introspection. When enabled,
@@ -226,6 +228,25 @@ kuraController:
       # Required when kuraIntrospection.enabled is true unless
       # sharedSecrets.externalSecret.enabled is also true.
       clientSecret: ""
+    # How a Kura node verifies a token the Tuist server signed, so it can
+    # authorize from the grants the token carries instead of asking the server
+    # about every request. A node given no verification key falls back to
+    # introspection, and the short-lived cache tokens the CLI exchanges for are
+    # deliberately not resolvable as API credentials, so that fallback answers
+    # inactive and the node 401s every request carrying one. The four values
+    # have to agree with what the server's Guardian mints (see the server's
+    # `config :tuist, Tuist.Guardian`): same signing key, algorithm, issuer and
+    # audience.
+    jwtVerifier:
+      enabled: false
+      algorithm: HS512
+      issuer: tuist
+      audiences: tuist
+      # The server's token-signing key, the same value it reads as
+      # TUIST_SECRET_KEY_TOKENS. Set it inline for self-hosted installs, or
+      # leave it empty and point externalSecret.jwtSecretRemoteKey at the store
+      # entry that holds it.
+      secret: ""
     externalSecret:
       enabled: false
       refreshInterval: "1h"
@@ -236,6 +257,11 @@ kuraController:
       fields:
         introspectionClientId: KURA_CONTROL_PLANE_CLIENT_ID
         introspectionClientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
+      # Store entry holding the server's token-signing key, written as a full
+      # "<item>/<field>" because it lives with the server's own secrets rather
+      # than in `item` above. Required when jwtVerifier is enabled without an
+      # inline jwtVerifier.secret.
+      jwtSecretRemoteKey: ""
   sentry:
     externalSecret:
       enabled: false
@@ -245,11 +271,6 @@ kuraController:
         name: onepassword
       item: ""
       field: KURA_SENTRY_DSN
-    # Example shape — never commit real values here:
-    #   KURA_AUTH_JWT_ALGORITHM: HS512
-    #   KURA_AUTH_JWT_ISSUER: tuist
-    #   KURA_AUTH_JWT_SECRET: "<JWT signing secret>"
-    #   KURA_CONTROL_PLANE_CLIENT_SECRET: "<Kura OAuth introspection secret>"
 
 kuraRuntime:
   image:

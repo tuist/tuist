@@ -1893,3 +1893,96 @@ async fn a_settled_target_is_answered_while_another_is_being_consulted() {
 
     drop(consulting);
 }
+
+/// The claims Tuist's server signs when the CLI exchanges its credential for a
+/// cache token, copied from a real one: `typ` is what keeps the token from
+/// resolving as an API credential anywhere else, `sub` is a project id rather
+/// than a user id, `aud` is Guardian's default (the issuer), and the account
+/// buckets are empty because the CLI scoped the token to one project.
+fn scoped_cache_token() -> String {
+    let mut claims = Map::new();
+    claims.insert("sub".into(), json!("1"));
+    claims.insert("typ".into(), json!("cache"));
+    claims.insert("iss".into(), json!("tuist"));
+    claims.insert("aud".into(), json!("tuist"));
+    claims.insert("exp".into(), json!(4_000_000_000u64));
+    claims.insert(
+        "cache_grants".into(),
+        cache_grants_payload(&[], &[], &["acme/ios"], &["acme/ios"]),
+    );
+
+    jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(Algorithm::HS512),
+        &Value::Object(claims),
+        &jsonwebtoken::EncodingKey::from_secret(GUARDIAN_SECRET.as_bytes()),
+    )
+    .expect("failed to sign the cache token")
+}
+
+fn cache_token_request(token: &str) -> RequestContext {
+    let mut context = ctx();
+    context.tenant_id = Some("acme".into());
+    context.namespace_id = Some("ios".into());
+    context
+        .headers
+        .insert("authorization".into(), format!("Bearer {token}"));
+    context
+}
+
+// A cache token is the one credential the server cannot answer for on this
+// node's behalf: it refuses to resolve one as an API subject on purpose, so
+// introspection reports it inactive and the legacy route 401s. The verifier is
+// the only thing that reads it, which is why a node rendered without one
+// rejects every request from a CLI new enough to send one.
+#[tokio::test]
+async fn a_node_holding_no_verification_key_rejects_a_scoped_cache_token() {
+    let base = spawn_tuist_auth_mock(
+        |_headers, _payload| (StatusCode::OK, json!({ "active": false })),
+        |_| (StatusCode::UNAUTHORIZED, json!({})),
+    )
+    .await;
+    let engine = engine_introspection_only(&base);
+
+    let deny = expect_deny(
+        engine
+            .evaluate_access(&cache_token_request(&scoped_cache_token()))
+            .await,
+    );
+
+    assert_eq!(deny.status, 401);
+}
+
+// And with the key it never asks: the grants ride in the token, which is the
+// whole point of exchanging for one. The mock refuses every request so that a
+// single backend call fails the test rather than quietly answering it.
+#[tokio::test]
+async fn a_verified_scoped_cache_token_settles_without_the_backend() {
+    let base = spawn_tuist_auth_mock(
+        |_headers, _payload| (StatusCode::OK, json!({ "active": false })),
+        |_| (StatusCode::UNAUTHORIZED, json!({})),
+    )
+    .await;
+    let engine = engine(AuthConfig {
+        base_url: base,
+        connect_timeout: Duration::from_millis(500),
+        request_timeout: Duration::from_millis(5000),
+        // What the chart renders onto every node, spelled out rather than
+        // defaulted: an algorithm, issuer or audience that disagrees with the
+        // mint fails verification closed and drops the node back onto the
+        // fallback above.
+        verifier: Some(JwtVerifier {
+            algorithm: Algorithm::HS512,
+            secret: GUARDIAN_SECRET.into(),
+            issuer: Some("tuist".into()),
+            audiences: vec!["tuist".into()],
+        }),
+        introspection: Some(introspection_credentials()),
+        cache_max_entries: 1000,
+    });
+
+    let decision = engine
+        .evaluate_access(&cache_token_request(&scoped_cache_token()))
+        .await;
+
+    assert!(matches!(decision, AccessDecision::Allow));
+}

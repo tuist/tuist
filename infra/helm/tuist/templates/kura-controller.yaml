@@ -21,6 +21,40 @@
 {{- $_ := set $kuraIntrospectionSecretData "KURA_CONTROL_PLANE_CLIENT_SECRET" $kuraIntrospectionClientSecret }}
 {{- end }}
 {{- end }}
+{{- $kuraJwtVerifier := .Values.kuraController.sharedSecrets.jwtVerifier }}
+{{- $kuraJwtSecret := $kuraJwtVerifier.secret | default "" }}
+{{- $kuraJwtSecretRemoteKey := $kuraSharedSecretsExternalSecret.jwtSecretRemoteKey | default "" }}
+{{- $kuraJwtSecretFromStore := and $kuraJwtVerifier.enabled $kuraSharedSecretsExternalSecret.enabled (eq $kuraJwtSecret "") }}
+{{- if and $kuraJwtVerifier.enabled (eq $kuraJwtSecret "") (not $kuraSharedSecretsExternalSecret.enabled) }}
+{{- fail "kuraController.sharedSecrets.jwtVerifier.secret is required when jwtVerifier is enabled without sharedSecrets.externalSecret.enabled" }}
+{{- end }}
+{{- if and $kuraJwtSecretFromStore (eq $kuraJwtSecretRemoteKey "") }}
+{{- fail "kuraController.sharedSecrets.externalSecret.jwtSecretRemoteKey is required when jwtVerifier is enabled without an inline jwtVerifier.secret" }}
+{{- end }}
+{{- /* The three non-secret knobs travel with the key rather than through the
+       KuraInstance spec: they are useless apart from it, and the controller
+       already envFroms this Secret onto every Kura pod, so putting them here
+       reaches instances the chart does not author (managed regions come from
+       the server's reconciler) without teaching that reconciler about them.
+       All three are spelled out rather than left to Kura's defaults, whose
+       HS256 would disagree with the signature; an issuer or audience that
+       disagrees with the claims fails the same way, closed, dropping the node
+       back onto the fallback the verifier exists to avoid.
+
+       Each key gets one writer. The ExternalSecret is the one that refreshes,
+       so it renders the knobs whenever it is enabled and the Secret below
+       carries them only when it is not. The signing key goes the other way:
+       the store supplies it unless an install gave one inline. */}}
+{{- $kuraJwtVerifierKnobs := dict }}
+{{- if $kuraJwtVerifier.enabled }}
+{{- $_ := set $kuraJwtVerifierKnobs "KURA_AUTH_JWT_ALGORITHM" (required "kuraController.sharedSecrets.jwtVerifier.algorithm is required when jwtVerifier is enabled" $kuraJwtVerifier.algorithm) }}
+{{- $_ := set $kuraJwtVerifierKnobs "KURA_AUTH_JWT_ISSUER" (required "kuraController.sharedSecrets.jwtVerifier.issuer is required when jwtVerifier is enabled" $kuraJwtVerifier.issuer) }}
+{{- $_ := set $kuraJwtVerifierKnobs "KURA_AUTH_JWT_AUDIENCES" (required "kuraController.sharedSecrets.jwtVerifier.audiences is required when jwtVerifier is enabled" $kuraJwtVerifier.audiences) }}
+{{- end }}
+{{- $kuraJwtVerifierData := ternary dict (deepCopy $kuraJwtVerifierKnobs) $kuraSharedSecretsExternalSecret.enabled }}
+{{- if and $kuraJwtVerifier.enabled (ne $kuraJwtSecret "") }}
+{{- $_ := set $kuraJwtVerifierData "KURA_AUTH_JWT_SECRET" $kuraJwtSecret }}
+{{- end }}
 {{- $serverRoleName := printf "%s-server" $name }}
 {{- $imageTag := .Values.kuraController.image.tag }}
 {{- $tlsClusterIssuer := .Values.kuraController.tlsClusterIssuer | default .Values.kuraController.grpcClusterIssuer }}
@@ -331,7 +365,7 @@ metadata:
     {{- toYaml .Values.kuraController.sharedSecrets.annotations | nindent 4 }}
 {{- end }}
 type: Opaque
-{{- $kuraSharedSecretData := deepCopy $kuraIntrospectionSecretData }}
+{{- $kuraSharedSecretData := merge (deepCopy $kuraIntrospectionSecretData) (deepCopy $kuraJwtVerifierData) }}
 {{- range $key, $value := .Values.kuraController.sharedSecrets.data }}
 {{- $_ := set $kuraSharedSecretData $key $value }}
 {{- end }}
@@ -385,6 +419,12 @@ spec:
         KURA_CONTROL_PLANE_CLIENT_ID: "{{ `{{ .kura_introspection_client_id | trim }}` }}"
         {{- end }}
         KURA_CONTROL_PLANE_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
+        {{- range $key, $value := $kuraJwtVerifierKnobs }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- if $kuraJwtSecretFromStore }}
+        KURA_AUTH_JWT_SECRET: "{{ `{{ .kura_jwt_secret | trim }}` }}"
+        {{- end }}
   data:
     {{- if eq $kuraIntrospectionClientId "" }}
     - secretKey: kura_introspection_client_id
@@ -394,6 +434,11 @@ spec:
     - secretKey: kura_introspection_client_secret
       remoteRef:
         key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" $kuraSharedSecretsExternalSecret.item }}/{{ $kuraSharedSecretsExternalSecret.fields.introspectionClientSecret | default "KURA_CONTROL_PLANE_CLIENT_SECRET" }}"
+    {{- if $kuraJwtSecretFromStore }}
+    - secretKey: kura_jwt_secret
+      remoteRef:
+        key: {{ $kuraJwtSecretRemoteKey | quote }}
+    {{- end }}
 {{- if and .Values.server.enabled $kuraIntrospection.enabled (ne $namespace .Release.Namespace) }}
 ---
 apiVersion: external-secrets.io/v1
