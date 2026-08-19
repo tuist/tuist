@@ -1,0 +1,165 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-cache">
+    <%!-- Hero card: left-aligned on the 1200px frame (Figma: 112px above the
+    title, 8px left inset, 64px right/bottom, 32px gaps). The background
+    lollipop chart (COLD row, CACHED staircase, entrance animation, and the
+    pointer-repel springs) is drawn entirely by the CacheHeroChart canvas
+    hook; phx-update="ignore" keeps LiveView away from its client state. --%>
+    <header data-part="header">
+      <div
+        data-part="illustration"
+        aria-hidden="true"
+        id="marketing-cache-hero-chart"
+        phx-hook="CacheHeroChart"
+        phx-update="ignore"
+        data-columns={@hero_column_count}
+      >
+        <canvas data-part="canvas"></canvas>
+      </div>
+      <h1 data-part="title">
+        <span data-part="line">{dgettext("marketing", "Never build the")}</span>
+        <span data-part="line">{dgettext("marketing", "same thing twice.")}</span>
+      </h1>
+      <p data-part="subtitle">
+        {dgettext(
+          "marketing",
+          "Share build artifacts across your team and CI, so no one waits on code that's already compiled."
+        )}
+      </p>
+      <.button
+        href={
+          TuistWeb.Marketing.MarketingHTML.localized_href(
+            "https://tuist.dev/en/docs/guides/features/cache"
+          )
+        }
+        variant="secondary"
+        label={dgettext("marketing", "Read docs")}
+      />
+    </header>
+
+    <section data-part="features" aria-labelledby="cache-features-title">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Features")}</span>
+        <h2 data-part="title" id="cache-features-title">
+          {dgettext("marketing", "Everything you'd want from a cache")}
+        </h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "Fast everywhere, with near-zero overhead and built-in observability into cache performance."
+          )}
+        </p>
+      </div>
+      <%!-- 2x2 feature grid divided by hairlines. Each cell's figure is an
+      illustration placeholder that reserves the artwork's slot until the
+      real illustrations land. --%>
+      <div data-part="grid">
+        <div data-part="cell">
+          <figure data-part="illustration" aria-hidden="true"></figure>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Minimal overhead")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Cache lookups stay lightweight, so every build can check for reusable artifacts without introducing extra build cost."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="cell">
+          <figure data-part="illustration" aria-hidden="true"></figure>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Low latency, everywhere")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Artifacts are served from the region closest to your developers, CI, and agent environments for fast access wherever builds run."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="cell">
+          <figure data-part="illustration" aria-hidden="true"></figure>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Built-in observability")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "See cache hits, misses, and build performance so you can understand what's being reused and where builds can improve."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="cell">
+          <figure data-part="illustration" aria-hidden="true"></figure>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Built for your build system")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Accelerate builds with caching designed around how your projects actually compile."
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <%!-- CTA framed by dithered divider bands, same recipe as the home
+    page's closing CTA. --%>
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="cache-cta-divider-top-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="22.1"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+
+    <section data-part="cta" aria-labelledby="cta-title">
+      <span data-part="eyebrow">{dgettext("marketing", "What are you waiting for?")}</span>
+      <h2 id="cta-title">{dgettext("marketing", "Supercharge your app development")}</h2>
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+      </nav>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="cache-cta-divider-bottom-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="29.6"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

@@ -10,6 +10,7 @@ import { AgentPrompt } from "./hooks/agent-prompt.js";
 import InfiniteScrollLogos from "./hooks/infinite-scroll-logos.js";
 import { LogoTransition } from "./hooks/logo-transition.js";
 import { CacheChart } from "./hooks/cache-chart.js";
+import { CacheHeroChart } from "./hooks/cache-hero-chart.js";
 import { CounterAnimation } from "./hooks/counter-animation.js";
 import { PlatformBackground } from "./hooks/platform-background.js";
 import { DitherTexture } from "./hooks/dither-texture.js";
@@ -52,6 +53,7 @@ const Hooks = {
   InfiniteScrollLogos,
   LogoTransition,
   CacheChart,
+  CacheHeroChart,
   CounterAnimation,
   BlogViewPreference,
 };
