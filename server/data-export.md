@@ -15,6 +15,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 
 ### Account & User Data
 - User profiles (email, active/inactive status, account settings, preferred locale)
+- User account lifecycle timestamps (`users` table): `last_sign_in_at`, the moment the user most recently authenticated by any means, recorded on session sign-in, application programming interface token use, and remember-me resumption, and written at most once every twelve hours per user; and `disabled_at`, the moment the account was suspended, which is set only for suspended accounts and is what the inactivity control measures its retirement window from. Both are exportable and are retained for the life of the account.
 - Organization records (account handle/name, creator relationship, and timestamps)
 - Organization memberships and roles (user, organization, role, and timestamps)
 - Account billing information and subscriptions
@@ -116,6 +117,23 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Current test case state** (`test_case_current_states` table): AggregatingMergeTree keyed on (`project_id`, `test_case_id`) holding `argMaxIf` aggregate states for `state` (`enabled`/`muted`/`skipped`) and `is_flaky`. Derived data: it is the pre-aggregated read form of `test_case_states`, maintained by the `test_case_current_states_mv` materialized view off that ledger, and contains no information not already in `test_case_states` (and transitively `test_case_events`). The current value of each column is the latest non-null one; a test case with no row here is enabled and not flagged. Retention and export behavior match the source ledger.
 - **Test case events** (`test_case_events` table): Audit log of state changes on a test case — `first_run`, `marked_flaky`/`unmarked_flaky`, `muted`/`unmuted`, `skipped`/`unskipped`. Each row records the `test_case_id`, the `project_id` (denormalized from `test_cases` so the state projection can be scoped per project), the `event_type`, the `inserted_at` timestamp, and attribution columns: `actor_id` (the account that performed the change when initiated by a user; null for system/automation writes) and `alert_id` (the `automation_alerts.id` whose action produced the change; null otherwise). Powers the test case history timeline and is the source of truth for test case state.
 - Build performance metrics
+
+### Operational Telemetry (logs)
+
+Application logs are shipped off the originating host to a third-party
+telemetry platform and are retained there for thirty days, after which they are
+deleted by the platform's retention policy. They are operational records rather
+than account records, so they are not part of the standard export; they can be
+searched and extracted on request for the retention window while they exist.
+
+Each request record carries the acting account handle, the selected account and
+project where one is in scope, the request method, path, response status and
+duration, a correlation identifier, and the originating client network address.
+The network address is recorded so that authentication failures, which carry no
+account, can be attributed to a source at all; it is the only personal data in
+these records beyond the account handle. Sign-in attempts additionally carry an
+explicit outcome. Logs deliberately exclude credentials, tokens, and request
+bodies.
 
 ### Non-Exportable Data
 - Encrypted passwords and authentication secrets
