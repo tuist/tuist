@@ -1,0 +1,239 @@
+name: Orphan Drift
+
+# Weekly report of live Kubernetes objects that no chart on main renders and
+# no controller owns.
+#
+# Three orphans were found by hand on 2026-08-18/19 (tuist/tuist#12442,
+# tuist/tuist#12467, and the kuragateways CRD left behind by
+# tuist/tuist#11644). Each was invisible to every signal we had -- no alert,
+# no dashboard, and `helm list` reported healthy releases throughout -- and
+# each was noticed only because a person went looking. They share one
+# signature, and nothing looked for it. This does.
+#
+# Why a workflow and not a CronJob in the chart, the way released-pv-reaper
+# and tailscale-device-reaper are built: the left-hand side of the comparison
+# is "what does main render", which needs the repository, helm, and network
+# access to pull subchart dependencies. A CronJob shipped inside the tuist
+# chart would only ever know its own chart's render, at whatever commit last
+# deployed -- not platform's, pomerium's, or the four production-only charts,
+# and not main. Cluster access is the easier half to move: the same per-env
+# kubeconfig the deploy uses already exists in 1Password.
+#
+# Report only. It never deletes: two of the three known cases needed a human
+# decision about whether the data behind them mattered.
+#
+# Required secrets:
+#   OP_SERVICE_ACCOUNT_TOKEN (per GitHub Environment server-k8s-<env>) --
+#     read-only on the tuist-k8s-<env> vault, where the cluster kubeconfig
+#     is stored as the Document `kubeconfig: tuist-<env>`. Same secret the
+#     deploy and the CNPG restore drill use.
+#   CACHE_OP_SERVICE_ACCOUNT_TOKEN (repository) -- reads the Slack webhook,
+#     same as notify-failure.yml.
+
+on:
+  schedule:
+    - cron: "0 7 * * 1" # Mondays 07:00 UTC, after the CNPG restore drill
+  workflow_dispatch:
+    inputs:
+      min_age_hours:
+        description: Ignore objects younger than this many hours
+        required: false
+        default: "24"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - infra/orphan-drift/**
+      - infra/mise/tasks/k8s/orphan-drift-check.sh
+      - .github/workflows/orphan-drift.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: orphan-drift-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  MISE_GITHUB_SLSA: false
+
+jobs:
+  # On a pull request there are no cluster credentials, so the check cannot
+  # run. What can be validated is everything that breaks silently the rest of
+  # the time: that every chart named in releases.txt still renders, and that
+  # every allowlist rule still parses and carries a reason.
+  validate:
+    name: Validate config
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "--locked helm jq yq"
+          cache: "false"
+      - name: Every allowlist rule has three columns and a reason
+        run: |
+          set -euo pipefail
+          exit_status=0
+          line_number=0
+          while IFS= read -r line; do
+            line_number=$((line_number + 1))
+            rule="${line%%#*}"
+            [ -n "${rule// }" ] || continue
+            columns=$(printf '%s\n' "$rule" | awk '{print NF}')
+            if [ "$columns" -ne 3 ]; then
+              echo "::error file=infra/orphan-drift/allowlist.txt,line=$line_number::expected 3 columns, found $columns"
+              exit_status=1
+            fi
+            case "$line" in
+              *"#"*) ;;
+              *)
+                echo "::error file=infra/orphan-drift/allowlist.txt,line=$line_number::allowlist rule has no reason comment"
+                exit_status=1
+                ;;
+            esac
+          done < infra/orphan-drift/allowlist.txt
+          exit $exit_status
+      - name: Every release in releases.txt renders
+        # The check subtracts the rendered set from the live set, so a chart
+        # that stops rendering does not fail loudly -- it quietly reports
+        # every object it owns as an orphan. Catch that here, on the pull
+        # request that causes it, rather than in a Monday Slack message.
+        run: RENDER_ONLY=1 mise -C infra run k8s:orphan-drift-check all
+
+  check:
+    name: Check ${{ matrix.environment }}
+    if: github.event_name != 'pull_request'
+    runs-on: tuist-linux
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [staging, canary, production]
+    environment:
+      name: server-k8s-${{ matrix.environment }}
+    timeout-minutes: 20
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      MIN_AGE_HOURS: ${{ inputs.min_age_hours || '24' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "--locked helm kubectl jq yq"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ matrix.environment }}" \
+            --vault "tuist-k8s-${{ matrix.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Report candidate orphans
+        env:
+          JSON_OUT: ${{ runner.temp }}/orphans-${{ matrix.environment }}.json
+        run: mise -C infra run k8s:orphan-drift-check ${{ matrix.environment }}
+      - name: Write job summary
+        if: always()
+        env:
+          JSON_PATH: ${{ runner.temp }}/orphans-${{ matrix.environment }}.json
+        run: |
+          set -euo pipefail
+          {
+            echo "## ${{ matrix.environment }}"
+            echo
+            if [ ! -s "$JSON_PATH" ]; then
+              echo "The check did not complete. See the job log."
+            elif [ "$(jq 'length' < "$JSON_PATH")" -eq 0 ]; then
+              echo "No candidate orphans."
+            else
+              echo "| Kind | Namespace | Name | Age |"
+              echo "| --- | --- | --- | --- |"
+              jq -r '.[] | "| \(.groupKind) | \(if .namespace == "" then "_cluster_" else .namespace end) | \(.name) | \(.ageDays)d |"' \
+                < "$JSON_PATH"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: orphans-${{ matrix.environment }}
+          path: ${{ runner.temp }}/orphans-${{ matrix.environment }}.json
+          if-no-files-found: ignore
+          retention-days: 90
+
+  report:
+    name: Report to Slack
+    needs: [check]
+    if: always() && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: orphans-*
+          path: findings
+          merge-multiple: false
+      - uses: 1password/install-cli-action@v2
+      - name: Load Slack webhook from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          SLACK_WEBHOOK_URL=$(op read 'op://cache/SLACK_WEBHOOK_URL/password')
+          echo "::add-mask::$SLACK_WEBHOOK_URL"
+          echo "SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL" >> "$GITHUB_ENV"
+      - name: Build Slack payload
+        # Posted every week, findings or not. A report that only speaks up
+        # when something is wrong cannot be told apart from one that has
+        # stopped running -- which is how released-pv-reaper has sat in
+        # dryRun in every environment since it shipped, with nobody noticing
+        # that nobody was reading it. The weekly line is the heartbeat.
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CHECK_RESULT: ${{ needs.check.result }}
+        run: |
+          set -euo pipefail
+          summary=""
+          total=0
+          for environment in staging canary production; do
+            file="findings/orphans-$environment/orphans-$environment.json"
+            if [ ! -s "$file" ]; then
+              summary="${summary}\n• *${environment}*: check did not complete"
+              continue
+            fi
+            count=$(jq 'length' < "$file")
+            total=$((total + count))
+            if [ "$count" -eq 0 ]; then
+              summary="${summary}\n• *${environment}*: clean"
+            else
+              lines=$(jq -r '.[] | "    ‣ \(.groupKind) \(if .namespace == "" then "" else .namespace + "/" end)\(.name) (\(.ageDays)d)"' < "$file")
+              summary="${summary}\n• *${environment}*: ${count} candidate orphan(s)\n${lines}"
+            fi
+          done
+          if [ "$total" -eq 0 ] && [ "$CHECK_RESULT" = "success" ]; then
+            heading=":white_check_mark: <${RUN_URL}|Orphan drift check>: no candidate orphans in any environment."
+          else
+            heading=":mag: <${RUN_URL}|Orphan drift check>: ${total} candidate orphan(s). Live objects no chart on main renders and no controller owns -- triage before deleting."
+          fi
+          jq -n --arg text "$(printf '%b' "${heading}${summary}")" '{text: $text}' \
+            > "$RUNNER_TEMP/slack-payload.json"
+      - uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload-file-path: ${{ runner.temp }}/slack-payload.json
+      - name: Fail if a check job did not complete
+        # Findings themselves are not a failure -- they are the product. A
+        # job that could not run is, and it routes through notify-failure.yml.
+        if: needs.check.result != 'success'
+        run: |
+          echo "::error::one or more environment checks did not complete"
+          exit 1

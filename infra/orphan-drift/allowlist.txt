@@ -1,0 +1,148 @@
+# Allowlist for the orphan drift check.
+#
+# Columns, whitespace-separated, `#` starts a comment:
+#   <group>/<Kind>   <namespace>   <name>
+#
+# `core` is the core API group. `-` in the namespace column means
+# cluster-scoped. `*` is the only wildcard and matches any run of characters;
+# everything else is literal.
+#
+# Every rule carries a reason. A rule without one is indistinguishable from
+# the orphan it is hiding, and this file is the only place a reader can tell
+# "nothing installs this any more" apart from "something we do not render
+# installs this on purpose".
+#
+# Rules are deliberately narrow. Widening one to cover a whole API group or a
+# whole namespace is how the check goes quiet: the three orphans it exists to
+# find were all a single object inside a namespace full of legitimate ones.
+
+# --- Kubernetes itself ---------------------------------------------------
+# Created by the apiserver / kubeadm, not by anything we install.
+core/Namespace                                 -             default                    # kubeadm
+core/Namespace                                 -             kube-system                # kubeadm
+core/Namespace                                 -             kube-public                # kubeadm
+core/Namespace                                 -             kube-node-lease            # kubeadm
+core/Service                                   default       kubernetes                 # apiserver's own endpoint
+
+# --- Namespaces Helm creates but does not track --------------------------
+# `helm upgrade --install --create-namespace` creates the namespace outside
+# the release, so it is in no rendered manifest and never will be. Deleting
+# the release leaves it behind by design.
+core/Namespace                                 -             tuist                      # --create-namespace (server-deployment.yml)
+core/Namespace                                 -             tuist-staging              # --create-namespace (server-deployment.yml)
+core/Namespace                                 -             tuist-canary               # --create-namespace (server-deployment.yml)
+core/Namespace                                 -             observability              # --create-namespace (k8s-monitoring)
+core/Namespace                                 -             platform                   # created by k8s:install-platform before the chart
+core/Namespace                                 -             tailscale-operator         # --create-namespace (tailscale-operator)
+core/Namespace                                 -             pomerium                   # --create-namespace (pomerium-deployment.yml)
+core/Namespace                                 -             slack                      # --create-namespace (slack-deployment.yml)
+core/Namespace                                 -             noora                      # --create-namespace (noora-storybook-deployment.yml)
+core/Namespace                                 -             typesense                  # --create-namespace (typesense-deployment.yml)
+core/Namespace                                 -             tuist-ops                  # --create-namespace (tuist-ops-deployment.yml)
+
+# --- Workload cluster bootstrap ------------------------------------------
+# infra/k8s/mgmt/bootstrap/ installs these once at cluster onboarding via
+# Helm releases this check does not render (Cilium, HCCM, hcloud-csi, ESO's
+# ClusterSecretStore). They are re-applied by their own workflows
+# (hccm-deployment.yml, csi-deployment.yml), not by a chart on main.
+apiextensions.k8s.io/CustomResourceDefinition  -             *.cilium.io                # Cilium CNI (bootstrap)
+core/Namespace                                 -             cilium-secrets             # Cilium CNI (bootstrap)
+apps/Deployment                                kube-system   cilium-operator            # Cilium CNI (bootstrap)
+core/Service                                   kube-system   cilium-envoy               # Cilium CNI (bootstrap)
+core/Service                                   kube-system   hubble-*                   # Cilium Hubble (bootstrap)
+apps/Deployment                                kube-system   hubble-relay               # Cilium Hubble (bootstrap)
+apps/Deployment                                kube-system   coredns                    # kubeadm cluster DNS
+core/Service                                   kube-system   kube-dns                   # kubeadm cluster DNS
+apps/Deployment                                kube-system   hcloud-cloud-controller-manager  # HCCM (hccm-deployment.yml)
+apps/Deployment                                kube-system   hcloud-csi-controller      # hcloud-csi (csi-deployment.yml)
+apiextensions.k8s.io/CustomResourceDefinition  -             volumesnapshot*.snapshot.storage.k8s.io  # hcloud-csi external-snapshotter
+core/Namespace                                 -             onepassword                # ESO ClusterSecretStore (bootstrap)
+core/Namespace                                 -             local-path-storage          # k3s/local-path provisioner (bootstrap)
+
+# --- Cluster API ---------------------------------------------------------
+# clusterctl installs the CAPI core, bootstrap and control-plane providers
+# into the workload cluster (see infra/k8s/onboarding.md); no chart renders
+# them.
+#
+# Note what is NOT here: `*.infrastructure.cluster.x-k8s.io`. That group is
+# ours -- its CRDs ship in infra/helm/tuist/crds/ and the deploy applies them
+# -- so a CRD in it that main does not render is a real finding, and blanket-
+# allowlisting the group would hide exactly the case this check is for. The
+# CAPI core group is enumerated by name for the same reason.
+apiextensions.k8s.io/CustomResourceDefinition  -             *.addons.cluster.x-k8s.io        # CAPI (clusterctl)
+apiextensions.k8s.io/CustomResourceDefinition  -             *.bootstrap.cluster.x-k8s.io     # CAPI (clusterctl)
+apiextensions.k8s.io/CustomResourceDefinition  -             *.controlplane.cluster.x-k8s.io  # CAPI (clusterctl)
+apiextensions.k8s.io/CustomResourceDefinition  -             *.ipam.cluster.x-k8s.io          # CAPI (clusterctl)
+apiextensions.k8s.io/CustomResourceDefinition  -             *.runtime.cluster.x-k8s.io       # CAPI (clusterctl)
+apiextensions.k8s.io/CustomResourceDefinition  -             *.clusterctl.cluster.x-k8s.io    # CAPI (clusterctl)
+apiextensions.k8s.io/CustomResourceDefinition  -             clusters.cluster.x-k8s.io           # CAPI core (clusterctl)
+apiextensions.k8s.io/CustomResourceDefinition  -             clusterclasses.cluster.x-k8s.io     # CAPI core (clusterctl)
+apiextensions.k8s.io/CustomResourceDefinition  -             machines.cluster.x-k8s.io           # CAPI core (clusterctl)
+apiextensions.k8s.io/CustomResourceDefinition  -             machinesets.cluster.x-k8s.io        # CAPI core (clusterctl)
+apiextensions.k8s.io/CustomResourceDefinition  -             machinepools.cluster.x-k8s.io       # CAPI core (clusterctl)
+apiextensions.k8s.io/CustomResourceDefinition  -             machinedeployments.cluster.x-k8s.io # CAPI core (clusterctl)
+apiextensions.k8s.io/CustomResourceDefinition  -             machinehealthchecks.cluster.x-k8s.io # CAPI core (clusterctl)
+apiextensions.k8s.io/CustomResourceDefinition  -             machinedrainrules.cluster.x-k8s.io   # CAPI core (clusterctl)
+core/Namespace                                 -             capi-system                          # CAPI (clusterctl)
+core/Namespace                                 -             capi-kubeadm-bootstrap-system        # CAPI (clusterctl)
+core/Namespace                                 -             capi-kubeadm-control-plane-system    # CAPI (clusterctl)
+apps/Deployment  capi-system                        capi-controller-manager                       # CAPI (clusterctl)
+apps/Deployment  capi-kubeadm-bootstrap-system      capi-kubeadm-bootstrap-controller-manager     # CAPI (clusterctl)
+apps/Deployment  capi-kubeadm-control-plane-system  capi-kubeadm-control-plane-controller-manager # CAPI (clusterctl)
+core/Service     capi-system                        capi-webhook-service                          # CAPI (clusterctl)
+core/Service     capi-kubeadm-bootstrap-system      capi-kubeadm-bootstrap-webhook-service        # CAPI (clusterctl)
+core/Service     capi-kubeadm-control-plane-system  capi-kubeadm-control-plane-webhook-service    # CAPI (clusterctl)
+
+# --- Tailscale operator proxies ------------------------------------------
+# The operator materialises a StatefulSet + Service per exposed Service /
+# Connector in its own namespace. They cannot carry an ownerReference: the
+# object they belong to lives in another namespace, and Kubernetes has no
+# cross-namespace ownership. The CAPI provider adds the ExternalName aliases
+# that point at them.
+#
+# Stale registrations in this space are already policed -- by
+# tailscale-device-reaper, which reaps the tailnet device rather than the
+# Kubernetes object. See infra/helm/tuist/templates/tailscale-device-reaper.yaml.
+core/Service      tailscale-operator  ts-*                       # tailscale-operator proxy
+apps/StatefulSet  tailscale-operator  ts-*                       # tailscale-operator proxy
+core/Service      tailscale-operator  tuist-tuist-*              # CAPI provider egress alias (ExternalName)
+
+# --- Kura per-account regional instances ---------------------------------
+# The server creates one KuraInstance per (account, region) from Postgres
+# rows, so no chart renders them and they have no owner. The kura-controller
+# then creates their peer Services in the same namespace.
+#
+# Allowed by REGION, not by namespace. The 11 orphans in tuist/tuist#12467
+# were stranded in the retired `hetzner-staging-runners` region and sat
+# alongside dozens of live instances; a `kura/*` rule would have hidden them
+# permanently. Region suffixes here are the name form of the slugs in
+# TUIST_KURA_AVAILABLE_REGIONS (values-managed-<env>.yaml) -- retiring a
+# region means deleting its line, which turns every leftover instance in it
+# into a finding on the next run.
+kura.tuist.dev/KuraInstance  kura  kura-*-scw-fr-par     # region scw-fr-par-runners
+kura.tuist.dev/KuraInstance  kura  kura-*-eu-central-1   # region eu-central
+kura.tuist.dev/KuraInstance  kura  kura-*-ca-east-1      # region ca-east (production + staging validation)
+kura.tuist.dev/KuraInstance  kura  kura-*-us-east-1      # region us-east (production)
+kura.tuist.dev/KuraInstance  kura  kura-*-us-west-1      # region us-west (production)
+# Peer Services carry no region in their name, so they are matched on shape.
+# They are reaped with their KuraInstance, which is the object worth reporting.
+core/Service  kura  kura-*-peers         # kura-controller, per KuraInstance
+core/Service  kura  kura-*-peers-public  # kura-controller, per KuraInstance
+
+# --- Workloads deployed from sibling repositories ------------------------
+# Helm releases installed into the production cluster by charts that live in
+# their own repository. This check renders nothing from those repos, so it
+# has no opinion to offer about anything inside their namespaces -- which is
+# why these rules are whole-namespace where every rule above is not.
+#
+# They are excused by name rather than by a "belongs to a live Helm release"
+# test. That test is the tempting generalisation and it is the wrong one:
+# `registry/registry-pg` (tuist/tuist#12442) had a perfectly healthy Helm
+# release too, created by a chart that only ever existed on a branch. Helm
+# state is precisely the signal that failed.
+core/Namespace   -                   once-production     # github.com/tuist/once
+apps/Deployment  once-production     *                   # github.com/tuist/once
+core/Service     once-production     *                   # github.com/tuist/once
+core/Namespace   -                   condukt-production  # github.com/tuist/condukt
+apps/Deployment  condukt-production  *                   # github.com/tuist/condukt
+core/Service     condukt-production  *                   # github.com/tuist/condukt

@@ -20,6 +20,7 @@ on:
       - Mgmt Cluster Apply
       - Noora
       - Noora Storybook Deployment
+      - Orphan Drift
       - Processor
       - Processor Deploy
       - Secret Scanning

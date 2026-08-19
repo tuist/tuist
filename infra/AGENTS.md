@@ -13,6 +13,8 @@ When editing this chart, anything gated behind `managedSecrets` must stay gated 
 
 Two grace-period garbage collectors live here, both off or in dry-run by default and both documented at length in their own templates: `released-pv-reaper` (orphaned Hetzner block volumes) and `tailscale-device-reaper` (abandoned tagged tailnet devices). The Tailscale one runs per env and each instance requires `tailscaleDeviceReaper.tags` set to that env's ACL tags — all envs share a single tailnet, and that list is what confines a reaper to its own devices. It must match the tag scope of the env's OAuth client; see §5d of [`k8s/onboarding.md`](k8s/onboarding.md).
 
+A third sweep, [`orphan-drift/`](orphan-drift/README.md), deliberately does *not* live here. It compares live cluster objects against what every chart on `main` renders, so it needs the repository and all the charts at once — not just this one, at whatever commit last deployed. It runs as a scheduled workflow instead, and reports rather than reaps.
+
 ### `helm/noora-storybook/` — standalone Noora Storybook chart
 Dedicated chart for the public `storybook.noora.tuist.dev` release. It deploys independently from the Tuist server so Noora Storybook changes do not have to share the server release boundary.
 
@@ -79,6 +81,9 @@ forwards with the token it already holds. Installed and drift-rolled by
 
 ### `registry-router/` — Cloudflare Worker for the Tuist registry path
 Routes `tuist.dev/api/registry/*` to the standalone registry frontend at `registry.tuist.dev`. The ingress hostname is an origin, not a separately advertised registry endpoint.
+
+### `orphan-drift/` — abandoned-object report
+Weekly report of live Kubernetes objects that no chart on `main` renders and no controller owns — the signature shared by the `registry-pg` CNPG cluster, the stranded `hetzner-staging-runners` KuraInstances, and the `kuragateways` CRD, none of which any dashboard, alert, or Helm state could see. Config is `releases.txt` (chart → environment wiring, which must be extended whenever a workflow starts deploying a new chart) and `allowlist.txt`. Report-only; it deletes nothing. Driven by `.github/workflows/orphan-drift.yml` and `mise -C infra run k8s:orphan-drift-check`. See [`orphan-drift/README.md`](orphan-drift/README.md).
 
 ### `cnpg/` — CloudNativePG bootstrap SQL
 SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban tables; `tuist_ops_ro` extras on top of `pg_read_all_data`). The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`; this directory holds only the operator-run SQL that can't fit in the chart.

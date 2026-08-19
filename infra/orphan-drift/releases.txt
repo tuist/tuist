@@ -1,0 +1,51 @@
+# Chart -> environment wiring for the orphan drift check.
+#
+# One row per Helm release that a deploy workflow installs into a managed
+# cluster. The check renders each row and unions the rendered object
+# identities; anything live that is missing from that union is a candidate
+# orphan. So a chart that is deployed but NOT listed here makes every object
+# it owns look orphaned.
+#
+# That is the deliberate failure direction. A missing row produces noise in a
+# report a human reads, and the noise names the chart that is missing; a
+# tolerant check that silently assumed coverage would produce the failure this
+# whole thing exists to catch. When you add a deploy workflow that installs a
+# chart, add its row here in the same PR.
+#
+# Columns, whitespace-separated:
+#   <environment>  <chart path>  <release name>  <namespace>  <values files...>
+#
+# Release name and namespace must match the `helm upgrade --install` in the
+# workflow that deploys the chart -- they are part of the rendered object
+# identity, so a mismatch here reports real objects as orphans.
+
+# --- staging -------------------------------------------------------------
+# .github/workflows/server-deployment.yml
+staging     infra/helm/tuist              tuist              tuist-staging       values-managed-common.yaml values-managed-staging.yaml
+staging     infra/helm/k8s-monitoring     k8s-monitoring     observability       values-staging.yaml
+staging     infra/helm/tailscale-operator tailscale-operator tailscale-operator  values-staging.yaml
+staging     infra/helm/platform           platform           platform            values-hetzner.yaml values-tuist-staging.yaml
+# .github/workflows/pomerium-deployment.yml
+staging     infra/helm/pomerium           pomerium-kube      pomerium            values-staging.yaml
+
+# --- canary --------------------------------------------------------------
+canary      infra/helm/tuist              tuist              tuist-canary        values-managed-common.yaml values-managed-canary.yaml
+canary      infra/helm/k8s-monitoring     k8s-monitoring     observability       values-canary.yaml
+canary      infra/helm/tailscale-operator tailscale-operator tailscale-operator  values-canary.yaml
+canary      infra/helm/platform           platform           platform            values-hetzner.yaml values-tuist-canary.yaml
+canary      infra/helm/pomerium           pomerium-kube      pomerium            values-canary.yaml
+
+# --- production ----------------------------------------------------------
+production  infra/helm/tuist              tuist              tuist               values-managed-common.yaml values-managed-production.yaml
+production  infra/helm/k8s-monitoring     k8s-monitoring     observability       values-production.yaml
+production  infra/helm/tailscale-operator tailscale-operator tailscale-operator  values-production.yaml
+production  infra/helm/platform           platform           platform            values-hetzner.yaml values-tuist.yaml
+production  infra/helm/pomerium           pomerium-kube      pomerium            values-production.yaml
+# .github/workflows/slack-deployment.yml
+production  infra/helm/slack              slack              slack               values-production.yaml
+# .github/workflows/noora-storybook-deployment.yml
+production  infra/helm/noora-storybook    noora-storybook    noora               values-production.yaml
+# .github/workflows/tuist-ops-deployment.yml
+production  infra/helm/tuist-ops          tuist-ops          tuist-ops           values-managed-production.yaml
+# .github/workflows/typesense-deployment.yml
+production  infra/helm/typesense          typesense          typesense           values-production.yaml
