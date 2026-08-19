@@ -1142,26 +1142,37 @@ at zero whenever nothing is wrong. Left at the `Alerting` default it
 would fire permanently from the moment it is created.
 
 The `cluster` scope is also load-bearing, and this rule was documented
-without it first. Only production has a clean baseline. At the time of
-writing `tuist-staging` carries 15 permanently unschedulable Pods, so the
-unscoped query fires 15 times the instant it is saved:
+without it first. When it was written the unscoped query matched 15
+permanently unschedulable Pods in `tuist-staging`, so saving it would
+have fired 15 alerts on its first evaluation. That is the failure mode
+the *Worker node pool stuck mid-rollout* rule warns about in its own
+pending-period note: a rule that cries wolf on the expected path gets
+muted, and a muted rule is worth less than no rule.
 
-- 14 in `kura`. Eleven are `kura-<account>-staging` instances stranded in
-  the retired `hetzner-staging-runners` region, whose `kura` node pool was
-  deleted with it; their Postgres rows are gone, so the row-driven
-  reconciler cannot see the orphaned `KuraInstance` CRs and they sit
-  unschedulable indefinitely. The other three belong to
-  `kgw-…-eu-central-controller`, a Deployment left behind when the
+Those 15 turned out to be orphans rather than a reason to widen the rule,
+and were cleared on 2026-08-19:
+
+- 11 `kura-<account>-staging` instances stranded in the retired
+  `hetzner-staging-runners` region, whose `kura` node pool was deleted
+  with it. Their Postgres rows were already gone, and
+  `reconcile_retired_region_servers` drives teardown from those rows, so
+  the orphaned `KuraInstance` CRs were invisible to it permanently.
+- 3 belonging to `kgw-…-eu-central-controller`, left behind when the
   per-account Kura gateway was removed in
-  [#11644](https://github.com/tuist/tuist/pull/11644).
-- 1 in `tailscale-operator`, from subnet-router Pod churn.
+  [#11644](https://github.com/tuist/tuist/pull/11644). Helm does not prune
+  CRDs, so the CRD and its CR outlived the controller that reconciled
+  them, and the CR's finalizer had to be cleared by hand because nothing
+  was left to process it.
+- 1 `tailscale-operator` subnet-router Pod, which is churn rather than a
+  stuck Pod: the operator replaces it every few minutes, so no single
+  instance survives the pending period.
 
-Those are real cruft rather than a reason to widen the rule, but they
-have to be cleared before the scope can extend past production, or the
-alert is noise from its first evaluation. This is the failure mode the
-*Worker node pool stuck mid-rollout* rule warns about in its own pending-
-period note: a rule that cries wolf on the expected path gets muted, and
-a muted rule is worth less than no rule.
+Staging is clean enough to alert on today. The scope stays at production
+because that is what the deployed rule uses, and the two should not drift;
+widening it is a deliberate follow-up rather than an oversight. Before
+doing so, confirm the subnet-router churn still never persists past 30
+minutes, because one instance did sit unschedulable for 18 consecutive
+hours in the 48 hours before the cleanup.
 
 Validate any change to this query against live data before saving it. The
 staging noise above was invisible in review and only showed up by running
