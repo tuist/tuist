@@ -26,16 +26,18 @@ name: Cilium Deployment
 #      the agent restart below can partition every node in the cluster.
 #      Each env must prove itself before the next one starts.
 #
-#   2. It explicitly restarts the agent DaemonSet. Most of what
+#   2. It explicitly restarts the agent DaemonSet, but only when the
+#      `cilium-config` ConfigMap actually changed. Most of what
 #      cilium-values.yaml controls (hubble.metrics among it) is rendered
-#      into the `cilium-config` ConfigMap, and the cilium-agent pod
-#      template carries no checksum annotation over that ConfigMap. So
-#      `helm upgrade` alone rewrites the ConfigMap and leaves every agent
-#      running its old in-memory config — the upgrade reports success and
-#      changes nothing. That silent no-op is exactly how #12401 would have
-#      failed a second time. The rollout is what makes the values real,
-#      and it is also the step with the blast radius, which is why the
-#      cascade above exists.
+#      into that ConfigMap, and the cilium-agent pod template carries no
+#      checksum annotation over it. So `helm upgrade` alone rewrites the
+#      ConfigMap and leaves every agent running its old in-memory config:
+#      the upgrade reports success and changes nothing. That silent no-op
+#      is exactly how #12401 would have failed a second time. The rollout
+#      is what makes the values real, and it is also the only step here
+#      with real blast radius, which is why it is both gated on a genuine
+#      config change and staged behind the cascade above. `helm upgrade`
+#      itself is safe and always runs.
 
 on:
   push:
@@ -43,7 +45,17 @@ on:
     paths:
       - infra/k8s/mgmt/bootstrap/cilium-values.yaml
       - .github/workflows/cilium-deployment.yml
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Which cluster to reconcile"
+        type: choice
+        default: staging
+        options: [staging, canary, production, all]
+      force_restart:
+        description: "Restart the agents even if cilium-config did not change"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -51,6 +63,12 @@ permissions:
 jobs:
   apply:
     name: Cilium (${{ matrix.environment }})
+    # A dispatch defaults to staging alone. Rolling the CNI on production
+    # should be a thing you ask for, not the default of a manual run.
+    if: >-
+      github.event_name != 'workflow_dispatch'
+      || inputs.environment == 'all'
+      || inputs.environment == matrix.environment
     strategy:
       # Sequential, ordered, and abandoned on the first failure. This is
       # the cascade: canary never starts if staging broke, production
@@ -162,6 +180,14 @@ jobs:
           fi
           echo "Endpoint matches the live release."
 
+      - name: Snapshot cilium-config before the upgrade
+        run: |
+          set -euo pipefail
+          BEFORE="$(kubectl -n kube-system get configmap cilium-config \
+            -o json | jq -S -c '.data' | sha256sum | awk '{print $1}')"
+          echo "CONFIG_BEFORE=$BEFORE" >> "$GITHUB_ENV"
+          echo "cilium-config before: $BEFORE"
+
       - name: helm upgrade --install cilium
         run: |
           set -euo pipefail
@@ -175,19 +201,52 @@ jobs:
             --set "k8sServicePort=${K8S_SERVICE_PORT}" \
             --wait --timeout 5m
 
-      - name: Restart the agent DaemonSet so ConfigMap changes take effect
-        # Unconditional and idempotent. Values that land only in
-        # `cilium-config` do not roll the pod template on their own (no
-        # checksum annotation), so without this the upgrade is a silent
-        # no-op for the most common kind of edit to this file. Restarting
-        # every time costs one rolling restart on a workflow that fires
-        # only when cilium-values.yaml actually changes.
+      - name: Restart the agent DaemonSet only if cilium-config changed
+        # Values that land only in `cilium-config` do not roll the pod
+        # template on their own (no checksum annotation over it), so
+        # without an explicit restart the upgrade is a silent no-op for
+        # the most common kind of edit to this file.
+        #
+        # Gated on the ConfigMap actually changing rather than run
+        # unconditionally, because this workflow's own path filter
+        # includes itself: editing a comment here, or dispatching it by
+        # hand, must not roll the CNI across the fleet for no reason.
+        # `helm upgrade` is the safe half and always runs; the rollout is
+        # the half with blast radius and only runs when it would change
+        # something.
+        #
+        # If the upgrade also changed the pod template, helm's --wait has
+        # already rolled the DaemonSet and this rolls it a second time.
+        # Wasteful but harmless, and rare enough not to complicate the
+        # condition for.
         run: |
           set -euo pipefail
+          AFTER="$(kubectl -n kube-system get configmap cilium-config \
+            -o json | jq -S -c '.data' | sha256sum | awk '{print $1}')"
+          echo "cilium-config after:  $AFTER"
+
+          if [ "$AFTER" = "$CONFIG_BEFORE" ] && [ "${FORCE_RESTART:-false}" != "true" ]; then
+            echo "cilium-config unchanged; agents already run this config. Skipping rollout."
+            echo "RESTARTED=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if [ "$AFTER" = "$CONFIG_BEFORE" ]; then
+            echo "cilium-config unchanged, but force_restart was requested."
+          fi
+
           kubectl -n kube-system rollout restart daemonset/cilium
           kubectl -n kube-system rollout status daemonset/cilium --timeout=15m
+          echo "RESTARTED=true" >> "$GITHUB_ENV"
+        env:
+          FORCE_RESTART: ${{ inputs.force_restart }}
 
       - name: Verify the dataplane came back
+        # Scoped to linux nodes on purpose. The chart's node affinity keeps
+        # cilium off the macOS Tart nodes, so their readiness says nothing
+        # about this rollout — and gating the cascade on them would let an
+        # unrelated Mac mini blocking on its own bootstrap fail a Cilium
+        # deploy. Only the nodes cilium actually runs on are evidence here.
         run: |
           set -euo pipefail
           kubectl -n kube-system get daemonset cilium \
@@ -197,6 +256,7 @@ jobs:
             echo "ERROR: $UNAVAILABLE cilium agents still unavailable after rollout" >&2
             exit 1
           fi
-          kubectl get nodes --no-headers | awk '$2 != "Ready" { print; bad=1 } END { exit bad+0 }' \
-            || { echo "ERROR: not every node is Ready after the Cilium rollout" >&2; exit 1; }
-          echo "All cilium agents ready and all nodes Ready."
+          kubectl get nodes -l kubernetes.io/os=linux --no-headers \
+            | awk '$2 != "Ready" { print; bad=1 } END { exit bad+0 }' \
+            || { echo "ERROR: a linux node is not Ready after the Cilium rollout" >&2; exit 1; }
+          echo "All cilium agents ready and all linux nodes Ready."
