@@ -158,6 +158,36 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert length(result["modules"]) == 1
       assert hd(result["modules"])["name"] == "AuthTests"
     end
+
+    test "filters by the ID extracted from a dashboard URL, not by the URL" do
+      test_run_id = "38338b32-3437-42e4-bc01-f048d6d3368f"
+      project = %{id: 1, name: "app"}
+
+      stub(Tests, :get_test, fn ^test_run_id -> {:ok, %{id: test_run_id, project_id: 1}} end)
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      stub(Tests, :list_test_module_runs, fn %{filters: filters} ->
+        assert %{field: :test_run_id, op: :==, value: test_run_id} in filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           total_count: 0,
+           total_pages: 0,
+           current_page: 1,
+           page_size: 20
+         }}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text"}]} =
+               ListTestModuleRuns.call(conn, %{
+                 "test_run_id" => "https://tuist.dev/acme/app/tests/test-runs/#{test_run_id}?tab=modules"
+               })
+    end
   end
 
   describe "list_test_suite_runs" do
@@ -401,6 +431,39 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
                ListTestCaseEvents.call(conn, %{"test_case_id" => "tc-1"})
 
       assert text =~ "You do not have access to this resource."
+    end
+
+    test "accepts a dashboard URL in place of the test case ID" do
+      test_case_id = "38338b32-3437-42e4-bc01-f048d6d3368f"
+      project = %{id: 1, name: "app"}
+
+      stub(Tests, :get_test_case_by_id, fn ^test_case_id ->
+        {:ok, %{id: test_case_id, project_id: 1}}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      stub(Tests, :list_test_case_events, fn ^test_case_id, _attrs ->
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               ListTestCaseEvents.call(conn, %{
+                 "test_case_id" => "https://tuist.dev/acme/app/tests/test-cases/#{test_case_id}/"
+               })
+
+      assert JSON.decode!(text)["events"] == []
     end
   end
 

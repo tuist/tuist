@@ -202,6 +202,45 @@ defmodule Tuist.MCP.Tool do
     }
   end
 
+  @doc """
+  Normalises an id argument that a caller may have pasted as a Tuist dashboard URL.
+
+  Takes the last non-empty path segment of anything that parses as an absolute URL,
+  and passes every other value through untouched so the caller's own lookup still
+  rejects it. Working on the last segment rather than per-resource routes is what
+  makes one helper cover build runs, test runs, test cases, bundles, cache runs,
+  generations and Gradle builds.
+
+  The host is deliberately not checked against `Tuist.Environment.app_url/2`. A
+  dashboard URL reaches a self-hosted instance under its own domain, and a
+  hosted one through whatever proxy or custom domain the account browses it by,
+  so a host check would reject the URLs users actually have. It buys no
+  authorization either: the extracted id is loaded and authorized exactly as a
+  bare id is, and a URL pointing anywhere else simply yields an id that is not
+  found.
+
+  This lives here rather than in the domain lookups because those are also
+  called from API controllers and LiveViews, where a URL is not a valid id.
+  """
+  def resource_id(value) when is_binary(value) do
+    case URI.parse(value) do
+      %URI{scheme: scheme, host: host, path: path} when is_binary(scheme) and is_binary(host) ->
+        path
+        |> to_string()
+        |> String.split("/", trim: true)
+        |> List.last()
+        |> case do
+          nil -> value
+          segment -> segment
+        end
+
+      _ ->
+        value
+    end
+  end
+
+  def resource_id(value), do: value
+
   @max_page_size 100
   @default_page_size 20
 
