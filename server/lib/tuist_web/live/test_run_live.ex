@@ -1506,12 +1506,17 @@ defmodule TuistWeb.TestRunLive do
 
     reported_indices = MapSet.new(reported_shards, & &1.shard_index)
 
+    # A run that has reached a terminal status is never going to hear from the
+    # shards still missing, so calling them pending reads as work in flight on
+    # a run that is already over.
+    unreported_status = if transient?(run.status), do: "pending", else: "not_reported"
+
     pending_rows =
       if expected_shard_count > 0 do
         0..(expected_shard_count - 1)
         |> Enum.reject(&MapSet.member?(reported_indices, &1))
         |> Enum.map(fn index ->
-          %{shard_index: index, actual_duration_ms: nil, status: "pending"}
+          %{shard_index: index, actual_duration_ms: nil, status: unreported_status}
         end)
       else
         []

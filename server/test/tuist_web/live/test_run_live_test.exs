@@ -624,6 +624,36 @@ defmodule TuistWeb.TestRunLiveTest do
       assert has_element?(lv, "[data-part='shards-card']")
       assert has_element?(lv, "#shard-balance-table", "Pending")
     end
+
+    test "shows shards that never reported as such once the run is over", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          status: "failure",
+          shard_plan_id: shard_plan.id,
+          shard_index: 1
+        )
+
+      stub(ShardsAnalytics, :shard_metrics, fn _ ->
+        [
+          %{shard_index: 1, actual_duration_ms: 5000, status: "failure", ran_at: NaiveDateTime.utc_now()}
+        ]
+      end)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert has_element?(lv, "#shard-balance-table", "Not reported")
+      refute has_element?(lv, "#shard-balance-table", "Pending")
+      refute has_element?(lv, "#shard-balance-table", "In Progress")
+    end
   end
 
   describe "refresh_test_run event" do

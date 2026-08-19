@@ -146,6 +146,8 @@ defmodule Tuist.Tests do
   @active_quarantine_event_types ~w(muted skipped)
   @active_quarantine_states ~w(muted skipped)
 
+  @terminal_shard_failure_statuses ~w(failed_processing failure)
+
   @doc """
   All mute-related event type names (`muted`, `unmuted`).
   """
@@ -626,7 +628,12 @@ defmodule Tuist.Tests do
     result =
       case existing do
         nil ->
-          test_status = if expected_shard_count > 1, do: "in_progress", else: shard_status
+          test_status =
+            if expected_shard_count > 1 and shard_status not in @terminal_shard_failure_statuses do
+              "in_progress"
+            else
+              shard_status
+            end
 
           attrs =
             attrs
@@ -668,12 +675,7 @@ defmodule Tuist.Tests do
           latest_statuses = latest_shard_statuses(existing_test.id)
           reported_count = Enum.count(latest_statuses, &(&1 != "processing"))
 
-          merged_status =
-            if reported_count >= expected_shard_count do
-              compute_final_shard_status(latest_statuses)
-            else
-              "in_progress"
-            end
+          merged_status = merged_shard_status(latest_statuses, reported_count, expected_shard_count)
 
           merged_duration = max(existing_test.duration, shard_duration)
 
@@ -799,6 +801,21 @@ defmodule Tuist.Tests do
         select: fragment("argMax(?, ?)", sr.status, sr.inserted_at)
       )
     )
+  end
+
+  # A shard whose report never reaches the server holds the merged run at
+  # `in_progress` until the six-hour reaper runs, so the pull request comment
+  # and the dashboard show an hourglass over a run that is already red. A
+  # failure any shard reported is terminal, so it decides the merged run
+  # without waiting for the missing reports. Only success still needs every
+  # shard to have reported.
+  defp merged_shard_status(latest_statuses, reported_count, expected_shard_count) do
+    if reported_count >= expected_shard_count or
+         Enum.any?(latest_statuses, &(&1 in @terminal_shard_failure_statuses)) do
+      compute_final_shard_status(latest_statuses)
+    else
+      "in_progress"
+    end
   end
 
   defp compute_final_shard_status(latest_statuses) do
