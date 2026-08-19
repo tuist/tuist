@@ -329,7 +329,15 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     if MapSet.size(actionable_ids) == 0 do
       :direct
     else
-      Enum.each(actionable_ids, &Holds.withdraw_claim(alert, &1))
+      Enum.each(actionable_ids, fn test_case_id ->
+        case Holds.withdraw_claim(alert, test_case_id) do
+          {:ok, _} ->
+            :ok
+
+          {:error, reason} ->
+            Logger.warning("Alert #{alert.id} claim withdrawal failed for test_case #{test_case_id}: #{inspect(reason)}")
+        end
+      end)
 
       if FeatureFlags.test_state_holds_enabled?(alert.project_id) do
         {:ok, %{changed: changed}} =
@@ -343,11 +351,14 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   end
 
   # On the derived path, `change_state` is subsumed by the claim withdrawal
-  # and the remaining actions narrate that release, so they only run when the
-  # derived state actually changed — releasing a claim shadowed by another
-  # rule must not announce a recovery. Alerts whose recovery has no
-  # `change_state` action (e.g. label-only automations) have nothing
-  # state-narrating to gate and keep running their actions unconditionally.
+  # and the state-narrating actions announce that release, so they only run
+  # when the derived state actually changed — releasing a claim shadowed by
+  # another rule must not announce a recovery. Ownership is keyed on the
+  # trigger actions: an alert owns claims iff its trigger placed them via
+  # `change_state`. Alerts that never place claims (e.g. label-only
+  # automations) keep running their recovery actions unconditionally; a
+  # claim-owning alert whose release is shadowed still runs its
+  # non-narrating label actions but never `send_slack` or `change_state`.
   defp recovery_actions_for(alert, test_case_id, actionable_ids, release) do
     cond do
       not MapSet.member?(actionable_ids, test_case_id) ->
@@ -356,7 +367,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       release == :direct ->
         alert.recovery_actions
 
-      not Enum.any?(alert.recovery_actions, &change_state_action?/1) ->
+      not claim_owning?(alert) ->
         alert.recovery_actions
 
       true ->
@@ -365,13 +376,18 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
         if MapSet.member?(changed, test_case_id) do
           Enum.reject(alert.recovery_actions, &change_state_action?/1)
         else
-          []
+          Enum.filter(alert.recovery_actions, &non_narrating_action?/1)
         end
     end
   end
 
+  defp claim_owning?(alert), do: Enum.any?(alert.trigger_actions, &change_state_action?/1)
+
   defp change_state_action?(%{"type" => "change_state"}), do: true
   defp change_state_action?(_action), do: false
+
+  defp non_narrating_action?(%{"type" => type}), do: type in ["add_label", "remove_label"]
+  defp non_narrating_action?(_action), do: false
 
   # A scoped evaluation only re-checked `scoped_test_case_ids`, so a triggered
   # test case outside that set wasn't measured this tick — leave its event

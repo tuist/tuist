@@ -1,5 +1,6 @@
 defmodule Tuist.Automations.HoldsTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.Automations.Holds
   alias Tuist.IngestRepo
@@ -38,7 +39,7 @@ defmodule Tuist.Automations.HoldsTest do
 
     test "a claim with expiry fields reads them back" do
       project = ProjectsFixtures.project_fixture()
-      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      alert = AutomationsFixtures.manual_automation_alert_fixture(project: project)
       test_case_id = Ecto.UUID.generate()
       expires_at = DateTime.add(DateTime.utc_now(), 7, :day)
 
@@ -337,6 +338,27 @@ defmodule Tuist.Automations.HoldsTest do
       assert [event] = events
       assert event.event_type == "skipped"
     end
+
+    test "reports a test case whose state write errored as failed, excluded from unchanged_count" do
+      project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      test_case_id = Ecto.UUID.generate()
+
+      {:ok, _} = Holds.place_claim(alert, test_case_id, %{state: "skipped"})
+
+      expect(Tests, :update_test_case, fn ^test_case_id, %{state: "skipped"}, _opts ->
+        {:error, :not_found}
+      end)
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert {:ok, %{changed: [], failed: [^test_case_id], unchanged_count: 0}} =
+                   Holds.derive_and_apply(project.id, [test_case_id], alert_id: alert.id)
+        end)
+
+      assert log =~ test_case_id
+      assert log =~ "not_found"
+    end
   end
 
   describe "changeset validation" do
@@ -351,11 +373,20 @@ defmodule Tuist.Automations.HoldsTest do
       assert "is invalid" in errors_on(changeset).state
     end
 
-    test "rejects an enabled claim without an actor", %{alert: alert, test_case_id: test_case_id} do
-      assert {:error, changeset} = Holds.place_claim(alert, test_case_id, %{state: "enabled"})
+    test "rejects an enabled claim without an actor", %{test_case_id: test_case_id} do
+      manual = AutomationsFixtures.manual_automation_alert_fixture()
+
+      assert {:error, changeset} = Holds.place_claim(manual, test_case_id, %{state: "enabled"})
       assert "enabled claims require an actor" in errors_on(changeset).state
 
-      assert {:ok, _} = Holds.place_claim(alert, test_case_id, %{state: "enabled", actor_id: 42})
+      assert {:ok, _} = Holds.place_claim(manual, test_case_id, %{state: "enabled", actor_id: 42})
+    end
+
+    test "rejects human-tier claims placed through a standard alert", %{alert: alert, test_case_id: test_case_id} do
+      assert {:error, :manual_alert_required} =
+               Holds.place_claim(alert, test_case_id, %{state: "muted", actor_id: 42})
+
+      assert {:error, :manual_alert_required} = Holds.place_claim(alert, test_case_id, %{state: "enabled"})
     end
 
     test "rejects an invalid expiry kind", %{alert: alert, test_case_id: test_case_id} do

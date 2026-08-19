@@ -14,11 +14,12 @@ defmodule Tuist.Automations.ActionExecutor do
   them sequentially could revert earlier writes when the read had not yet
   observed them.
 
-  `change_state` always records a claim in the holds ledger. With the
-  `test_state_holds` flag off, the state is still direct-written exactly as
-  before (passive dual-write); with it on, the claim plus
-  `Holds.derive_and_apply/3` is the state write, and notification actions
-  run only when the derived state actually changed.
+  `change_state` always records the rule's position in the holds ledger: a
+  claim for degraded states, a withdraw for `enabled` (rules cannot hold a
+  test enabled). With the `test_state_holds` flag off, the state is still
+  direct-written exactly as before (passive dual-write); with it on, the
+  ledger write plus `Holds.derive_and_apply/3` is the state write, and
+  notification actions run only when the derived state actually changed.
   """
   alias Tuist.Automations.Actions.SendSlackAction
   alias Tuist.Automations.Holds
@@ -90,7 +91,7 @@ defmodule Tuist.Automations.ActionExecutor do
         direct_write_with_state(entity, state, direct_attrs, automation)
 
       FeatureFlags.test_state_holds_enabled?(project_id) ->
-        with :ok <- place_state_claim(automation, entity, state),
+        with :ok <- record_state_position(automation, entity, state),
              :ok <- update_test_case_attrs(entity, direct_attrs, automation),
              {:ok, %{changed: changed}} <-
                Holds.derive_and_apply(project_id, [entity.id], alert_id: alert_id) do
@@ -98,9 +99,9 @@ defmodule Tuist.Automations.ActionExecutor do
         end
 
       true ->
-        # Passive dual-write: the claim is recorded but must never change
-        # the direct-write behavior, so its failure only logs.
-        _ = place_state_claim(automation, entity, state)
+        # Passive dual-write: the ledger row is recorded but must never
+        # change the direct-write behavior, so its failure only logs.
+        _ = record_state_position(automation, entity, state)
         direct_write_with_state(entity, state, direct_attrs, automation)
     end
   end
@@ -111,16 +112,27 @@ defmodule Tuist.Automations.ActionExecutor do
     end
   end
 
-  defp place_state_claim(automation, entity, state) do
-    case Holds.place_claim(automation, entity.id, %{state: state}) do
-      {:ok, _} ->
-        :ok
+  # A rule cannot hold a test `enabled` (only the Manual tier can); its
+  # `enabled` position is the absence of a claim, recorded as a withdraw. On
+  # the derived path the state may then stay held by other claims.
+  defp record_state_position(automation, entity, "enabled") do
+    automation
+    |> Holds.withdraw_claim(entity.id)
+    |> log_state_position_result(entity)
+  end
 
-      {:error, reason} ->
-        Logger.warning("Automation state claim placement failed for #{entity.type} #{entity.id}: #{inspect(reason)}")
+  defp record_state_position(automation, entity, state) do
+    automation
+    |> Holds.place_claim(entity.id, %{state: state})
+    |> log_state_position_result(entity)
+  end
 
-        {:error, reason}
-    end
+  defp log_state_position_result({:ok, _}, _entity), do: :ok
+
+  defp log_state_position_result({:error, reason}, entity) do
+    Logger.warning("Automation state claim recording failed for #{entity.type} #{entity.id}: #{inspect(reason)}")
+
+    {:error, reason}
   end
 
   defp update_test_case_attrs(_entity, attrs, _automation) when map_size(attrs) == 0, do: :ok

@@ -361,6 +361,55 @@ defmodule Tuist.Automations.ActionExecutorTest do
       assert claim.state == "skipped"
       assert Tests.get_test_case_states(project.id, [test_case.id])[test_case.id].state == "skipped"
     end
+
+    test "flag off: change_state enabled direct-writes and withdraws the owner's claim", %{
+      project: project,
+      alert: alert
+    } do
+      stub(FeatureFlags, :test_state_holds_enabled?, fn _ -> false end)
+      test_case = insert_test_case_in(project, state: "muted")
+      {:ok, _} = Holds.place_claim(alert, test_case.id, %{state: "muted"})
+
+      assert :ok =
+               ActionExecutor.execute_actions(
+                 [%{"type" => "change_state", "state" => "enabled"}],
+                 alert,
+                 %{type: :test_case, id: test_case.id}
+               )
+
+      assert {:ok, %{state: "enabled"}} = Tests.get_test_case_by_id(test_case.id)
+      assert "unmuted" in event_types(test_case.id)
+      assert Holds.live_claims_for_alert(alert) == []
+    end
+
+    test "flag on: change_state enabled withdraws the claim; another rule's claim keeps the state and suppresses slack",
+         %{project: project, alert: alert} do
+      stub(FeatureFlags, :test_state_holds_enabled?, fn _ -> true end)
+      reject(&SendSlackAction.execute/3)
+      test_case = insert_test_case_in(project, state: "enabled")
+      other_alert = AutomationsFixtures.automation_alert_fixture(project: project)
+
+      {:ok, _} = Holds.place_claim(alert, test_case.id, %{state: "skipped"})
+      {:ok, _} = Holds.place_claim(other_alert, test_case.id, %{state: "skipped"})
+      {:ok, _} = Holds.derive_and_apply(project.id, [test_case.id], alert_id: alert.id)
+
+      assert :ok =
+               ActionExecutor.execute_actions(
+                 [
+                   %{"type" => "change_state", "state" => "enabled"},
+                   %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
+                 ],
+                 alert,
+                 %{type: :test_case, id: test_case.id}
+               )
+
+      assert Holds.live_claims_for_alert(alert) == []
+      assert [claim] = Holds.current_claims(project.id, [test_case.id])[test_case.id]
+      assert claim.alert_id == other_alert.id
+
+      assert Tests.get_test_case_states(project.id, [test_case.id])[test_case.id].state == "skipped"
+      assert event_types(test_case.id) == ["skipped"]
+    end
   end
 
   test "silently skips unknown action types without touching the row" do

@@ -181,7 +181,9 @@ defmodule Tuist.Automations do
   Tombstone-first: the alert is disabled before the release sweep so
   evaluation stops picking it up and no new claims land mid-release. The
   claims ledger has no FK to `automation_alerts`, so a crash mid-sweep
-  leaves orphaned claims for the reconciliation fold to treat as withdrawn.
+  leaves orphaned claims that keep influencing derivation; the backstop that
+  treats orphans as withdrawn is deferred to the reconciliation work in a
+  later change.
 
   Note this contrasts with merely disabling an alert, which leaves its
   claims untouched (a paused rule must not un-quarantine its tests).
@@ -204,7 +206,15 @@ defmodule Tuist.Automations do
     |> Enum.map(& &1.test_case_id)
     |> Enum.chunk_every(@claim_release_chunk_size)
     |> Enum.each(fn test_case_ids ->
-      Enum.each(test_case_ids, &Holds.withdraw_claim(alert, &1))
+      Enum.each(test_case_ids, fn test_case_id ->
+        case Holds.withdraw_claim(alert, test_case_id) do
+          {:ok, _} ->
+            :ok
+
+          {:error, reason} ->
+            Logger.warning("Alert #{alert.id} claim withdrawal failed for test_case #{test_case_id}: #{inspect(reason)}")
+        end
+      end)
 
       if holds_enabled? do
         {:ok, _} = Holds.derive_and_apply(alert.project_id, test_case_ids, alert_id: alert.id)

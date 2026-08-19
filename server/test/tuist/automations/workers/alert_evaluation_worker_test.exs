@@ -1241,6 +1241,68 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
       assert :ok = run(alert.id)
     end
+
+    test "flag on: a slack-only recovery of a claim-owning alert stays silent when the release is shadowed" do
+      project = ProjectsFixtures.project_fixture()
+
+      alert =
+        recovery_alert(project,
+          recovery_actions: [%{"type" => "send_slack", "channel" => "C1", "message" => "recovered"}]
+        )
+
+      other_alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      test_case_id = clickhouse_test_case(project).id
+
+      {:ok, _} = Holds.place_claim(alert, test_case_id, %{state: "skipped"})
+      {:ok, _} = Holds.place_claim(other_alert, test_case_id, %{state: "skipped"})
+      {:ok, _} = Holds.derive_and_apply(project.id, [test_case_id], alert_id: alert.id)
+
+      stub(FeatureFlags, :test_state_holds_enabled?, fn _project_id -> true end)
+      expect_recovery_candidate(test_case_id)
+
+      # The trigger owns the claim, so the slack-only recovery narrates the
+      # release and must stay silent while another rule shadows it.
+      expect(ActionExecutor, :execute_actions, fn actions, _alert, %{type: :test_case, id: ^test_case_id} ->
+        assert actions == []
+        :ok
+      end)
+
+      expect(Automations, :create_alert_event, fn %{test_case_id: ^test_case_id, status: "recovered"} -> :ok end)
+
+      assert :ok = run(alert.id)
+
+      assert Holds.live_claims_for_alert(alert) == []
+      assert Tests.get_test_case_states(project.id, [test_case_id])[test_case_id].state == "skipped"
+    end
+
+    test "flag on: a slack-only recovery of a claim-owning alert announces when its release changes the state" do
+      project = ProjectsFixtures.project_fixture()
+
+      alert =
+        recovery_alert(project,
+          recovery_actions: [%{"type" => "send_slack", "channel" => "C1", "message" => "recovered"}]
+        )
+
+      test_case_id = clickhouse_test_case(project).id
+
+      {:ok, _} = Holds.place_claim(alert, test_case_id, %{state: "skipped"})
+      {:ok, _} = Holds.derive_and_apply(project.id, [test_case_id], alert_id: alert.id)
+
+      stub(FeatureFlags, :test_state_holds_enabled?, fn _project_id -> true end)
+      expect_recovery_candidate(test_case_id)
+
+      expect(ActionExecutor, :execute_actions, fn actions, _alert, %{type: :test_case, id: ^test_case_id} ->
+        assert actions == [%{"type" => "send_slack", "channel" => "C1", "message" => "recovered"}]
+        :ok
+      end)
+
+      expect(Automations, :create_alert_event, fn %{test_case_id: ^test_case_id, status: "recovered"} -> :ok end)
+
+      assert :ok = run(alert.id)
+
+      assert Holds.live_claims_for_alert(alert) == []
+      assert Tests.get_test_case_states(project.id, [test_case_id])[test_case_id].state == "enabled"
+    end
   end
 
   test "dispatches lt-comparison alerts to the metric's evaluator" do

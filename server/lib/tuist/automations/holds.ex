@@ -16,6 +16,8 @@ defmodule Tuist.Automations.Holds do
   alias Tuist.IngestRepo
   alias Tuist.Tests
 
+  require Logger
+
   @doc """
   Appends a claim row for `(alert, test_case_id)`.
 
@@ -24,9 +26,20 @@ defmodule Tuist.Automations.Holds do
   `:placed_at`, and `:inserted_at` may be provided explicitly (backfills use
   deterministic ids and historical timestamps); they default to a random UUID
   and now.
+
+  Claims carrying an `:actor_id` — and `enabled` claims, which always require
+  one — belong to the human tier and may only be placed through the
+  per-project Manual alert; a standard alert attempting one gets
+  `{:error, :manual_alert_required}`.
   """
   def place_claim(alert, test_case_id, attrs) do
-    append(alert, test_case_id, "claim", Map.new(attrs))
+    attrs = Map.new(attrs)
+
+    if (attrs[:actor_id] != nil or attrs[:state] == "enabled") and alert.kind != "manual" do
+      {:error, :manual_alert_required}
+    else
+      append(alert, test_case_id, "claim", attrs)
+    end
   end
 
   @doc """
@@ -127,30 +140,48 @@ defmodule Tuist.Automations.Holds do
   projected and nothing is emitted, so it doubles as crash repair — any
   stale projection is converged by the next invocation.
 
-  Returns `{:ok, %{changed: test_case_ids, unchanged_count: count}}`.
+  Returns `{:ok, %{changed: test_case_ids, failed: test_case_ids, unchanged_count: count}}`
+  where `failed` holds the test cases whose state write errored (excluded
+  from `unchanged_count`).
   """
   def derive_and_apply(project_id, test_case_ids, cause \\ []) do
     claims = current_claims(project_id, test_case_ids)
     projected = Tests.get_test_case_states(project_id, test_case_ids)
     update_opts = Keyword.take(cause, [:alert_id, :actor_id])
 
-    changed =
-      Enum.filter(test_case_ids, fn test_case_id ->
+    {changed, failed} =
+      Enum.reduce(test_case_ids, {[], []}, fn test_case_id, {changed, failed} ->
         derived_state = derive(Map.get(claims, test_case_id, [])).state
 
-        derived_state != projected[test_case_id].state and
-          apply_derived_state(test_case_id, derived_state, update_opts)
+        cond do
+          derived_state == projected[test_case_id].state -> {changed, failed}
+          apply_derived_state(test_case_id, derived_state, update_opts) -> {[test_case_id | changed], failed}
+          true -> {changed, [test_case_id | failed]}
+        end
       end)
 
-    {:ok, %{changed: changed, unchanged_count: length(test_case_ids) - length(changed)}}
+    changed = Enum.reverse(changed)
+    failed = Enum.reverse(failed)
+
+    {:ok,
+     %{
+       changed: changed,
+       failed: failed,
+       unchanged_count: length(test_case_ids) - length(changed) - length(failed)
+     }}
   end
 
   # A test case that no longer resolves (e.g. absent from `test_cases`) is
   # left for a later re-derivation rather than failing the whole batch.
   defp apply_derived_state(test_case_id, state, opts) do
     case Tests.update_test_case(test_case_id, %{state: state}, opts) do
-      {:ok, _} -> true
-      {:error, _} -> false
+      {:ok, _} ->
+        true
+
+      {:error, reason} ->
+        Logger.warning("Derived state application failed for test_case #{test_case_id}: #{inspect(reason)}")
+
+        false
     end
   end
 
