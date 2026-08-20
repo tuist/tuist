@@ -108,12 +108,22 @@ defmodule Tuist.Kura.RegionsTest do
 
     test "descends the storage ladder and floors it at air" do
       claims = Enum.map([:enterprise, :pro, :air], &Regions.storage_profile(&1).claim_size)
-      assert claims == ["50Gi", "30Gi", "24Gi"]
+      assert claims == ["50Gi", "30Gi", "16Gi"]
 
-      # Air is the floor, and unknown plans land on it: an instance is never
-      # sized under a 24 GiB filesystem, which is what leaves the 15 GiB ring
-      # beneath which the cache stops holding a useful working set.
+      # Air is the floor, and unknown plans land on it.
       assert Regions.storage_profile(:open_source) == Regions.storage_profile(:air)
+    end
+
+    test "keeps every claim clear of the budget cliff" do
+      # Staging takes a flat 8Gi out of every claim before the ring is sized, so
+      # a claim that is too small leaves less than the five segments Kura clamps
+      # its ring up to. `cas_capacity_bytes/1` then emits nothing and the runtime
+      # sizes its ring from the whole box instead — the failure the derivation
+      # exists to prevent. The cliff is at 12Gi; nothing may sit near it.
+      for plan <- [:enterprise, :pro, :air, :open_source] do
+        {claim_gib, "Gi"} = Integer.parse(Regions.storage_profile(plan).claim_size)
+        assert claim_gib >= 16
+      end
     end
 
     test "keeps every memory ceiling above its floor" do
