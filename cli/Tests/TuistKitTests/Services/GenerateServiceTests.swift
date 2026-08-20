@@ -638,7 +638,6 @@ struct GenerateServiceTests {
         )
         await RunMetadataStorage.current.update(cacheHashingConfiguration: configuration)
     }
-
 }
 
 /// Kept separate from `GenerateServiceTests` because combining `MockInstallServicing` and
