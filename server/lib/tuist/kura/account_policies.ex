@@ -14,16 +14,18 @@ defmodule Tuist.Kura.AccountPolicies do
   order:
 
     1. its explicit versioned assignment, if an operator made one,
-    2. the region its live instance is already in, so resolution never
-       relocates a running account (a live one; see `live_service_regions/1`
-       for why an archived instance does not hold the account to its region),
-       and
+    2. the region its live public instance is already in, so resolution never
+       relocates a running account, and
     3. United States East, the deterministic default a dormant account
        receives before its next provisioning demand.
 
   An assignment is also the only route to a region no preference derives to.
   `accounts.region` is `all | europe | usa`, so nothing resolves to United
   States West on its own; an account is opted into it per account, for latency.
+
+  Step 2 counts only live instances in public regions, and picks one when there
+  are several; `live_service_regions/1` carries the reasoning for both, and for
+  why an archive does not hold an account to its region.
 
   Step 2 is what keeps the default from being a migration. Without it an
   account already serving from elsewhere would start recording demand against
@@ -222,14 +224,28 @@ defmodule Tuist.Kura.AccountPolicies do
   defp effective_service_region(%Account{}, _plan, _lookups), do: {:error, :service_region_unavailable}
 
   # The region an account is already being served from, or `nil` when it has no
-  # live instance. Oldest first so an account holding instances in several
-  # regions resolves to the one it has had longest, deterministically rather
-  # than by whichever row the database returns first; an account that wants a
-  # different one of them takes an explicit assignment.
+  # live instance.
+  #
+  # Private runner-cache regions do not count. They are provisioned by a
+  # separate identity rule (`Tuist.Kura.RunnerCache`, keyed on runner
+  # availability), they are never CLI-facing, and `Lifecycle.lifecycle_regions/0`
+  # rejects them, so resolving an account into one would record demand in a
+  # region nothing provisions against and leave it with no developer-facing
+  # cache at all. An account whose only live instance is a runner cache is, for
+  # this purpose, an account with none.
   #
   # `move_phase == :none` for the same reason `Tuist.Kura` uses it: a warm
   # handoff's transient rows are internal rebalancing, not where the account
   # is served from.
+  #
+  # Among what is left, oldest wins, ordered by `(inserted_at, id)`. That is a
+  # total order, so the answer is reproducible rather than dependent on which
+  # row the database happens to return first. It is deliberately not an attempt
+  # to solve multi-region: an account holding public instances in several
+  # regions keeps exactly one under this rule, and the choice between
+  # same-day instances comes down to sub-second ordering. Such an account wants
+  # an explicit assignment naming the region it should be resolved to, which is
+  # a decision rather than something to infer from timestamps.
   #
   # Archived rows are excluded, which is a decision rather than a detail: an
   # account's region is deliberately not sticky across an archive. Archival
@@ -249,14 +265,24 @@ defmodule Tuist.Kura.AccountPolicies do
 
   defp live_service_regions(accounts) do
     account_ids = Enum.map(accounts, & &1.id)
+    private_region_ids = private_region_ids()
 
     Server
     |> where([server], server.account_id in ^account_ids)
     |> where([server], server.status not in [:destroyed, :archived] and server.move_phase == :none)
+    |> where([server], server.region not in ^private_region_ids)
     |> order_by([server], asc: server.inserted_at, asc: server.id)
     |> select([server], {server.account_id, server.region})
     |> Repo.all()
     |> Enum.reduce(%{}, fn {account_id, region}, regions -> Map.put_new(regions, account_id, region) end)
+  end
+
+  # Read from the catalog rather than listed, so a region added as private is
+  # excluded here without anyone remembering to update this.
+  defp private_region_ids do
+    Regions.all()
+    |> Enum.filter(&Regions.private?/1)
+    |> Enum.map(& &1.id)
   end
 
   defp current_service_region_assignments(accounts) do

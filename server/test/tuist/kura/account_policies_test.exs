@@ -59,6 +59,29 @@ defmodule Tuist.Kura.AccountPoliciesTest do
                {:ok, %{plan: :enterprise, service_region: "eu-central"}}
     end
 
+    test "does not resolve a paid account into its private runner-cache region" do
+      # A runner-cache instance is provisioned by a separate identity rule, is
+      # never CLI-facing, and lives in a region the lifecycle never iterates.
+      # Resolving there would leave the account with no developer-facing cache
+      # and nothing provisioning one, which is the failure this change removes.
+      account = organization_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      live_instance(account, "scw-fr-par-runners")
+
+      assert AccountPolicies.resolve(account) ==
+               {:ok, %{plan: :enterprise, service_region: "us-east"}}
+    end
+
+    test "resolves a paid account to its public instance, not its runner cache" do
+      account = organization_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      live_instance(account, "scw-fr-par-runners", age_days: 200)
+      live_instance(account, "eu-central", age_days: 10)
+
+      assert AccountPolicies.resolve(account) ==
+               {:ok, %{plan: :enterprise, service_region: "eu-central"}}
+    end
+
     test "resolves a paid account holding several instances to its oldest" do
       account = organization_account()
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
