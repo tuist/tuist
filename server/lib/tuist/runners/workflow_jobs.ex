@@ -521,16 +521,26 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
-  The authoritative `log_archived_at` for a job, or `:not_found` when no
-  lifecycle row exists.
+  The `log_archived_at` on `account_id`'s lifecycle row for the job, or
+  `:not_found` when the account has no such row.
 
   Control-plane reads use this rather than the ClickHouse row, which
-  trails the outbox flush by up to a tick after an archive lands.
+  trails the outbox flush by up to a tick after an archive lands. Scoped
+  on `account_id` as well as the job id: the row is account-owned, so a
+  lookup keyed on the caller-supplied job id alone would answer across
+  tenants.
   """
-  def log_archived_at(workflow_job_id) when is_integer(workflow_job_id) do
-    case Repo.get(WorkflowJob, workflow_job_id) do
+  def log_archived_at(workflow_job_id, account_id) when is_integer(workflow_job_id) and is_integer(account_id) do
+    # Wrapping the value keeps "no row for this account" distinguishable
+    # from "row exists, never stamped" in one query.
+    from(j in WorkflowJob,
+      where: j.workflow_job_id == ^workflow_job_id and j.account_id == ^account_id,
+      select: {true, j.log_archived_at}
+    )
+    |> Repo.one()
+    |> case do
       nil -> :not_found
-      %WorkflowJob{log_archived_at: archived_at} -> {:ok, archived_at}
+      {true, archived_at} -> {:ok, archived_at}
     end
   end
 

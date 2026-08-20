@@ -516,14 +516,28 @@ defmodule Tuist.Runners.Jobs do
   @doc """
   Whether the job's log archive is available to serve.
 
-  Resolved against Postgres, which leads the job's ClickHouse row by up
-  to one outbox flush after `ArchiveLogsWorker` stamps it. Jobs with no
-  lifecycle row fall back to the ClickHouse column, the only state they
-  have.
+  A stamp in either store counts. Postgres is the one that leads, by up
+  to an outbox flush after `ArchiveLogsWorker` writes it, so it answers
+  on its own for anything archived since it started carrying the column.
+  ClickHouse answers for the two populations Postgres cannot: jobs with
+  no lifecycle row at all, and jobs whose row predates the column and so
+  reads `NULL` while the archive itself exists in S3. Requiring Postgres
+  alone would take the download away from every archive made before that
+  migration.
+
+  Both fallbacks retire together, once every archive predating the column
+  has aged past the retention in `PruneArchivedLogsWorker`.
+
+  The cost of accepting either store is a stale yes for one flush after a
+  prune clears the stamp, where Postgres reads `NULL` and ClickHouse
+  still holds the old value. The prune has already deleted the S3 object
+  by then, so the download fails at the redirect either way; only the
+  status code differs.
   """
-  def archive_available?(%Job{workflow_job_id: workflow_job_id, log_archived_at: ch_archived_at}) do
-    case WorkflowJobs.log_archived_at(workflow_job_id) do
-      {:ok, archived_at} -> not is_nil(archived_at)
+  def archive_available?(%Job{workflow_job_id: workflow_job_id, account_id: account_id, log_archived_at: ch_archived_at}) do
+    case WorkflowJobs.log_archived_at(workflow_job_id, account_id) do
+      {:ok, %DateTime{}} -> true
+      {:ok, nil} -> not is_nil(ch_archived_at)
       :not_found -> not is_nil(ch_archived_at)
     end
   end
