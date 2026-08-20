@@ -294,6 +294,20 @@ defmodule Tuist.Runners.Prepaid do
   end
 
   @doc """
+  What `minutes` of runner time costs at the gross on-demand rate, on
+  the macOS baseline machine.
+
+  This is what usage accrues at for everyone, prepaid or not, and so
+  what a customer's runner usage is worth before any credit or trial is
+  applied. Truncates to whole minutes the same way the Stripe Price
+  does, so the figure shown matches the quantity that would be invoiced
+  rather than running slightly ahead of it.
+  """
+  def on_demand_cost(minutes) when is_integer(minutes) and minutes >= 0 do
+    Money.new(div(minutes * @macos_on_demand_rate, 10), :USD)
+  end
+
+  @doc """
   Bills `account` for `minutes` of prepaid runner time.
 
   Creates a *pending* Stripe invoice item rather than its own invoice,

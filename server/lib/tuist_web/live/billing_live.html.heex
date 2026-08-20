@@ -247,6 +247,38 @@
     </.card_section>
   </.card>
   <.card
+    :if={@runner_usage.minutes > 0}
+    data-part="runner-usage-card"
+    icon="server"
+    title={dgettext("dashboard_account", "Runner usage")}
+  >
+    <.card_section data-part="runner-usage-card-section">
+      <span data-part="info-label">
+        {dgettext(
+          "dashboard_account",
+          "Runner minutes are measured on the macOS 6 vCPU / 14 GB baseline. A larger machine uses more than one minute of credit per minute it runs."
+        )}
+      </span>
+      <.table id="runner-usage-table" rows={[@runner_usage]}>
+        <:col :let={usage} label={dgettext("dashboard_account", "Minutes this month")}>
+          <.text_cell label={usage.minutes} />
+        </:col>
+        <:col :let={usage} label={dgettext("dashboard_account", "Usage value")}>
+          <.text_and_description_cell
+            label={format_money(usage.accrued)}
+            description={dgettext("dashboard_account", "at the standard rate")}
+          />
+        </:col>
+        <:col :let={usage} label={dgettext("dashboard_account", "Billed")}>
+          <.text_and_description_cell
+            label={format_money(usage.billed)}
+            description={runner_billed_explanation(usage.not_billed_because)}
+          />
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
+  <.card
     :if={@prepaid_runner_credit}
     data-part="prepaid-credit-card"
     icon="credit_card"

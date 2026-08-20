@@ -5,6 +5,7 @@ defmodule TuistWeb.BillingLive do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.Trials
 
@@ -69,6 +70,7 @@ defmodule TuistWeb.BillingLive do
       socket
       |> assign(:prepaid_runner_credit, Prepaid.balance(selected_account))
       |> assign(:on_runner_trial, Trials.on_trial?(selected_account))
+      |> assign(:runner_usage, runner_usage(selected_account, subscription))
       |> assign(:estimated_next_payment, estimated_next_payment)
       |> assign(:plan, plan)
       |> assign(:next_charge_date, next_charge_date)
@@ -129,6 +131,46 @@ defmodule TuistWeb.BillingLive do
   def prepaid_credit_expiry_label(nil), do: dgettext("dashboard_account", "No expiry")
 
   def prepaid_credit_expiry_label(%DateTime{} = expires_at), do: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")
+
+  # Runner usage is reported gross for every account, so what it accrues
+  # and what it is billed are two different numbers whenever a trial or
+  # the absence of a subscription stands between them. Showing only the
+  # billed figure would present a trial as an unexplained absence of
+  # charges; showing only the accrued one would read as a bill that is
+  # not coming.
+  defp runner_usage(account, subscription) do
+    now = DateTime.utc_now()
+    month_start = %{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}
+
+    total_ms =
+      RunnerBilling.compute_milliseconds(account.id, month_start, now)
+
+    # Truncated to whole minutes, matching how the Stripe Price rounds,
+    # so this figure is the quantity that would be invoiced rather than
+    # one running slightly ahead of it.
+    minutes = div(total_ms, 60_000)
+    accrued = Prepaid.on_demand_cost(minutes)
+
+    {billed, not_billed_because} =
+      cond do
+        Trials.on_trial?(account) -> {Money.new(0, :USD), :trial}
+        is_nil(subscription) -> {Money.new(0, :USD), :no_subscription}
+        true -> {accrued, nil}
+      end
+
+    %{
+      minutes: minutes,
+      accrued: accrued,
+      billed: billed,
+      not_billed_because: not_billed_because
+    }
+  end
+
+  def runner_billed_explanation(:trial), do: dgettext("dashboard_account", "free during your trial")
+
+  def runner_billed_explanation(:no_subscription), do: dgettext("dashboard_account", "no paid plan to bill against")
+
+  def runner_billed_explanation(_reason), do: dgettext("dashboard_account", "on your next invoice")
 
   attr :label, :string, required: true
 

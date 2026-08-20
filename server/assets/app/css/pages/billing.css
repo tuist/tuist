@@ -128,8 +128,10 @@
   }
 
   & > [data-part="usage-card"],
+  & > [data-part="runner-usage-card"],
   & > [data-part="prepaid-credit-card"] {
     & > [data-part="usage-card-section"],
+    & > [data-part="runner-usage-card-section"],
     & > [data-part="prepaid-credit-card-section"] {
       display: flex;
       flex-direction: column;
