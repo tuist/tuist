@@ -208,7 +208,13 @@ jobs:
           local-name: macos-tahoe-xcode
           remote-names: ${{ vars.OCI_REGISTRY_HOST }}/macos-tahoe-xcode:${{ steps.build.outputs.tag }}
           chunk-size: "64"
-          concurrency: "4"
+          # Deliberately serialised. Four uploads in flight measured
+          # 13.1 MB/s against 3.2 MB/s here, but the registry loses blob
+          # upload sessions under that parallelism and fails the push
+          # with a 500, logging `error resolving upload: s3aws: Path not
+          # found .../_uploads/<uuid>/data`. Reliability wins until that
+          # is fixed; see the chunk size above, which is the change that
+          # actually cut request volume.
 
       - name: Cleanup
         if: always()
