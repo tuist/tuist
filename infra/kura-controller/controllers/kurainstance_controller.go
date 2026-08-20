@@ -130,12 +130,19 @@ type KuraInstanceReconciler struct {
 	// reconcileGRPCIngress). The issued Secret is referenced by the regional
 	// Kura ingress layer that terminates TLS for customer-facing traffic.
 	// The name is historical; there is no longer a separate gRPC certificate.
-	GRPCClusterIssuer   string
-	OTLPTracesEndpoint  string
-	Environment         string
-	RuntimeStatusClient RuntimeStatusClient
-	PeerDNSResolver     PeerDNSResolver
-	PeerPathProber      PeerPathProber
+	GRPCClusterIssuer  string
+	OTLPTracesEndpoint string
+	Environment        string
+	// EgressQdiscInitImage is the image (pinned by digest) of the init
+	// container that installs the per-pod egress ceiling qdisc inside the pod
+	// netns (infra/egress-qdisc-init/). Required whenever an instance carries
+	// the kubernetes.io/egress-bandwidth pod annotation; reconciliation of
+	// such instances fails loudly when it is unset rather than rendering an
+	// unshaped pod.
+	EgressQdiscInitImage string
+	RuntimeStatusClient  RuntimeStatusClient
+	PeerDNSResolver      PeerDNSResolver
+	PeerPathProber       PeerPathProber
 }
 
 type RuntimeStatusClient interface {
@@ -2257,7 +2264,15 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		if err != nil {
 			return err
 		}
-		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling)
+		if _, shaped := egressBurstMbps(instance); shaped && r.EgressQdiscInitImage == "" {
+			// Fail loudly instead of rendering the pod unshaped: the
+			// annotation alone does not bound the node-local read path
+			// (tuist/tuist#12363), so silently skipping the init container
+			// would reintroduce the bypass.
+			return fmt.Errorf("instance %s/%s carries the %s annotation but no egress-qdisc init image is configured (KURA_EGRESS_QDISC_INIT_IMAGE)",
+				instance.Namespace, instance.Name, egressBandwidthAnnotation)
+		}
+		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling, r.EgressQdiscInitImage)
 		if len(existingVolumeClaimTemplates) > 0 {
 			sts.Spec.VolumeClaimTemplates = existingVolumeClaimTemplates
 		} else {
@@ -2642,7 +2657,7 @@ func (r *KuraInstanceReconciler) ceilingBudgetAdvertised(ctx context.Context, in
 	return false, nil
 }
 
-func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string, binPackCeiling bool) corev1.PodTemplateSpec {
+func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string, binPackCeiling bool, egressQdiscInitImage string) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      labels(instance),
@@ -2654,6 +2669,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 			NodeSelector:                  nodeSelector(instance),
 			Tolerations:                   instance.Spec.Tolerations,
 			Affinity:                      instancePodAffinity(instance),
+			InitContainers:                egressQdiscInitContainers(instance, egressQdiscInitImage),
 			Containers: []corev1.Container{{
 				Name:            kuraContainerName,
 				Image:           instance.Spec.Image,
@@ -2721,6 +2737,75 @@ func sharedSecretsEnvFrom() []corev1.EnvFromSource {
 		SecretRef: &corev1.SecretEnvSource{
 			LocalObjectReference: corev1.LocalObjectReference{Name: sharedSecretsName},
 			Optional:             ptr(true),
+		},
+	}}
+}
+
+// egressBandwidthAnnotation is the standard per-pod egress ceiling annotation.
+// Cilium's bandwidth manager enforces it at the physical NIC's fq qdisc only,
+// which the node-local read path (kura pod → co-located hostNetwork
+// ingress-nginx) never crosses — so on the bare-metal regions the annotation
+// alone does not bound customer reads (tuist/tuist#12363). It still paces the
+// wire-bound replication/peer plane, so it is kept alongside the init
+// container below; double-shaping is harmless (the lower limit wins).
+const egressBandwidthAnnotation = "kubernetes.io/egress-bandwidth"
+
+const egressQdiscInitContainerName = "egress-qdisc"
+
+// egressBurstMbps extracts the integer Mbit/s from the instance's
+// kubernetes.io/egress-bandwidth pod annotation ("500M" → "500"). The bool
+// reports whether the annotation is present at all. A malformed value is
+// returned verbatim: the init container's entrypoint validates its env and
+// exits non-zero, so a corrupt annotation fails the pod closed instead of
+// starting it unshaped.
+func egressBurstMbps(instance *kurav1alpha1.KuraInstance) (string, bool) {
+	raw, ok := instance.Spec.PodAnnotations[egressBandwidthAnnotation]
+	if !ok {
+		return "", false
+	}
+	digits := strings.TrimSuffix(raw, "M")
+	if digits == "" || digits == raw || strings.ContainsFunc(digits, func(r rune) bool { return r < '0' || r > '9' }) {
+		return raw, true
+	}
+	return digits, true
+}
+
+// egressQdiscInitContainers renders the init container that installs the
+// per-pod egress ceiling as a root qdisc on the pod's own eth0
+// (infra/egress-qdisc-init/). It shapes all pod egress — including the
+// node-local hop to the co-located ingress — before packets cross the veth
+// into the host, which the annotation-driven NIC pacing cannot do. Rendered
+// exactly when the annotation is rendered; nil otherwise (cloud regions).
+func egressQdiscInitContainers(instance *kurav1alpha1.KuraInstance, image string) []corev1.Container {
+	mbps, ok := egressBurstMbps(instance)
+	if !ok || image == "" {
+		return nil
+	}
+	return []corev1.Container{{
+		Name:            egressQdiscInitContainerName,
+		Image:           image,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Env: []corev1.EnvVar{{
+			Name:  "EGRESS_BURST_MBPS",
+			Value: mbps,
+		}},
+		SecurityContext: &corev1.SecurityContext{
+			RunAsNonRoot:             ptr(false),
+			AllowPrivilegeEscalation: ptr(false),
+			ReadOnlyRootFilesystem:   ptr(true),
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{"ALL"},
+				Add:  []corev1.Capability{"NET_ADMIN"},
+			},
+		},
+		Resources: corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("10m"),
+				corev1.ResourceMemory: resource.MustParse("16Mi"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("32Mi"),
+			},
 		},
 	}}
 }

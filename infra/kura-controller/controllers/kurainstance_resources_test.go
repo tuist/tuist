@@ -181,7 +181,7 @@ func TestCeilingBudgetAdvertisedGatesOnLiveNodeCapacity(t *testing.T) {
 // the next attempt. The budget must stay at the 300 seconds the in-tree Helm
 // chart grants chart-managed pods for the same probe.
 func TestStartupProbeGrantsChartRecoveryBudget(t *testing.T) {
-	container := podTemplate(&kurav1alpha1.KuraInstance{}, "", "production", "", false).Spec.Containers[0]
+	container := podTemplate(&kurav1alpha1.KuraInstance{}, "", "production", "", false, "").Spec.Containers[0]
 
 	probe := container.StartupProbe
 	if probe == nil {
@@ -199,7 +199,7 @@ func TestStartupProbeGrantsChartRecoveryBudget(t *testing.T) {
 // the readiness probe and livenessProbe too, and widening it there would turn
 // a wedged pod's liveness restart into a ten-times-slower recovery.
 func TestSteadyStateProbesKeepDefaultFailureThreshold(t *testing.T) {
-	container := podTemplate(&kurav1alpha1.KuraInstance{}, "", "production", "", false).Spec.Containers[0]
+	container := podTemplate(&kurav1alpha1.KuraInstance{}, "", "production", "", false, "").Spec.Containers[0]
 
 	if got := container.LivenessProbe.FailureThreshold; got != 0 {
 		t.Fatalf("liveness failureThreshold = %d, want 0 so it defaults to 3", got)

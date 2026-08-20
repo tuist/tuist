@@ -295,6 +295,11 @@ spec:
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
             {{- end }}
             - --deployment-environment={{ .Values.kuraController.telemetry.deploymentEnvironment | default "production" }}
+          {{- if .Values.kuraController.egressQdiscInitImage }}
+          env:
+            - name: KURA_EGRESS_QDISC_INIT_IMAGE
+              value: {{ .Values.kuraController.egressQdiscInitImage | quote }}
+          {{- end }}
           ports:
             - name: metrics
               containerPort: 8080

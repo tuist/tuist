@@ -70,11 +70,12 @@ func main() {
 	}
 
 	if err := (&controllers.KuraInstanceReconciler{
-		Client:             mgr.GetClient(),
-		Scheme:             mgr.GetScheme(),
-		GRPCClusterIssuer:  grpcClusterIssuer,
-		OTLPTracesEndpoint: otlpTracesEndpoint,
-		Environment:        deploymentEnvironment,
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		GRPCClusterIssuer:    grpcClusterIssuer,
+		OTLPTracesEndpoint:   otlpTracesEndpoint,
+		Environment:          deploymentEnvironment,
+		EgressQdiscInitImage: os.Getenv("KURA_EGRESS_QDISC_INIT_IMAGE"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup KuraInstanceReconciler")
 		os.Exit(1)
