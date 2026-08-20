@@ -203,6 +203,10 @@ func TestConvergeMasterExplainsWhyItSkipped(t *testing.T) {
 				Volumes:                  m,
 				ConvergeHeadWaitInterval: time.Millisecond,
 				ConvergeHeadWaitAttempts: 2,
+				// The undownloadable-HEAD case now exhausts the fetch retry, so
+				// the backoff has to be a test backoff.
+				ConvergeDownloadAttempts: 2,
+				ConvergeDownloadBackoff:  time.Millisecond,
 			}
 
 			r.convergeMaster("vm1", statusDir, ReservedTuistCacheVolume, "42")

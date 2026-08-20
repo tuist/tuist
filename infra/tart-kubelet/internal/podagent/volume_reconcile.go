@@ -3,7 +3,9 @@ package podagent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -614,8 +616,9 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	defer os.RemoveAll(staging)
 
 	image := filepath.Join(staging, convergeImageName)
-	if err := downloadMasterImage(head.DownloadURL, image); err != nil {
+	if err := r.downloadMasterImage(head.DownloadURL, image); err != nil {
 		logger.Error(err, "converge: download master image", "vm", vmName, "account", account)
+		RecordVolumeConvergeFailed("download")
 		return
 	}
 	// Verify the downloaded image's inventory matches the HEAD digest before
@@ -637,10 +640,12 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 		case err != nil:
 			logger.Error(err, "converge: cannot measure the downloaded image; keeping local master",
 				"vm", vmName, "account", account, "volume", volumeName, "want", head.Digest)
+			RecordVolumeConvergeFailed("digest_unreadable")
 			return
 		case got != head.Digest:
 			logger.Info("converge: image digest does not match HEAD; keeping local master",
 				"vm", vmName, "account", account, "want", head.Digest, "got", got)
+			RecordVolumeConvergeFailed("digest_mismatch")
 			stageUnverifiableHead(statusDir, head.Digest)
 			return
 		}
@@ -652,6 +657,7 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	installed, err := r.Volumes.InstallMaster(account, volumeName, image, head.Generation)
 	if err != nil {
 		logger.Error(err, "converge: install master", "vm", vmName, "account", account)
+		RecordVolumeConvergeFailed("install")
 		return
 	}
 	if !installed {
@@ -717,30 +723,139 @@ func awaitVolumeHead(statusDir string, interval time.Duration, attempts int) *vo
 // Root, and a file named like a master could be picked up by the master scan.
 const convergeImageName = "head.sparseimage"
 
-// convergeDownloadTimeout bounds the HEAD image fetch. The object is the cache
-// image itself — gigabytes, not a manifest — so the ceiling is generous. It runs
-// in the background off the job-start path, so a slow fetch delays only the NEXT
-// job's warmth; the bound just keeps a stalled transfer from leaking a goroutine
-// and staging disk forever.
+// convergeDownloadTimeout bounds the HEAD image fetch END TO END — every attempt
+// and every backoff between them, not each attempt separately. The object is the
+// cache image itself — gigabytes, not a manifest — so the ceiling is generous. It
+// runs in the background off the job-start path, so a slow fetch delays only the
+// NEXT job's warmth; the bound just keeps a stalled transfer from leaking a
+// goroutine and staging disk forever, which is why the retries below share one
+// deadline rather than each getting a fresh one.
 const convergeDownloadTimeout = 30 * time.Minute
+
+// convergeDownloadAttempts / convergeDownloadBackoff bound the retry of a fetch
+// that died mid-transfer.
+//
+// Object storage closes these transfers early: production saw 29 of them in a
+// day, all `curl: (18) transfer closed with N bytes remaining to read`, dying
+// anywhere from 1.9 GB to 11.5 GB short. Exit 18 is a peer-side close, not a
+// client timeout (that is exit 28) and not this deadline (a ctx kill surfaces as
+// "signal: killed", never an exit status), so the transfer is worth resuming.
+//
+// The backoff is randomized. Failures arrive in bursts — six hosts inside two
+// minutes, all fetching the same account's object — so a fixed delay would just
+// re-send the burst intact; the jitter is what decorrelates hosts that failed
+// together, which is the only fleet-wide staggering a host can do with no
+// channel to its peers.
+//
+// Every failure is retried, including a definitive HTTP status. At a handful of
+// convergences per host per day, three requests instead of one is not a load
+// concern — and the amplification that WOULD matter, re-pulling gigabytes
+// through whatever closed the connection, is what the resume below removes.
+const (
+	convergeDownloadAttempts = 3
+	convergeDownloadBackoff  = 20 * time.Second
+)
+
+// curlRangeUnsupported is curl's CURLE_RANGE_ERROR: it asked to resume and the
+// server answered 200 with the whole object instead of 206. curl refuses to
+// append in that case rather than corrupting the file, so the recovery is to
+// drop the partial and start the next attempt clean.
+const curlRangeUnsupported = 33
 
 // downloadMasterImage fetches the account's master image from a presigned URL to
 // dst. The object IS the image — a settled APFS filesystem carrying the
 // symlinks, xattrs and modes the cache needs — so there is nothing to unpack.
-func downloadMasterImage(url, dst string) error {
+func (r *Reconciler) downloadMasterImage(url, dst string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), convergeDownloadTimeout)
 	defer cancel()
 
+	backoff := r.ConvergeDownloadBackoff
+	if backoff == 0 {
+		backoff = convergeDownloadBackoff
+	}
+	return fetchMasterImage(ctx, url, dst, r.ConvergeDownloadAttempts, backoff)
+}
+
+// fetchMasterImage fetches url to dst, resuming from what a truncated attempt
+// already wrote. Attempts and backoff are parameters so tests do not wait real
+// seconds, mirroring the HEAD wait above.
+//
+// Resuming is safe HERE specifically. The master object is immutable and
+// content-addressed by its inventory digest, and convergeMaster verifies that
+// digest against the HEAD before adopting the image — so bytes stitched together
+// across attempts cannot be silently adopted. A mixed or still-partial result
+// fails verification and is discarded exactly like any other mismatch. That
+// property is what makes resume acceptable; nothing here softens the check.
+func fetchMasterImage(ctx context.Context, url, dst string, attempts int, backoff time.Duration) error {
+	if attempts <= 0 {
+		attempts = convergeDownloadAttempts
+	}
+	var err error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		if attempt > 1 {
+			if !sleepCtx(ctx, jitteredBackoff(backoff, attempt)) {
+				break
+			}
+			RecordVolumeConvergeDownloadRetry()
+		}
+		if err = curlMasterImage(ctx, url, dst); err == nil {
+			return nil
+		}
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && exit.ExitCode() == curlRangeUnsupported {
+			_ = os.Remove(dst)
+		}
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	_ = os.Remove(dst)
+	return err
+}
+
+// curlMasterImage runs one attempt, appending to whatever dst already holds.
+func curlMasterImage(ctx context.Context, url, dst string) error {
+	// -C - resumes from dst's current size (a plain Range request), so a transfer
+	// the far end cut short costs only the bytes it did not deliver instead of
+	// restarting the whole multi-gigabyte object. On the first attempt dst does
+	// not exist and curl starts at 0.
+	//
 	// No -L: a presigned object-storage URL is fetched directly (200, no
 	// redirect), so refuse to follow redirects — that removes redirect-based
 	// SSRF where a hostile/misconfigured endpoint bounces this host to an
 	// internal address. The server also validates the URL host is public before
 	// handing it over (see volume_head_payload).
-	if out, err := exec.CommandContext(ctx, "curl", "-fsS", "-o", dst, url).CombinedOutput(); err != nil {
-		_ = os.Remove(dst)
+	out, err := exec.CommandContext(ctx, "curl", "-fsS", "-C", "-", "-o", dst, url).CombinedOutput()
+	if err != nil {
 		return fmt.Errorf("curl master image: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+// jitteredBackoff grows the wait with each attempt and spreads it over [d, 2d)
+// so hosts that failed at the same instant do not retry at the same instant.
+func jitteredBackoff(backoff time.Duration, attempt int) time.Duration {
+	if backoff <= 0 {
+		return 0
+	}
+	d := backoff << (attempt - 2)
+	return d + rand.N(d)
+}
+
+// sleepCtx waits for d, reporting false if the deadline that bounds the whole
+// fetch elapsed first.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	if d <= 0 {
+		return ctx.Err() == nil
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
 }
 
 // finalizeVolume promotes or discards the entry's cache-volume branch and

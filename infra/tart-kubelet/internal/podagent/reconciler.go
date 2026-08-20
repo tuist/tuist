@@ -125,6 +125,13 @@ type Reconciler struct {
 	ConvergeHeadWaitInterval time.Duration
 	ConvergeHeadWaitAttempts int
 
+	// ConvergeDownloadAttempts / ConvergeDownloadBackoff bound the retry of a
+	// HEAD image fetch that object storage closed mid-transfer. Zero values use
+	// the package defaults; injectable for the same reason as the wait above —
+	// a test that exercises the retry must not sleep out the real backoff.
+	ConvergeDownloadAttempts int
+	ConvergeDownloadBackoff  time.Duration
+
 	// Recorder emits Pod Events (e.g. "CreatingVM") so the
 	// Scheduled→Running gap — previously a silent dead zone with no
 	// events between the scheduler placing the Pod and the VM getting

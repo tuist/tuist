@@ -198,6 +198,49 @@ var cacheVolumeConvergedTotal = prometheus.NewCounter(
 	},
 )
 
+// cacheVolumeConvergeFailedTotal counts convergences that reached a real
+// failure, by reason. It is the counterpart to cacheVolumeConvergedTotal, which
+// only ever counted successes — so until this existed, a host that stopped
+// converging entirely looked exactly like one with nothing to converge, and the
+// failures were findable only by reading logs.
+//
+//   - "download": the HEAD image fetch failed after its retries. The expected
+//     shape is object storage closing the transfer early; a rate here is a
+//     storage or egress signal, not a cache one.
+//   - "digest_unreadable": the image downloaded but this host could not measure
+//     it — a local fault (the read-only attach failed) that says nothing about
+//     the object.
+//   - "digest_mismatch": the object does not reproduce the digest the HEAD
+//     advertises. This is proof about the object, reproducible on every host,
+//     and it wedges the account fleet-wide until the lineage is retired — so it
+//     is the one series here that should sit at zero and alert on any increase.
+//   - "install": the verified image could not replace the local master.
+//
+// A master that moved past the HEAD mid-download is NOT counted: the generation
+// gate declining a superseded swap is the model working, not a failure.
+var cacheVolumeConvergeFailedTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_converge_failed_total",
+		Help: "Failed convergences of this host's master to the account's HEAD, by reason.",
+	},
+	[]string{"reason"},
+)
+
+// cacheVolumeConvergeDownloadRetriesTotal counts HEAD image fetches that died
+// mid-transfer and were resumed from the byte offset they reached.
+//
+// It exists so the retry cannot hide the thing it absorbs. Retries turn a failed
+// convergence into a slower successful one, which moves converge_failed_total
+// down while the underlying transfer failures stay exactly as frequent — this
+// counter is the one that keeps rising in that case, so a bottleneck that is
+// getting worse still shows up rather than being papered over.
+var cacheVolumeConvergeDownloadRetriesTotal = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_converge_download_retries_total",
+		Help: "HEAD image fetches that died mid-transfer and were resumed.",
+	},
+)
+
 // cacheVolumeResidentCount is the number of resident master images on this
 // host (all accounts, all volume names). Divided by the quota, it's the "how
 // many accounts does this host keep hot" signal.
@@ -307,6 +350,8 @@ func init() {
 		cacheVolumeMaterializeTotal,
 		cacheVolumePromoteTotal,
 		cacheVolumeConvergedTotal,
+		cacheVolumeConvergeFailedTotal,
+		cacheVolumeConvergeDownloadRetriesTotal,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
 		cacheVolumeEnabled,
@@ -323,6 +368,12 @@ func init() {
 	// renders "No data" during healthy, zero-rejection periods instead of 0%.
 	for _, result := range []string{"accepted", "rejected", "error"} {
 		cacheVolumePromoteTotal.WithLabelValues(result)
+	}
+
+	// Same reason, and it matters most for "digest_mismatch": the assertion about
+	// that one is that it stays at zero, which a missing series cannot express.
+	for _, reason := range []string{"download", "digest_unreadable", "digest_mismatch", "install"} {
+		cacheVolumeConvergeFailedTotal.WithLabelValues(reason)
 	}
 }
 
@@ -380,6 +431,18 @@ func RecordVolumeMaterialized(warm bool) {
 // fast-forwards to the account's HEAD.
 func RecordVolumeConverged() {
 	cacheVolumeConvergedTotal.Inc()
+}
+
+// RecordVolumeConvergeFailed increments the count of convergences that failed
+// for the given reason.
+func RecordVolumeConvergeFailed(reason string) {
+	cacheVolumeConvergeFailedTotal.WithLabelValues(reason).Inc()
+}
+
+// RecordVolumeConvergeDownloadRetry increments the count of HEAD image fetches
+// resumed after the transfer died mid-flight.
+func RecordVolumeConvergeDownloadRetry() {
+	cacheVolumeConvergeDownloadRetriesTotal.Inc()
 }
 
 // RecordVolumeResident publishes the resident master count and root free
