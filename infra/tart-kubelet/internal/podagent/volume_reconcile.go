@@ -593,6 +593,13 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 			"vm", vmName, "account", account, "volume", volumeName, "generation", head.Generation)
 		return
 	}
+	// Serialize convergence for this account+volume on this host. Two VMs can be
+	// dispatched to the same account, and they would otherwise fetch into the same
+	// content-addressed partial at the same time. Taken BEFORE the generation gate
+	// so the second one re-reads it and sees the first one's install.
+	unlock := r.lockConverge(account, volumeName)
+	defer unlock()
+
 	// Skip if this host's master is already at or past the HEAD generation. The
 	// generation is monotonic (the server only ever fast-forwards it), so a local
 	// generation >= the HEAD's means this host already holds that HEAD (or its own
@@ -607,16 +614,45 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 		return
 	}
 
-	staging := r.Volumes.ConvergeStagingDir(vmName)
-	_ = os.RemoveAll(staging)
-	if err := os.MkdirAll(staging, 0o755); err != nil {
-		logger.Error(err, "converge: mkdir staging", "vm", vmName)
-		return
+	// Where the fetch lands. A HEAD that carries a digest is content-addressed, so
+	// the download goes to a partial keyed by it and SURVIVES this convergence: a
+	// fetch that ran out of deadline or was cut short resumes on the next job
+	// instead of starting over. That is the difference between converging and not
+	// for a master too big to pull inside one convergeDownloadTimeout — such a host
+	// otherwise re-downloads the same first N gigabytes forever. A HEAD with no
+	// digest has nothing safe to key on and nothing to verify against, so it stays
+	// in per-VM scratch that is discarded either way.
+	var image string
+	if head.Digest == "" {
+		staging := r.Volumes.ConvergeStagingDir(vmName)
+		_ = os.RemoveAll(staging)
+		if err := os.MkdirAll(staging, 0o755); err != nil {
+			logger.Error(err, "converge: mkdir staging", "vm", vmName)
+			return
+		}
+		defer os.RemoveAll(staging)
+		image = filepath.Join(staging, convergeImageName)
+	} else {
+		// The HEAD moved on: whatever was banked for an older digest can never be
+		// adopted now, so it goes before this fetch claims more of the volume.
+		r.Volumes.DiscardConvergePartials(account, volumeName, head.Digest)
+		partial, banked, err := r.Volumes.ConvergePartial(account, volumeName, head.Digest)
+		if err != nil {
+			logger.Error(err, "converge: prepare partial", "vm", vmName, "account", account)
+			return
+		}
+		image = partial
+		if banked > 0 {
+			logger.Info("converge: resuming a partially downloaded HEAD",
+				"vm", vmName, "account", account, "volume", volumeName,
+				"generation", head.Generation, "banked_bytes", banked)
+			RecordVolumeConvergeResumed()
+		}
 	}
-	defer os.RemoveAll(staging)
 
-	image := filepath.Join(staging, convergeImageName)
 	if err := r.downloadMasterImage(head.DownloadURL, image); err != nil {
+		// The partial is deliberately left in place: the bytes it holds are the
+		// progress this convergence made, and the next one continues from them.
 		logger.Error(err, "converge: download master image", "vm", vmName, "account", account)
 		RecordVolumeConvergeFailed("download")
 		return
@@ -646,6 +682,10 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 			logger.Info("converge: image digest does not match HEAD; keeping local master",
 				"vm", vmName, "account", account, "want", head.Digest, "got", got)
 			RecordVolumeConvergeFailed("digest_mismatch")
+			// Drop the partial. It is a COMPLETE download that measured wrong, so
+			// resuming it would re-measure the same disproved bytes on every future
+			// convergence and never recover.
+			r.Volumes.DiscardConvergePartials(account, volumeName, "")
 			stageUnverifiableHead(statusDir, head.Digest)
 			return
 		}
@@ -665,8 +705,11 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 		// the download was in flight, so the generation gate declined the swap.
 		logger.Info("converge: master moved past this HEAD mid-download; discarding",
 			"vm", vmName, "account", account, "volume", volumeName, "generation", head.Generation)
+		r.Volumes.DiscardConvergePartials(account, volumeName, "")
 		return
 	}
+	// Adopted, so the banked bytes have done their job.
+	r.Volumes.DiscardConvergePartials(account, volumeName, "")
 	RecordVolumeConverged()
 	logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
 }
@@ -809,7 +852,9 @@ func fetchMasterImage(ctx context.Context, url, dst string, attempts int, backof
 			break
 		}
 	}
-	_ = os.Remove(dst)
+	// dst is left alone. What it holds is a valid prefix of the object, and
+	// whether that is progress worth keeping or scratch to throw away is the
+	// caller's call, not this function's.
 	return err
 }
 

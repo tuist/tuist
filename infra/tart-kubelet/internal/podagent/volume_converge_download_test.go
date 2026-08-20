@@ -153,9 +153,14 @@ func TestConvergeDownloadGivesUpAfterItsAttempts(t *testing.T) {
 	if starts, _ := srv.requests(); len(starts) != 3 {
 		t.Fatalf("attempts = %d, want 3", len(starts))
 	}
-	// Nothing partial is left behind for the digest check to measure.
-	if _, err := os.Stat(dst); !os.IsNotExist(err) {
-		t.Fatalf("partial download survived a failed fetch: %v", err)
+	// The prefix it did receive is kept, not thrown away: whether that is progress
+	// worth banking or scratch to discard belongs to the caller.
+	info, statErr := os.Stat(dst)
+	if statErr != nil {
+		t.Fatalf("the fetch discarded the bytes it had already received: %v", statErr)
+	}
+	if info.Size() == 0 {
+		t.Fatal("the fetch left an empty file, so no progress was kept")
 	}
 }
 

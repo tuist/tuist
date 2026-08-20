@@ -241,6 +241,20 @@ var cacheVolumeConvergeDownloadRetriesTotal = prometheus.NewCounter(
 	},
 )
 
+// cacheVolumeConvergeResumedTotal counts convergences that started from bytes a
+// previous convergence had already banked, rather than from zero.
+//
+// It is the signal that a host too slow (or an object too big) to finish inside
+// one convergeDownloadTimeout is nonetheless making progress across jobs. A host
+// stuck re-downloading the same first gigabytes forever shows up as this rising
+// with converged_total flat.
+var cacheVolumeConvergeResumedTotal = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_converge_resumed_total",
+		Help: "Convergences that resumed a partially downloaded HEAD image from an earlier convergence.",
+	},
+)
+
 // cacheVolumeResidentCount is the number of resident master images on this
 // host (all accounts, all volume names). Divided by the quota, it's the "how
 // many accounts does this host keep hot" signal.
@@ -352,6 +366,7 @@ func init() {
 		cacheVolumeConvergedTotal,
 		cacheVolumeConvergeFailedTotal,
 		cacheVolumeConvergeDownloadRetriesTotal,
+		cacheVolumeConvergeResumedTotal,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
 		cacheVolumeEnabled,
@@ -443,6 +458,12 @@ func RecordVolumeConvergeFailed(reason string) {
 // resumed after the transfer died mid-flight.
 func RecordVolumeConvergeDownloadRetry() {
 	cacheVolumeConvergeDownloadRetriesTotal.Inc()
+}
+
+// RecordVolumeConvergeResumed increments the count of convergences that picked
+// up a partially downloaded HEAD image instead of starting over.
+func RecordVolumeConvergeResumed() {
+	cacheVolumeConvergeResumedTotal.Inc()
 }
 
 // RecordVolumeResident publishes the resident master count and root free
