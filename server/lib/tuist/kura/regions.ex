@@ -128,7 +128,7 @@ defmodule Tuist.Kura.Regions do
   # shares it with the upload staging directory and the RocksDB index, and the
   # provisioner reserves those before deriving the ring budget it hands the pod
   # (see `cas_capacity_bytes/1` in the Kubernetes controller provisioner). The
-  # rings these leave are 40 GiB, 20.5 GiB and 7.3 GiB.
+  # rings these leave are 40 GiB, 20.5 GiB and 5.3 GiB.
   #
   # This is what the region's disk is ordered against, so it is sized from the
   # working set each plan actually keeps warm rather than from what an instance
@@ -137,24 +137,33 @@ defmodule Tuist.Kura.Regions do
   # oversized quota does not waste disk, it refuses to place instances that
   # would have fitted.
   #
-  # Measured against the fleet on 2026-08-20, when every provisioned instance
-  # was enterprise: six of ten account-regions held under 2.4 GiB, the median
-  # was around 2 GiB, and only one was capped by its ring. So the paid tier's
-  # typical working set is small, and the air claim is set from that rather
-  # than from a projection: 7.3 GiB of ring is several times what the tier
-  # above it typically keeps warm.
+  # Measured on 2026-08-20 rather than projected. Every provisioned Kura
+  # instance was enterprise then, and six of the ten held under 2.4 GiB against
+  # a 40 GiB ring. Air's own volume comes from the legacy lane, where 55 air
+  # accounts uploaded anything at all in 30 days: the median moves 0.17 GiB a
+  # day, which a 5.3 GiB ring holds for about a month.
+  #
+  # The tier is long-tailed, and the tail is not served here. Its p90 moves
+  # 2.5 GiB a day and its heaviest account 21.7 GiB, roughly what the heaviest
+  # enterprise account moves; both get days or hours out of this ring rather
+  # than weeks. That is the intended shape. Air is what an account gets before
+  # it pays for anything, so it is sized for the account the tier is actually
+  # full of, and volume far past it is a reason to be on another plan rather
+  # than a reason to reserve another account's disk.
   #
   # Air is the floor as well as the default, and what stops it going lower is
   # the fixed reserve rather than the cache. Staging alone takes a flat 8 GiB
-  # whatever the plan, so the ring is what is left of the claim after it: an
-  # 11Gi claim leaves less than the five segments Kura clamps its ring up to,
-  # `cas_capacity_bytes/1` then emits no budget at all, and the runtime falls
-  # back to sizing its ring from the whole box. 16Gi keeps real headroom above
-  # that cliff. Below it the staging budget has to come down first, which is a
-  # Kura-side decision about how many replication bodies have to fit at once.
+  # whatever the plan, so the ring is what is left of the claim after it: a
+  # 12Gi claim leaves 3.4 GiB and an 11Gi one leaves less than the five
+  # segments Kura clamps its ring up to, at which point `cas_capacity_bytes/1`
+  # emits no budget at all and the runtime sizes its ring from the whole box
+  # instead. 14Gi keeps ~2.8 GiB of margin above that cliff. Going meaningfully
+  # smaller means cutting the staging budget first — at 2Gi of staging the same
+  # ring fits in an 8Gi claim — which is a Kura-side decision about how many
+  # replication bodies have to fit at once, so it is not made here.
   @enterprise_storage_claim "50Gi"
   @pro_storage_claim "30Gi"
-  @standard_storage_claim "16Gi"
+  @standard_storage_claim "14Gi"
   # The claim every instance in these regions held before they were sized per
   # plan, and what one provisioned then still holds. A historical constant, not
   # a quota: it happens to equal the enterprise claim today, but it describes

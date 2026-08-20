@@ -1005,9 +1005,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       # The ring each plan's claim leaves once the 8Gi staging ceiling, one
       # rotation segment and 3% for the index are reserved: 40 GiB, 20.5 GiB and
-      # 7.3 GiB. A region-derived budget would hand all three the same ring and
+      # 5.3 GiB. A region-derived budget would hand all three the same ring and
       # let an Air instance overrun the claim its pod reserved.
-      for {claim, ring_gib} <- [{"50Gi", 40.2}, {"30Gi", 20.8}, {"16Gi", 7.3}] do
+      for {claim, ring_gib} <- [{"50Gi", 40.2}, {"30Gi", 20.8}, {"14Gi", 5.3}] do
         manifest =
           KubernetesController.manifest(
             "kura-tuist-eu-central-1",

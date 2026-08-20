@@ -108,7 +108,7 @@ defmodule Tuist.Kura.RegionsTest do
 
     test "descends the storage ladder and floors it at air" do
       claims = Enum.map([:enterprise, :pro, :air], &Regions.storage_profile(&1).claim_size)
-      assert claims == ["50Gi", "30Gi", "16Gi"]
+      assert claims == ["50Gi", "30Gi", "14Gi"]
 
       # Air is the floor, and unknown plans land on it.
       assert Regions.storage_profile(:open_source) == Regions.storage_profile(:air)
@@ -119,10 +119,10 @@ defmodule Tuist.Kura.RegionsTest do
       # a claim that is too small leaves less than the five segments Kura clamps
       # its ring up to. `cas_capacity_bytes/1` then emits nothing and the runtime
       # sizes its ring from the whole box instead — the failure the derivation
-      # exists to prevent. The cliff is at 12Gi; nothing may sit near it.
+      # exists to prevent. The cliff is at 11Gi; nothing may sit on or near it.
       for plan <- [:enterprise, :pro, :air, :open_source] do
         {claim_gib, "Gi"} = Integer.parse(Regions.storage_profile(plan).claim_size)
-        assert claim_gib >= 16
+        assert claim_gib >= 14
       end
     end
 

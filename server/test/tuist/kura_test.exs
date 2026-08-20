@@ -530,7 +530,7 @@ defmodule Tuist.KuraTest do
       assert {:ok, server} =
                Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
 
-      assert server.storage_claim_size == "16Gi"
+      assert server.storage_claim_size == "14Gi"
     end
 
     test "pins nothing where the region sizes every instance alike", %{account: account} do
@@ -544,7 +544,7 @@ defmodule Tuist.KuraTest do
 
     test "reads the plan again on the cold return, which is when the volumes are rebuilt", %{account: account} do
       {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
-      assert server.storage_claim_size == "16Gi"
+      assert server.storage_claim_size == "14Gi"
 
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
 
@@ -561,7 +561,7 @@ defmodule Tuist.KuraTest do
       # Nothing re-derives it: the claim cannot be expanded under a running
       # instance on this storage class, so the upgrade lands when the volumes
       # are next built.
-      assert Repo.get!(Server, server.id).storage_claim_size == "16Gi"
+      assert Repo.get!(Server, server.id).storage_claim_size == "14Gi"
     end
 
     test "builds a warm-handoff target at the account's current footprint", %{account: account} do

@@ -27,7 +27,7 @@ defmodule Tuist.Kura.LifecycleTest do
   # us-east co-locates an account's two replicas on one box, so an instance
   # reserves its plan's claim twice.
   @replicas 2
-  @air_resident_gib 16 * @replicas
+  @air_resident_gib 14 * @replicas
   @pro_resident_gib 30 * @replicas
   # One more instance than fits under the region's pressure line, derived
   # rather than counted out so the fixtures track the real sizing.
