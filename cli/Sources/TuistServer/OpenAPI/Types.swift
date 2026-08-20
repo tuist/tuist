@@ -2701,6 +2701,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/model_identifier`.
             public var model_identifier: Swift.String?
+            /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/only_test_identifiers`.
+            public var only_test_identifiers: [Swift.String]?
             /// The scheme used for the test run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/scheme`.
@@ -2713,6 +2717,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/shard_plan_id`.
             public var shard_plan_id: Swift.String?
+            /// The tests the caller asked this run to exclude.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/skip_test_identifiers`.
+            public var skip_test_identifiers: [Swift.String]?
             /// The status of the test run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/status`.
@@ -3234,9 +3242,11 @@ public enum Components {
             ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
             ///   - macos_version: The version of macOS used during the run.
             ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
+            ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
             ///   - scheme: The scheme used for the test run.
             ///   - shard_index: The zero-based shard index for this test result.
             ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
+            ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
             ///   - status: The status of the test run.
             ///   - test_modules: The test modules associated with the test run.
             ///   - xcode_version: The version of Xcode used during the run.
@@ -3257,9 +3267,11 @@ public enum Components {
                 is_ci: Swift.Bool,
                 macos_version: Swift.String? = nil,
                 model_identifier: Swift.String? = nil,
+                only_test_identifiers: [Swift.String]? = nil,
                 scheme: Swift.String? = nil,
                 shard_index: Swift.Int? = nil,
                 shard_plan_id: Swift.String? = nil,
+                skip_test_identifiers: [Swift.String]? = nil,
                 status: Components.Schemas.TestParams.statusPayload? = nil,
                 test_modules: Components.Schemas.TestParams.test_modulesPayload,
                 xcode_version: Swift.String? = nil
@@ -3280,9 +3292,11 @@ public enum Components {
                 self.is_ci = is_ci
                 self.macos_version = macos_version
                 self.model_identifier = model_identifier
+                self.only_test_identifiers = only_test_identifiers
                 self.scheme = scheme
                 self.shard_index = shard_index
                 self.shard_plan_id = shard_plan_id
+                self.skip_test_identifiers = skip_test_identifiers
                 self.status = status
                 self.test_modules = test_modules
                 self.xcode_version = xcode_version
@@ -3304,9 +3318,11 @@ public enum Components {
                 case is_ci
                 case macos_version
                 case model_identifier
+                case only_test_identifiers
                 case scheme
                 case shard_index
                 case shard_plan_id
+                case skip_test_identifiers
                 case status
                 case test_modules
                 case xcode_version
@@ -12656,6 +12672,57 @@ public enum Operations {
                     }
                 }
             }
+            public struct Code402: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/402/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/402/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheEndpoints.Output.Code402.Body
+                /// Creates a new `Code402`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheEndpoints.Output.Code402.Body) {
+                    self.body = body
+                }
+            }
+            /// The account has exhausted its plan's free tier
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)/responses/402`.
+            ///
+            /// HTTP response code: `402 code402`.
+            case code402(Operations.getCacheEndpoints.Output.Code402)
+            /// The associated value of the enum case if `self` is `.code402`.
+            ///
+            /// - Throws: An error if `self` is not `.code402`.
+            /// - SeeAlso: `.code402`.
+            public var code402: Operations.getCacheEndpoints.Output.Code402 {
+                get throws {
+                    switch self {
+                    case let .code402(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "code402",
+                            response: self
+                        )
+                    }
+                }
+            }
             public struct Forbidden: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
@@ -19210,28 +19277,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -57651,6 +57718,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Code402: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/402/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/402/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheToken.Output.Code402.Body
+                /// Creates a new `Code402`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheToken.Output.Code402.Body) {
+                    self.body = body
+                }
+            }
+            /// The account has exhausted its plan's free tier
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)/responses/402`.
+            ///
+            /// HTTP response code: `402 code402`.
+            case code402(Operations.getCacheToken.Output.Code402)
+            /// The associated value of the enum case if `self` is `.code402`.
+            ///
+            /// - Throws: An error if `self` is not `.code402`.
+            /// - SeeAlso: `.code402`.
+            public var code402: Operations.getCacheToken.Output.Code402 {
+                get throws {
+                    switch self {
+                    case let .code402(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "code402",
                             response: self
                         )
                     }

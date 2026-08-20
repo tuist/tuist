@@ -487,6 +487,28 @@ public struct Client: APIProtocol {
                         headers: headers,
                         body: body
                     ))
+                case 402:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getCacheEndpoints.Output.Code402.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .code402(.init(body: body))
                 case 403:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.getCacheEndpoints.Output.Forbidden.Body
@@ -2711,15 +2733,15 @@ public struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
-                    name: "page_size",
-                    value: input.query.page_size
+                    name: "git_branch",
+                    value: input.query.git_branch
                 )
                 try converter.setQueryItemAsURI(
                     in: &request,
                     style: .form,
                     explode: true,
-                    name: "git_branch",
-                    value: input.query.git_branch
+                    name: "page_size",
+                    value: input.query.page_size
                 )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
@@ -15976,6 +15998,28 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .unauthorized(.init(body: body))
+                case 402:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getCacheToken.Output.Code402.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .code402(.init(body: body))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,

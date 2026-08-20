@@ -152,6 +152,15 @@ components:
           type: string
           x-struct:
           x-validate:
+        only_test_identifiers:
+          description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         scheme:
           description: The scheme used for the test run.
           type: string
@@ -166,6 +175,15 @@ components:
         shard_plan_id:
           description: The shard plan ID if this test run is part of a sharded execution.
           type: string
+          x-struct:
+          x-validate:
+        skip_test_identifiers:
+          description: The tests the caller asked this run to exclude.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         status:
@@ -1789,7 +1807,7 @@ components:
           x-struct:
           x-validate:
         git_branch:
-          description: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
+          description: "The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch."
           type: string
           x-struct:
           x-validate:
@@ -6755,6 +6773,12 @@ paths:
                 x-struct:
                 x-validate:
               style: simple
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
         '403':
           content:
             application/json:
@@ -8807,25 +8831,9 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
           required: false
           schema:
             type: integer
@@ -8837,6 +8845,22 @@ paths:
           required: false
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -16451,7 +16475,7 @@ paths:
                   x-struct:
                   x-validate:
                 git_branch:
-                  description: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
+                  description: "The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch."
                   type: string
                   x-struct:
                   x-validate:
@@ -21413,6 +21437,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
       summary: Exchange the current credential for a cache token.
       tags:
         - Cache

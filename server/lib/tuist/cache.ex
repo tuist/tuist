@@ -8,6 +8,7 @@ defmodule Tuist.Cache do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Authorization
+  alias Tuist.Billing
   alias Tuist.Cache.CASEvent
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
@@ -148,7 +149,9 @@ defmodule Tuist.Cache do
     |> Enum.sort()
   end
 
-  def accessible_account_handles(%Account{} = account), do: [account.name]
+  def accessible_account_handles(%Account{} = account) do
+    if Billing.cache_access_blocked?(account), do: [], else: [account.name]
+  end
 
   def accessible_account_handles(%AuthenticatedAccount{issued_by: %User{} = user, all_projects: true}) do
     accessible_account_handles(user)
@@ -231,7 +234,16 @@ defmodule Tuist.Cache do
 
   defp with_resolved_membership(resource), do: resource
 
-  defp accessible_accounts(%User{} = user) do
+  # An account that has exhausted the free tier reaches no cache at all, so it
+  # is dropped here rather than at each of the four callers that turn these
+  # into handles, grants or token claims.
+  defp accessible_accounts(resource) do
+    resource
+    |> resolve_accessible_accounts()
+    |> Enum.reject(&Billing.cache_access_blocked?/1)
+  end
+
+  defp resolve_accessible_accounts(%User{} = user) do
     personal_account = Accounts.get_account_from_user(user)
 
     organization_accounts =
@@ -242,14 +254,16 @@ defmodule Tuist.Cache do
     Enum.reject([personal_account | organization_accounts], &is_nil/1)
   end
 
-  defp accessible_accounts(%AuthenticatedAccount{issued_by: %User{} = user, all_projects: true}),
-    do: accessible_accounts(user)
+  defp resolve_accessible_accounts(%AuthenticatedAccount{issued_by: %User{} = user, all_projects: true}),
+    do: resolve_accessible_accounts(user)
 
-  defp accessible_accounts(%AuthenticatedAccount{account: %Account{} = account, all_projects: true}), do: [account]
-  defp accessible_accounts(%AuthenticatedAccount{account: %Account{} = account}), do: [account]
-  defp accessible_accounts(%AuthenticatedAccount{}), do: []
-  defp accessible_accounts(%Project{}), do: []
-  defp accessible_accounts(_), do: []
+  defp resolve_accessible_accounts(%AuthenticatedAccount{account: %Account{} = account, all_projects: true}),
+    do: [account]
+
+  defp resolve_accessible_accounts(%AuthenticatedAccount{account: %Account{} = account}), do: [account]
+  defp resolve_accessible_accounts(%AuthenticatedAccount{}), do: []
+  defp resolve_accessible_accounts(%Project{}), do: []
+  defp resolve_accessible_accounts(_), do: []
 
   defp account_handles(accounts) do
     accounts
@@ -278,7 +292,21 @@ defmodule Tuist.Cache do
   # account. Preloading it batches that into the project query instead of one
   # account read per project.
   defp accessible_projects(resource, opts) do
-    Projects.list_accessible_projects(resource, Keyword.put_new(opts, :preload, account: :organization))
+    resource
+    |> Projects.list_accessible_projects(Keyword.put_new(opts, :preload, account: :organization))
+    |> reject_projects_of_blocked_accounts()
+  end
+
+  # The plan is resolved once per distinct account rather than once per project,
+  # so the cost stays flat in the number of projects an account owns.
+  defp reject_projects_of_blocked_accounts(projects) do
+    blocked =
+      projects
+      |> Enum.uniq_by(& &1.account_id)
+      |> Enum.filter(&Billing.cache_access_blocked?(&1.account))
+      |> MapSet.new(& &1.account_id)
+
+    Enum.reject(projects, &MapSet.member?(blocked, &1.account_id))
   end
 
   defp account_cache_handles(resource, accounts, action) do

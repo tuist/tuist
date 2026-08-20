@@ -3,6 +3,7 @@ import Mockable
 import Synchronization
 import Testing
 import TuistServer
+import TuistTesting
 
 @testable import TuistCache
 
@@ -155,6 +156,35 @@ struct CacheTokenStoreTests {
 
         // Then
         #expect(token == nil)
+    }
+
+    /// An account over its plan's free tier is refused by cache nodes too, so
+    /// falling back to the original credential silently would leave the build
+    /// looking like a long run of cache misses with nothing explaining it.
+    @Test(.withMockedDependencies()) func warns_when_the_free_tier_is_exhausted() async throws {
+        // Given
+        let service = MockGetCacheTokenServicing()
+        given(service)
+            .getCacheToken(serverURL: .any, fullHandle: .any)
+            .willThrow(
+                GetCacheTokenServiceError.freeTierExhausted(
+                    "The account 'acme' has reached the limits of the plan 'Tuist Air'."
+                )
+            )
+        let subject = CacheTokenStore(
+            getCacheTokenService: service,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+
+        // When
+        let token = await subject.cacheToken(
+            authenticationURL: authenticationURL,
+            fullHandle: "acme/ios"
+        )
+
+        // Then
+        #expect(token == nil)
+        TuistTest.expectLogs("has reached the limits of the plan 'Tuist Air'")
     }
 
     /// A server that cannot mint a token stays that way, and a build makes

@@ -5,7 +5,9 @@ defmodule Cache.Authentication do
   This module validates that a request has proper authorization to access a project
   by first attempting to decode JWT tokens locally and extract the projects claim.
   For non-JWT tokens (e.g., project tokens), it falls back to calling the server's
-  /api/projects endpoint and caching the results.
+  /api/cache/access endpoint and caching the results. That endpoint resolves
+  cache access specifically, so an account that has exhausted the free tier is
+  already absent from what it returns.
   """
 
   require Logger
@@ -266,7 +268,7 @@ defmodule Cache.Authentication do
 
   defp request_options(headers) do
     base_url = server_url()
-    url = "#{base_url}/api/projects"
+    url = "#{base_url}/api/cache/access"
 
     req_options =
       Application.get_env(
@@ -303,7 +305,7 @@ defmodule Cache.Authentication do
     project_handles =
       projects
       |> Enum.map(fn
-        %{"full_name" => name} when is_binary(name) -> String.downcase(name)
+        handle when is_binary(handle) -> String.downcase(handle)
         _ -> nil
       end)
       |> Enum.reject(&is_nil/1)

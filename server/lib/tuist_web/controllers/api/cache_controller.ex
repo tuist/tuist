@@ -6,6 +6,7 @@ defmodule TuistWeb.API.CacheController do
   alias Tuist.Accounts
   alias Tuist.API.Pipeline
   alias Tuist.Authorization
+  alias Tuist.Billing
   alias Tuist.Cache
   alias Tuist.CacheActionItems
   alias Tuist.Storage
@@ -80,6 +81,7 @@ defmodule TuistWeb.API.CacheController do
           }
         }
       },
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error},
       forbidden: {"Not authorized to perform this action", "application/json", Error}
     }
   )
@@ -92,16 +94,39 @@ defmodule TuistWeb.API.CacheController do
   @provisioning_cache_max_age 30
 
   def endpoints(conn, params) do
-    %{endpoints: endpoints, provisioning: provisioning} =
-      params[:account_handle]
-      |> authorized_account_handle(conn)
-      |> Accounts.get_cache_resolution_for_handle(technology(conn))
+    account_handle = authorized_account_handle(params[:account_handle], conn)
 
-    max_age = if provisioning, do: @provisioning_cache_max_age, else: @serving_cache_max_age
+    case free_tier_exhausted_account(account_handle) do
+      nil ->
+        %{endpoints: endpoints, provisioning: provisioning} =
+          Accounts.get_cache_resolution_for_handle(account_handle, technology(conn))
 
+        max_age = if provisioning, do: @provisioning_cache_max_age, else: @serving_cache_max_age
+
+        conn
+        |> put_resp_header("cache-control", "private, max-age=#{max_age}")
+        |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1)})
+
+      account ->
+        render_free_tier_exhausted(conn, account)
+    end
+  end
+
+  defp free_tier_exhausted_account(nil), do: nil
+
+  defp free_tier_exhausted_account(account_handle) do
+    account = Accounts.get_account_by_handle(account_handle)
+
+    if not is_nil(account) and Billing.cache_access_blocked?(account), do: account
+  end
+
+  defp render_free_tier_exhausted(conn, account) do
     conn
-    |> put_resp_header("cache-control", "private, max-age=#{max_age}")
-    |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1)})
+    |> put_status(:payment_required)
+    |> json(%{
+      message:
+        "The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}."
+    })
   end
 
   defp authorized_account_handle(nil, _conn), do: nil
@@ -195,17 +220,33 @@ defmodule TuistWeb.API.CacheController do
              }
            }
          }},
-      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error}
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error}
     }
   )
 
   def token(conn, params) do
-    {:ok, token, _claims} =
-      conn
-      |> Authentication.authenticated_subject()
-      |> Cache.issue_cache_token(scope: params[:full_handle])
+    case params[:full_handle] |> scope_account_handle() |> free_tier_exhausted_account() do
+      nil ->
+        {:ok, token, _claims} =
+          conn
+          |> Authentication.authenticated_subject()
+          |> Cache.issue_cache_token(scope: params[:full_handle])
 
-    json(conn, %{token: token, expires_in: Cache.cache_token_ttl_seconds()})
+        json(conn, %{token: token, expires_in: Cache.cache_token_ttl_seconds()})
+
+      account ->
+        render_free_tier_exhausted(conn, account)
+    end
+  end
+
+  defp scope_account_handle(nil), do: nil
+
+  defp scope_account_handle(full_handle) do
+    case String.split(full_handle, "/") do
+      [account_handle, _project_handle] -> account_handle
+      _ -> nil
+    end
   end
 
   operation(:get_cache_action_item,

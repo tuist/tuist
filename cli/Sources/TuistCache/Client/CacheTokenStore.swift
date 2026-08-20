@@ -43,6 +43,10 @@ public actor CacheTokenStore: CacheTokenStoring {
     /// memoize an absent result by design.
     private var unavailableUntil: [String: Date] = [:]
 
+    /// A build makes thousands of cache calls, so the plan is reported once
+    /// rather than on every one of them.
+    private var warnedFreeTierExhausted = false
+
     public init() {
         self.init(getCacheTokenService: GetCacheTokenService())
     }
@@ -55,6 +59,12 @@ public actor CacheTokenStore: CacheTokenStoring {
         self.getCacheTokenService = getCacheTokenService
         self.cachedValueStore = cachedValueStore
         self.now = now
+    }
+
+    private func warnFreeTierExhausted(_ message: String) {
+        guard !warnedFreeTierExhausted else { return }
+        warnedFreeTierExhausted = true
+        Logger.current.warning("\(message)")
     }
 
     public func cacheToken(authenticationURL: URL, fullHandle: String?) async -> String? {
@@ -84,11 +94,21 @@ public actor CacheTokenStore: CacheTokenStoring {
             unavailableUntil[key] = nil
             return token
         } catch {
-            // Cache nodes still accept the original credential, so a server
-            // that cannot mint one (an older self-hosted deployment, for
-            // example) leaves cache access working exactly as before.
-            Logger.current
-                .debug("Using the original credential for cache requests: \(error)")
+            if let tokenError = error as? GetCacheTokenServiceError,
+               case let .freeTierExhausted(message) = tokenError
+            {
+                // Cache nodes refuse the original credential too, so falling back
+                // silently would present an exhausted plan as a long run of cache
+                // misses with nothing explaining it.
+                warnFreeTierExhausted(message)
+            } else {
+                // Cache nodes still accept the original credential, so a server
+                // that cannot mint one (an older self-hosted deployment, for
+                // example) leaves cache access working exactly as before.
+                Logger.current
+                    .debug("Using the original credential for cache requests: \(error)")
+            }
+
             unavailableUntil[key] = now().addingTimeInterval(Self.unavailabilityLifetime)
             return nil
         }
