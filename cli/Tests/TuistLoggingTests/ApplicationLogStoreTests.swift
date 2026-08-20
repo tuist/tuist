@@ -22,7 +22,7 @@
                 "authentication refresh succeeded",
                 metadata: ["attempt": "1"]
             )
-            _ = try handler.contents()
+            _ = try await handler.contents()
 
             let report = try await subject.plainTextReport(
                 appVersion: "1.2.3",
@@ -51,7 +51,7 @@
                 "authorization=secret bearer another-secret",
                 metadata: ["refresh_token": "credential", "request": "safe"]
             )
-            let contents = try handler.contents()
+            let contents = try await handler.contents()
 
             #expect(!contents.contains("authorization=secret"))
             #expect(!contents.contains("another-secret"))
@@ -75,7 +75,7 @@
 
             logger.debug("Received HTTP response from Tuist:\n  - Body: \(presignedURL)")
 
-            #expect(try handler.contents().isEmpty)
+            #expect(try await handler.contents().isEmpty)
         }
 
         @Test(.inTemporaryDirectory)

@@ -74,7 +74,7 @@
             var sessions: [String] = []
             for session in try await recentSessionFiles(generatedAt: generatedAt) {
                 let contents = if activeLogHandler?.fileURL.path == session.path.pathString {
-                    try activeLogHandler?.contents() ?? ""
+                    try await activeLogHandler?.contents() ?? ""
                 } else {
                     try await fileSystem.readTextFile(at: session.path)
                 }

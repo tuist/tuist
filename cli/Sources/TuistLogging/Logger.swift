@@ -99,8 +99,8 @@ public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
         backend.fileURL
     }
 
-    func contents() throws -> String {
-        try backend.contents()
+    func contents() async throws -> String {
+        try await backend.contents()
     }
 }
 
@@ -108,7 +108,7 @@ private final class SimpleFileLogBackend: @unchecked Sendable {
     let fileURL: URL
 
     private let fileHandle: FileHandle
-    private let lock = NSLock()
+    private let queue = DispatchQueue(label: "dev.tuist.logging.file-backend")
     private let maximumFileSize: UInt64?
     private var currentSize: UInt64
 
@@ -125,9 +125,12 @@ private final class SimpleFileLogBackend: @unchecked Sendable {
     }
 
     func write(_ data: Data) {
-        lock.lock()
-        defer { lock.unlock() }
+        queue.async {
+            self.writeToFile(data)
+        }
+    }
 
+    private func writeToFile(_ data: Data) {
         do {
             if let maximumFileSize, currentSize + UInt64(data.count) > maximumFileSize {
                 try fileHandle.truncate(atOffset: 0)
@@ -139,12 +142,17 @@ private final class SimpleFileLogBackend: @unchecked Sendable {
         } catch {}
     }
 
-    func contents() throws -> String {
-        lock.lock()
-        defer { lock.unlock() }
-
-        try fileHandle.synchronize()
-        return try String(contentsOf: fileURL, encoding: .utf8)
+    func contents() async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    try self.fileHandle.synchronize()
+                    continuation.resume(returning: try String(contentsOf: self.fileURL, encoding: .utf8))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 }
 
