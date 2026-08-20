@@ -244,30 +244,44 @@ func TestStartInstallRefusesWithoutDiskGroups(t *testing.T) {
 	}
 }
 
-// The split-mirror shape (a small OS mirror plus a larger data mirror): the OS
-// lands on the smaller group and the whole larger group becomes /data.
-func TestPlanStorageSplitsOSAndDataMirrors(t *testing.T) {
-	got, err := PlanStorage([]DiskGroup{group(2, 2, 1920), group(1, 2, 960)})
+// OVH documents storage customization for one disk group per install, so the
+// split-mirror shape (a small OS mirror plus a larger data mirror) must still
+// produce a SINGLE storage entry. A two-entry payload is either rejected or
+// silently reduced to the first, and the silent case installs a box with no
+// /data at all, which costs a wipe and a reinstall to notice.
+func TestPlanStorageEmitsOneDiskGroupForSplitMirrors(t *testing.T) {
+	got, err := PlanStorage([]DiskGroup{group(1, 2, 960), group(2, 2, 1920)})
 	if err != nil {
 		t.Fatalf("PlanStorage: %v", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("PlanStorage returned %d groups, want 2: %+v", len(got), got)
+	if len(got) != 1 {
+		t.Fatalf("PlanStorage returned %d storage entries, want 1: %+v", len(got), got)
 	}
-	if got[0].DiskGroupID != 1 {
-		t.Fatalf("OS group = %d, want the smaller group 1", got[0].DiskGroupID)
+	// The larger group, so the cache gets the bigger mirror; the OS mirror is
+	// left untouched rather than half-configured.
+	if got[0].DiskGroupID != 2 {
+		t.Fatalf("disk group = %d, want the larger group 2", got[0].DiskGroupID)
 	}
-	// Root fills its own group: nothing else lives there, so a cap would strand
-	// the remainder instead of saving it for /data.
-	if root := got[0].Partitioning.Layout[1]; root.MountPoint != "/" || root.SizeMiB != fillRemainingMiB {
-		t.Fatalf("OS layout root = %+v, want / filling the group", root)
+	layout := got[0].Partitioning.Layout
+	if len(layout) != 3 || layout[2].MountPoint != DataMountPoint || layout[2].SizeMiB != fillRemainingMiB {
+		t.Fatalf("layout = %+v, want /boot + / + /data filling the group", layout)
 	}
-	if got[1].DiskGroupID != 2 {
-		t.Fatalf("data group = %d, want the larger group 2", got[1].DiskGroupID)
+}
+
+// Equal-sized groups have to plan the same way every call, or a retried install
+// could land a box on a different mirror than the one it was planned for.
+func TestPlanStorageIsDeterministicAcrossEqualGroups(t *testing.T) {
+	first, err := PlanStorage([]DiskGroup{group(2, 2, 1920), group(1, 2, 1920)})
+	if err != nil {
+		t.Fatalf("PlanStorage: %v", err)
 	}
-	data := got[1].Partitioning.Layout
-	if len(data) != 1 || data[0].MountPoint != DataMountPoint || data[0].FileSystem != dataFileSystem || data[0].SizeMiB != fillRemainingMiB {
-		t.Fatalf("data layout = %+v, want a single XFS /data filling the group", data)
+	second, err := PlanStorage([]DiskGroup{group(1, 2, 1920), group(2, 2, 1920)})
+	if err != nil {
+		t.Fatalf("PlanStorage: %v", err)
+	}
+	if first[0].DiskGroupID != second[0].DiskGroupID || first[0].DiskGroupID != 1 {
+		t.Fatalf("equal groups planned to %d and %d, want both on the lower id 1",
+			first[0].DiskGroupID, second[0].DiskGroupID)
 	}
 }
 

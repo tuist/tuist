@@ -513,9 +513,20 @@ the box crosses kubelet's eviction line and takes down every tenant on it.
 
 The layout comes from the box's real disk groups (`ovh.PlanStorage`,
 `GET /dedicated/server/{name}/specifications/hardware`), so one code path covers
-both shapes in the fleet: a single NVMe mirror gets `/boot` + a capped `/` +
-`/data` filling the rest, and a box with a small OS mirror plus a larger data
-mirror puts `/` on the smaller group and gives the larger one to `/data` whole.
+every shape in the fleet: `/boot` + a capped `/` + `/data` filling the rest,
+mirrored, on the box's LARGEST disk group.
+
+It is deliberately ONE storage entry. OVH documents storage customization for a
+single disk group per install, so a box with a small OS mirror plus a larger data
+mirror gets its whole layout on the larger mirror and leaves the smaller one
+untouched, rather than the two-entry payload that shape invites. Two entries
+would be either rejected or silently reduced to the first, and the silent case
+installs a box with no `/data` at all. That is recoverable, since the self-join
+then refuses to bring it up, but only after a wipe and a ~30 minute install.
+Using the second group needs either a verified multi-group flow or post-install
+assembly of the untouched disks; neither exists today, and no cache capacity is
+lost by leaving it idle, since the cache lives on the larger group either way.
+
 `StartInstall` refuses to post a reinstall it cannot plan a layout for, rather
 than falling back to the provider's default single-root install. Dedibox takes
 the same shape by formatting the default layout's `/data` as XFS

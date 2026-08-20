@@ -114,7 +114,12 @@ xfs_quota -x -c "state -p" "$data" | grep -q "Enforcement: ON" || {
   exit 1
 }
 
-mismatch="$(xfs_quota -x -c "project -c -p $dir $projid" "$data" 2>&1 | grep -v "^Checking project" || true)"
+# `project -c` reports discrepancies on stdout and frames them with two
+# informational lines that are printed whether or not anything is wrong: a
+# leading "Checking project ..." and a trailing "Processed N ... paths ..."
+# footer. Both have to be dropped, or a correctly applied project reads as a
+# mismatch and every volume fails setup on a box that is working fine.
+mismatch="$(xfs_quota -x -c "project -c -p $dir $projid" "$data" 2>&1 | grep -Ev "^(Checking project|Processed )" || true)"
 [ -z "$mismatch" ] || { log "project $projid did not apply to $dir: $mismatch"; exit 1; }
 
 xfs_quota -x -c "report -p -N -b" "$data" > /tmp/tuist-kura-quota.report

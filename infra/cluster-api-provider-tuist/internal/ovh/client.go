@@ -379,86 +379,55 @@ func (c *Client) DiskGroups(ctx context.Context, serviceName string) ([]DiskGrou
 }
 
 // PlanStorage derives the reinstall storage block from a server's disk groups:
-// mirrored, a small root, and a separate XFS /data holding every cache
-// directory. It is a pure function of the reported hardware so the same code
-// covers both shapes in the fleet without an offer-keyed table.
+// one mirrored group carrying /boot, a capped /, and a separate XFS /data
+// filling what is left. It is a pure function of the reported hardware so the
+// same code covers every shape in the fleet without an offer-keyed table.
 //
-//   - One disk group (a single NVMe mirror): /boot + a capped / + /data filling
-//     what is left, all on that mirror.
-//   - Two or more (a small OS mirror plus a larger data mirror): the SMALLEST
-//     group takes /boot + a / that fills it, and the LARGEST becomes /data
-//     whole. Root is uncapped there because the group holds nothing else, so
-//     capping it would strand the remainder rather than save it.
+// Deliberately a SINGLE storage entry, on the largest disk group. OVH documents
+// storage customization for one disk group per install, so a box with a small OS
+// mirror plus a larger data mirror gets its whole layout on the larger mirror and
+// leaves the smaller one untouched, rather than the two-entry payload that shape
+// invites. Two entries would be either rejected or silently reduced to the first,
+// and the silent case installs a box with no /data at all: recoverable, since the
+// self-join then refuses to bring it up, but only after a wipe and a ~30 minute
+// install. Spending an idle OS mirror to stay inside what the API documents is
+// the better trade, and it costs no cache capacity, which all lives on the larger
+// group either way. Using the second group needs either a verified multi-group
+// flow or post-install assembly of the untouched disks; neither is here.
 //
-// Groups beyond those two are left untouched: the fleet has no box with more,
-// and silently partitioning a disk the caller did not account for is worse than
-// leaving it idle.
-//
-// Returning an error rather than an empty layout is deliberate: an install that
-// falls back to OVH's default single-root layout comes up with the cache on
-// root and no enforceable per-account ceiling, which is exactly the state this
-// is here to prevent, and correcting it costs a full reinstall.
+// Returning an error rather than an empty layout is the other half: an install
+// that falls back to OVH's default single-root layout comes up with the cache on
+// root and no enforceable per-account ceiling, which is exactly the state this is
+// here to prevent, and correcting it costs a full reinstall.
 func PlanStorage(groups []DiskGroup) ([]StorageGroup, error) {
-	usable := make([]DiskGroup, 0, len(groups))
-	for _, g := range groups {
-		if g.NumberOfDisks > 0 {
-			usable = append(usable, g)
+	var chosen *DiskGroup
+	for i := range groups {
+		g := groups[i]
+		if g.NumberOfDisks <= 0 {
+			continue
+		}
+		// Ties break on the lower disk-group id so the plan is stable across
+		// calls for a box whose groups are the same size.
+		if chosen == nil || g.capacityMiB() > chosen.capacityMiB() ||
+			(g.capacityMiB() == chosen.capacityMiB() && g.DiskGroupID < chosen.DiskGroupID) {
+			chosen = &g
 		}
 	}
-	if len(usable) == 0 {
+	if chosen == nil {
 		return nil, errors.New("no usable disk group reported: refusing to install without a separate /data")
 	}
 
-	if len(usable) == 1 {
-		g := usable[0]
-		return []StorageGroup{{
-			DiskGroupID: g.DiskGroupID,
-			Partitioning: Partitioning{
-				Disks: g.NumberOfDisks,
-				Layout: []Partition{
-					{FileSystem: rootFileSystem, MountPoint: "/boot", SizeMiB: bootPartitionMiB, RaidLevel: g.raidLevel()},
-					{FileSystem: rootFileSystem, MountPoint: "/", SizeMiB: rootPartitionMiB, RaidLevel: g.raidLevel()},
-					{FileSystem: dataFileSystem, MountPoint: DataMountPoint, SizeMiB: fillRemainingMiB, RaidLevel: g.raidLevel()},
-				},
-			},
-		}}, nil
-	}
-
-	osGroup, dataGroup := usable[0], usable[0]
-	for _, g := range usable[1:] {
-		// Ties break on the lower disk-group id so the plan is stable across
-		// calls for a box whose groups are the same size.
-		if g.capacityMiB() < osGroup.capacityMiB() ||
-			(g.capacityMiB() == osGroup.capacityMiB() && g.DiskGroupID < osGroup.DiskGroupID) {
-			osGroup = g
-		}
-		if g.capacityMiB() > dataGroup.capacityMiB() ||
-			(g.capacityMiB() == dataGroup.capacityMiB() && g.DiskGroupID > dataGroup.DiskGroupID) {
-			dataGroup = g
-		}
-	}
-
-	return []StorageGroup{
-		{
-			DiskGroupID: osGroup.DiskGroupID,
-			Partitioning: Partitioning{
-				Disks: osGroup.NumberOfDisks,
-				Layout: []Partition{
-					{FileSystem: rootFileSystem, MountPoint: "/boot", SizeMiB: bootPartitionMiB, RaidLevel: osGroup.raidLevel()},
-					{FileSystem: rootFileSystem, MountPoint: "/", SizeMiB: fillRemainingMiB, RaidLevel: osGroup.raidLevel()},
-				},
+	return []StorageGroup{{
+		DiskGroupID: chosen.DiskGroupID,
+		Partitioning: Partitioning{
+			Disks: chosen.NumberOfDisks,
+			Layout: []Partition{
+				{FileSystem: rootFileSystem, MountPoint: "/boot", SizeMiB: bootPartitionMiB, RaidLevel: chosen.raidLevel()},
+				{FileSystem: rootFileSystem, MountPoint: "/", SizeMiB: rootPartitionMiB, RaidLevel: chosen.raidLevel()},
+				{FileSystem: dataFileSystem, MountPoint: DataMountPoint, SizeMiB: fillRemainingMiB, RaidLevel: chosen.raidLevel()},
 			},
 		},
-		{
-			DiskGroupID: dataGroup.DiskGroupID,
-			Partitioning: Partitioning{
-				Disks: dataGroup.NumberOfDisks,
-				Layout: []Partition{
-					{FileSystem: dataFileSystem, MountPoint: DataMountPoint, SizeMiB: fillRemainingMiB, RaidLevel: dataGroup.raidLevel()},
-				},
-			},
-		},
-	}, nil
+	}}, nil
 }
 
 // InstallParams is the desired OS install for a server.
