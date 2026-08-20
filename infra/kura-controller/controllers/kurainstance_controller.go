@@ -188,6 +188,14 @@ type runtimeStatus struct {
 	State           string `json:"state"`
 	RingMembers     int    `json:"ring_members"`
 	WriterLockOwned bool   `json:"writer_lock_owned"`
+	// BackfillInitialCycle reports whether a pod's initial peer catch-up has
+	// settled. Primary selection deliberately does NOT consume it (see
+	// primaryPodHealth): a rolling deploy has to promote a caught-up standby
+	// immediately to stay gapless, and readiness plus ring membership is the
+	// right gate there. Node evacuation does consume it, because moving a
+	// replica destroys the peer the next one would refill from, so "ready" is
+	// not enough to justify the next move.
+	BackfillInitialCycle string `json:"backfill_initial_cycle"`
 }
 
 type httpRuntimeStatusClient struct {
@@ -381,6 +389,12 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.replaceUnreadyPodsForImageChange(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	// Retiring a cache box means abandoning node-local volumes and refilling
+	// them from a peer, so the moves are sequenced rather than done at once.
+	// Paced by this reconciler's requeue below.
+	if err := r.evacuateMarkedNodes(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -3289,6 +3303,14 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&corev1.Pod{},
 			handler.EnqueueRequestsFromMapFunc(r.kuraInstanceForPod),
 			builder.WithPredicates(predicate.And(kuraPodPredicate(), podRoutabilityChangedPredicate())),
+		).
+		Watches(
+			&corev1.Node{},
+			handler.EnqueueRequestsFromMapFunc(r.kuraInstancesForNode),
+			builder.WithPredicates(predicate.NewPredicateFuncs(func(object client.Object) bool {
+				_, marked := object.GetAnnotations()[EvacuateNodeAnnotation]
+				return marked
+			})),
 		).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).

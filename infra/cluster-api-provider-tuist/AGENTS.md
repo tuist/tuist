@@ -581,9 +581,17 @@ and this is pre-existing rather than anything the quota work introduced:
    AFTER drain in `reconcileDelete`. With `nodeDrainTimeout` unset on these
    fleets, drain has no deadline, so the Machine sits in Deleting indefinitely.
 
-Free the volumes first, onto a second box. A region's instances run a primary
-plus a warm standby, and the public Service selects ONE of them by pod name, so
-the standby can be moved with nothing user-visible happening:
+**The controller does this for you.** Annotate the outgoing node
+`tuist.dev/kura-evacuate` and the kura-controller runs the sequence below
+itself, one replica at a time, gated on each moved pod reporting a completed
+catch-up (`infra/kura-controller/controllers/node_evacuation.go`). Bring up the
+replacement box first; with nowhere to land it deliberately does nothing. Once
+the box holds no cache pods, delete its Machine as normal.
+
+The manual sequence, for reference and for anything the controller does not
+cover. A region's instances run a primary plus a warm standby, and the public
+Service selects ONE of them by pod name, so the standby can be moved with
+nothing user-visible happening:
 
 1. Prep a second box into the region's pool and raise `replicas`. Before
    touching anything live, confirm the new box can actually enforce: provision a
