@@ -620,6 +620,30 @@ struct XCActivityLogControllerTests {
         #expect(result == nil)
     }
 
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_returnsOlderCompleteLog_whenMostRecentUnregisteredLogIsPartiallyWritten() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+        let completeLogPath = buildLogsDirectory.appending(component: "complete-log-id.xcactivitylog")
+        let partialLogPath = buildLogsDirectory.appending(component: "partial-log-id.xcactivitylog")
+        try writeActivityLog(at: completeLogPath)
+        try writeActivityLog(at: partialLogPath, truncatedTo: 128)
+        try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_240.0), at: completeLogPath)
+        try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_246.0), at: partialLogPath)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        #expect(try #require(result).path == completeLogPath)
+    }
+
     private func setModificationDate(_ date: Date, at path: AbsolutePath) throws {
         try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: path.pathString)
     }

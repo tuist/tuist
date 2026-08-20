@@ -80,7 +80,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
             in: logsBuildDirectoryPath,
             registeredPaths: Set(manifestLogFiles.map(\.path))
         )
-        return mostRecentLogFile(in: unregisteredLogFiles, filter: filter)
+        return mostRecentLogFile(in: unregisteredLogFiles, filter: filter, isEligible: { isDecodable(at: $0.path) })
     }
 
     private func manifestLogFiles(in logsBuildDirectoryPath: AbsolutePath) async throws -> [XCActivityLogFile] {
@@ -125,12 +125,9 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
         var logFiles: [XCActivityLogFile] = []
         for path in paths {
-            // Xcode creates the log file before it writes to it and registers it in the manifest
-            // only once it's finalized, so an unregistered log can also be a gzip stream that is
-            // still being written. Size doesn't tell the two apart, and uploading a partial log
-            // leaves the build run stuck in `failed_processing`, so decode it here instead.
-            guard let metadata = try await fileSystem.fileMetadata(at: path), metadata.size > 0,
-                  isDecodable(at: path) else { continue }
+            // Xcode creates the log file before it writes to it, so an empty log is one that was
+            // never filled in and can't be parsed.
+            guard let metadata = try await fileSystem.fileMetadata(at: path), metadata.size > 0 else { continue }
             logFiles.append(
                 XCActivityLogFile(
                     path: path,
@@ -143,8 +140,12 @@ public struct XCActivityLogController: XCActivityLogControlling {
         return logFiles
     }
 
-    /// Whether the log's gzip container is complete, which is what the parser that reads the
-    /// uploaded log needs to get past the header.
+    /// Xcode registers a log in the manifest only once it's finalized, so an unregistered log can
+    /// also be a gzip stream that is still being written, which no size check tells apart from a
+    /// complete one. Uploading a partial log leaves the build run in `failed_processing`, and the
+    /// only way to rule it out is to reach the end of the stream, which is also what the parser
+    /// that reads the uploaded log does. Callers apply this to one candidate at a time, since it
+    /// holds the log's inflated contents in memory.
     private func isDecodable(at path: AbsolutePath) -> Bool {
         guard let contents = try? Data(contentsOf: path.url, options: .mappedIfSafe),
               (try? contents.gunzipped()) != nil
@@ -157,7 +158,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
     private func mostRecentLogFile(
         in logFiles: [XCActivityLogFile],
-        filter: (XCActivityLogFile) -> Bool
+        filter: (XCActivityLogFile) -> Bool,
+        isEligible: (XCActivityLogFile) -> Bool = { _ in true }
     ) -> XCActivityLogFile? {
         let sortedLogFiles = logFiles.sorted(by: {
             $0.timeStoppedRecording > $1.timeStoppedRecording
@@ -170,7 +172,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
         let logFile = sortedLogFiles
             .filter(filter)
-            .first
+            .first(where: isEligible)
         if logFile == nil, !sortedLogFiles.isEmpty {
             Logger.current.debug("No activity log matched the filter (all \(sortedLogFiles.count) entries were filtered out)")
         }
