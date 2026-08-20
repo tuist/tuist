@@ -44,8 +44,8 @@ jobs:
         run: mix deps.get
       - name: Run translations
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: elixir translate.exs --model "openai:gpt-4.1-mini"
+          HIVE_INFERENCE_API_KEY: ${{ secrets.HIVE_INFERENCE_API_KEY }}
+        run: elixir translate.exs --model "hive:Translator"
       - name: Check for changes
         id: changes
         run: |
