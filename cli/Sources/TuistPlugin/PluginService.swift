@@ -72,6 +72,7 @@ public struct PluginService: PluginServicing {
     private let fileClient: FileClienting
     private let fileSystem: FileSystem
     private let commandRunner: CommandRunning
+    private let cacheDirectoryLock: CacheDirectoryLocking
 
     /// Creates a `PluginService`.
     /// - Parameters:
@@ -89,7 +90,8 @@ public struct PluginService: PluginServicing {
         fileArchivingFactory: FileArchivingFactorying = FileArchivingFactory(),
         fileClient: FileClienting = FileClient(),
         fileSystem: FileSystem = FileSystem(),
-        commandRunner: CommandRunning = CommandRunner()
+        commandRunner: CommandRunning = CommandRunner(),
+        cacheDirectoryLock: CacheDirectoryLocking = CacheDirectoryLock()
     ) {
         self.manifestLoader = manifestLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
@@ -98,6 +100,7 @@ public struct PluginService: PluginServicing {
         self.fileArchivingFactory = fileArchivingFactory
         self.fileClient = fileClient
         self.fileSystem = fileSystem
+        self.cacheDirectoryLock = cacheDirectoryLock
         self.commandRunner = commandRunner
     }
 
@@ -222,21 +225,26 @@ public struct PluginService: PluginServicing {
             url: url,
             gitId: gitReference.raw
         )
-        try await fetchGitPluginRepository(
-            pluginCacheDirectory: pluginCacheDirectory,
-            url: url,
-            gitId: gitReference.raw
-        )
-        switch gitReference {
-        case .sha:
-            break
-        case let .tag(tag):
-            try await fetchGitPluginRelease(
+        // A clone writes straight into the plugin cache, so it has to hold the directory for its
+        // whole duration rather than only while the files land. A clean waiting behind a clone is
+        // the cost of not letting it delete a half-written plugin.
+        try await cacheDirectoryLock.whileUsing(.plugins) {
+            try await fetchGitPluginRepository(
                 pluginCacheDirectory: pluginCacheDirectory,
                 url: url,
-                gitTag: tag,
-                releaseUrl: releaseUrl
+                gitId: gitReference.raw
             )
+            switch gitReference {
+            case .sha:
+                break
+            case let .tag(tag):
+                try await fetchGitPluginRelease(
+                    pluginCacheDirectory: pluginCacheDirectory,
+                    url: url,
+                    gitTag: tag,
+                    releaseUrl: releaseUrl
+                )
+            }
         }
     }
 

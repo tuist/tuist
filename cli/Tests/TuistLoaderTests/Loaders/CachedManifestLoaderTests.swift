@@ -306,12 +306,15 @@ class CachedManifestLoaderTests {
         })
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func throwing_writeErrors() async throws {
+    /// The manifest is already loaded by the time it is cached, so a cache that cannot be written
+    /// costs a re-load on the next run and nothing else. It must not fail a command that has
+    /// everything it needs, which is what a concurrent `tuist clean` removing the cache directory
+    /// out from under the write used to do.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func tolerates_writeErrors() async throws {
         // Given
-        let expectedError = TestError.writeFailed
         let fileSystem = MockFileSystem()
         fileSystem.writeTextOverride = { _, _, _ in
-            throw expectedError
+            throw TestError.writeFailed
         }
 
         subject = try createSubject(fileSystem: fileSystem)
@@ -320,10 +323,11 @@ class CachedManifestLoaderTests {
         let project = Project.test(name: "App")
         try await stubProject(project, at: path)
 
-        // When/Then
-        await #expect(throws: expectedError, performing: {
-            try await self.subject.loadProject(at: path, disableSandbox: false)
-        })
+        // When
+        let got = try await subject.loadProject(at: path, disableSandbox: false)
+
+        // Then
+        #expect(got.name == "App")
     }
 
     // MARK: - Helpers
