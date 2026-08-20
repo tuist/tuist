@@ -126,9 +126,11 @@ contention (`kura_egress_tree_class_sent_bytes` rate vs the floor).
 
 - `go test ./...`, `go vet ./...` (linux; the tcx attach path needs a Linux
   kernel ≥ 6.6).
-- BPF: `internal/agent/bpf/redirect.c`, bindings generated with
-  `go generate ./internal/agent` (needs clang; the generated
-  `redirect_bpfel.go`/`redirect_bpfeb.go` and `.o` files are committed).
+- BPF: `internal/agent/bpf/redirect.c`. The bpf2go bindings are NOT
+  committed: run `go generate ./internal/agent` (needs clang + libbpf
+  headers) before building or testing; the Dockerfile and the CI workflow
+  both run it. Little-endian target only — the fleet has no big-endian
+  machines.
 - Image: `infra/egress-tree-agent/Dockerfile` (alpine + iproute2; the agent
   shells out to `ip`/`tc`), built by
   `.github/workflows/egress-tree-agent-image.yml` →

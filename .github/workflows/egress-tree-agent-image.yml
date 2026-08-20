@@ -38,6 +38,11 @@ jobs:
         with:
           go-version-file: infra/egress-tree-agent/go.mod
           cache-dependency-path: infra/egress-tree-agent/go.sum
+      - name: Install BPF toolchain
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang libbpf-dev
+      - name: Generate BPF bindings
+        working-directory: infra/egress-tree-agent
+        run: go generate ./internal/agent
       - name: Test
         working-directory: infra/egress-tree-agent
         run: go test ./...

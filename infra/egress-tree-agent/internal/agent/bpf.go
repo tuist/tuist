@@ -12,7 +12,7 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -no-strip redirect bpf/redirect.c
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -no-strip -target bpfel redirect bpf/redirect.c
 
 // Map keys of the per-device config array; must match enum config_key in
 // bpf/redirect.c.

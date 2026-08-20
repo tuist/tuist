@@ -1,0 +1,4 @@
+# bpf2go output — generated at build time (go generate ./internal/agent),
+# never committed.
+internal/agent/redirect_bpfel.go
+internal/agent/redirect_bpfel.o
