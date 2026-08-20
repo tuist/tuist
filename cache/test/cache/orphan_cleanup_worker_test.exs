@@ -64,18 +64,18 @@ defmodule Cache.OrphanCleanupWorkerTest do
     assert File.exists?(path)
   end
 
-  test "skips .tmp files regardless of age", %{storage_dir: storage_dir} do
-    key = "acct/proj/xcode/AB/CD/.tmp.12345"
+  test "deletes .tmp files abandoned by an interrupted download", %{storage_dir: storage_dir} do
+    key = "acct/proj/xcode/AB/CD/.tmp.abcdef123456.789"
     path = write_artifact_file(storage_dir, key)
 
     set_old_mtime(path)
     stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
-    assert File.exists?(path)
+    refute File.exists?(path)
   end
 
-  test "skips .cache-upload files regardless of age", %{storage_dir: storage_dir} do
+  test "deletes .cache-upload files abandoned by an interrupted upload", %{storage_dir: storage_dir} do
     key = "acct/proj/xcode/AB/CD/.cache-upload-67890"
     path = write_artifact_file(storage_dir, key)
 
@@ -83,7 +83,47 @@ defmodule Cache.OrphanCleanupWorkerTest do
     stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
+    refute File.exists?(path)
+  end
+
+  test "does NOT delete .tmp files still being written to", %{storage_dir: storage_dir} do
+    key = "acct/proj/xcode/AB/CD/.tmp.abcdef123456.789"
+    path = write_artifact_file(storage_dir, key)
+
+    stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
+
+    assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
     assert File.exists?(path)
+  end
+
+  test "does NOT delete .cache-upload files still being written to", %{storage_dir: storage_dir} do
+    key = "acct/proj/xcode/AB/CD/.cache-upload-67890"
+    path = write_artifact_file(storage_dir, key)
+
+    stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
+
+    assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
+    assert File.exists?(path)
+  end
+
+  test "deletes a stale .tmp file without touching the tracked artifact it was named after", %{
+    storage_dir: storage_dir
+  } do
+    artifact_key = "acct/proj/xcode/AB/CD/abcdef123456"
+    artifact_path = write_artifact_file(storage_dir, artifact_key)
+    tmp_path = write_artifact_file(storage_dir, "acct/proj/xcode/AB/CD/.tmp.abcdef123456.789")
+
+    :ok = CacheArtifacts.track_artifact_access(artifact_key)
+    :ok = CacheArtifactsBuffer.flush()
+
+    set_old_mtime(artifact_path)
+    set_old_mtime(tmp_path)
+    stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
+
+    assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
+
+    assert File.exists?(artifact_path)
+    refute File.exists?(tmp_path)
   end
 
   test "persists cursor position after processing", %{storage_dir: storage_dir} do
