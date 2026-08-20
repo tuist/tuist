@@ -153,7 +153,7 @@ defmodule Tuist.Kura.Regions do
     # US East (Vint Hill VA) and US West (Hillsboro OR) run on OVH bare metal:
     # their own OVH fleets (kura-us-east / kura-us-west node pools), local-NVMe
     # storage, a hostNetwork regional gateway bound to the box's public IP (OVH
-    # has no Hetzner LB), and one plan-sized instance — the same bare-metal
+    # has no Hetzner LB), and one steady plan-sized instance — the same bare-metal
     # shape as eu-central (Dedibox) and ca-east (OVH BHS). The region
     # ids, cluster_ids, ingress classes, and public hostnames are unchanged from
     # the former Hetzner backing, so the cutover is invisible to customers. Only
@@ -202,15 +202,21 @@ defmodule Tuist.Kura.Regions do
     # EU Central runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
     # pool (each environment's `dediboxFleet`), local-NVMe storage, a hostNetwork
     # regional gateway bound to the box's public IP (Dedibox has no Hetzner LB),
-    # and one plan-sized instance. It ran two co-located replicas for a while, so
-    # that a rolling deploy failed the cache Service over to a warm standby
-    # instead of dropping traffic while the primary pod restarted. That is not
-    # what standard availability is bought with here: a cache miss is always
-    # safe, so a client that reaches a restarting instance rebuilds what it
-    # cannot fetch and re-uploads it, which costs that account cold build time
-    # and costs correctness nothing. A second replica bought a few seconds of
-    # continuity for a permanent second claim on the box's disk — and, being
-    # co-located, never covered box loss either. The region id, cluster_id,
+    # and one steady plan-sized instance. It ran two co-located replicas, which
+    # is what let a rolling deploy fail the cache Service over to a warm standby
+    # rather than leave the account's endpoint with no ready backend while the
+    # primary pod restarted. That continuity is worth having: the Service routes
+    # to one primary pod at a time, so a single-replica instance has no backend
+    # for the length of its own restart, and the clients that ride that out are
+    # the ones with a circuit breaker rather than all of them.
+    #
+    # What is not worth having is paying for it with a permanent second claim on
+    # the box's disk. Continuity across a rollout belongs to the rollout: the
+    # replica count declared here is the steady-state one, and the controller
+    # surges a second for the duration of a deploy and drops it afterwards, so
+    # the disk is held while a deploy is in flight instead of for the instance's
+    # whole life. Being co-located, the standby never covered box loss either.
+    # The region id, cluster_id,
     # ingress class, and public hostnames are unchanged from the former Hetzner
     # ccx13 backing, so the cutover is invisible to the customer.
     %{
@@ -235,7 +241,7 @@ defmodule Tuist.Kura.Regions do
       subdivision: "FR-IDF"
     },
     # Canada East (Beauharnois / OVHcloud BHS) on OVH bare metal: the
-    # `kura-ca-east` node pool (the `ovhFleet`), local-NVMe storage, one
+    # `kura-ca-east` node pool (the `ovhFleet`), local-NVMe storage, one steady
     # plan-sized instance, and a hostNetwork regional gateway bound to the box's
     # public IP (OVH has no Hetzner LB) — the same bare-metal shape as eu-central
     # on Dedibox. The provider (OVH) is an implementation detail behind the
@@ -435,8 +441,12 @@ defmodule Tuist.Kura.Regions do
   def storage_profile(_plan), do: %{claim_size: @standard_storage_claim}
 
   @doc """
-  Replicas the region declares an instance runs, or `nil` when it takes the
-  controller's default.
+  Replicas the region declares an instance runs in steady state, or `nil` when
+  it takes the controller's default.
+
+  Steady state, not a ceiling: the controller may run more of them transiently,
+  which is how a rolling deploy keeps a ready backend without the extra claim
+  being resident for the instance's whole life.
 
   Read once, when an instance's volumes are created, and pinned on the instance
   from there. A replica scaled away keeps its directory on the storage class

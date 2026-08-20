@@ -106,11 +106,12 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.storage_governed?(Regions.get("local-controller"))
     end
 
-    test "runs one instance per account-region for standard availability" do
-      # A second co-located replica bought a few seconds of continuity across a
-      # rolling deploy for a permanent second claim on the box's disk. A cache
-      # miss is always safe, so the client rebuilds what a restarting instance
-      # cannot serve; the claim was not.
+    test "runs one steady instance per account-region" do
+      # The steady-state count, not a ceiling. A rolling deploy still needs a
+      # ready backend to fail the cache Service over to, but that is the
+      # rollout's business: the controller surges a second replica for its
+      # duration rather than the region holding a second claim on the box's disk
+      # for the instance's whole life.
       for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
         assert Regions.declared_replicas(Regions.get(id)) == 1
       end
