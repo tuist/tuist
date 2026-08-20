@@ -34,7 +34,7 @@ env:
 jobs:
   build-deploy:
     name: Build and deploy
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     container:
       image: swift:6.2
     timeout-minutes: 30
