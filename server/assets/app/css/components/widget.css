@@ -218,6 +218,10 @@
     width: 8px;
     height: 8px;
 
+    &[data-color="primary"] {
+      background-color: var(--noora-chart-primary);
+    }
+
     &[data-color="secondary"] {
       background-color: var(--noora-chart-secondary);
     }
@@ -228,6 +232,10 @@
 
     &[data-color="destructive"] {
       background-color: var(--noora-chart-destructive);
+    }
+
+    &[data-color="flaky"] {
+      background-color: var(--noora-chart-flaky);
     }
   }
 
