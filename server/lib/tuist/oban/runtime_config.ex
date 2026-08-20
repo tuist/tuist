@@ -40,6 +40,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
     {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
+    {"20 4 * * *", Tuist.Accounts.Workers.DormantOperatorAccountsWorker},
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
     {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},
@@ -98,7 +99,8 @@ defmodule Tuist.Oban.RuntimeConfig do
   project-level crons (alerts, automations, per-project Slack reports,
   sharded-test cleanup) — Tuist-hosted deployments additionally get the
   internal Slack ops reports, account-usage rollup, Stripe metered-billing
-  reconciliation, and plan-based artifact retention. Self-hosted deployments
+  reconciliation, dormant operator account retirement, and plan-based
+  artifact retention. Self-hosted deployments
   add only the artifact-retention jobs explicitly configured by resource type.
   Preview gets only the Swift registry sync cron when registry sync is
   enabled, regardless of hosted flag, so registry previews can exercise the

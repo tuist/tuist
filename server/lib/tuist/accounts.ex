@@ -35,6 +35,7 @@ defmodule Tuist.Accounts do
 
   @reset_password_delivery_cooldown_in_minutes 5
   @confirmation_delivery_cooldown_in_minutes 5
+  @last_sign_in_touch_interval_seconds 12 * 60 * 60
   @sso_configuration_attr_keys [
     :sso_provider,
     :sso_organization_id,
@@ -1731,6 +1732,48 @@ defmodule Tuist.Accounts do
       |> Repo.update()
 
     user
+  end
+
+  @doc """
+  Records that a user authenticated, so account inactivity can be measured.
+
+  Called from every path that resolves a request to a `User`, including token
+  and OAuth authentication, not just interactive log-ins. Writes are throttled
+  to at most one per user per `@last_sign_in_touch_interval_seconds` because
+  the caller sits on the hot path of every authenticated request, and day
+  granularity is all the dormancy thresholds need.
+  """
+  def touch_last_sign_in(%User{} = user) do
+    now = NaiveDateTime.truncate(Tuist.Time.naive_utc_now(), :second)
+
+    if last_sign_in_stale?(user.last_sign_in_at, now) do
+      # The staleness test is repeated in the WHERE clause rather than trusted
+      # from the struct the caller is holding. Concurrent requests all read the
+      # same stale row, so an in-memory check alone lets every one of them
+      # write; re-asserting it in SQL makes them serialize on the row and all
+      # but the first find the condition no longer true.
+      stale_before = NaiveDateTime.add(now, -@last_sign_in_touch_interval_seconds, :second)
+
+      Repo.update_all(
+        from(u in User,
+          where: u.id == ^user.id,
+          where: is_nil(u.last_sign_in_at) or u.last_sign_in_at <= ^stale_before
+        ),
+        set: [last_sign_in_at: now]
+      )
+
+      %{user | last_sign_in_at: now}
+    else
+      user
+    end
+  end
+
+  def touch_last_sign_in(other), do: other
+
+  defp last_sign_in_stale?(nil, _now), do: true
+
+  defp last_sign_in_stale?(last_sign_in_at, now) do
+    NaiveDateTime.diff(now, last_sign_in_at, :second) >= @last_sign_in_touch_interval_seconds
   end
 
   ## Database getters

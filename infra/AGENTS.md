@@ -89,6 +89,13 @@ Recovery fallback for the restricted ClickHouse identity reconciled automaticall
 ### `vm-image-builder.md` — bare-metal builder fleet operator runbook
 End-to-end runbook for the bare-metal Mac mini fleet that bakes our Tart VM images (runner-image, xcresult-processor-image). Cluster-managed via the same CAPI provider that runs the other macOS fleets; hosts are regular Nodes with tart-kubelet idle plus a GitHub Actions self-hosted runner installed on top via the `ScalewayAppleSiliconMachineSpec.GHActionsRunner` sub-spec. Scale by editing `buildersFleet.replicas` or `kubectl scale machinedeployment`.
 
+### `log-review.md` — periodic log review runbook
+The queries behind the review cadence in the Logging and monitoring policy, plus the
+record template. Four reconciliations: privileged cluster access against approved
+elevations, operator grant usage against issued grants, authentication failures, and
+loss of log ingestion. Retention is 30 days, so a slipped monthly review cannot be
+performed retrospectively.
+
 ### `grafana-dashboards/` — Grafana Cloud dashboards (managed only)
 Dashboard definitions synced with Grafana Cloud via [Git Sync](https://grafana.com/docs/grafana-cloud/as-code/observability-as-code/git-sync/). The `Tuist Dashboards` folder in Grafana Cloud is bound to this directory; changes propagate in both directions.
 
