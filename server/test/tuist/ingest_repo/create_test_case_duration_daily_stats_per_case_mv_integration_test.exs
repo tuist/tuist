@@ -44,12 +44,12 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMvI
     runs =
       Enum.flat_map([0, 3, 11], fn days_ago ->
         for {duration, is_ci} <- [{100, true}, {900, true}, {500, false}] do
-          run_attrs(project_id, in_window, Date.add(today, -days_ago), duration, is_ci)
+          run_attrs(project_id, in_window, days_ago, duration, is_ci)
         end
       end) ++
         [
-          run_attrs(project_id, just_outside, Date.add(today, -20), 700, true),
-          run_attrs(project_id, long_before, Date.add(today, -120), 700, true)
+          run_attrs(project_id, just_outside, 20, 700, true),
+          run_attrs(project_id, long_before, 120, 700, true)
         ]
 
     IngestRepo.insert_all(TestCaseRun, runs)
@@ -74,7 +74,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMvI
     assert stats(project_id) == []
 
     IngestRepo.insert_all(TestCaseRun, [
-      run_attrs(project_id, test_case_id, Date.utc_today(), 250, true)
+      run_attrs(project_id, test_case_id, 0, 250, true)
     ])
 
     assert [%{test_case_id: ^test_case_id, run_count: 1, p50: 250}] = stats(project_id)
@@ -131,8 +131,12 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMvI
     }
   end
 
-  defp run_attrs(project_id, test_case_id, date, duration, is_ci) do
-    ran_at = NaiveDateTime.new!(date, ~T[12:00:00.000000])
+  # Counted back from the current instant rather than stamped at a fixed hour:
+  # the backfill only covers runs inserted before the boundary it reads, so a
+  # run stamped at midday is invisible to it for any run of this test before
+  # midday while the expected-value query still counts it.
+  defp run_attrs(project_id, test_case_id, days_ago, duration, is_ci) do
+    ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -days_ago, :day)
 
     %{
       id: UUIDv7.generate(),

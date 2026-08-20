@@ -69,6 +69,24 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMv 
   empty table, so the states describe each run exactly as many times as the
   source holds it.
 
+  Nothing below that granularity needs the same treatment. A retry and a split
+  both re-cover ground a failed insert had been working on, which would double
+  those states if a failed `INSERT ... SELECT` committed the part of the result
+  it had produced. It does not: parts are written under temporary names and
+  become visible together when the statement completes. Measured on this exact
+  query shape against a local ClickHouse, a 2.1M-row insert broken off
+  mid-result left no rows behind, for a raised exception and for a genuine
+  `MEMORY_LIMIT_EXCEEDED` alike, and no part of it was visible while it ran.
+  So the unit that can be duplicated is a range that finished, and the table
+  drop is where that is handled.
+
+  The price is that a Job retry restarts the pass instead of resuming it. That
+  is affordable at this size: the window selects a single partition outside the
+  few days a month it straddles two, and a pass over it is a few hundred
+  single-project inserts. Resuming would mean recording which ranges finished,
+  and the only honest place to record it is a table this migration would have
+  to create and clean up for the sake of saving that minute.
+
   ## What the backfill covers
 
   The backfill seeds a trailing `@backfill_window_days` window rather than
@@ -126,7 +144,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMv 
   @disable_migration_lock true
 
   @backfill_window_days 16
-  @project_throttle_ms 250
+  @attempt_throttle_ms 250
   @range_attempts 2
   @max_memory_usage 1_073_741_824
   @max_bytes_before_external_group_by 268_435_456
@@ -235,7 +253,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMv 
 
       Enum.each(project_ids, fn project_id ->
         backfill_range(partition, project_id, window_start, window_end, boundary)
-        Process.sleep(@project_throttle_ms)
       end)
     end
   end
@@ -283,6 +300,11 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMv 
          boundary,
          attempts \\ @range_attempts
        ) do
+    # Ahead of every attempt rather than between projects: the halves a split
+    # produces are fired at a replica that has just refused the range they came
+    # from, which is when leaving it room matters most.
+    Process.sleep(@attempt_throttle_ms)
+
     insert_range(partition, project_id, from_date, to_date, boundary)
   rescue
     e in Ch.Error ->
