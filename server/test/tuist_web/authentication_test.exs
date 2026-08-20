@@ -477,6 +477,71 @@ defmodule TuistWeb.AuthenticationTest do
     end
   end
 
+  describe "require_authenticated_user_for_private_accounts/2" do
+    test "does not redirect if a user is authenticated", %{conn: conn, user: user} do
+      # Given
+      %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
+      conn = %{conn | path_params: %{"account_handle" => account.name}}
+
+      # When
+      conn =
+        conn
+        |> assign(:current_user, user)
+        |> Authentication.require_authenticated_user_for_private_accounts([])
+
+      # Then
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "does not redirect if a user is anonymous and an account is public", %{conn: conn} do
+      # Given
+      %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
+      {:ok, _account} = Accounts.update_account_visibility(account, :public)
+      conn = %{conn | path_params: %{"account_handle" => account.name}}
+
+      # When
+      conn = Authentication.require_authenticated_user_for_private_accounts(conn, [])
+
+      # Then
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "redirects if a user is anonymous and an account is private", %{conn: conn} do
+      # Given
+      %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
+      conn = %{conn | path_params: %{"account_handle" => account.name}}
+
+      # When
+      conn =
+        conn
+        |> Phoenix.ConnTest.init_test_session(%{})
+        |> fetch_flash()
+        |> Authentication.require_authenticated_user_for_private_accounts([])
+
+      # Then
+      assert conn.halted
+      assert redirected_to(conn) == ~p"/users/log_in"
+    end
+
+    test "redirects if the account doesn't exist", %{conn: conn} do
+      # Given
+      conn = %{conn | path_params: %{"account_handle" => "does-not-exist"}}
+
+      # When
+      conn =
+        conn
+        |> Phoenix.ConnTest.init_test_session(%{})
+        |> fetch_flash()
+        |> Authentication.require_authenticated_user_for_private_accounts([])
+
+      # Then
+      assert conn.halted
+      assert redirected_to(conn) == ~p"/users/log_in"
+    end
+  end
+
   describe "require_authenticated_user_for_previews/2" do
     test "does not redirect if a user is authenticated", %{conn: conn, user: user} do
       # Given

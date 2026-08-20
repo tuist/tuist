@@ -452,6 +452,14 @@ defmodule TuistWeb.Authentication do
       else: conn
   end
 
+  def require_authenticated_user_for_private_accounts(%{path_params: %{"account_handle" => account_handle}} = conn, opts) do
+    account = Accounts.get_account_by_handle(account_handle)
+
+    if is_nil(account) or Authorization.authorize(:account_dashboard_read, nil, account) != :ok,
+      do: require_authenticated_user(conn, opts),
+      else: conn
+  end
+
   def require_authenticated_user_for_previews(%{path_params: %{"id" => preview_id}} = conn, opts) do
     case Tuist.AppBuilds.preview_by_id(preview_id, preload: :project) do
       {:error, _} ->

@@ -35,7 +35,7 @@ defmodule TuistWeb.RunnerJobLive do
         _session,
         %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket
       ) do
-    if Authorization.authorize(:runners_read, current_user, selected_account) != :ok or
+    if Authorization.authorize(:account_dashboard_read, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
       raise NotFoundError,
             dgettext(
@@ -1055,6 +1055,8 @@ defmodule TuistWeb.RunnerJobLive do
     running? = job.status in ["claimed", "running"]
     pod_available? = is_binary(job.pod_name) and job.pod_name != ""
 
+    # `:runners_read`, not the page's `:account_dashboard_read`: attaching to a
+    # running VM stays members-only even when the account is public.
     can_read? = Authorization.authorize(:runners_read, current_user, selected_account) == :ok
 
     vnc_requestable? = can_read? and InteractiveSessions.vnc_requestable?(job)

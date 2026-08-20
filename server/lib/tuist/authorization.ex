@@ -356,6 +356,22 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :account_dashboard do
+    action :read do
+      desc("Allows anyone to read a public account's non-admin dashboards.")
+      allow(:public_account)
+
+      desc("Allows users of an account to read its dashboards.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to read its dashboards.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops access to read any account dashboard.")
+      allow([:authenticated_as_user, :ops_access])
+    end
+  end
+
   object :billing do
     action :read do
       desc("Allows admins to read billing information for Tuist hosted accounts.")
