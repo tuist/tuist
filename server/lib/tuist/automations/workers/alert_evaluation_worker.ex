@@ -8,6 +8,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.Automations.Monitors.TestDurationMonitor
   alias Tuist.ClickHouseRepo
   alias Tuist.Projects
   alias Tuist.Tests
@@ -180,9 +181,24 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   # trigger window) so an established test that passed long ago stays eligible.
   #
   # Recovery is intentionally not filtered: unmuting is always safe.
+  #
+  # The gate is scoped to flakiness and reliability monitors, whose actions can
+  # quarantine a test. It does not apply to monitors that measure a property a
+  # test has whether or not it is trusted: a slow test that has never passed on
+  # the default branch is still slow, and is arguably the one most worth
+  # reporting. Applying the gate there would drop those matches with nothing
+  # logged, so the alert would look healthy while never firing.
   defp reject_unvalidated_test_cases(_alert, []), do: []
 
   defp reject_unvalidated_test_cases(alert, triggered_ids) do
+    if Alert.flaky_monitor?(alert) do
+      reject_test_cases_without_default_branch_run(alert, triggered_ids)
+    else
+      triggered_ids
+    end
+  end
+
+  defp reject_test_cases_without_default_branch_run(alert, triggered_ids) do
     %{default_branch: default_branch} = Projects.get_project_by_id(alert.project_id)
 
     validated =
@@ -473,6 +489,14 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   defp evaluate_monitor(%{monitor_type: "reliability_rate"} = alert, test_case_ids) do
     FlakyTestsMonitor.evaluate_by_reliability_rate(alert, test_case_ids)
+  end
+
+  defp evaluate_monitor(%{monitor_type: "duration"} = alert, nil) do
+    TestDurationMonitor.evaluate(alert)
+  end
+
+  defp evaluate_monitor(%{monitor_type: "duration"} = alert, test_case_ids) do
+    TestDurationMonitor.evaluate(alert, test_case_ids)
   end
 
   # Event-driven monitors are dispatched directly from the originating event

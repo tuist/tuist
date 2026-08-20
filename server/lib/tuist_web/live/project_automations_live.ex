@@ -62,6 +62,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_metric: "flakiness_rate")
     |> assign(create_automation_form_comparison: "gte")
     |> assign(create_automation_form_threshold: "10")
+    |> assign(create_automation_form_percentile: "p90")
+    |> assign(create_automation_form_environment: "any")
     |> assign(create_automation_form_window_type: "last_days")
     |> assign(create_automation_form_window: "30d")
     |> assign(create_automation_form_rolling_window_size: "75")
@@ -84,6 +86,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   defp default_threshold("flakiness_rate"), do: "10"
   defp default_threshold("flaky_run_count"), do: "3"
   defp default_threshold("reliability_rate"), do: "90"
+  defp default_threshold("duration"), do: "30000"
   defp default_threshold(_), do: "1"
 
   defp default_comparison("reliability_rate"), do: "lt"
@@ -122,6 +125,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
       threshold: to_string(automation.trigger_config["threshold"] || ""),
       window_type: parse_window_type(automation.trigger_config["window_type"]),
       window: automation.trigger_config["window"] || "30d",
+      percentile: parse_percentile(automation.trigger_config["percentile"]),
+      environment: parse_environment(automation.trigger_config["environment"]),
       rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 75),
       events: parse_events(automation.trigger_config["events"]),
       trigger_states: parse_states(automation.trigger_config["states"]),
@@ -181,6 +186,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
         |> assign(create_automation_form_threshold: form.threshold)
         |> assign(create_automation_form_window_type: form.window_type)
         |> assign(create_automation_form_window: form.window)
+        |> assign(create_automation_form_percentile: form.percentile)
+        |> assign(create_automation_form_environment: form.environment)
         |> assign(create_automation_form_rolling_window_size: form.rolling_window_size)
         |> assign(create_automation_form_events: form.events)
         |> assign(create_automation_form_trigger_states: form.trigger_states)
@@ -201,6 +208,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event("close_create_automation_modal", _params, socket) do
     {:noreply, push_event(socket, "close-modal", %{id: "create-automation-modal"})}
+  end
+
+  def handle_event("update_create_automation_form_percentile", %{"data" => percentile}, socket) do
+    {:noreply, assign(socket, create_automation_form_percentile: percentile)}
+  end
+
+  def handle_event("update_create_automation_form_environment", %{"data" => environment}, socket) do
+    {:noreply, assign(socket, create_automation_form_environment: environment)}
   end
 
   def handle_event("update_create_automation_form_name", %{"value" => name}, socket) do
@@ -558,7 +573,16 @@ defmodule TuistWeb.ProjectAutomationsLive do
     )
   end
 
-  defp trigger_config_for(metric, assigns) do
+  defp trigger_config_for("duration" = metric, assigns) do
+    metric
+    |> trigger_config_for_metric(assigns)
+    |> Map.put("percentile", assigns.create_automation_form_percentile)
+    |> Map.put("environment", assigns.create_automation_form_environment)
+  end
+
+  defp trigger_config_for(metric, assigns), do: trigger_config_for_metric(metric, assigns)
+
+  defp trigger_config_for_metric(metric, assigns) do
     metric
     |> parse_threshold(assigns.create_automation_form_threshold)
     |> build_trigger_config(
@@ -643,9 +667,19 @@ defmodule TuistWeb.ProjectAutomationsLive do
     end
   end
 
+  defp parse_threshold("duration" = metric, value) do
+    parse_int(value, parse_int(default_threshold(metric), 30_000))
+  end
+
   defp parse_threshold(_metric, value) do
     parse_int(value, 1)
   end
+
+  defp parse_percentile(percentile) when percentile in ~w(p50 p90 p99 avg), do: percentile
+  defp parse_percentile(_), do: "p90"
+
+  defp parse_environment(environment) when environment in ~w(any ci local), do: environment
+  defp parse_environment(_), do: "any"
 
   defp parse_default_rate_threshold(value) do
     {threshold, _} = Float.parse(value)
@@ -662,6 +696,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def metric_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
   def metric_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
   def metric_label("reliability_rate"), do: dgettext("dashboard_projects", "Test reliability")
+  def metric_label("duration"), do: dgettext("dashboard_projects", "Test duration")
   def metric_label("test_updated"), do: dgettext("dashboard_projects", "Test updated")
   def metric_label(_), do: dgettext("dashboard_projects", "Unknown")
 
@@ -693,6 +728,20 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def test_updated_event_description(_), do: ""
 
+  def percentile_label("p50"), do: dgettext("dashboard_projects", "p50 duration")
+  def percentile_label("p90"), do: dgettext("dashboard_projects", "p90 duration")
+  def percentile_label("p99"), do: dgettext("dashboard_projects", "p99 duration")
+  def percentile_label("avg"), do: dgettext("dashboard_projects", "Average duration")
+  def percentile_label(_), do: dgettext("dashboard_projects", "p90 duration")
+
+  def environment_label("any"), do: dgettext("dashboard_projects", "Any environment")
+  def environment_label("ci"), do: dgettext("dashboard_projects", "CI only")
+  def environment_label("local"), do: dgettext("dashboard_projects", "Local only")
+  def environment_label(_), do: dgettext("dashboard_projects", "Any environment")
+
+  def duration_monitor_type?("duration"), do: true
+  def duration_monitor_type?(_), do: false
+
   def comparison_label("gte"), do: dgettext("dashboard_projects", "Greater or equal")
   def comparison_label("gt"), do: dgettext("dashboard_projects", "Greater than")
   def comparison_label("lt"), do: dgettext("dashboard_projects", "Less than")
@@ -707,6 +756,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def threshold_label("flakiness_rate"), do: dgettext("dashboard_projects", "Percent")
   def threshold_label("reliability_rate"), do: dgettext("dashboard_projects", "Percent")
+  def threshold_label("duration"), do: dgettext("dashboard_projects", "Milliseconds")
   def threshold_label("flaky_run_count"), do: dgettext("dashboard_projects", "Count")
   def threshold_label(_), do: dgettext("dashboard_projects", "Threshold")
 
@@ -787,6 +837,27 @@ defmodule TuistWeb.ProjectAutomationsLive do
       threshold: threshold,
       window: window_summary(trigger_config)
     )
+  end
+
+  def automation_summary(%{monitor_type: "duration", trigger_config: trigger_config}) do
+    percentile = percentile_label(trigger_config["percentile"])
+    comparison = comparison_symbol(trigger_config["comparison"])
+    threshold = trigger_config["threshold"]
+    window = trigger_config["window"] || "30d"
+
+    summary =
+      dgettext("dashboard_projects", "%{percentile} %{comparison} %{threshold}ms over %{window}",
+        percentile: percentile,
+        comparison: comparison,
+        threshold: threshold,
+        window: window
+      )
+
+    case trigger_config["environment"] do
+      "ci" -> summary <> " · " <> dgettext("dashboard_projects", "CI only")
+      "local" -> summary <> " · " <> dgettext("dashboard_projects", "Local only")
+      _ -> summary
+    end
   end
 
   def automation_summary(%{monitor_type: "test_updated", trigger_config: trigger_config}) do

@@ -5,6 +5,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.Automations.Monitors.TestDurationMonitor
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
@@ -1043,6 +1044,41 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
 
       expect(Automations, :create_alert_event, fn %{test_case_id: ^validated_id, status: "triggered"} -> :ok end)
+
+      assert :ok = run(automation.id)
+    end
+
+    test "does not gate a duration alert on a successful default-branch run" do
+      # The gate exists so a flakiness action never quarantines a test that
+      # merged broken. A duration alert reports how long a test takes, which is
+      # true whether or not it has ever passed on the default branch, and a
+      # test that only fails there is not a reason to withhold the report.
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          monitor_type: "duration",
+          trigger_config: %{
+            "threshold" => 30_000,
+            "percentile" => "p90",
+            "window_type" => "last_days",
+            "window" => "30d"
+          },
+          trigger_actions: [%{"type" => "add_label", "label" => "slow"}]
+        )
+
+      unvalidated_id = Ecto.UUID.generate()
+
+      expect(TestDurationMonitor, :evaluate, fn _automation ->
+        %{triggered: [unvalidated_id]}
+      end)
+
+      expect(Automations, :list_active_alert_events, fn _id -> [] end)
+
+      reject(&Tests.test_case_ids_with_successful_default_branch_run/3)
+
+      expected_entity = %{type: :test_case, id: unvalidated_id}
+      expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+
+      expect(Automations, :create_alert_event, fn %{test_case_id: ^unvalidated_id, status: "triggered"} -> :ok end)
 
       assert :ok = run(automation.id)
     end

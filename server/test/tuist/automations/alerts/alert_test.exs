@@ -17,6 +17,88 @@ defmodule Tuist.Automations.Alerts.AlertTest do
     )
   end
 
+  defp duration_attrs(project, trigger_config_overrides \\ %{}) do
+    valid_attrs(project, %{
+      "name" => "Alert on slow tests",
+      "monitor_type" => "duration",
+      "trigger_config" =>
+        Map.merge(
+          %{
+            "threshold" => 30_000,
+            "percentile" => "p90",
+            "window_type" => "last_days",
+            "window" => "7d"
+          },
+          trigger_config_overrides
+        ),
+      "trigger_actions" => [%{"type" => "add_label", "label" => "slow"}]
+    })
+  end
+
+  describe "changeset/2 with the duration monitor" do
+    test "is valid with a threshold, percentile, and calendar window" do
+      project = ProjectsFixtures.project_fixture()
+      changeset = Alert.changeset(%Alert{}, duration_attrs(project))
+      assert changeset.valid?
+    end
+
+    test "defaults the percentile and environment when they are omitted" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "duration",
+            "trigger_config" => %{"threshold" => 30_000, "window_type" => "last_days", "window" => "7d"},
+            "trigger_actions" => [%{"type" => "add_label", "label" => "slow"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects a non-positive threshold" do
+      project = ProjectsFixtures.project_fixture()
+      changeset = Alert.changeset(%Alert{}, duration_attrs(project, %{"threshold" => 0}))
+
+      refute changeset.valid?
+      assert "threshold must be a positive number of milliseconds" in errors_on(changeset).trigger_config
+    end
+
+    test "rejects an unknown percentile" do
+      project = ProjectsFixtures.project_fixture()
+      changeset = Alert.changeset(%Alert{}, duration_attrs(project, %{"percentile" => "p95"}))
+
+      refute changeset.valid?
+      assert "percentile must be one of: p50, p90, p99, avg" in errors_on(changeset).trigger_config
+    end
+
+    test "rejects an unknown environment" do
+      project = ProjectsFixtures.project_fixture()
+      changeset = Alert.changeset(%Alert{}, duration_attrs(project, %{"environment" => "staging"}))
+
+      refute changeset.valid?
+      assert "environment must be one of: any, ci, local" in errors_on(changeset).trigger_config
+    end
+
+    test "rejects a rolling window" do
+      # There is no rolling duration aggregate to read. Silently evaluating a
+      # calendar window instead would measure something other than what the
+      # alert says it measures.
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          duration_attrs(project, %{"window_type" => "rolling", "rolling_window_size" => 50})
+        )
+
+      refute changeset.valid?
+      assert "duration alerts do not support a rolling window" in errors_on(changeset).trigger_config
+    end
+  end
+
   describe "changeset/2" do
     test "is valid with valid attributes" do
       project = ProjectsFixtures.project_fixture()

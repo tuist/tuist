@@ -4915,6 +4915,7 @@ public enum Components {
                 case flakiness_rate = "flakiness_rate"
                 case flaky_run_count = "flaky_run_count"
                 case reliability_rate = "reliability_rate"
+                case duration = "duration"
             }
             /// The monitor type that evaluates the condition.
             ///
@@ -57186,6 +57187,7 @@ public enum Operations {
                         case flakiness_rate = "flakiness_rate"
                         case flaky_run_count = "flaky_run_count"
                         case reliability_rate = "reliability_rate"
+                        case duration = "duration"
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/monitor_type`.
                     public var monitor_type: Operations.createAutomationAlert.Input.Body.jsonPayload.monitor_typePayload
