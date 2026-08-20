@@ -109,6 +109,29 @@ k8s-monitoring:
           regex = "integrations/(process|self)"
           action = "drop"
         }
+        # The non-destructive PromEx scrape keeps one bucket set per worker for
+        # the pod's lifetime. Only ProcessBuildWorker and ProcessXcresultWorker
+        # have latency alerts, so their buckets are kept and the rest dropped.
+        # `_count` and `_sum` are untouched, so per-worker rates and averages
+        # still cover every worker.
+        write_relabel_config {
+          source_labels = ["__name__", "worker"]
+          separator = ";"
+          regex = "tuist_oban_job_(processing_duration|queue_time)_milliseconds_bucket;(Tuist\\.Builds\\.Workers\\.ProcessBuildWorker|Tuist\\.Tests\\.Workers\\.ProcessXcresultWorker)"
+          target_label = "__tmp_keep_oban_bucket"
+          replacement = "true"
+          action = "replace"
+        }
+        write_relabel_config {
+          source_labels = ["__name__", "__tmp_keep_oban_bucket"]
+          separator = ";"
+          regex = "tuist_oban_job_(processing_duration|queue_time)_milliseconds_bucket;"
+          action = "drop"
+        }
+        write_relabel_config {
+          regex = "__tmp_keep_oban_bucket"
+          action = "labeldrop"
+        }
 
     grafana-cloud-logs:
       type: loki
