@@ -306,6 +306,34 @@ defmodule TuistWeb.BillingLiveTest do
       })
     end
 
+    test "shows sub-minute usage rather than hiding it as zero", %{conn: conn, account: account} do
+      # 18 seconds is real usage worth real money. Gating the card on
+      # whole minutes hid it entirely, which reads as though nothing ran.
+      started = DateTime.add(DateTime.utc_now(), -2, :hour)
+
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: System.unique_integer([:positive]),
+        fleet_name: "tuist-staging-macos",
+        pod_name: "pod-#{System.unique_integer([:positive])}",
+        runner_name: "",
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        billing_multiplier: 10_000,
+        started_at: started,
+        job_started_at: started,
+        job_ended_at: DateTime.add(started, 18, :second),
+        inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      assert has_element?(lv, "#runner-usage-table")
+      assert render(lv) =~ "18 seconds"
+    end
+
     test "is not shown for an account that has run none", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
@@ -320,6 +348,7 @@ defmodule TuistWeb.BillingLiveTest do
 
       html = render(lv)
       # 100 baseline minutes at the $0.075 standard rate.
+      assert html =~ "100 minutes"
       assert html =~ "7.50"
       assert html =~ "0.00"
       assert html =~ "free during your trial"

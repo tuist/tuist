@@ -247,7 +247,7 @@
     </.card_section>
   </.card>
   <.card
-    :if={@runner_usage.minutes > 0}
+    :if={@runner_usage.total_ms > 0}
     data-part="runner-usage-card"
     icon="server"
     title={dgettext("dashboard_account", "Runner usage")}
@@ -260,11 +260,13 @@
         )}
       </span>
       <.table id="runner-usage-table" rows={[@runner_usage]}>
-        <:col :let={usage} label={dgettext("dashboard_account", "Minutes this month")}>
+        <:col :let={usage} label={dgettext("dashboard_account", "Runner time this month")}>
           <.text_and_description_cell
-            label={usage.minutes}
+            label={runner_duration_label(usage.total_ms)}
             description={
-              dgettext("dashboard_account", "%{count} free each month", count: usage.free_minutes)
+              dgettext("dashboard_account", "%{count} minutes free each month",
+                count: usage.free_minutes
+              )
             }
           />
         </:col>

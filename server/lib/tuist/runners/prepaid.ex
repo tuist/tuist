@@ -294,6 +294,22 @@ defmodule Tuist.Runners.Prepaid do
   end
 
   @doc """
+  What `total_ms` of compute-unit milliseconds costs at the gross
+  on-demand rate.
+
+  Proportional to the millisecond, because that is how the runner Price
+  charges: its tiers are in raw meter units and Stripe applies no
+  rounding to them. Only the final amount is resolved to whole cents.
+
+  Not the same as costing whole minutes. Half a minute of runner time is
+  worth half a minute's money, not nothing, and a figure that truncated
+  to minutes would understate every bill that is not a round number.
+  """
+  def on_demand_cost_for_milliseconds(total_ms) when is_integer(total_ms) and total_ms >= 0 do
+    Money.new(div(total_ms * @macos_on_demand_rate, 600_000), :USD)
+  end
+
+  @doc """
   What `minutes` of runner time costs at the gross on-demand rate, on
   the macOS baseline machine.
 

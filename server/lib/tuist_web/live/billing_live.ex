@@ -149,29 +149,46 @@ defmodule TuistWeb.BillingLive do
     # Truncated to whole minutes, matching how the Stripe Price rounds,
     # so this figure is the quantity that would be invoiced rather than
     # one running slightly ahead of it.
-    minutes = div(total_ms, 60_000)
-    accrued = Prepaid.on_demand_cost(minutes)
-
-    # The first minutes of every period are free on every plan, so what
-    # is chargeable is only what runs past the allowance.
     free_minutes = Allowance.free_monthly_minutes()
-    chargeable = Prepaid.on_demand_cost(max(minutes - free_minutes, 0))
+    free_ms = free_minutes * 60_000
+
+    # Costed per millisecond rather than per whole minute, because the
+    # runner Price charges that way: its tiers are in raw meter units and
+    # Stripe rounds none of it. Costing minutes would show nothing at all
+    # for an account that has run less than one.
+    accrued = Prepaid.on_demand_cost_for_milliseconds(total_ms)
+    chargeable = Prepaid.on_demand_cost_for_milliseconds(max(total_ms - free_ms, 0))
 
     {billed, not_billed_because} =
       cond do
         Trials.on_trial?(account) -> {Money.new(0, :USD), :trial}
         is_nil(subscription) -> {Money.new(0, :USD), :no_subscription}
-        minutes <= free_minutes -> {Money.new(0, :USD), :within_allowance}
+        total_ms <= free_ms -> {Money.new(0, :USD), :within_allowance}
         true -> {chargeable, nil}
       end
 
     %{
-      minutes: minutes,
+      total_ms: total_ms,
       free_minutes: free_minutes,
       accrued: accrued,
       billed: billed,
       not_billed_because: not_billed_because
     }
+  end
+
+  @doc """
+  Runner time rendered at a resolution the reader can act on: seconds
+  while under a minute, whole minutes above it.
+
+  A page that only ever said "0 minutes" for a job that really ran would
+  read as though the usage had not been recorded.
+  """
+  def runner_duration_label(total_ms) when total_ms < 60_000 do
+    dngettext("dashboard_account", "%{count} second", "%{count} seconds", div(total_ms, 1000))
+  end
+
+  def runner_duration_label(total_ms) do
+    dngettext("dashboard_account", "%{count} minute", "%{count} minutes", div(total_ms, 60_000))
   end
 
   def runner_billed_explanation(:within_allowance),

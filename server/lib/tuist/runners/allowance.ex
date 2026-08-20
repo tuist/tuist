@@ -66,8 +66,13 @@ defmodule Tuist.Runners.Allowance do
   end
 
   @doc """
-  Baseline machine-minutes `account` has used in the current calendar
-  month, truncated the way the Price rounds.
+  Whole baseline machine-minutes `account` has used in the current
+  calendar month.
+
+  Truncated, so an account is only cut off once it has fully spent the
+  allowance rather than partway through the minute that crosses it. The
+  Price itself charges proportionally and does no such rounding; this is
+  a dispatch decision, not a billing one.
 
   Calendar month rather than the Stripe billing period because the
   accounts this gates have no subscription, so there is no period to
