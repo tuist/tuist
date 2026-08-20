@@ -547,6 +547,11 @@ public struct Client: APIProtocol {
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
     ///
+    /// The URL is signed from the request parameters alone, without a storage round trip, so
+    /// this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+    /// miss, or treat a failing download as the miss signal.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
     public func downloadCacheArtifact(_ input: Operations.downloadCacheArtifact.Input) async throws -> Operations.downloadCacheArtifact.Output {
@@ -4913,9 +4918,13 @@ public struct Client: APIProtocol {
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
     ///
+    /// It is the only cache endpoint that reaches storage to answer, so it is what clients
+    /// should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+    /// checking storage and answers 200 either way.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
-    @available(*, deprecated)
     public func cacheArtifactExists(_ input: Operations.cacheArtifactExists.Input) async throws -> Operations.cacheArtifactExists.Output {
         try await client.send(
             input: input,

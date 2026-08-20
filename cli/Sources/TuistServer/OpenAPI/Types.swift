@@ -38,6 +38,11 @@ public protocol APIProtocol: Sendable {
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
     ///
+    /// The URL is signed from the request parameters alone, without a storage round trip, so
+    /// this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+    /// miss, or treat a failing download as the miss signal.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
     func downloadCacheArtifact(_ input: Operations.downloadCacheArtifact.Input) async throws -> Operations.downloadCacheArtifact.Output
@@ -239,9 +244,13 @@ public protocol APIProtocol: Sendable {
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
     ///
+    /// It is the only cache endpoint that reaches storage to answer, so it is what clients
+    /// should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+    /// checking storage and answers 200 either way.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
-    @available(*, deprecated)
     func cacheArtifactExists(_ input: Operations.cacheArtifactExists.Input) async throws -> Operations.cacheArtifactExists.Output
     /// List CAS outputs for a given build.
     ///
@@ -801,6 +810,11 @@ extension APIProtocol {
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
     ///
+    /// The URL is signed from the request parameters alone, without a storage round trip, so
+    /// this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+    /// miss, or treat a failing download as the miss signal.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
     public func downloadCacheArtifact(
@@ -1294,9 +1308,13 @@ extension APIProtocol {
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
     ///
+    /// It is the only cache endpoint that reaches storage to answer, so it is what clients
+    /// should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+    /// checking storage and answers 200 either way.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
-    @available(*, deprecated)
     public func cacheArtifactExists(
         query: Operations.cacheArtifactExists.Input.Query,
         headers: Operations.cacheArtifactExists.Input.Headers = .init()
@@ -9707,13 +9725,13 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact`.
         public struct AbsentCacheArtifact: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload`.
-            public struct errorPayloadPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload/code`.
+            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorsPayload`.
+            public struct errorsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorsPayload/code`.
                 public var code: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload/message`.
+                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorsPayload/message`.
                 public var message: Swift.String?
-                /// Creates a new `errorPayloadPayload`.
+                /// Creates a new `errorsPayloadPayload`.
                 ///
                 /// - Parameters:
                 ///   - code:
@@ -9730,19 +9748,19 @@ public enum Components {
                     case message
                 }
             }
-            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/error`.
-            public typealias errorPayload = [Components.Schemas.AbsentCacheArtifact.errorPayloadPayload]
-            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/error`.
-            public var error: Components.Schemas.AbsentCacheArtifact.errorPayload?
+            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errors`.
+            public typealias errorsPayload = [Components.Schemas.AbsentCacheArtifact.errorsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errors`.
+            public var errors: Components.Schemas.AbsentCacheArtifact.errorsPayload?
             /// Creates a new `AbsentCacheArtifact`.
             ///
             /// - Parameters:
-            ///   - error:
-            public init(error: Components.Schemas.AbsentCacheArtifact.errorPayload? = nil) {
-                self.error = error
+            ///   - errors:
+            public init(errors: Components.Schemas.AbsentCacheArtifact.errorsPayload? = nil) {
+                self.errors = errors
             }
             public enum CodingKeys: String, CodingKey {
-                case error
+                case errors
             }
         }
         /// The maximum number of issues to return in a single page.
@@ -12809,6 +12827,11 @@ public enum Operations {
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
     ///
+    /// The URL is signed from the request parameters alone, without a storage round trip, so
+    /// this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+    /// miss, or treat a failing download as the miss signal.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
     public enum downloadCacheArtifact {
@@ -12906,7 +12929,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The artifact exists and is downloadable
+            /// A signed download URL was generated. The URL is returned without verifying that the artifact is stored, so this status does not imply a cache hit: a hash that was never uploaded is signed just the same, and the download then fails with a 404 at the storage provider.
             ///
             /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/200`.
             ///
@@ -13110,7 +13133,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The project or the cache artifact doesn't exist
+            /// The project doesn't exist
             ///
             /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/404`.
             ///
@@ -26590,6 +26613,11 @@ public enum Operations {
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
     ///
+    /// It is the only cache endpoint that reaches storage to answer, so it is what clients
+    /// should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+    /// checking storage and answers 200 either way.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
     public enum cacheArtifactExists {
@@ -26897,13 +26925,13 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload`.
-                        public struct errorPayloadPayload: Codable, Hashable, Sendable {
-                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload/code`.
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorsPayload`.
+                        public struct errorsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorsPayload/code`.
                             public var code: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload/message`.
+                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorsPayload/message`.
                             public var message: Swift.String?
-                            /// Creates a new `errorPayloadPayload`.
+                            /// Creates a new `errorsPayloadPayload`.
                             ///
                             /// - Parameters:
                             ///   - code:
@@ -26920,19 +26948,19 @@ public enum Operations {
                                 case message
                             }
                         }
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/error`.
-                        public typealias errorPayload = [Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayloadPayload]
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/error`.
-                        public var error: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayload?
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errors`.
+                        public typealias errorsPayload = [Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errors`.
+                        public var errors: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorsPayload?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - error:
-                        public init(error: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayload? = nil) {
-                            self.error = error
+                        ///   - errors:
+                        public init(errors: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorsPayload? = nil) {
+                            self.errors = errors
                         }
                         public enum CodingKeys: String, CodingKey {
-                            case error
+                            case errors
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/application\/json`.
