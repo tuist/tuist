@@ -25,11 +25,30 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorker do
   deduplicates against it rather than racing it. Narrower windows still
   occur internally when `Billing.usage_windows/3` splits at a subscription
   boundary; both paths split identically, so the identifiers match.
+
+  Either way the customer jobs are released in per-second batches rather
+  than all at once, so the Stripe requests they go on to make arrive at a
+  bounded rate.
   """
   use Oban.Worker, max_attempts: 1
 
   alias Tuist.Accounts
   alias Tuist.Billing.Workers.SyncCustomerStripeMetersWorker
+
+  # Customer jobs are released in per-second batches rather than all at
+  # once. Each one spends a Stripe request discovering service-period
+  # boundaries before its meter jobs post their events, so an unthrottled
+  # fan-out put the whole billable customer list on the wire within a
+  # couple of seconds. Stripe's live-mode limit is around 100 requests per
+  # second, and it answered most of that burst with HTTP 429 while the
+  # shared HTTP connection pool returned transport errors for the rest.
+  #
+  # This rate keeps the resulting request rate an order of magnitude below
+  # the limit even if every customer turned out to have usage, and stretches
+  # the fan-out over minutes — nothing against the multi-hour budget the
+  # reporting delay already fits into (see the moduledoc on the retry cap in
+  # `SyncCustomerStripeMeterWorker`).
+  @customers_per_second 10
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"period_start" => period_start, "period_end" => period_end}}) do
@@ -71,15 +90,28 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorker do
 
   defp sync(%DateTime{} = period_start, %DateTime{} = period_end) do
     Accounts.list_billable_customers()
-    |> Enum.map(
-      &SyncCustomerStripeMetersWorker.new(%{
-        customer_id: &1,
-        period_start: DateTime.to_unix(period_start, :microsecond),
-        period_end: DateTime.to_unix(period_end, :microsecond)
-      })
-    )
+    |> Enum.with_index()
+    |> Enum.map(fn {customer_id, index} ->
+      SyncCustomerStripeMetersWorker.new(
+        %{
+          customer_id: customer_id,
+          period_start: DateTime.to_unix(period_start, :microsecond),
+          period_end: DateTime.to_unix(period_end, :microsecond)
+        },
+        release_opts(index)
+      )
+    end)
     |> Oban.insert_all()
 
     :ok
+  end
+
+  # The first batch carries no schedule at all, so it is available the
+  # moment it is inserted rather than waiting on job staging.
+  defp release_opts(index) do
+    case div(index, @customers_per_second) do
+      0 -> []
+      seconds -> [schedule_in: seconds]
+    end
   end
 end
