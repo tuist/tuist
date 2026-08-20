@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 // Datapath of the per-node shared egress HTB tree (see ../AGENTS.md).
 //
 // Two tcx_ingress programs implement a veth-trampoline detour that shapes a
@@ -150,5 +149,3 @@ int kura_shaper_ret(struct __sk_buff *skb)
 	bump(COUNTER_RETURNED);
 	return bpf_redirect(target, BPF_F_INGRESS_FLAG);
 }
-
-char _license[] SEC("license") = "GPL";

@@ -131,6 +131,12 @@ contention (`kura_egress_tree_class_sent_bytes` rate vs the floor).
   headers) before building or testing; the Dockerfile and the CI workflow
   both run it. Little-endian target only — the fleet has no big-endian
   machines.
+- The program deliberately declares no `SEC("license")`: none of the
+  helpers it calls is GPL-gated (verified: the kernel loads and attaches
+  it license-free), which keeps the file under the repository's default
+  license. If a future change adds a helper the verifier rejects with a
+  GPL-restriction error, that helper needs a license discussion first,
+  not a quiet `"GPL"` declaration.
 - Image: `infra/egress-tree-agent/Dockerfile` (alpine + iproute2; the agent
   shells out to `ip`/`tc`), built by
   `.github/workflows/egress-tree-agent-image.yml` →
