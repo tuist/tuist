@@ -11,10 +11,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   @behaviour Tuist.Kura.Provisioner
 
-  alias Tuist.Billing
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -279,11 +279,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "memoryCeilingMib" => entitlements.memory && entitlements.memory.ceiling_mib,
           "memoryCeilingBinPacked" => Regions.memory_ceiling_bin_packed?(region),
           "storageClassName" => storage_class(region),
-          "storageSize" => storage_size(region),
-          "replicas" => replicas(region),
+          "storageSize" => storage_size(region, server),
+          "replicas" => replicas(region, server),
           "nodeSelector" => instance_node_selector(region, server),
           "tolerations" => tolerations(region),
-          "extraEnv" => auth_env(region, entitlements)
+          "extraEnv" => auth_env(region, server, entitlements)
         }
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
         |> Map.new()
@@ -355,21 +355,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         mbps -> if MapSet.member?(allowed_features, :guaranteed_egress_floor), do: mbps, else: 0
       end
 
-    memory = if memory_governed?, do: Regions.memory_profile(memory_plan(account))
+    memory = if memory_governed?, do: Regions.memory_profile(AccountPolicies.sizing_plan(account))
 
     %{
       allowed_features: allowed_features,
       egress_guaranteed_mbps: egress_guaranteed_mbps,
       memory: memory
     }
-  end
-
-  # A self-hosted deployment has no subscriptions, so `effective_plan/1` would
-  # resolve every account to `:air`. Its Enterprise license is the entitlement,
-  # matching how `Entitlements.allowed_features/2` grants everything off the
-  # hosted server.
-  defp memory_plan(account) do
-    if Environment.tuist_hosted?(), do: Billing.effective_plan(account), else: :enterprise
   end
 
   defp maybe_request_entitlement(features, true, feature), do: [feature | features]
@@ -527,7 +519,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # that ever runs Kura. The controller's envFrom on the StatefulSet
   # picks up that Secret automatically. Non-secret knobs such as the
   # introspection client ID are safe to keep in the spec.
-  defp auth_env(%Regions{} = region, entitlements) do
+  defp auth_env(%Regions{} = region, %Server{} = server, entitlements) do
     [
       # Emitted alongside the URL so that authorizing is an instruction rather
       # than an inference. A node reads a blank URL as no configuration at all
@@ -543,7 +535,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         "KURA_CONTROL_PLANE_CLIENT_ID",
         Environment.kura_control_plane_client_id()
       ) ++
-      cas_capacity_env(region) ++
+      cas_capacity_env(region, server) ++
       mesh_peers_sync_env(region, entitlements) ++
       backfill_env(entitlements) ++
       node_location_env(region) ++
@@ -576,13 +568,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # reaches its own budget, so Kura's ring rotation never gets to evict and the
   # node evicts the whole region instead.
   #
-  # Budget from the size the region declares. That is normally storage_size, so
-  # the ring stays inside the claim on a class that enforces it; a region whose
-  # claim bounds nothing (local-path) can override with disk_envelope_size rather
-  # than inflate storage_size, which the controller would try to apply to the
-  # live PVCs.
-  defp cas_capacity_env(%Regions{} = region) do
-    case cas_capacity_source(region) do
+  # Budget from the size the instance's volume was created at, so the ring stays
+  # inside the claim on a class that enforces it and, on a class that enforces
+  # nothing, inside the ephemeral-storage the pod reserved. A region whose claim
+  # bounds nothing (local-path) can override with disk_envelope_size rather than
+  # inflate storage_size, which the controller would try to apply to the live
+  # PVCs.
+  defp cas_capacity_env(%Regions{} = region, %Server{} = server) do
+    case cas_capacity_source(region, server) do
       size when is_binary(size) and size != "" ->
         size
         |> parse_storage_quantity!(region)
@@ -601,10 +594,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp cas_capacity_env_var(nil), do: []
 
-  defp cas_capacity_source(%Regions{provisioner_config: %{disk_envelope_size: size}}) when is_binary(size) and size != "",
-    do: size
+  defp cas_capacity_source(%Regions{provisioner_config: %{disk_envelope_size: size}}, %Server{})
+       when is_binary(size) and size != "", do: size
 
-  defp cas_capacity_source(%Regions{} = region), do: storage_size(region)
+  defp cas_capacity_source(%Regions{} = region, %Server{} = server), do: storage_size(region, server)
 
   # KURA_CAS_CAPACITY_BYTES budgets the CAS segment ring only, but the ring is
   # not the only thing in the data dir: the controller points KURA_TMP_DIR at
@@ -636,9 +629,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  # Region specs are compile-time constants, so an unparseable size is a typo
-  # that would otherwise degrade to exactly the statvfs behaviour this
-  # derivation exists to prevent. Fail loudly instead of silently regressing.
+  # Region specs are compile-time constants and an instance's pinned claim is
+  # validated where it is written, so an unparseable size is a typo that would
+  # otherwise degrade to exactly the statvfs behaviour this derivation exists to
+  # prevent. Fail loudly instead of silently regressing.
   defp parse_storage_quantity!(value, %Regions{} = region) do
     case parse_storage_quantity(value) do
       {:ok, bytes} ->
@@ -646,7 +640,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
       :error ->
         raise ArgumentError,
-              "region #{region.id} declares an unparseable storage quantity #{inspect(value)}; " <>
+              "an instance in region #{region.id} carries an unparseable storage quantity #{inspect(value)}; " <>
                 "expected an integer with an optional Ki/Mi/Gi/Ti suffix"
     end
   end
@@ -732,11 +726,22 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp storage_class(_), do: nil
 
-  defp storage_size(%Regions{provisioner_config: %{storage_size: storage_size}}), do: storage_size
-  defp storage_size(_), do: nil
+  # The instance's own footprint wins over the region's. A claim cannot be
+  # expanded on the local-path class these regions run, and a replica scaled
+  # away keeps its directory, so re-rendering a live instance at whatever the
+  # region declares today would either be rejected or quietly strand disk the
+  # scheduler has stopped counting. `Tuist.Kura.Server` pins the footprint when
+  # the volumes are created, and only then.
+  defp storage_size(%Regions{}, %Server{storage_claim_size: size}) when is_binary(size) and size != "", do: size
 
-  defp replicas(%Regions{provisioner_config: %{replicas: replicas}}), do: replicas
-  defp replicas(_), do: nil
+  defp storage_size(%Regions{} = region, %Server{}), do: declared_storage_size(region)
+
+  defp declared_storage_size(%Regions{provisioner_config: %{storage_size: storage_size}}), do: storage_size
+  defp declared_storage_size(_), do: nil
+
+  defp replicas(%Regions{}, %Server{storage_replicas: replicas}) when is_integer(replicas) and replicas > 0, do: replicas
+
+  defp replicas(%Regions{} = region, %Server{}), do: Regions.declared_replicas(region)
 
   defp node_selector(%Regions{provisioner_config: %{node_selector: node_selector}}), do: node_selector
 

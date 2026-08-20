@@ -38,18 +38,30 @@ defmodule Tuist.Kura.CapacityTest do
     })
   end
 
+  defp region, do: elem(Regions.fetch(@region), 1)
+
   defp installed(machines) do
     stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, machines)}])
   end
 
-  describe "resident_gib/1" do
-    test "counts every co-located replica of the region's claim" do
-      # us-east declares a 50Gi claim and two replicas, and the bare-metal
-      # regions co-locate an account's replicas, so both land on one box.
-      {:ok, region} = Regions.fetch(@region)
+  describe "resident_gib/2" do
+    test "counts the instance's own claim, not the region's" do
+      instance = %Server{storage_claim_size: "24Gi", storage_replicas: 1}
 
-      assert Capacity.resident_gib(region) == 50 * 2
-      assert Capacity.resident_bytes(region) == 50 * 2 * @gib
+      assert Capacity.resident_gib(region(), instance) == 24
+      assert Capacity.resident_bytes(region(), instance) == 24 * @gib
+    end
+
+    test "counts every co-located replica of the instance's claim" do
+      # The bare-metal regions co-locate an account's replicas, so an instance
+      # still holding the two it was built with reserves both claims on one box.
+      instance = %Server{storage_claim_size: "50Gi", storage_replicas: 2}
+
+      assert Capacity.resident_gib(region(), instance) == 50 * 2
+    end
+
+    test "falls back to the region's declared footprint for an unpinned instance" do
+      assert Capacity.resident_gib(region(), %Server{}) == 50
     end
   end
 

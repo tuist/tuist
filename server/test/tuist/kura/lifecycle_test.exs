@@ -8,6 +8,7 @@ defmodule Tuist.Kura.LifecycleTest do
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
+  alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Lifecycle
@@ -23,11 +24,12 @@ defmodule Tuist.Kura.LifecycleTest do
   @region "us-east"
   # Roughly what one of the region's real boxes reports allocatable.
   @node_allocatable_bytes 847_551_469_804
-  # us-east declares a 50Gi claim and two co-located replicas.
-  @resident_gib 50 * 2
+  # An Air instance in us-east: one replica holding the plan's 24Gi claim.
+  @air_resident_gib 24
+  @pro_resident_gib 30
   # One more instance than fits under the region's pressure line, derived
   # rather than counted out so the fixtures track the real sizing.
-  @instances_to_pressure div(trunc(@node_allocatable_bytes * 0.85 / (1024 * 1024 * 1024)), @resident_gib) + 1
+  @instances_to_pressure div(trunc(@node_allocatable_bytes * 0.85 / (1024 * 1024 * 1024)), @air_resident_gib) + 1
   @image_tag "0.5.2"
   @gib 1024 * 1024 * 1024
 
@@ -41,6 +43,10 @@ defmodule Tuist.Kura.LifecycleTest do
     stub(Environment, :env, fn -> :prod end)
     stub(Environment, :dev?, fn -> false end)
     stub(Environment, :test?, fn -> false end)
+    # Instances are sized from their account's plan on the hosted server; a
+    # self-hosted deployment has no subscriptions and sizes everything at
+    # enterprise, which is not the loop under test here.
+    stub(Environment, :tuist_hosted?, fn -> true end)
     stub(Environment, :kura_available_region_ids, fn -> [@region] end)
     stub(Environment, :kura_runtime_image_tag, fn -> @image_tag end)
     stub_region_nodes([])
@@ -87,8 +93,12 @@ defmodule Tuist.Kura.LifecycleTest do
   defp ago(days), do: DateTime.truncate(ago_usec(days), :second)
   defp ago_usec(days), do: DateTime.add(DateTime.utc_now(), -days * 86_400, :second)
 
+  # Built the way `Kura.create_server/1` builds one, footprint included: the
+  # pressure arithmetic reads each instance's own claim, so an instance inserted
+  # without one would not reserve what its plan reserves in production.
   defp active_instance(account, opts \\ []) do
     inserted_at = ago_usec(Keyword.get(opts, :age_days, 120))
+    %{claim_size: claim_size} = Regions.storage_profile(AccountPolicies.sizing_plan(account))
 
     %Server{
       account_id: account.id,
@@ -96,7 +106,9 @@ defmodule Tuist.Kura.LifecycleTest do
       status: :active,
       url: "https://#{account.name}-us-east-1.kura.tuist.dev",
       current_image_tag: @image_tag,
-      provisioner_node_ref: "kura-#{account.id}-us-east"
+      provisioner_node_ref: "kura-#{account.id}-us-east",
+      storage_claim_size: claim_size,
+      storage_replicas: 1
     }
     |> Repo.insert!()
     |> Ecto.Changeset.change(%{inserted_at: inserted_at, updated_at: inserted_at})
@@ -361,6 +373,33 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(recent_server).status == :active
     end
 
+    test "counts what each unconditional archival actually frees" do
+      # A Pro instance past the full window is archived regardless, and it frees
+      # its own 30Gi rather than an Air instance's 24Gi. The region lands exactly
+      # on its line once that room is counted, so no Air instance is pressured.
+      # Counted at a uniform per-instance figure it would land 6Gi over and take
+      # one.
+      pro = account(plan: :pro, region: :usa)
+      pro_server = active_instance(pro)
+      with_demand(pro, 200)
+
+      air =
+        for _ <- 1..3 do
+          account = account()
+          server = active_instance(account)
+          with_demand(account, 61)
+          server
+        end
+
+      # 700Gi reserved against a 670Gi line: 30Gi over, exactly the Pro claim.
+      stub_region_pods(List.duplicate(reserved_pod(25), 28))
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(pro_server).status == :drain_pending
+      assert Enum.all?(air, &(reload(&1).status == :active))
+    end
+
     test "never pressures a paid plan below its 90-day window" do
       for _ <- 1..@instances_to_pressure do
         account = account()
@@ -526,7 +565,7 @@ defmodule Tuist.Kura.LifecycleTest do
       lifecycle = reload_lifecycle(account)
       assert reload(server).status == :archived
       assert lifecycle.archived_at
-      assert lifecycle.last_reclaimed_bytes == 50 * 2 * @gib
+      assert lifecycle.last_reclaimed_bytes == @air_resident_gib * @gib
       assert lifecycle.last_drain_duration_ms >= Kura.drain_seconds() * 1000
     end
 
@@ -540,7 +579,7 @@ defmodule Tuist.Kura.LifecycleTest do
 
       Lifecycle.reconcile()
 
-      assert reload_lifecycle(account).last_reclaimed_bytes == 50 * 2 * @gib
+      assert reload_lifecycle(account).last_reclaimed_bytes == @pro_resident_gib * @gib
     end
 
     test "clears every field describing a running instance" do
@@ -572,7 +611,7 @@ defmodule Tuist.Kura.LifecycleTest do
       Lifecycle.reconcile()
 
       assert_received {[:tuist, :kura, :lifecycle, :archived], ^ref, measurements, %{region: @region, plan: "air"}}
-      assert measurements.reclaimed_bytes == 50 * 2 * @gib
+      assert measurements.reclaimed_bytes == @air_resident_gib * @gib
       assert measurements.drain_duration_ms > 0
     end
 
@@ -947,7 +986,7 @@ defmodule Tuist.Kura.LifecycleTest do
   # Answers the pod list with exactly the reservation the fixtures imply, so
   # the region reads as one instance past its pressure line.
   defp over_pressure_line do
-    stub_region_pods(List.duplicate(reserved_pod(50), @instances_to_pressure * 2))
+    stub_region_pods(List.duplicate(reserved_pod(@air_resident_gib), @instances_to_pressure))
   end
 
   defp stub_region_pods(pods) do

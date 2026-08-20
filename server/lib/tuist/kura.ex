@@ -23,6 +23,7 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
@@ -211,6 +212,26 @@ defmodule Tuist.Kura do
     )
   end
 
+  @doc """
+  The disk one instance reserves, as `"<claim> x <replicas>"` when it runs more
+  than one replica and just the claim otherwise, or `nil` when the instance
+  pins no footprint of its own and takes its region's.
+
+  Read from the footprint pinned on the row, which is what the instance's
+  volumes were actually created with rather than what its account's plan would
+  give it today. The two diverge for as long as an instance holds volumes built
+  under different sizing, and nothing converges them on its own, so an operator
+  looking at a region's occupancy can see which instances account for it.
+  """
+  def disk_footprint_label(%Server{storage_claim_size: nil}), do: nil
+
+  def disk_footprint_label(%Server{storage_claim_size: claim, storage_replicas: replicas})
+      when is_integer(replicas) and replicas > 1 do
+    "#{claim} x #{replicas}"
+  end
+
+  def disk_footprint_label(%Server{storage_claim_size: claim}), do: claim
+
   ## Servers
 
   @doc """
@@ -231,8 +252,28 @@ defmodule Tuist.Kura do
          {:ok, account} <- Accounts.get_account_by_id(attrs[:account_id]),
          {:ok, ref} <- region.provisioner.provision(account, region, server_stub(attrs)),
          :ok <- validate_provisioner_node_ref(account, ref) do
-      attrs = Map.put(attrs, :provisioner_node_ref, ref)
+      attrs =
+        attrs
+        |> Map.put(:provisioner_node_ref, ref)
+        |> Map.merge(disk_footprint(account, region))
+
       insert_server(attrs, region)
+    end
+  end
+
+  # The footprint the instance's volumes are about to be created with. Resolved
+  # here, at the one moment it can change, and carried on the row from then on:
+  # the bare-metal regions cannot expand a claim or reclaim a scaled-away
+  # replica's directory, so an instance keeps what it was built with until the
+  # volumes are built again. A region that sizes every instance alike pins
+  # nothing and keeps rendering its own claim. See `Tuist.Kura.Server`.
+  defp disk_footprint(account, %Regions{} = region) do
+    if Regions.storage_governed?(region) do
+      %{claim_size: claim_size} = Regions.storage_profile(AccountPolicies.sizing_plan(account))
+
+      %{storage_claim_size: claim_size, storage_replicas: Regions.declared_replicas(region)}
+    else
+      %{}
     end
   end
 
@@ -1058,10 +1099,16 @@ defmodule Tuist.Kura do
   `current_image_tag` is cleared so the reconciler treats this as a first
   install rather than as drift against whatever the instance ran before it
   was archived.
+
+  Teardown took the whole StatefulSet and its volumes with it, so this is also
+  the one point in a served instance's life where its disk footprint can change:
+  the account's plan is read again and the returning instance is built at
+  whatever that plan is worth now.
   """
   def return_from_archive(%Server{status: :archived} = server, image_tag) when is_binary(image_tag) do
     with {:ok, region} <- Regions.fetch(server.region),
-         {:ok, server} <- return_from_archive_transaction(server, region, image_tag) do
+         {:ok, account} <- Accounts.get_account_by_id(server.account_id),
+         {:ok, server} <- return_from_archive_transaction(server, region, account, image_tag) do
       server = Repo.preload(server, :deployments, force: true)
       broadcast_server(server, :updated)
       {:ok, server}
@@ -1070,7 +1117,9 @@ defmodule Tuist.Kura do
 
   def return_from_archive(%Server{}, _image_tag), do: {:error, :not_archived}
 
-  defp return_from_archive_transaction(server, region, image_tag) do
+  defp return_from_archive_transaction(server, region, account, image_tag) do
+    footprint = disk_footprint(account, region)
+
     Repo.transaction(fn ->
       locked_server =
         case lock_server(server.id, server.account_id) do
@@ -1082,7 +1131,9 @@ defmodule Tuist.Kura do
       with :ok <- ensure_no_open_deployment(locked_server.id),
            {:ok, locked_server} <-
              locked_server
-             |> Server.lifecycle_changeset(%{status: :provisioning, current_image_tag: nil, url: nil})
+             |> Server.lifecycle_changeset(
+               Map.merge(footprint, %{status: :provisioning, current_image_tag: nil, url: nil})
+             )
              |> Repo.update(),
            {:ok, _deployment} <- insert_initial_deployment(locked_server, region, image_tag) do
         locked_server
@@ -1202,7 +1253,7 @@ defmodule Tuist.Kura do
          :ok <- ensure_no_move_in_progress(source),
          {:ok, ref} <- move_target_ref(account, region, source),
          :ok <- validate_provisioner_node_ref(account, ref) do
-      insert_move_target(source, region, ref, target_node)
+      insert_move_target(source, region, account, ref, target_node)
     end
   end
 
@@ -1231,14 +1282,19 @@ defmodule Tuist.Kura do
     end
   end
 
-  defp insert_move_target(%Server{} = source, region, ref, target_node) do
-    attrs = %{
-      account_id: source.account_id,
-      region: source.region,
-      provisioner_node_ref: ref,
-      move_phase: :moving_in,
-      target_node: target_node
-    }
+  # The target carves its own volumes on the destination box, so it is built at
+  # the account's current footprint rather than inheriting the source's. This is
+  # the path an instance whose plan changed while it was serving takes to the
+  # claim that plan is worth.
+  defp insert_move_target(%Server{} = source, region, account, ref, target_node) do
+    attrs =
+      Map.merge(disk_footprint(account, region), %{
+        account_id: source.account_id,
+        region: source.region,
+        provisioner_node_ref: ref,
+        move_phase: :moving_in,
+        target_node: target_node
+      })
 
     case Repo.transaction(fn ->
            with {:ok, target} <- attrs |> Server.create_changeset() |> Repo.insert(),

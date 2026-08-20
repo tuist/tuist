@@ -52,6 +52,20 @@ defmodule Tuist.Kura.Server do
   it back to the provisioner for `rollout/2` and `destroy/1`. For the
   Kubernetes controller provisioner it's the KuraInstance name.
 
+  `storage_claim_size` and `storage_replicas` are the disk footprint the
+  instance's volumes were created with, pinned at creation by the regions that
+  size instances from their account's plan (`Tuist.Kura.Regions.storage_governed?/1`).
+  They are deliberately not derived on every render. The bare-metal regions run
+  a local-path storage class that cannot expand a claim and retains a
+  scaled-away replica's directory, so a footprint that moved under a live
+  instance would either be rejected outright or strand disk the region has
+  stopped counting. An instance therefore keeps the footprint it was built with
+  for as long as it holds those volumes; it takes a new one when the volumes are
+  recreated — the cold return out of `:archived`, or a warm handoff onto a
+  second instance — and a plan change in between is not applied until then.
+  Null on the regions that size every instance alike, which render the region's
+  own claim.
+
   Per-server install and update attempts live in `kura_deployments` via
   `kura_server_id`. These rows are the deployment records the
   provisioner later applies with its own rollout strategy.
@@ -101,6 +115,8 @@ defmodule Tuist.Kura.Server do
   @image_tag_message "must be a valid OCI image tag like sha-abcdef123456, latest, or 0.5.2"
   @provisioner_node_ref_format ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
   @provisioner_node_ref_message "must come from an account handle and region that produce a valid Kubernetes RFC1123 label"
+  @storage_claim_size_format ~r/\A[1-9][0-9]*(Ki|Mi|Gi|Ti)?\z/
+  @storage_claim_size_message "must be a Kubernetes storage quantity like 24Gi"
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "kura_servers" do
@@ -123,6 +139,12 @@ defmodule Tuist.Kura.Server do
     # `kubernetes.io/hostname` nodeSelector on the KuraInstance). Null on
     # steady-state rows, which the scheduler bin-packs across the region's boxes.
     field :target_node, :string
+
+    # The disk footprint this instance's volumes were created with: the claim
+    # each replica holds, and how many replicas hold one. Written once, when the
+    # storage is created, and never again — see the module doc.
+    field :storage_claim_size, :string
+    field :storage_replicas, :integer
 
     # Observed-state projection. Written only by the reconciler from the
     # backing KuraInstance, never by user actions: the image the cluster
@@ -157,11 +179,14 @@ defmodule Tuist.Kura.Server do
       :region,
       :provisioner_node_ref,
       :move_phase,
-      :target_node
+      :target_node,
+      :storage_claim_size,
+      :storage_replicas
     ])
     |> validate_required([:account_id, :region, :provisioner_node_ref])
     |> validate_format(:provisioner_node_ref, @provisioner_node_ref_format, message: @provisioner_node_ref_message)
     |> validate_length(:provisioner_node_ref, max: 53)
+    |> validate_disk_footprint()
     |> validate_change(:region, fn :region, value ->
       if Tuist.Kura.Regions.exists?(value),
         do: [],
@@ -235,8 +260,11 @@ defmodule Tuist.Kura.Server do
       :current_image_tag,
       :observed_image_tag,
       :last_observed_at,
-      :last_ready_at
+      :last_ready_at,
+      :storage_claim_size,
+      :storage_replicas
     ])
+    |> validate_disk_footprint()
     |> validate_status_and_image()
   end
 
@@ -259,6 +287,15 @@ defmodule Tuist.Kura.Server do
     |> validate_format(:observed_image_tag, @image_tag_format, message: @image_tag_message)
     |> validate_length(:observed_image_tag, max: 128)
     |> validate_status_and_image()
+  end
+
+  # Only the paths that create the instance's volumes write a footprint, so a
+  # value that cannot be rendered is a bug at the point it is pinned rather than
+  # one to discover when the manifest is built.
+  defp validate_disk_footprint(changeset) do
+    changeset
+    |> validate_format(:storage_claim_size, @storage_claim_size_format, message: @storage_claim_size_message)
+    |> validate_number(:storage_replicas, greater_than: 0)
   end
 
   defp validate_status_and_image(changeset) do

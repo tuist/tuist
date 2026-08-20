@@ -59,26 +59,36 @@ defmodule Tuist.Kura.Capacity do
   @doc """
   Bytes of the region's disk one instance reserves, across every replica.
   """
-  def resident_bytes(region), do: resident_gib(region) * @gib
+  def resident_bytes(region, server), do: resident_gib(region, server) * @gib
 
   @doc """
   Gibibytes of the region's disk one instance reserves.
 
-  Every replica requests the region's claim size, and the bare-metal regions
+  Every replica requests the instance's claim size, and the bare-metal regions
   co-locate an account's replicas on one box, so two replicas reserve two
-  claims on the same disk. Plan does not enter into it: the claim is a
-  property of the region, so an Air instance reserves exactly what a paid one
-  does. The per-plan warm quota in the spec is not enforced anywhere today --
-  giving Air a smaller cache would mean sizing the claim per instance, which
-  is its own change.
+  claims on the same disk. The claim is a property of the instance, sized from
+  its account's plan where the region asks for that, so an Air instance
+  reserves less than an Enterprise one and the two cannot be counted with a
+  single per-region figure. An instance that carries no claim of its own falls
+  back to what its region declares.
   """
-  def resident_gib(%Regions{} = region), do: claim_gib(region) * replicas(region)
+  def resident_gib(%Regions{} = region, %Server{} = server), do: claim_gib(region, server) * replicas(region, server)
+
+  defp claim_gib(%Regions{} = region, %Server{storage_claim_size: size}) when is_binary(size) do
+    parse_gib(size) || claim_gib(region)
+  end
+
+  defp claim_gib(%Regions{} = region, %Server{}), do: claim_gib(region)
 
   defp claim_gib(%Regions{provisioner_config: %{storage_size: size}}) when is_binary(size) do
     parse_gib(size) || @default_claim_gib
   end
 
   defp claim_gib(%Regions{}), do: @default_claim_gib
+
+  defp replicas(%Regions{}, %Server{storage_replicas: replicas}) when is_integer(replicas) and replicas > 0, do: replicas
+
+  defp replicas(%Regions{} = region, %Server{}), do: replicas(region)
 
   defp replicas(%Regions{provisioner_config: %{replicas: replicas}}) when is_integer(replicas) and replicas > 0,
     do: replicas

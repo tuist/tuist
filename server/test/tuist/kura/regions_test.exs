@@ -31,14 +31,15 @@ defmodule Tuist.Kura.RegionsTest do
       end
 
       # us-east/us-west run on OVH bare metal (hostNetwork gateway, local-NVMe,
-      # two replicas); eu-central is on Dedibox bare metal (asserted below).
+      # one instance); eu-central is on Dedibox bare metal (asserted below).
       for id <- ["us-east", "us-west"] do
         config = Regions.get(id).provisioner_config
         assert config.hetzner_location == nil
         assert config.storage_class == "scw-local-nvme"
         assert config.gateway == :host_network
-        assert config.replicas == 2
+        assert config.replicas == 1
         assert config.storage_size == "50Gi"
+        assert config.storage_governed == true
       end
 
       assert Regions.get("us-east").provisioner_config.node_selector == %{
@@ -94,6 +95,37 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.memory_ceiling_bin_packed?(Regions.get("scw-fr-par-runners"))
     end
 
+    test "sizes the managed regions' storage per tier" do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+        assert Regions.storage_governed?(Regions.get(id))
+      end
+
+      # The private runner-cache pool holds one instance per account regardless
+      # of plan, on capacity ordered for the runner fleet.
+      refute Regions.storage_governed?(Regions.get("scw-fr-par-runners"))
+      refute Regions.storage_governed?(Regions.get("local-controller"))
+    end
+
+    test "runs one instance per account-region for standard availability" do
+      # A second co-located replica bought a few seconds of continuity across a
+      # rolling deploy for a permanent second claim on the box's disk. A cache
+      # miss is always safe, so the client rebuilds what a restarting instance
+      # cannot serve; the claim was not.
+      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+        assert Regions.declared_replicas(Regions.get(id)) == 1
+      end
+    end
+
+    test "descends the storage ladder and floors it at air" do
+      claims = Enum.map([:enterprise, :pro, :air], &Regions.storage_profile(&1).claim_size)
+      assert claims == ["50Gi", "30Gi", "24Gi"]
+
+      # Air is the floor, and unknown plans land on it: an instance is never
+      # sized under a 24 GiB filesystem, which is what leaves the 15 GiB ring
+      # beneath which the cache stops holding a useful working set.
+      assert Regions.storage_profile(:open_source) == Regions.storage_profile(:air)
+    end
+
     test "keeps every memory ceiling above its floor" do
       # A limit below its request is rejected by the API, and a ceiling equal to
       # the floor would leave no burst headroom for Kura's admission pools.
@@ -123,7 +155,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-dedibox"}
       assert config.storage_class == "scw-local-nvme"
       assert config.gateway == :host_network
-      assert config.replicas == 2
+      assert config.replicas == 1
       assert config.storage_size == "50Gi"
       assert config.hetzner_location == nil
 

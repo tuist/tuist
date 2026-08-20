@@ -980,6 +980,72 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert manifest["spec"]["storageSize"] == "50Gi"
     end
 
+    test "renders the instance's own claim over the region's" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "50Gi", replicas: 1}),
+          %Server{storage_claim_size: "24Gi", storage_replicas: 2}
+        )
+
+      assert manifest["spec"]["storageSize"] == "24Gi"
+      assert manifest["spec"]["replicas"] == 2
+    end
+
+    test "budgets the ring from the instance's claim, not the region's" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      # The ring each plan's claim leaves once the 8Gi staging ceiling, one
+      # rotation segment and 3% for the index are reserved: 40 GiB, 20.5 GiB and
+      # 15 GiB. A region-derived budget would hand all three the same ring and
+      # let an Air instance overrun the claim its pod reserved.
+      for {claim, ring_gib} <- [{"50Gi", 40.2}, {"30Gi", 20.8}, {"24Gi", 15.0}] do
+        manifest =
+          KubernetesController.manifest(
+            "kura-tuist-eu-central-1",
+            "0.5.2",
+            %{name: "tuist"},
+            eu_region(%{storage_size: "50Gi"}),
+            %Server{storage_claim_size: claim}
+          )
+
+        env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+        capacity = String.to_integer(env["KURA_CAS_CAPACITY_BYTES"])
+
+        assert_in_delta capacity / (1024 * 1024 * 1024), ring_gib, 0.1
+
+        # Whatever the claim, the ring plus staging plus one rotation stays
+        # inside it.
+        {claim_gib, "Gi"} = Integer.parse(claim)
+        assert capacity + 8 * 1024 * 1024 * 1024 + 512 * 1024 * 1024 < claim_gib * 1024 * 1024 * 1024
+      end
+    end
+
+    test "keeps the envelope override ahead of the instance's claim" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-local-controller",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "50Gi", disk_envelope_size: "200Gi"}),
+          %Server{storage_claim_size: "24Gi"}
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+      assert env["KURA_CAS_CAPACITY_BYTES"] == "199452912517"
+      assert manifest["spec"]["storageSize"] == "24Gi"
+    end
+
     test "omits the CAS capacity when the region declares no storage size" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
