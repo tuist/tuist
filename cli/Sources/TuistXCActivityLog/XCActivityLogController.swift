@@ -147,7 +147,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
     /// that reads the uploaded log does. Callers apply this to one candidate at a time, since it
     /// holds the log's inflated contents in memory.
     private func isDecodable(at path: AbsolutePath) -> Bool {
-        guard let contents = try? Data(contentsOf: path.url, options: .mappedIfSafe),
+        guard let contents = try? Data(contentsOf: path.url),
               (try? contents.gunzipped()) != nil
         else {
             Logger.current.debug("Skipping the activity log at \(path.pathString) because it can't be decoded")
