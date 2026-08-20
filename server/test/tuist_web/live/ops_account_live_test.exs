@@ -85,8 +85,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert html =~ ~p"/ops/accounts/#{user.account.id}/kura/deployments/#{deployment.id}"
   end
 
-  test "shows the disk an instance actually reserves", %{conn: conn, user: user} do
-    # The footprint an instance holds and the one its plan would give it today
+  test "shows the claim an instance's volumes were created at", %{conn: conn, user: user} do
+    # The claim an instance holds and the one its plan would give it today
     # diverge for as long as it holds volumes built under different sizing, and
     # nothing converges them on its own.
     Repo.insert!(%Server{
@@ -96,13 +96,12 @@ defmodule TuistWeb.OpsAccountLiveTest do
       url: "http://localhost:4100",
       current_image_tag: "0.5.2",
       provisioner_node_ref: "kura-#{user.account.id}-local-controller",
-      storage_claim_size: "50Gi",
-      storage_replicas: 2
+      storage_claim_size: "50Gi"
     })
 
     {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-    assert html =~ "50Gi x 2"
+    assert html =~ "50Gi"
   end
 
   test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do

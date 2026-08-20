@@ -531,7 +531,6 @@ defmodule Tuist.KuraTest do
                Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
 
       assert server.storage_claim_size == "24Gi"
-      assert server.storage_replicas == 1
     end
 
     test "pins nothing where the region sizes every instance alike", %{account: account} do
@@ -541,7 +540,6 @@ defmodule Tuist.KuraTest do
                Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
 
       assert server.storage_claim_size == nil
-      assert server.storage_replicas == nil
     end
 
     test "reads the plan again on the cold return, which is when the volumes are rebuilt", %{account: account} do
@@ -574,8 +572,7 @@ defmodule Tuist.KuraTest do
           account_id: account.id,
           region: "us-east",
           provisioner_node_ref: "kura-move-source",
-          storage_claim_size: "24Gi",
-          storage_replicas: 1
+          storage_claim_size: "24Gi"
         }
         |> Server.create_changeset()
         |> Repo.insert()
@@ -592,7 +589,6 @@ defmodule Tuist.KuraTest do
       assert {:ok, target} = Kura.move_server(source, "box-2")
 
       assert target.storage_claim_size == "50Gi"
-      assert target.storage_replicas == 1
     end
 
     # Walks a live instance down to `:archived`, which is where teardown has

@@ -46,22 +46,16 @@ defmodule Tuist.Kura.CapacityTest do
 
   describe "resident_gib/2" do
     test "counts the instance's own claim, not the region's" do
-      instance = %Server{storage_claim_size: "24Gi", storage_replicas: 1}
+      # us-east co-locates an account's two replicas on one box, so each claim
+      # is reserved twice on the same disk.
+      instance = %Server{storage_claim_size: "24Gi"}
 
-      assert Capacity.resident_gib(region(), instance) == 24
-      assert Capacity.resident_bytes(region(), instance) == 24 * @gib
+      assert Capacity.resident_gib(region(), instance) == 24 * 2
+      assert Capacity.resident_bytes(region(), instance) == 24 * 2 * @gib
     end
 
-    test "counts every co-located replica of the instance's claim" do
-      # The bare-metal regions co-locate an account's replicas, so an instance
-      # still holding the two it was built with reserves both claims on one box.
-      instance = %Server{storage_claim_size: "50Gi", storage_replicas: 2}
-
-      assert Capacity.resident_gib(region(), instance) == 50 * 2
-    end
-
-    test "falls back to the region's declared footprint for an unpinned instance" do
-      assert Capacity.resident_gib(region(), %Server{}) == 50
+    test "falls back to the region's declared claim for an unpinned instance" do
+      assert Capacity.resident_gib(region(), %Server{}) == 50 * 2
     end
   end
 

@@ -24,9 +24,11 @@ defmodule Tuist.Kura.LifecycleTest do
   @region "us-east"
   # Roughly what one of the region's real boxes reports allocatable.
   @node_allocatable_bytes 847_551_469_804
-  # An Air instance in us-east: one replica holding the plan's 24Gi claim.
-  @air_resident_gib 24
-  @pro_resident_gib 30
+  # us-east co-locates an account's two replicas on one box, so an instance
+  # reserves its plan's claim twice.
+  @replicas 2
+  @air_resident_gib 24 * @replicas
+  @pro_resident_gib 30 * @replicas
   # One more instance than fits under the region's pressure line, derived
   # rather than counted out so the fixtures track the real sizing.
   @instances_to_pressure div(trunc(@node_allocatable_bytes * 0.85 / (1024 * 1024 * 1024)), @air_resident_gib) + 1
@@ -107,8 +109,7 @@ defmodule Tuist.Kura.LifecycleTest do
       url: "https://#{account.name}-us-east-1.kura.tuist.dev",
       current_image_tag: @image_tag,
       provisioner_node_ref: "kura-#{account.id}-us-east",
-      storage_claim_size: claim_size,
-      storage_replicas: 1
+      storage_claim_size: claim_size
     }
     |> Repo.insert!()
     |> Ecto.Changeset.change(%{inserted_at: inserted_at, updated_at: inserted_at})
@@ -375,9 +376,9 @@ defmodule Tuist.Kura.LifecycleTest do
 
     test "counts what each unconditional archival actually frees" do
       # A Pro instance past the full window is archived regardless, and it frees
-      # its own 30Gi rather than an Air instance's 24Gi. The region lands exactly
+      # its own 60Gi rather than an Air instance's 48Gi. The region lands exactly
       # on its line once that room is counted, so no Air instance is pressured.
-      # Counted at a uniform per-instance figure it would land 6Gi over and take
+      # Counted at a uniform per-instance figure it would land 12Gi over and take
       # one.
       pro = account(plan: :pro, region: :usa)
       pro_server = active_instance(pro)
@@ -391,8 +392,9 @@ defmodule Tuist.Kura.LifecycleTest do
           server
         end
 
-      # 700Gi reserved against a 670Gi line: 30Gi over, exactly the Pro claim.
-      stub_region_pods(List.duplicate(reserved_pod(25), 28))
+      # 730Gi reserved against a 670Gi line: 60Gi over, exactly what the Pro
+      # instance holds across its two replicas.
+      stub_region_pods(List.duplicate(reserved_pod(10), 73))
 
       assert :ok = Lifecycle.sweep()
 
@@ -986,7 +988,7 @@ defmodule Tuist.Kura.LifecycleTest do
   # Answers the pod list with exactly the reservation the fixtures imply, so
   # the region reads as one instance past its pressure line.
   defp over_pressure_line do
-    stub_region_pods(List.duplicate(reserved_pod(@air_resident_gib), @instances_to_pressure))
+    stub_region_pods(List.duplicate(reserved_pod(div(@air_resident_gib, @replicas)), @instances_to_pressure * @replicas))
   end
 
   defp stub_region_pods(pods) do

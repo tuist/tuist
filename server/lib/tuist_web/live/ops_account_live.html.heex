@@ -19,9 +19,9 @@
             style="light-fill"
           />
         </:col>
-        <:col :let={server} label={dgettext("dashboard", "Disk")}>
+        <:col :let={server} label={dgettext("dashboard", "Claim")}>
           <.text_cell label={
-            Tuist.Kura.disk_footprint_label(server) || dgettext("dashboard", "None")
+            Tuist.Kura.storage_claim_label(server) || dgettext("dashboard", "None")
           } />
         </:col>
         <:col :let={server} label={dgettext("dashboard", "URL")}>

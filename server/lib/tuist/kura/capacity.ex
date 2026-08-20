@@ -69,10 +69,11 @@ defmodule Tuist.Kura.Capacity do
   claims on the same disk. The claim is a property of the instance, sized from
   its account's plan where the region asks for that, so an Air instance
   reserves less than an Enterprise one and the two cannot be counted with a
-  single per-region figure. An instance that carries no claim of its own falls
-  back to what its region declares.
+  single per-region figure. The replica count stays a property of the region.
+  An instance that carries no claim of its own falls back to what its region
+  declares.
   """
-  def resident_gib(%Regions{} = region, %Server{} = server), do: claim_gib(region, server) * replicas(region, server)
+  def resident_gib(%Regions{} = region, %Server{} = server), do: claim_gib(region, server) * replicas(region)
 
   defp claim_gib(%Regions{} = region, %Server{storage_claim_size: size}) when is_binary(size) do
     parse_gib(size) || claim_gib(region)
@@ -85,10 +86,6 @@ defmodule Tuist.Kura.Capacity do
   end
 
   defp claim_gib(%Regions{}), do: @default_claim_gib
-
-  defp replicas(%Regions{}, %Server{storage_replicas: replicas}) when is_integer(replicas) and replicas > 0, do: replicas
-
-  defp replicas(%Regions{} = region, %Server{}), do: replicas(region)
 
   defp replicas(%Regions{provisioner_config: %{replicas: replicas}}) when is_integer(replicas) and replicas > 0,
     do: replicas

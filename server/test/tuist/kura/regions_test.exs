@@ -31,13 +31,13 @@ defmodule Tuist.Kura.RegionsTest do
       end
 
       # us-east/us-west run on OVH bare metal (hostNetwork gateway, local-NVMe,
-      # one instance); eu-central is on Dedibox bare metal (asserted below).
+      # two replicas); eu-central is on Dedibox bare metal (asserted below).
       for id <- ["us-east", "us-west"] do
         config = Regions.get(id).provisioner_config
         assert config.hetzner_location == nil
         assert config.storage_class == "scw-local-nvme"
         assert config.gateway == :host_network
-        assert config.replicas == 1
+        assert config.replicas == 2
         assert config.storage_size == "50Gi"
         assert config.storage_governed == true
       end
@@ -106,17 +106,6 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.storage_governed?(Regions.get("local-controller"))
     end
 
-    test "runs one steady instance per account-region" do
-      # The steady-state count, not a ceiling. A rolling deploy still needs a
-      # ready backend to fail the cache Service over to, but that is the
-      # rollout's business: the controller surges a second replica for its
-      # duration rather than the region holding a second claim on the box's disk
-      # for the instance's whole life.
-      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
-        assert Regions.declared_replicas(Regions.get(id)) == 1
-      end
-    end
-
     test "descends the storage ladder and floors it at air" do
       claims = Enum.map([:enterprise, :pro, :air], &Regions.storage_profile(&1).claim_size)
       assert claims == ["50Gi", "30Gi", "24Gi"]
@@ -156,7 +145,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-dedibox"}
       assert config.storage_class == "scw-local-nvme"
       assert config.gateway == :host_network
-      assert config.replicas == 1
+      assert config.replicas == 2
       assert config.storage_size == "50Gi"
       assert config.hetzner_location == nil
 

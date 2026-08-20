@@ -989,11 +989,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "kura-tuist-eu-central-1",
           "0.5.2",
           %{name: "tuist"},
-          eu_region(%{storage_size: "50Gi", replicas: 1}),
-          %Server{storage_claim_size: "24Gi", storage_replicas: 2}
+          eu_region(%{storage_size: "50Gi", replicas: 2}),
+          %Server{storage_claim_size: "24Gi"}
         )
 
       assert manifest["spec"]["storageSize"] == "24Gi"
+
+      # The replica count stays the region's.
       assert manifest["spec"]["replicas"] == 2
     end
 
@@ -1159,42 +1161,34 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                KubernetesController.manifest_revision() <> "+backfill"
     end
 
-    test "crosses a revision boundary on the disk footprint so an edit re-applies" do
+    test "crosses a revision boundary on the claim so a change re-applies" do
       reject(&Mesh.self_hosted_peer_urls/1)
       account = %Account{id: 1, name: "tuist"}
-      region = eu_region(%{storage_size: "50Gi", replicas: 1})
+      region = eu_region(%{storage_size: "50Gi", replicas: 2})
 
-      # Reclaiming the second replica of an instance built with two is a
-      # deliberate edit of one column. Without the footprint in the revision the
-      # manifest would render `replicas: 1` while the desired revision stayed
-      # where it was, so the reconciler would never re-apply and the edit would
-      # sit there until an unrelated input moved it.
-      two_replicas =
+      # Without the claim in the revision, a claim that changed would alter what
+      # the manifest renders while leaving the desired revision where it was, so
+      # the reconciler would compare equal and never re-apply.
+      legacy =
         KubernetesController.manifest_revision(
-          %Server{account: account, storage_claim_size: "50Gi", storage_replicas: 2},
+          %Server{account: account, storage_claim_size: "50Gi"},
           region
         )
 
-      one_replica =
+      smaller =
         KubernetesController.manifest_revision(
-          %Server{account: account, storage_claim_size: "50Gi", storage_replicas: 1},
+          %Server{account: account, storage_claim_size: "24Gi"},
           region
         )
 
-      smaller_claim =
-        KubernetesController.manifest_revision(
-          %Server{account: account, storage_claim_size: "24Gi", storage_replicas: 1},
-          region
-        )
-
-      assert Enum.uniq([two_replicas, one_replica, smaller_claim]) == [two_replicas, one_replica, smaller_claim]
+      refute legacy == smaller
 
       # An instance pinning nothing follows its region, so a region-level change
       # still moves it.
-      assert KubernetesController.manifest_revision(%Server{account: account}, region) == one_replica
+      assert KubernetesController.manifest_revision(%Server{account: account}, region) == legacy
     end
 
-    test "leaves the revision alone for a region that declares no footprint" do
+    test "leaves the revision alone for a region that declares no claim" do
       reject(&Mesh.self_hosted_peer_urls/1)
 
       # Self-hosted peers carry their own disk, so there is nothing to declare

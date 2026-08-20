@@ -280,7 +280,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "memoryCeilingBinPacked" => Regions.memory_ceiling_bin_packed?(region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region, server),
-          "replicas" => replicas(region, server),
+          "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
           "tolerations" => tolerations(region),
           "extraEnv" => auth_env(region, server, entitlements)
@@ -392,25 +392,22 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       mesh_peers_sync_revision_suffix(region, entitlements) <>
       backfill_revision_suffix(entitlements) <>
       memory_revision_suffix(region, entitlements) <>
-      footprint_revision_suffix(region, server)
+      claim_revision_suffix(region, server)
   end
 
-  # The instance's disk footprint is desired state like any other field on the
-  # manifest, so moving it has to move the revision. The reconciler converges on
-  # the revision alone: without this, changing the pinned claim or replica count
-  # would alter what the manifest renders while leaving the desired revision
-  # where it was, and the change would sit unapplied until some unrelated input
-  # happened to move it. Reclaiming a replica is exactly that kind of deliberate
-  # edit, and "I changed the desired state and nothing happened" is not a thing
-  # to leave for whoever is doing it under pressure.
+  # The instance's claim is desired state like any other field on the manifest,
+  # so moving it has to move the revision. The reconciler converges on the
+  # revision alone: without this, a claim that changed would alter what the
+  # manifest renders while leaving the desired revision where it was, and the
+  # change would sit unapplied until some unrelated input happened to move it.
   #
   # Rendered from what the manifest actually carries rather than from the pinned
-  # column, so an instance that pins nothing and takes its region's footprint
-  # still moves when the region's moves.
-  defp footprint_revision_suffix(%Regions{} = region, %Server{} = server) do
-    case {storage_size(region, server), replicas(region, server)} do
-      {nil, nil} -> ""
-      {size, replicas} -> "+disk#{size}-#{replicas}"
+  # column, so an instance that pins nothing and takes its region's claim still
+  # moves when the region's moves.
+  defp claim_revision_suffix(%Regions{} = region, %Server{} = server) do
+    case storage_size(region, server) do
+      nil -> ""
+      size -> "+disk#{size}"
     end
   end
 
@@ -746,12 +743,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp storage_class(_), do: nil
 
-  # The instance's own footprint wins over the region's. A claim cannot be
-  # expanded on the local-path class these regions run, and a replica scaled
-  # away keeps its directory, so re-rendering a live instance at whatever the
-  # region declares today would either be rejected or quietly strand disk the
-  # scheduler has stopped counting. `Tuist.Kura.Server` pins the footprint when
-  # the volumes are created, and only then.
+  # The instance's own claim wins over the region's. A claim cannot be expanded
+  # on the local-path class these regions run, so re-rendering a live instance at
+  # whatever the region declares today would be rejected outright.
+  # `Tuist.Kura.Server` pins the claim when the volumes are created, and only
+  # then.
   defp storage_size(%Regions{}, %Server{storage_claim_size: size}) when is_binary(size) and size != "", do: size
 
   defp storage_size(%Regions{} = region, %Server{}), do: declared_storage_size(region)
@@ -759,9 +755,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp declared_storage_size(%Regions{provisioner_config: %{storage_size: storage_size}}), do: storage_size
   defp declared_storage_size(_), do: nil
 
-  defp replicas(%Regions{}, %Server{storage_replicas: replicas}) when is_integer(replicas) and replicas > 0, do: replicas
-
-  defp replicas(%Regions{} = region, %Server{}), do: Regions.declared_replicas(region)
+  defp replicas(%Regions{provisioner_config: %{replicas: replicas}}), do: replicas
+  defp replicas(_), do: nil
 
   defp node_selector(%Regions{provisioner_config: %{node_selector: node_selector}}), do: node_selector
 
