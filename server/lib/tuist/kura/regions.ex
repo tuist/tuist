@@ -7,7 +7,7 @@ defmodule Tuist.Kura.Regions do
   A region carries:
 
     * `id` — stable opaque identifier (`"eu-central"`, `"us-east"`,
-      `"us-west"`, `"local-controller"`).
+      `"us-west"`, `"eu-air"`, `"local-controller"`).
       Stored on `kura_servers.region`. Never renamed once published
       because URLs and `account_cache_endpoints` reference it.
     * `display_name` — the customer-facing region label.
@@ -204,6 +204,48 @@ defmodule Tuist.Kura.Regions do
       country: "FR",
       subdivision: "FR-IDF"
     },
+    # EU Air (Roubaix / OVHcloud) on OVH bare metal: the European pool for
+    # accounts on the Air plan whose storage region is Europe. "Storage region"
+    # in account settings names module cache binaries, which is what a Kura
+    # instance holds, so those accounts are served from Europe rather than from
+    # the United States pool the rest of Air runs in.
+    #
+    # Deliberately its own node pool rather than a share of `eu-central`. The
+    # two tiers size independently (one line each) and fail independently: this
+    # is a single best-effort box with no recovery machine behind it, while the
+    # paid European pool has one. A single replica for the same reason: the
+    # second replica elsewhere buys a gapless rolling deploy, which a
+    # best-effort pool does not promise, and a cache miss is safe.
+    #
+    # No `egress_guaranteed_mbps`: that floor is the reservation an enterprise
+    # tenant bin-packs, and no enterprise tenant is ever placed here. Every pod
+    # on the box runs best-effort under the burst ceiling.
+    #
+    # Gated by TUIST_KURA_AVAILABLE_REGIONS and listed in no environment yet:
+    # the backing box is not ordered, and the ingress class and node pool
+    # arrive with it.
+    %{
+      id: "eu-air",
+      display_name: "EU Air",
+      cluster_id: "eu-air-1",
+      ingress_class_name: "kura-eu-air",
+      node_pool: "kura-eu-air",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 1,
+      storage_size: "50Gi",
+      # Cilium burst ceiling on the shared box (~1 Gbit/s NIC).
+      egress_burst_mbps: 500,
+      # Placed by plan resolution, never by a customer, so it stays out of the
+      # region picker: an explicit pick would put a paid server on a pool sized
+      # and operated for Air.
+      plan_scoped: true,
+      # OVHcloud Eco SYS-1, Roubaix. The 64 GB / 2x1.92 TB NVMe soft-RAID
+      # configuration is out of stock in Gravelines and available in rbx, which
+      # is still France.
+      country: "FR",
+      subdivision: "FR-HDF"
+    },
     # Canada East (Beauharnois / OVHcloud BHS) on OVH bare metal: the
     # `kura-ca-east` node pool (the `ovhFleet`), local-NVMe storage, and a
     # hostNetwork regional gateway bound to the box's public IP (OVH has no
@@ -339,15 +381,15 @@ defmodule Tuist.Kura.Regions do
 
   @doc """
   Regions a customer may explicitly select in the UI. This is
-  `available/0` minus regions the control plane manages on the
-  customer's behalf (the private runner-cache regions, which are
-  provisioned automatically when an account turns on runners and are
-  reachable only over the cluster's internal DNS — there is no public
-  endpoint for a developer to point the CLI at). `create_server/1`
+  `available/0` minus regions the control plane places on the
+  customer's behalf: the private runner-cache regions, provisioned
+  automatically when an account turns runners on and reachable only
+  over the cluster's internal DNS, and the plan-scoped regions, which
+  serve one plan's accounts on hardware sized for it. `create_server/1`
   still accepts these regions through `available/0`; they're only
   hidden from the picker.
   """
-  def selectable, do: Enum.reject(available(), &private?/1)
+  def selectable, do: Enum.reject(available(), &(private?(&1) or plan_scoped?(&1)))
 
   @doc """
   True iff the region has no public endpoint and is reachable only over
@@ -360,6 +402,18 @@ defmodule Tuist.Kura.Regions do
   """
   def private?(%__MODULE__{provisioner_config: config}), do: config[:private] == true
   def private?(_), do: false
+
+  @doc """
+  True iff the region serves one plan's accounts and is placed by plan
+  resolution rather than picked by a customer (today: the European Air pool).
+
+  Like a private region it is the control plane's to assign, so it stays out of
+  the picker: a customer choosing it would put a paid server on hardware sized
+  and operated for a different tier, which is the pool separation this exists
+  to keep.
+  """
+  def plan_scoped?(%__MODULE__{provisioner_config: config}), do: config[:plan_scoped] == true
+  def plan_scoped?(_), do: false
 
   @doc """
   The `%{floor_mib:, ceiling_mib:}` memory profile for a billing plan.
@@ -564,6 +618,7 @@ defmodule Tuist.Kura.Regions do
         egress_guaranteed_mbps: Map.get(spec, :egress_guaranteed_mbps),
         country: Map.get(spec, :country),
         subdivision: Map.get(spec, :subdivision),
+        plan_scoped: Map.get(spec, :plan_scoped, false),
         # Packing density is what constrains the shared bare-metal boxes, so
         # their instances are sized per tier rather than taking the controller
         # default, and their ceilings are bin-packed against the node budget the

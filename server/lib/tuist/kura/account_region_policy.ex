@@ -13,7 +13,19 @@ defmodule Tuist.Kura.AccountRegionPolicy do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
 
-  @service_regions ["us-east", "eu-central"]
+  # The regions an operator may pin a paid account to.
+  #
+  # `us-west` is here and nowhere else: `accounts.region` is `all | europe |
+  # usa`, `usa` derives to `us-east`, and `all` defaults to `us-east`, so no
+  # storage-region preference ever resolves to it. It is opted into per account
+  # for latency rather than derived. Air can never land there either, because
+  # Air resolves from the storage-region preference and never from an
+  # assignment.
+  #
+  # Narrower than the region catalog and than the column's CHECK constraint:
+  # the Air pools serve one plan on hardware sized for it, so they are never an
+  # assignment target.
+  @service_regions ["us-east", "eu-central", "us-west"]
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "kura_account_region_policies" do

@@ -352,22 +352,33 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  The region Air instances run in. `us-east` unless
-  `TUIST_KURA_AIR_REGION` names another.
+  The region Air instances run in for an account's storage region.
 
-  Air carries no storage-residency guarantee to uphold, so where the free
-  tier runs is a deployment decision rather than a policy one. Paid regions
-  are not configurable for the opposite reason: a paid account restricted to
-  Europe or the USA chose that, and no deployment setting may move it.
+  An account that states no storage region ("All regions") has no residency
+  constraint to uphold, so where its free tier runs is a deployment decision:
+  `us-east` unless `TUIST_KURA_AIR_REGION` names another. An account that chose
+  Europe has stated one, so it runs in Europe's own Air pool
+  (`TUIST_KURA_AIR_EUROPE_REGION`, default `eu-air`) rather than in the United
+  States. That pool is separate from the paid European one and is offered only
+  where `TUIST_KURA_AVAILABLE_REGIONS` lists it.
+
+  Paid regions are not configurable for the opposite reason: a paid account
+  restricted to Europe or the USA chose that, and no deployment setting may
+  move it.
 
   Staging has no `us-east` pool, so without this every Air account there
   resolves to a region whose instances can never schedule, and the Air-only
   pressure rule cannot be exercised at all.
   """
-  def kura_air_region do
-    case System.get_env("TUIST_KURA_AIR_REGION") do
-      nil -> "us-east"
-      "" -> "us-east"
+  def kura_air_region(:europe), do: air_region_env("TUIST_KURA_AIR_EUROPE_REGION", "eu-air")
+
+  def kura_air_region(storage_region) when storage_region in [:all, :usa],
+    do: air_region_env("TUIST_KURA_AIR_REGION", "us-east")
+
+  defp air_region_env(variable, default) do
+    case System.get_env(variable) do
+      nil -> default
+      "" -> default
       region -> region
     end
   end
