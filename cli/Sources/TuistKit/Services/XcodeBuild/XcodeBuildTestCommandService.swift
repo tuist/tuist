@@ -78,9 +78,15 @@ struct XcodeBuildTestCommandService {
         skipQuarantine: Bool = false,
         shardIndex: Int? = nil,
         shardReference: String? = nil,
+        shardPlanId: String? = nil,
         shardArchivePath: AbsolutePath? = nil,
         mode: TestProcessingMode? = nil
     ) async throws {
+        // Read before Tuist appends the shard's own identifiers, and before the quarantine skips: a
+        // shard also narrows what runs, but it is a selection Tuist made and is already recorded on
+        // the shard plan, whereas this is what the caller asked for.
+        let callerOnlyTestIdentifiers = Self.testIdentifiers(for: "-only-testing", in: passthroughXcodebuildArguments)
+        let callerSkipTestIdentifiers = Self.testIdentifiers(for: "-skip-testing", in: passthroughXcodebuildArguments)
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         let (
             resultBundlePathArgs,
@@ -92,7 +98,7 @@ struct XcodeBuildTestCommandService {
         let config = try await configLoader.loadConfig(path: path)
         let mode = mode ?? TestProcessingMode.default(for: config.url)
 
-        var shardPlanId: String?
+        var resolvedShardPlanId: String?
         var shardTestProductsPath: AbsolutePath?
         if let shardIndex, let fullHandle = config.fullHandle {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -110,10 +116,11 @@ struct XcodeBuildTestCommandService {
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 reference: shardReference,
+                shardPlanId: shardPlanId,
                 testProductsPath: testProductsPath,
                 testProductsArchivePath: shardArchivePath
             )
-            shardPlanId = shard.shardPlanId
+            resolvedShardPlanId = shard.shardPlanId
 
             passthroughXcodebuildArguments = removeOption("-workspace", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
@@ -180,10 +187,12 @@ struct XcodeBuildTestCommandService {
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config,
                 quarantinedTests: allQuarantinedTests,
-                shardPlanId: shardPlanId,
+                shardPlanId: resolvedShardPlanId,
                 shardIndex: shardIndex,
                 scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
-                mode: mode
+                mode: mode,
+                onlyTestIdentifiers: callerOnlyTestIdentifiers,
+                skipTestIdentifiers: callerSkipTestIdentifiers
             )
 
             let quarantinePass: Bool
@@ -235,10 +244,12 @@ struct XcodeBuildTestCommandService {
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             quarantinedTests: allQuarantinedTests,
-            shardPlanId: shardPlanId,
+            shardPlanId: resolvedShardPlanId,
             shardIndex: shardIndex,
             scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
-            mode: mode
+            mode: mode,
+            onlyTestIdentifiers: callerOnlyTestIdentifiers,
+            skipTestIdentifiers: callerSkipTestIdentifiers
         )
         if let shardTestProductsPath {
             try? await fileSystem.remove(shardTestProductsPath)
@@ -366,6 +377,21 @@ struct XcodeBuildTestCommandService {
 }
 
 extension XcodeBuildTestCommandService {
+    /// The identifiers the given option selects. xcodebuild accepts both `-only-testing ID` and
+    /// `-only-testing:ID`.
+    static func testIdentifiers(for option: String, in arguments: [String]) -> [String] {
+        var identifiers: [String] = []
+        var iterator = arguments.makeIterator()
+        while let argument = iterator.next() {
+            if argument == option, let identifier = iterator.next() {
+                identifiers.append(identifier)
+            } else if argument.hasPrefix("\(option):") {
+                identifiers.append(String(argument.dropFirst(option.count + 1)))
+            }
+        }
+        return identifiers
+    }
+
     private func uploadResultBundleIfNeeded(
         testSummary: TestSummary?,
         resultBundlePath: AbsolutePath?,
@@ -375,7 +401,9 @@ extension XcodeBuildTestCommandService {
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
         scheme: String? = nil,
-        mode: TestProcessingMode = .local
+        mode: TestProcessingMode = .local,
+        onlyTestIdentifiers: [String] = [],
+        skipTestIdentifiers: [String] = []
     ) async {
         guard config.fullHandle != nil else { return }
 
@@ -390,7 +418,9 @@ extension XcodeBuildTestCommandService {
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     config: config,
                     shardPlanId: shardPlanId,
-                    shardIndex: shardIndex
+                    shardIndex: shardIndex,
+                    onlyTestIdentifiers: onlyTestIdentifiers,
+                    skipTestIdentifiers: skipTestIdentifiers
                 )
             case .remote:
                 guard let resultBundlePath else { return }
@@ -401,7 +431,9 @@ extension XcodeBuildTestCommandService {
                     quarantinedTests: quarantinedTests,
                     buildRunId: buildRunId,
                     shardPlanId: shardPlanId,
-                    shardIndex: shardIndex
+                    shardIndex: shardIndex,
+                    onlyTestIdentifiers: onlyTestIdentifiers,
+                    skipTestIdentifiers: skipTestIdentifiers
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(

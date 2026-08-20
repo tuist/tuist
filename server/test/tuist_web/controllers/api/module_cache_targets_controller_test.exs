@@ -46,6 +46,7 @@ defmodule TuistWeb.API.ModuleCacheTargetsControllerTest do
                project_settings_hash: nil,
                target_settings_hash: nil,
                buildable_folders_hash: nil,
+               additional_hashing_inputs_hash: "additional_inputs_hash",
                external_hash: nil
              }
            ]
@@ -80,6 +81,7 @@ defmodule TuistWeb.API.ModuleCacheTargetsControllerTest do
       assert target["product_name"] == "MyTarget"
       assert target["subhashes"]["sources"] == "src_hash"
       assert target["subhashes"]["dependencies"] == "dep_hash"
+      assert target["subhashes"]["additional_hashing_inputs"] == "additional_inputs_hash"
       refute Map.has_key?(target["subhashes"], "resources")
 
       assert response["pagination_metadata"]["has_next_page"] == false
@@ -115,6 +117,7 @@ defmodule TuistWeb.API.ModuleCacheTargetsControllerTest do
                project_settings_hash: nil,
                target_settings_hash: nil,
                buildable_folders_hash: nil,
+               additional_hashing_inputs_hash: nil,
                external_hash: nil
              }
            ]

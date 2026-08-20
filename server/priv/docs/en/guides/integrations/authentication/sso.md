@@ -2,21 +2,71 @@
 {
   "title": "Single Sign-On",
   "titleTemplate": ":title | Authentication | Integrations | Guides | Tuist",
-  "description": "Learn how to configure Single Sign-On (SSO) with Google Workspace or Okta."
+  "description": "Learn how to configure single sign-on, verify a login email domain, and choose how users join your organization."
 }
 ---
 # Single Sign-On {#single-sign-on}
 
-Tuist offers Single Sign-On (SSO) as a login option to provide additional account security for your organization.
+Tuist offers single sign-on as a login option to provide additional account security for your organization.
 
-SSO is configured from the **Authentication** tab in your organization settings. Google and Okta are supported as identity providers.
+Single sign-on is configured from the **Authentication** tab in your organization settings. Google Workspace, Okta, Microsoft Entra ID, and custom [OAuth 2.0](https://oauth.net/2/) providers are supported.
+
+Microsoft Entra ID is an OpenID Connect provider that Tuist configures for you from your directory identifier. Everything this guide describes for custom providers, including login email domain verification and enrollment, applies to it as well.
 
 > [!NOTE]
-> SSO controls how members sign in. <.localized_link href="/guides/integrations/authentication/scim">SCIM provisioning</.localized_link> controls whether an identity provider can create, update, and deprovision organization members automatically. For Okta, most organizations configure both.
+> Single sign-on controls how members authenticate and whether authenticated users may join automatically. <.localized_link href="/guides/integrations/authentication/scim">System for Cross-domain Identity Management provisioning</.localized_link> controls whether an identity provider can create, update, and deprovision organization members. For Okta, most organizations configure both.
 
-## Google {#google}
+## How access works {#how-access-works}
 
-Google SSO allows any developer who signs in with a Google Workspace account from your domain to be automatically added to your Tuist organization.
+Provider identity, login discovery, and organization enrollment are separate concerns:
+
+- **Provider issuer:** The provider organization or authorization server that authenticated the user. Tuist combines the provider, issuer, and stable provider user identifier when looking up a linked identity. For Okta, the issuer is represented by the Okta domain. For Microsoft Entra ID, it is derived from the directory (tenant) identifier. For a custom provider, it is represented by the provider URL.
+- **Login email domain:** The email domain that Tuist uses to discover an Okta or custom provider from the general login page. Once verified, it also establishes which email addresses may be trusted for new account linking and automatic enrollment.
+- **Enrollment policy:** Determines whether a user from the trusted domain needs an invitation or may join automatically.
+- **Provisioning:** Creates and manages organization membership independently of the login flow.
+
+The provider issuer and login email domain are often different. For example, a company may use `example.com` for employee email while its provider issuer is `https://login.vendor.example.net`. New Okta and custom-provider configurations store these values separately.
+
+### Verify a login email domain {#verify-a-login-email-domain}
+
+New Okta and custom-provider configurations require a verified login email domain before they can create a new Tuist account or link an existing account that is not already an organization member. Organizations configured before this requirement retain their previous enrollment behavior until they verify a login domain or change their provider configuration.
+
+1. Enter the employee email domain, such as `example.com`, in **Login email domain**.
+2. Save the single sign-on configuration.
+3. Add the text record shown by Tuist to the domain's [Domain Name System](https://www.cloudflare.com/learning/dns/dns-records/dns-txt-record/) configuration.
+4. Return to the Authentication settings and click **Verify domain**.
+
+A verified login email domain can belong to only one Tuist organization. Changing the domain clears its verification and requires publishing the new text record. Automatic enrollment remains unavailable for new configurations until the domain is verified.
+
+Google Workspace does not require this separate Tuist verification step because Google supplies the verified Workspace domain as part of the authenticated identity.
+
+### Choose an enrollment policy {#choose-an-enrollment-policy}
+
+Tuist supports two enrollment policies:
+
+- **Invitation only:** A user needs an organization invitation. For Okta and custom providers, the login email domain must still be verified before the provider can create a brand-new Tuist account. An existing Tuist user who is already an organization member may link the provider identity based on that membership.
+- **Automatic:** A user whose authenticated email matches the trusted domain can create or link an account and join the organization without an invitation. Google configurations use the Workspace domain. Okta and custom providers require a verified login email domain.
+
+Google configurations default to automatic enrollment. New Okta and custom-provider configurations default to invitation-only enrollment. Existing Okta and custom-provider configurations retain their previous automatic enrollment behavior until an administrator verifies a login domain, disables automatic enrollment, or changes the provider configuration.
+
+The **Enforce single sign-on** setting is independent of enrollment. Enforcement prevents existing organization members from using email and password; it does not grant organization membership.
+
+### Existing organizations {#existing-organizations}
+
+Organizations configured before login email domains were introduced retain their existing behavior:
+
+- Existing linked identities continue signing in.
+- Existing organization members may link their Okta or custom-provider identity because membership already establishes trust.
+- Existing Google configurations retain automatic enrollment.
+- Existing Okta and custom-provider configurations retain their current login discovery, enforcement, and automatic enrollment behavior while their provider configuration remains unchanged.
+
+This compatibility mode avoids interrupting existing users and onboarding flows, but it continues trusting any email address reported by the configured provider. Administrators should add and verify a login email domain to restrict enrollment and identity linking to addresses controlled by their organization.
+
+Verifying a login domain or changing the provider or provider organization identifier permanently disables compatibility mode. Verify the login email domain before changing the provider configuration, particularly when single sign-on enforcement is enabled.
+
+## Google Workspace {#google}
+
+Google Workspace single sign-on authenticates users against a Workspace domain. Administrators can allow matching users to join automatically or require an invitation.
 
 > [!NOTE]
 > **Prerequisites**
@@ -26,37 +76,135 @@ Google SSO allows any developer who signs in with a Google Workspace account fro
 ### Setup {#google-setup}
 
 1. Navigate to your organization's **Authentication** settings tab.
-2. Enable SSO using the toggle.
+2. Enable single sign-on.
 3. Select **Google** as the provider.
-4. Enter your Google Workspace domain (e.g., `example.com`).
-5. Click **Save changes**.
+4. Enter your Google Workspace domain, such as `example.com`.
+5. Choose **Automatic enrollment** or invitation-only enrollment. Automatic enrollment is enabled by default for Google.
+6. Optionally enable **Enforce single sign-on** after testing the login flow.
+7. Click **Save changes**.
 
 ## Okta {#okta}
 
-Okta SSO uses the OIDC protocol to allow members of your Okta organization to sign in to Tuist.
+Okta uses [OpenID Connect](https://openid.net/developers/how-connect-works/) to authenticate members. The Okta domain identifies the provider issuer; the separately verified login email domain controls discovery, new account linking, and enrollment.
 
-If you also want Okta to create, update, or deprovision members automatically, configure <.localized_link href="/guides/integrations/authentication/scim#okta">Okta SCIM provisioning</.localized_link> after SSO is working.
+If you also want Okta to create, update, or deprovision members automatically, configure <.localized_link href="/guides/integrations/authentication/scim#okta">Okta System for Cross-domain Identity Management provisioning</.localized_link> after single sign-on is working.
 
-### Step 1: Create an Okta OIDC application {#okta-step-1}
+### Step 1: Create an Okta application {#okta-step-1}
 
 1. In your Okta admin dashboard, go to **Applications > Applications > Create App Integration**.
-2. Select **OIDC - OpenID Connect** and **Web Application**.
-3. Set the application name (e.g., `Tuist`). Optionally upload the [Tuist logo](https://tuist.dev/images/tuist_dashboard.png).
-4. Set the **Sign-in redirect URI** to the value shown on the Authentication settings page (e.g., `https://tuist.dev/users/auth/okta/callback`).
+2. Select **OpenID Connect** and **Web Application**.
+3. Set the application name, such as `Tuist`. Optionally upload the [Tuist logo](https://tuist.dev/images/tuist_dashboard.png).
+4. Set the **Sign-in redirect URI** to the value shown on the Authentication settings page, such as `https://tuist.dev/users/auth/okta/callback`.
 5. Under **Assignments**, choose the desired access control and save.
-6. Copy the **Client ID** and **Client Secret** from the application's general settings. Note your **Okta domain** (e.g., `your-company.okta.com`).
-7. Optionally, to allow login from the Okta dashboard, click **Edit** on General Settings, change **Login initiated by** to **Either Okta or App**, select **Display application icon to users**, and set the **Initiate login URI** to the value shown on the Authentication settings page (e.g., `https://tuist.dev/users/auth/okta?organization_id=YOUR_ORG_ID`).
+6. Copy the **Client ID** and **Client Secret** from the application's general settings. Note your **Okta domain**, such as `your-company.okta.com`.
+7. Optionally, to allow login from the Okta dashboard, click **Edit** on General Settings, change **Login initiated by** to **Either Okta or App**, select **Display application icon to users**, and set the **Initiate login URI** to the value shown on the Authentication settings page.
 
 ### Step 2: Configure Tuist {#okta-step-2}
 
 1. Navigate to your organization's **Authentication** settings tab.
-2. Enable Single Sign-On using the toggle.
+2. Enable single sign-on.
 3. Select **Okta** as the provider.
-4. Enter your **Okta domain**, **Client ID**, and **Client Secret**.
-5. Click **Save changes**.
+4. Enter the **Okta domain**, **Client ID**, and **Client Secret**.
+5. Enter the employee email domain under **Login email domain**. For example, an Okta domain of `your-company.okta.com` may have a login email domain of `example.com`.
+6. Click **Save changes**.
+7. Add the text record shown by Tuist to the login email domain, then click **Verify domain**.
+8. Choose whether users need an invitation or may enroll automatically, then save the configuration again.
+9. Optionally enable **Enforce single sign-on** after testing the login flow.
 
 ### Step 3: Assign users to the Okta application {#okta-step-3}
 
-Assign the users or groups that should be allowed to sign in to the Okta OIDC application.
+Assign the users or groups that should be allowed to authenticate through the Okta application.
 
-If the same users are also provisioned through SCIM, Tuist links the Okta identity to the existing Tuist user the first time the user signs in through Okta with the same email address.
+Assignment grants access to the login flow, but organization membership still follows the enrollment policy. If the same users are provisioned through System for Cross-domain Identity Management, Tuist links the Okta identity to the existing organization member the first time the user signs in with the same email address.
+
+## Microsoft Entra ID {#microsoft-entra-id}
+
+Microsoft Entra ID authenticates members over [OpenID Connect](https://openid.net/developers/how-connect-works/). Tuist derives the authorization, token, and user information endpoints from your directory (tenant) identifier, so you only enter that value along with the application credentials.
+
+If you also want Entra ID to create, update, or deprovision members automatically, configure <.localized_link href="/guides/integrations/authentication/scim#microsoft-entra-id">Microsoft Entra ID System for Cross-domain Identity Management provisioning</.localized_link> after single sign-on is working.
+
+### Step 1: Register an Entra application {#entra-step-1}
+
+1. In the [Microsoft Entra admin center](https://entra.microsoft.com), go to **Identity > Applications > App registrations > New registration**.
+2. Set the application name, such as `Tuist`.
+3. Under **Redirect URI**, select the **Web** platform and enter the value shown on the Authentication settings page, such as `https://tuist.dev/users/auth/oauth2/callback`.
+4. Register the application, then copy the **Directory (tenant) ID** and the **Application (client) ID** from its overview page.
+5. Go to **Certificates & secrets > New client secret**, create a secret, and copy its **Value**. Microsoft shows the value only once, and every client secret has an expiry date, so record when it needs to be rotated.
+6. Go to **API permissions** and confirm that the delegated Microsoft Graph permissions `openid`, `profile`, and `email` are granted.
+7. Optionally, to let members start the sign-in flow from the My Apps portal, set the **Home page URL** under **Branding & properties** to the value shown on the Authentication settings page.
+
+### Step 2: Configure Tuist {#entra-step-2}
+
+1. Navigate to your organization's **Authentication** settings tab.
+2. Enable single sign-on.
+3. Select **Microsoft Entra ID** as the provider.
+4. Enter the **Directory (tenant) ID**, **Client ID**, and **Client Secret**.
+5. Enter the employee email domain under **Login email domain**. For example, a directory whose users sign in as `first.last@example.com` has a login email domain of `example.com`.
+6. Click **Save changes**.
+7. Add the text record shown by Tuist to the login email domain, then click **Verify domain**.
+8. Choose whether users need an invitation or may enroll automatically, then save the configuration again.
+9. Optionally enable **Enforce single sign-on** after testing the login flow.
+
+### Step 3: Assign users to the Entra application {#entra-step-3}
+
+Assign the users or groups that should be allowed to authenticate. If the application is configured to require assignment, only assigned users can sign in.
+
+Assignment grants access to the login flow, but organization membership still follows the enrollment policy. If the same users are provisioned through System for Cross-domain Identity Management, Tuist links the Entra identity to the existing organization member the first time the user signs in with the same email address.
+
+### Requirements for the email claim {#entra-email-claim}
+
+Tuist reads the authenticated user's profile from the Microsoft Graph user information endpoint, which returns an email address only when the user has one available. A directory user whose `mail` attribute is empty cannot sign in, because Tuist has no address to match against the login email domain.
+
+Confirm that the members you assign have an email address populated in the directory before rolling single sign-on out. Users synchronized from on-premises Active Directory without a mailbox are the most common case where this attribute is missing.
+
+### Conditional Access and multifactor authentication {#entra-conditional-access}
+
+Conditional Access policies, multifactor authentication, and sign-in risk policies apply to the Tuist application the same way they apply to any other Entra application, because they are evaluated during the authorization request. No additional Tuist configuration is required.
+
+## Custom OAuth 2.0 provider {#custom-oauth-2-provider}
+
+A custom OAuth 2.0 provider allows an organization to use an identity service other than Google Workspace or Okta. The provider's user information endpoint must return a stable user identifier and an email address.
+
+1. In the provider, create an OAuth 2.0 web application.
+2. Set the **Sign-in redirect URI** and optional **Initiate login URI** to the values shown in Tuist's Authentication settings.
+3. In Tuist, enable single sign-on and select **OAuth2**.
+4. Enter the provider URL, authorization endpoint, token endpoint, user information endpoint, client identifier, and client secret.
+5. Enter and save the **Login email domain**. This is the employee email domain, not the provider URL.
+6. Add the text record shown by Tuist to the login email domain, then click **Verify domain**.
+7. Choose invitation-only or automatic enrollment and save the configuration.
+8. Test sign-in before optionally enabling **Enforce single sign-on**.
+
+The provider URL scopes identities to the issuing provider. The verified login email domain determines which email addresses Tuist may trust when linking or enrolling users.
+
+## Command-line configuration {#command-line-configuration}
+
+The command-line interface can configure Google Workspace or Okta and select an enrollment policy. For example:
+
+```bash
+tuist organization update sso example \
+  --provider okta \
+  --organization-id your-company.okta.com \
+  --enrollment-policy invitation-only
+```
+
+Microsoft Entra ID and custom providers are configured from the organization's Authentication settings rather than the command line.
+
+The `--organization-id` value identifies the provider organization. It is not the login email domain. New configurations must add and verify the login email domain from the organization's Authentication settings before enrolling new Okta users. Existing configurations retain their previous enrollment behavior until their provider configuration changes.
+
+## Troubleshooting {#troubleshooting}
+
+### Existing members can sign in, but new users cannot {#existing-members-can-sign-in-but-new-users-cannot}
+
+For new Okta and custom-provider configurations, confirm that the login email domain is verified. Then either invite the user or enable automatic enrollment. Organizations configured before login email domains were introduced retain their previous onboarding behavior until their provider configuration changes.
+
+### Tuist cannot find an organization for an email address {#tuist-cannot-find-an-organization-for-an-email-address}
+
+Confirm that the user entered the expected employee email address and that its domain exactly matches the verified login email domain. Existing members may also be discovered through their current organization membership.
+
+### Domain verification remains pending {#domain-verification-remains-pending}
+
+Confirm that the text record name and value exactly match the values shown in Tuist. Domain Name System changes can take time to propagate, so retry verification after the record is publicly available.
+
+### Sign-in stopped after changing the provider {#sign-in-stopped-after-changing-the-provider}
+
+Changing the provider or provider organization identifier stops using the previously inferred email domain. Confirm the new provider configuration, verify the login email domain, and test the login flow before enabling enforcement.

@@ -65,6 +65,17 @@ const (
 	drainCompletionTimeoutMs int64 = 240_000
 	preStopDelaySeconds      int64 = 20
 	terminationGraceExtra    int64 = 15
+	// A liveness failure means the serving process is already unable to make
+	// progress. It must not inherit the rollout drain budget: Kubernetes runs
+	// preStop for liveness restarts too, so this gives the hook time to remove
+	// the endpoint while bounding an otherwise unbounded cache outage.
+	livenessTerminationGraceSeconds int64 = 30
+	// Kura opens its store, including RocksDB WAL replay after an unclean
+	// shutdown, before it binds the listener that answers /up, so store
+	// recovery is spent against the startup budget. With the 10s period
+	// this allows 300 seconds, matching kura/ops/helm/kura/templates/
+	// statefulset.yaml so controller-managed and chart-managed pods agree.
+	startupFailureThreshold int32 = 30
 
 	// podNameLabel is the per-pod label the StatefulSet controller stamps
 	// on every pod (<statefulset>-<ordinal>). The public backend Service
@@ -77,24 +88,29 @@ const (
 	// before the public Services can route cache reads to it.
 	minPrimaryPodAge = 10 * time.Minute
 
-	sharedSecretsName                           = "kura-shared-secrets"
-	otlpTracesEndpointEnvVar                    = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
-	environmentEnvVar                           = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
-	sharedSecretsRVAnnotation                   = "kura.tuist.dev/shared-secrets-resource-version"
-	externalDNSHostnameAnnotation               = "external-dns.alpha.kubernetes.io/hostname"
-	legacyPeerHostAnnotation                    = "kura.tuist.dev/legacy-peer-host"
-	legacyPeerMigrationAnnotation               = "kura.tuist.dev/legacy-peer-migration-phase"
-	legacyPeerOldAddressesAnnotation            = "kura.tuist.dev/legacy-peer-old-addresses"
-	legacyPeerTargetAddressesAnnotation         = "kura.tuist.dev/legacy-peer-target-addresses"
-	legacyPeerRetireAfterAnnotation             = "kura.tuist.dev/legacy-peer-retire-after"
-	legacyPeerFallbackRepublishAnnotation       = "kura.tuist.dev/legacy-peer-fallback-republish-requested-at"
-	legacyPeerFallbackObservedAnnotation        = "kura.tuist.dev/legacy-peer-fallback-observed-at"
-	legacyPeerPhaseRepairing                    = "repairing-fallback"
-	legacyPeerPhaseCutoverRequested             = "cutover-requested"
-	legacyPeerPhaseDraining                     = "draining"
-	peerDNSRecordTTLSeconds               int64 = 300
-	legacyPeerRetirementDelay                   = 2 * time.Duration(peerDNSRecordTTLSeconds) * time.Second
-	hetznerNodeSelectorAnnotation               = "load-balancer.hetzner.cloud/node-selector"
+	sharedSecretsName                             = "kura-shared-secrets"
+	otlpTracesEndpointEnvVar                      = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+	environmentEnvVar                             = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
+	snapshotCacheMaxBytesEnvVar                   = "KURA_SNAPSHOT_CACHE_MAX_BYTES"
+	manifestCacheMaxBytesEnvVar                   = "KURA_MANIFEST_CACHE_MAX_BYTES"
+	metadataStoreReadCacheBytesEnvVar             = "KURA_METADATA_STORE_READ_CACHE_BYTES"
+	metadataStoreWriteBufferPoolBytesEnvVar       = "KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES"
+	sharedSecretsRVAnnotation                     = "kura.tuist.dev/shared-secrets-resource-version"
+	externalDNSHostnameAnnotation                 = "external-dns.alpha.kubernetes.io/hostname"
+	legacyPeerHostAnnotation                      = "kura.tuist.dev/legacy-peer-host"
+	legacyPeerMigrationAnnotation                 = "kura.tuist.dev/legacy-peer-migration-phase"
+	legacyPeerOldAddressesAnnotation              = "kura.tuist.dev/legacy-peer-old-addresses"
+	legacyPeerTargetAddressesAnnotation           = "kura.tuist.dev/legacy-peer-target-addresses"
+	legacyPeerRetireAfterAnnotation               = "kura.tuist.dev/legacy-peer-retire-after"
+	legacyPeerFallbackRepublishAnnotation         = "kura.tuist.dev/legacy-peer-fallback-republish-requested-at"
+	legacyPeerFallbackObservedAnnotation          = "kura.tuist.dev/legacy-peer-fallback-observed-at"
+	unreadyPodsReplacedForImageAnnotation         = "kura.tuist.dev/unready-pods-replaced-for-image"
+	legacyPeerPhaseRepairing                      = "repairing-fallback"
+	legacyPeerPhaseCutoverRequested               = "cutover-requested"
+	legacyPeerPhaseDraining                       = "draining"
+	peerDNSRecordTTLSeconds                 int64 = 300
+	legacyPeerRetirementDelay                     = 2 * time.Duration(peerDNSRecordTTLSeconds) * time.Second
+	hetznerNodeSelectorAnnotation                 = "load-balancer.hetzner.cloud/node-selector"
 
 	peerTLSVolumeName = "peer-tls"
 	peerTLSMountPath  = "/etc/kura/peer-tls"
@@ -292,7 +308,7 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update;patch;delete
@@ -357,9 +373,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
-	if err := r.reconcileConfigMap(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
 	if err := r.reconcileHeadlessService(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -423,6 +436,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.replaceUnreadyPodsForImageChange(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
 
 	rollout, err := r.rolloutStatus(ctx, instance)
 	if err != nil {
@@ -450,22 +466,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	logger.Info("reconciled Kura instance", "phase", rollout.phase, "readyReplicas", rollout.readyReplicas)
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-}
-
-func (r *KuraInstanceReconciler) reconcileConfigMap(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	if instance.Spec.ExtensionScript == "" {
-		return nil
-	}
-	configMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: extensionConfigMapName(instance), Namespace: instance.Namespace}}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, configMap, func() error {
-		if err := controllerutil.SetControllerReference(instance, configMap, r.Scheme); err != nil {
-			return err
-		}
-		configMap.Labels = labels(instance)
-		configMap.Data = map[string]string{"hooks.lua": instance.Spec.ExtensionScript}
-		return nil
-	})
-	return err
 }
 
 func (r *KuraInstanceReconciler) reconcileHeadlessService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -1784,16 +1784,25 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 	return primaryPodHealthFromSamples(instance, pods, r.sampleRuntimeStatuses(ctx, instance, pods), time.Now())
 }
 
-// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
-// status endpoint is unreachable for every pod: without the runtime's
-// bootstrap signal we keep the minPrimaryPodAge buffer so a still-bootstrapping
-// pod isn't promoted. When the runtime status IS reachable it supersedes this —
-// a pod that reports Ready+serving has already completed bootstrap (the runtime's
-// is_serving requires bootstrapped_peers == known_peers), so the runtime-confirmed
-// path does NOT age-gate. That lets a freshly-rolled but caught-up standby be
-// promoted immediately, which is what makes a rolling deploy gapless instead of
-// waiting out the 10-minute age with no eligible primary. The runtime status is
-// therefore consulted for every Ready pod, not just the age-eligible ones.
+	// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
+	// status endpoint is unreachable for every pod: without the runtime's own
+	// catch-up signal we keep the minPrimaryPodAge buffer so a pod that is still
+	// filling isn't promoted. When the runtime status IS reachable it supersedes
+	// this, and the runtime-confirmed path does NOT age-gate — which is what lets
+	// a freshly-rolled but caught-up standby be promoted immediately, making a
+	// rolling deploy gapless instead of waiting out the 10-minute age with no
+	// eligible primary. The runtime status is therefore probed for every Ready
+	// pod, not just the age-eligible ones.
+	//
+	// Note that Ready+serving is NOT proof of a completed catch-up. It once was
+	// (is_serving required bootstrapped_peers == known_peers), but readiness now
+	// latches at a ring-fullness threshold or when the initial backfill cycle
+	// settles, and a cycle settles even when a peer stays unreachable. A pod that
+	// reports serving can therefore still be filling, or be cold on an empty
+	// volume whose only peer is down. Ring members and the writer lock below are
+	// what this gate actually rests on; `backfill_initial_cycle` on
+	// /status/rollout is the completeness signal, and it is deliberately not
+	// consumed here (see the region-move note in kura/README.md).
 func primaryPodHealthFromSamples(
 	instance *kurav1alpha1.KuraInstance,
 	pods []corev1.Pod,
@@ -2464,7 +2473,11 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		sts.Spec.Replicas = ptr(replicas(instance))
 		sts.Spec.PodManagementPolicy = appsv1.ParallelPodManagement
 		sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}
-		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion)
+		binPackCeiling, err := r.ceilingBudgetAdvertised(ctx, instance)
+		if err != nil {
+			return err
+		}
+		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling)
 		if len(existingVolumeClaimTemplates) > 0 {
 			sts.Spec.VolumeClaimTemplates = existingVolumeClaimTemplates
 		} else {
@@ -2483,6 +2496,63 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		return err
 	}
 	return r.reconcileDataPersistentVolumeClaims(ctx, instance)
+}
+
+// replaceUnreadyPodsForImageChange lets a new Kura image escape a rollout that
+// the ordinary StatefulSet readiness gate cannot advance. Ready pods keep
+// serving and roll through the normal ordered path. Pods that are not ready and
+// still run the previous image are deleted in parallel so the StatefulSet
+// recreates them directly on the desired image.
+//
+// The handled image is recorded on the KuraInstance only after every deletion
+// succeeds. If the controller stops midway, the next pass retries only the
+// remaining old-image pods and ignores pods already recreated on the desired
+// image. This makes the operation safe across retries without repeatedly
+// restarting a new pod that is still bootstrapping.
+func (r *KuraInstanceReconciler) replaceUnreadyPodsForImageChange(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if instance.Annotations[unreadyPodsReplacedForImageAnnotation] == instance.Spec.Image {
+		return nil
+	}
+
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return err
+	}
+
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.DeletionTimestamp != nil || podReady(pod) || podKuraImage(pod) == instance.Spec.Image {
+			continue
+		}
+		if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		log.FromContext(ctx).Info(
+			"replacing unready Kura pod on image change",
+			"pod",
+			pod.Name,
+			"previousImage",
+			podKuraImage(pod),
+			"desiredImage",
+			instance.Spec.Image,
+		)
+	}
+
+	before := instance.DeepCopy()
+	if instance.Annotations == nil {
+		instance.Annotations = map[string]string{}
+	}
+	instance.Annotations[unreadyPodsReplacedForImageAnnotation] = instance.Spec.Image
+	return r.Patch(ctx, instance, client.MergeFrom(before))
+}
+
+func podKuraImage(pod *corev1.Pod) string {
+	for _, container := range pod.Spec.Containers {
+		if container.Name == "kura" {
+			return container.Image
+		}
+	}
+	return ""
 }
 
 func (r *KuraInstanceReconciler) reconcileDataPersistentVolumeClaims(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -2755,30 +2825,68 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 	}
 }
 
-func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string) corev1.PodTemplateSpec {
+// ceilingBudgetAdvertised reports whether a node this instance can land on
+// actually publishes tuist.dev/memory-ceiling-mib.
+//
+// The spec flag states the server's intent; this checks it against reality. The
+// CAPI provider that advertises the budget rolls to the management cluster on
+// its own cadence, so the server can ask for the resource before any node
+// offers it, and a pod requesting an extended resource no node advertises stays
+// Pending forever. Resolving it here makes the ordering a property of the
+// system rather than a runbook step, in both directions: the request appears
+// within a reconcile of the provider rolling, and disappears within a reconcile
+// of a node ceasing to advertise, which is what lets a provider rollback
+// un-wedge Pending pods without a server deploy.
+//
+// Allocatable, not Capacity: that is the field the scheduler fits against. The
+// kubelet mirrors externally patched extended-resource capacity into it.
+func (r *KuraInstanceReconciler) ceilingBudgetAdvertised(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
+	if !instance.Spec.MemoryCeilingBinPacked {
+		return false, nil
+	}
+	nodes := &corev1.NodeList{}
+	var opts []client.ListOption
+	if len(instance.Spec.NodeSelector) > 0 {
+		opts = append(opts, client.MatchingLabels(instance.Spec.NodeSelector))
+	}
+	if err := r.List(ctx, nodes, opts...); err != nil {
+		return false, err
+	}
+	for i := range nodes.Items {
+		if quantity, ok := nodes.Items[i].Status.Allocatable[memoryCeilingResource]; ok && !quantity.IsZero() {
+			return true, nil
+		}
+	}
+	log.FromContext(ctx).Info("memory ceiling bin-packing requested but no node advertises the budget; omitting the request",
+		"instance", instance.Name, "resource", memoryCeilingResource)
+	return false, nil
+}
+
+func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string, binPackCeiling bool) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      labels(instance),
 			Annotations: podAnnotations(instance, sharedSecretsResourceVersion),
 		},
 		Spec: corev1.PodSpec{
+			EnableServiceLinks:            ptr(false),
 			TerminationGracePeriodSeconds: ptr(terminationGracePeriodSeconds()),
 			NodeSelector:                  nodeSelector(instance),
 			Tolerations:                   instance.Spec.Tolerations,
 			Affinity:                      instancePodAffinity(instance),
 			Containers: []corev1.Container{{
-				Name:            "kura",
+				Name:            kuraContainerName,
 				Image:           instance.Spec.Image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
 				Ports:           containerPorts(instance),
 				Env:             append(baseEnv(instance, otlpTracesEndpoint, environment), instance.Spec.ExtraEnv...),
 				EnvFrom:         sharedSecretsEnvFrom(),
-				Resources:       defaultResources(instance),
+				Resources:       defaultResources(instance, binPackCeiling),
 				VolumeMounts:    volumeMounts(instance),
 				Lifecycle:       preStopLifecycle(),
 				ReadinessProbe:  httpProbe("/ready", 5, 10),
-				LivenessProbe:   httpProbe("/up", 20, 20),
-				StartupProbe:    httpProbe("/up", 0, 10),
+				LivenessProbe:   livenessProbe(),
+				StartupProbe:    startupProbe(),
 			}},
 			Volumes: volumes(instance),
 		},
@@ -2825,7 +2933,7 @@ func preStopLifecycle() *corev1.Lifecycle {
 
 // sharedSecretsEnvFrom mounts the kura-shared-secrets Secret if it
 // exists. The Tuist control plane and operator drop credentials such as
-// KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET into this Secret so they
+// KURA_AUTH_JWT_SECRET into this Secret so they
 // stay out of the KuraInstance spec (which is readable by anyone with
 // list/watch on the CR).
 func sharedSecretsEnvFrom() []corev1.EnvFromSource {
@@ -2844,19 +2952,95 @@ func sharedSecretsEnvFrom() []corev1.EnvFromSource {
 // KuraInstanceSpec.EgressGuaranteedMbps.
 const egressMbpsResource corev1.ResourceName = "tuist.dev/egress-mbps"
 
-// The memory request matches the limit because Kura sizes its memory
-// budget from the cgroup limit (soft limit 70%, hard limit 85% of it)
-// and routinely operates above 1Gi, so the full 2Gi must be reserved
-// at scheduling time to avoid node overcommit.
-func defaultResources(instance *kurav1alpha1.KuraInstance) corev1.ResourceRequirements {
+// memoryCeilingResource is the integer extended resource a shared bare-metal
+// node advertises so the scheduler can bin-pack memory *ceilings*, which
+// oversubscribe the box by design and are therefore invisible to the native
+// requests.memory bin-pack. The CAPI provider advertises the matching capacity
+// as a multiple of node allocatable. See KuraInstanceSpec.MemoryCeilingMib.
+const memoryCeilingResource corev1.ResourceName = "tuist.dev/memory-ceiling-mib"
+
+// kuraContainerName is the pod's Kura container. The Downward API's
+// resourceFieldRef names it explicitly, and a name that does not match a
+// container in the pod fails admission, so both sites read this.
+const kuraContainerName = "kura"
+
+// Applied when an instance carries no explicit profile, which keeps a CR
+// written before the memory profile existed on the shape it already had.
+//
+// The ceiling is twice the floor. Below 2x the memory-ceiling bin-pack never
+// binds, because the native requests.memory pack is the tighter of the two, so
+// the extra resource buys nothing. The 60% soft watermark also has to clear a
+// real burst by more than the runtime's 0.9x recovery hysteresis: at a 1.5x
+// ceiling the recovery threshold lands under the largest burst already
+// observed, so a single trip into shedding would last the whole burst.
+const (
+	defaultMemoryFloorMib   int32 = 2048
+	defaultMemoryCeilingMib int32 = 4096
+)
+
+// Memory floor and ceiling are deliberately different. Kura sizes every
+// admission pool from the cgroup limit at startup (soft limit 60%, hard limit
+// 85% of it; the public response-stream pool is half the remaining 15%), and
+// those pools are semaphores, not allocations — a higher ceiling costs nothing
+// until a burst arrives. The floor is the standing reservation, and the shared
+// bare-metal boxes reserve several times the working set the fleet actually
+// peaks at, so raising it in step would exhaust a box's schedulable memory
+// without serving a single extra byte.
+func defaultResources(instance *kurav1alpha1.KuraInstance, binPackCeiling bool) corev1.ResourceRequirements {
+	floorMib := instance.Spec.MemoryFloorMib
+	if floorMib <= 0 {
+		floorMib = defaultMemoryFloorMib
+	}
+	ceilingMib := instance.Spec.MemoryCeilingMib
+	if ceilingMib <= 0 {
+		ceilingMib = defaultMemoryCeilingMib
+	}
+	// The API rejects a limit below its request, so a profile that inverts the
+	// two would make every pod of the instance unadmittable. Clamping keeps the
+	// floor authoritative: a reservation is a promise, a ceiling is headroom.
+	if ceilingMib < floorMib {
+		ceilingMib = floorMib
+	}
+
 	r := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceCPU:    resource.MustParse("500m"),
-			corev1.ResourceMemory: resource.MustParse("2Gi"),
+			corev1.ResourceMemory: mibQuantity(floorMib),
 		},
 		Limits: corev1.ResourceList{
-			corev1.ResourceMemory: resource.MustParse("2Gi"),
+			corev1.ResourceMemory: mibQuantity(ceilingMib),
 		},
+	}
+	// Ceiling bin-packing is opt-in per region, for the same reason the egress
+	// floor is: a pod that requests an extended resource its node does not
+	// advertise never schedules. The caller resolves this against the live node
+	// budget rather than trusting the spec alone.
+	if binPackCeiling {
+		q := *resource.NewQuantity(int64(ceilingMib), resource.DecimalSI)
+		r.Requests[memoryCeilingResource] = q
+		r.Limits[memoryCeilingResource] = q
+	}
+	// Disk: reserve the instance's declared storage as an ephemeral-storage
+	// request so the scheduler bin-packs cache pods against the node's disk.
+	// The data volume is a local-path PV -- a directory on the node's
+	// ephemeral-storage filesystem -- so the claim's size is a label and
+	// nothing in Kubernetes stops a region filling its box; a full box crosses
+	// kubelet's eviction line and takes down every tenant on it, not just the
+	// one that filled it. A request is what the scheduler admits against, so
+	// this is the admission control that claim never provided.
+	//
+	// Deliberately a request with no limit. A limit is enforced against the
+	// pod's writable layer, logs and emptyDir, none of which is where the cache
+	// lives, so it would evict on the wrong signal while leaving the real
+	// consumption unbounded. Kura bounds its own ring with
+	// KURA_CAS_CAPACITY_BYTES; this reserves the room that ring will need.
+	//
+	// Unlike the two extended resources below, ephemeral-storage is built in
+	// and every node already advertises it, so there is no pool to roll first.
+	// Each replica requests one claim's worth, so co-located replicas reserve
+	// their sum without the controller having to reason about placement.
+	if storage := storageQuantity(instance); !storage.IsZero() {
+		r.Requests[corev1.ResourceEphemeralStorage] = storage
 	}
 	// Egress floor: reserve the region's guaranteed Mbps as the
 	// tuist.dev/egress-mbps extended resource (request == limit; extended
@@ -2869,6 +3053,10 @@ func defaultResources(instance *kurav1alpha1.KuraInstance) corev1.ResourceRequir
 		r.Limits[egressMbpsResource] = q
 	}
 	return r
+}
+
+func mibQuantity(mib int32) resource.Quantity {
+	return *resource.NewQuantity(int64(mib)*1024*1024, resource.BinarySI)
 }
 
 func publicIngressAnnotations() map[string]string {
@@ -3035,12 +3223,11 @@ func instancePodAffinity(instance *kurav1alpha1.KuraInstance) *corev1.Affinity {
 }
 
 // baseEnv carries only the values the controller must set: identity,
-// per-pod paths, peer wiring, and the drain timeout that has to stay in
-// sync with the pod's terminationGracePeriodSeconds. Resource-shaped
-// knobs (FD pool, memory soft/hard limits, manifest cache, RocksDB)
-// are derived from the pod's cgroup and rlimit at runtime startup, so
-// the controller deliberately doesn't override them. See
-// kura/src/config.rs::DerivedRuntimeDefaults.
+// per-pod paths, peer wiring, the drain timeout that has to stay in
+// sync with the pod's terminationGracePeriodSeconds, and bounded cache
+// budgets for the managed memory profile (see defaultResources). Other
+// resource-shaped knobs are derived from the pod's cgroup and rlimit
+// at runtime startup. See kura/src/config.rs::DerivedRuntimeDefaults.
 func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string) []corev1.EnvVar {
 	if environment == "" {
 		environment = "production"
@@ -3083,6 +3270,20 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "KURA_INTERNAL_TLS_KEY_PATH", Value: peerTLSMountPath + "/" + peerTLSKeyFile},
 		{Name: "KURA_DRAIN_COMPLETION_TIMEOUT_MS", Value: strconv.FormatInt(drainCompletionTimeoutMs, 10)},
 		{Name: "KURA_OTEL_SERVICE_NAME", Value: "$(POD_NAME)"},
+		// Kura reads its ceiling from the cgroup, but requests.memory never
+		// reaches the container, and the two answer different questions. The
+		// ceiling bounds everything; the floor bounds what Kura may hold in
+		// anonymous memory, since anything anonymous above the floor is
+		// unprotected and the kernel's only remedy for it is the OOM killer.
+		// Publishing the floor lets Kura size its admission budget from what it
+		// is guaranteed and leave the floor-to-ceiling gap to page cache and
+		// mmap-served segments, which reclaim instead. Divisor 1 yields bytes;
+		// resourceFieldRef rounds up to it.
+		{Name: "KURA_MEMORY_FLOOR_BYTES", ValueFrom: &corev1.EnvVarSource{ResourceFieldRef: &corev1.ResourceFieldSelector{
+			ContainerName: kuraContainerName,
+			Resource:      "requests.memory",
+			Divisor:       resource.MustParse("1"),
+		}}},
 	}
 	if !hasEnvVar(instance.Spec.ExtraEnv, environmentEnvVar) {
 		env = append(env, corev1.EnvVar{Name: environmentEnvVar, Value: environment})
@@ -3090,11 +3291,10 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	if otlpTracesEndpoint != "" && !hasEnvVar(instance.Spec.ExtraEnv, otlpTracesEndpointEnvVar) {
 		env = append(env, corev1.EnvVar{Name: otlpTracesEndpointEnvVar, Value: otlpTracesEndpoint})
 	}
-	if instance.Spec.ExtensionScript != "" {
-		env = append(env,
-			corev1.EnvVar{Name: "KURA_EXTENSION_ENABLED", Value: "true"},
-			corev1.EnvVar{Name: "KURA_EXTENSION_SCRIPT_PATH", Value: "/etc/kura/extensions/hooks.lua"},
-		)
+	for _, defaultEnv := range managedCacheEnvDefaults() {
+		if !hasEnvVar(instance.Spec.ExtraEnv, defaultEnv.Name) {
+			env = append(env, defaultEnv)
+		}
 	}
 	// When the account peer plane is exposed publicly, advertise the public
 	// gateway URL so an off-cluster self-hosted node replicates through the
@@ -3116,6 +3316,15 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		env = append(env, corev1.EnvVar{Name: "KURA_PEERS", Value: strings.Join(instance.Spec.MeshExternalPeers, ",")})
 	}
 	return env
+}
+
+func managedCacheEnvDefaults() []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{Name: snapshotCacheMaxBytesEnvVar, Value: "67108864"},
+		{Name: manifestCacheMaxBytesEnvVar, Value: "33554432"},
+		{Name: metadataStoreReadCacheBytesEnvVar, Value: "33554432"},
+		{Name: metadataStoreWriteBufferPoolBytesEnvVar, Value: "33554432"},
+	}
 }
 
 func hasEnvVar(env []corev1.EnvVar, name string) bool {
@@ -3142,9 +3351,6 @@ func volumeMounts(instance *kurav1alpha1.KuraInstance) []corev1.VolumeMount {
 		{Name: "data", MountPath: "/var/cache/kura"},
 		{Name: peerTLSVolumeName, MountPath: peerTLSMountPath, ReadOnly: true},
 	}
-	if instance.Spec.ExtensionScript != "" {
-		mounts = append(mounts, corev1.VolumeMount{Name: "extension-script", MountPath: "/etc/kura/extensions", ReadOnly: true})
-	}
 	return mounts
 }
 
@@ -3155,14 +3361,6 @@ func volumes(instance *kurav1alpha1.KuraInstance) []corev1.Volume {
 			SecretName: peerTLSSecretName(instance),
 		}},
 	}}
-	if instance.Spec.ExtensionScript != "" {
-		volumes = append(volumes, corev1.Volume{
-			Name: "extension-script",
-			VolumeSource: corev1.VolumeSource{ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{Name: extensionConfigMapName(instance)},
-			}},
-		})
-	}
 	return volumes
 }
 
@@ -3197,6 +3395,18 @@ func httpProbe(path string, initialDelay, period int32) *corev1.Probe {
 		PeriodSeconds:       period,
 		TimeoutSeconds:      5,
 	}
+}
+
+func startupProbe() *corev1.Probe {
+	probe := httpProbe("/up", 0, 10)
+	probe.FailureThreshold = startupFailureThreshold
+	return probe
+}
+
+func livenessProbe() *corev1.Probe {
+	probe := httpProbe("/up", 20, 20)
+	probe.TerminationGracePeriodSeconds = ptr(livenessTerminationGraceSeconds)
+	return probe
 }
 
 func ports() []corev1.ServicePort {
@@ -3281,10 +3491,6 @@ func accountPeerServiceName(instance *kurav1alpha1.KuraInstance) string {
 	return strings.TrimRight(name[:63-len(suffix)], "-") + suffix
 }
 
-func extensionConfigMapName(instance *kurav1alpha1.KuraInstance) string {
-	return instance.Name + "-extension"
-}
-
 func ptr[T any](v T) *T {
 	return &v
 }
@@ -3306,7 +3512,6 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
-		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&networkingv1.NetworkPolicy{}).

@@ -1,0 +1,107 @@
+{
+  "name": "Table",
+  "tagName": "noora-table",
+  "elementClassName": "NooraTable",
+  "className": "noora-table",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Displays structured rows and columns with optional sorting and expansion.",
+  "usage": "<noora-table>\n  <noora-table-column name=\"name\">Name</noora-table-column>\n  <noora-table-row row-key=\"tuist\">\n    <noora-table-cell column=\"name\">Tuist</noora-table-cell>\n  </noora-table-row>\n</noora-table>",
+  "attributes": [
+    {
+      "name": "row-key",
+      "property": "rowKey",
+      "type": "string",
+      "default": "id",
+      "description": "Selects the property used as each row key."
+    },
+    {
+      "name": "empty-title",
+      "property": "emptyTitle",
+      "type": "string",
+      "default": "No results",
+      "description": "Sets the empty-state title."
+    },
+    {
+      "name": "selectable",
+      "property": "selectable",
+      "type": "boolean",
+      "default": false,
+      "description": "Makes rows selectable."
+    }
+  ],
+  "properties": [
+    {
+      "name": "columns",
+      "type": "json",
+      "typescriptType": "Array<Record<string, unknown>>",
+      "default": [],
+      "description": "Defines columns programmatically when declarative noora-table-column children are not used."
+    },
+    {
+      "name": "rows",
+      "type": "json",
+      "typescriptType": "Record<string, unknown>[]",
+      "default": [],
+      "description": "Defines rows programmatically when declarative noora-table-row children are not used."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "Declarative noora-table-column and noora-table-row children."
+    },
+    {
+      "name": "empty",
+      "description": "A custom empty state."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "table",
+      "description": "The native table."
+    },
+    {
+      "name": "row",
+      "description": "Each body row."
+    },
+    {
+      "name": "cell",
+      "description": "Each body cell."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-row-select",
+      "type": "CustomEvent<{ index: number; row: Record<string, unknown> }>",
+      "description": "Emitted when a selectable row is activated."
+    }
+  ],
+  "notes": ["Row activation emits a `noora-row-select` event."],
+  "examples": [
+    {
+      "id": "cell-types",
+      "title": "Cell types",
+      "description": "Render text, descriptions, tags, badges, status, actions, and time values as structured columns.",
+      "markup": "<noora-table>\n  <noora-table-column name=\"label\">Text</noora-table-column>\n  <noora-table-column name=\"description\">Description</noora-table-column>\n  <noora-table-column name=\"tag\">Tag</noora-table-column>\n  <noora-table-column name=\"status\">Status</noora-table-column>\n  <noora-table-column name=\"createdAt\" format=\"date\">Created at</noora-table-column>\n  <noora-table-row row-key=\"1\">\n    <noora-table-cell column=\"label\">Row One</noora-table-cell>\n    <noora-table-cell column=\"description\">An internal identifier</noora-table-cell>\n    <noora-table-cell column=\"tag\">Category</noora-table-cell>\n    <noora-table-cell column=\"status\">Success</noora-table-cell>\n    <noora-table-cell column=\"createdAt\">2023-01-01T12:00:00Z</noora-table-cell>\n  </noora-table-row>\n  <noora-table-row row-key=\"2\">\n    <noora-table-cell column=\"label\">Row Two</noora-table-cell>\n    <noora-table-cell column=\"description\">Another identifier</noora-table-cell>\n    <noora-table-cell column=\"tag\">User</noora-table-cell>\n    <noora-table-cell column=\"status\">Running</noora-table-cell>\n    <noora-table-cell column=\"createdAt\">2023-01-02T12:00:00Z</noora-table-cell>\n  </noora-table-row>\n</noora-table>"
+    },
+    {
+      "id": "example",
+      "title": "Command example",
+      "description": "Combine common build and test information.",
+      "markup": "<noora-table>\n  <noora-table-column name=\"command\">Command</noora-table-column>\n  <noora-table-column name=\"status\">Status</noora-table-column>\n  <noora-table-column name=\"ranBy\">Ran by</noora-table-column>\n  <noora-table-column name=\"duration\" icon=\"square_rounded_arrow_down\">Duration</noora-table-column>\n  <noora-table-column name=\"createdAt\">Created at</noora-table-column>\n  <noora-table-row row-key=\"test\">\n    <noora-table-cell column=\"command\">test TuistKitAcceptanceTests</noora-table-cell>\n    <noora-table-cell column=\"status\">Success</noora-table-cell>\n    <noora-table-cell column=\"ranBy\">Continuous integration</noora-table-cell>\n    <noora-table-cell column=\"duration\">5 seconds</noora-table-cell>\n    <noora-table-cell column=\"createdAt\">2 hours ago</noora-table-cell>\n  </noora-table-row>\n</noora-table>"
+    },
+    {
+      "id": "sorting",
+      "title": "Sortable columns",
+      "description": "Show ascending and descending sort direction indicators.",
+      "markup": "<noora-table>\n  <noora-table-column name=\"name\">Name</noora-table-column>\n  <noora-table-column name=\"duration\" sort-order=\"desc\">Duration (desc)</noora-table-column>\n  <noora-table-column name=\"createdAt\" sort-order=\"asc\">Created at (asc)</noora-table-column>\n  <noora-table-row row-key=\"1\">\n    <noora-table-cell column=\"name\">Row One</noora-table-cell>\n    <noora-table-cell column=\"duration\">5s</noora-table-cell>\n    <noora-table-cell column=\"createdAt\">2 hours ago</noora-table-cell>\n  </noora-table-row>\n  <noora-table-row row-key=\"2\">\n    <noora-table-cell column=\"name\">Row Two</noora-table-cell>\n    <noora-table-cell column=\"duration\">12s</noora-table-cell>\n    <noora-table-cell column=\"createdAt\">2 hours ago</noora-table-cell>\n  </noora-table-row>\n</noora-table>"
+    },
+    {
+      "id": "selectable-rows",
+      "title": "Selectable rows",
+      "description": "Allow rows to emit selection events for detail or expansion workflows.",
+      "markup": "<noora-table selectable>\n  <noora-table-column name=\"task\">Task</noora-table-column>\n  <noora-table-column name=\"hit\">Hit</noora-table-column>\n  <noora-table-column name=\"type\">Type</noora-table-column>\n  <noora-table-row row-key=\"task-1\">\n    <noora-table-cell column=\"task\">GeneratedAssetSymbols.swift</noora-table-cell>\n    <noora-table-cell column=\"hit\">Remote</noora-table-cell>\n    <noora-table-cell column=\"type\">Clang</noora-table-cell>\n  </noora-table-row>\n  <noora-table-row row-key=\"task-2\">\n    <noora-table-cell column=\"task\">CompileSwiftSources.swift</noora-table-cell>\n    <noora-table-cell column=\"hit\">Local</noora-table-cell>\n    <noora-table-cell column=\"type\">Swift</noora-table-cell>\n  </noora-table-row>\n  <noora-table-row row-key=\"task-3\">\n    <noora-table-cell column=\"task\">LinkBinary</noora-table-cell>\n    <noora-table-cell column=\"hit\">Missed</noora-table-cell>\n    <noora-table-cell column=\"type\">Clang</noora-table-cell>\n  </noora-table-row>\n</noora-table>"
+    }
+  ]
+}

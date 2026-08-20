@@ -4,14 +4,12 @@ defmodule TuistWeb.RateLimit.SCIM do
   """
 
   alias Tuist.Accounts.AccountToken
-  alias TuistWeb.RateLimit.InMemory
+  alias TuistWeb.RateLimit
 
   @bucket_size 600
 
   def hit(conn) do
-    conn
-    |> key()
-    |> InMemory.hit(to_timeout(minute: 1), @bucket_size)
+    RateLimit.hit(key(conn), limit: @bucket_size, window: to_timeout(minute: 1))
   end
 
   defp key(%{assigns: %{scim_token: %AccountToken{id: id}}}), do: "scim:token:#{id}"

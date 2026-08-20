@@ -4,10 +4,13 @@ defmodule Tuist.Runners.PromExPluginTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Repo
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.PromExPlugin
+  alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
 
   setup do
     handler_id = make_ref()
@@ -64,6 +67,7 @@ defmodule Tuist.Runners.PromExPluginTest do
           head_sha: "deadbeef"
         })
 
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 1}, %{fleet: "fleet-poll"}},
@@ -79,6 +83,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       # asserts we emit an explicit `0` instead.
       stub_pool_list(["fleet-empty"])
 
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 0}, %{fleet: "fleet-empty"}},
@@ -118,6 +123,7 @@ defmodule Tuist.Runners.PromExPluginTest do
           })
       end
 
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length],
@@ -131,6 +137,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_queue_length())
       stub_pool_list(["fleet-empty-age"])
 
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{oldest_age_seconds: 0},
@@ -162,6 +169,7 @@ defmodule Tuist.Runners.PromExPluginTest do
           head_sha: "deadbeef"
         })
 
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 1}, %{fleet: "fleet-gone"}},
@@ -173,6 +181,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       # last_value would hold the stale non-zero age forever.
       {:ok, _} = Jobs.complete(999_020, "success")
 
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 0, oldest_age_seconds: 0},
@@ -214,6 +223,78 @@ defmodule Tuist.Runners.PromExPluginTest do
 
       assert_receive {:telemetry_event, [:tuist, :runners, :claims, :count], %{count: 0},
                       %{fleet: "fleet-drained", lifecycle_state: "running"}},
+                     500
+    end
+  end
+
+  describe "execute_session_clamp_telemetry_event/0" do
+    test "emits the count of open sessions past the safety bound", %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_session_clamp())
+      stub_pool_list(["fleet-leaking"])
+
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: 999_501,
+        fleet_name: "fleet-leaking",
+        pod_name: "pod-leaked",
+        runner_name: "",
+        started_at: DateTime.add(now, -7 * 3600, :second),
+        inserted_at: DateTime.truncate(now, :second),
+        updated_at: DateTime.truncate(now, :second)
+      })
+
+      PromExPlugin.execute_session_clamp_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :session, :clamped], %{count: 1}, %{fleet: "fleet-leaking"}},
+                     500
+    end
+
+    test "emits zero for a healthy fleet", %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_session_clamp())
+      stub_pool_list(["fleet-clean"])
+
+      PromExPlugin.execute_session_clamp_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :session, :clamped], %{count: 0}, %{fleet: "fleet-clean"}},
+                     500
+    end
+
+    test "emits a final zero for a fleet that lost its pool and its clamped rows", %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_session_clamp())
+
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      session =
+        Repo.insert!(%RunnerSession{
+          account_id: account.id,
+          workflow_job_id: 999_502,
+          fleet_name: "fleet-retired",
+          pod_name: "pod-leaked",
+          runner_name: "",
+          started_at: DateTime.add(now, -7 * 3600, :second),
+          inserted_at: DateTime.truncate(now, :second),
+          updated_at: DateTime.truncate(now, :second)
+        })
+
+      # The fleet is only visible through its leaked rows — its
+      # RunnerPool is already gone.
+      stub_pool_list([])
+      PromExPlugin.execute_session_clamp_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :session, :clamped], %{count: 1}, %{fleet: "fleet-retired"}},
+                     500
+
+      # The reaper closes the rows. The fleet now belongs to neither
+      # set, so without the drain `last_value` would hold the 1 forever
+      # and the leak alert would never clear.
+      Repo.update!(Ecto.Changeset.change(session, ended_at: now))
+      PromExPlugin.execute_session_clamp_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :session, :clamped], %{count: 0}, %{fleet: "fleet-retired"}},
                      500
     end
   end

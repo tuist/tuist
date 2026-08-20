@@ -2,6 +2,7 @@ import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Path
 import Testing
 import TuistAcceptanceTesting
 import TuistCore
@@ -15,7 +16,6 @@ import TuistTesting
 
 struct InspectAcceptanceTests {
     @Test(
-        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -27,18 +27,10 @@ struct InspectAcceptanceTests {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
-        let arguments = [
-            "-scheme", "App",
-            "-destination", "generic/platform=iOS Simulator",
-            "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
-            "-resultBundlePath", fixtureDirectory.appending(component: "result.xcresult").pathString,
-            "-derivedDataPath", temporaryDirectory.pathString,
-        ]
-
         // When: I build the app
         try await TuistTest.run(
             XcodeBuildBuildCommand.self,
-            arguments
+            xcodeBuildArguments(fixtureDirectory: fixtureDirectory, derivedDataPath: temporaryDirectory)
         )
 
         // When: I inspect the bundle
@@ -48,7 +40,70 @@ struct InspectAcceptanceTests {
         )
 
         // Then
-        #expect(ui().contains("View the analyzed build at"))
+        #expect(ui().contains("Build uploaded for processing"))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("xcode_project_with_inspect_build")
+    )
+    func buildWhenTheLogStoreManifestIsEmpty() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        // When: The app is built outside of Tuist
+        let commandRunner = CommandRunner()
+        try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "xcodebuild", "build"]
+                + xcodeBuildArguments(fixtureDirectory: fixtureDirectory, derivedDataPath: temporaryDirectory)
+        ).pipedStream().awaitCompletion()
+
+        // When: Xcode leaves the activity log unregistered in the log store manifest
+        let logStoreManifestPath = temporaryDirectory.appending(components: "Logs", "Build", "LogStoreManifest.plist")
+        try await fileSystem.remove(logStoreManifestPath)
+        try await fileSystem.writeText(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+                <key>logFormatVersion</key>
+                <integer>12</integer>
+                <key>logs</key>
+                <dict/>
+            </dict>
+            </plist>
+            """,
+            at: logStoreManifestPath
+        )
+
+        // When: I inspect the bundle
+        try await TuistTest.run(
+            InspectBuildCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
+
+        // Then
+        #expect(ui().contains("Build uploaded for processing"))
+    }
+
+    private func xcodeBuildArguments(
+        fixtureDirectory: AbsolutePath,
+        derivedDataPath: AbsolutePath
+    ) -> [String] {
+        [
+            "-scheme", "App",
+            "-destination", "platform=macOS",
+            "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
+            "-resultBundlePath", fixtureDirectory.appending(component: "result.xcresult").pathString,
+            "-derivedDataPath", derivedDataPath.pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+        ]
     }
 
     @Test(

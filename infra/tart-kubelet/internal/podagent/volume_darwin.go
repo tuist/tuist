@@ -91,7 +91,7 @@ func (darwinVolumeBackend) imageInventoryDigest(path string) (digest string, err
 		}
 	}()
 
-	return inventoryDigest(filepath.Join(mnt, cacheHomeSubdir))
+	return inventoryDigest(mnt)
 }
 
 // isMounted reports whether root is its own mounted volume rather than a bare

@@ -30,15 +30,25 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   `(test_run_id, …)` and would have to filter `project_id` after reading
   every granule in the relevant monthly partitions).
 
-  The `rolling` mode reads bucketed `test_case_runs_recent_N_per_case`
-  `AggregatingMergeTree` MVs for common windows and falls back to
-  `test_case_runs_recent_per_case` for windows above the largest bucket. The
-  buckets carry both a flaky aggregate (`recent_runs`) and a success aggregate
-  (`recent_successful_runs`), so flakiness, flaky-run-count, and reliability
-  monitors all take the same bucketed fast path — reliability just reads the
-  success column. A project's whole rolling-window scan becomes one row per
-  active test case, regardless of run volume — reading raw `test_case_runs`
-  for that pattern is unrunnable on busy projects.
+  The `rolling` mode reads `test_case_runs_recent_window_per_case`, whose single
+  `groupArraySorted(2000)` state packs each run into one `Int64`
+  (`-ran_at_micros * 4 + is_flaky * 2 + is_success`). One column therefore serves
+  flakiness, flaky-run-count, and reliability, since each monitor just reads a
+  different bit.
+
+  The encoding is what makes a large window affordable. Holding the same runs as
+  `(-ran_at_micros, flag)` tuples puts `groupArraySorted` on ClickHouse's generic
+  comparator and needs a second parallel column for the other flag: merging a
+  1000-entry tuple state across a 2000-test-case range costs 650 MiB against this
+  module's 1 GiB ceiling, where the packed state serves a 1000-run window in
+  61 MiB. The bucket holds twice the window cap so the correction rows that flaky
+  detection re-inserts cannot push a distinct run out of the window.
+
+  A window is evaluated only once the aggregate holds that many distinct runs.
+  A rolling window measures the last N runs, so it means nothing until N runs
+  exist to measure; reporting a rate off whatever has accrued answers a question
+  the user did not ask, and at small run counts it is noise that auto-quarantine
+  would act on.
 
   When several alerts use the same rolling window and aggregate column, the
   ingestion-driven worker calls `evaluate_rolling_alerts/2`. That query returns
@@ -53,17 +63,40 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
 
   @comparisons ~w(gte gt lt lte)
 
-  # Product cap shared with `Alert.changeset/2`; larger values are rejected at
-  # write time. Common windows use the smaller recent-runs MV fast path below.
+  # Legacy persisted values are still parsed up to the old product ceiling so
+  # execution can reject them explicitly instead of silently truncating them.
   @max_rolling_window_size 1000
   @default_rolling_window_size 100
-  @recent_runs_bucket_sizes [100, 250, 500, 750]
+
+  # Sized at twice the window cap so a window is exact even when every run in it
+  # was corrected, given the at-most-two physical rows per logical run that
+  # `Tests.report_test_case_run_multiplicity/3` enforces.
+  #
+  # De-duplicating inside the aggregate instead, so the bucket could equal the
+  # cap, is not available. `-Distinct` is a generic combinator: it filters the
+  # argument stream before the inner aggregate sees it, so it holds a hash set of
+  # every distinct argument and cannot prune that set to the inner bound. It
+  # knows nothing about the aggregate it wraps, and forgetting a value would
+  # break `countDistinct`, which has no bound to prune to.
+  #
+  # The bound therefore never touches the set. Over 200,000 distinct values,
+  # `groupArraySortedDistinctState` measures 1.53 MiB at a bound of 10 and the
+  # same 1.53 MiB at 1000, where `groupArraySorted` holds 89 bytes at any input
+  # size; `sumDistinct` measures 1.53 MiB over that input against 16 bytes for
+  # `sum`, which is where the growth actually lives. Storage, merges, and reads
+  # would all then scale with a test case's entire run history rather than with
+  # the window — the shape that retired the earlier aggregates, with no bound
+  # this time. The headroom is the cheaper trade.
+  @recent_runs_bucket_size 2000
+  @max_active_rolling_window_size 1000
 
   # Merging the rolling aggregate states is memory-heavy and memory grows with
   # parallelism. Keep this limit local to these queries so concurrent alert
   # evaluations leave headroom for runner lifecycle writes and other reads.
-  @rolling_query_max_threads 2
-  @rolling_query_max_memory_bytes 1024 * 1024 * 1024
+  @rolling_query_settings [
+    max_threads: 2,
+    max_memory_usage: 1024 * 1024 * 1024
+  ]
 
   def evaluate(alert, test_case_ids \\ nil) do
     trigger_config = alert.trigger_config
@@ -131,7 +164,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   def rolling_group_key(%{monitor_type: monitor_type, trigger_config: trigger_config})
       when monitor_type in ["flakiness_rate", "flaky_run_count", "reliability_rate"] do
     case window_mode(trigger_config) do
-      {:rolling, size} -> {:rolling, recent_runs_column(monitor_type), size}
+      {:rolling, size} -> {:rolling, matching_flag(monitor_type), size}
       {:last_days, _seconds} -> nil
     end
   end
@@ -319,21 +352,12 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  # The rolling fast path reads `test_case_runs_recent_N_per_case`, where N is
-  # the smallest bucket in `@recent_runs_bucket_sizes` that can satisfy the
-  # configured window. These tables maintain `groupArraySorted` aggregates
-  # per `(project_id, test_case_id)`: `recent_runs` holds
-  # `(-ran_at_microseconds, is_flaky)` tuples for flakiness/count monitors and
-  # `recent_successful_runs` holds `(-ran_at_microseconds, is_success)` tuples
-  # for reliability monitors. The full `test_case_runs_recent_per_case`
-  # aggregate keeps 1000 entries of both for windows above the largest bucket.
-  #
-  # The materialized-view scan is bounded by `active_test_cases_in_project`
-  # rather than total run volume — usually a few thousand rows. The bucket
-  # aggregate is `groupArraySorted` by `-ran_at_microseconds`, so the merged
-  # array is already latest-first before the final user-configured slice (no
-  # re-sort); only the 1000-entry fallback keeps `groupArrayLast` order and has
-  # to `arrayReverseSort` before slicing.
+  # The rolling fast path reads whichever per-test-case aggregate
+  # `recent_runs_source/2` selects for the window. Either way the scan is
+  # bounded by `active_test_cases_in_project` rather than total run volume —
+  # usually a few thousand rows — and the merged array is already latest-first
+  # before the final user-configured slice, because both buckets sort on a
+  # negated run timestamp.
   #
   # `test_case_runs` is a ReplacingMergeTree and flaky detection re-inserts a
   # run to set `is_flaky` after ingestion, so the materialized view can absorb
@@ -342,15 +366,15 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # array entries inflates flakiness and deflates reliability for exactly the
   # runs a threshold reacts to.
   # `rolling_triggered_test_case_ids_from_recent_runs` collapses the array to
-  # one row per run (keyed on `ran_at`) before computing a rate.
+  # one entry per run (keyed on `ran_at`) before computing a rate.
   #
-  # `monitor_type`, `comparison`, `table`, `ordered_runs_expr`, and
-  # `deduplicated_runs_expr` are interpolated because they are chosen from
-  # fixed in-module allowlists (or are validated integers via `size`), so there
-  # is no query-injection vector. `project_id` and `threshold` flow through
-  # bound parameters.
+  # `monitor_type`, `comparison`, `table`, `ordered_runs_expr`,
+  # `matching_flag_expr`, `window_filled_expr`, and `deduplicated_runs_expr` are
+  # interpolated because they are chosen from fixed in-module allowlists (or are
+  # validated integers via `size`), so there is no query-injection vector.
+  # `project_id` and `threshold` flow through bound parameters.
   defp rolling_triggered_test_case_ids(project_id, monitor_type, size, threshold, comparison, test_case_ids) do
-    source = recent_runs_source(recent_runs_column(monitor_type), size)
+    source = recent_runs_source(matching_flag(monitor_type), size)
 
     rolling_triggered_test_case_ids_from_recent_runs(
       source,
@@ -370,18 +394,13 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     rolling_measurements_from_recent_runs(source, project_id, size, test_case_ids)
   end
 
-  defp rolling_measurements_from_recent_runs(
-         {table, ordered_runs_expr, duplicate_position},
-         project_id,
-         size,
-         test_case_ids
-       ) do
-    deduplicated_runs_expr = deduplicated_runs_expr(duplicate_position)
+  defp rolling_measurements_from_recent_runs({table, ordered_runs_expr, flag}, project_id, size, test_case_ids) do
+    deduplicated_runs_expr = deduplicated_runs_expr()
 
     sql = """
     SELECT
       test_case_id,
-      arraySum(entry -> tupleElement(entry, 2), recent_runs) AS matching_run_count,
+      arraySum(#{matching_flag_expr(flag)}, recent_runs) AS matching_run_count,
       length(recent_runs) AS run_count
     FROM (
       SELECT
@@ -401,16 +420,18 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
         GROUP BY test_case_id
       )
     )
-    WHERE length(recent_runs) > 0
-    SETTINGS max_threads = #{@rolling_query_max_threads},
-             max_memory_usage = #{@rolling_query_max_memory_bytes}
+    WHERE #{window_filled_expr(size)}
     """
 
     %{rows: rows} =
-      ClickHouseRepo.query!(sql, %{
-        project_id: project_id,
-        test_case_ids: test_case_ids
-      })
+      ClickHouseRepo.query!(
+        sql,
+        %{
+          project_id: project_id,
+          test_case_ids: test_case_ids
+        },
+        settings: @rolling_query_settings
+      )
 
     Enum.map(rows, fn [binary, matching_run_count, run_count] ->
       {Ecto.UUID.load!(binary), matching_run_count, run_count}
@@ -451,43 +472,48 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # runs. Both live as parallel `(sort_key, flag)` aggregates on the same
   # rolling-window tables, so the routing below is identical and only the
   # aggregate column differs.
-  defp recent_runs_column("reliability_rate"), do: "recent_successful_runs"
-  defp recent_runs_column(_monitor_type), do: "recent_runs"
+  defp matching_flag("reliability_rate"), do: :success
+  defp matching_flag(_monitor_type), do: :flaky
 
-  # Returns `{table, ordered_runs_expr, duplicate_position}`.
-  # `ordered_runs_expr` merges the full per-test-case aggregate and orders it
-  # latest-first. `duplicate_position` says whether the correct flag for a
-  # duplicate timestamp is the first or last adjacent tuple. The 1000-entry
-  # fallback stores `ran_at` directly and must be sorted at read time. The
-  # buckets store `-ran_at_microseconds` in sorted states, so they are already
-  # latest-first and only need a linear pass to collapse duplicates.
-  #
-  # The bucket is chosen strictly larger than the window (`size < bucket`) so
-  # de-dup has headroom: a bucket only holds `bucket` physical rows, and
-  # re-inserted runs consume slots, so a window equal to the bucket could
-  # yield fewer than `size` distinct runs after de-dup. Reading the next tier
-  # up keeps enough physical rows to recover `size` distinct runs. Windows
-  # above the largest bucket fall through to the 1000-entry aggregate.
-  defp recent_runs_source(column, size) do
-    case Enum.find(@recent_runs_bucket_sizes, &(size < &1)) do
-      nil ->
-        {
-          "test_case_runs_recent_per_case",
-          "arrayReverseSort(entry -> (tupleElement(entry, 1), tupleElement(entry, 2)), arrayMap(entry -> (toUnixTimestamp64Micro(tupleElement(entry, 1)), tupleElement(entry, 2)), groupArrayLastMerge(#{@max_rolling_window_size})(#{column})))",
-          :first
-        }
-
-      bucket_size ->
-        {
-          "test_case_runs_recent_#{bucket_size}_per_case",
-          "groupArraySortedMerge(#{bucket_size})(#{column})",
-          :last
-        }
-    end
+  # Returns `{table, ordered_runs_expr, flag}`. `ordered_runs_expr` merges the
+  # full per-test-case aggregate in latest-first order. The bucket negates the
+  # run timestamp in its sorted state, so the reader only needs a linear pass to
+  # collapse duplicates. `flag` selects which of the two bits packed into each
+  # entry the monitor measures.
+  defp recent_runs_source(_flag, size) when size > @max_active_rolling_window_size do
+    raise ArgumentError, "rolling trigger windows must be at most #{@max_active_rolling_window_size}"
   end
 
+  defp recent_runs_source(flag, _size) do
+    {
+      "test_case_runs_recent_window_per_case",
+      "groupArraySortedMerge(#{@recent_runs_bucket_size})(recent_runs)",
+      flag
+    }
+  end
+
+  # Each entry keeps `is_flaky` in bit 1 and `is_success` in bit 0, below the
+  # scaled timestamp. `reinterpretAsUInt64` is what makes the bit reads
+  # well-defined: entries are negative, and neither `intDiv` nor a signed shift
+  # is consistent across the sign boundary.
+  defp matching_flag_expr(:success), do: "entry -> bitAnd(reinterpretAsUInt64(entry), 1)"
+
+  defp matching_flag_expr(:flaky), do: "entry -> bitAnd(bitShiftRight(reinterpretAsUInt64(entry), 1), 1)"
+
+  # A rolling window measures the last N runs, so it is only meaningful once N
+  # distinct runs exist to measure. Reporting a rate off whatever has accrued so
+  # far answers a question the user did not ask, and at small run counts it is
+  # noise that auto-quarantine would act on.
+  #
+  # This governs every window size, not only the large ones the packed aggregate
+  # was introduced for. Before one aggregate served every window, sizes at or
+  # below the tuple bucket's ceiling evaluated whatever had accrued; they now
+  # wait like any other. A test case with fewer runs than its window asks about
+  # therefore stops being measured, which lets recovery re-arm it.
+  defp window_filled_expr(size), do: "length(recent_runs) >= #{size}"
+
   defp rolling_triggered_test_case_ids_from_recent_runs(
-         {table, ordered_runs_expr, duplicate_position},
+         {table, ordered_runs_expr, flag},
          project_id,
          monitor_type,
          size,
@@ -501,14 +527,14 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
         _test_case_ids -> "AND test_case_id IN {test_case_ids:Array(UUID)}"
       end
 
-    deduplicated_runs_expr = deduplicated_runs_expr(duplicate_position)
+    deduplicated_runs_expr = deduplicated_runs_expr()
 
-    # Collapse the bounded per-test-case array to one tuple per run
-    # (`run_key` is the run's `ran_at` in microseconds), keeping `max(flag)` so
-    # a run that was ever re-marked flaky / ever succeeded is represented once
-    # with the right flag. Then keep the latest `size` distinct runs and compute
-    # the rate over those, so a re-inserted run can no longer be counted more
-    # than once. Keeping the work inside arrays avoids the expensive
+    # Collapse the bounded per-test-case array to one entry per run, keyed on
+    # the run's `ran_at` in microseconds and keeping the largest flag so a run
+    # that was ever re-marked flaky / ever succeeded is represented once with
+    # the right flag. Then keep the latest `size` distinct runs and compute the
+    # rate over those, so a re-inserted run can no longer be counted more than
+    # once. Keeping the work inside arrays avoids the expensive
     # ARRAY JOIN + GROUP BY + LIMIT BY shape that multiplied each active test
     # case into hundreds of rows.
     sql = """
@@ -531,10 +557,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
         GROUP BY test_case_id
       )
     )
-    WHERE length(recent_runs) > 0
-      AND #{rolling_having_expr(monitor_type)} #{rolling_comparison_op(comparison)} {threshold:Float64}
-    SETTINGS max_threads = #{@rolling_query_max_threads},
-             max_memory_usage = #{@rolling_query_max_memory_bytes}
+    WHERE #{window_filled_expr(size)}
+      AND #{rolling_having_expr(monitor_type, matching_flag_expr(flag))} #{rolling_comparison_op(comparison)} {threshold:Float64}
     """
 
     params = maybe_put_test_case_ids(%{project_id: project_id, threshold: threshold * 1.0}, test_case_ids)
@@ -545,7 +569,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     # active event. Letting the error propagate matches the
     # `ClickHouseRepo.all` path in the `last_days` branch and gives Oban a
     # chance to retry.
-    %{rows: rows} = ClickHouseRepo.query!(sql, params)
+    %{rows: rows} = ClickHouseRepo.query!(sql, params, settings: @rolling_query_settings)
 
     # ClickHouse returns identifier columns as 16-byte binaries here; the rest
     # of the worker compares against string-encoded identifiers from the Ecto
@@ -553,47 +577,40 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     Enum.map(rows, fn [binary] -> Ecto.UUID.load!(binary) end)
   end
 
-  # The fallback aggregate is unsorted, so `ordered_runs` was sorted by
-  # `(timestamp, flag)` descending. The largest flag is therefore the first
-  # tuple for a duplicate timestamp. Keep the existing de-duplication path for
-  # this less common fallback; the optimized adjacent comparison only applies
-  # to the pre-sorted buckets.
-  defp deduplicated_runs_expr(:first) do
+  # Bucket states are sorted ascending on a negated run timestamp, so runs are
+  # newest-first and the entries of one logical run are adjacent, with the
+  # largest flag last. Comparing every entry's run key with the next entry's
+  # keeps that last entry in a linear pass. The positive sentinel cannot collide
+  # with the negative timestamp keys stored in either bucket.
+  # Entries are sorted ascending on a negated run timestamp, so runs are
+  # newest-first and the entries of one logical run are adjacent, with the
+  # largest flag last. An entry's run key is everything above the two flag bits,
+  # so a correction row and the run it corrects differ only below the shift.
+  # Comparing every entry's run key with the next entry's keeps that last entry
+  # in a linear pass. The positive sentinel cannot collide with the negative
+  # timestamp keys stored in the bucket.
+  defp deduplicated_runs_expr do
     """
     arrayFilter(
-      (entry, position) -> position = 1,
-      ordered_runs,
-      arrayEnumerateUniq(arrayMap(entry -> tupleElement(entry, 1), ordered_runs))
-    )
-    """
-  end
-
-  # Bucket states are already sorted by `(-timestamp, flag)` ascending. Runs
-  # are newest-first, duplicate timestamps are adjacent, and the largest flag
-  # is last. Comparing every tuple's key with the next tuple's key keeps that
-  # last tuple in a linear pass. The positive sentinel cannot collide with the
-  # negative timestamp keys stored in the buckets.
-  defp deduplicated_runs_expr(:last) do
-    """
-    arrayFilter(
-      (entry, next_entry) -> tupleElement(entry, 1) != tupleElement(next_entry, 1),
+      (entry, next_entry) ->
+        bitShiftRight(reinterpretAsUInt64(entry), 2) != bitShiftRight(reinterpretAsUInt64(next_entry), 2),
       ordered_runs,
       arrayShiftLeft(
         ordered_runs,
         1,
-        (toInt64(9223372036854775807), toUInt8(0))
+        toInt64(9223372036854775807)
       )
     )
     """
   end
 
-  defp rolling_having_expr("flakiness_rate"),
-    do: "arraySum(entry -> tupleElement(entry, 2), recent_runs) * 100.0 / length(recent_runs)"
+  defp rolling_having_expr("flakiness_rate", flag_expr),
+    do: "arraySum(#{flag_expr}, recent_runs) * 100.0 / length(recent_runs)"
 
-  defp rolling_having_expr("flaky_run_count"), do: "arraySum(entry -> tupleElement(entry, 2), recent_runs)"
+  defp rolling_having_expr("flaky_run_count", flag_expr), do: "arraySum(#{flag_expr}, recent_runs)"
 
-  defp rolling_having_expr("reliability_rate"),
-    do: "arraySum(entry -> tupleElement(entry, 2), recent_runs) * 100.0 / length(recent_runs)"
+  defp rolling_having_expr("reliability_rate", flag_expr),
+    do: "arraySum(#{flag_expr}, recent_runs) * 100.0 / length(recent_runs)"
 
   defp rolling_comparison_op("gte"), do: ">="
   defp rolling_comparison_op("gt"), do: ">"

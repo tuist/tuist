@@ -2,8 +2,8 @@
 {{- if and .enabled .failoverController.enabled }}
 {{- $fipName := required "ciliumEgressGateway.server.failoverController.floatingIpName is required when the failover controller is enabled" .failoverController.floatingIpName }}
 # Stable-egress failover controller. Keeps the Hetzner Floating IP + the active
-# gateway label (`gatewayNodeSelector`) on a single Ready node from the egress
-# candidate pool, and fails over to another candidate on node loss — so a node
+# gateway label (`gatewayNodeSelector`) on a directly reachable node from the
+# egress candidate pool, and fails over to another candidate on node loss, so a node
 # replacement self-heals without the manual `hcloud floating-ip assign` runbook.
 apiVersion: v1
 kind: ServiceAccount
@@ -48,6 +48,36 @@ subjects:
     name: stable-egress-controller
     namespace: kube-system
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: stable-egress-controller-pods
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: stable-egress-controller
+    app.kubernetes.io/component: stable-egress
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: stable-egress-controller-pods
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: stable-egress-controller
+    app.kubernetes.io/component: stable-egress
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: stable-egress-controller-pods
+subjects:
+  - kind: ServiceAccount
+    name: stable-egress-controller
+    namespace: kube-system
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -71,6 +101,11 @@ spec:
       labels:
         app.kubernetes.io/name: stable-egress-controller
         app.kubernetes.io/component: stable-egress
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port-name: metrics
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
     spec:
       serviceAccountName: stable-egress-controller
       # Spread the replicas so the controller's own availability does not
@@ -101,6 +136,10 @@ spec:
             - --health-probe-bind-address=:8081
             - --floating-ip-name={{ $fipName }}
             - --hcloud-token-path=/etc/hcloud/token
+            - --node-health-port={{ .failoverController.nodeHealthPort }}
+            - --node-health-timeout={{ .failoverController.nodeHealthTimeout }}
+            - --node-unhealthy-grace-period={{ .failoverController.nodeUnhealthyGracePeriod }}
+            - --node-unprepared-grace-period={{ .failoverController.nodeUnpreparedGracePeriod }}
             {{- with .failoverController.egressIpAllowlist }}
             - --egress-ip-allowlist={{ join "," . }}
             {{- end }}

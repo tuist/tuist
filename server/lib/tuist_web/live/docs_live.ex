@@ -7,10 +7,12 @@ defmodule TuistWeb.DocsLive do
 
   alias Tuist.Docs
   alias Tuist.Docs.Paths
+  alias Tuist.Docs.Sidebar
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
 
   @overview_headings [
-    %{id: "start-with-your-setup", text: "Start with your setup", level: 2},
+    %{id: "what-do-you-want-to-do", text: "What do you want to do?", level: 2},
     %{id: "learn-more", text: "Explore Tuist's capabilities", level: 2},
     %{id: "builds", text: "Builds", level: 2},
     %{id: "tests", text: "Tests", level: 2},
@@ -71,8 +73,17 @@ defmodule TuistWeb.DocsLive do
             template -> String.replace(template, ":title", page.title)
           end
 
-        og_image_filename = Tuist.Docs.OgImage.slug_to_filename(path)
-        og_image_path = "/docs/images/og/generated/#{og_image_filename}"
+        head_image =
+          if Tuist.Environment.tuist_hosted?() do
+            og_image_path =
+              OpenGraph.image_path(:docs,
+                title: page.title,
+                description: page.description,
+                category: Sidebar.category_for_slug(page.slug)
+              )
+
+            Tuist.Environment.app_url(path: og_image_path)
+          end
 
         {:noreply,
          socket
@@ -83,7 +94,7 @@ defmodule TuistWeb.DocsLive do
          |> assign(:page_title, head_title)
          |> assign(:head_title, head_title)
          |> assign(:head_description, page.description)
-         |> assign(:head_image, Tuist.Environment.app_url(path: og_image_path))
+         |> assign(:head_image, head_image)
          |> assign(:head_twitter_card, "summary_large_image")}
     end
   end
@@ -92,13 +103,10 @@ defmodule TuistWeb.DocsLive do
     assigns =
       assigns
       |> assign(:install_path, docs_path("/#{assigns.locale}/guides/install-tuist"))
-      |> assign(
-        :generated_xcode_path,
-        docs_path("/#{assigns.locale}/tutorials/xcode/create-a-generated-project")
-      )
-      |> assign(:xcode_path, docs_path("/#{assigns.locale}/guides/features/cache/xcode-cache"))
-      |> assign(:gradle_path, docs_path("/#{assigns.locale}/guides/install-gradle-plugin"))
-      |> assign(:runners_path, docs_path("/#{assigns.locale}/guides/features/runners/getting-started"))
+      |> assign(:optimization_path, docs_path("/#{assigns.locale}/guides/get-started/optimization"))
+      |> assign(:observability_path, docs_path("/#{assigns.locale}/guides/get-started/observability"))
+      |> assign(:runners_path, docs_path("/#{assigns.locale}/guides/get-started/tuist-runners"))
+      |> assign(:ask_path, docs_path("/#{assigns.locale}/guides/get-started/ask"))
       |> assign(:headings, @overview_headings)
 
     ~H"""
@@ -116,7 +124,7 @@ defmodule TuistWeb.DocsLive do
           <p>
             {dgettext(
               "docs",
-              "Connect local development, continuous integration, and coding agents through shared caching, actionable insights, test optimization, and managed runners for Xcode and Gradle."
+              "Code is being produced faster and at greater volume than ever. Tuist plugs into existing build systems like Xcode and Gradle, providing the infrastructure that lets software integration and delivery keep pace."
             )}
           </p>
         </section>
@@ -124,66 +132,59 @@ defmodule TuistWeb.DocsLive do
         <%!-- Starting paths --%>
         <section data-part="start">
           <div data-part="start-heading">
-            <h2 id="start-with-your-setup">{dgettext("docs", "Start with your setup")}</h2>
+            <h2 id="what-do-you-want-to-do">
+              {dgettext("docs", "What do you want to do?")}
+            </h2>
+            <p>
+              {dgettext(
+                "docs",
+                "Choose the outcome you want, then follow the path for your project and build system."
+              )}
+            </p>
           </div>
 
           <div data-part="journey-cards">
             <.link
-              id="docs-generated-xcode-path"
-              patch={@generated_xcode_path}
+              id="docs-observability-path"
+              patch={@observability_path}
               data-part="feature-card"
             >
               <div data-part="image">
-                <span data-part="icon"><.brand_tuist /></span>
-                <span data-part="title">{dgettext("docs", "Generated Xcode project")}</span>
+                <span data-part="icon"><.search /></span>
+                <span data-part="title">{dgettext("docs", "Observe")}</span>
               </div>
               <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
-                    "Generate and maintain your Xcode project with module caching and selective testing."
+                    "Understand build and test performance with insights into duration, failures, and regressions."
                   )}
                 </p>
                 <span data-part="journey-link">
-                  {dgettext("docs", "Start generating")}
+                  {dgettext("docs", "Explore insights")}
                   <.arrow_right />
                 </span>
               </div>
             </.link>
 
-            <.link id="docs-xcode-path" patch={@xcode_path} data-part="feature-card">
+            <.link
+              id="docs-optimization-path"
+              patch={@optimization_path}
+              data-part="feature-card"
+            >
               <div data-part="image">
-                <span data-part="icon"><.brand_apple /></span>
-                <span data-part="title">{dgettext("docs", "Xcode project")}</span>
+                <span data-part="icon"><.database /></span>
+                <span data-part="title">{dgettext("docs", "Optimize")}</span>
               </div>
               <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
-                    "Connect compilation caching and insights to an existing Xcode project."
+                    "Reduce build and test times with module caching, selective testing, and test sharding."
                   )}
                 </p>
                 <span data-part="journey-link">
-                  {dgettext("docs", "Start with Xcode")}
-                  <.arrow_right />
-                </span>
-              </div>
-            </.link>
-
-            <.link id="docs-gradle-path" patch={@gradle_path} data-part="feature-card">
-              <div data-part="image">
-                <span data-part="icon"><.settings /></span>
-                <span data-part="title">{dgettext("docs", "Gradle project")}</span>
-              </div>
-              <div data-part="body">
-                <p>
-                  {dgettext(
-                    "docs",
-                    "Connect remote caching, build insights, and test insights to your existing project."
-                  )}
-                </p>
-                <span data-part="journey-link">
-                  {dgettext("docs", "Start with Gradle")}
+                  {dgettext("docs", "Optimize your workflow")}
                   <.arrow_right />
                 </span>
               </div>
@@ -192,17 +193,36 @@ defmodule TuistWeb.DocsLive do
             <.link id="docs-runners-path" patch={@runners_path} data-part="feature-card">
               <div data-part="image">
                 <span data-part="icon"><.server /></span>
-                <span data-part="title">{dgettext("docs", "CI runners")}</span>
+                <span data-part="title">{dgettext("docs", "Run")}</span>
               </div>
               <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
-                    "Run continuous integration workflows with GitHub Actions on managed macOS and Linux infrastructure next to your cache."
+                    "Run your continuous integration and continuous delivery automations on managed macOS and Linux runners."
                   )}
                 </p>
                 <span data-part="journey-link">
-                  {dgettext("docs", "Start with runners")}
+                  {dgettext("docs", "Run on Tuist")}
+                  <.arrow_right />
+                </span>
+              </div>
+            </.link>
+
+            <.link id="docs-ask-path" patch={@ask_path} data-part="feature-card">
+              <div data-part="image">
+                <span data-part="icon"><.message_circle /></span>
+                <span data-part="title">{dgettext("docs", "Ask")}</span>
+              </div>
+              <div data-part="body">
+                <p>
+                  {dgettext(
+                    "docs",
+                    "Give coding agents access to project, build, and test context so they can answer questions and support decisions."
+                  )}
+                </p>
+                <span data-part="journey-link">
+                  {dgettext("docs", "Ask about your project")}
                   <.arrow_right />
                 </span>
               </div>
@@ -501,6 +521,18 @@ defmodule TuistWeb.DocsLive do
             </div>
             <p>{dgettext("docs", "Follow Tuist on LinkedIn for news and updates.")}</p>
           </a>
+          <a
+            href="https://x.com/tuistdev"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-part="community-card"
+          >
+            <div data-part="community-card-header">
+              <.brand_x />
+              <span>X</span>
+            </div>
+            <p>{dgettext("docs", "Follow us on X to stay up to date with our work.")}</p>
+          </a>
         </section>
       </div>
     </TuistWeb.Docs.Components.layout>
@@ -569,12 +601,10 @@ defmodule TuistWeb.DocsLive do
     previews_path = docs_path("/#{locale}/guides/features/previews")
     install_path = docs_path("/#{locale}/guides/install-tuist")
 
-    generated_xcode_path =
-      docs_path("/#{locale}/tutorials/xcode/create-a-generated-project")
-
-    xcode_path = docs_path("/#{locale}/guides/features/cache/xcode-cache")
-    gradle_path = docs_path("/#{locale}/guides/install-gradle-plugin")
-    runners_path = docs_path("/#{locale}/guides/features/runners/getting-started")
+    optimization_path = docs_path("/#{locale}/guides/get-started/optimization")
+    observability_path = docs_path("/#{locale}/guides/get-started/observability")
+    runners_path = docs_path("/#{locale}/guides/get-started/tuist-runners")
+    ask_path = docs_path("/#{locale}/guides/get-started/ask")
 
     video_lines =
       if videos == [] do
@@ -600,30 +630,35 @@ defmodule TuistWeb.DocsLive do
         "",
         dgettext(
           "docs",
-          "Connect local development, continuous integration, and coding agents through shared caching, actionable insights, test optimization, and managed runners for Xcode and Gradle."
+          "Code is being produced faster and at greater volume than ever. Tuist plugs into existing build systems like Xcode and Gradle, providing the infrastructure that lets software integration and delivery keep pace."
         ),
         "",
-        "## " <> dgettext("docs", "Start with your setup"),
+        "## " <> dgettext("docs", "What do you want to do?"),
         "",
-        "- #{markdown_link(dgettext("docs", "Generated Xcode project"), generated_xcode_path)}: " <>
+        dgettext(
+          "docs",
+          "Choose the outcome you want, then follow the path for your project and build system."
+        ),
+        "",
+        "- #{markdown_link(dgettext("docs", "Observe"), observability_path)}: " <>
           dgettext(
             "docs",
-            "Generate and maintain your Xcode project with module caching and selective testing."
+            "Understand build and test performance with insights into duration, failures, and regressions."
           ),
-        "- #{markdown_link(dgettext("docs", "Xcode project"), xcode_path)}: " <>
+        "- #{markdown_link(dgettext("docs", "Optimize"), optimization_path)}: " <>
           dgettext(
             "docs",
-            "Connect compilation caching and insights to an existing Xcode project."
+            "Reduce build and test times with module caching, selective testing, and test sharding."
           ),
-        "- #{markdown_link(dgettext("docs", "Gradle project"), gradle_path)}: " <>
+        "- #{markdown_link(dgettext("docs", "Run"), runners_path)}: " <>
           dgettext(
             "docs",
-            "Connect remote caching, build insights, and test insights to your existing project."
+            "Run your continuous integration and continuous delivery automations on managed macOS and Linux runners."
           ),
-        "- #{markdown_link(dgettext("docs", "CI runners"), runners_path)}: " <>
+        "- #{markdown_link(dgettext("docs", "Ask"), ask_path)}: " <>
           dgettext(
             "docs",
-            "Run continuous integration workflows with GitHub Actions on managed macOS and Linux infrastructure next to your cache."
+            "Give coding agents access to project, build, and test context so they can answer questions and support decisions."
           ),
         "",
         markdown_link(dgettext("docs", "Install Tuist"), install_path),

@@ -117,7 +117,9 @@ public struct XCResultParser: Sendable {
                 _ = try await commandRunner.run(
                     arguments: [
                         "/bin/sh", "-c",
-                        "/usr/bin/xcrun xcresulttool get test-results tests --path '\(path.pathString)' > '\(tempFile.pathString)'",
+                        // `exec` replaces the shell with the tool so cancellation, which signals
+                        // only the direct child, reaches xcresulttool instead of orphaning it.
+                        "exec /usr/bin/xcrun xcresulttool get test-results tests --path '\(path.pathString)' > '\(tempFile.pathString)'",
                     ]
                 ).concatenatedString()
 
@@ -144,7 +146,7 @@ public struct XCResultParser: Sendable {
     ) {
         let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
 
-        if node.nodeType == "Test Case", let name = node.name, !isRunnerError(node) {
+        if node.nodeType == "Test Case", let name = node.name, !isRunnerError(node), !isUnattributedIssues(node) {
             results.append(
                 TestResultStatuses.TestCaseStatus(
                     name: name,
@@ -251,13 +253,19 @@ public struct XCResultParser: Sendable {
             return testCase
         }
 
-        var runErrors: [TestRunError] = []
+        var runnerErrors: [TestRunError] = []
+        var unattributedIssues: [TestRunError] = []
         for testNode in output.testNodes {
-            extractErrors(from: testNode, module: nil, into: &runErrors)
+            extractErrors(
+                from: testNode,
+                module: nil,
+                runnerErrors: &runnerErrors,
+                unattributedIssues: &unattributedIssues
+            )
         }
-        let errors = dedupedErrors(runErrors)
+        let errors = dedupedErrors(runnerErrors + unattributedIssues)
 
-        let overallStatus = overallStatus(from: allTestCases, hasErrors: !errors.isEmpty)
+        let overallStatus = overallStatus(from: allTestCases, hasRunnerErrors: !runnerErrors.isEmpty)
         let testModules = testModules(from: allTestCases, suiteDurations: suiteDurations, moduleDurations: moduleDurations)
         let runDestinations = (output.devices ?? []).compactMap { device -> RunDestination? in
             guard let name = device.deviceName,
@@ -277,8 +285,8 @@ public struct XCResultParser: Sendable {
         )
     }
 
-    private func overallStatus(from testCases: [TestCase], hasErrors: Bool) -> TestStatus {
-        if hasErrors || testCases.contains(where: { $0.status == .failed }) {
+    private func overallStatus(from testCases: [TestCase], hasRunnerErrors: Bool) -> TestStatus {
+        if hasRunnerErrors || testCases.contains(where: { $0.status == .failed }) {
             return .failed
         } else if testCases.allSatisfy({ $0.status == .skipped }) {
             return .skipped
@@ -318,7 +326,41 @@ public struct XCResultParser: Sendable {
             || name.wholeMatch(of: /\S+ encountered an error/) != nil
     }
 
-    private func extractErrors(from node: TestNode, module: String?, into errors: inout [TestRunError]) {
+    /// Swift Testing attributes an issue to whatever test is running when it is
+    /// recorded. Work that outlives its test — a leaked task, a retained
+    /// callback, an observer that keeps firing — has no current test, so Xcode
+    /// collects those issues under one synthetic
+    /// "Issues recorded without an associated test or suite" case per target.
+    ///
+    /// It is not a test: it has no identifier, no duration, and can't be retried
+    /// or selectively re-run. Left as a test case it becomes a permanent failing
+    /// entry in the project's test catalogue, feeds flakiness signal, fires
+    /// `test_case.created`, and drags every run red. xcodebuild gates on tests
+    /// and these belong to none, so it exits 0 on them — a run whose only
+    /// failure is this node was reported failed while CI was green.
+    ///
+    /// So we lift it into the same target-keyed "Errors" section as runner
+    /// errors, one row per distinct issue, and leave the run status to the tests
+    /// so it agrees with the exit code the user saw.
+    ///
+    /// Xcode has no identifier to put on the node, so unlike a runner error the
+    /// `nodeIdentifier` is absent (older Xcodes repeat the sentence there). A
+    /// real Swift Testing case named this way carries a "Suite/method"
+    /// identifier and is kept.
+    private func isUnattributedIssues(_ node: TestNode) -> Bool {
+        node.nodeType == "Test Case"
+            && node.name == Self.unattributedIssuesNodeName
+            && (node.nodeIdentifier == nil || node.nodeIdentifier == node.name)
+    }
+
+    private static let unattributedIssuesNodeName = "Issues recorded without an associated test or suite"
+
+    private func extractErrors(
+        from node: TestNode,
+        module: String?,
+        runnerErrors: inout [TestRunError],
+        unattributedIssues: inout [TestRunError]
+    ) {
         let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
 
         if isRunnerError(node) {
@@ -326,11 +368,34 @@ public struct XCResultParser: Sendable {
                 .first { $0.nodeType == "Failure Message" }?.name
                 ?? node.name
                 ?? "The test runner encountered an error"
-            errors.append(TestRunError(target: currentModule, message: message))
+            runnerErrors.append(TestRunError(target: currentModule, message: message))
+        } else if isUnattributedIssues(node) {
+            // Repetitions and iterations re-record the same issue, so the
+            // messages repeat; dedup collapses them to one row per issue.
+            let messages = failureMessages(in: node)
+            unattributedIssues.append(
+                contentsOf: (messages.isEmpty ? [Self.unattributedIssuesNodeName] : messages).map {
+                    TestRunError(target: currentModule, message: "Issue recorded without an associated test: \($0)")
+                }
+            )
         }
 
         for child in node.children ?? [] {
-            extractErrors(from: child, module: currentModule, into: &errors)
+            extractErrors(
+                from: child,
+                module: currentModule,
+                runnerErrors: &runnerErrors,
+                unattributedIssues: &unattributedIssues
+            )
+        }
+    }
+
+    private func failureMessages(in node: TestNode) -> [String] {
+        (node.children ?? []).flatMap { child -> [String] in
+            if child.nodeType == "Failure Message" {
+                return child.name.map { [$0] } ?? []
+            }
+            return failureMessages(in: child)
         }
     }
 
@@ -389,7 +454,11 @@ public struct XCResultParser: Sendable {
         rootDirectory: AbsolutePath?,
         actionLogFailures: [String: [TestFailure]]
     ) -> TestCase? {
-        guard node.nodeType == "Test Case", let name = node.name, !isRunnerError(node) else { return nil }
+        guard node.nodeType == "Test Case",
+              let name = node.name,
+              !isRunnerError(node),
+              !isUnattributedIssues(node)
+        else { return nil }
 
         let suiteName = extractSuiteName(from: node.nodeIdentifier)
 
@@ -660,7 +729,9 @@ public struct XCResultParser: Sendable {
             _ = try await commandRunner.run(
                 arguments: [
                     "/bin/sh", "-c",
-                    "/usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFile.pathString)'",
+                    // `exec` replaces the shell with the tool so cancellation, which signals
+                    // only the direct child, reaches xcresulttool instead of orphaning it.
+                    "exec /usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFile.pathString)'",
                 ]
             ).concatenatedString()
 
@@ -749,7 +820,9 @@ public struct XCResultParser: Sendable {
             _ = try await commandRunner.run(
                 arguments: [
                     "/bin/sh", "-c",
-                    "/usr/bin/xcrun xcresulttool export attachments --path '\(xcresultPath.pathString)' --output-path '\(temporaryDirectory.pathString)' 2>/dev/null",
+                    // `exec` replaces the shell with the tool so cancellation, which signals
+                    // only the direct child, reaches xcresulttool instead of orphaning it.
+                    "exec /usr/bin/xcrun xcresulttool export attachments --path '\(xcresultPath.pathString)' --output-path '\(temporaryDirectory.pathString)' 2>/dev/null",
                 ]
             ).concatenatedString()
 

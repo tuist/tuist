@@ -10,6 +10,7 @@
         "cli/**/*",
         "swifterpm/**/*",
         "cas-plugin/**/*",
+        "server/native/xcresult_nif/Sources/XCResultParser/**/*",
         "mise/tasks/cli/**/*",
         "mise/tasks/release/components.json",
         ".github/workflows/cli-release.yml",
@@ -114,6 +115,7 @@
       "include_paths": [
         "infra/cluster-api-provider-tuist/**/*",
         "infra/macos-host-bootstrap/**/*",
+        "infra/macos-log-shipper/**/*",
         "infra/tart-kubelet/**/*"
       ]
     },

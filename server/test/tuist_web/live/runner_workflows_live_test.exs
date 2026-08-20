@@ -6,6 +6,7 @@ defmodule TuistWeb.RunnerWorkflowsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
@@ -55,6 +56,8 @@ defmodule TuistWeb.RunnerWorkflowsLiveTest do
         head_sha: "2222222"
       })
 
+    flush_outbox!()
+
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/workflows")
 
     assert html =~ "Server"
@@ -92,6 +95,8 @@ defmodule TuistWeb.RunnerWorkflowsLiveTest do
         head_sha: "4444444"
       })
 
+    flush_outbox!()
+
     {:ok, _lv, html} =
       live(conn, ~p"/#{account.name}/runners/workflows?repository=tuist/cli")
 
@@ -100,8 +105,14 @@ defmodule TuistWeb.RunnerWorkflowsLiveTest do
   end
 
   test "shows empty state when no workflows match", %{conn: conn, account: account} do
+    flush_outbox!()
+
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/workflows")
 
     assert html =~ "No workflows yet"
+  end
+
+  defp flush_outbox! do
+    :ok = FlushJobTransitionEventsWorker.perform(%Oban.Job{})
   end
 end

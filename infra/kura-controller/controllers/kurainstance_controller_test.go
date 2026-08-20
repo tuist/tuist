@@ -52,6 +52,90 @@ func TestKuraInstanceDesiredStateChangedPredicate(t *testing.T) {
 	}
 }
 
+func TestReplaceUnreadyPodsForImageChange(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kura-tuist-eu-1",
+			Namespace: "kura",
+			Annotations: map[string]string{
+				unreadyPodsReplacedForImageAnnotation: "ghcr.io/tuist/kura:0.5.2",
+			},
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.3",
+		},
+	}
+	podLabels := selectorLabels(instance)
+	oldUnready := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name + "-0", Namespace: instance.Namespace, Labels: podLabels},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{
+			Name:  "kura",
+			Image: "ghcr.io/tuist/kura:0.5.2",
+		}}},
+	}
+	oldReady := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name + "-1", Namespace: instance.Namespace, Labels: podLabels},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{
+			Name:  "kura",
+			Image: "ghcr.io/tuist/kura:0.5.2",
+		}}},
+		Status: corev1.PodStatus{Conditions: []corev1.PodCondition{{
+			Type:   corev1.PodReady,
+			Status: corev1.ConditionTrue,
+		}}},
+	}
+	newUnready := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name + "-2", Namespace: instance.Namespace, Labels: podLabels},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{
+			Name:  "kura",
+			Image: "ghcr.io/tuist/kura:0.5.3",
+		}}},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(instance, oldUnready, oldReady, newUnready).
+			Build(),
+		Scheme: scheme,
+	}
+
+	if err := reconciler.replaceUnreadyPodsForImageChange(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	deleted := &corev1.Pod{}
+	err := reconciler.Get(ctx, types.NamespacedName{Name: oldUnready.Name, Namespace: oldUnready.Namespace}, deleted)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("expected unready pod on the previous image to be deleted, got %v", err)
+	}
+	for _, pod := range []*corev1.Pod{oldReady, newUnready} {
+		got := &corev1.Pod{}
+		if err := reconciler.Get(ctx, types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, got); err != nil {
+			t.Fatalf("expected pod %s to remain: %v", pod.Name, err)
+		}
+	}
+
+	gotInstance := &kurav1alpha1.KuraInstance{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, gotInstance); err != nil {
+		t.Fatal(err)
+	}
+	if got := gotInstance.Annotations[unreadyPodsReplacedForImageAnnotation]; got != instance.Spec.Image {
+		t.Fatalf("expected handled image annotation %q, got %q", instance.Spec.Image, got)
+	}
+}
+
 func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
@@ -72,7 +156,6 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
 			IngressClassName: "kura-eu-central",
 			StorageClassName: "hcloud-volumes",
-			ExtensionScript:  "return true",
 		},
 	}
 	legacyIngress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
@@ -162,12 +245,11 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		t.Fatalf("expected PDB selector to match instance, got %q", got)
 	}
 
+	// The controller used to render a script into a ConfigMap and mount it.
 	configMap := &corev1.ConfigMap{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: "kura-tuist-eu-1-extension", Namespace: instance.Namespace}, configMap); err != nil {
-		t.Fatal(err)
-	}
-	if got := configMap.Data["hooks.lua"]; got != "return true" {
-		t.Fatalf("expected extension script, got %q", got)
+	configMapErr := reconciler.Get(ctx, types.NamespacedName{Name: "kura-tuist-eu-1-extension", Namespace: instance.Namespace}, configMap)
+	if !apierrors.IsNotFound(configMapErr) {
+		t.Fatalf("expected no extension ConfigMap, got %v", configMapErr)
 	}
 
 	sts := &appsv1.StatefulSet{}
@@ -182,8 +264,13 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	for _, envVar := range container.Env {
 		env[envVar.Name] = envVar.Value
 	}
-	if got := env["KURA_EXTENSION_ENABLED"]; got != "true" {
-		t.Fatalf("expected controller to enable the extension, got %q", got)
+	// Kura authorizes natively and is configured through the instance's
+	// extraEnv, so the controller injects nothing for it of its own.
+	if _, ok := env["KURA_EXTENSION_ENABLED"]; ok {
+		t.Fatal("expected no extension env because Kura authorizes natively")
+	}
+	if _, ok := env["KURA_EXTENSION_SCRIPT_PATH"]; ok {
+		t.Fatal("expected no extension script path because Kura authorizes natively")
 	}
 	if _, ok := env["KURA_PUBLIC_TLS_CERT_PATH"]; ok {
 		t.Fatal("expected public TLS cert env to be absent because regional Kura ingress terminates TLS")
@@ -207,6 +294,16 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	}
 	if got := env[environmentEnvVar]; got != "canary" {
 		t.Fatalf("expected deployment environment, got %q", got)
+	}
+	for name, expected := range map[string]string{
+		snapshotCacheMaxBytesEnvVar:             "67108864",
+		manifestCacheMaxBytesEnvVar:             "33554432",
+		metadataStoreReadCacheBytesEnvVar:       "33554432",
+		metadataStoreWriteBufferPoolBytesEnvVar: "33554432",
+	} {
+		if got := env[name]; got != expected {
+			t.Fatalf("expected managed cache default %s=%s, got %q", name, expected, got)
+		}
 	}
 	peerMountFound := false
 	for _, mount := range container.VolumeMounts {
@@ -254,7 +351,6 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		"KURA_SEGMENT_HANDLE_CACHE_SIZE",
 		"KURA_MEMORY_SOFT_LIMIT_BYTES",
 		"KURA_MEMORY_HARD_LIMIT_BYTES",
-		"KURA_MANIFEST_CACHE_MAX_BYTES",
 		"KURA_MAX_KEYVALUE_BYTES",
 		"KURA_METADATA_STORE_MAX_OPEN_FILES",
 		"KURA_METADATA_STORE_MAX_BACKGROUND_JOBS",
@@ -269,6 +365,12 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if grace := sts.Spec.Template.Spec.TerminationGracePeriodSeconds; grace == nil || *grace < drainCompletionTimeoutMs/1000+preStopDelaySeconds {
 		t.Fatalf("expected terminationGracePeriodSeconds to cover the drain budget, got %v", grace)
 	}
+	if grace := container.LivenessProbe.TerminationGracePeriodSeconds; grace == nil || *grace != livenessTerminationGraceSeconds {
+		t.Fatalf("expected liveness probe grace to be %d seconds, got %v", livenessTerminationGraceSeconds, grace)
+	}
+	if serviceLinks := sts.Spec.Template.Spec.EnableServiceLinks; serviceLinks == nil || *serviceLinks {
+		t.Fatal("expected service-link environment injection to be disabled")
+	}
 	if len(container.EnvFrom) == 0 || container.EnvFrom[0].SecretRef == nil || container.EnvFrom[0].SecretRef.Name != sharedSecretsName {
 		t.Fatalf("expected envFrom to reference %q Secret", sharedSecretsName)
 	}
@@ -277,6 +379,31 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	}
 	if got := container.Resources.Requests.Cpu().String(); got != "500m" {
 		t.Fatalf("expected default CPU request, got %q", got)
+	}
+	if got := container.Resources.Requests.Memory().String(); got != "2Gi" {
+		t.Fatalf("expected default memory request, got %q", got)
+	}
+	if got := container.Resources.Limits.Memory().String(); got != "4Gi" {
+		t.Fatalf("expected default memory limit, got %q", got)
+	}
+	// Kura sizes its anonymous-memory admission budget from the floor, so the
+	// floor has to reach the container: requests.memory is not otherwise visible
+	// inside a pod. A resourceFieldRef naming a container the pod does not have
+	// fails admission, and a divisor other than 1 would silently round the value,
+	// so both are pinned.
+	var memoryFloor *corev1.EnvVar
+	for i := range container.Env {
+		if container.Env[i].Name == "KURA_MEMORY_FLOOR_BYTES" {
+			memoryFloor = &container.Env[i]
+		}
+	}
+	if memoryFloor == nil || memoryFloor.ValueFrom == nil || memoryFloor.ValueFrom.ResourceFieldRef == nil {
+		t.Fatal("expected KURA_MEMORY_FLOOR_BYTES from a resourceFieldRef; without it Kura sizes its anon budget from the ceiling")
+	}
+	if ref := memoryFloor.ValueFrom.ResourceFieldRef; ref.ContainerName != kuraContainerName ||
+		ref.Resource != "requests.memory" || ref.Divisor.String() != "1" {
+		t.Fatalf("expected requests.memory of %q with divisor 1, got %q/%q divisor %q",
+			kuraContainerName, ref.ContainerName, ref.Resource, ref.Divisor.String())
 	}
 	if _, ok := sts.Spec.Template.Annotations["kubernetes.io/ingress-bandwidth"]; ok {
 		t.Fatal("expected no default ingress bandwidth annotation")
@@ -1685,7 +1812,7 @@ func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplateAnd
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(legacyInstance, "", "production", ""),
+			Template:             podTemplate(legacyInstance, "", "production", "", false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(legacyInstance)},
 		},
 	}
@@ -1756,7 +1883,7 @@ func TestKuraInstanceReconcileDoesNotShrinkPVCs(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(stsInstance, "", "production", ""),
+			Template:             podTemplate(stsInstance, "", "production", "", false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(stsInstance)},
 		},
 	}
@@ -1999,7 +2126,7 @@ func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(instance, "", "production", ""),
+			Template:             podTemplate(instance, "", "production", "", false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)},
 		},
 	}
@@ -2057,7 +2184,7 @@ func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 		},
 	}
 
-	stsTemplate := podTemplate(instance, "", "production", "")
+	stsTemplate := podTemplate(instance, "", "production", "", false)
 	if got := stsTemplate.Spec.NodeSelector["kubernetes.io/os"]; got != "linux" {
 		t.Fatalf("expected local node selector, got %q", got)
 	}
@@ -2994,6 +3121,29 @@ func TestBaseEnvKeepsTransitionalGRPCPortForPreCohostedImages(t *testing.T) {
 		}
 	}
 	t.Fatal("expected KURA_GRPC_PORT in the pod env: pre-cohosted images hard-require it and would crash-loop without it")
+}
+
+func TestBaseEnvPreservesExplicitManagedCacheOverride(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{
+		ExtraEnv: []corev1.EnvVar{{
+			Name:  snapshotCacheMaxBytesEnvVar,
+			Value: "16777216",
+		}},
+	}}
+	env := append(baseEnv(instance, "", "production"), instance.Spec.ExtraEnv...)
+
+	count := 0
+	for _, envVar := range env {
+		if envVar.Name == snapshotCacheMaxBytesEnvVar {
+			count++
+			if envVar.Value != "16777216" {
+				t.Fatalf("expected explicit managed cache override to be preserved, got %q", envVar.Value)
+			}
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected exactly one %s entry, got %d", snapshotCacheMaxBytesEnvVar, count)
+	}
 }
 
 func TestReconcileStaleDataStorage(t *testing.T) {

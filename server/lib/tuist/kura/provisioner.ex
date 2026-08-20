@@ -114,9 +114,9 @@ defmodule Tuist.Kura.Provisioner do
 
   @doc """
   Whether the server's backing workload has caught up from its mesh peers and
-  passed the bootstrap readiness gate (its pod is Ready). Used to gate the warm
+  passed the backfill readiness gate (its pod is Ready). Used to gate the warm
   handoff: a `:moving_in` target has no public endpoint to probe, so its
-  readiness is the peer-plane bootstrap gate, not a public `/up` check.
+  readiness is the peer-plane backfill gate, not a public `/up` check.
   """
   @callback caught_up?(ref :: String.t(), Regions.t()) ::
               {:ok, boolean()} | {:error, term()}

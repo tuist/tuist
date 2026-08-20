@@ -70,6 +70,12 @@ public struct Target: Codable, Equatable, Sendable {
     /// The build phase scripts actions for the target.
     public var scripts: [TargetScript]
 
+    /// Additional inputs whose values contribute to the target's content hash.
+    ///
+    /// Use these inputs when the target's output depends on content that Tuist does not track automatically,
+    /// such as code-generation templates, tool binaries, environment-derived values, or command output.
+    public var additionalHashingInputs: [HashingInput]
+
     /// The target's dependencies.
     public var dependencies: [TargetDependency]
 
@@ -109,6 +115,30 @@ public struct Target: Codable, Equatable, Sendable {
     /// Properties for a foreign build target. Set when this target was created with
     /// ``foreignBuild(name:destinations:script:inputs:output:metadata:)``.
     public private(set) var foreignBuild: ForeignBuild?
+
+    /// An additional value that affects a target's output and should contribute to its content hash.
+    public enum HashingInput: Codable, Hashable, Sendable {
+        /// A path or glob pattern whose contents affect the target output.
+        ///
+        /// Exact file paths are hashed directly, directories are hashed recursively, and glob patterns expand to
+        /// all matching paths.
+        case glob(Path)
+
+        /// An arbitrary string that affects the target output, such as an environment-derived value or tool version.
+        case string(String)
+
+        /// An environment variable whose value affects the target output.
+        ///
+        /// Both the variable name and its current value contribute to the hash. A missing variable is distinct from
+        /// a variable with an empty value.
+        case environmentVariable(String)
+
+        /// A shell script whose standard output affects the target output.
+        ///
+        /// The script runs from the project directory while Tuist computes the target hash. Keep it fast,
+        /// deterministic, and free of side effects.
+        case script(String)
+    }
 
     /// Describes the properties of a foreign (non-Xcode) build target.
     public struct ForeignBuild: Codable, Equatable, Sendable {
@@ -223,6 +253,7 @@ public struct Target: Codable, Equatable, Sendable {
             headers: nil,
             entitlements: nil,
             scripts: [],
+            additionalHashingInputs: [],
             dependencies: [],
             settings: nil,
             coreDataModels: [],
@@ -259,6 +290,7 @@ public struct Target: Codable, Equatable, Sendable {
         headers: Headers? = nil,
         entitlements: Entitlements? = nil,
         scripts: [TargetScript] = [],
+        additionalHashingInputs: [HashingInput] = [],
         dependencies: [TargetDependency] = [],
         settings: Settings? = nil,
         coreDataModels: [CoreDataModel] = [],
@@ -285,6 +317,7 @@ public struct Target: Codable, Equatable, Sendable {
             headers: headers,
             entitlements: entitlements,
             scripts: scripts,
+            additionalHashingInputs: additionalHashingInputs,
             dependencies: dependencies,
             settings: settings,
             coreDataModels: coreDataModels,

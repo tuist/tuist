@@ -13,6 +13,13 @@ on:
       # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
       # inside the CLI, so its changes must run CLI build/test/acceptance.
       - "cas-plugin/**"
+      # SwifterPMCore is compiled into the command-line binary through
+      # TuistSupport, so its changes must run the command-line test suite.
+      - "swifterpm/**"
+      # XCResultParser lives with the server's xcresult NIF but is built into
+      # the command-line binary from those sources, so its changes must run the
+      # command-line test suite.
+      - "server/native/xcresult_nif/Sources/XCResultParser/**"
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
@@ -36,6 +43,13 @@ on:
       # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
       # inside the CLI, so its changes must run CLI build/test/acceptance.
       - "cas-plugin/**"
+      # SwifterPMCore is compiled into the command-line binary through
+      # TuistSupport, so its changes must run the command-line test suite.
+      - "swifterpm/**"
+      # XCResultParser lives with the server's xcresult NIF but is built into
+      # the command-line binary from those sources, so its changes must run the
+      # command-line test suite.
+      - "server/native/xcresult_nif/Sources/XCResultParser/**"
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
@@ -144,6 +158,8 @@ jobs:
         run: tuist setup
       - name: Install Tuist dependencies
         run: tuist install --force-resolved-versions
+      - name: Resolve registry replacements
+        run: swift package resolve --replace-scm-with-registry
       - name: Build
         run: swift build --configuration debug --replace-scm-with-registry --force-resolved-versions
 
@@ -195,7 +211,7 @@ jobs:
   cli-unit-tests:
     name: Unit Tests
     runs-on: tuist-macos
-    timeout-minutes: 30
+    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
@@ -233,13 +249,8 @@ jobs:
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
-    # Pin to the tuist-macos-26-5 runner profile (matches .xcode-version: 26.5). This job
-    # runs `xcodebuild -downloadComponent MetalToolchain`; on the general `tuist-macos`
-    # pool that runtime fetch currently fails ("Failed fetching catalog for assetType
-    # (com.apple.MobileAsset.MetalToolchain)") because Apple stopped serving that Xcode
-    # build's Metal Toolchain component.
-    runs-on: tuist-macos-26-5
-    timeout-minutes: 60
+    runs-on: tuist-macos
+    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
@@ -278,8 +289,6 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Download Metal Toolchain
-        run: xcodebuild -downloadComponent MetalToolchain
       - name: Build tests
         id: shard
         run: tuist test --build-only --shard-total 2 --shard-granularity suite --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests
@@ -288,8 +297,7 @@ jobs:
 
   cli-acceptance-tests:
     name: Acceptance Tests
-    # Keep the shard run on the same Xcode (26.5) as the build job above.
-    runs-on: tuist-macos-26-5
+    runs-on: tuist-macos
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
     permissions:
@@ -348,9 +356,7 @@ jobs:
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)
-    # tuist-macos-26-5 runner: this job also downloads the Metal Toolchain component
-    # (see the "Build Acceptance Tests" job for the runner rationale).
-    runs-on: tuist-macos-26-5
+    runs-on: tuist-macos
     timeout-minutes: 60
     if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork == true
     steps:
@@ -374,8 +380,6 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Download Metal Toolchain
-        run: xcodebuild -downloadComponent MetalToolchain
       - name: Set up new keychain
         run: |
           TMP_DIRECTORY=$(mktemp -d)
@@ -405,6 +409,30 @@ jobs:
           key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             linux-cli-${{ hashFiles('Package.swift') }}-
+      - name: Install caddy
+        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
+      # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
+      # (see #12229), and the registry answers 303 to storage over h2. Terminating
+      # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
+      # target negotiates http/1.1 on its own, so only this hop needs forcing.
+      - name: Front the registry with an HTTP/1.1 proxy
+        shell: bash
+        run: |
+          nohup caddy reverse-proxy \
+            --from :8080 --to https://tuist.dev --change-host-header \
+            > /tmp/registry-proxy.log 2>&1 &
+          for _ in $(seq 1 30); do
+            if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
+              exec 3>&-
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::registry proxy did not start listening on :8080"
+          cat /tmp/registry-proxy.log || true
+          exit 1
+      - name: Point SwiftPM at the proxy
+        run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       - name: Build tuist CLI
@@ -434,6 +462,30 @@ jobs:
           key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             linux-cli-${{ hashFiles('Package.swift') }}-
+      - name: Install caddy
+        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
+      # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
+      # (see #12229), and the registry answers 303 to storage over h2. Terminating
+      # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
+      # target negotiates http/1.1 on its own, so only this hop needs forcing.
+      - name: Front the registry with an HTTP/1.1 proxy
+        shell: bash
+        run: |
+          nohup caddy reverse-proxy \
+            --from :8080 --to https://tuist.dev --change-host-header \
+            > /tmp/registry-proxy.log 2>&1 &
+          for _ in $(seq 1 30); do
+            if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
+              exec 3>&-
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::registry proxy did not start listening on :8080"
+          cat /tmp/registry-proxy.log || true
+          exit 1
+      - name: Point SwiftPM at the proxy
+        run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       - name: Run unit tests

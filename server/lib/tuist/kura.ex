@@ -23,6 +23,7 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
@@ -51,9 +52,23 @@ defmodule Tuist.Kura do
   # to rescue and forces manual intervention. Only terminal servers
   # (`:destroying`/`:destroyed`) are skipped.
   @version_rollout_statuses [:provisioning, :replicating, :active, :failed]
+  @version_rollout_batch_size 100
 
   @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
   def reconcile_orphaned_deployments, do: Reconciler.reconcile()
+
+  # How long a server that has stopped receiving new traffic keeps serving
+  # before its resources are torn down, so persistent gRPC channels and
+  # in-flight builds finish. Shared by the warm-handoff move (where the
+  # promoted target is already caught up) and by the demand-driven lifecycle's
+  # drain-pending wait (where the endpoint is already unpublished, so new
+  # traffic has moved off). In both cases the work the drain protects has a
+  # correct outcome without it, so this is a safety margin rather than a
+  # correctness requirement.
+  @drain_seconds 120
+
+  @doc "Seconds a draining server keeps serving before teardown."
+  def drain_seconds, do: @drain_seconds
 
   ## Versions
 
@@ -83,26 +98,20 @@ defmodule Tuist.Kura do
 
   def version_label(image_tag) when is_binary(image_tag), do: image_tag
 
-  # Interim pacing (spec #79 phase 2): instead of fanning the whole fleet
-  # out in one tick, schedule a bounded batch — Tuist-owned accounts first
-  # — and only open the next batch once no deployment for the tag is
-  # still open. This is the kill-switch fallback when
-  # `Tuist.FeatureFlags.kura_rollout_orchestration_enabled?/0` is off;
-  # the full wave machinery lives in `Tuist.Kura.Rollouts`.
-  @interim_rollout_batch_size 25
-
   @doc """
-  Creates deployments for active Kura servers that are behind the
-  latest released Kura runtime image tag, a bounded batch per tick with
-  Tuist-owned (canary) accounts ordered first. The next batch is only
-  scheduled once the previous batch's deployments have closed.
+  Creates deployments for active Kura servers that are behind the latest
+  released Kura runtime image tag, a bounded batch per tick. This is the
+  kill-switch fallback used when
+  `Tuist.FeatureFlags.kura_rollout_orchestration_enabled?/0` is off; the
+  health-gated wave machinery lives in `Tuist.Kura.Rollouts`, and it
+  replaces the at-most-once invariant below with rollout-scoped attempts.
 
-  Each `(server, image_tag)` pair is scheduled at most once. A failed
-  deployment for the configured image is intentionally not retried here;
-  operators can inspect and re-trigger it manually, while the next Tuist
-  released Kura version will be scheduled normally. (The rollout
-  orchestration path replaces this invariant with rollout-scoped
-  attempts; see `Tuist.Kura.Rollouts`.)
+  Each `(server, image_tag)` pair is scheduled at most once. A newer image
+  supersedes an open deployment for an older image so a rollout that cannot
+  become ready never blocks delivery of its fix. A failed deployment for the
+  configured image is intentionally not retried here; operators can inspect
+  and re-trigger it manually, while the next Tuist released Kura version will
+  be scheduled normally.
   """
   def schedule_runtime_image_deployments do
     case runtime_image_tag() do
@@ -112,17 +121,7 @@ defmodule Tuist.Kura do
   end
 
   defp schedule_runtime_image_deployments(image_tag) do
-    if open_runtime_deployments?(image_tag) do
-      {:ok, %{scheduled: [], failures: []}}
-    else
-      schedule_version_deployments(image_tag)
-    end
-  end
-
-  defp open_runtime_deployments?(image_tag) do
-    Deployment
-    |> where([d], d.image_tag == ^image_tag and d.status in [:pending, :running])
-    |> Repo.exists?()
+    schedule_version_deployments(image_tag)
   end
 
   defp runtime_image_tag do
@@ -152,8 +151,6 @@ defmodule Tuist.Kura do
     {scheduled, failures} =
       image_tag
       |> servers_needing_version_query()
-      |> order_canary_accounts_first()
-      |> limit(@interim_rollout_batch_size)
       |> Repo.all()
       |> Enum.reduce({[], []}, fn server, {scheduled, failures} ->
         case schedule_version_deployment(server, image_tag) do
@@ -178,32 +175,27 @@ defmodule Tuist.Kura do
     {:ok, %{scheduled: Enum.reverse(scheduled), failures: Enum.reverse(failures)}}
   end
 
-  defp order_canary_accounts_first(query) do
-    case Tuist.Environment.kura_canary_account_handles() do
-      [] ->
-        order_by(query, [s], asc: s.inserted_at, asc: s.id)
-
-      canary_handles ->
-        query
-        |> join(:inner, [s], a in assoc(s, :account))
-        |> order_by([s, a],
-          desc: fragment("lower(?) = ANY(?)", a.name, type(^canary_handles, {:array, :string})),
-          asc: s.inserted_at,
-          asc: s.id
-        )
-    end
-  end
-
   defp servers_needing_version_query(image_tag) do
+    # `:cancelled` is excluded: a cancelled deployment never ran, so it is not
+    # evidence the image was delivered. Entering drain-pending cancels the open
+    # rollout, and without this a server whose drain was then cancelled would
+    # stay on its old image until some *newer* release came along, because the
+    # cancelled row looked like the image had already been scheduled.
+    # `:superseded` still counts, because a newer image deliberately replaced
+    # that one and re-scheduling it would roll backwards.
     deployment_for_image_exists_query =
       from(d in Deployment,
-        where: parent_as(:server).id == d.kura_server_id and d.image_tag == ^image_tag,
+        where:
+          parent_as(:server).id == d.kura_server_id and d.image_tag == ^image_tag and
+            d.status != :cancelled,
         select: 1
       )
 
-    open_deployment_exists_query =
+    open_older_deployment_exists_query =
       from(d in Deployment,
-        where: parent_as(:server).id == d.kura_server_id and d.status in [:pending, :running],
+        where:
+          parent_as(:server).id == d.kura_server_id and d.status in [:pending, :running] and
+            d.image_tag != ^image_tag,
         select: 1
       )
 
@@ -216,9 +208,10 @@ defmodule Tuist.Kura do
       # row picks the runtime bump up normally once the move completes.
       where: s.move_phase == :none,
       where: s.status in @version_rollout_statuses,
-      where: s.current_image_tag != ^image_tag,
+      where: s.current_image_tag != ^image_tag or exists(open_older_deployment_exists_query),
       where: not exists(deployment_for_image_exists_query),
-      where: not exists(open_deployment_exists_query)
+      order_by: [asc: s.updated_at, asc: s.id],
+      limit: ^@version_rollout_batch_size
     )
   end
 
@@ -386,14 +379,17 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  The regions of the account's non-destroyed steady-state servers (the same
-  rows as `list_servers_for_account/1`). The slim variant for hot paths —
-  mesh heartbeats run this every minute per enrolled node and only need the
-  region strings, not the ever-growing deployment-history preload.
+  The regions of the account's live steady-state servers. The slim variant for
+  hot paths — mesh heartbeats run this every minute per enrolled node and only
+  need the region strings, not the ever-growing deployment-history preload.
+
+  Archived rows are excluded even though they are not destroyed: they have no
+  workload behind them, so advertising their region as a mesh peer would hand
+  self-hosted nodes an address nothing answers on.
   """
   def server_regions_for_account(account_id) do
     Server
-    |> where([s], s.account_id == ^account_id and s.status != :destroyed and s.move_phase == :none)
+    |> where([s], s.account_id == ^account_id and s.status not in [:destroyed, :archived] and s.move_phase == :none)
     |> order_by([s], asc: s.region)
     |> select([s], s.region)
     |> Repo.all()
@@ -552,6 +548,16 @@ defmodule Tuist.Kura do
         %Server{status: :destroyed} ->
           Repo.rollback(:server_destroyed)
 
+        # The archival sweep runs concurrently with the reconciler, so a server
+        # can enter drain-pending after the deployment loop preloaded it as
+        # active. Rejecting under the lock is what makes that preloaded check an
+        # optimisation rather than the guard: without this, an activation would
+        # publish the endpoint and flip the row back to `:active` behind the
+        # lifecycle's back, leaving its drain clock set. Only
+        # `Kura.cancel_drain/1` may return a draining instance to service.
+        %Server{status: status} when status in [:drain_pending, :archived] ->
+          Repo.rollback(:server_reclaimed)
+
         %Server{} = server ->
           {:ok, server} =
             server
@@ -588,12 +594,19 @@ defmodule Tuist.Kura do
   at all: its host resolves to a cluster node IP, which Cilium
   classifies as `remote-node` and the runner egress policy's `ipBlock`
   rules never match. Auth is identical in both tiers (same Guardian
-  JWT, same `tuist.lua` hook, same `tenantID`).
+  JWT, same authorization, same `tenantID`).
 
   Whether the fleet can reach in-cluster URLs at all is the caller's
   gate (`Catalog.fleet_on_cluster_network?/1`).
   """
   def runner_cache_endpoint_url(%Account{} = account, platform) when platform in [:linux, :macos] do
+    # A runner build resolving its cache endpoint is cache demand for the
+    # account just as a developer machine's resolution is, and it is recorded
+    # at the same boundary. The account's service-region instance is what the
+    # demand keeps warm; the private runner-cache node this call may return is
+    # a separate identity rule (`Tuist.Kura.RunnerCache`).
+    Demand.record(account.id)
+
     private_runner_cache_url(account, platform) || public_in_cluster_runner_cache_url(account, platform)
   end
 
@@ -778,6 +791,16 @@ defmodule Tuist.Kura do
         %Server{status: :destroyed} ->
           Repo.rollback(:server_destroyed)
 
+        # The archival sweep runs concurrently with the reconciler, so a server
+        # can enter drain-pending after the deployment loop preloaded it as
+        # active. Rejecting under the lock is what makes that preloaded check an
+        # optimisation rather than the guard: without this, an activation would
+        # publish the endpoint and flip the row back to `:active` behind the
+        # lifecycle's back, leaving its drain clock set. Only
+        # `Kura.cancel_drain/1` may return a draining instance to service.
+        %Server{status: status} when status in [:drain_pending, :archived] ->
+          Repo.rollback(:server_reclaimed)
+
         %Server{url: previous_url} = server ->
           with {:ok, server} <-
                  server
@@ -813,7 +836,8 @@ defmodule Tuist.Kura do
              nil ->
                Repo.rollback(:not_found)
 
-             %Server{status: status} = server when status in [:destroying, :destroyed] ->
+             %Server{status: status} = server
+             when status in [:destroying, :destroyed, :drain_pending, :archived] ->
                {:ignored, server}
 
              %Server{} = server ->
@@ -850,7 +874,8 @@ defmodule Tuist.Kura do
              nil ->
                Repo.rollback(:not_found)
 
-             %Server{status: status} = server when status in [:destroying, :destroyed] ->
+             %Server{status: status} = server
+             when status in [:destroying, :destroyed, :drain_pending, :archived] ->
                {:ignored, server}
 
              %Server{} = server ->
@@ -893,6 +918,221 @@ defmodule Tuist.Kura do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  @doc """
+  Enters drain-pending: unpublishes the account's cache endpoint so no new
+  cache traffic is routed here, and leaves the workload running so in-flight
+  work finishes. New requests stop being routed here from this moment, which is
+  why the endpoint comes down first and teardown waits out `drain_seconds/0`.
+
+  The server keeps its `url`, so cancelling the drain only has to republish
+  the endpoint rather than rediscover it.
+  """
+  def begin_drain(%Server{status: :active} = server) do
+    case Repo.transaction(fn ->
+           server = lock_with_status(server, :active, :not_drainable)
+
+           with {:ok, server} <- server |> Server.lifecycle_changeset(%{status: :drain_pending}) |> Repo.update(),
+                :ok <- cancel_open_deployments(server),
+                :ok <- remove_cache_endpoint(server) do
+             server
+           else
+             {:error, reason} -> Repo.rollback(reason)
+           end
+         end) do
+      {:ok, server} ->
+        broadcast_server(server, :updated)
+        {:ok, server}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def begin_drain(%Server{}), do: {:error, :not_drainable}
+
+  # An open deployment outlives the status change unless it is closed here, and
+  # the rollout fast path would keep driving it: activation would flip a
+  # draining server back to `:active` behind the lifecycle's back, leaving its
+  # drain clock set and its endpoint republished, and a re-apply would recreate
+  # the backing resource teardown had just removed. Closing them in the same
+  # transaction as the status change is what makes drain-pending a state no
+  # rollout can act on. It also leaves the row with no open deployment, which
+  # is the precondition a cold return checks.
+  defp cancel_open_deployments(%Server{id: server_id}) do
+    Deployment
+    |> where([d], d.kura_server_id == ^server_id and d.status in [:pending, :running])
+    |> Repo.all()
+    |> Enum.reduce_while(:ok, fn deployment, :ok ->
+      case mark_cancelled(deployment, "server entered drain-pending; skipping rollout") do
+        {:ok, _deployment} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  @doc """
+  Cancels a drain and returns the instance to service: republishes the cache
+  endpoint the drain unpublished and flips the status back to `:active`.
+
+  Only valid before teardown has been issued. Once the backing resource is
+  being deleted there is nothing to return to, and the next cache demand cold
+  provisions instead.
+  """
+  def cancel_drain(%Server{status: :drain_pending} = server) do
+    with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
+         {:ok, server} <- cancel_drain_transaction(server, account) do
+      broadcast_server(server, :updated)
+      {:ok, server}
+    end
+  end
+
+  def cancel_drain(%Server{}), do: {:error, :not_draining}
+
+  defp cancel_drain_transaction(server, account) do
+    Repo.transaction(fn ->
+      server = lock_with_status(server, :drain_pending, :not_draining)
+
+      with {:ok, server} <- server |> Server.lifecycle_changeset(%{status: :active}) |> Repo.update(),
+           :ok <- ensure_cache_endpoint_for_region(account, server) do
+        server
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  # The status on a preloaded struct is what was true when it was read. A
+  # destroy committing between that read and this write would be silently
+  # replaced by the stale lifecycle status — and for `cancel_drain/1` that
+  # would republish the endpoint of a server being torn down. Locking the row
+  # and re-reading its status is what makes the transition act on the server
+  # as it is now, and is the same guard activation already uses.
+  defp lock_with_status(%Server{} = server, expected_status, mismatch_reason) do
+    case lock_server(server.id, server.account_id) do
+      %Server{status: ^expected_status} = locked_server -> locked_server
+      %Server{} -> Repo.rollback(mismatch_reason)
+      nil -> Repo.rollback(:not_found)
+    end
+  end
+
+  # Private regions never mirror their URL into `account_cache_endpoints` (the
+  # CLI cannot reach an in-cluster endpoint), so republishing has to respect
+  # the same rule activation does.
+  defp ensure_cache_endpoint_for_region(account, %Server{region: region_id, url: url} = server) do
+    case Regions.fetch(region_id) do
+      {:ok, region} ->
+        if Regions.private?(region), do: :ok, else: ensure_cache_endpoint(account, url)
+
+      {:error, _reason} ->
+        {:error, {:unknown_region, server.region}}
+    end
+  end
+
+  @doc """
+  Marks a drained server archived once its backing resource is gone.
+
+  Archival is not destruction: the row stays, still owning `(account,
+  region)`, and `return_from_archive/2` is what the next cache demand runs on
+  it. Every field describing a running instance is cleared, because an
+  archived instance has no pod, no endpoint, and no local directory left to
+  describe.
+  """
+  def archive_server(%Server{status: :drain_pending} = server) do
+    case Repo.transaction(fn ->
+           server = lock_with_status(server, :drain_pending, :not_archivable)
+
+           case server
+                |> Server.lifecycle_changeset(%{
+                  status: :archived,
+                  url: nil,
+                  current_image_tag: nil,
+                  observed_image_tag: nil,
+                  last_ready_at: nil
+                })
+                |> Repo.update() do
+             {:ok, server} -> server
+             {:error, reason} -> Repo.rollback(reason)
+           end
+         end) do
+      {:ok, server} ->
+        broadcast_server(server, :updated)
+        {:ok, server}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def archive_server(%Server{}), do: {:error, :not_archivable}
+
+  @doc """
+  Cold-provisions an archived instance back into service on the same row.
+
+  A returning account takes exactly the path a new one takes: a fresh
+  deployment onto an empty directory, with no expectation of prior content.
+  `current_image_tag` is cleared so the reconciler treats this as a first
+  install rather than as drift against whatever the instance ran before it
+  was archived.
+  """
+  def return_from_archive(%Server{status: :archived} = server, image_tag) when is_binary(image_tag) do
+    with {:ok, region} <- Regions.fetch(server.region),
+         {:ok, server} <- return_from_archive_transaction(server, region, image_tag) do
+      server = Repo.preload(server, :deployments, force: true)
+      broadcast_server(server, :updated)
+      {:ok, server}
+    end
+  end
+
+  def return_from_archive(%Server{}, _image_tag), do: {:error, :not_archived}
+
+  defp return_from_archive_transaction(server, region, image_tag) do
+    Repo.transaction(fn ->
+      locked_server =
+        case lock_server(server.id, server.account_id) do
+          %Server{status: :archived} = locked_server -> locked_server
+          %Server{} -> Repo.rollback(:not_archived)
+          nil -> Repo.rollback(:not_found)
+        end
+
+      with :ok <- ensure_no_open_deployment(locked_server.id),
+           {:ok, locked_server} <-
+             locked_server
+             |> Server.lifecycle_changeset(%{status: :provisioning, current_image_tag: nil, url: nil})
+             |> Repo.update(),
+           {:ok, _deployment} <- insert_initial_deployment(locked_server, region, image_tag) do
+        locked_server
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  @doc """
+  Whether the server has anything to replicate from: another live instance of
+  the same account, or an enrolled self-hosted peer.
+
+  A cold return has neither. Projecting `:replicating` onto an instance with
+  no peers would leave it waiting on a catch-up that can never complete, so
+  the reconciler consults this before surfacing that status.
+  """
+  def replication_source?(%Server{id: id, account_id: account_id} = server) do
+    peer_server_exists?(id, account_id) or self_hosted_peer_exists?(server)
+  end
+
+  defp peer_server_exists?(id, account_id) do
+    Server
+    |> where([s], s.account_id == ^account_id and s.id != ^id)
+    |> where([s], s.status in [:active, :replicating, :drain_pending])
+    |> Repo.exists?()
+  end
+
+  defp self_hosted_peer_exists?(%Server{account_id: account_id}) do
+    AccountCacheEndpoint
+    |> where([e], e.account_id == ^account_id and e.technology == :kura_self_hosted_peer)
+    |> where([e], is_nil(e.deactivated_at))
+    |> Repo.exists?()
   end
 
   @doc """
@@ -1225,20 +1465,46 @@ defmodule Tuist.Kura do
   end
 
   defp insert_scheduled_deployment(server, region, image_tag) do
-    case insert_deployment(server, region, image_tag) do
-      {:ok, deployment} ->
+    if deployment_for_image_exists?(server.id, image_tag) do
+      nil
+    else
+      with :ok <- supersede_open_deployments(server.id, image_tag),
+           {:ok, deployment} <- insert_deployment(server, region, image_tag) do
         deployment
+      else
+        {:error, %Ecto.Changeset{} = changeset} ->
+          rollback_unless_open_deployment_conflict(changeset)
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        if open_deployment_conflict?(changeset) do
-          nil
-        else
-          Repo.rollback(changeset)
-        end
-
-      {:error, reason} ->
-        Repo.rollback(reason)
+        {:error, reason} ->
+          Repo.rollback(reason)
+      end
     end
+  end
+
+  defp rollback_unless_open_deployment_conflict(changeset) do
+    if open_deployment_conflict?(changeset), do: nil, else: Repo.rollback(changeset)
+  end
+
+  # Same rule as `servers_needing_version_query/1`: a cancelled deployment never
+  # ran, so it does not count as the image having been scheduled.
+  defp deployment_for_image_exists?(server_id, image_tag) do
+    Repo.exists?(
+      from(d in Deployment,
+        where: d.kura_server_id == ^server_id and d.image_tag == ^image_tag and d.status != :cancelled
+      )
+    )
+  end
+
+  defp supersede_open_deployments(server_id, image_tag) do
+    Deployment
+    |> where([d], d.kura_server_id == ^server_id and d.status in [:pending, :running])
+    |> Repo.all()
+    |> Enum.reduce_while(:ok, fn deployment, :ok ->
+      case mark_superseded(deployment, "superseded by Kura image #{image_tag}") do
+        {:ok, _deployment} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   end
 
   defp open_deployment_conflict?(changeset) do
@@ -1330,6 +1596,15 @@ defmodule Tuist.Kura do
   def mark_cancelled(%Deployment{} = deployment, message) when is_binary(message) do
     update_deployment_status(deployment, %{
       status: :cancelled,
+      error_message: message,
+      finished_at: now_truncated()
+    })
+  end
+
+  @doc "Marks an open deployment as superseded by a newer runtime image."
+  def mark_superseded(%Deployment{} = deployment, message) when is_binary(message) do
+    update_deployment_status(deployment, %{
+      status: :superseded,
       error_message: message,
       finished_at: now_truncated()
     })

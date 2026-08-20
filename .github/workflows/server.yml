@@ -36,6 +36,12 @@ env:
   MISE_TASK_RUN_AUTO_INSTALL: 0
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_GITHUB_SLSA: 0
+  # Same repositories as Trivy's default, in the opposite order. Trivy only
+  # falls through to the next repository on a temporary status code (408, 429,
+  # 5xx) or a BLOB_UNKNOWN diagnostic. mirror.gcr.io intermittently serves a
+  # bare 404 for the blob redirect target, which is neither, so a mirror.gcr.io
+  # fault is fatal when it is first and recoverable when it is second.
+  TRIVY_DB_REPOSITORY: "ghcr.io/aquasecurity/trivy-db:2,mirror.gcr.io/aquasec/trivy-db:2"
 
 defaults:
   run:
@@ -57,6 +63,25 @@ jobs:
         with:
           path: server/native/xcactivitylog_nif/.build
           key: xcactivitylog-nif-swiftpm-${{ hashFiles('server/native/xcactivitylog_nif/Package.resolved') }}
+      - name: Run tests
+        run: swift test --replace-scm-with-registry
+  # XCResultParser is not server-only: the CLI compiles these sources into its
+  # binary, so this job guards both.
+  swift-test-xcresult:
+    name: Swift Tests (XCResultParser)
+    runs-on: tuist-macos
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    defaults:
+      run:
+        working-directory: server/native/xcresult_nif
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore SwiftPM Cache
+        uses: actions/cache@v4
+        with:
+          path: server/native/xcresult_nif/.build
+          key: xcresult-nif-swiftpm-${{ hashFiles('server/native/xcresult_nif/Package.resolved') }}
       - name: Run tests
         run: swift test --replace-scm-with-registry
   gettext:

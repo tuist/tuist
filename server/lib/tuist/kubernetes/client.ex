@@ -267,6 +267,28 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  Reads a Node. Dispatch uses this to read the cache-master labels
+  tart-kubelet advertises on each macOS host, so it can hand a polling
+  runner a job whose account's cache is already resident there. The
+  server SA is granted `nodes: [get, list]` by the runners-fleet-reader
+  ClusterRole.
+  """
+  def get_node(name) when is_binary(name) do
+    get("/api/v1/nodes/#{name}")
+  end
+
+  @doc """
+  Lists Nodes carrying `label_selector`. Kura capacity uses this to count the
+  machines installed in a region rather than reading a hand-maintained count,
+  which drifts the moment a pool is scaled and drifts in the direction that
+  overcommits. The server SA is granted `nodes: [get, list]` by the
+  runners-fleet-reader ClusterRole.
+  """
+  def list_nodes(label_selector) when is_binary(label_selector) do
+    request(:get, "/api/v1/nodes", query: %{labelSelector: label_selector})
+  end
+
+  @doc """
   Strategic-merge PATCHes a Pod. The dispatch endpoint uses this
   to stamp owner labels on a polling Pod at the moment it claims
   a queue entry, so subsequent `max_concurrent` counts include

@@ -30,7 +30,13 @@ config :tuist, Tuist.ClickHouseRepo,
   default_dynamic_repo: Tuist.IngestRepo,
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
-  settings: [readonly: 1, query_plan_optimize_lazy_materialization: 0, session_timezone: "UTC"]
+  settings: [
+    readonly: 1,
+    max_threads: 4,
+    max_memory_usage: 6 * 1024 * 1024 * 1024,
+    query_plan_optimize_lazy_materialization: 0,
+    session_timezone: "UTC"
+  ]
 
 config :tuist, Tuist.CommandEvents, metadata_queries_bypass_dynamic_repo: true
 
@@ -52,8 +58,25 @@ config :tuist, Tuist.IngestRepo,
 # Keep ClickHouse buffer writes in the calling test process so they share the sandboxed transaction.
 config :tuist, Tuist.Ingestion.Bufferable, write_through_repo: true
 
+# Same for the Kura cache-demand buffer, which is otherwise process-wide and
+# would let one async test's demand be flushed inside another's transaction.
+config :tuist, Tuist.Kura.Demand, write_through_repo: true
+
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
+
+config :tuist, Tuist.OpsClickHouseRepo,
+  hostname: "localhost",
+  port: 8123,
+  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
+  pool_size: 2,
+  settings: [
+    readonly: 1,
+    max_threads: 2,
+    max_memory_usage: 1024 * 1024 * 1024,
+    query_plan_optimize_lazy_materialization: 0,
+    session_timezone: "UTC"
+  ]
 
 # Configure your database
 #

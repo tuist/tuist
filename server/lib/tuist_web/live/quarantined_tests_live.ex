@@ -14,7 +14,7 @@ defmodule TuistWeb.QuarantinedTestsLive do
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
-  @allowed_sort_fields ~w(name last_ran_at)
+  @allowed_sort_fields ~w(name last_ran_at quarantined_at)
   @default_sort_field "last_ran_at"
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do

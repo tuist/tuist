@@ -26,11 +26,21 @@ spec:
         value: fsn1
       - name: hcloudControlPlaneMachineType
         value: cpx22
+      # Roll out the kubeadm compatibility fallback in canary first. With the
+      # local-mode feature enabled, new control-plane kubelets point at their
+      # own not-yet-running control-plane endpoint and never start the etcd
+      # learner.
+      - name: disableControlPlaneKubeletLocalMode
+        value: true
       - name: hcloudWorkerMachineType
         value: cpx32
       - name: hcloudSSHKeyName
         value:
           - name: tuist-ops
+      # The kubelet must expose the real systemd-resolved resolver file to
+      # pods, not Ubuntu's loopback stub at /etc/resolv.conf.
+      - name: workerResolvConf
+        value: /run/systemd/resolve/resolv.conf
       # Scopes bare-metal HBM claims to this cluster (see the
       # `HetznerBareMetalMachineTemplateClusterSelector` patch in
       # `clusterclass-tuist.yaml`). Matches the `--clusters` entry
@@ -51,6 +61,12 @@ spec:
           name: md-0
           replicas: 2
           failureDomain: fsn1
+          rollout:
+            strategy:
+              type: RollingUpdate
+              rollingUpdate:
+                maxSurge: 1
+                maxUnavailable: 0
         # Stable-egress gateway pool (HA, ≥2 nodes) — mirrors prod/staging so the
         # failover controller + cutover are exercised in the deployment cascade
         # before production. Nodes self-apply the candidate label; the controller
@@ -59,15 +75,45 @@ spec:
           name: md-egress
           replicas: 2
           failureDomain: fsn1
+          rollout:
+            strategy:
+              type: RollingUpdate
+              rollingUpdate:
+                maxSurge: 1
+                maxUnavailable: 0
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: egress
+          # HA floor for the 2-node egress gateway pool. Overrides the
+          # hcloud-worker class default (unhealthyInRange "[0-2]", which permits
+          # remediating BOTH nodes at once). Never auto-remediate the whole pair:
+          # a single bad node is replaced, but if both go unhealthy the cause is
+          # almost always systemic (control-plane blip, network partition), so
+          # CAPI holds and pages instead of deleting the pool — the failure that
+          # left canary with no egress gateway on 2026-07-30, when both nodes
+          # were remediated and an expired CAPI webhook then blocked recreation.
+          healthCheck:
+            remediation:
+              triggerIf:
+                unhealthyInRange: "[0-1]"
+              # Belt-and-suspenders: even within range, only one replacement in
+              # flight so a rolling remediation always keeps a gateway serving.
+              maxInFlight: 1
           variables:
             overrides:
+              # Forwards/SNATs server egress only — runs no application
+              # workload, so it doesn't need the general pool's dedicated
+              # vCPU shape.
               - name: hcloudWorkerMachineType
                 value: cpx22
               - name: workerNodeLabels
                 value: tuist.dev/stable-egress-candidate=server
+              # Isolate the gateway pool: only cilium, hcloud-csi, the egress
+              # host-configurer and the (tolerating) monitoring agents run here.
+              # Keeps ingress-nginx/CoreDNS/Redis off these 4 GB nodes so they
+              # can't OOM the egress gateway.
+              - name: workerNodeTaints
+                value: tuist.dev/stable-egress=true:NoSchedule
         # Linux runner pool on Hetzner Robot bare metal. The
         # `hetzner-robot-controller` reflects `tuist-bm-canary-*`
         # Robot servers into HBM CRs stamped

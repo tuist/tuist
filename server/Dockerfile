@@ -134,56 +134,11 @@ RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
     mise/tasks/cldr/prefetch-locale-data.sh
 
 # ========================================
-# Stage: OG image generator
-# Renders marketing/docs Open Graph images via headless Chromium. Built in
-# parallel with the main builder (both branch from deps-builder) so its long
-# Chromium-driven runtime overlaps with mix compile + release rather than
-# stacking on top of them.
-# ========================================
-FROM deps-builder AS og-images
-
-# Chromium and font packages only this stage needs. Sits before the source
-# COPY so the apt layer stays cached as long as deps-builder is cached, even
-# when server/lib changes.
-RUN apt-get update -y && \
-  apt-get install -y --no-install-recommends chromium fonts-noto-cjk fonts-noto-core && \
-  apt-get clean && rm -rf /var/lib/apt/lists/*
-
-COPY server/priv priv
-COPY skills/skills priv/static/skills
-COPY examples/xcode /examples/xcode
-COPY server/lib lib
-
-RUN mix compile
-
-# Persist generated OG images (and their .cachekey sidecars) across builds in
-# BuildKit caches. The mix tasks skip per-image rendering when the input hash
-# matches the existing sidecar, so when the layer above is invalidated by an
-# unrelated lib change we still get a fast no-op pass for unchanged images.
-RUN --mount=type=cache,id=og-marketing,target=/og-cache/marketing,sharing=locked \
-    --mount=type=cache,id=og-docs,target=/og-cache/docs,sharing=locked \
-    set -e; \
-    OUT_M=/app/_build/${MIX_ENV}/lib/tuist/priv/static/marketing/images/og/generated; \
-    OUT_D=/app/_build/${MIX_ENV}/lib/tuist/priv/docs/images/og/generated; \
-    mkdir -p "$OUT_M" "$OUT_D"; \
-    if [ -d /og-cache/marketing ] && [ -n "$(ls -A /og-cache/marketing 2>/dev/null)" ]; then \
-      cp -a /og-cache/marketing/. "$OUT_M/"; \
-    fi; \
-    if [ -d /og-cache/docs ] && [ -n "$(ls -A /og-cache/docs 2>/dev/null)" ]; then \
-      cp -a /og-cache/docs/. "$OUT_D/"; \
-    fi; \
-    mix docs.gen.og_images; \
-    mix marketing.gen.og_images; \
-    cp -a "$OUT_M/." /og-cache/marketing/; \
-    cp -a "$OUT_D/." /og-cache/docs/
-
-# ========================================
 # Stage 3: Main application builder
 # ========================================
 FROM deps-builder AS builder
 
 COPY server/priv priv
-COPY kura/ops/helm/kura/hooks/tuist.lua priv/kura/hooks/tuist.lua
 COPY skills/skills priv/static/skills
 COPY server/assets assets
 COPY server/native native
@@ -202,12 +157,6 @@ COPY server/rel rel
 COPY --from=npm-deps /app/node_modules /app/node_modules
 COPY --from=npm-deps /noora/priv/static /noora/priv/static
 RUN mix assets.deploy
-
-# Pull pre-generated OG images from the parallel og-images stage. Splitting
-# the Chromium pipeline into its own stage lets it run concurrently with mix
-# compile + assets.deploy + release here instead of stacking on top.
-COPY --from=og-images /app/_build/${MIX_ENV}/lib/tuist/priv/static/marketing/images/og/generated /app/_build/${MIX_ENV}/lib/tuist/priv/static/marketing/images/og/generated
-COPY --from=og-images /app/_build/${MIX_ENV}/lib/tuist/priv/docs/images/og/generated /app/_build/${MIX_ENV}/lib/tuist/priv/docs/images/og/generated
 
 RUN mix release
 
@@ -246,7 +195,7 @@ ARG APT_CACHE_BUST=0
 RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \
   apt-get upgrade -y && \
-  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini \
+  apt-get install -y curl build-essential chromium fonts-noto-cjk fonts-noto-core gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
@@ -254,6 +203,14 @@ RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
+
+# Runtime Open Graph image rendering launches Chromium as `nobody`, whose home is
+# `/nonexistent`. Route it through a wrapper that exports a writable HOME so
+# `--headless=new` can bind its DevTools port instead of timing out. See
+# server/rel/og-chromium for the full rationale.
+COPY server/rel/og-chromium /usr/local/bin/og-chromium
+RUN chmod +x /usr/local/bin/og-chromium
+ENV TUIST_OG_IMAGE_CHROME_PATH=/usr/local/bin/og-chromium
 
 WORKDIR "/app"
 RUN chown nobody /app

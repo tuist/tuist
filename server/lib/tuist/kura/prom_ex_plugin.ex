@@ -1,181 +1,260 @@
 defmodule Tuist.Kura.PromExPlugin do
   @moduledoc """
-  PromEx plugin for the Kura fleet rollout (spec #79).
+  Metrics for the demand-driven Kura lifecycle.
 
-  Polling-only: every 30s the poll reads the rollout state and the
-  fleet's version distribution from Postgres and emits gauges. Grafana is
-  the paging authority on top of these series — rollout paused sustained
-  (page), rollout active too long (warn), and rollout metrics absent
-  while a rollout was recently active (page, the case in-band alerting
-  structurally misses: a control plane that dies mid-rollout stops
-  reporting instead of raising a paused signal).
+  Event metrics come off the transitions themselves
+  (`Tuist.Kura.Telemetry`): cold-return rate, time-to-ready on cold return,
+  reclaimed bytes, archive cancellations, and refused provisions.
 
-  The `rollout_active` gauge is emitted every poll — 1 while a rollout is
-  running or paused, 0 otherwise — precisely so that absence of the
-  series is distinguishable from an idle fleet.
+  Two polled gauges cover what a transition cannot see:
 
-  Cardinality: `image_tag` is bounded by the handful of tags live in the
-  fleet at once; ended rollouts and drained tags emit one final zero so
-  `last_value` doesn't hold stale series forever.
+    * per-region occupancy — the forecast enforced warm quota against what is
+      installed. This is the number that decides whether another machine is
+      needed, and whether the Air pressure rule is active at all.
+    * hit-rate recovery — the cache hit ratio of account-regions that returned
+      from archive recently, against the same ratio for instances that did
+      not. A cold return that never recovers its hit rate is the cost the
+      inactivity windows are trading against.
+
+  Both are tagged by region only. Account never appears as a tag.
   """
 
   use PromEx.Plugin
 
-  alias Tuist.Kura.Rollout
-  alias Tuist.Kura.Rollouts
+  import Ecto.Query
+
+  alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
+  alias Tuist.Kura.AccountRegionLifecycle
+  alias Tuist.Kura.Capacity
+  alias Tuist.Kura.Regions
+  alias Tuist.Kura.Telemetry
   alias Tuist.Repo
-  alias TuistCommon.Repo.PoolMetrics
 
-  @metric_prefix [:tuist, :kura]
+  @metric_prefix [:tuist, :kura, :lifecycle]
+  @poll_rate to_timeout(minute: 1)
 
-  @rollout_event [:tuist, :kura, :rollout, :status]
-  @fleet_event [:tuist, :kura, :fleet, :versions]
+  # A cold return's time-to-ready spans a provision plus a rollout, so the
+  # buckets run from a fast reschedule to well past a slow image pull.
+  @ready_buckets [
+    30_000,
+    60_000,
+    120_000,
+    300_000,
+    600_000,
+    900_000,
+    1_800_000,
+    3_600_000
+  ]
 
-  # Process-dict keys remembering the label sets emitted on the previous
-  # poll, so a rollout that ends (or an image tag that drains from the
-  # fleet) gets one explicit zero instead of a stale `last_value` series.
-  @rollout_seen_key :tuist_kura_rollout_seen_tags
-  @fleet_seen_key :tuist_kura_fleet_seen_tags
+  # How long after a return an account-region still counts as recovering. The
+  # hit rate of an instance that returned last month is just its hit rate.
+  @recovery_window_days 7
 
   @impl true
-  def polling_metrics(opts) do
-    poll_rate = Keyword.get(opts, :poll_rate, to_timeout(second: 30))
-
+  def event_metrics(_opts) do
     [
-      Polling.build(
-        :tuist_kura_rollout_metrics,
-        poll_rate,
-        {__MODULE__, :execute_rollout_telemetry_event, []},
+      Event.build(
+        :tuist_kura_lifecycle_event_metrics,
         [
-          last_value(
-            @metric_prefix ++ [:rollout, :active],
-            event_name: @rollout_event,
-            description: "1 while a Kura rollout is running or paused for the tag, 0 otherwise.",
-            measurement: :active,
-            tags: [:image_tag, :mode]
+          counter(
+            @metric_prefix ++ [:provisioned, :count],
+            event_name: Telemetry.event_name_provisioned(),
+            description: "Kura account-region instances provisioned, split by whether this was a return from archive.",
+            tags: [:plan, :region, :cold_return]
           ),
-          last_value(
-            @metric_prefix ++ [:rollout, :paused],
-            event_name: @rollout_event,
-            description: "1 while the Kura rollout of the tag is paused.",
-            measurement: :paused,
-            tags: [:image_tag, :mode]
+          distribution(
+            @metric_prefix ++ [:time_to_ready, :milliseconds],
+            event_name: Telemetry.event_name_ready(),
+            measurement: :time_to_ready_ms,
+            description: "Wall-clock from provisioning an instance to it serving cache traffic.",
+            reporter_options: [buckets: @ready_buckets],
+            tags: [:plan, :region, :cold_return],
+            unit: :millisecond
           ),
-          last_value(
-            @metric_prefix ++ [:rollout, :wave],
-            event_name: @rollout_event,
-            description: "Current wave of the Kura rollout of the tag.",
-            measurement: :wave,
-            tags: [:image_tag, :mode]
+          counter(
+            @metric_prefix ++ [:drain_pending, :count],
+            event_name: Telemetry.event_name_drain_pending(),
+            description: "Instances entering drain-pending, split by whether capacity pressure shortened the window.",
+            tags: [:plan, :region, :reason]
           ),
-          last_value(
-            @metric_prefix ++ [:rollout, :wave, :age, :seconds],
-            event_name: @rollout_event,
-            description: "Seconds since the Kura rollout's current wave opened (0 between waves).",
-            measurement: :wave_age_seconds,
-            tags: [:image_tag, :mode]
+          counter(
+            @metric_prefix ++ [:archive_cancelled, :count],
+            event_name: Telemetry.event_name_archive_cancelled(),
+            description: "Archivals cancelled because cache demand returned mid-drain.",
+            tags: [:plan, :region]
           ),
-          last_value(
-            @metric_prefix ++ [:rollout, :servers, :scoped],
-            event_name: @rollout_event,
-            description: "Servers scoped into the Kura rollout so far (one row per server, replicas not double-counted).",
-            measurement: :scoped_servers,
-            tags: [:image_tag, :mode]
+          counter(
+            @metric_prefix ++ [:archived, :count],
+            event_name: Telemetry.event_name_archived(),
+            description: "Instances archived after a successful drain.",
+            tags: [:plan, :region]
           ),
-          last_value(
-            @metric_prefix ++ [:rollout, :servers, :converged],
-            event_name: @rollout_event,
-            description: "Scoped servers observed on the rollout's target image.",
-            measurement: :converged_servers,
-            tags: [:image_tag, :mode]
-          )
-        ]
-      ),
-      Polling.build(
-        :tuist_kura_fleet_version_metrics,
-        poll_rate,
-        {__MODULE__, :execute_fleet_versions_telemetry_event, []},
-        [
-          last_value(
-            @metric_prefix ++ [:fleet, :servers],
-            event_name: @fleet_event,
-            description: "Non-destroyed Kura servers per observed image tag (the version-convergence curve).",
-            measurement: :count,
-            tags: [:image_tag]
+          sum(
+            @metric_prefix ++ [:reclaimed, :bytes],
+            event_name: Telemetry.event_name_archived(),
+            measurement: :reclaimed_bytes,
+            description: "Enforced warm quota reclaimed by archival.",
+            tags: [:plan, :region]
+          ),
+          distribution(
+            @metric_prefix ++ [:drain_duration, :milliseconds],
+            event_name: Telemetry.event_name_archived(),
+            measurement: :drain_duration_ms,
+            description: "Wall-clock an archived instance spent in drain-pending.",
+            reporter_options: [buckets: @ready_buckets],
+            tags: [:plan, :region],
+            unit: :millisecond
           )
         ]
       )
     ]
   end
 
-  def execute_rollout_telemetry_event do
-    if PoolMetrics.running?(Repo) do
-      rollout = Rollouts.latest_rollout()
-      current = emit_rollout(rollout)
-
-      @rollout_seen_key
-      |> Process.get(MapSet.new())
-      |> MapSet.difference(current)
-      |> Enum.each(fn {image_tag, mode} ->
-        :telemetry.execute(
-          @rollout_event,
-          %{active: 0, paused: 0, wave: 0, wave_age_seconds: 0, scoped_servers: 0, converged_servers: 0},
-          %{image_tag: image_tag, mode: mode}
-        )
-      end)
-
-      Process.put(@rollout_seen_key, current)
-    end
+  @impl true
+  def polling_metrics(_opts) do
+    [
+      Polling.build(
+        :tuist_kura_capacity_polling_metrics,
+        @poll_rate,
+        {__MODULE__, :execute_occupancy_telemetry_event, []},
+        [
+          last_value(
+            [:tuist, :kura, :capacity, :reserved, :gibibytes],
+            event_name: [:tuist, :kura, :capacity, :occupancy],
+            measurement: :reserved_gib,
+            description: "Disk the region's cache pods have reserved.",
+            tags: [:region]
+          ),
+          last_value(
+            [:tuist, :kura, :capacity, :allocatable, :gibibytes],
+            event_name: [:tuist, :kura, :capacity, :occupancy],
+            measurement: :allocatable_gib,
+            description: "Allocatable disk across the region's Ready nodes.",
+            tags: [:region]
+          ),
+          last_value(
+            [:tuist, :kura, :capacity, :instances, :count],
+            event_name: [:tuist, :kura, :capacity, :occupancy],
+            measurement: :instances,
+            description: "Live Kura instances in the region.",
+            tags: [:region]
+          )
+        ]
+      ),
+      Polling.build(
+        :tuist_kura_recovery_polling_metrics,
+        @poll_rate,
+        {__MODULE__, :execute_hit_rate_recovery_telemetry_event, []},
+        [
+          last_value(
+            @metric_prefix ++ [:returned_hit_rate, :ratio],
+            event_name: [:tuist, :kura, :lifecycle, :hit_rate_recovery],
+            measurement: :returned_hit_rate,
+            description: "Cache hit ratio of account-regions that returned from archive in the recovery window.",
+            tags: [:region]
+          ),
+          last_value(
+            @metric_prefix ++ [:steady_hit_rate, :ratio],
+            event_name: [:tuist, :kura, :lifecycle, :hit_rate_recovery],
+            measurement: :steady_hit_rate,
+            description: "Cache hit ratio of account-regions that did not recently return, for comparison.",
+            tags: [:region]
+          )
+        ]
+      )
+    ]
   end
 
-  defp emit_rollout(nil), do: MapSet.new()
+  @doc false
+  def execute_occupancy_telemetry_event do
+    Enum.each(lifecycle_regions(), fn %Regions{id: region_id} ->
+      occupancy = Capacity.occupancy(region_id)
 
-  defp emit_rollout(%Rollout{} = rollout) do
-    summary = Rollouts.wave_summary(rollout)
-    scoped = summary |> Enum.map(& &1.servers) |> Enum.sum()
-    converged = summary |> Enum.map(& &1.converged) |> Enum.sum()
+      :telemetry.execute(
+        [:tuist, :kura, :capacity, :occupancy],
+        %{
+          # A region whose cluster cannot be read reports zero rather than
+          # skipping the series, so it is visibly at zero instead of holding
+          # its last good sample forever.
+          reserved_gib: occupancy.reserved_gib || 0,
+          allocatable_gib: occupancy.allocatable_gib || 0,
+          instances: occupancy.instances
+        },
+        %{region: region_id}
+      )
+    end)
+  end
 
-    wave_age_seconds =
-      case rollout.wave_started_at do
-        nil -> 0
-        started_at -> max(DateTime.diff(DateTime.utc_now(), started_at, :second), 0)
-      end
+  @doc false
+  def execute_hit_rate_recovery_telemetry_event do
+    Enum.each(lifecycle_regions(), &execute_region_hit_rate_recovery(&1.id))
+  end
 
-    labels = %{image_tag: rollout.image_tag, mode: Atom.to_string(rollout.mode)}
+  defp execute_region_hit_rate_recovery(region_id) do
+    returned_account_ids = recently_returned_account_ids(region_id)
+    hit_rates = hit_rates_by_account(region_id)
+
+    {returned, steady} =
+      Enum.split_with(hit_rates, fn {account_id, _rate} -> MapSet.member?(returned_account_ids, account_id) end)
 
     :telemetry.execute(
-      @rollout_event,
-      %{
-        active: if(rollout.status in [:running, :paused], do: 1, else: 0),
-        paused: if(rollout.status == :paused, do: 1, else: 0),
-        wave: rollout.current_wave,
-        wave_age_seconds: wave_age_seconds,
-        scoped_servers: scoped,
-        converged_servers: converged
-      },
-      labels
+      [:tuist, :kura, :lifecycle, :hit_rate_recovery],
+      %{returned_hit_rate: mean_rate(returned), steady_hit_rate: mean_rate(steady)},
+      %{region: region_id}
     )
-
-    MapSet.new([{labels.image_tag, labels.mode}])
   end
 
-  def execute_fleet_versions_telemetry_event do
-    if PoolMetrics.running?(Repo) do
-      distribution = Rollouts.fleet_version_distribution()
-      current = distribution |> Map.keys() |> MapSet.new()
+  defp recently_returned_account_ids(region_id) do
+    cutoff = DateTime.add(DateTime.utc_now(), -@recovery_window_days * 86_400, :second)
 
-      Enum.each(distribution, fn {image_tag, count} ->
-        :telemetry.execute(@fleet_event, %{count: count}, %{image_tag: image_tag})
-      end)
+    AccountRegionLifecycle
+    |> where([l], l.service_region == ^region_id)
+    |> where([l], not is_nil(l.last_returned_at) and l.last_returned_at >= ^cutoff)
+    |> select([l], l.account_id)
+    |> Repo.all()
+    |> MapSet.new()
+  end
 
-      @fleet_seen_key
-      |> Process.get(MapSet.new())
-      |> MapSet.difference(current)
-      |> Enum.each(fn image_tag ->
-        :telemetry.execute(@fleet_event, %{count: 0}, %{image_tag: image_tag})
-      end)
+  # A download is content the instance already had; an upload is the store
+  # that follows a miss. Their ratio over the recovery window is the closest
+  # thing to a hit rate the usage rollups carry, and it is the same
+  # measurement for a returned instance and a steady one, so the comparison
+  # between them is meaningful even where the absolute number is a proxy.
+  defp hit_rates_by_account(region_id) do
+    since =
+      DateTime.utc_now()
+      |> DateTime.add(-@recovery_window_days * 86_400, :second)
+      |> DateTime.truncate(:second)
 
-      Process.put(@fleet_seen_key, current)
+    Enum.map(
+      ClickHouseRepo.query!(
+        """
+        SELECT account_id,
+               sum(if(operation = 'download', request_count, 0)) AS hits,
+               sum(request_count) AS total
+        FROM kura_usage_events
+        WHERE region = {region:String} AND window_start >= {since:DateTime} AND account_id != 0
+        GROUP BY account_id
+        HAVING total > 0
+        """,
+        %{"region" => region_id, "since" => DateTime.to_naive(since)}
+      ).rows,
+      fn [account_id, hits, total] -> {account_id, hits / total} end
+    )
+  end
+
+  defp mean_rate([]), do: 0.0
+
+  defp mean_rate(rates) do
+    Enum.sum(Enum.map(rates, fn {_account_id, rate} -> rate end)) / length(rates)
+  end
+
+  defp lifecycle_regions do
+    if Environment.tuist_hosted?() do
+      Enum.reject(Regions.available(), &Regions.private?/1)
+    else
+      []
     end
   end
 end

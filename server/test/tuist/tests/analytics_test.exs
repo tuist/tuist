@@ -1411,6 +1411,100 @@ defmodule Tuist.Tests.AnalyticsTest do
       # Then - 0 successes out of 1 run on main = 0%
       assert got == 0.0
     end
+
+    test "only counts runs within the given period" do
+      # Given - the ingestion timestamps are deliberately the inverse of the run
+      # timestamps, so bounding the wrong column would flip the result to 0.0.
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "main",
+        status: 0,
+        ran_at: ~N[2024-04-30 10:00:00.000000],
+        inserted_at: ~N[2024-05-20 10:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "main",
+        status: 1,
+        ran_at: ~N[2024-04-10 10:00:00.000000],
+        inserted_at: ~N[2024-04-30 10:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.test_case_reliability_by_id(project.id, test_case_id, "main",
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then - only the run that executed inside the period counts
+      assert got == 100.0
+    end
+
+    test "falls back to all branches within the given period" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "main",
+        status: 0,
+        ran_at: ~N[2024-04-10 10:00:00.000000],
+        inserted_at: ~N[2024-04-30 10:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "feature-branch",
+        status: 1,
+        ran_at: ~N[2024-04-30 10:00:00.000000],
+        inserted_at: ~N[2024-05-20 10:00:00.000000]
+      )
+
+      # When - the default branch has no runs inside the period
+      got =
+        Analytics.test_case_reliability_by_id(project.id, test_case_id, "main",
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then
+      assert got == 0.0
+    end
+
+    test "returns nil when no runs fall within the given period" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "main",
+        status: 0,
+        ran_at: ~N[2024-04-10 10:00:00.000000],
+        inserted_at: ~N[2024-04-30 10:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.test_case_reliability_by_id(project.id, test_case_id, "main",
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then - ingested inside the period, but it did not run inside it
+      assert got == nil
+    end
   end
 
   describe "test_case_analytics_by_id/2" do
@@ -1445,7 +1539,120 @@ defmodule Tuist.Tests.AnalyticsTest do
       got = Analytics.test_case_analytics_by_id(project.id, test_case_id)
 
       # Then
-      assert got == %{total_count: 2, failed_count: 1, avg_duration: 200}
+      assert got == %{
+               total_count: 2,
+               failed_count: 1,
+               avg_duration: 200,
+               p50_duration: 200,
+               p90_duration: 280,
+               p99_duration: 298
+             }
+    end
+
+    test "only aggregates runs within the given period" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: 0,
+        duration: 100,
+        ran_at: ~N[2024-04-30 10:00:00.000000],
+        inserted_at: ~N[2024-05-20 10:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: 1,
+        duration: 300,
+        ran_at: ~N[2024-04-30 10:01:00.000000],
+        inserted_at: ~N[2024-05-20 10:01:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: 1,
+        duration: 5000,
+        ran_at: ~N[2024-04-10 10:00:00.000000],
+        inserted_at: ~N[2024-04-30 10:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.test_case_analytics_by_id(project.id, test_case_id,
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then - the run from outside the period is excluded from every aggregate
+      assert got == %{
+               total_count: 2,
+               failed_count: 1,
+               avg_duration: 200,
+               p50_duration: 200,
+               p90_duration: 280,
+               p99_duration: 298
+             }
+    end
+
+    test "returns zeroed analytics when no runs fall within the given period" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: 0,
+        duration: 100,
+        ran_at: ~N[2024-04-10 10:00:00.000000],
+        inserted_at: ~N[2024-04-30 10:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.test_case_analytics_by_id(project.id, test_case_id,
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then - ingested inside the period, but it did not run inside it
+      assert got == %{
+               total_count: 0,
+               failed_count: 0,
+               avg_duration: 0,
+               p50_duration: 0,
+               p90_duration: 0,
+               p99_duration: 0
+             }
+    end
+
+    test "reports a median a single stalled run cannot move" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      for duration <- [100, 100, 100, 100, 100, 100, 100, 100, 100, 100_000] do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: 0,
+          duration: duration
+        )
+      end
+
+      # When
+      got = Analytics.test_case_analytics_by_id(project.id, test_case_id)
+
+      # Then - the same distribution the Test Cases listing guards against
+      assert got.total_count == 10
+      assert got.avg_duration == 10_090
+      assert got.p50_duration == 100
+      assert got.p99_duration > got.p50_duration
     end
   end
 
@@ -1594,14 +1801,14 @@ defmodule Tuist.Tests.AnalyticsTest do
         test_case_id: test_case.id,
         project_id: project.id,
         is_flaky: true,
-        inserted_at: DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_naive()
+        ran_at: DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_naive()
       )
 
       RunsFixtures.test_case_run_fixture(
         test_case_id: test_case.id,
         project_id: project.id,
         is_flaky: true,
-        inserted_at: DateTime.utc_now() |> DateTime.add(-40, :day) |> DateTime.to_naive()
+        ran_at: DateTime.utc_now() |> DateTime.add(-40, :day) |> DateTime.to_naive()
       )
 
       # When
@@ -1609,6 +1816,71 @@ defmodule Tuist.Tests.AnalyticsTest do
 
       # Then - Only 1 flaky run in the last 30 days out of 1 total = 100%
       assert got == 100.0
+    end
+
+    test "counts a run that executed inside the period but was ingested after it" do
+      # Given - xcresult processing is asynchronous, so a run can land in
+      # ClickHouse well after the window it belongs to.
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: true,
+        ran_at: ~N[2024-04-30 10:00:00.000000],
+        inserted_at: ~N[2024-05-20 10:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.get_test_case_flakiness_rate(test_case,
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then
+      assert got == 100.0
+    end
+
+    test "only counts runs within the given period" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: true,
+        ran_at: ~N[2024-04-30 10:00:00.000000],
+        inserted_at: ~N[2024-05-20 10:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: false,
+        ran_at: ~N[2024-04-30 10:01:00.000000],
+        inserted_at: ~N[2024-05-20 10:01:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: true,
+        ran_at: ~N[2024-04-10 10:00:00.000000],
+        inserted_at: ~N[2024-04-30 10:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.get_test_case_flakiness_rate(test_case,
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then - 1 flaky run out of the 2 that fall inside the period
+      assert got == 50.0
     end
   end
 
@@ -1782,7 +2054,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
@@ -1825,7 +2097,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # Mute on April 10
       RunsFixtures.test_case_event_fixture(
@@ -1889,7 +2161,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # First mute on April 5
       RunsFixtures.test_case_event_fixture(
@@ -1961,7 +2233,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-03-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # Mute BEFORE the period (March 15)
       RunsFixtures.test_case_event_fixture(
@@ -2018,9 +2290,9 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       IngestRepo.insert_all(TestCase, [
-        test_case_1 |> Map.from_struct() |> Map.delete(:__meta__),
-        test_case_2 |> Map.from_struct() |> Map.delete(:__meta__),
-        test_case_3 |> Map.from_struct() |> Map.delete(:__meta__)
+        TuistTestSupport.Utilities.insertable_attrs(test_case_1),
+        TuistTestSupport.Utilities.insertable_attrs(test_case_2),
+        TuistTestSupport.Utilities.insertable_attrs(test_case_3)
       ])
 
       # test 1 muted before the period (March 15)
@@ -2088,8 +2360,8 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       IngestRepo.insert_all(TestCase, [
-        test_case_1 |> Map.from_struct() |> Map.delete(:__meta__),
-        test_case_2 |> Map.from_struct() |> Map.delete(:__meta__)
+        TuistTestSupport.Utilities.insertable_attrs(test_case_1),
+        TuistTestSupport.Utilities.insertable_attrs(test_case_2)
       ])
 
       # Mute test 1 on April 10
@@ -2164,7 +2436,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # First mute event
       RunsFixtures.test_case_event_fixture(
@@ -2220,8 +2492,8 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       IngestRepo.insert_all(TestCase, [
-        test_case_1 |> Map.from_struct() |> Map.delete(:__meta__),
-        test_case_2 |> Map.from_struct() |> Map.delete(:__meta__)
+        TuistTestSupport.Utilities.insertable_attrs(test_case_1),
+        TuistTestSupport.Utilities.insertable_attrs(test_case_2)
       ])
 
       # Mute test 1 on April 10
@@ -2291,7 +2563,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # Skip on April 10
       RunsFixtures.test_case_event_fixture(
@@ -2542,7 +2814,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
@@ -2596,8 +2868,8 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       IngestRepo.insert_all(TestCase, [
-        ci_tc |> Map.from_struct() |> Map.delete(:__meta__),
-        local_tc |> Map.from_struct() |> Map.delete(:__meta__)
+        TuistTestSupport.Utilities.insertable_attrs(ci_tc),
+        TuistTestSupport.Utilities.insertable_attrs(local_tc)
       ])
 
       # Each one marked flaky mid-period

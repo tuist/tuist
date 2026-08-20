@@ -15,9 +15,11 @@ public enum TuistConfigError: LocalizedError, Equatable {
 public struct Tuist: Equatable, Hashable, Sendable {
     public struct Network: Equatable, Hashable, Sendable {
         public let proxy: Bool
+        public let caCertificate: String?
 
-        public init(proxy: Bool = true) {
+        public init(proxy: Bool = true, caCertificate: String? = nil) {
             self.proxy = proxy
+            self.caCertificate = caCertificate
         }
     }
 

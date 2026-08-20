@@ -699,6 +699,11 @@ defmodule TuistWeb.AccountSettingsLive do
   def kura_server_status_label(:failed), do: dgettext("dashboard_account", "Failed")
   def kura_server_status_label(:destroying), do: dgettext("dashboard_account", "Destroying")
   def kura_server_status_label(:destroyed), do: dgettext("dashboard_account", "Destroyed")
+  def kura_server_status_label(:drain_pending), do: dgettext("dashboard_account", "Draining")
+  # Distinct from both "Not deployed" (never had a cache here) and
+  # "Destroyed" (an operator tore it down): the cache was reclaimed after a
+  # full inactivity window, and the next build brings it back on its own.
+  def kura_server_status_label(:archived), do: dgettext("dashboard_account", "Archived (inactive)")
 
   def kura_server_status_color(:provisioning), do: "information"
   def kura_server_status_color(:replicating), do: "information"
@@ -706,6 +711,8 @@ defmodule TuistWeb.AccountSettingsLive do
   def kura_server_status_color(:failed), do: "destructive"
   def kura_server_status_color(:destroying), do: "warning"
   def kura_server_status_color(:destroyed), do: "neutral"
+  def kura_server_status_color(:drain_pending), do: "warning"
+  def kura_server_status_color(:archived), do: "neutral"
 
   defp show_deploying?(%{status: :provisioning}), do: true
   defp show_deploying?(_), do: false

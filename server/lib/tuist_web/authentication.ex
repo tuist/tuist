@@ -76,6 +76,38 @@ defmodule TuistWeb.Authentication do
     end
   end
 
+  @doc """
+  Returns the user an ingested record should be attributed to, or `nil`.
+
+  Falls back to the user that authorized an account token. OAuth-issued account
+  tokens carry their issuer in `issued_by`, and authorization already leans on it
+  to scope an `all_projects: true` token to that user's organizations, so the
+  identity is both available and the right one to record. Without this fallback
+  every run uploaded by a CLI holding such a token is stored with no user and
+  surfaces as "Unknown" in the dashboard.
+
+  `issued_by` and not `created_by_account_id`: the two answer different questions
+  and only the first one attributes a run. `issued_by` is set from the token's
+  `user_id` claim, which is present only when the credential is that person's
+  own — it carries their identity, so it is the best available answer to "who
+  ran this". `created_by_account_id` records who once provisioned a shared
+  secret. The runs that secret uploads are not theirs, and attributing them
+  would put one person's name on every CI run in the account.
+
+  The clauses below are enumerated rather than closed with a catch-all: a
+  subject shape nobody taught this function about should raise, not resolve to
+  "attribute to nobody", which is the failure this function exists to fix.
+  """
+  def attributed_user(conn) do
+    case authenticated_subject(conn) do
+      %User{} = user -> user
+      %AuthenticatedAccount{issued_by: %User{} = user} -> user
+      %AuthenticatedAccount{} -> nil
+      %Project{} -> nil
+      nil -> nil
+    end
+  end
+
   def put_current_user(%Plug.Conn{} = conn, user) do
     assign(conn, @current_user_key, user)
   end
@@ -143,16 +175,48 @@ defmodule TuistWeb.Authentication do
     user_return_to = get_session(conn, :user_return_to)
     auth_method = Map.get(params, :auth_method, :password)
 
+    {post_invitation_return_to, post_invitation_token} =
+      case Map.fetch(params, :post_invitation_return_to) do
+        {:ok, return_to} ->
+          {return_to, Map.get(params, :post_invitation_token)}
+
+        :error ->
+          if get_session(conn, :post_invitation_user_id) == user.id do
+            {
+              get_session(conn, :post_invitation_return_to),
+              get_session(conn, :post_invitation_token)
+            }
+          else
+            {nil, nil}
+          end
+      end
+
     Analytics.user_authenticate(user)
+    Accounts.touch_last_sign_in(user)
 
     conn
     |> renew_session()
     |> put_token_in_session(token)
     |> put_session(:auth_method, auth_method)
+    |> maybe_put_post_invitation_context(
+      post_invitation_return_to,
+      user.id,
+      post_invitation_token
+    )
     |> maybe_write_remember_me_cookie(token, params)
     |> redirect(to: user_return_to || signed_in_path(user))
     |> halt()
   end
+
+  defp maybe_put_post_invitation_context(conn, return_to, user_id, invitation_token)
+       when is_binary(return_to) and is_integer(user_id) and is_binary(invitation_token) do
+    conn
+    |> put_session(:post_invitation_return_to, return_to)
+    |> put_session(:post_invitation_user_id, user_id)
+    |> put_session(:post_invitation_token, invitation_token)
+  end
+
+  defp maybe_put_post_invitation_context(conn, _return_to, _user_id, _invitation_token), do: conn
 
   defp maybe_write_remember_me_cookie(conn, token, %{"remember_me" => "true"}) do
     put_resp_cookie(conn, @remember_me_cookie, token, @remember_me_options)
@@ -217,6 +281,10 @@ defmodule TuistWeb.Authentication do
   def fetch_current_user(conn, _opts) do
     {user_token, conn} = ensure_user_token(conn)
     user = user_token && Accounts.get_user_by_session_token(user_token, preload: [:account])
+    # A session resumed from the remember-me cookie is still the account being
+    # used, so it has to count as activity. Otherwise a user who never logs in
+    # again because they never log out looks dormant.
+    user = user && Accounts.touch_last_sign_in(user)
     assign(conn, :current_user, user)
   end
 

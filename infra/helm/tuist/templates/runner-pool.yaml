@@ -201,6 +201,12 @@ spec:
   {{- fail "runnersFleetLinux.pools or runnersFleetLinux.shapes must contain at least one entry when runnersFleetLinux.enabled is true" }}
 {{- end }}
 {{- $defaultRunnerLabels := list "self-hosted" "Linux" "X64" }}
+{{- /*
+RuntimeClass overhead is copied into Pod.spec.overhead only at admission.
+Hash the inputs so the controller can roll Pods admitted under an older
+value without comparing those immutable Pod fields to live cluster state.
+*/}}
+{{- $kataRuntimeClassRevision := printf "v1|runtimeClass=kata-qemu|cpu=%v|memory=%v" .Values.kataContainers.podFixed.cpu .Values.kataContainers.podFixed.memory | sha256sum }}
 {{- range $pool := $pools }}
 {{- $name := required "runnersFleetLinux.pools[].name required" $pool.name }}
 {{- $image := required (printf "runnersFleetLinux.pools[%s].runnerImage required" $name) $pool.runnerImage }}
@@ -219,6 +225,10 @@ kind: RunnerPool
 metadata:
   name: {{ $poolName | quote }}
   namespace: {{ $namespace | quote }}
+  {{- if eq $runtimeClass "kata-qemu" }}
+  annotations:
+    tuist.dev/runtime-class-revision: {{ $kataRuntimeClassRevision | quote }}
+  {{- end }}
   labels:
     {{- $labels | nindent 4 }}
     app.kubernetes.io/component: runners-controller
@@ -296,6 +306,10 @@ kind: RunnerPool
 metadata:
   name: {{ $poolName | quote }}
   namespace: {{ $namespace | quote }}
+  {{- if eq $shapeRuntimeClass "kata-qemu" }}
+  annotations:
+    tuist.dev/runtime-class-revision: {{ $kataRuntimeClassRevision | quote }}
+  {{- end }}
   labels:
     {{- $labels | nindent 4 }}
     app.kubernetes.io/component: runners-controller

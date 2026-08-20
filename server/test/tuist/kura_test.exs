@@ -166,6 +166,81 @@ defmodule Tuist.KuraTest do
       assert {:ok, %{scheduled: [], failures: []}} = Kura.schedule_runtime_image_deployments()
     end
 
+    test "supersedes an open deployment when a newer runtime image is configured" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      [open_deployment] = server.deployments
+      {:ok, _open_deployment} = Kura.mark_running(open_deployment)
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
+
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "0.5.3"} = deployment], failures: []}} =
+               Kura.schedule_runtime_image_deployments()
+
+      superseded = Repo.get!(Deployment, open_deployment.id)
+      assert superseded.status == :superseded
+      assert superseded.error_message == "superseded by Kura image 0.5.3"
+      assert superseded.finished_at
+      assert deployment.kura_server_id == server.id
+
+      assert Repo.aggregate(
+               from(d in Deployment,
+                 where: d.kura_server_id == ^server.id and d.status in [:pending, :running]
+               ),
+               :count
+             ) == 1
+    end
+
+    test "supersedes an older open deployment even when the server already observes the new image" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      [open_deployment] = server.deployments
+      {:ok, _server} = Kura.activate_server(server, "0.5.3")
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
+
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "0.5.3"}], failures: []}} =
+               Kura.schedule_runtime_image_deployments()
+
+      assert Repo.get!(Deployment, open_deployment.id).status == :superseded
+    end
+
+    test "keeps the open deployment when the replacement image tag is invalid" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      [open_deployment] = server.deployments
+      {:ok, _open_deployment} = Kura.mark_running(open_deployment)
+
+      assert {:ok, %{scheduled: [], failures: [%{reason: %Ecto.Changeset{}}]}} =
+               Kura.schedule_version_deployments("bad tag")
+
+      assert Repo.get!(Deployment, open_deployment.id).status == :running
+    end
+
     test "does not create deployments when no runtime image tag is configured" do
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> nil end)
 
@@ -267,19 +342,15 @@ defmodule Tuist.KuraTest do
 
       {101, nil} = Repo.insert_all(Server, server_rows)
 
-      # Interim pacing (spec #79 phase 2): bounded batches per call. The
-      # wait-for-open-deployments pacing between batches lives in
-      # schedule_runtime_image_deployments/0; calling the version
-      # scheduler directly moves on to the next batch.
       assert {:ok, %{scheduled: first_batch, failures: []}} =
                Kura.schedule_version_deployments("0.5.3")
 
-      assert length(first_batch) == 25
+      assert length(first_batch) == 100
 
       assert {:ok, %{scheduled: second_batch, failures: []}} =
                Kura.schedule_version_deployments("0.5.3")
 
-      assert length(second_batch) == 25
+      assert length(second_batch) == 1
     end
   end
 
@@ -1054,6 +1125,44 @@ defmodule Tuist.KuraTest do
 
     test "is nil for accounts without any server", %{account: account} do
       assert Kura.runner_cache_endpoint_url(account, :linux) == nil
+    end
+  end
+
+  describe "lifecycle transitions against a concurrent destroy" do
+    setup do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+
+      %{account: account, server: server}
+    end
+
+    test "begin_drain/1 refuses a server destroyed since it was read", %{server: server} do
+      {:ok, _} = Kura.destroy_server(server)
+
+      assert {:error, :not_drainable} = Kura.begin_drain(server)
+      assert Repo.get!(Server, server.id).status == :destroying
+    end
+
+    test "cancel_drain/1 refuses a server destroyed since it was read", %{account: account, server: server} do
+      {:ok, draining} = Kura.begin_drain(server)
+      {:ok, _} = Kura.destroy_server(draining)
+
+      assert {:error, :not_draining} = Kura.cancel_drain(draining)
+      assert Repo.get!(Server, server.id).status == :destroying
+      assert Accounts.list_account_cache_endpoints(account, :kura) == []
+    end
+
+    test "archive_server/1 refuses a server destroyed since it was read", %{server: server} do
+      {:ok, draining} = Kura.begin_drain(server)
+      {:ok, _} = Kura.destroy_server(draining)
+
+      assert {:error, :not_archivable} = Kura.archive_server(draining)
+      assert Repo.get!(Server, server.id).status == :destroying
     end
   end
 

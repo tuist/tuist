@@ -7,8 +7,22 @@ enum Environment {
     @TaskLocal
     static var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
 
+    /// The netrc every download authenticates against. Entry points install it once
+    /// per resolution, so the unbound value means no netrc source was configured.
+    @TaskLocal
+    static var netrc: Netrc = .empty
+
     static var isCI: Bool {
-        ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"].contains { environment[$0] != nil }
+        ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"].contains { current[$0] != nil }
+    }
+
+    static func withNetrc<T>(
+        _ netrc: Netrc,
+        operation: () async throws -> T
+    ) async throws -> T {
+        try await Environment.$netrc.withValue(netrc) {
+            try await operation()
+        }
     }
 
     static func cachedDirectoryMaterializationMode()
@@ -29,7 +43,12 @@ enum Environment {
         return try await operation()
     }
 
-    private static var environment: [String: String] {
+    /// The environment the process runs in. Overridable through the `values` task-local
+    /// for dependency injection (notably in tests); otherwise the live process environment.
+    /// Manifest evaluation observes the same environment because swifterpm inherits it into
+    /// the `swift package dump-package` subprocess, so this is also the environment a cached
+    /// dump was produced under.
+    static var current: [String: String] {
         values ?? ProcessInfo.processInfo.environment
     }
 }

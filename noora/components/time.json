@@ -1,0 +1,66 @@
+{
+  "name": "Time",
+  "tagName": "noora-time",
+  "elementClassName": "NooraTime",
+  "className": "noora-time",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Formats an absolute or relative date and time.",
+  "usage": "<noora-time datetime=\"2026-07-27T09:00:00Z\"></noora-time>",
+  "attributes": [
+    {
+      "name": "datetime",
+      "property": "datetime",
+      "type": "string",
+      "description": "Sets an international date and time string."
+    },
+    {
+      "name": "show-time",
+      "property": "showTime",
+      "type": "boolean",
+      "default": false,
+      "description": "Includes the localized time."
+    },
+    {
+      "name": "relative",
+      "property": "relative",
+      "type": "boolean",
+      "default": false,
+      "description": "Shows a relative time label."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [],
+  "cssParts": [
+    {
+      "name": "time",
+      "description": "The native time element."
+    }
+  ],
+  "notes": [],
+  "examples": [
+    {
+      "id": "formats",
+      "title": "Display formats",
+      "description": "Show a date, a date with time, or a relative label.",
+      "markup": "<noora-time datetime=\"2023-01-01T12:00:00Z\"></noora-time>\n<noora-time datetime=\"2023-01-01T12:00:00Z\" show-time></noora-time>\n<noora-time datetime=\"2023-01-01T12:00:00Z\" relative></noora-time>"
+    },
+    {
+      "id": "times-of-day",
+      "title": "Different times",
+      "description": "Format morning, evening, midnight, and noon values.",
+      "markup": "<noora-time datetime=\"2023-06-15T08:30:00Z\" show-time></noora-time>\n<noora-time datetime=\"2023-06-15T19:45:00Z\" show-time></noora-time>\n<noora-time datetime=\"2023-06-15T00:00:00Z\" show-time></noora-time>\n<noora-time datetime=\"2023-06-15T12:00:00Z\" show-time></noora-time>"
+    },
+    {
+      "id": "relative",
+      "title": "Relative times",
+      "description": "Show relative labels with absolute tooltips.",
+      "markup": "<noora-time datetime=\"2023-01-01T11:58:00Z\" relative></noora-time>\n<noora-time datetime=\"2022-12-31T12:00:00Z\" relative></noora-time>\n<noora-time datetime=\"2022-12-25T12:00:00Z\" relative></noora-time>\n<noora-time datetime=\"2022-01-01T12:00:00Z\" relative></noora-time>"
+    },
+    {
+      "id": "special-dates",
+      "title": "Special dates",
+      "description": "Handle new year, leap day, and distant-future dates.",
+      "markup": "<noora-time datetime=\"2024-01-01T00:00:00Z\" show-time></noora-time>\n<noora-time datetime=\"2024-02-29T12:00:00Z\"></noora-time>\n<noora-time datetime=\"2030-12-31T23:59:59Z\" show-time></noora-time>"
+    }
+  ]
+}

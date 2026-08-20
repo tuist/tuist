@@ -61,6 +61,81 @@ defmodule TuistWeb.AuthenticationTest do
     end
   end
 
+  describe "attributed_user/1" do
+    test "when the authenticated subject is a user", %{user: user, conn: conn} do
+      # Given
+      conn = assign(conn, :current_user, user)
+
+      # Then
+      assert Authentication.attributed_user(conn) == user
+    end
+
+    test "when the authenticated subject is an account token that carries its issuer", %{
+      user: user,
+      project: project,
+      conn: conn
+    } do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: project.account,
+          scopes: ["project:runs:write"],
+          issued_by: user
+        })
+
+      # Then
+      assert Authentication.attributed_user(conn) == user
+    end
+
+    test "when the authenticated subject is a long-lived token minted for CI", %{
+      user: user,
+      project: project,
+      conn: conn
+    } do
+      # The account that created the token is recorded, but nobody authorized the
+      # request it is now signing, so the run must not be attributed to them.
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: project.account,
+          scopes: ["ci"],
+          all_projects: true,
+          token_id: Ecto.UUID.generate(),
+          created_by_account_id: user.account.id
+        })
+
+      # Then
+      assert Authentication.attributed_user(conn) == nil
+    end
+
+    test "when the authenticated subject is a CI token obtained through OIDC", %{
+      project: project,
+      conn: conn
+    } do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: project.account,
+          scopes: ["ci"],
+          project_ids: [project.id]
+        })
+
+      # Then
+      assert Authentication.attributed_user(conn) == nil
+    end
+
+    test "when the authenticated subject is a project", %{project: project, conn: conn} do
+      # Given
+      conn = assign(conn, :current_project, project)
+
+      # Then
+      assert Authentication.attributed_user(conn) == nil
+    end
+
+    test "when there is no authenticated subject", %{conn: conn} do
+      assert Authentication.attributed_user(conn) == nil
+    end
+  end
+
   describe "log_in_user/3" do
     test "stores the user token in the session", %{conn: conn, user: user} do
       conn = Authentication.log_in_user(conn, user)
@@ -549,12 +624,13 @@ defmodule TuistWeb.AuthenticationTest do
           creator: user,
           sso_provider: :okta,
           sso_organization_id: "company.okta.com",
+          sso_legacy_email_domain_fallback: true,
           oauth2_client_id: "client_id",
           oauth2_client_secret: "client_secret",
           preload: [:account]
         )
 
-      Accounts.update_organization(organization, %{sso_enforced: true})
+      {:ok, organization} = Accounts.update_organization(organization, %{sso_enforced: true})
 
       conn =
         %{

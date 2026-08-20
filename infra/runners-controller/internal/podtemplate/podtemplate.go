@@ -35,6 +35,13 @@ import (
 )
 
 const (
+	// RuntimeClassRevisionAnnotation is the deterministic revision Helm
+	// derives from the Linux RuntimeClass name and fixed overhead. The
+	// RunnerPool carries the desired revision and each Pod records the
+	// revision used at creation so the controller can roll old admission
+	// accounting without inspecting mutable cluster state.
+	RuntimeClassRevisionAnnotation = "tuist.dev/runtime-class-revision"
+
 	// jitMountPath is where the JIT-handoff emptyDir is mounted in
 	// both the poller (rw) and runner (ro) containers. Deliberately
 	// not under /var/run — the dind sidecar owns that mount in the
@@ -437,6 +444,11 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		// because the containerd kata runtime whitelists
 		// `io.katacontainers.*` pod annotations.
 		annotations["io.katacontainers.config.hypervisor.kernel_params"] = "psi=1"
+	}
+	if linuxPod && pool.Spec.RuntimeClass != "" {
+		if revision := pool.Annotations[RuntimeClassRevisionAnnotation]; revision != "" {
+			annotations[RuntimeClassRevisionAnnotation] = revision
+		}
 	}
 
 	// Mirror the actions/runner diagnostic log (_diag) to the runner

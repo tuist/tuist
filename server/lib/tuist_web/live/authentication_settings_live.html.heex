@@ -58,7 +58,7 @@
           <span data-part="description">
             {dgettext(
               "dashboard_account",
-              "Select an SSO provider to allow users to sign in to Tuist and automatically join this organization."
+              "Select the identity provider that authenticates your organization members."
             )}
           </span>
         </div>
@@ -71,6 +71,7 @@
           >
             <:item value="google" label="Google" />
             <:item value="okta" label="Okta" />
+            <:item value="entra" label="Microsoft Entra ID" />
             <:item value="oauth2" label={dgettext("dashboard_account", "OAuth2")} />
           </.select>
         </div>
@@ -148,6 +149,72 @@
         </div>
       </div>
 
+      <%!-- Microsoft Entra ID setup instructions --%>
+      <div :if={@sso_enabled and @selected_provider == "entra"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Setup instructions")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "Register an application in your Microsoft Entra admin center before configuring the fields below."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <div data-part="setup-steps">
+            <ol>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Go to Identity > Applications > App registrations > New registration"
+                )}
+              </li>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Select the \"Web\" platform and set the redirect URI to:"
+                )}
+                <div data-part="read-only-value">
+                  <code>
+                    {Tuist.Environment.app_url(path: "/users/auth/oauth2/callback")}
+                  </code>
+                </div>
+              </li>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Copy the Directory (tenant) ID and Application (client) ID from the application overview"
+                )}
+              </li>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Create a client secret under Certificates & secrets and copy its value"
+                )}
+              </li>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Under API permissions, grant the delegated openid, profile, and email permissions"
+                )}
+              </li>
+              <li>
+                {dgettext("dashboard_account", "Set the home page URL to:")}
+                <div data-part="read-only-value">
+                  <code>
+                    {Tuist.Environment.app_url(
+                      path: "/users/auth/oauth2?organization_id=#{@organization.id}"
+                    )}
+                  </code>
+                </div>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
       <%!-- Custom OAuth2 setup instructions --%>
       <div :if={@sso_enabled and @selected_provider == "oauth2"} data-part="section">
         <div data-part="label">
@@ -199,6 +266,75 @@
         </div>
       </div>
 
+      <div :if={@sso_enabled and oauth2_form_provider?(@selected_provider)} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Login email domain")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "Once verified, this domain is used to find the provider and determines which email addresses can be trusted for automatic enrollment and identity linking. It is independent of the provider URL."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:sso_login_domain]}
+            type="basic"
+            placeholder="example.com"
+            error={@field_errors["sso_login_domain"]}
+          />
+
+          <div
+            :if={
+              @organization.sso_login_domain &&
+                @organization.sso_login_domain == @form[:sso_login_domain].value
+            }
+            data-part="domain-verification"
+          >
+            <%= if @organization.sso_login_domain_verified_at do %>
+              <span data-part="domain-verification-status" data-status="verified">
+                {dgettext("dashboard_account", "Verified")}
+              </span>
+            <% else %>
+              <span data-part="domain-verification-status" data-status="pending">
+                {dgettext("dashboard_account", "Pending verification")}
+              </span>
+              <span data-part="domain-verification-description">
+                {dgettext(
+                  "dashboard_account",
+                  "Add the following text record to your domain, then verify it."
+                )}
+              </span>
+              <div data-part="domain-record">
+                <span data-part="domain-record-label">
+                  {dgettext("dashboard_account", "Record name")}
+                </span>
+                <div data-part="read-only-value">
+                  <code>{Accounts.sso_login_domain_record_name(@organization)}</code>
+                </div>
+              </div>
+              <div data-part="domain-record">
+                <span data-part="domain-record-label">
+                  {dgettext("dashboard_account", "Record value")}
+                </span>
+                <div data-part="read-only-value">
+                  <code>{Accounts.sso_login_domain_record_value(@organization)}</code>
+                </div>
+              </div>
+              <.button
+                type="button"
+                label={dgettext("dashboard_account", "Verify domain")}
+                variant="secondary"
+                size="medium"
+                phx-click="verify_sso_login_domain"
+              />
+            <% end %>
+          </div>
+        </div>
+      </div>
+
       <%!-- Okta domain field --%>
       <div :if={@sso_enabled and @selected_provider == "okta"} data-part="section">
         <div data-part="label">
@@ -218,6 +354,29 @@
             type="basic"
             placeholder="your-company.okta.com"
             error={@field_errors["okta_domain"]}
+          />
+        </div>
+      </div>
+
+      <%!-- Microsoft Entra ID directory (tenant) ID --%>
+      <div :if={@sso_enabled and @selected_provider == "entra"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Directory (tenant) ID")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "The directory (tenant) ID of your Entra application. Tuist derives the authorize, token, and user info endpoints from it."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:entra_tenant_id]}
+            type="basic"
+            placeholder="00000000-0000-0000-0000-000000000000"
+            error={@field_errors["entra_tenant_id"]}
           />
         </div>
       </div>
@@ -311,7 +470,7 @@
         </div>
       </div>
 
-      <div :if={@sso_enabled and @selected_provider in ["okta", "oauth2"]} data-part="section">
+      <div :if={@sso_enabled and oauth2_form_provider?(@selected_provider)} data-part="section">
         <div data-part="label">
           <span data-part="title">
             {dgettext("dashboard_account", "Client ID")}
@@ -330,7 +489,7 @@
         </div>
       </div>
 
-      <div :if={@sso_enabled and @selected_provider in ["okta", "oauth2"]} data-part="section">
+      <div :if={@sso_enabled and oauth2_form_provider?(@selected_provider)} data-part="section">
         <div data-part="label">
           <span data-part="title">
             {dgettext("dashboard_account", "Client secret")}
@@ -358,8 +517,69 @@
       <div :if={@sso_enabled} data-part="section">
         <div data-part="toggle-label">
           <.toggle
-            id="sso-enforced-toggle"
+            id={
+              "sso-automatic-enrollment-toggle-#{@selected_provider}-#{@sso_automatic_enrollment}-#{automatic_enrollment_toggle_disabled?(@selected_provider, @organization, @current_form_params, @sso_automatic_enrollment)}"
+            }
+            data-testid="sso-automatic-enrollment-toggle"
+            checked={@sso_automatic_enrollment}
+            disabled={
+              automatic_enrollment_toggle_disabled?(
+                @selected_provider,
+                @organization,
+                @current_form_params,
+                @sso_automatic_enrollment
+              )
+            }
+            phx-click="toggle_sso_automatic_enrollment"
+          />
+          <div data-part="label-text">
+            <span data-part="title">
+              {dgettext("dashboard_account", "Automatic enrollment")}
+            </span>
+            <span data-part="description">
+              <%= cond do %>
+                <% @selected_provider == "google" -> %>
+                  {dgettext(
+                    "dashboard_account",
+                    "When enabled, users whose Google Workspace domain matches can join this organization automatically. Other users need an invitation."
+                  )}
+                <% @organization.sso_login_domain_verified_at -> %>
+                  {dgettext(
+                    "dashboard_account",
+                    "When enabled, users from the verified login email domain can join this organization automatically. Other users need an invitation."
+                  )}
+                <% @sso_automatic_enrollment -> %>
+                  {dgettext(
+                    "dashboard_account",
+                    "This existing configuration allows any email address reported by the provider to join automatically. Add and verify a login email domain to restrict enrollment."
+                  )}
+                <% true -> %>
+                  {dgettext(
+                    "dashboard_account",
+                    "Add and verify a login email domain before enabling automatic enrollment. Until then, the provider cannot create or link accounts, including for invited users. Existing linked users can continue signing in."
+                  )}
+              <% end %>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div :if={@sso_enabled} data-part="section">
+        <div data-part="toggle-label">
+          <.toggle
+            id={
+              "sso-enforced-toggle-#{@selected_provider}-#{@sso_enforced}-#{sso_enforcement_toggle_disabled?(@selected_provider, @organization, @current_form_params, @sso_enforced)}"
+            }
+            data-testid="sso-enforced-toggle"
             checked={@sso_enforced}
+            disabled={
+              sso_enforcement_toggle_disabled?(
+                @selected_provider,
+                @organization,
+                @current_form_params,
+                @sso_enforced
+              )
+            }
             phx-click="toggle_sso_enforced"
           />
           <div data-part="label-text">
@@ -367,10 +587,19 @@
               {dgettext("dashboard_account", "Enforce SSO")}
             </span>
             <span data-part="description">
-              {dgettext(
-                "dashboard_account",
-                "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
-              )}
+              <%= if oauth2_form_provider?(@selected_provider) and
+                       is_nil(@organization.sso_login_domain_verified_at) and
+                       not @organization.sso_legacy_email_domain_fallback do %>
+                {dgettext(
+                  "dashboard_account",
+                  "Verify a login email domain before enforcing single sign-on for this provider."
+                )}
+              <% else %>
+                {dgettext(
+                  "dashboard_account",
+                  "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
+                )}
+              <% end %>
             </span>
           </div>
         </div>

@@ -193,6 +193,28 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
 
       assert json_response(conn, :ok) == %{"endpoints" => ["https://kura-cache.example.com"]}
+
+      # A serving instance is a stable answer, so it is cacheable for the usual
+      # interval rather than re-resolved constantly.
+      assert ["private, max-age=3600"] = get_resp_header(conn, "cache-control")
+    end
+
+    test "shortens the cache lifetime while a dedicated instance is being provisioned back", %{conn: conn} do
+      # The stand-in answer stops being right the moment the account's own
+      # instance starts serving, so it must not be held for the usual interval.
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_client_feature_flags(["kura"])
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      assert json_response(conn, :ok) == %{"endpoints" => ["https://default.tuist.dev"]}
+      assert ["private, max-age=30"] = get_resp_header(conn, "cache-control")
     end
 
     test "returns ready account Kura endpoints when the client requests Kura and the account is opted in", %{
@@ -408,6 +430,64 @@ defmodule TuistWeb.API.CacheControllerTest do
       # Then
       response = json_response(conn, 200)
       assert response["endpoints"] == default_endpoints
+    end
+  end
+
+  describe "POST /api/cache/token" do
+    test "requires authentication", %{conn: conn} do
+      # When
+      conn = post(conn, ~p"/api/cache/token")
+
+      # Then
+      assert json_response(conn, 401) == %{
+               "message" => "You need to be authenticated to access this resource."
+             }
+    end
+
+    # This is the case the endpoint exists for: CI authenticates with an opaque
+    # project token, which a cache node cannot verify on its own.
+    test "returns a token carrying the project's cache grants", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      project = ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+      conn = Plug.Conn.assign(conn, :current_subject, project)
+
+      # When
+      conn = post(conn, ~p"/api/cache/token")
+
+      # Then
+      assert %{"token" => token, "expires_in" => expires_in} = json_response(conn, 200)
+      assert expires_in == Tuist.Cache.cache_token_ttl_seconds()
+
+      handle = "#{project.account.name}/#{project.name}"
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(token)
+      assert claims["cache_grants"]["project"]["read"] == [handle]
+      assert claims["cache_grants"]["project"]["write"] == [handle]
+    end
+
+    test "narrows the grants to the full handle it is given", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(preload: [:account])
+      target = ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+      _other = ProjectsFixtures.project_fixture(account: organization.account)
+
+      conn =
+        Plug.Conn.assign(conn, :current_subject, %AuthenticatedAccount{
+          account: organization.account,
+          scopes: ["project:cache:read", "project:cache:write"],
+          all_projects: true
+        })
+
+      handle = "#{target.account.name}/#{target.name}"
+
+      # When
+      conn = post(conn, ~p"/api/cache/token?full_handle=#{handle}")
+
+      # Then
+      assert %{"token" => token} = json_response(conn, 200)
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(token)
+      assert claims["cache_grants"]["project"]["read"] == [handle]
+      assert claims["cache_grants"]["project"]["write"] == [handle]
     end
   end
 

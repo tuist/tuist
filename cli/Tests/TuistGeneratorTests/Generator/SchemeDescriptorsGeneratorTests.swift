@@ -2555,6 +2555,48 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         return GeneratedProject(pbxproj: .init(), path: path, targets: pbxTargets, name: path.basename)
     }
 
+    func test_schemeTestAction_passes_through_swiftTestingOnly_parallelization() throws {
+        // Given
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(targets: [target, testTarget])
+
+        let testableTarget = TestableTarget(
+            target: TargetReference(projectPath: project.path, name: "AppTests"),
+            skipped: false,
+            parallelization: .swiftTestingOnly,
+            randomExecutionOrdering: false
+        )
+        let testAction = TestAction.test(targets: [testableTarget])
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: project.path, name: "App")])
+        let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: testTarget.name, path: project.path): [
+                    .target(name: target.name, path: project.path),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: project.path,
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then: the generated TestableReference preserves .swiftTestingOnly.
+        // XcodeProj's serialiser turns that into an .xcscheme TestableReference without a
+        // `parallelizable` attribute; that XML behaviour is covered separately by
+        // XCSchemeMapperTests and TestPlanDescriptorTests.
+        let result = try XCTUnwrap(got)
+        let testableReference = try XCTUnwrap(result.testables.first)
+        XCTAssertEqual(testableReference.parallelization, .swiftTestingOnly)
+    }
+
     private func makeProfileActionScheme(
         _ launchArguments: Arguments? = nil,
         preActions: [ExecutionAction] = [],

@@ -14,7 +14,8 @@ import XcodeGraph
 ///      cannot host their own resources).
 ///   2. Writes a `TuistBundle+<Target>.swift` accessor into the target's Derived directory so
 ///      that user code can call `Bundle.module`.
-///   3. For external Obj-C targets, also emits SwiftPM-shaped C bridging files.
+///   3. For Objective-C targets generated from Swift packages, also emits
+///      Swift Package Manager-shaped C bridging files.
 public struct ResourcesProjectMapper: ProjectMapping {
     private let contentHasher: ContentHashing
     private let buildableFolderChecker: BuildableFolderChecking
@@ -76,9 +77,12 @@ public struct ResourcesProjectMapper: ProjectMapping {
                 project: project,
                 bundleName: bundleName
             )
+            if targetNeedsCompanionBundle(target) {
+                modifiedTarget = addingModuleResourceBundleAvailableCondition(to: modifiedTarget)
+            }
         }
 
-        if targetNeedsObjcAccessor(target, project: project) {
+        if targetNeedsObjcAccessor(target) {
             try appendObjcBundleAccessor(
                 to: &modifiedTarget,
                 sideEffects: &sideEffects,
@@ -116,8 +120,8 @@ public struct ResourcesProjectMapper: ProjectMapping {
         return containsSwift || containsSourcesInBuildableFolders
     }
 
-    private func targetNeedsObjcAccessor(_ target: Target, project: Project) -> Bool {
-        guard case .external = project.type else { return false }
+    private func targetNeedsObjcAccessor(_ target: Target) -> Bool {
+        guard target.metadata.tags.contains(TargetTags.swiftPackage) else { return false }
         let containsObjc = target.sources.contains {
             $0.path.extension == "m" || $0.path.extension == "mm"
         }
@@ -273,6 +277,56 @@ public struct ResourcesProjectMapper: ProjectMapping {
         let hash = try file.contents.map(contentHasher.hash)
         modifiedTarget.sources.append(SourceFile(path: file.path, contentHash: hash))
         sideEffects.append(.file(.init(path: file.path, contents: file.contents, state: .present)))
+    }
+
+    /// Foundation's `#bundle` macro expands to `Bundle.module` only when this compilation
+    /// condition declares that the module's resources live in a separate resource bundle —
+    /// SwiftPM sets it for resource-bearing modules. Without it, the macro falls back to a
+    /// DSO-handle lookup that resolves to the main bundle for statically linked code, where
+    /// the companion bundle's resources are invisible.
+    ///   - https://github.com/swiftlang/swift-foundation/blob/main/Sources/FoundationMacros/BundleMacro.swift
+    ///   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder%2BModules.swift
+    private func addingModuleResourceBundleAvailableCondition(to target: Target) -> Target {
+        let condition = "SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE"
+        let key = "SWIFT_ACTIVE_COMPILATION_CONDITIONS"
+
+        func appending(to value: SettingValue?) -> SettingValue {
+            switch value {
+            case let .array(values):
+                guard !values.contains(condition) else { return .array(values) }
+                return .array(values + [condition])
+            case let .string(value):
+                let tokens = value.split(whereSeparator: \.isWhitespace)
+                guard !tokens.contains(Substring(condition)) else { return .string(value) }
+                return .string("\(value) \(condition)")
+            case nil:
+                return .array(["$(inherited)", condition])
+            }
+        }
+
+        var base = target.settings?.base ?? SettingsDictionary()
+        base[key] = appending(to: base[key])
+
+        // Configuration-specific values override the base wholesale unless they include
+        // $(inherited), so any configuration that defines the setting needs the condition too.
+        var configurations = target.settings?.configurations ?? [:]
+        for (buildConfiguration, configuration) in configurations {
+            guard var configuration, configuration.settings[key] != nil else { continue }
+            configuration.settings[key] = appending(to: configuration.settings[key])
+            configurations[buildConfiguration] = configuration
+        }
+
+        var target = target
+        target.settings = target.settings.map {
+            Settings(
+                base: base,
+                baseDebug: $0.baseDebug,
+                configurations: configurations,
+                defaultSettings: $0.defaultSettings,
+                defaultConfiguration: $0.defaultConfiguration
+            )
+        } ?? Settings(base: base, configurations: [:])
+        return target
     }
 
     private func appendObjcBundleAccessor(

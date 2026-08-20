@@ -72,13 +72,19 @@ defmodule Tuist.PromEx do
         Tuist.Accounts.PromExPlugin,
         Tuist.Projects.PromExPlugin,
         Tuist.AppBuilds.PromExPlugin,
+        Tuist.Tests.PromExPlugin,
         Tuist.Repo.PromExPlugin,
         Tuist.KeyValueStore.PromExPlugin,
         Tuist.Authentication.PromExPlugin,
         Tuist.HTTP.PromExPlugin,
+        Tuist.License.PromExPlugin,
+        Tuist.Kura.PromExPlugin,
         Tuist.Runners.PromExPlugin,
         Tuist.Kura.PromExPlugin,
-        TuistCommon.HTTP.TransportPromExPlugin
+        Tuist.Kura.Rollouts.PromExPlugin,
+        Tuist.Registry.Swift.PromExPlugin,
+        TuistCommon.HTTP.TransportPromExPlugin,
+        TuistCommon.GitHub.PromExPlugin
       ]
 
     plugins =
@@ -86,7 +92,10 @@ defmodule Tuist.PromEx do
         plugins ++
           [
             {TuistCommon.PromExPhoenixPlugin,
-             router: TuistWeb.Router, endpoint: TuistWeb.Endpoint, include_controller_action_tags: false}
+             router: TuistWeb.Router,
+             endpoint: TuistWeb.Endpoint,
+             include_controller_action_tags: false,
+             normalize_path: &Tuist.Locale.collapse_locale_path_prefix/1}
           ]
       else
         plugins

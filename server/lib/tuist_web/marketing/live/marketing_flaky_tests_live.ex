@@ -30,7 +30,10 @@ defmodule TuistWeb.Marketing.MarketingFlakyTestsLive do
      |> assign(
        :head_image,
        Tuist.Environment.app_url(
-         path: TuistWeb.Helpers.OpenGraph.marketing_og_image_path("/marketing/images/og/generated/flaky-tests.jpg")
+         path:
+           TuistWeb.Helpers.OpenGraph.image_path(:marketing,
+             title: dgettext("marketing", "Flaky Tests")
+           )
        )
      )
      |> assign(
