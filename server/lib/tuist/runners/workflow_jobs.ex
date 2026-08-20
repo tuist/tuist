@@ -483,6 +483,24 @@ defmodule Tuist.Runners.WorkflowJobs do
     }
   end
 
+  @doc """
+  The ClickHouse `runner_jobs` insert shape for a job's authoritative
+  Postgres state, versioned at `transition_at`. Returns `nil` when no
+  lifecycle row exists.
+
+  The CH-only `log_archived_at` write builds its row through this rather
+  than carrying forward what ClickHouse currently holds: the analytics
+  row trails the outbox flush, so a copy-forward can re-assert a
+  pre-terminal status under a newer `updated_at` and outrank the
+  completion for good.
+  """
+  def ch_insert_row(workflow_job_id, %DateTime{} = transition_at) when is_integer(workflow_job_id) do
+    case Repo.get(WorkflowJob, workflow_job_id) do
+      nil -> nil
+      %WorkflowJob{} = row -> ch_row(row, transition_at)
+    end
+  end
+
   # ----- internal -----
 
   defp transition(workflow_job_id, expected_statuses, new_status, set_fields, guards \\ []) do

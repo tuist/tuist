@@ -434,28 +434,27 @@ defmodule Tuist.Runners.Jobs do
 
   This is the one remaining direct ClickHouse write: `log_archived_at`
   is analytics-store state with no Postgres twin, so the transition
-  outbox never carries it. Safe against replays because a terminal
-  row emits no further outbox events — nothing can land after this
-  INSERT and revert the stamp under the RMT's argMax read.
+  outbox never carries it.
 
-  No-op when no row exists yet for the workflow_job.
+  The row is rebuilt from the Postgres lifecycle row, not from the
+  current ClickHouse row. The INSERT carries a fresh `updated_at` and so
+  outranks every outbox event flushed before it under the RMT's argMax
+  read; sourcing the lifecycle columns from the control-plane store is
+  what keeps it from re-asserting a status the job has already left.
+
+  Jobs with no Postgres twin predate that store and receive no outbox
+  events at all, so for those the current ClickHouse row is the only
+  state there is and carrying it forward is safe.
+
+  No-op when the workflow_job is unknown to both stores.
   """
   def set_log_archived_at(workflow_job_id, archived_at)
       when is_integer(workflow_job_id) and (is_nil(archived_at) or is_struct(archived_at, DateTime)) do
-    case current(workflow_job_id) do
-      nil ->
-        :ok
+    now = DateTime.utc_now()
 
-      %Job{} = job ->
-        now = DateTime.utc_now()
-
-        row =
-          job
-          |> job_to_row()
-          |> Map.merge(%{log_archived_at: archived_at, updated_at: now})
-
-        insert_row!(row)
-        :ok
+    case WorkflowJobs.ch_insert_row(workflow_job_id, now) do
+      nil -> stamp_untracked_row(workflow_job_id, archived_at, now)
+      row -> stamp!(row, archived_at)
     end
   end
 
@@ -1298,6 +1297,27 @@ defmodule Tuist.Runners.Jobs do
       conflict_target: [:workflow_job_id],
       on_conflict: {:replace, [:account_id, :conclusion, :completed_at, :updated_at]}
     )
+
+    :ok
+  end
+
+  defp stamp_untracked_row(workflow_job_id, archived_at, now) do
+    case current(workflow_job_id) do
+      nil ->
+        :ok
+
+      %Job{} = job ->
+        job
+        |> job_to_row()
+        |> Map.put(:updated_at, now)
+        |> stamp!(archived_at)
+    end
+  end
+
+  defp stamp!(row, archived_at) do
+    row
+    |> Map.put(:log_archived_at, archived_at)
+    |> insert_row!()
 
     :ok
   end
