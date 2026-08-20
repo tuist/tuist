@@ -1,0 +1,7 @@
+# Explicit resource list (no directory glob) so a stray file dropped in
+# this dir is never auto-applied. Watched by the `cluster-once` Flux
+# Kustomization (infra/flux/mgmt/), which reconciles ONLY this path.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cluster.yaml
