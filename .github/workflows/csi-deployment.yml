@@ -51,6 +51,7 @@ permissions:
 jobs:
   apply:
     name: CSI (${{ matrix.environment }})
+    if: github.repository == 'tuist/tuist'
     strategy:
       fail-fast: false
       matrix:
