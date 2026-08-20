@@ -529,6 +529,116 @@ struct GenerateServiceTests {
             .cacheLocalStorage()
             .called(0)
     }
+
+    @Test func run_warns_when_no_target_is_resolved_from_the_binary_cache() async throws {
+        try await withMockedDependencies {
+            // Given
+            try await givenAGenerationResolvingBinaryCacheItems(
+                [
+                    "FeatureA": .miss,
+                    "FeatureB": .miss,
+                ],
+                configuration: CacheHashingConfiguration(name: "Release", resolution: .flag)
+            )
+
+            // When
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: "Release",
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+
+            // Then
+            let warning = try #require(AlertController.current.warnings().first)
+            #expect(
+                warning.message.plain() ==
+                    "None of the 2 cacheable targets were resolved from the binary cache for the configuration Release."
+            )
+        }
+    }
+
+    @Test func run_does_not_warn_when_a_target_is_resolved_from_the_binary_cache() async throws {
+        try await withMockedDependencies {
+            // Given
+            try await givenAGenerationResolvingBinaryCacheItems(
+                [
+                    "FeatureA": .remote,
+                    "FeatureB": .miss,
+                ],
+                configuration: CacheHashingConfiguration(name: "Release", resolution: .flag)
+            )
+
+            // When
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: "Release",
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+
+            // Then
+            #expect(AlertController.current.warnings().isEmpty == true)
+        }
+    }
+
+    @Test func run_does_not_warn_when_the_binary_cache_is_ignored() async throws {
+        try await withMockedDependencies {
+            // Given
+            try await givenAGenerationResolvingBinaryCacheItems(
+                [
+                    "FeatureA": .miss,
+                    "FeatureB": .miss,
+                ],
+                configuration: CacheHashingConfiguration(name: "Release", resolution: .flag)
+            )
+
+            // When
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: "Release",
+                ignoreBinaryCache: true,
+                cacheProfile: nil
+            )
+
+            // Then
+            #expect(AlertController.current.warnings().isEmpty == true)
+        }
+    }
+
+    private func givenAGenerationResolvingBinaryCacheItems(
+        _ sources: [String: CacheItem.Source],
+        configuration: CacheHashingConfiguration
+    ) async throws {
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let projectPath = try AbsolutePath(validating: "/Project")
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((workspacePath, .test(), MapperEnvironment()))
+        await RunMetadataStorage.current.update(
+            binaryCacheItems: [
+                projectPath: sources.reduce(into: [:]) { result, element in
+                    result[element.key] = CacheItem(
+                        name: element.key,
+                        hash: "\(element.key)-hash",
+                        source: element.value,
+                        cacheCategory: .binaries
+                    )
+                },
+            ]
+        )
+        await RunMetadataStorage.current.update(cacheHashingConfiguration: configuration)
+    }
+
 }
 
 /// Kept separate from `GenerateServiceTests` because combining `MockInstallServicing` and

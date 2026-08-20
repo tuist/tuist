@@ -74,6 +74,22 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             defaultConfiguration: defaultConfiguration,
             graph: graph
         )
+        let resolution: CacheHashingConfiguration.Resolution = if configuration != nil {
+            .flag
+        } else if defaultConfiguration != nil {
+            .manifest
+        } else {
+            .debugVariantFallback
+        }
+        let hashingConfiguration = CacheHashingConfiguration(
+            name: resolvedConfiguration,
+            resolution: resolution
+        )
+        await RunMetadataStorage.current.update(cacheHashingConfiguration: hashingConfiguration)
+        Logger.current.debug(
+            "Hashing targets against the configuration \(hashingConfiguration.name), resolved from \(hashingConfiguration.resolution.description)"
+        )
+
         let hashingGraph = scopesSettingsToConfiguration
             ? graphByScopingSettings(in: graph, to: resolvedConfiguration)
             : graph

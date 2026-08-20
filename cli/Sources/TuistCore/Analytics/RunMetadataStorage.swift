@@ -55,6 +55,12 @@ public actor RunMetadataStorage {
         self.binaryCacheItems = binaryCacheItems
     }
 
+    /// Configuration the binary cache hashes were computed against, and how it was resolved.
+    public private(set) var cacheHashingConfiguration: CacheHashingConfiguration?
+    public func update(cacheHashingConfiguration: CacheHashingConfiguration?) {
+        self.cacheHashingConfiguration = cacheHashingConfiguration
+    }
+
     /// Selective testing-specific cache items
     public private(set) var selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]] = [:]
     public func update(selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]]) {

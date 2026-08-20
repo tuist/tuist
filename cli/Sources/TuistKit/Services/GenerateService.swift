@@ -162,6 +162,9 @@ public struct GenerateService {
             path: path,
             options: config.project.generatedProject?.generationOptions
         )
+        if resolvedCacheProfile != .none {
+            await warnIfNoTargetsResolvedFromBinaryCache()
+        }
         await persistGenerationMetadata(workspacePath: workspacePath)
         if !noOpen {
             try await opener.open(path: workspacePath)
@@ -171,6 +174,19 @@ public struct GenerateService {
     }
 
     // MARK: - Helpers
+
+    /// Warns when a binary-cache generation resolved none of its cacheable targets from the cache.
+    private func warnIfNoTargetsResolvedFromBinaryCache() async {
+        let cacheItems = await RunMetadataStorage.current.binaryCacheItems.values.flatMap(\.values)
+        guard !cacheItems.isEmpty, cacheItems.allSatisfy({ $0.source == .miss }),
+              let configuration = await RunMetadataStorage.current.cacheHashingConfiguration
+        else { return }
+
+        AlertController.current.warning(.alert(
+            "None of the \(cacheItems.count) cacheable targets were resolved from the binary cache for the configuration \(configuration.name).",
+            takeaway: "The configuration was resolved from \(configuration.resolution.description). Binaries cached for a different configuration hash differently, so make sure the cache was warmed with \(.command("tuist cache --configuration \(configuration.name)"))."
+        ))
+    }
 
     /// Mints a generation identifier, records it on the run so the generate command event carries it
     /// alongside the uploaded graph, and persists it keyed by the generated workspace so a later
