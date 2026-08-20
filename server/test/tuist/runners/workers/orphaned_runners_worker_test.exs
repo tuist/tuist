@@ -228,6 +228,32 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
     end
 
+    test "leaves an aged row alone when its claim records a sibling execution" do
+      # Without evidence the Pod is gone, a claim recording an execution is
+      # a runner that is genuinely busy on some job. Age alone must not
+      # release it: the executor's `completed` webhook would then find
+      # nothing to free and the account would under-count a live runner.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id)
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [orphan] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [] end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _installation, _repository, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      stub(Claims, :executing?, fn _wfid -> true end)
+
+      reject(&Claims.release/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
     test "is a no-op when nothing is orphaned" do
       expect(Jobs, :list_orphaned_running, fn _ -> [] end)
 
@@ -267,6 +293,46 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       end)
 
       expect(Claims, :release, fn _wfid, _handle -> :ok end)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "recovers a row whose Pod is gone even when its claim recorded a sibling execution" do
+      # The busy guard in the queued branch exists because a Pod handed a
+      # sibling's job is still working, so releasing on the claimed job's
+      # GitHub status alone would delete a live runner's reservation
+      # mid-job. A Pod that is gone is not working. Leaving the guard in
+      # force here sends exactly the population this arm targets (GitHub
+      # binds by label set, so executing a sibling's job is the common
+      # shape) back to `PodReconciliationWorker`'s 10-minute grace plus
+      # 5-minute confirmation.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id, pod_name: "pod-gone")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [orphan] end)
+
+      expect(K8sClient, :list_pods, fn _namespace, _selector ->
+        {:ok, pod_items(["pod-alive"])}
+      end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _installation, _repository, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      # The claim survives with `executed_workflow_job_id` set: the Pod
+      # died mid-sibling, so no `completed` webhook ever released it.
+      stub(Claims, :executing?, fn _wfid -> true end)
+
+      expect(Claims, :release, fn wfid, handle ->
+        assert wfid == orphan.workflow_job_id
+        assert handle == orphan.claimed_at
+        :ok
+      end)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
     end
@@ -403,6 +469,39 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       assert :ok =
                OrphanedRunnersWorker.perform(%Oban.Job{
                  args: %{"workflow_job_id" => orphan.workflow_job_id, "pod_name" => orphan.pod_name}
+               })
+    end
+
+    test "recovers even when the pod-stopped release left the claim behind" do
+      # Targeted mode used to satisfy the busy guard only as a side effect
+      # of the controller's report having deleted the claim first. That
+      # made a correctness path depend on one release winning a race it is
+      # not guaranteed to win. The evidence that settles the guard is the
+      # Pod having stopped, which is the caller's whole premise.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id, pod_name: "pod-stopped")
+
+      expect(Jobs, :get_orphaned_running, fn _wfid -> orphan end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _installation, _repository, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      stub(Claims, :executing?, fn _wfid -> true end)
+
+      expect(Claims, :release, fn wfid, handle ->
+        assert wfid == orphan.workflow_job_id
+        assert handle == orphan.claimed_at
+        :ok
+      end)
+
+      assert :ok =
+               OrphanedRunnersWorker.perform(%Oban.Job{
+                 args: %{"workflow_job_id" => orphan.workflow_job_id, "pod_name" => "pod-stopped"}
                })
     end
 
