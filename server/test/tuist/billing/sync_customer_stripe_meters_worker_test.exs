@@ -101,11 +101,13 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
 
     stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> false end)
 
+    stub(Billing, :customer_meter_values, fn ^account, _window_start, _window_end, [include_qa: false] ->
+      [%{event_name: "remote_cache_hit", value: 7}]
+    end)
+
     stub(Billing, :usage_windows, fn ^account, ^period_start_datetime, ^period_end_datetime ->
       {:error, error}
     end)
-
-    reject(&Billing.customer_meter_values/4)
 
     assert {:error, ^error} =
              SyncCustomerStripeMetersWorker.perform(%Oban.Job{
@@ -141,5 +143,76 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
     assert is_integer(job.args["period_start"])
     assert is_integer(job.args["period_end"])
     assert job.args["period_end"] > job.args["period_start"]
+  end
+
+  test "skips boundary discovery when the day earned nothing" do
+    customer_id = UUIDv7.generate()
+    %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+    period_start_datetime = ~U[2026-07-16 00:00:00.000000Z]
+    period_end_datetime = ~U[2026-07-17 00:00:00.000000Z]
+
+    stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> false end)
+
+    expect(Billing, :customer_meter_values, fn ^account,
+                                               ^period_start_datetime,
+                                               ^period_end_datetime,
+                                               [include_qa: false] ->
+      []
+    end)
+
+    # Boundary discovery costs a Stripe request, and the overwhelming
+    # majority of billable customers earn nothing on a given day. Splitting
+    # a window that has no usage to attribute to either side changes
+    # nothing, so the request is not worth spending.
+    reject(&Billing.usage_windows/3)
+
+    assert :ok =
+             SyncCustomerStripeMetersWorker.perform(%Oban.Job{
+               id: 791,
+               args: %{
+                 "customer_id" => customer_id,
+                 "period_start" => DateTime.to_unix(period_start_datetime, :microsecond),
+                 "period_end" => DateTime.to_unix(period_end_datetime, :microsecond)
+               }
+             })
+
+    assert all_enqueued(worker: SyncCustomerStripeMeterWorker) == []
+  end
+
+  test "snapshots usage once when no boundary splits the day" do
+    customer_id = UUIDv7.generate()
+    %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+    period_start_datetime = ~U[2026-07-16 00:00:00.000000Z]
+    period_end_datetime = ~U[2026-07-17 00:00:00.000000Z]
+
+    stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> false end)
+
+    stub(Billing, :usage_windows, fn ^account, ^period_start_datetime, ^period_end_datetime ->
+      {:ok, [{period_start_datetime, period_end_datetime}]}
+    end)
+
+    # Exactly one invocation: the unsplit window is the day the gate
+    # already measured, and each snapshot aggregates over ClickHouse.
+    expect(Billing, :customer_meter_values, 1, fn ^account,
+                                                  ^period_start_datetime,
+                                                  ^period_end_datetime,
+                                                  [include_qa: false] ->
+      [%{event_name: "remote_cache_hit", value: 12}]
+    end)
+
+    assert :ok =
+             SyncCustomerStripeMetersWorker.perform(%Oban.Job{
+               id: 792,
+               args: %{
+                 "customer_id" => customer_id,
+                 "period_start" => DateTime.to_unix(period_start_datetime, :microsecond),
+                 "period_end" => DateTime.to_unix(period_end_datetime, :microsecond)
+               }
+             })
+
+    [job] = all_enqueued(worker: SyncCustomerStripeMeterWorker)
+    assert job.args["value"] == 12
+    assert job.args["period_start"] == DateTime.to_unix(period_start_datetime, :microsecond)
+    assert job.args["period_end"] == DateTime.to_unix(period_end_datetime, :microsecond)
   end
 end
