@@ -522,6 +522,28 @@ defmodule Tuist.Runners.WorkflowJobs do
     }
   end
 
+  @doc """
+  The ClickHouse `runner_jobs` insert shape for this job's
+  authoritative Postgres state, stamped `updated_at: stamped_at`.
+  `nil` when the job has no lifecycle row.
+
+  Exists for `Tuist.Runners.Jobs.set_log_archived_at/2`, the one
+  writer that still inserts into `runner_jobs` outside the transition
+  outbox. It has to carry every other column forward, and reading them
+  back from ClickHouse would copy whichever snapshot the replica
+  happens to hold — a pre-completion one while the outbox is still
+  draining. Stamped newer than the completion event, that snapshot
+  wins the ReplacingMergeTree's `argMax(_, updated_at)` read and
+  reverts the job to `running` for good, because a terminal job emits
+  no further outbox events to correct it.
+  """
+  def ch_insert_row(workflow_job_id, %DateTime{} = stamped_at) when is_integer(workflow_job_id) do
+    case Repo.get(WorkflowJob, workflow_job_id) do
+      nil -> nil
+      %WorkflowJob{} = row -> ch_row(row, stamped_at)
+    end
+  end
+
   # ----- internal -----
 
   defp transition(workflow_job_id, expected_statuses, new_status, set_fields, guards \\ []) do

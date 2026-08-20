@@ -20,6 +20,7 @@ defmodule Tuist.Runners.Concurrency do
   alias Tuist.Runners.Claim
   alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.Job
+  alias Tuist.Runners.RunnerSessions
 
   @platforms [:linux, :macos]
   @default_limits %{
@@ -80,6 +81,15 @@ defmodule Tuist.Runners.Concurrency do
   and every completion into a negative event, then computes the exact
   running resource totals. Bucketing happens after that event sweep so
   even a short-lived peak remains visible in the chart.
+
+  A job with no recorded completion releases its resources at the
+  runner-session ceiling rather than at the end of the window. The slot
+  is held by a runner session, and one cannot outlive that bound, so
+  running such a job to the window's end reports capacity nobody could
+  have been holding — and does it for every day between the missing
+  completion and today, which is how a handful of rows that never
+  received their terminal event turn into a peak many times the
+  account's limit.
   """
   def usage_over_time(account_id, %DateTime{} = start_dt, %DateTime{} = end_dt, bucket)
       when is_integer(account_id) and bucket in [:hour, :day] do
@@ -382,7 +392,14 @@ defmodule Tuist.Runners.Concurrency do
       select: %{
         platform: job.platform,
         active_from: fragment("greatest(?, ?)", job.claimed_at, ^start_dt),
-        active_until: fragment("least(ifNull(?, ?), ?)", job.completed_at, ^end_dt, ^end_dt),
+        active_until:
+          fragment(
+            "least(ifNull(?, ? + toIntervalSecond(?)), ?)",
+            job.completed_at,
+            job.claimed_at,
+            ^RunnerSessions.max_session_lifetime_seconds(),
+            ^end_dt
+          ),
         vcpus:
           fragment(
             """

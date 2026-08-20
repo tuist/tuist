@@ -1215,6 +1215,25 @@ defmodule Tuist.Runners.JobsTest do
       assert {:ok, %{log_archived_at: nil}} = Jobs.get_for_account(account.id, 7351)
     end
 
+    test "does not revert lifecycle state when the completion has not flushed yet" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7352, fleet: "fleet-archive3")
+      {:ok, candidate} = Jobs.pick_queued("fleet-archive3", [])
+      claim!(account, candidate.workflow_job_id, "fleet-archive3", "pod-1")
+      :ok = mark_running!(7352, "runner-x")
+      flush_outbox!()
+
+      {:ok, _} = Jobs.complete(7352, "success")
+      :ok = Jobs.set_log_archived_at(7352, ~U[2026-06-04 15:00:00.000000Z])
+      flush_outbox!()
+
+      assert {:ok, job} = Jobs.get_for_account(account.id, 7352)
+      assert job.status == "completed"
+      assert job.conclusion == "success"
+      assert job.completed_at
+      assert job.log_archived_at == ~U[2026-06-04 15:00:00.000000Z]
+    end
+
     test "is a no-op when the job row doesn't exist yet" do
       assert :ok = Jobs.set_log_archived_at(7_399_998, DateTime.utc_now())
     end

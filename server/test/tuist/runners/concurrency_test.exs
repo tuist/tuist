@@ -225,6 +225,51 @@ defmodule Tuist.Runners.ConcurrencyTest do
     assert usage.linux.memory_gb == [shape.memory_gb, 0]
   end
 
+  test "stops counting a job whose completion was never recorded at the runner session ceiling" do
+    account = account_fixture()
+    claimed_at = datetime("2026-07-10T10:10:00Z")
+
+    {1, _} =
+      IngestRepo.insert_all(Job, [
+        %{
+          workflow_job_id: 94_001 + System.unique_integer([:positive]),
+          account_id: account.id,
+          fleet_name: "linux-pool",
+          platform: "linux",
+          vcpus: 4,
+          memory_gb: 16,
+          repository: "tuist/tuist",
+          workflow_run_id: 94_001,
+          run_attempt: 1,
+          workflow_name: "CI",
+          job_name: "Test",
+          head_branch: "main",
+          head_sha: "abcdef0",
+          status: "running",
+          conclusion: "",
+          enqueued_at: claimed_at,
+          claimed_at: claimed_at,
+          started_at: claimed_at,
+          completed_at: nil,
+          pod_name: "",
+          runner_name: "",
+          requested_dispatch_label: "",
+          updated_at: claimed_at
+        }
+      ])
+
+    usage =
+      Concurrency.usage_over_time(
+        account.id,
+        datetime("2026-07-10T10:00:00Z"),
+        datetime("2026-07-10T20:00:00Z"),
+        :hour
+      )
+
+    assert usage.linux.vcpus == [4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0]
+    assert usage.linux.memory_gb == [16, 16, 16, 16, 16, 16, 16, 0, 0, 0, 0]
+  end
+
   test "does not count a requeued job as continuously claimed" do
     account = account_fixture()
     workflow_job_id = 93_001 + System.unique_integer([:positive])

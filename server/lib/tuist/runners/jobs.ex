@@ -434,28 +434,49 @@ defmodule Tuist.Runners.Jobs do
 
   This is the one remaining direct ClickHouse write: `log_archived_at`
   is analytics-store state with no Postgres twin, so the transition
-  outbox never carries it. Safe against replays because a terminal
-  row emits no further outbox events — nothing can land after this
-  INSERT and revert the stamp under the RMT's argMax read.
+  outbox never carries it.
+
+  The carried-forward columns come from the Postgres lifecycle row, not
+  from ClickHouse. Archiving fires seconds after completion, inside the
+  outbox flusher's window, so the ClickHouse replica still holds the
+  pre-completion snapshot; copying that forward under a fresh
+  `updated_at` reverts the job to `running` permanently, since a
+  terminal job emits no further outbox events to correct it.
+
+  Jobs with no lifecycle row predate Postgres owning that state. They
+  fall back to carrying the ClickHouse row forward, which is safe for
+  exactly the reason it is not above: no outbox event will ever land
+  for them.
 
   No-op when no row exists yet for the workflow_job.
   """
   def set_log_archived_at(workflow_job_id, archived_at)
       when is_integer(workflow_job_id) and (is_nil(archived_at) or is_struct(archived_at, DateTime)) do
-    case current(workflow_job_id) do
+    now = DateTime.utc_now()
+
+    case archive_stamp_row(workflow_job_id, now) do
       nil ->
         :ok
 
-      %Job{} = job ->
-        now = DateTime.utc_now()
+      row ->
+        row
+        |> Map.merge(%{log_archived_at: archived_at, updated_at: now})
+        |> insert_row!()
 
-        row =
-          job
-          |> job_to_row()
-          |> Map.merge(%{log_archived_at: archived_at, updated_at: now})
-
-        insert_row!(row)
         :ok
+    end
+  end
+
+  defp archive_stamp_row(workflow_job_id, now) do
+    case WorkflowJobs.ch_insert_row(workflow_job_id, now) do
+      nil ->
+        case current(workflow_job_id) do
+          nil -> nil
+          %Job{} = job -> job_to_row(job)
+        end
+
+      row ->
+        row
     end
   end
 
