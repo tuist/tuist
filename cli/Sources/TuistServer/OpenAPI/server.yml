@@ -9685,6 +9685,15 @@ paths:
                                   type: string
                                   x-struct:
                                   x-validate:
+                                dependencies:
+                                  description: Names of the targets this target directly depends on (dependency-graph edges). Used to compute downstream blast radius.
+                                  items:
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                  type: array
+                                  x-struct:
+                                  x-validate:
                                 destinations:
                                   description: Destinations for the target
                                   items:
