@@ -646,9 +646,15 @@ defmodule Tuist.Tests do
           create_new_test(attrs, shard_index, shard_plan)
 
         existing_test ->
+          # Merged before the test case runs are built, not just before the
+          # Test row is rewritten: the runs copy `scheme` and the git fields
+          # off this struct, and the shard that first carries parsed metadata
+          # would otherwise stamp them with the placeholder row's blanks.
+          merged_test = merge_shard_metadata(existing_test, attrs)
+
           {test_case_ids_with_flaky_run, test_case_runs} =
             OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
-              create_test_modules(existing_test, test_modules, shard_index, shard_plan)
+              create_test_modules(merged_test, test_modules, shard_index, shard_plan)
             end
 
           # Every shard carries its own errors, and only unattributed issues
@@ -657,7 +663,7 @@ defmodule Tuist.Tests do
           # already-red run. Shards write concurrently and ClickHouse has no
           # uniqueness, so an error hit by several shards is deduplicated on
           # read instead of here.
-          create_run_errors(existing_test, Map.get(attrs, :run_errors, []))
+          create_run_errors(merged_test, Map.get(attrs, :run_errors, []))
 
           insert_shard_run(
             shard_plan_id,
@@ -692,10 +698,9 @@ defmodule Tuist.Tests do
           merged_duration = max(existing_test.duration, shard_duration)
 
           updated_test =
-            existing_test
+            merged_test
             |> Map.put(:status, merged_status)
             |> Map.put(:duration, merged_duration)
-            |> merge_shard_metadata(attrs)
 
           update_attrs =
             updated_test
