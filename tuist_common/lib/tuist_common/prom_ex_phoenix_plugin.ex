@@ -10,6 +10,13 @@ defmodule TuistCommon.PromExPhoenixPlugin do
   the same page under many prefixes multiplies every HTTP metric by that many.
   Pass `:normalize_path`, a 1-arity function, to rewrite the resolved route
   before it becomes a label and fold those variants back together.
+
+  The request duration histogram also drops the status label. Every label
+  combination it carries is multiplied by the bucket count, and a route keeps
+  minting combinations as it serves statuses it had not served before, so
+  status is the tag that makes the histogram grow the longest. Latency is read
+  per route rather than per status code, and `http_requests_total` still tags
+  on status for rates and error ratios.
   """
 
   use PromEx.Plugin
@@ -139,6 +146,8 @@ defmodule TuistCommon.PromExPhoenixPlugin do
         include_controller_action_tags
       )
 
+    duration_metrics_tags = http_metrics_tags -- [status_tag]
+
     duration_unit = Keyword.get(opts, :duration_unit, :millisecond)
     duration_unit_plural = Utils.make_plural_atom(duration_unit)
     normalize_path = Keyword.get(opts, :normalize_path, & &1)
@@ -158,7 +167,7 @@ defmodule TuistCommon.PromExPhoenixPlugin do
             buckets: [10, 100, 500, 1_000, 5_000, 10_000, 30_000]
           ],
           tag_values: conn_tags,
-          tags: http_metrics_tags,
+          tags: duration_metrics_tags,
           unit: {:native, duration_unit}
         ),
         distribution(

@@ -2067,7 +2067,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "100 * (sum(rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_count{env=~\"$environment\", pod=~\"$pod\", status_class=\"5xx\"}[$__rate_interval])) or vector(0)) / clamp_min(sum(rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_count{env=~\"$environment\", pod=~\"$pod\"}[$__rate_interval])), 0.001)",
+                        "expr": "100 * (sum(rate(tuist_registry_prom_ex_phoenix_http_requests_total{env=~\"$environment\", pod=~\"$pod\", status_class=\"5xx\"}[$__rate_interval])) or vector(0)) / clamp_min(sum(rate(tuist_registry_prom_ex_phoenix_http_requests_total{env=~\"$environment\", pod=~\"$pod\"}[$__rate_interval])), 0.001)",
                         "instant": true,
                         "queryType": "instant",
                         "range": false
@@ -2251,7 +2251,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(increase(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_count{env=~\"$environment\", pod=~\"$pod\", method=\"GET\", path=~\"/(api/registry/)?swift/:scope/:name/:version\", status_class=\"3xx\"}[$__range])) or vector(0)",
+                        "expr": "sum(increase(tuist_registry_prom_ex_phoenix_http_requests_total{env=~\"$environment\", pod=~\"$pod\", method=\"GET\", path=~\"/(api/registry/)?swift/:scope/:name/:version\", status_class=\"3xx\"}[$__range])) or vector(0)",
                         "instant": true,
                         "range": false
                       },
@@ -2332,7 +2332,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(increase(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_count{env=~\"$environment\", pod=~\"$pod\", method=\"GET\", path=~\"/(api/registry/)?swift/:scope/:name/:version/Package[.]swift\", status_class=\"2xx\"}[$__range])) or vector(0)",
+                        "expr": "sum(increase(tuist_registry_prom_ex_phoenix_http_requests_total{env=~\"$environment\", pod=~\"$pod\", method=\"GET\", path=~\"/(api/registry/)?swift/:scope/:name/:version/Package[.]swift\", status_class=\"2xx\"}[$__range])) or vector(0)",
                         "instant": true,
                         "range": false
                       },
@@ -2538,7 +2538,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum by (env, status_class) (rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_count{env=~\"$environment\", pod=~\"$pod\", status_class=~\"4xx|5xx\"}[$__rate_interval]))",
+                        "expr": "sum by (env, status_class) (rate(tuist_registry_prom_ex_phoenix_http_requests_total{env=~\"$environment\", pod=~\"$pod\", status_class=~\"4xx|5xx\"}[$__rate_interval]))",
                         "instant": false,
                         "queryType": "range",
                         "range": true

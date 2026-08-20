@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    net::IpAddr,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -29,11 +28,11 @@ use crate::{
     auth::{AccessDecision, RequestContext},
     bandwidth::BandwidthLimiter,
     constants::{
-        BACKFILL_BODIES_BATCH_BYTES, BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN,
-        MAX_BACKFILL_BODIES_ENTRIES, MAX_BACKFILL_BODIES_REQUEST_BYTES, MAX_BOOTSTRAP_PAGE_ITEMS,
-        MAX_GRADLE_BYTES, MAX_INLINE_REPLICATION_BODY_BYTES, MAX_MODULE_PART_BYTES,
-        MAX_MODULE_TOTAL_BYTES, MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
-        RESPONSE_STREAM_MIN_CHUNK_BYTES, response_stream_chunk_bytes,
+        BACKFILL_BODIES_BATCH_BYTES, MAX_BACKFILL_BODIES_ENTRIES,
+        MAX_BACKFILL_BODIES_REQUEST_BYTES, MAX_GRADLE_BYTES, MAX_INLINE_REPLICATION_BODY_BYTES,
+        MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES, MAX_PEER_PAGE_ITEMS,
+        MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES, RESPONSE_STREAM_MIN_CHUNK_BYTES,
+        response_stream_chunk_bytes,
     },
     io::is_fd_pool_exhausted_error,
     memory::{
@@ -47,9 +46,8 @@ use crate::{
     runtime::{HttpTrafficClass, InflightGuard},
     state::SharedState,
     store::{
-        BACKFILL_STALE_RETIRE_BATCH, BackfillIndexPage, ManifestDigest, StagedArtifactPath,
-        backfill_record_kind, is_disk_full_error, is_multipart_capacity_error,
-        is_outbox_full_error, manifest_version_ms,
+        BACKFILL_STALE_RETIRE_BATCH, BackfillIndexPage, StagedArtifactPath, backfill_record_kind,
+        is_disk_full_error, is_multipart_capacity_error, is_outbox_full_error, manifest_version_ms,
     },
     telemetry::{attach_parent_context, record_trace_context},
     utils::{
@@ -66,6 +64,7 @@ const HTTP_RESPONSE_STREAM_RESERVATION_BYTES: usize =
 const ROUTE_UP: &str = "/up";
 const ROUTE_READY: &str = "/ready";
 const ROUTE_ROLLOUT_STATUS: &str = "/status/rollout";
+const ROUTE_STATUS_CLUSTER: &str = "/status/cluster";
 const ROUTE_METRICS: &str = "/metrics";
 const ROUTE_V1_CACHE: &str = "/v1/cache/{hash}";
 const ROUTE_API_METRO_CACHE: &str = "/api/metro/cache/{cache_key}";
@@ -79,24 +78,19 @@ const ROUTE_API_CACHE_MODULE_COMPLETE: &str = "/api/cache/module/complete";
 const ROUTE_API_CACHE_CLEAN: &str = "/api/cache/clean";
 const ROUTE_API_CACHE_GRADLE: &str = "/api/cache/gradle/{cache_key}";
 const ROUTE_INTERNAL_STATUS: &str = "/_internal/status";
-const ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS: &str = "/_internal/bootstrap/manifests";
-const ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS_DIGEST: &str = "/_internal/bootstrap/digest";
-const ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES: &str =
-    "/_internal/bootstrap/namespace_tombstones";
-const ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT: &str = "/_internal/bootstrap/artifacts/{artifact_id}";
 const ROUTE_INTERNAL_BACKFILL_ENTRIES: &str = "/_internal/backfill/entries";
 const ROUTE_INTERNAL_BACKFILL_BODIES: &str = "/_internal/backfill/bodies";
-// Re-homed alias of ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT: the oversized-entry
-// path of the backfill protocol. The old route survives until Release C.
+// The oversized-entry path of the backfill protocol.
 const ROUTE_INTERNAL_BACKFILL_ARTIFACT: &str = "/_internal/backfill/artifacts/{artifact_id}";
 const ROUTE_INTERNAL_REPLICATE_ARTIFACT: &str = "/_internal/replicate/artifact";
 const ROUTE_INTERNAL_REPLICATE_NAMESPACE: &str = "/_internal/replicate/namespace";
 const UNMATCHED_ROUTE: &str = "/_unmatched";
 
-const EXACT_ROUTE_TEMPLATES: [&str; 17] = [
+const EXACT_ROUTE_TEMPLATES: [&str; 15] = [
     ROUTE_UP,
     ROUTE_READY,
     ROUTE_ROLLOUT_STATUS,
+    ROUTE_STATUS_CLUSTER,
     ROUTE_METRICS,
     ROUTE_API_CACHE_KEYVALUE,
     ROUTE_API_CACHE_MODULE_START,
@@ -104,23 +98,19 @@ const EXACT_ROUTE_TEMPLATES: [&str; 17] = [
     ROUTE_API_CACHE_MODULE_COMPLETE,
     ROUTE_API_CACHE_CLEAN,
     ROUTE_INTERNAL_STATUS,
-    ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS,
-    ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS_DIGEST,
-    ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES,
     ROUTE_INTERNAL_BACKFILL_ENTRIES,
     ROUTE_INTERNAL_BACKFILL_BODIES,
     ROUTE_INTERNAL_REPLICATE_ARTIFACT,
     ROUTE_INTERNAL_REPLICATE_NAMESPACE,
 ];
 
-const DYNAMIC_ROUTE_TEMPLATES: [&str; 8] = [
+const DYNAMIC_ROUTE_TEMPLATES: [&str; 7] = [
     ROUTE_V1_CACHE,
     ROUTE_API_METRO_CACHE,
     ROUTE_API_CACHE_KEYVALUE_ID,
     ROUTE_API_CACHE_CAS,
     ROUTE_API_CACHE_MODULE,
     ROUTE_API_CACHE_GRADLE,
-    ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT,
     ROUTE_INTERNAL_BACKFILL_ARTIFACT,
 ];
 
@@ -259,6 +249,7 @@ fn public_routes() -> Router<SharedState> {
         .route(ROUTE_UP, get(up))
         .route(ROUTE_READY, get(ready))
         .route(ROUTE_ROLLOUT_STATUS, get(rollout_status))
+        .route(ROUTE_STATUS_CLUSTER, get(cluster_status))
         .route(ROUTE_METRICS, get(metrics_handler))
         .route(ROUTE_V1_CACHE, get(get_nx).put(put_nx))
         .route(ROUTE_API_METRO_CACHE, get(get_metro).put(put_metro))
@@ -279,22 +270,6 @@ fn public_routes() -> Router<SharedState> {
 fn internal_routes() -> Router<SharedState> {
     Router::new()
         .route(ROUTE_INTERNAL_STATUS, get(internal_status))
-        .route(
-            ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS,
-            get(internal_bootstrap_manifests),
-        )
-        .route(
-            ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS_DIGEST,
-            get(internal_bootstrap_manifests_digest),
-        )
-        .route(
-            ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES,
-            get(internal_bootstrap_namespace_tombstones),
-        )
-        .route(
-            ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT,
-            get(internal_bootstrap_artifact),
-        )
         .route(
             ROUTE_INTERNAL_BACKFILL_ENTRIES,
             get(internal_backfill_entries),
@@ -460,13 +435,6 @@ struct ReplicateArtifactQuery {
     trunk: Option<String>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-struct PageQuery {
-    after: Option<String>,
-    prefix: Option<String>,
-    limit: usize,
-}
-
 #[derive(Clone, Copy)]
 struct ProjectAnalyticsContext<'a> {
     tenant_id: &'a str,
@@ -489,40 +457,6 @@ struct BlobPutSpec<'a> {
     existing_status: StatusCode,
     analytics: Option<ProjectAnalyticsContext<'a>>,
     usage: Option<UsageContext>,
-}
-
-impl PageQuery {
-    fn from_params(params: &HashMap<String, String>) -> Result<Self, String> {
-        let limit = params
-            .get("limit")
-            .map(|value| {
-                value
-                    .parse::<usize>()
-                    .map_err(|error| format!("Invalid limit: {error}"))
-            })
-            .transpose()?
-            .unwrap_or(256);
-        if limit == 0 {
-            return Err("Invalid limit: must be greater than 0".to_string());
-        }
-        if limit > MAX_BOOTSTRAP_PAGE_ITEMS {
-            return Err(format!(
-                "Invalid limit: must not exceed {MAX_BOOTSTRAP_PAGE_ITEMS}"
-            ));
-        }
-
-        Ok(Self {
-            after: params
-                .get("after")
-                .cloned()
-                .filter(|value| !value.is_empty()),
-            prefix: params
-                .get("prefix")
-                .cloned()
-                .filter(|value| !value.is_empty()),
-            limit,
-        })
-    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -560,7 +494,7 @@ impl BackfillEntriesQuery {
         // work, and a requester asking for more just pages more often.
         Ok(Self {
             after,
-            limit: limit.min(MAX_BOOTSTRAP_PAGE_ITEMS),
+            limit: limit.min(MAX_PEER_PAGE_ITEMS),
         })
     }
 }
@@ -1042,16 +976,6 @@ async fn track_http_metrics(
     let _request_guard = state.start_http_request(traffic_class);
     let method = req.method().to_string();
     let uri_path = req.uri().path().to_owned();
-    let client_location = state
-        .geoip
-        .as_ref()
-        .and_then(|geoip| client_ip_from_headers(req.headers()).and_then(|ip| geoip.locate(ip)));
-    let client_country = client_location
-        .as_ref()
-        .and_then(|location| location.country.clone());
-    let client_subdivision = client_location
-        .as_ref()
-        .and_then(|location| location.subdivision.clone());
 
     let request_span = tracing::info_span!(
         "http.request",
@@ -1060,19 +984,11 @@ async fn track_http_metrics(
         http.request.method = %method,
         http.route = %route,
         url.path = %uri_path,
-        geo.country.iso_code = field::Empty,
-        geo.region.iso_code = field::Empty,
         http.response.status_code = field::Empty,
         otel.status_code = field::Empty,
         trace_id = field::Empty,
         span_id = field::Empty,
     );
-    if let Some(country) = client_country.as_deref() {
-        request_span.record("geo.country.iso_code", country);
-    }
-    if let Some(subdivision) = client_subdivision.as_deref() {
-        request_span.record("geo.region.iso_code", subdivision);
-    }
     attach_parent_context(&request_span, req.headers());
     record_trace_context(&request_span);
 
@@ -1088,32 +1004,13 @@ async fn track_http_metrics(
             .runtime
             .record_public_request_latency(&state.metrics, "http", &route, elapsed);
     }
-    state
-        .metrics
-        .record_http(route, response.status(), client_country, elapsed);
+    state.metrics.record_http(route, response.status(), elapsed);
 
     response
 }
 
 fn is_public_load_route(route: &str) -> bool {
     !is_probe_route(route) && !route.starts_with("/_internal/") && route != UNMATCHED_ROUTE
-}
-
-fn client_ip_from_headers(headers: &axum::http::HeaderMap) -> Option<IpAddr> {
-    if let Some(value) = headers.get("x-forwarded-for")
-        && let Ok(text) = value.to_str()
-        && let Some(first) = text.split(',').next()
-        && let Ok(ip) = first.trim().parse::<IpAddr>()
-    {
-        return Some(ip);
-    }
-    if let Some(value) = headers.get("x-real-ip")
-        && let Ok(text) = value.to_str()
-        && let Ok(ip) = text.trim().parse::<IpAddr>()
-    {
-        return Some(ip);
-    }
-    None
 }
 
 async fn reject_draining_public_requests(
@@ -1170,7 +1067,7 @@ async fn reject_overloaded_public_writes(
 /// (`KURA_REPLICATION_UPLOAD_STALL_MS`, 60 s by default) — one stalled
 /// receiver holding up a drain loop that is serial and node-wide. Returning
 /// 503 lets the source retry immediately with its normal 2-second backoff.
-/// Reads (bootstrap, status) are unaffected.
+/// Reads (backfill, status) are unaffected.
 async fn reject_overloaded_internal_writes(
     State(state): State<SharedState>,
     req: Request,
@@ -1269,7 +1166,7 @@ fn skips_authorization(route: &str) -> bool {
 fn is_probe_route(route: &str) -> bool {
     matches!(
         route,
-        ROUTE_UP | ROUTE_READY | ROUTE_ROLLOUT_STATUS | ROUTE_METRICS
+        ROUTE_UP | ROUTE_READY | ROUTE_ROLLOUT_STATUS | ROUTE_STATUS_CLUSTER | ROUTE_METRICS
     )
 }
 
@@ -1534,7 +1431,26 @@ fn status_from_u16(status: u16) -> StatusCode {
     StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
 }
 
+// Liveness. Answers from process-local configuration only: no peer
+// round-trips, no cluster aggregation, and no lock a loaded request path can
+// hold. A failed probe here restarts the pod, so anything the handler waits
+// on turns "this node is busy" into "this node is dead". This route has no
+// variant that relaxes that: the node's view of the cluster lives on
+// ROUTE_STATUS_CLUSTER, where request classification (which keys off the path
+// template, never the query) can tell the two costs apart.
 async fn up(State(state): State<SharedState>) -> impl IntoResponse {
+    Json(serde_json::json!({
+        "status": "ok",
+        "tenant_id": state.config.tenant_id.clone(),
+        "region": state.config.region.clone(),
+        "node": state.config.region.clone(),
+        "node_url": state.config.node_url.clone(),
+    }))
+}
+
+// The node's own view of the cluster. Aggregates under the readiness lock, so
+// it is deliberately off the liveness path.
+async fn cluster_status(State(state): State<SharedState>) -> impl IntoResponse {
     let cluster = state.cluster_status_report().await;
     let mut regions = cluster.peer_regions;
     regions.push(state.config.region.clone());
@@ -1578,8 +1494,6 @@ async fn ready(State(state): State<SharedState>) -> impl IntoResponse {
             "writer_lock_owned": readiness.writer_lock_owned,
             "initial_discovery_completed": readiness.initial_discovery_completed,
             "known_peers": readiness.known_peers,
-            "bootstrapped_peers": readiness.bootstrapped_peers,
-            "bootstrap_inflight_peers": readiness.bootstrap_inflight_peers,
             "http_inflight_requests": readiness.http_inflight,
             "grpc_inflight_requests": readiness.grpc_inflight,
             "reasons": readiness.reasons,
@@ -1590,51 +1504,26 @@ async fn ready(State(state): State<SharedState>) -> impl IntoResponse {
 
 async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
     let status = state.rollout_status_report().await;
-    let mut body = serde_json::json!({
+    // `backfill_initial_cycle` is the catch-up gate contract consumers
+    // (gate.sh, the kura-controller) read: pending | complete | degraded.
+    Json(serde_json::json!({
         "generation": status.generation,
         "ready": status.ready,
         "state": status.state.as_str(),
         "ring_members": status.ring_members,
         "initial_discovery_completed": status.initial_discovery_completed,
         "writer_lock_owned": status.writer_lock_owned,
-        "bootstrap_known_peers": status.bootstrap_known_peers,
-        "bootstrap_completed_peers": status.bootstrap_completed_peers,
-        "bootstrap_inflight_peers": status.bootstrap_inflight_peers,
         "http_inflight_requests": status.http_inflight,
         "grpc_inflight_requests": status.grpc_inflight,
         "outbox_messages": status.outbox_messages,
         "memory_pressure_state": status.memory_pressure_state,
         "fd_timeout_count": status.fd_timeout_count,
-    });
-    // The backfill field family appears only under KURA_BACKFILL_ENABLED, so
-    // a flag-off node's report is byte-compatible with pre-backfill releases
-    // and field presence is how mode-aware consumers (gate.sh, the
-    // kura-controller) tell the walkers apart. `backfill_initial_cycle` is
-    // the promotion-gate contract: pending | complete | degraded.
-    if let Some(backfill) = &status.backfill {
-        let object = body.as_object_mut().expect("rollout status is an object");
-        object.insert(
-            "backfill_initial_cycle".into(),
-            backfill.initial_cycle.as_str().into(),
-        );
-        object.insert(
-            "backfill_backfilling_peers".into(),
-            backfill.backfilling_peers.into(),
-        );
-        object.insert(
-            "backfill_budget_exhausted_real_peers".into(),
-            backfill.budget_exhausted_real.into(),
-        );
-        object.insert(
-            "backfill_budget_exhausted_capability_peers".into(),
-            backfill.budget_exhausted_capability.into(),
-        );
-        object.insert(
-            "backfill_ring_fullness_percent".into(),
-            backfill.ring_fullness_percent.into(),
-        );
-    }
-    Json(body)
+        "backfill_initial_cycle": status.backfill.initial_cycle.as_str(),
+        "backfill_backfilling_peers": status.backfill.backfilling_peers,
+        "backfill_budget_exhausted_real_peers": status.backfill.budget_exhausted_real,
+        "backfill_budget_exhausted_capability_peers": status.backfill.budget_exhausted_capability,
+        "backfill_ring_fullness_percent": status.backfill.ring_fullness_percent,
+    }))
 }
 
 async fn metrics_handler(State(state): State<SharedState>) -> impl IntoResponse {
@@ -2338,112 +2227,11 @@ async fn internal_status(
     }))
 }
 
-async fn internal_bootstrap_manifests(
-    Query(params): Query<HashMap<String, String>>,
-    State(state): State<SharedState>,
-) -> Response {
-    let query = match PageQuery::from_params(&params) {
-        Ok(query) => query,
-        Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
-    };
-
-    match state.store.manifests_page_scoped(
-        query.after.as_deref(),
-        query.prefix.as_deref(),
-        query.limit,
-    ) {
-        Ok(page) => Json(page).into_response(),
-        Err(error) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to list bootstrap manifests: {error}"),
-        ),
-    }
-}
-
-async fn internal_bootstrap_manifests_digest(
-    Query(params): Query<HashMap<String, String>>,
-    State(state): State<SharedState>,
-) -> Response {
-    let prefix_len = match params.get("prefix_len") {
-        Some(value) => match value.parse::<usize>() {
-            Ok(prefix_len) if prefix_len == BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN => prefix_len,
-            _ => {
-                return error_response(
-                    StatusCode::BAD_REQUEST,
-                    format!("Invalid prefix_len: must equal {BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN}"),
-                );
-            }
-        },
-        None => BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN,
-    };
-
-    match state.store.manifests_digest(prefix_len) {
-        Ok(buckets) => Json(ManifestDigest {
-            prefix_len,
-            buckets,
-        })
-        .into_response(),
-        Err(error) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to compute bootstrap manifest digest: {error}"),
-        ),
-    }
-}
-
-async fn internal_bootstrap_namespace_tombstones(
-    Query(params): Query<HashMap<String, String>>,
-    State(state): State<SharedState>,
-) -> Response {
-    let query = match PageQuery::from_params(&params) {
-        Ok(query) => query,
-        Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
-    };
-
-    match state
-        .store
-        .namespace_tombstones_page(query.after.as_deref(), query.limit)
-    {
-        Ok(page) => Json(page).into_response(),
-        Err(error) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to list bootstrap tombstones: {error}"),
-        ),
-    }
-}
-
-async fn internal_bootstrap_artifact(
-    AxumPath(artifact_id): AxumPath<String>,
-    State(state): State<SharedState>,
-) -> Response {
-    match state
-        .store
-        .fetch_artifact_by_id_for_serving(&artifact_id)
-        .await
-    {
-        Ok(Some(manifest)) => {
-            serve_file_reader(
-                &state,
-                StatusCode::OK,
-                &manifest,
-                state.replication_bandwidth_limiter.clone(),
-                ResponseStreamClass::Bootstrap,
-            )
-            .await
-        }
-        Ok(None) => StatusCode::NOT_FOUND.into_response(),
-        Err(error) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to load bootstrap artifact: {error}"),
-        ),
-    }
-}
-
-/// The re-homed per-artifact backfill endpoint (R11's oversized path). Unlike
-/// the legacy raw-body `internal_bootstrap_artifact`, the response is a single
-/// bodies-stream frame: the requester needs the manifest meta to apply, and
-/// framing it with the same codec keeps one wire definition and the same
-/// resolved-with-the-body guarantee as the batch endpoint. A record that no
-/// longer resolves is a 404 (the requester's absent case).
+/// The per-artifact backfill endpoint (R11's oversized path). The response is
+/// a single bodies-stream frame: the requester needs the manifest meta to
+/// apply, and framing it with the same codec keeps one wire definition and the
+/// same resolved-with-the-body guarantee as the batch endpoint. A record that
+/// no longer resolves is a 404 (the requester's absent case).
 async fn internal_backfill_artifact(
     AxumPath(artifact_id): AxumPath<String>,
     State(state): State<SharedState>,
@@ -2575,7 +2363,7 @@ fn backfill_unavailable_response(error: &str, message: &str) -> Response {
     )
         .into_response();
     // Retry-After marks the response as retryable backpressure to the peer
-    // client's existing classifier (is_retryable_bootstrap_backpressure).
+    // pass's response classifier (`classify_backfill_response`).
     response.headers_mut().insert(
         axum::http::header::RETRY_AFTER,
         HeaderValue::from_static("1"),
@@ -2667,7 +2455,7 @@ async fn internal_backfill_bodies(State(state): State<SharedState>, request: Req
     };
 
     // Stream the spooled file under the same background admission and
-    // bandwidth shaping as legacy bootstrap serving.
+    // bandwidth shaping as the per-artifact backfill endpoint.
     let requested_bytes = response_stream_chunk_bytes(spool.file_len).saturating_mul(4);
     let permit = match state
         .memory
@@ -2899,7 +2687,7 @@ async fn spool_backfill_bodies_inner(
             (header.len() as u64).saturating_add(body.as_ref().map_or(0, |(size, _)| *size));
         reservations.push(
             state
-                .bootstrap_staging_budget
+                .peer_staging_budget
                 .try_reserve(frame_len)
                 .map_err(BackfillSpoolError::TmpBudget)?,
         );
@@ -2976,8 +2764,8 @@ async fn internal_replicate_artifact(
 
     if query.inline {
         // Bound the inline body by the same ceiling the sender and the
-        // bootstrap-pull path use (MAX_INLINE_REPLICATION_BODY_BYTES), not by
-        // the client-facing key-value limit. The latter defaults to 1 MiB
+        // backfill body-fetch path use (MAX_INLINE_REPLICATION_BODY_BYTES), not
+        // by the client-facing key-value limit. The latter defaults to 1 MiB
         // while inline artifacts (notably large REAPI action results) may be
         // up to 4 MiB, so keying off it here rejected every 1–4 MiB entry with
         // a 413 and left it replicating forever from a poison outbox message.
@@ -3408,14 +3196,7 @@ async fn serve_file(
                 // smaller degraded pool. Waiting here first would only delay
                 // that fallback by a full admission timeout.
                 None => {
-                    return serve_file_reader(
-                        state,
-                        status,
-                        manifest,
-                        None,
-                        ResponseStreamClass::Public,
-                    )
-                    .await;
+                    return serve_file_reader(state, status, manifest).await;
                 }
             };
             let stream = instrument_artifact_stream(state, manifest, bytes_chunks(bytes), true);
@@ -3425,32 +3206,30 @@ async fn serve_file(
             attach_response_stream_permit(&mut response, permit);
             response
         }
-        Ok(None) => {
-            serve_file_reader(state, status, manifest, None, ResponseStreamClass::Public).await
-        }
+        Ok(None) => serve_file_reader(state, status, manifest).await,
         Err(error) => {
             tracing::warn!(
                 artifact_id = %manifest.artifact_id,
                 %error,
                 "mmap artifact serving failed; falling back to streaming reader"
             );
-            serve_file_reader(state, status, manifest, None, ResponseStreamClass::Public).await
+            serve_file_reader(state, status, manifest).await
         }
     }
 }
 
-#[derive(Clone, Copy)]
-enum ResponseStreamClass {
-    Public,
-    Bootstrap,
-}
-
+/// Streams an artifact from a reader to a public cache response.
+///
+/// Public-only since the legacy bootstrap serving plane was retired: peer
+/// catch-up no longer streams artifacts through here, so there is no second
+/// admission class and no bandwidth limiter on this path. Backfill's own
+/// serving (`internal_backfill_bodies`) reserves from the background pool
+/// instead, and is shed there rather than degraded — internal peer traffic
+/// retries on its own schedule.
 async fn serve_file_reader(
     state: &SharedState,
     status: StatusCode,
     manifest: &ArtifactManifest,
-    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
-    class: ResponseStreamClass,
 ) -> Response {
     state.metrics.record_artifact_serving_path("streaming");
     let inline_bytes = if manifest.inline { manifest.size } else { 0 };
@@ -3461,46 +3240,35 @@ async fn serve_file_reader(
             .saturating_add(inline_bytes),
     )
     .unwrap_or(usize::MAX);
-    let (permit, stream_chunk_bytes) = match class {
-        // A public read first degrades to the minimum chunk. If even that
-        // bounded path has no slot or live headroom, shed it with a retryable
-        // response rather than opening an unaccounted stream.
-        ResponseStreamClass::Public => match state
-            .memory
-            .acquire_response_stream_memory(
-                requested_bytes,
-                "http",
-                ResponseStreamAdmissionPatience::Degradable,
+    // A public read first degrades to the minimum chunk. If even that bounded
+    // path has no slot or live headroom, shed it with a retryable response
+    // rather than opening an unaccounted stream.
+    let (permit, stream_chunk_bytes) = match state
+        .memory
+        .acquire_response_stream_memory(
+            requested_bytes,
+            "http",
+            ResponseStreamAdmissionPatience::Degradable,
+        )
+        .await
+    {
+        Ok(permit) => (permit, stream_chunk_bytes),
+        Err(_) => {
+            let degraded_bytes = usize::try_from(
+                u64::try_from(RESPONSE_STREAM_MIN_CHUNK_BYTES.saturating_mul(4))
+                    .unwrap_or(u64::MAX)
+                    .saturating_add(inline_bytes),
             )
-            .await
-        {
-            Ok(permit) => (permit, stream_chunk_bytes),
-            Err(_) => {
-                let degraded_bytes = usize::try_from(
-                    u64::try_from(RESPONSE_STREAM_MIN_CHUNK_BYTES.saturating_mul(4))
-                        .unwrap_or(u64::MAX)
-                        .saturating_add(inline_bytes),
-                )
-                .unwrap_or(usize::MAX);
-                match state
-                    .memory
-                    .acquire_degraded_response_stream_memory(degraded_bytes, "http")
-                    .await
-                {
-                    Ok(permit) => (permit, RESPONSE_STREAM_MIN_CHUNK_BYTES),
-                    Err(_) => return response_stream_unavailable(),
-                }
+            .unwrap_or(usize::MAX);
+            match state
+                .memory
+                .acquire_degraded_response_stream_memory(degraded_bytes, "http")
+                .await
+            {
+                Ok(permit) => (permit, RESPONSE_STREAM_MIN_CHUNK_BYTES),
+                Err(_) => return response_stream_unavailable(),
             }
-        },
-        // Bootstrap is internal peer traffic that retries on its own schedule,
-        // so shedding it keeps the background bound intact.
-        ResponseStreamClass::Bootstrap => match state
-            .memory
-            .try_acquire_background_response_stream_memory(requested_bytes, "bootstrap")
-        {
-            Ok(permit) => (permit, stream_chunk_bytes),
-            Err(_) => return response_stream_unavailable(),
-        },
+        }
     };
     // Tolerates a concurrent background promotion relocating the artifact
     // between the caller's manifest fetch and this open (see
@@ -3514,13 +3282,7 @@ async fn serve_file_reader(
     {
         Ok(Some((manifest, reader))) => {
             let stream = ReaderStream::with_capacity(reader, stream_chunk_bytes);
-            let stream = throttle_body_stream(stream, bandwidth_limiter);
-            let stream = instrument_artifact_stream(
-                state,
-                &manifest,
-                stream,
-                matches!(class, ResponseStreamClass::Public),
-            );
+            let stream = instrument_artifact_stream(state, &manifest, stream, true);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             apply_artifact_response_headers(&mut response, &manifest);
@@ -3766,22 +3528,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn bootstrap_page_query_rejects_unbounded_limits() {
-        let maximum = HashMap::from([("limit".to_owned(), MAX_BOOTSTRAP_PAGE_ITEMS.to_string())]);
-        assert_eq!(
-            PageQuery::from_params(&maximum)
-                .expect("maximum bootstrap page should be accepted")
-                .limit,
-            MAX_BOOTSTRAP_PAGE_ITEMS
-        );
-        let oversized = HashMap::from([("limit".to_owned(), usize::MAX.to_string())]);
-        assert_eq!(
-            PageQuery::from_params(&oversized).expect_err("oversized page must be rejected"),
-            format!("Invalid limit: must not exceed {MAX_BOOTSTRAP_PAGE_ITEMS}")
-        );
-    }
-
     async fn assert_json_error_response(response: Response, status: StatusCode, message: &str) {
         assert_eq!(response.status(), status);
         assert_eq!(
@@ -3795,7 +3541,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn up_includes_current_node_and_known_members() {
+    async fn cluster_status_includes_current_node_and_known_members() {
         let context = test_context(|config| {
             config.region = "us-east".into();
         })
@@ -3815,7 +3561,7 @@ mod tests {
         let response = router(context.state.clone())
             .oneshot(
                 Request::builder()
-                    .uri("/up")
+                    .uri("/status/cluster")
                     .body(Body::empty())
                     .expect("failed to build request"),
             )
@@ -3841,7 +3587,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn up_reports_unique_regions_separately_from_node_members() {
+    async fn cluster_status_reports_unique_regions_separately_from_node_members() {
         let context = test_context(|config| {
             config.region = "eu-central".into();
         })
@@ -3867,7 +3613,7 @@ mod tests {
         let response = router(context.state.clone())
             .oneshot(
                 Request::builder()
-                    .uri("/up")
+                    .uri("/status/cluster")
                     .body(Body::empty())
                     .expect("failed to build request"),
             )
@@ -3883,9 +3629,155 @@ mod tests {
         assert_eq!(body["nodes"].as_array().expect("nodes array").len(), 3);
     }
 
+    #[tokio::test]
+    async fn up_answers_liveness_while_the_readiness_lock_is_held() {
+        let context = test_context(|config| {
+            config.region = "us-east".into();
+        })
+        .await;
+
+        let readiness_guard = context.state.readiness.lock().await;
+
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            public_router(context.state.clone()).oneshot(
+                Request::builder()
+                    .uri("/up")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            ),
+        )
+        .await
+        .expect("liveness must not wait on cluster state")
+        .expect("request failed");
+
+        drop(readiness_guard);
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("failed to decode up response");
+        assert_eq!(body["status"], "ok");
+        assert_eq!(body["region"], "us-east");
+        for field in [
+            "generation",
+            "connected_nodes",
+            "ring_members",
+            "members",
+            "regions",
+            "nodes",
+        ] {
+            assert!(
+                body.get(field).is_none(),
+                "liveness payload must not carry cluster field {field}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn up_serves_only_the_liveness_payload_whatever_the_query() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["remote".to_string()]),
+                std::collections::BTreeMap::from([(
+                    "http://peer.kura.internal:7443".to_string(),
+                    "remote".to_string(),
+                )]),
+                true,
+            )
+            .await;
+
+        for query in ["", "?cluster=true", "?verbose=1"] {
+            let response = public_router(context.state.clone())
+                .oneshot(
+                    Request::builder()
+                        .uri(format!("/up{query}"))
+                        .body(Body::empty())
+                        .expect("failed to build request"),
+                )
+                .await
+                .expect("request failed");
+
+            assert_eq!(response.status(), StatusCode::OK, "query {query}");
+            let body: Value = serde_json::from_str(&response_text(response).await)
+                .expect("failed to decode up response");
+            assert_eq!(body["status"], "ok", "query {query}");
+            assert!(
+                body.get("ring_members").is_none(),
+                "liveness must have no cluster variant (query {query})"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn cluster_status_is_metered_apart_from_the_liveness_probe() {
+        let context = test_context(|_| {}).await;
+        let app = public_router(context.state.clone());
+
+        for uri in ["/up", "/status/cluster"] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri(uri)
+                        .body(Body::empty())
+                        .expect("failed to build request"),
+                )
+                .await
+                .expect("request failed");
+            assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        }
+
+        // Classification keys off the path template, so the aggregating route
+        // has to be its own template or its latency lands on the probe's series.
+        let metrics = context.state.metrics.render();
+        assert!(metrics.contains("route=\"/up\""));
+        assert!(metrics.contains("route=\"/status/cluster\""));
+    }
+
+    #[tokio::test]
+    async fn up_stays_ok_while_draining_and_before_discovery() {
+        let context = test_context(|_| {}).await;
+
+        for stage in ["before discovery", "draining"] {
+            let response = public_router(context.state.clone())
+                .oneshot(
+                    Request::builder()
+                        .uri("/up")
+                        .body(Body::empty())
+                        .expect("failed to build request"),
+                )
+                .await
+                .expect("up route should respond");
+
+            assert_eq!(response.status(), StatusCode::OK, "{stage}");
+            let body: Value = serde_json::from_str(&response_text(response).await)
+                .expect("failed to decode up response");
+            assert_eq!(body["status"], "ok", "{stage}");
+
+            context.state.enter_draining();
+        }
+
+        let ready_response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("ready route should respond");
+        assert_eq!(ready_response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
     #[test]
     fn route_template_for_path_stabilizes_cache_paths() {
         assert_eq!(route_template_for_path(ROUTE_UP), ROUTE_UP);
+        assert_eq!(
+            route_template_for_path(ROUTE_STATUS_CLUSTER),
+            ROUTE_STATUS_CLUSTER
+        );
         assert_eq!(
             route_template_for_path("/api/cache/cas/artifact-one"),
             ROUTE_API_CACHE_CAS
@@ -3899,12 +3791,13 @@ mod tests {
             ROUTE_API_CACHE_GRADLE
         );
         assert_eq!(
-            route_template_for_path("/_internal/bootstrap/artifacts/artifact-one"),
-            ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT
-        );
-        assert_eq!(
             route_template_for_path("/_internal/backfill/artifacts/artifact-one"),
             ROUTE_INTERNAL_BACKFILL_ARTIFACT
+        );
+        assert_eq!(
+            route_template_for_path("/_internal/bootstrap/artifacts/artifact-one"),
+            UNMATCHED_ROUTE,
+            "the retired legacy bootstrap route must not resolve to a template"
         );
         assert_eq!(
             route_template_for_path("/api/cache/cas/artifact-one/extra"),
@@ -3918,6 +3811,7 @@ mod tests {
         assert!(is_public_load_route(ROUTE_API_CACHE_CAS));
         assert!(is_public_load_route(ROUTE_API_CACHE_MODULE));
         assert!(!is_public_load_route(ROUTE_UP));
+        assert!(!is_public_load_route(ROUTE_STATUS_CLUSTER));
         assert!(!is_public_load_route(ROUTE_METRICS));
         assert!(!is_public_load_route(ROUTE_INTERNAL_REPLICATE_ARTIFACT));
         assert!(!is_public_load_route(UNMATCHED_ROUTE));
@@ -4104,7 +3998,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ready_stays_unavailable_until_bootstrap_gate_completes() {
+    async fn cluster_status_and_ready_share_the_same_membership_generation() {
         let context = test_context(|_| {}).await;
         let peer = "http://peer.kura.internal:7443".to_string();
         context
@@ -4115,92 +4009,14 @@ mod tests {
                 true,
             )
             .await;
-        assert!(context.state.note_bootstrap_started(&peer).await.is_some());
-
-        let response = public_router(context.state.clone())
-            .oneshot(
-                Request::builder()
-                    .uri("/ready")
-                    .body(Body::empty())
-                    .expect("failed to build request"),
-            )
-            .await
-            .expect("ready route should respond");
-        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        let body: Value = serde_json::from_str(&response_text(response).await)
-            .expect("ready response should be json");
-        assert_eq!(body["state"], "joining");
-        assert_eq!(body["ready"], false);
-        assert!(
-            body["reasons"]
-                .to_string()
-                .contains("bootstrap in progress")
-        );
-
-        context
-            .state
-            .note_bootstrap_succeeded(&peer, context.state.current_bootstrap_epoch().await)
-            .await;
-        context.state.maybe_mark_serving().await;
-
-        let response = public_router(context.state.clone())
-            .oneshot(
-                Request::builder()
-                    .uri("/ready")
-                    .body(Body::empty())
-                    .expect("failed to build request"),
-            )
-            .await
-            .expect("ready route should respond");
-        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        let body: Value = serde_json::from_str(&response_text(response).await)
-            .expect("ready response should be json");
-        assert_eq!(body["state"], "joining");
-        assert_eq!(body["ready"], false);
-        assert!(body["reasons"].to_string().contains("discovery settling"));
-
-        context.state.expire_readiness_settle_window().await;
-        context.state.maybe_mark_serving().await;
-
-        let response = public_router(context.state.clone())
-            .oneshot(
-                Request::builder()
-                    .uri("/ready")
-                    .body(Body::empty())
-                    .expect("failed to build request"),
-            )
-            .await
-            .expect("ready route should respond");
-        assert_eq!(response.status(), StatusCode::OK);
-        let body: Value = serde_json::from_str(&response_text(response).await)
-            .expect("ready response should be json");
-        assert_eq!(body["state"], "serving");
-        assert_eq!(body["ready"], true);
-    }
-
-    #[tokio::test]
-    async fn up_and_ready_share_the_same_membership_generation() {
-        let context = test_context(|_| {}).await;
-        let peer = "http://peer.kura.internal:7443".to_string();
-        context
-            .state
-            .apply_membership_view(
-                std::collections::BTreeSet::from(["remote".to_string()]),
-                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
-                true,
-            )
-            .await;
-        context
-            .state
-            .note_bootstrap_succeeded(&peer, context.state.current_bootstrap_epoch().await)
-            .await;
+        settle_backfill_cycle_over(&context.state, &peer, tokio::time::Instant::now());
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
 
         let up_response = public_router(context.state.clone())
             .oneshot(
                 Request::builder()
-                    .uri("/up")
+                    .uri("/status/cluster")
                     .body(Body::empty())
                     .expect("failed to build up request"),
             )
@@ -4268,10 +4084,7 @@ mod tests {
                 true,
             )
             .await;
-        context
-            .state
-            .note_bootstrap_succeeded(&peer, context.state.current_bootstrap_epoch().await)
-            .await;
+        settle_backfill_cycle_over(&context.state, &peer, tokio::time::Instant::now());
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
         context.state.metrics.update_outbox_messages(7);
@@ -4297,15 +4110,10 @@ mod tests {
         assert_eq!(body["state"], "draining");
         assert_eq!(body["ready"], false);
         assert_eq!(body["ring_members"], 2);
-        assert_eq!(body["bootstrap_known_peers"], 1);
-        assert_eq!(body["bootstrap_completed_peers"], 1);
-        assert_eq!(body["bootstrap_inflight_peers"], 0);
         assert_eq!(body["outbox_messages"], 7);
         assert_eq!(body["memory_pressure_state"], 0);
         assert_eq!(body["fd_timeout_count"], 1);
-        // Flag-off reports carry exactly the legacy field family.
-        assert!(body.get("backfill_initial_cycle").is_none());
-        assert!(body.get("backfill_backfilling_peers").is_none());
+        assert_eq!(body["backfill_initial_cycle"], "complete");
     }
 
     fn backfill_tick<'a>(
@@ -4356,8 +4164,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ready_latches_under_backfill_and_survives_peer_flap_and_recovery_reenrollment() {
-        let context = test_context(|config| config.backfill_enabled = true).await;
+    async fn ready_latches_under_backfill_and_survives_a_peer_flap() {
+        let context = test_context(|_| {}).await;
         let peer = "http://peer.kura.internal:7443".to_string();
         context
             .state
@@ -4374,9 +4182,8 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["state"], "serving");
 
-        // The 2026-07-24 class: the peer flaps out and back (its re-join
-        // backfill makes the node "backfilling" again) while a recovery
-        // re-enrollment resets bootstrap progress. Readiness must not
+        // The 2026-07-24 class: the peer flaps out and back, so its re-join
+        // backfill makes the node "backfilling" again. Readiness must not
         // regress.
         let flapped = vec![peer.clone()];
         context
@@ -4388,7 +4195,6 @@ mod tests {
             .backfill
             .test_evaluate(&backfill_tick(&flapped, &[]), tokio::time::Instant::now());
         assert!(context.state.backfill.cycle_snapshot().is_backfilling());
-        context.state.reset_bootstrap_progress().await;
         context
             .state
             .apply_membership_view(
@@ -4406,7 +4212,7 @@ mod tests {
 
     #[tokio::test]
     async fn ready_reports_draining_after_the_backfill_latch() {
-        let context = test_context(|config| config.backfill_enabled = true).await;
+        let context = test_context(|_| {}).await;
         context
             .state
             .apply_membership_view(
@@ -4434,8 +4240,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rollout_status_reports_backfill_fields_with_terminal_compatible_legacy_values() {
-        let context = test_context(|config| config.backfill_enabled = true).await;
+    async fn rollout_status_reports_the_backfill_cycle_through_to_completion() {
+        let context = test_context(|_| {}).await;
         let peer = "http://peer.kura.internal:7443".to_string();
         context
             .state
@@ -4446,8 +4252,7 @@ mod tests {
             )
             .await;
 
-        // Mid-cycle: the mode is pending and the legacy in-flight counter
-        // mirrors the gating peer count.
+        // Mid-cycle: the mode is pending while a peer still gates.
         let discovered = vec![peer.clone()];
         let now = tokio::time::Instant::now();
         context
@@ -4471,13 +4276,9 @@ mod tests {
         assert_eq!(body["backfill_budget_exhausted_real_peers"], 0);
         assert_eq!(body["backfill_budget_exhausted_capability_peers"], 0);
         assert_eq!(body["backfill_ring_fullness_percent"], 0);
-        assert_eq!(body["bootstrap_known_peers"], 1);
-        assert_eq!(body["bootstrap_inflight_peers"], 1);
-        assert_eq!(body["bootstrap_completed_peers"], 0);
 
-        // Settled: the mode is complete and the legacy counters read
-        // terminal (in-flight 0), which is what gate.sh's legacy check and
-        // the fleet-rollout flow act on.
+        // Settled: the mode reads complete, which is what gate.sh and the
+        // fleet-rollout flow act on.
         {
             use crate::backfill::lifecycle::PassResolution;
             context
@@ -4509,8 +4310,6 @@ mod tests {
             .expect("rollout status response should be json");
         assert_eq!(body["backfill_initial_cycle"], "complete");
         assert_eq!(body["backfill_backfilling_peers"], 0);
-        assert_eq!(body["bootstrap_inflight_peers"], 0);
-        assert_eq!(body["bootstrap_completed_peers"], 1);
         assert_eq!(body["ready"], true, "the settled node latched serving");
         assert_eq!(body["state"], "serving");
     }
@@ -4839,7 +4638,7 @@ mod tests {
             BackfillEntriesQuery::from_params(&oversized)
                 .expect("oversized limit should be clamped")
                 .limit,
-            MAX_BOOTSTRAP_PAGE_ITEMS
+            MAX_PEER_PAGE_ITEMS
         );
         assert_eq!(
             BackfillEntriesQuery::from_params(&HashMap::new())
@@ -4996,7 +4795,7 @@ mod tests {
     fn backfill_index_versions_for(state: &SharedState, record_id: &str) -> Vec<u64> {
         state
             .store
-            .backfill_index_page(None, MAX_BOOTSTRAP_PAGE_ITEMS)
+            .backfill_index_page(None, MAX_PEER_PAGE_ITEMS)
             .expect("scan backfill index")
             .entries
             .into_iter()
@@ -5298,10 +5097,10 @@ mod tests {
             .state
             .config
             .tmp_dir_max_bytes
-            .min(context.state.memory.bootstrap_staging_budget_bytes());
+            .min(context.state.memory.peer_staging_budget_bytes());
         let hold = context
             .state
-            .bootstrap_staging_budget
+            .peer_staging_budget
             .try_reserve(capacity)
             .expect("reserve the whole staging budget");
 
@@ -5411,7 +5210,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn backfill_artifact_endpoint_frames_the_body_and_legacy_route_stays_raw() {
+    async fn backfill_artifact_endpoint_frames_the_body_and_the_legacy_route_is_gone() {
         let context = test_context(|_| {}).await;
         put_backfill_inline_body(&context.state, "ios", "artifact", b"artifact-body", 500).await;
         let record_id =
@@ -5453,7 +5252,7 @@ mod tests {
             .expect("request failed");
         assert_eq!(missing.status(), StatusCode::NOT_FOUND);
 
-        // The legacy bootstrap route keeps serving the raw body for old peers.
+        // The retired legacy route is gone, not merely unrouted.
         let legacy = internal_router(context.state.clone())
             .oneshot(
                 Request::builder()
@@ -5463,8 +5262,7 @@ mod tests {
             )
             .await
             .expect("request failed");
-        assert_eq!(legacy.status(), StatusCode::OK);
-        assert_eq!(response_bytes(legacy).await, b"artifact-body");
+        assert_eq!(legacy.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]
@@ -7151,66 +6949,5 @@ mod tests {
                 body: body.to_vec(),
             });
         StatusCode::ACCEPTED
-    }
-
-    mod client_ip {
-        use axum::http::{HeaderMap, HeaderValue};
-
-        use super::super::client_ip_from_headers;
-
-        #[test]
-        fn returns_first_hop_from_x_forwarded_for() {
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                "x-forwarded-for",
-                HeaderValue::from_static("203.0.113.5, 10.0.0.1, 198.51.100.7"),
-            );
-            assert_eq!(
-                client_ip_from_headers(&headers)
-                    .expect("first hop should parse")
-                    .to_string(),
-                "203.0.113.5"
-            );
-        }
-
-        #[test]
-        fn trims_surrounding_whitespace_in_x_forwarded_for() {
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                "x-forwarded-for",
-                HeaderValue::from_static("  203.0.113.5  , 10.0.0.1"),
-            );
-            assert_eq!(
-                client_ip_from_headers(&headers)
-                    .expect("trimmed first hop should parse")
-                    .to_string(),
-                "203.0.113.5"
-            );
-        }
-
-        #[test]
-        fn falls_back_to_x_real_ip_when_x_forwarded_for_is_missing() {
-            let mut headers = HeaderMap::new();
-            headers.insert("x-real-ip", HeaderValue::from_static("198.51.100.7"));
-            assert_eq!(
-                client_ip_from_headers(&headers)
-                    .expect("x-real-ip should parse")
-                    .to_string(),
-                "198.51.100.7"
-            );
-        }
-
-        #[test]
-        fn returns_none_when_no_address_headers_are_present() {
-            let headers = HeaderMap::new();
-            assert!(client_ip_from_headers(&headers).is_none());
-        }
-
-        #[test]
-        fn returns_none_when_first_hop_is_malformed() {
-            let mut headers = HeaderMap::new();
-            headers.insert("x-forwarded-for", HeaderValue::from_static("not-an-ip"));
-            assert!(client_ip_from_headers(&headers).is_none());
-        }
     }
 }

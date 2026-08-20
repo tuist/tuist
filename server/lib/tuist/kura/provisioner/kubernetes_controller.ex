@@ -14,14 +14,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Billing
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-08-12-native-authorization-v1"
+  @manifest_revision "2026-08-17-node-location-config-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
   # Mirrors Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
@@ -361,8 +360,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     %{
       allowed_features: allowed_features,
       egress_guaranteed_mbps: egress_guaranteed_mbps,
-      memory: memory,
-      backfill: FeatureFlags.kura_backfill_enabled?(account)
+      memory: memory
     }
   end
 
@@ -450,15 +448,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # enabled state and every non-mesh region byte-identical to today's revision,
   # so nothing that already runs with the right env is rolled — only the
   # mesh-region instances that should shed the variable change revision.
-  # Marks the POSITIVE state, inverting the +nosync convention above: today's
-  # fleet is flag-off, so an ungated account must stay byte-identical to the
-  # current revision (nothing rolls when this ships), and gating an account on
-  # is exactly the event that must change its instances' desired revision so
-  # the reconciler re-applies and rolls them onto the backfill walker. Ungating
-  # rolls them back the same way — the flag flip is the Release AB rollback.
-  defp backfill_revision_suffix(%{backfill: true}), do: "+backfill"
-  defp backfill_revision_suffix(_entitlements), do: ""
-
   defp mesh_peers_sync_revision_suffix(region, entitlements) do
     if mesh_enabled?(region) and not mesh_peers_sync_enabled?(region, entitlements) do
       "+nosync"
@@ -466,6 +455,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       ""
     end
   end
+
+  # Unconditional since Release C, and deliberately kept rather than deleted:
+  # dropping the suffix would move every already-gated account's revision and
+  # roll it for no behavioural change, while leaving the ungated ones on the
+  # legacy walker until something else happened to move their revision. Held
+  # constant instead, gated accounts are byte-identical (nothing rolls) and
+  # ungated accounts cross the boundary exactly once, onto backfill on their
+  # current image. Must stay paired with backfill_env/1 — see the note there.
+  defp backfill_revision_suffix(_entitlements), do: "+backfill"
 
   defp mesh_public_peer_host(handle, region) do
     if mesh_enabled?(region), do: Regions.peer_public_host(handle, region)
@@ -548,20 +546,25 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       cas_capacity_env(region) ++
       mesh_peers_sync_env(region, entitlements) ++
       backfill_env(entitlements) ++
+      node_location_env(region) ++
       telemetry_env(region)
   end
 
-  # The per-account Release AB switch: gated accounts render
-  # KURA_BACKFILL_ENABLED=true and everyone else stays byte-identical to
-  # today's manifest (the flag defaults off in the runtime). Driven by an
-  # account-scoped feature flag rather than a region knob so one flip covers
-  # every managed instance the account owns — the public mesh instances and
-  # the private runner-cache (co-located) instances render through this same
-  # function. Must be paired with backfill_revision_suffix/1: the reconciler
-  # converges on the revision alone, so an env change that does not move the
-  # revision would never be applied (the KURA_MESH_PEERS_SYNC lesson above).
-  defp backfill_env(%{backfill: true}), do: [env_var("KURA_BACKFILL_ENABLED", "true")]
-  defp backfill_env(_entitlements), do: []
+  # Where the node runs, straight from the region's datacenter. Kura stamps it
+  # on its OTel Resource as-is; it has no way to work the location out for
+  # itself, so a region without one exports spans with no geography rather than
+  # a guess. Adding either variable changes every managed instance's manifest,
+  # so @manifest_revision moves with it or the reconciler never re-applies.
+  defp node_location_env(%Regions{} = region) do
+    case Regions.node_location(region) do
+      nil ->
+        []
+
+      %{country: country, subdivision: subdivision} ->
+        maybe_env_var("KURA_NODE_COUNTRY", country) ++
+          maybe_env_var("KURA_NODE_SUBDIVISION", subdivision)
+    end
+  end
 
   # With KURA_CAS_CAPACITY_BYTES unset, Kura sizes its CAS segment ring from
   # statvfs() on the data dir. Every managed region is backed by the local-path
@@ -684,6 +687,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       []
     end
   end
+
+  # Release C ignores KURA_BACKFILL_ENABLED — backfill is the only catch-up
+  # path there — but the variable is still rendered, and unconditionally, so
+  # the two images can roll out in either order. An AB pod that has not been
+  # replaced yet reads it and runs backfill; a C pod ignores it; and a C -> AB
+  # rollback lands on a backfill-enabled AB pod rather than on the legacy
+  # walker, which by then has no peer left that can serve it. Must stay paired
+  # with backfill_revision_suffix/1: the reconciler converges on the revision
+  # alone, so an env change that does not move the revision would never be
+  # applied (the KURA_MESH_PEERS_SYNC lesson above).
+  defp backfill_env(_entitlements), do: [env_var("KURA_BACKFILL_ENABLED", "true")]
 
   defp telemetry_env(%Regions{provisioner_config: %{otlp_traces_endpoint: endpoint}})
        when is_binary(endpoint) and endpoint != "" do

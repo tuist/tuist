@@ -5147,6 +5147,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/build_run_id`.
             public var build_run_id: Swift.String?
+            /// The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/git_branch`.
+            public var git_branch: Swift.String?
             /// The UUID of the associated Gradle build.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/gradle_build_id`.
@@ -5198,6 +5202,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - build_run_id: The UUID of the associated Xcode build run.
+            ///   - git_branch: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
             ///   - gradle_build_id: The UUID of the associated Gradle build.
             ///   - granularity: Sharding granularity level.
             ///   - modules: Test module names (for module-level granularity).
@@ -5210,6 +5215,7 @@ public enum Components {
             ///   - test_suites: Test suite names (for suite-level granularity).
             public init(
                 build_run_id: Swift.String? = nil,
+                git_branch: Swift.String? = nil,
                 gradle_build_id: Swift.String? = nil,
                 granularity: Components.Schemas.CreateShardPlanParams.granularityPayload? = nil,
                 modules: [Swift.String]? = nil,
@@ -5222,6 +5228,7 @@ public enum Components {
                 test_suites: [Swift.String]? = nil
             ) {
                 self.build_run_id = build_run_id
+                self.git_branch = git_branch
                 self.gradle_build_id = gradle_build_id
                 self.granularity = granularity
                 self.modules = modules
@@ -5235,6 +5242,7 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case build_run_id
+                case git_branch
                 case gradle_build_id
                 case granularity
                 case modules
@@ -15900,6 +15908,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/model_identifier`.
                     public var model_identifier: Swift.String?
+                    /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/only_test_identifiers`.
+                    public var only_test_identifiers: [Swift.String]?
                     /// The scheme used for the test run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/scheme`.
@@ -15912,6 +15924,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_plan_id`.
                     public var shard_plan_id: Swift.String?
+                    /// The tests the caller asked this run to exclude.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/skip_test_identifiers`.
+                    public var skip_test_identifiers: [Swift.String]?
                     /// The status of the test run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/status`.
@@ -16433,9 +16449,11 @@ public enum Operations {
                     ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
                     ///   - macos_version: The version of macOS used during the run.
                     ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
+                    ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
                     ///   - scheme: The scheme used for the test run.
                     ///   - shard_index: The zero-based shard index for this test result.
                     ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
+                    ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
                     ///   - status: The status of the test run.
                     ///   - test_modules: The test modules associated with the test run.
                     ///   - xcode_version: The version of Xcode used during the run.
@@ -16456,9 +16474,11 @@ public enum Operations {
                         is_ci: Swift.Bool,
                         macos_version: Swift.String? = nil,
                         model_identifier: Swift.String? = nil,
+                        only_test_identifiers: [Swift.String]? = nil,
                         scheme: Swift.String? = nil,
                         shard_index: Swift.Int? = nil,
                         shard_plan_id: Swift.String? = nil,
+                        skip_test_identifiers: [Swift.String]? = nil,
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
                         test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload,
                         xcode_version: Swift.String? = nil
@@ -16479,9 +16499,11 @@ public enum Operations {
                         self.is_ci = is_ci
                         self.macos_version = macos_version
                         self.model_identifier = model_identifier
+                        self.only_test_identifiers = only_test_identifiers
                         self.scheme = scheme
                         self.shard_index = shard_index
                         self.shard_plan_id = shard_plan_id
+                        self.skip_test_identifiers = skip_test_identifiers
                         self.status = status
                         self.test_modules = test_modules
                         self.xcode_version = xcode_version
@@ -16503,9 +16525,11 @@ public enum Operations {
                         case is_ci
                         case macos_version
                         case model_identifier
+                        case only_test_identifiers
                         case scheme
                         case shard_index
                         case shard_plan_id
+                        case skip_test_identifiers
                         case status
                         case test_modules
                         case xcode_version
@@ -42777,6 +42801,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/build_run_id`.
                     public var build_run_id: Swift.String?
+                    /// The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/git_branch`.
+                    public var git_branch: Swift.String?
                     /// The UUID of the associated Gradle build.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/gradle_build_id`.
@@ -42828,6 +42856,7 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - build_run_id: The UUID of the associated Xcode build run.
+                    ///   - git_branch: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
                     ///   - gradle_build_id: The UUID of the associated Gradle build.
                     ///   - granularity: Sharding granularity level.
                     ///   - modules: Test module names (for module-level granularity).
@@ -42840,6 +42869,7 @@ public enum Operations {
                     ///   - test_suites: Test suite names (for suite-level granularity).
                     public init(
                         build_run_id: Swift.String? = nil,
+                        git_branch: Swift.String? = nil,
                         gradle_build_id: Swift.String? = nil,
                         granularity: Operations.createShardPlan.Input.Body.jsonPayload.granularityPayload? = nil,
                         modules: [Swift.String]? = nil,
@@ -42852,6 +42882,7 @@ public enum Operations {
                         test_suites: [Swift.String]? = nil
                     ) {
                         self.build_run_id = build_run_id
+                        self.git_branch = git_branch
                         self.gradle_build_id = gradle_build_id
                         self.granularity = granularity
                         self.modules = modules
@@ -42865,6 +42896,7 @@ public enum Operations {
                     }
                     public enum CodingKeys: String, CodingKey {
                         case build_run_id
+                        case git_branch
                         case gradle_build_id
                         case granularity
                         case modules

@@ -196,7 +196,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
              })
   end
 
-  test "discards the job when GitHub rate limits a manifest request" do
+  test "defers the job to the reported quota reset when GitHub rate limits a manifest request" do
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
       {:ok, :acquired}
     end)
@@ -211,21 +211,17 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
 
     expect(TuistCommon.GitHub, :get_file_content, fn
       "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
-        {:error, {:rate_limited, 403}}
+        {:error, {:rate_limited, 403, 420}}
     end)
 
     stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
 
     stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected skipped-release write") end)
 
-    assert {:discard,
-            {:manifest_fetch_failed,
-             [
-               %{
-                 path: "Package.swift",
-                 reason: {:rate_limited, 403}
-               }
-             ]}} =
+    # Snoozing keeps the job, and with it the scope, name and tag it was given.
+    # Discarding dropped them, so the release was only revisited if a later
+    # catalog rotation happened to notice the version missing again.
+    assert {:snooze, 420} =
              ReleaseWorker.perform(%Oban.Job{
                args: %{
                  "scope" => "apple",
@@ -412,7 +408,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     assert ReleaseWorker.skippable_submodule_failure?(output)
   end
 
-  test "discards the job when a submodule host throttles the clone" do
+  test "defers the job when a submodule host throttles the clone" do
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
       {:ok, :acquired}
     end)
@@ -442,11 +438,13 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     end)
 
     # The version must be left in neither releases nor skipped_releases, which is
-    # what lets the next sync tick pick it up again.
+    # what lets the deferred job publish it once the host stops throttling.
     stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected metadata write") end)
     stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
 
-    assert {:discard, {:git_submodule_update_throttled, "Vendor/Dep", 1, _output}} =
+    # A third-party host sends no quota headers, so this backs off by the
+    # default window rather than to a reported reset.
+    assert {:snooze, 600} =
              ReleaseWorker.perform(%Oban.Job{
                args: %{
                  "scope" => "apple",

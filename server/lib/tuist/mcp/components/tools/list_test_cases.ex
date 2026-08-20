@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
   use Tuist.MCP.Tool,
     name: "list_test_cases",
     title: "List Test Cases",
+    read_only_hint: true,
     authorize: [action: :read, category: :test],
     schema: %{
       "type" => "object",

@@ -6,12 +6,13 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
   use Tuist.MCP.Tool,
     name: "get_gradle_build",
     title: "Get Gradle Build",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{
         "build_run_id" => %{
           "type" => "string",
-          "description" => "The ID of the Gradle build run."
+          "description" => "The ID of the Gradle build run, or a Tuist dashboard URL."
         }
       },
       "required" => ["build_run_id"]
@@ -77,7 +78,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
       "Get detailed information about a specific Gradle build run. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/gradle/builds/{id}."
 
   def execute(conn, args) do
-    build_run_id = Map.get(args, "build_run_id")
+    build_run_id = MCPTool.resource_id(Map.get(args, "build_run_id"))
 
     with {:ok, build, _project} <-
            MCPTool.load_and_authorize(

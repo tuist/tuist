@@ -939,6 +939,7 @@ struct PackageInfoMapperTests {
                     ]
                 )
         )
+        #expect(project?.targets.first?.metadata.tags.contains(TargetTags.swiftPackage) == true)
     }
 
     @Test(
@@ -4017,7 +4018,10 @@ struct PackageInfoMapperTests {
             base: ["CUSTOM_SETTING": .string("CUSTOM_VALUE")],
             configurations: [
                 .init(name: "Custom Debug", variant: .debug): .init(
-                    settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
+                    settings: [
+                        "CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1"),
+                        "OTHER_SWIFT_FLAGS": .array(["-DDEBUG"]),
+                    ],
                     xcconfig: sourcesPath.appending(component: "Config.xcconfig")
                 ),
                 .init(name: "Custom Release", variant: .release): .init(
@@ -4074,7 +4078,14 @@ struct PackageInfoMapperTests {
                                 configurations: [
                                     .debug(
                                         name: "Custom Debug",
-                                        settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
+                                        settings: [
+                                            "CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1"),
+                                            "OTHER_SWIFT_FLAGS": .array([
+                                                "-DDEBUG",
+                                                "-package-name",
+                                                "Package",
+                                            ]),
+                                        ],
                                         xcconfig: "Sources/Target1/Config.xcconfig"
                                     ),
                                     .release(
@@ -4264,12 +4275,10 @@ struct PackageInfoMapperTests {
                                 "HEADER_SEARCH_PATHS[sdk=appletvos*]": [
                                     "$(inherited)",
                                     "$(SRCROOT)/Sources/Target1/value",
-                                    "$(SRCROOT)/Sources/Target1/otherValue",
                                 ],
                                 "HEADER_SEARCH_PATHS[sdk=appletvsimulator*]": [
                                     "$(inherited)",
                                     "$(SRCROOT)/Sources/Target1/value",
-                                    "$(SRCROOT)/Sources/Target1/otherValue",
                                 ],
                                 "OTHER_SWIFT_FLAGS": [
                                     "$(inherited)",
@@ -6294,8 +6303,57 @@ struct PackageInfoMapperTests {
 
         // Then
         #expect(
-            project?.settings?.base["OTHER_SWIFT_FLAGS"] ==
+            project?.targets.first?.settings?.base["OTHER_SWIFT_FLAGS"] ==
                 .array(["$(inherited)", "-package-name", "Package"])
+        )
+        #expect(project?.settings?.base["OTHER_SWIFT_FLAGS"] == nil)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenPackageUsesPackageAccessAndCustomSwiftSettings_addsPackageNameToTargetFlags() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "SwiftProtobuf/Sources/SwiftProtobuf"))
+        )
+
+        let project = try await subject.map(
+            package: "SwiftProtobuf",
+            basePath: basePath,
+            packageInfos: [
+                "SwiftProtobuf": .test(
+                    name: "SwiftProtobuf",
+                    products: [
+                        .init(name: "SwiftProtobuf", type: .library(.automatic), targets: ["SwiftProtobuf"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "SwiftProtobuf",
+                            settings: [
+                                .init(
+                                    tool: .swift,
+                                    name: .enableUpcomingFeature,
+                                    condition: nil,
+                                    value: ["ExistentialAny"]
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    toolsVersion: Version(5, 9, 0)
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(
+            target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+                "$(inherited)",
+                "-enable-upcoming-feature \"ExistentialAny\"",
+                "-package-name",
+                "SwiftProtobuf",
+            ])
         )
     }
 
@@ -7875,6 +7933,7 @@ struct PackageInfoMapperTests {
                     targets: [
                         .test(
                             "Singular",
+                            swiftPackageName: "Singular",
                             basePath: basePath,
                             customProductName: "SingularWrapper",
                             headers: .spmTarget(headersPath.parentDirectory),
@@ -8039,6 +8098,8 @@ struct PackageInfoMapperTests {
                 prebuiltPath.appending(component: "Modules").pathString,
                 "-I",
                 checkoutPath.appending(try RelativePath(validating: "Sources/_SwiftSyntaxCShims/include")).pathString,
+                "-package-name",
+                "Package",
             ])
         )
         #expect(
@@ -8109,10 +8170,21 @@ struct PackageInfoMapperTests {
             target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
                 "$(inherited)",
                 "-enable-experimental-feature \"Lifetimes\"",
+                "-package-name",
+                "Package",
             ])
         )
-        guard case let .array(projectFlags) = project?.settings?.base["OTHER_SWIFT_FLAGS"] else {
-            Issue.record("Expected project-level OTHER_SWIFT_FLAGS to be an array")
+        let projectFlags: [String]
+        switch project?.settings?.base["OTHER_SWIFT_FLAGS"] {
+        case let .array(flags):
+            projectFlags = flags
+        case let .string(flags):
+            projectFlags = flags.split(separator: " ").map(String.init)
+        case nil:
+            Issue.record("Expected project-level OTHER_SWIFT_FLAGS to be a string or an array")
+            return
+        @unknown default:
+            Issue.record("Expected project-level OTHER_SWIFT_FLAGS to be a string or an array")
             return
         }
         #expect(projectFlags.filter { $0 == "-DSTAGING" }.count == 1)
@@ -8166,6 +8238,8 @@ struct PackageInfoMapperTests {
                 "$(inherited)",
                 "-enable-experimental-feature \"Lifetimes\"",
                 "-DSTAGING",
+                "-package-name",
+                "Package",
             ])
         )
     }
@@ -8303,7 +8377,13 @@ struct PackageInfoMapperTests {
 
         let target = try #require(project?.targets.first)
         #expect(target.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
-        #expect(target.settings?.base["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)"]))
+        #expect(
+            target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+                "$(inherited)",
+                "-package-name",
+                "Package",
+            ])
+        )
         #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
         #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
     }
@@ -8371,6 +8451,8 @@ struct PackageInfoMapperTests {
                 prebuiltPath.appending(component: "Modules").pathString,
                 "-I",
                 prebuiltPath.appending(components: "include", "_SwiftSyntaxCShims").pathString,
+                "-package-name",
+                "Package",
             ])
         )
         #expect(
@@ -8500,7 +8582,13 @@ struct PackageInfoMapperTests {
 
         let target = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
         #expect(target.dependencies.isEmpty)
-        #expect(target.settings?.base["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)"]))
+        #expect(
+            target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+                "$(inherited)",
+                "-package-name",
+                "Package",
+            ])
+        )
         #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
         #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
     }
@@ -8732,7 +8820,6 @@ extension ProjectDescription.Project {
             name: name,
             options: options,
             settings: DependenciesGraph.swiftpmProjectSettings(
-                packageName: name,
                 baseSettings: settings,
                 with: customSettings
             ),
@@ -8750,6 +8837,7 @@ extension ProjectDescription.Target {
     fileprivate static func test(
         _ name: String,
         packageName: String = "Package",
+        swiftPackageName: String? = nil,
         basePath: AbsolutePath = "/",
         destinations: ProjectDescription.Destinations = Set(Destination.allCases),
         product: ProjectDescription.Product = .staticFramework,
@@ -8773,6 +8861,7 @@ extension ProjectDescription.Target {
         moduleMap: String? = nil
     ) -> Self {
         let sources: SourceFilesList?
+        var customSettings = customSettings
 
         switch customSources {
         case let .custom(list):
@@ -8784,6 +8873,20 @@ extension ProjectDescription.Target {
                     basePath.appending(defaultSourcesPath).pathString,
                 ])
         }
+
+        let swiftFlags: [String] = switch customSettings["OTHER_SWIFT_FLAGS"] {
+        case let .array(values):
+            values
+        case let .string(value):
+            value.split(separator: " ").map(String.init)
+        case nil:
+            ["$(inherited)"]
+        @unknown default:
+            ["$(inherited)"]
+        }
+        customSettings["OTHER_SWIFT_FLAGS"] = .array(
+            swiftFlags + ["-package-name", (swiftPackageName ?? packageName).quotedIfContainsSpaces]
+        )
 
         return ProjectDescription.Target.target(
             name: name,
@@ -8801,7 +8904,8 @@ extension ProjectDescription.Target {
                 baseSettings: baseSettings,
                 with: customSettings,
                 moduleMap: moduleMap
-            )
+            ),
+            metadata: .metadata(tags: [TargetTags.swiftPackage])
         )
     }
 }

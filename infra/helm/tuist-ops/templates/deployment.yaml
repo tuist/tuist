@@ -72,6 +72,10 @@ spec:
               value: |-
                 {{- .Values.pomerium.publicKey | nindent 16 }}
             {{- end }}
+            {{- with .Values.projectAccess.returnToAllowlist }}
+            - name: PROJECT_ACCESS_RETURN_TO_ALLOWLIST
+              value: {{ join "," . | quote }}
+            {{- end }}
           envFrom:
             - secretRef:
                 name: {{ include "tuist-ops.runtimeSecretName" . }}

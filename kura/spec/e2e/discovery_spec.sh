@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 
-Describe 'DNS discovery and bootstrap'
+Describe 'DNS discovery and catch-up'
   Include spec/e2e/support.sh
 
   setup_suite() {
@@ -20,7 +20,7 @@ Describe 'DNS discovery and bootstrap'
     resolve_http_node KURA_US kura-us
 
     wait_for_http "${KURA_US_URL}/up"
-    capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":1' || return 1
+    capture_into us_up wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":1' || return 1
     [[ "${us_up}" == *'"ring_members":1'* ]]
   }
 
@@ -31,7 +31,7 @@ Describe 'DNS discovery and bootstrap'
   BeforeAll 'setup_suite'
   AfterAll 'teardown_suite'
 
-  It 'bootstraps and replicates a new node discovered through DNS'
+  It 'backfills and replicates a new node discovered through DNS'
     keyvalue_status="$(status_only -X PUT \
       "${KURA_US_URL}/api/cache/keyvalue?tenant_id=acme&namespace_id=ios" \
       -H "content-type: application/json" \
@@ -48,8 +48,8 @@ Describe 'DNS discovery and bootstrap'
     resolve_http_node KURA_US_2 kura-us-2
 
     wait_for_http "${KURA_US_2_URL}/up" || return 1
-    capture_into us_ring wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
-    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
+    capture_into us_ring wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":2' || return 1
+    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/status/cluster" '"ring_members":2' || return 1
     The variable us_ring should include '"ring_members":2'
     The variable us2_ring should include '"ring_members":2'
 
@@ -80,12 +80,10 @@ Describe 'DNS discovery and bootstrap'
   End
 End
 
-# Flag-on twin of the scenario above: the same new-node convergence must hold
-# when the mesh runs the backfill walker (KURA_BACKFILL_ENABLED) instead of
-# legacy bootstrap. Both walkers ship in the Release AB binary and both must
-# keep working until Release C deletes the legacy one, so the flag-off
-# Describe above stays untouched.
-Describe 'DNS discovery and backfill catch-up (flag-on)'
+# Twin of the scenario above under the backfill suite overlay: DNS-only
+# discovery and the suites' tuned batch/bandwidth knobs, asserting convergence
+# through the initial backfill cycle rather than just end-state reachability.
+Describe 'DNS discovery and backfill catch-up'
   Include spec/e2e/support.sh
 
   setup_suite() {
@@ -108,7 +106,7 @@ Describe 'DNS discovery and backfill catch-up (flag-on)'
     resolve_http_node KURA_US kura-us
 
     wait_for_http "${KURA_US_URL}/up"
-    capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":1' || return 1
+    capture_into us_up wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":1' || return 1
     [[ "${us_up}" == *'"ring_members":1'* ]]
   }
 
@@ -139,8 +137,8 @@ Describe 'DNS discovery and backfill catch-up (flag-on)'
     resolve_http_node KURA_US_2 kura-us-2
 
     wait_for_http "${KURA_US_2_URL}/up" || return 1
-    capture_into us_ring wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
-    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
+    capture_into us_ring wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":2' || return 1
+    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/status/cluster" '"ring_members":2' || return 1
     The variable us_ring should include '"ring_members":2'
     The variable us2_ring should include '"ring_members":2'
 

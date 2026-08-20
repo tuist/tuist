@@ -69,6 +69,12 @@ const (
 	// preStop for liveness restarts too, so this gives the hook time to remove
 	// the endpoint while bounding an otherwise unbounded cache outage.
 	livenessTerminationGraceSeconds int64 = 30
+	// Kura opens its store, including RocksDB WAL replay after an unclean
+	// shutdown, before it binds the listener that answers /up, so store
+	// recovery is spent against the startup budget. With the 10s period
+	// this allows 300 seconds, matching kura/ops/helm/kura/templates/
+	// statefulset.yaml so controller-managed and chart-managed pods agree.
+	startupFailureThreshold int32 = 30
 
 	// podNameLabel is the per-pod label the StatefulSet controller stamps
 	// on every pod (<statefulset>-<ordinal>). The public backend Service
@@ -1643,15 +1649,24 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 	}
 
 	// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
-	// status endpoint is unreachable for every pod: without the runtime's
-	// bootstrap signal we keep the minPrimaryPodAge buffer so a still-bootstrapping
-	// pod isn't promoted. When the runtime status IS reachable it supersedes this —
-	// a pod that reports Ready+serving has already completed bootstrap (the runtime's
-	// is_serving requires bootstrapped_peers == known_peers), so the runtime-confirmed
-	// path does NOT age-gate. That lets a freshly-rolled but caught-up standby be
-	// promoted immediately, which is what makes a rolling deploy gapless instead of
-	// waiting out the 10-minute age with no eligible primary. The runtime status is
-	// therefore probed for every Ready pod, not just the age-eligible ones.
+	// status endpoint is unreachable for every pod: without the runtime's own
+	// catch-up signal we keep the minPrimaryPodAge buffer so a pod that is still
+	// filling isn't promoted. When the runtime status IS reachable it supersedes
+	// this, and the runtime-confirmed path does NOT age-gate — which is what lets
+	// a freshly-rolled but caught-up standby be promoted immediately, making a
+	// rolling deploy gapless instead of waiting out the 10-minute age with no
+	// eligible primary. The runtime status is therefore probed for every Ready
+	// pod, not just the age-eligible ones.
+	//
+	// Note that Ready+serving is NOT proof of a completed catch-up. It once was
+	// (is_serving required bootstrapped_peers == known_peers), but readiness now
+	// latches at a ring-fullness threshold or when the initial backfill cycle
+	// settles, and a cycle settles even when a peer stays unreachable. A pod that
+	// reports serving can therefore still be filling, or be cold on an empty
+	// volume whose only peer is down. Ring members and the writer lock below are
+	// what this gate actually rests on; `backfill_initial_cycle` on
+	// /status/rollout is the completeness signal, and it is deliberately not
+	// consumed here (see the region-move note in kura/README.md).
 	fallbackReady := map[string]bool{}
 	runtimeHealthy := map[string]bool{}
 	runtimeStatuses := 0
@@ -2651,7 +2666,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 				Lifecycle:       preStopLifecycle(),
 				ReadinessProbe:  httpProbe("/ready", 5, 10),
 				LivenessProbe:   livenessProbe(),
-				StartupProbe:    httpProbe("/up", 0, 10),
+				StartupProbe:    startupProbe(),
 			}},
 			Volumes: volumes(instance),
 		},
@@ -3138,6 +3153,12 @@ func httpProbe(path string, initialDelay, period int32) *corev1.Probe {
 		PeriodSeconds:       period,
 		TimeoutSeconds:      5,
 	}
+}
+
+func startupProbe() *corev1.Probe {
+	probe := httpProbe("/up", 0, 10)
+	probe.FailureThreshold = startupFailureThreshold
+	return probe
 }
 
 func livenessProbe() *corev1.Probe {
