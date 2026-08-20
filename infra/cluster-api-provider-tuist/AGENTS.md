@@ -542,6 +542,22 @@ than falling back to the provider's default single-root install. Dedibox takes
 the same shape by formatting the default layout's `/data` as XFS
 (`internal/dedibox`), since its API already carves small-root + large-`/data`.
 
+Elastic Metal goes through Scaleway's partitioning schema (`internal/scaleway/partitioning.go`),
+which is the best-instrumented of the three: `GetDefaultPartitioningSchema`
+returns the offer's own layout to transform, so the planner never guesses the
+disk count, device naming, or whether the OS is mirrored, and
+`ValidatePartitioningSchema` checks the result against the real offer WITHOUT
+touching a server. `PartitioningSchemaFor` runs both before either install path
+posts, so a schema the provider would reject stops the install rather than
+wiping a box to discover it. `PlanSchema` takes /data out of root's partition
+and mirrors it exactly as the default mirrors root.
+
+**Inspect a layout before any wipe:** `go run ./cmd/prep --provider <p> --dry-run`
+prints what would be installed and posts nothing. OVH and Dedibox need a
+`--server`; Elastic Metal needs only `--offer` and `--zone`, because the layout
+is a property of the offer, and that path additionally proves the payload is
+acceptable to the provider rather than merely well-formed.
+
 **Already-adopted boxes need a reinstall.** Partitioning cannot change in place,
 so a box installed before this has either no separate `/data` or an ext4 one, and
 its cache volumes stay unbounded. They keep working: the provisioner hooks no-op
@@ -592,8 +608,18 @@ Releasing an OVH box is not a contract termination, so a region left at two boxe
 keeps paying for both. Decide whether the second box is capacity you want or a
 contract to cancel out of band.
 
-Setting `nodeDrainTimeout` on these fleets would turn the deadlock above into a
-bounded failure. Worth doing independently of any conversion.
+The deadlock itself is now defused declaratively: the `kura-cache-skip`
+`MachineDrainRule` in `infra/k8s/clusters/machinedrainrules.yaml` tells Cluster
+API not to evict cache Pods, so drain completes, the PVC reap runs, and the
+StatefulSets reprovision on whatever box is left in the pool. That is a safety
+net rather than the procedure: it makes the naive path terminate instead of
+hang, but it gives up the cache, since both replicas are co-located and deleting
+their box leaves no peer to backfill from. Use the staged move above to keep a
+region warm.
+
+Setting `nodeDrainTimeout` on these fleets would additionally bound the failure
+if a future Pod shape reintroduces the same shape of stall. Worth doing
+independently of any conversion.
 
 ### Scale up
 ```bash

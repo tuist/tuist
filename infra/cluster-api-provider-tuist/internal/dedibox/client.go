@@ -453,11 +453,11 @@ func (c *Client) StartInstall(ctx context.Context, p InstallParams) error {
 		SSHKeyIDs: p.SSHKeyIDs,
 	}
 	if p.OS.AllowCustomPartitioning {
-		var part scwdedibox.ServerDefaultPartitioning
-		if err := c.t.get(ctx, fmt.Sprintf("/dedibox/v1/zones/%s/servers/%d/partitioning/%d", p.Zone, p.ServerID, p.OS.ID), nil, &part); err != nil {
-			return fmt.Errorf("default partitioning for server %d: %w", p.ServerID, err)
+		partitions, err := c.PlanPartitions(ctx, p.Zone, p.ServerID, p.OS)
+		if err != nil {
+			return err
 		}
-		body.Partitions = toInstallPartitions(part.Partitions, p.OS.AllowedFileSystems)
+		body.Partitions = partitions
 	}
 	// A user-login OS (e.g. Ubuntu) locks root and grants the created user sudo,
 	// so the install API rejects a root_password ("should be blank") and takes
@@ -492,6 +492,17 @@ func (c *Client) StartInstall(ctx context.Context, p InstallParams) error {
 		return fmt.Errorf("start install on server %d: %w", p.ServerID, err)
 	}
 	return nil
+}
+
+// PlanPartitions returns the install layout for a server + OS without starting
+// an install: the provider's own default with /data formatted as XFS. Exported
+// so the layout can be inspected before a wipe, since a wrong one costs a box.
+func (c *Client) PlanPartitions(ctx context.Context, zone string, serverID uint64, os OSChoice) ([]*scwdedibox.InstallPartition, error) {
+	var part scwdedibox.ServerDefaultPartitioning
+	if err := c.t.get(ctx, fmt.Sprintf("/dedibox/v1/zones/%s/servers/%d/partitioning/%d", zone, serverID, os.ID), nil, &part); err != nil {
+		return nil, fmt.Errorf("default partitioning for server %d: %w", serverID, err)
+	}
+	return toInstallPartitions(part.Partitions, os.AllowedFileSystems), nil
 }
 
 // DataMountPoint is the separate filesystem every Kura cache directory lives on.
