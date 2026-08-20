@@ -6,6 +6,7 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Accounts
   alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
+  alias Tuist.Runners.Allowance
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
@@ -173,6 +174,33 @@ defmodule Tuist.Runners.DispatchTest do
       :ok = perform_job(FlushJobTransitionEventsWorker, %{})
 
       assert Map.get(Jobs.status_counts(installation_account.id), "queued", 0) == 1
+    end
+
+    test "returns {:ignored, :allowance_exhausted} when a free account has spent its runner allowance" do
+      account = enabled_account()
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      stub(Allowance, :exhausted?, fn a -> a.id == account.id end)
+
+      # Nothing is enqueued and nothing tells GitHub, so the job stays
+      # queued there until it times out. The server-side log is the only
+      # signal that a limit rather than a capacity shortage stopped it.
+      reject(&Jobs.enqueue_if_missing/1)
+
+      assert {:ignored, :allowance_exhausted} =
+               Dispatch.handle_webhook(queued_payload(owner: account.name), 1)
+    end
+
+    test "keeps dispatching for an account whose allowance is intact" do
+      account = enabled_account()
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      stub(Allowance, :exhausted?, fn _account -> false end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      assert {:ok, :queued} =
+               Dispatch.handle_webhook(queued_payload(owner: account.name, labels: ["tuist-macos"]), 1)
     end
 
     test "returns {:ignored, :runners_disabled} when runners aren't enabled for the account" do

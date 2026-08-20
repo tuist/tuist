@@ -197,6 +197,7 @@ defmodule Tuist do
       Runners.Analytics,
       Runners.Billing,
       Runners.Catalog,
+      Runners.Allowance,
       Runners.Prepaid,
       Runners.Trials,
       Runners.Concurrency,

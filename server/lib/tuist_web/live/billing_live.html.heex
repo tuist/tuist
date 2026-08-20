@@ -261,7 +261,12 @@
       </span>
       <.table id="runner-usage-table" rows={[@runner_usage]}>
         <:col :let={usage} label={dgettext("dashboard_account", "Minutes this month")}>
-          <.text_cell label={usage.minutes} />
+          <.text_and_description_cell
+            label={usage.minutes}
+            description={
+              dgettext("dashboard_account", "%{count} free each month", count: usage.free_minutes)
+            }
+          />
         </:col>
         <:col :let={usage} label={dgettext("dashboard_account", "Usage value")}>
           <.text_and_description_cell

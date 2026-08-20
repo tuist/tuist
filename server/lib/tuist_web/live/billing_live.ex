@@ -5,6 +5,7 @@ defmodule TuistWeb.BillingLive do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Runners.Allowance
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.Trials
@@ -151,20 +152,30 @@ defmodule TuistWeb.BillingLive do
     minutes = div(total_ms, 60_000)
     accrued = Prepaid.on_demand_cost(minutes)
 
+    # The first minutes of every period are free on every plan, so what
+    # is chargeable is only what runs past the allowance.
+    free_minutes = Allowance.free_monthly_minutes()
+    chargeable = Prepaid.on_demand_cost(max(minutes - free_minutes, 0))
+
     {billed, not_billed_because} =
       cond do
         Trials.on_trial?(account) -> {Money.new(0, :USD), :trial}
         is_nil(subscription) -> {Money.new(0, :USD), :no_subscription}
-        true -> {accrued, nil}
+        minutes <= free_minutes -> {Money.new(0, :USD), :within_allowance}
+        true -> {chargeable, nil}
       end
 
     %{
       minutes: minutes,
+      free_minutes: free_minutes,
       accrued: accrued,
       billed: billed,
       not_billed_because: not_billed_because
     }
   end
+
+  def runner_billed_explanation(:within_allowance),
+    do: dgettext("dashboard_account", "within your %{count} free minutes", count: Allowance.free_monthly_minutes())
 
   def runner_billed_explanation(:trial), do: dgettext("dashboard_account", "free during your trial")
 
