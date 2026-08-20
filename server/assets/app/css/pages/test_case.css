@@ -97,180 +97,204 @@
     visibility: hidden;
   }
 
-  & [data-part="test-case-details-section"] {
-    display: flex;
-    flex-direction: row;
-    gap: var(--noora-spacing-5);
-
-    & [data-part="summary-main"] {
-      display: flex;
-      flex: 1;
-      flex-direction: column;
-      gap: var(--noora-spacing-8);
+  & [data-part="analytics"] {
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
     }
 
-    & [data-part="metadata-grid"] {
+    & > [data-part="analytics-body"] {
       display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-9);
+      flex-direction: row;
+      gap: var(--noora-spacing-7);
 
-      & [data-part="metadata-row"] {
-        display: flex;
-        flex-direction: row;
-        gap: var(--noora-spacing-7);
-
-        & > [data-part="metadata"] {
-          display: flex;
-          flex: 1;
+      @media (max-width: 1024px) {
+        & {
           flex-direction: column;
-          align-items: flex-start;
+        }
+      }
+
+      & > [data-part="analytics-main"] {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: var(--noora-spacing-6);
+        min-width: 0;
+
+        & > [data-part="widgets"] {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
           gap: var(--noora-spacing-4);
+          background-color: var(--noora-surface-background-primary);
+
+          @media (max-width: 768px) {
+            & {
+              grid-template-columns: 1fr;
+            }
+          }
+        }
+
+        & > [data-part="analytics-chart"] {
+          & .noora-chart {
+            height: 200px;
+          }
+        }
+
+        & > [data-part="analytics-chart-empty"] {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          gap: var(--noora-spacing-5);
+          height: 200px;
+
+          & img {
+            width: 160px;
+          }
 
           & > [data-part="title"] {
             color: var(--noora-surface-label-secondary);
             font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
           }
-
-          & > [data-part="value"] {
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            gap: var(--noora-spacing-2);
-            color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-
-            & > svg {
-              width: var(--noora-icon-size-medium);
-              height: var(--noora-icon-size-medium);
-              color: var(--noora-surface-label-secondary);
-            }
-          }
         }
       }
-    }
-  }
 
-  & [data-part="test-case-details"] {
-    & [data-part="widgets"] {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: var(--noora-spacing-4);
-      background-color: var(--noora-surface-background-primary);
-
-      @media (max-width: 768px) {
-        & {
-          grid-template-columns: 1fr;
-        }
-      }
-    }
-  }
-
-  & [data-part="test-case-details-section"] {
-    & [data-part="overview-history"] {
-      display: flex;
-      flex: 0 0 40%;
-      flex-direction: column;
-      gap: var(--noora-spacing-5);
-      border-left: 1px solid var(--noora-surface-border-primary);
-      padding-left: var(--noora-spacing-5);
-
-      & [data-part="overview-history-title"] {
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-      }
-
-      & [data-part="overview-history-timeline"] {
+      & > [data-part="analytics-history"] {
         display: flex;
+        flex: 0 0 300px;
         flex-direction: column;
         gap: var(--noora-spacing-5);
-      }
+        border-left: 1px solid var(--noora-surface-border-primary);
+        padding-left: var(--noora-spacing-7);
 
-      & [data-part="overview-history-item"] {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        gap: 10px;
-        box-shadow: var(--noora-light-border-default);
-        border-radius: var(--noora-radius-4);
-        background: var(--noora-surface-background-primary);
-        padding: var(--noora-spacing-5);
-
-        & [data-part="overview-history-icon"] {
-          display: flex;
-          flex-shrink: 0;
-          justify-content: center;
-          align-items: center;
-          border-radius: var(--noora-radius-4);
-          padding: var(--noora-spacing-3);
-
-          & svg {
-            width: var(--noora-icon-size-large);
-            height: var(--noora-icon-size-large);
-          }
-
-          &[data-color="primary"] {
-            background: var(--noora-icon-primary-background);
-            & svg {
-              color: var(--noora-icon-primary-label);
-            }
-          }
-
-          &[data-color="success"] {
-            background: var(--noora-icon-success-background);
-            & svg {
-              color: var(--noora-icon-success-label);
-            }
-          }
-
-          &[data-color="warning"] {
-            background: var(--noora-icon-warning-background);
-            & svg {
-              color: var(--noora-icon-warning-label);
-            }
-          }
-
-          &[data-color="destructive"] {
-            background: var(--noora-icon-destructive-background);
-            & svg {
-              color: var(--noora-icon-destructive-label);
-            }
-          }
-
-          &[data-color="information"] {
-            background: var(--noora-icon-info-background);
-            & svg {
-              color: var(--noora-icon-info-label);
-            }
+        @media (max-width: 1024px) {
+          & {
+            flex-basis: auto;
+            border-top: 1px solid var(--noora-surface-border-primary);
+            border-left: none;
+            padding-top: var(--noora-spacing-6);
+            padding-left: 0;
           }
         }
 
-        & [data-part="overview-history-content"] {
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > .noora-button {
+          align-self: flex-start;
+        }
+
+        & > [data-part="timeline"] {
           display: flex;
-          flex: 1;
           flex-direction: column;
-          gap: var(--noora-spacing-2);
 
-          & [data-part="overview-history-item-title"] {
-            color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-          }
+          & > [data-part="timeline-item"] {
+            display: flex;
+            flex-direction: row;
+            gap: var(--noora-spacing-4);
 
-          & [data-part="overview-history-item-subtitle"] {
-            color: var(--noora-surface-label-secondary);
-            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+            /* The run of markers reads as one line rather than as loose dots,
+               with the last item's tail cut so the line ends where the events do. */
+            & > [data-part="marker"] {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: var(--noora-spacing-2);
+
+              &::after {
+                flex: 1;
+                background-color: var(--noora-surface-border-primary);
+                width: 1px;
+                content: "";
+              }
+
+              & > [data-part="icon"] {
+                display: flex;
+                flex-shrink: 0;
+                justify-content: center;
+                align-items: center;
+                border-radius: var(--noora-radius-full);
+                width: 24px;
+                height: 24px;
+
+                & svg {
+                  width: 14px;
+                  height: 14px;
+                }
+
+                /* The badge palette, since the surface tokens the old markup
+                   reached for do not exist and left every marker colourless. */
+                &[data-color="success"] {
+                  background-color: var(--noora-badge-light-fill-success-background);
+                  color: var(--noora-badge-light-fill-success-label);
+                }
+
+                &[data-color="destructive"] {
+                  background-color: var(--noora-badge-light-fill-destructive-background);
+                  color: var(--noora-badge-light-fill-destructive-label);
+                }
+
+                &[data-color="warning"] {
+                  background-color: var(--noora-badge-light-fill-warning-background);
+                  color: var(--noora-badge-light-fill-warning-label);
+                }
+
+                &[data-color="information"] {
+                  background-color: var(--noora-badge-light-fill-information-background);
+                  color: var(--noora-badge-light-fill-information-label);
+                }
+
+                &[data-color="primary"] {
+                  background-color: var(--noora-badge-light-fill-primary-background);
+                  color: var(--noora-badge-light-fill-primary-label);
+                }
+              }
+            }
+
+            &:last-child > [data-part="marker"]::after {
+              display: none;
+            }
+
+            & > [data-part="content"] {
+              display: flex;
+              flex: 1;
+              flex-direction: column;
+              gap: var(--noora-spacing-2);
+              padding-bottom: var(--noora-spacing-6);
+              min-width: 0;
+
+              & > [data-part="headline"] {
+                display: flex;
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: baseline;
+                gap: var(--noora-spacing-4);
+
+                & > [data-part="item-title"] {
+                  color: var(--noora-surface-label-primary);
+                  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+                }
+
+                & [data-part="item-time"] {
+                  flex-shrink: 0;
+                  color: var(--noora-surface-label-secondary);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+                  white-space: nowrap;
+                }
+              }
+
+              & > [data-part="item-subtitle"] {
+                color: var(--noora-surface-label-secondary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+              }
+            }
+
+            &:last-child > [data-part="content"] {
+              padding-bottom: 0;
+            }
           }
         }
-
-        & [data-part="overview-history-time"] {
-          flex-shrink: 0;
-          color: var(--noora-surface-label-secondary);
-          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-        }
-      }
-
-      & [data-part="overview-history-footer"] {
-        display: flex;
-        justify-content: center;
       }
     }
   }

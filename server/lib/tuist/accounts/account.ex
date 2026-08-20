@@ -51,6 +51,7 @@ defmodule Tuist.Accounts.Account do
     field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
     field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
+    field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
 
     field :cache_write_policy, Ecto.Enum,
       values: [members_and_tokens: 0, tokens_only: 1],
@@ -141,6 +142,18 @@ defmodule Tuist.Accounts.Account do
     |> validate_handle()
     |> validate_inclusion(:region, [:all, :europe, :usa])
     |> validate_inclusion(:cache_write_policy, [:members_and_tokens, :tokens_only])
+  end
+
+  @doc """
+  Toggles whether the account's non-admin dashboards are readable by
+  signed-out visitors. Kept out of `update_changeset/2` so the account
+  update API can't flip it: the toggle is operator-only.
+  """
+  def visibility_changeset(account, attrs) do
+    account
+    |> cast(attrs, [:visibility])
+    |> validate_required([:visibility])
+    |> validate_inclusion(:visibility, [:private, :public])
   end
 
   @s3_fields [:s3_bucket_name, :s3_access_key_id, :s3_secret_access_key, :s3_region, :s3_endpoint]

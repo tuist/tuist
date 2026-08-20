@@ -1869,6 +1869,16 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
+  Marks the account's non-admin dashboards as readable by signed-out
+  visitors, or takes them back private. Operator-only.
+  """
+  def update_account_visibility(%Account{} = account, visibility) do
+    account
+    |> Account.visibility_changeset(%{visibility: visibility})
+    |> Repo.update()
+  end
+
+  @doc """
   Gets the user with the given signed token.
   """
   def get_user_by_session_token(token, opts \\ []) do

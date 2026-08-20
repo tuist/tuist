@@ -39,6 +39,21 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert html =~ "value=\"12\""
   end
 
+  test "toggles the account's dashboard visibility", %{conn: conn, user: user} do
+    {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert html =~ "Make public"
+
+    html = lv |> element("button", "Make public") |> render_click()
+
+    assert html =~ "Make private"
+    assert {:ok, %{visibility: :public}} = Accounts.get_account_by_id(user.account.id)
+
+    lv |> element("button", "Make private") |> render_click()
+
+    assert {:ok, %{visibility: :private}} = Accounts.get_account_by_id(user.account.id)
+  end
+
   test "updates platform-specific runner concurrency limits", %{conn: conn, user: user} do
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 

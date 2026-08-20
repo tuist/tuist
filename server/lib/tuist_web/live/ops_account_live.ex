@@ -183,6 +183,29 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   @impl true
+  def handle_event("toggle_visibility", _params, socket) do
+    account = socket.assigns.account
+    visibility = if account.visibility == :public, do: :private, else: :public
+
+    case Accounts.update_account_visibility(account, visibility) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, preload_billing(account))
+         |> put_flash(
+           :info,
+           dgettext("dashboard", "%{account} is now %{visibility}.",
+             account: account.name,
+             visibility: account.visibility
+           )
+         )}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Account visibility could not be updated."))}
+    end
+  end
+
+  @impl true
   def handle_event("initiate_enterprise_upgrade", _params, socket) do
     account = Accounts.create_customer_when_absent(socket.assigns.account)
     customer = fetch_stripe_customer(account.customer_id)
