@@ -2,6 +2,68 @@ import Foundation
 import Path
 import XCResultParser
 
+/// Errors raised at the NIF boundary, where a path that failed `AbsolutePath`
+/// validation leaves nothing to build an `XCResultParserError` from. The
+/// messages mirror their `XCResultParserError` counterparts so a given failure
+/// reads the same whichever type carries it.
+enum XCResultNIFError: LocalizedError {
+    case timedOut(path: String, seconds: Int)
+    case failedToParseOutput(path: String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .timedOut(path, seconds):
+            return "xcresult parsing timed out after \(seconds)s at \(path)"
+        case let .failedToParseOutput(path):
+            return "Failed to parse xcresult output at \(path)"
+        }
+    }
+}
+
+/// Carries the parse outcome from the Task that produces it to the NIF thread
+/// that reads it.
+///
+/// A parse that outlives its timeout keeps writing here after the NIF has
+/// returned, so the storage outlives the call (the Task holds the only
+/// remaining reference) and every access is serialised. Writing the outcome
+/// through `finalize` in the same critical section it is read from keeps a
+/// late write from replacing the value the caller is about to receive.
+private final class ParseResultBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var result: Result<TestSummary, Error>?
+
+    func store(_ value: Result<TestSummary, Error>) {
+        lock.lock()
+        defer { lock.unlock() }
+        result = value
+    }
+
+    func value() -> Result<TestSummary, Error>? {
+        lock.lock()
+        defer { lock.unlock() }
+        return result
+    }
+
+    func finalize(with value: Result<TestSummary, Error>) -> Result<TestSummary, Error> {
+        lock.lock()
+        defer { lock.unlock() }
+        result = value
+        return value
+    }
+}
+
+/// Seconds a parse may run before it is cancelled.
+private let timeoutSeconds = 600
+
+/// Seconds a cancelled parse is given to unwind before the NIF returns.
+///
+/// Cancellation reaches the `xcresulttool`/`sips` child through Command's
+/// `continuation.onTermination`, which terminates the process. Waiting for that
+/// to land keeps the child from surviving as an orphan holding a
+/// `CommandRunner` process-limiter permit for the lifetime of the BEAM, and
+/// keeps it from writing into the temp directory the worker deletes next.
+private let cancellationGraceSeconds = 30
+
 @_cdecl("parse_xcresult")
 public func parseXCResult(
     _ pathPtr: UnsafePointer<CChar>,
@@ -12,12 +74,12 @@ public func parseXCResult(
     let path = String(cString: pathPtr)
     let rootDir = String(cString: rootDirPtr)
 
-    nonisolated(unsafe) var result: Result<TestSummary, Error> = .failure(
-        XCResultParserError.failedToParseOutput(try! AbsolutePath(validating: path))
-    )
+    let box = ParseResultBox()
     let semaphore = DispatchSemaphore(value: 0)
 
-    Task { @Sendable in
+    let task = Task { @Sendable in
+        defer { semaphore.signal() }
+
         do {
             let xcresultPath = try AbsolutePath(validating: path)
             let rootDirectory = try AbsolutePath(validating: rootDir)
@@ -31,24 +93,25 @@ public func parseXCResult(
                 rootDirectory: rootDirectory,
                 attachmentsDirectory: rootDirectory
             ) else {
-                result = .failure(XCResultParserError.failedToParseOutput(xcresultPath))
-                semaphore.signal()
+                box.store(.failure(XCResultParserError.failedToParseOutput(xcresultPath)))
                 return
             }
-            result = .success(parsed)
+            box.store(.success(parsed))
         } catch {
-            result = .failure(error)
+            box.store(.failure(error))
         }
-        semaphore.signal()
     }
 
-    let timeoutSeconds = 600
-    let timeout = semaphore.wait(timeout: .now() + .seconds(timeoutSeconds))
-    if timeout == .timedOut {
-        result = .failure(XCResultParserError.timedOut(try! AbsolutePath(validating: path), seconds: timeoutSeconds))
+    let outcome: Result<TestSummary, Error>
+    if semaphore.wait(timeout: .now() + .seconds(timeoutSeconds)) == .timedOut {
+        task.cancel()
+        _ = semaphore.wait(timeout: .now() + .seconds(cancellationGraceSeconds))
+        outcome = box.finalize(with: .failure(timedOutError(path: path, seconds: timeoutSeconds)))
+    } else {
+        outcome = box.value() ?? .failure(XCResultNIFError.failedToParseOutput(path: path))
     }
 
-    switch result {
+    switch outcome {
     case let .success(parsed):
         do {
             let jsonData = try JSONEncoder().encode(parsed)
@@ -68,6 +131,13 @@ public func parseXCResult(
     case let .failure(error):
         return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
     }
+}
+
+private func timedOutError(path: String, seconds: Int) -> Error {
+    guard let xcresultPath = try? AbsolutePath(validating: path) else {
+        return XCResultNIFError.timedOut(path: path, seconds: seconds)
+    }
+    return XCResultParserError.timedOut(xcresultPath, seconds: seconds)
 }
 
 private func writeError(
