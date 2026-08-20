@@ -103,4 +103,83 @@ defmodule Tuist.Runners.AllowanceTest do
       assert Allowance.free_monthly_minutes() == 100
     end
   end
+
+  describe "monthly_breakdown/1" do
+    test "spends the allowance in date order, so the day it runs out is split", %{account: account} do
+      # Three days of 60 minutes against a 100 minute allowance: the
+      # first is entirely free, the second straddles the boundary, the
+      # third is entirely billed.
+      for days_ago <- [3, 2, 1] do
+        started = DateTime.add(DateTime.utc_now(), -days_ago, :day)
+
+        Repo.insert!(%RunnerSession{
+          account_id: account.id,
+          workflow_job_id: System.unique_integer([:positive]),
+          fleet_name: "tuist-macos",
+          pod_name: "pod-#{System.unique_integer([:positive])}",
+          runner_name: "",
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14,
+          billing_multiplier: 10_000,
+          started_at: started,
+          job_started_at: started,
+          job_ended_at: DateTime.add(started, 60 * 60, :second),
+          inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+          updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+        })
+      end
+
+      breakdown = Allowance.monthly_breakdown(account)
+
+      assert breakdown.minutes == 180
+      # 180 minutes at $0.075, of which 80 are past the allowance.
+      assert breakdown.gross == Money.new(1350, :USD)
+      assert breakdown.billed == Money.new(600, :USD)
+
+      [first, second, third] = breakdown.days
+      assert first.gross == Money.new(450, :USD)
+      assert first.billed == Money.new(0, :USD)
+      # The allowance ran out 40 minutes into this day.
+      assert second.gross == Money.new(450, :USD)
+      assert second.billed == Money.new(150, :USD)
+      assert third.gross == Money.new(450, :USD)
+      assert third.billed == Money.new(450, :USD)
+    end
+
+    test "gives every day a stable id, since the table keys rows on it", %{account: account} do
+      started = DateTime.add(DateTime.utc_now(), -1, :day)
+
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: System.unique_integer([:positive]),
+        fleet_name: "tuist-macos",
+        pod_name: "pod-#{System.unique_integer([:positive])}",
+        runner_name: "",
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        billing_multiplier: 10_000,
+        started_at: started,
+        job_started_at: started,
+        job_ended_at: DateTime.add(started, 600, :second),
+        inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+
+      breakdown = Allowance.monthly_breakdown(account)
+
+      ids = Enum.map(breakdown.days, & &1.id)
+      assert ids == Enum.uniq(ids)
+      assert Enum.all?(ids, &is_binary/1)
+    end
+
+    test "reports nothing for an account that has run no jobs", %{account: account} do
+      breakdown = Allowance.monthly_breakdown(account)
+
+      assert breakdown.minutes == 0
+      assert breakdown.days == []
+      assert breakdown.billed == Money.new(0, :USD)
+    end
+  end
 end

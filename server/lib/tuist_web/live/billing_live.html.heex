@@ -59,6 +59,27 @@
             </div>
           </:description>
         </.progress_bar>
+        <.progress_bar
+          :if={@runner_usage.total_ms > 0}
+          value={@runner_usage.minutes}
+          max={@runner_usage.free_minutes}
+          title={dgettext("dashboard_account", "Runner minutes:")}
+        >
+          <:description>
+            <div data-part="description">
+              <.link_button
+                navigate={~p"/#{@selected_account.name}/usage"}
+                label={dgettext("dashboard_account", "See the breakdown")}
+                variant="primary"
+                size="medium"
+                underline
+              />
+              <span data-part="label">
+                {dgettext("dashboard_account", "of your runner usage")}
+              </span>
+            </div>
+          </:description>
+        </.progress_bar>
       </.card_section>
       <.card_section data-part="current-plan-card-section">
         <div data-part="header">
@@ -205,45 +226,6 @@
         </.modal>
       </.card_section>
     </div>
-  </.card>
-  <.card
-    :if={@runner_usage.total_ms > 0}
-    data-part="runner-usage-card"
-    icon="server"
-    title={dgettext("dashboard_account", "Runner usage")}
-  >
-    <.card_section data-part="runner-usage-card-section">
-      <span data-part="info-label">
-        {dgettext(
-          "dashboard_account",
-          "Runner minutes are measured on the macOS 6 vCPU / 14 GB baseline. A larger machine uses more than one minute of credit per minute it runs."
-        )}
-      </span>
-      <.table id="runner-usage-table" rows={[@runner_usage]}>
-        <:col :let={usage} label={dgettext("dashboard_account", "Runner time this month")}>
-          <.text_and_description_cell
-            label={runner_duration_label(usage.total_ms)}
-            description={
-              dgettext("dashboard_account", "%{count} minutes free each month",
-                count: usage.free_minutes
-              )
-            }
-          />
-        </:col>
-        <:col :let={usage} label={dgettext("dashboard_account", "Usage value")}>
-          <.text_and_description_cell
-            label={format_money(usage.accrued)}
-            description={dgettext("dashboard_account", "at the standard rate")}
-          />
-        </:col>
-        <:col :let={usage} label={dgettext("dashboard_account", "Billed")}>
-          <.text_and_description_cell
-            label={format_money(usage.billed)}
-            description={runner_billed_explanation(usage.not_billed_because)}
-          />
-        </:col>
-      </.table>
-    </.card_section>
   </.card>
   <.card
     :if={@prepaid_runner_credit}

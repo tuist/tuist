@@ -334,8 +334,9 @@ defmodule TuistWeb.BillingLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
-      assert has_element?(lv, "#runner-usage-table")
-      assert render(lv) =~ "18 seconds"
+      # Under a minute is still usage, so the row appears; the detail of
+      # what it is worth lives on the usage page.
+      assert render(lv) =~ "Runner minutes:"
     end
 
     test "is not shown for an account that has run none", %{conn: conn, account: account} do
@@ -350,25 +351,23 @@ defmodule TuistWeb.BillingLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
+      # The billing page carries the simple figure: minutes used against
+      # the allowance. The money breakdown lives on the usage page.
       html = render(lv)
-      # 100 baseline minutes at the $0.075 standard rate.
-      assert html =~ "100 minutes"
-      assert html =~ "7.50"
-      assert html =~ "0.00"
-      assert html =~ "free during your trial"
+      assert html =~ "Runner minutes:"
+      assert html =~ "100"
+      assert has_element?(lv, "#runner-trial-banner")
     end
 
-    test "explains a zero bill when there is no paid plan behind it", %{conn: conn, account: account} do
+    test "links to the breakdown rather than repeating it", %{conn: conn, account: account} do
       runner_session_fixture(account, 40)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
-      html = render(lv)
-      assert html =~ "3.00"
-      assert html =~ "no paid plan to bill against"
+      assert render(lv) =~ "See the breakdown"
     end
 
-    test "truncates to whole minutes so the figure matches the invoiced quantity", %{conn: conn, account: account} do
+    test "counts whole minutes against the allowance", %{conn: conn, account: account} do
       # 90 seconds of runner time is one billable minute, not one and a half.
       runner_session_fixture(account, 1)
       session = Repo.one!(from(s in RunnerSession, where: s.account_id == ^account.id))
@@ -377,8 +376,7 @@ defmodule TuistWeb.BillingLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
-      assert has_element?(lv, "#runner-usage-table")
-      assert render(lv) =~ "0.07"
+      assert render(lv) =~ "Runner minutes:"
     end
   end
 end

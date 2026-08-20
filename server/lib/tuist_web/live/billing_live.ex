@@ -28,11 +28,15 @@ defmodule TuistWeb.BillingLive do
 
     current_month_remote_cache_hits_count = selected_account.current_month_remote_cache_hits_count
 
+    runner_usage = runner_usage(selected_account, subscription)
+
+    # Runner time is billed alongside remote cache hits, so the headline
+    # figure has to carry both or it understates the bill for anyone
+    # using runners.
     estimated_next_payment =
-      %{
-        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
-      }
+      %{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count}
       |> Billing.get_estimated_next_payment_money()
+      |> Money.add(runner_usage.billed)
       |> format_money()
 
     next_charge_date =
@@ -71,7 +75,7 @@ defmodule TuistWeb.BillingLive do
       socket
       |> assign(:prepaid_runner_credit, Prepaid.balance(selected_account))
       |> assign(:on_runner_trial, Trials.on_trial?(selected_account))
-      |> assign(:runner_usage, runner_usage(selected_account, subscription))
+      |> assign(:runner_usage, runner_usage)
       |> assign(:estimated_next_payment, estimated_next_payment)
       |> assign(:plan, plan)
       |> assign(:next_charge_date, next_charge_date)
@@ -169,6 +173,7 @@ defmodule TuistWeb.BillingLive do
 
     %{
       total_ms: total_ms,
+      minutes: div(total_ms, 60_000),
       free_minutes: free_minutes,
       accrued: accrued,
       billed: billed,

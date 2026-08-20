@@ -11,6 +11,7 @@ defmodule TuistWeb.UsageLive do
   alias Tuist.FeatureFlags
   alias Tuist.Kura.Usage
   alias Tuist.Projects
+  alias Tuist.Runners.Allowance
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.CldrHelpers
   alias TuistWeb.Helpers.DatePicker
@@ -20,8 +21,13 @@ defmodule TuistWeb.UsageLive do
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
+    runner_breakdown = Allowance.monthly_breakdown(account)
+
+    # The page used to exist only for accounts with cache traffic. Runner
+    # usage is billed the same way and belongs on the same page, so an
+    # account with runner time but no cache reaches it too.
     if Authorization.authorize(:account_dashboard_read, current_user, account) != :ok or
-         not FeatureFlags.kura_enabled?(account) do
+         (not FeatureFlags.kura_enabled?(account) and runner_breakdown.minutes == 0) do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_usage", "The page you are looking for doesn't exist or has been moved.")
     end
@@ -44,7 +50,9 @@ defmodule TuistWeb.UsageLive do
     {:ok,
      socket
      |> assign(:head_title, "#{dgettext("dashboard_usage", "Usage")} · #{account.name} · Tuist")
-     |> assign(:projects, projects)}
+     |> assign(:projects, projects)
+     |> assign(:runner_breakdown, runner_breakdown)
+     |> assign(:kura_enabled, FeatureFlags.kura_enabled?(account))}
   end
 
   @widgets ["egress", "ingress", "requests"]
@@ -239,6 +247,44 @@ defmodule TuistWeb.UsageLive do
     end)
   end
 
+  @doc """
+  Chart options for the runner spend series. Dollars on the y axis, not
+  bytes, and a date x axis spanning the billing month.
+  """
+  def runner_chart_options(dates) do
+    %{
+      grid: %{width: "97%", left: "0.4%", height: "78%", top: "8%"},
+      xAxis: %{
+        boundaryGap: false,
+        type: "category",
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: "fn:toLocaleDate",
+          customValues: [List.first(dates), List.last(dates)],
+          padding: [10, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary"}
+      }
+    }
+  end
+
+  def runner_chart_series(points) do
+    [
+      %{
+        color: "var:noora-chart-primary",
+        data: Enum.map(points, &[&1.date, &1.value]),
+        name: dgettext("dashboard_usage", "Billed"),
+        type: "line",
+        smooth: 0.1,
+        symbol: "none"
+      }
+    ]
+  end
+
   def region_label(""), do: dgettext("dashboard_usage", "Unknown")
   def region_label(nil), do: dgettext("dashboard_usage", "Unknown")
   def region_label(region) when is_binary(region), do: region
@@ -248,4 +294,21 @@ defmodule TuistWeb.UsageLive do
   def format_count(_), do: CldrHelpers.format_number(0)
 
   def empty_label, do: dgettext("dashboard_usage", "No cache traffic in this window yet")
+
+  @doc """
+  Cumulative billed spend per day, which is what a reader wants from a
+  spend chart: the line only climbs once the free allowance is gone, so
+  the shape shows when the month started costing money.
+  """
+  def runner_cost_series(%{days: days}) do
+    {points, _running} =
+      Enum.map_reduce(days, 0, fn day, running ->
+        running = running + day.billed.amount
+        # Dollars rather than cents: Noora's chart has no currency
+        # formatter, so the axis reads the raw number it is given.
+        {%{date: day.date, value: Float.round(running / 100, 2)}, running}
+      end)
+
+    points
+  end
 end

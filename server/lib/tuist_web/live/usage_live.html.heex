@@ -5,7 +5,7 @@
       <span data-part="subtitle">
         {dgettext(
           "dashboard_usage",
-          "Traffic and request volume served by Tuist Cache for this account."
+          "Runner time and cache traffic billed to this account."
         )}
       </span>
     </div>
@@ -93,6 +93,79 @@
       </.date_picker>
     </div>
   </div>
+
+  <.card
+    :if={@runner_breakdown.minutes > 0}
+    title={dgettext("dashboard_usage", "Runner usage")}
+    icon="server"
+    data-part="runner-usage-card"
+  >
+    <.card_section data-part="runner-usage-card-section">
+      <span data-part="info-label">
+        {dgettext(
+          "dashboard_usage",
+          "Billing period %{from} to %{to}. Minutes are measured on the macOS 6 vCPU / 14 GB baseline; a larger machine uses more than one minute per minute it runs.",
+          from: Timex.format!(@runner_breakdown.period_start, "{Mshort} {D}"),
+          to: Timex.format!(@runner_breakdown.period_end, "{Mshort} {D}, {YYYY}")
+        )}
+      </span>
+      <div data-part="widgets">
+        <.widget
+          id="widget-runner-minutes"
+          title={dgettext("dashboard_usage", "Runner minutes")}
+          description={
+            dgettext("dashboard_usage", "%{count} free each month",
+              count: @runner_breakdown.free_minutes
+            )
+          }
+          value={to_string(@runner_breakdown.minutes)}
+        />
+        <.widget
+          id="widget-runner-gross"
+          title={dgettext("dashboard_usage", "Usage value")}
+          description={dgettext("dashboard_usage", "At the standard rate, before the free tier")}
+          value={format_money(@runner_breakdown.gross)}
+        />
+        <.widget
+          id="widget-runner-billed"
+          title={dgettext("dashboard_usage", "Billed")}
+          description={dgettext("dashboard_usage", "What lands on your invoice")}
+          value={format_money(@runner_breakdown.billed)}
+        />
+      </div>
+    </.card_section>
+    <.card_section data-part="runner-usage-card-chart-section">
+      <.chart
+        id="runner-spend-chart"
+        type="line"
+        extra_options={
+          TuistWeb.UsageLive.runner_chart_options(Enum.map(@runner_breakdown.days, & &1.date))
+        }
+        series={
+          TuistWeb.UsageLive.runner_chart_series(
+            TuistWeb.UsageLive.runner_cost_series(@runner_breakdown)
+          )
+        }
+        y_axis_min={0}
+      />
+    </.card_section>
+    <.card_section data-part="runner-usage-card-table-section">
+      <.table id="runner-usage-breakdown" rows={@runner_breakdown.days}>
+        <:col :let={day} label={dgettext("dashboard_usage", "Date")}>
+          <.text_cell label={Timex.format!(day.date, "{Mshort} {D}, {YYYY}")} />
+        </:col>
+        <:col :let={day} label={dgettext("dashboard_usage", "Minutes")}>
+          <.text_cell label={to_string(day.minutes)} />
+        </:col>
+        <:col :let={day} label={dgettext("dashboard_usage", "Usage value")}>
+          <.text_cell label={format_money(day.gross)} />
+        </:col>
+        <:col :let={day} label={dgettext("dashboard_usage", "Billed")}>
+          <.text_cell label={format_money(day.billed)} />
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
 
   <.card
     title={dgettext("dashboard_usage", "Cache traffic")}

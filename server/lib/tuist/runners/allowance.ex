@@ -28,6 +28,7 @@ defmodule Tuist.Runners.Allowance do
   alias Tuist.Billing
   alias Tuist.KeyValueStore
   alias Tuist.Runners.Billing, as: RunnerBilling
+  alias Tuist.Runners.Prepaid
 
   # Must match the first tier of that environment's runner Price. The
   # default is the real allowance; staging lowers both together so the
@@ -92,6 +93,61 @@ defmodule Tuist.Runners.Allowance do
         |> div(60_000)
       end
     )
+  end
+
+  @doc """
+  This calendar month's runner usage broken down by day, with what each
+  day's time is worth and what of it is actually billable.
+
+  Scoped to the calendar month rather than an arbitrary range because
+  the allowance resets monthly: the same day's usage is free or charged
+  depending on how much of the month preceded it, so a window that does
+  not start where the allowance does cannot answer what was billed.
+
+  The allowance is consumed in date order, so the days that cross it
+  carry a gross figure larger than their billed one and the days before
+  it bill nothing. That split is the point: it shows where the free tier
+  ran out rather than presenting one blended number.
+  """
+  def monthly_breakdown(%Account{id: account_id} = account) do
+    now = DateTime.utc_now()
+    period_start = %{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}
+    free_ms = free_monthly_minutes() * 60_000
+
+    per_day =
+      account_id
+      |> RunnerBilling.compute_milliseconds_per_bucket(period_start, now, :day)
+      |> Enum.sort_by(fn {date, _ms} -> Date.to_erl(date) end)
+
+    {days, _remaining} =
+      Enum.map_reduce(per_day, free_ms, fn {date, ms}, remaining_free ->
+        covered = min(ms, remaining_free)
+        billable = ms - covered
+
+        day = %{
+          # The table keys rows on `:id`; without one every row shares a
+          # DOM id and LiveView cannot patch the list.
+          id: Date.to_iso8601(date),
+          date: date,
+          minutes: div(ms, 60_000),
+          gross: Prepaid.on_demand_cost_for_milliseconds(ms),
+          billed: Prepaid.on_demand_cost_for_milliseconds(billable)
+        }
+
+        {day, remaining_free - covered}
+      end)
+
+    total_ms = per_day |> Enum.map(&elem(&1, 1)) |> Enum.sum()
+
+    %{
+      period_start: DateTime.to_date(period_start),
+      period_end: DateTime.to_date(now),
+      minutes: div(total_ms, 60_000),
+      free_minutes: free_monthly_minutes(),
+      gross: Prepaid.on_demand_cost_for_milliseconds(total_ms),
+      billed: Prepaid.on_demand_cost_for_milliseconds(max(total_ms - free_ms, 0)),
+      days: Enum.reject(days, &(&1.minutes == 0 and &1.gross == Money.new(0, :USD)))
+    }
   end
 
   @doc """

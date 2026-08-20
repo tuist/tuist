@@ -120,7 +120,7 @@ defmodule TuistWeb.UsageLiveTest do
     test "shows the subtitle and project + date filters", %{conn: conn, account: account} do
       {:ok, _lv, html} = live(conn, ~p"/#{account.name}/usage")
 
-      assert html =~ "Traffic and request volume served by Tuist Cache"
+      assert html =~ "Runner time and cache traffic billed to this account"
       assert html =~ "Project:"
       assert html =~ "Last 30 days"
     end

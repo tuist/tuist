@@ -53,9 +53,21 @@
     }
   }
 
-  & [data-part="kura-traffic-card-chart-section"] {
+  & [data-part="kura-traffic-card-chart-section"],
+  & [data-part="runner-usage-card-chart-section"] {
     & .noora-chart {
       height: 280px;
+    }
+  }
+
+  & [data-part="runner-usage-card-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+
+    & > [data-part="info-label"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
     }
   }
 }
