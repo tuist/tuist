@@ -1616,6 +1616,7 @@ components:
             - flakiness_rate
             - flaky_run_count
             - reliability_rate
+            - duration
           type: string
           x-struct:
           x-validate:
@@ -21291,6 +21292,7 @@ paths:
                     - flakiness_rate
                     - flaky_run_count
                     - reliability_rate
+                    - duration
                   type: string
                   x-struct:
                   x-validate:

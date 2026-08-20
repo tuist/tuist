@@ -90,6 +90,50 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert automation.trigger_config["threshold"] == 3
     end
 
+    test "creates a duration automation carrying its percentile and environment", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Slow on CI"})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "duration"})
+      render_hook(lv, "update_create_automation_form_percentile", %{"data" => "p99"})
+      render_hook(lv, "update_create_automation_form_environment", %{"data" => "ci"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.monitor_type == "duration"
+      assert automation.trigger_config["percentile"] == "p99"
+      assert automation.trigger_config["environment"] == "ci"
+      assert automation.trigger_config["threshold"] == 30_000
+      assert automation.trigger_config["comparison"] == "gte"
+    end
+
+    test "reopens a duration automation with its percentile and environment selected", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Slow locally"})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "duration"})
+      render_hook(lv, "update_create_automation_form_percentile", %{"data" => "p50"})
+      render_hook(lv, "update_create_automation_form_environment", %{"data" => "local"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+
+      html = render_hook(lv, "edit_automation", %{"id" => automation.id})
+
+      assert html =~ "p50 duration"
+      assert html =~ "Local only"
+    end
+
     test "defaults reliability-rate automations to less-than 90 percent", %{
       conn: conn,
       organization: organization,

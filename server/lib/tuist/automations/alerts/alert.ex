@@ -7,10 +7,13 @@ defmodule Tuist.Automations.Alerts.Alert do
   alias Tuist.Projects.Project
 
   @event_driven_monitor_types ~w(test_updated)
-  @recovery_ledger_monitor_types ~w(flakiness_rate flaky_run_count reliability_rate)
+  @recovery_ledger_monitor_types ~w(flakiness_rate flaky_run_count reliability_rate duration)
   @monitor_types @recovery_ledger_monitor_types ++ @event_driven_monitor_types
   @comparisons ~w(gte gt lt lte)
+  @flaky_monitor_types ~w(flakiness_rate flaky_run_count reliability_rate)
   @valid_states ~w(enabled muted skipped)
+  @percentiles ~w(p50 p90 p99 avg)
+  @environments ~w(any ci local)
   @test_updated_events ~w(
     marked_flaky
     unmarked_flaky
@@ -75,6 +78,18 @@ defmodule Tuist.Automations.Alerts.Alert do
   """
   def recovery_ledger?(%{monitor_type: monitor_type}), do: recovery_ledger?(monitor_type)
   def recovery_ledger?(monitor_type), do: monitor_type in @recovery_ledger_monitor_types
+
+  @doc """
+  Monitors that measure a test's flakiness or reliability, as opposed to a
+  property it has regardless of whether it is trustworthy.
+
+  Only these are subject to the worker's default-branch validation gate: that
+  gate exists so a test which merged broken is never auto-quarantined before it
+  has been proven, which is a statement about flakiness actions and not about
+  every alert. Accepts an alert struct or a monitor-type string.
+  """
+  def flaky_monitor?(%{monitor_type: monitor_type}), do: flaky_monitor?(monitor_type)
+  def flaky_monitor?(monitor_type), do: monitor_type in @flaky_monitor_types
 
   @doc """
   Established rolling metric alerts are evaluated from recently changed test
@@ -252,6 +267,7 @@ defmodule Tuist.Automations.Alerts.Alert do
         "flakiness_rate" -> validate_flakiness_rate_config(changeset, trigger_config)
         "flaky_run_count" -> validate_flaky_run_count_config(changeset, trigger_config)
         "reliability_rate" -> validate_reliability_rate_config(changeset, trigger_config)
+        "duration" -> validate_duration_config(changeset, trigger_config)
         "test_updated" -> validate_test_updated_config(changeset, trigger_config)
         _ -> changeset
       end
@@ -338,6 +354,55 @@ defmodule Tuist.Automations.Alerts.Alert do
   # configured via `rolling_window_size: 100`). Every persisted row carries an
   # explicit `window_type` after the backfill migration, so missing values are
   # rejected here instead of inferred.
+  # Duration alerts read `test_case_duration_daily_stats_per_case`, which stores
+  # per-day quantile states. There is no rolling equivalent to read, so a
+  # rolling window is rejected outright rather than silently evaluated as a
+  # calendar one — an alert that measured a different window than it claimed
+  # would be worse than one that refused to save.
+  defp validate_duration_config(changeset, trigger_config) do
+    changeset
+    |> validate_duration_threshold(trigger_config)
+    |> validate_percentile(trigger_config)
+    |> validate_environment(trigger_config)
+    |> validate_duration_window(trigger_config)
+  end
+
+  defp validate_duration_threshold(changeset, trigger_config) do
+    threshold = trigger_config["threshold"]
+
+    if is_number(threshold) and threshold > 0 do
+      changeset
+    else
+      add_error(changeset, :trigger_config, "threshold must be a positive number of milliseconds")
+    end
+  end
+
+  defp validate_percentile(changeset, trigger_config) do
+    case Map.get(trigger_config, "percentile") do
+      nil -> changeset
+      value when value in @percentiles -> changeset
+      _ -> add_error(changeset, :trigger_config, "percentile must be one of: #{Enum.join(@percentiles, ", ")}")
+    end
+  end
+
+  defp validate_environment(changeset, trigger_config) do
+    case Map.get(trigger_config, "environment") do
+      nil -> changeset
+      value when value in @environments -> changeset
+      _ -> add_error(changeset, :trigger_config, "environment must be one of: #{Enum.join(@environments, ", ")}")
+    end
+  end
+
+  defp validate_duration_window(changeset, trigger_config) do
+    case window_type(trigger_config) do
+      "rolling" ->
+        add_error(changeset, :trigger_config, "duration alerts do not support a rolling window")
+
+      _ ->
+        validate_window_config(changeset, trigger_config)
+    end
+  end
+
   defp validate_window_config(changeset, trigger_config) do
     case validate_window_shape(trigger_config, @max_rolling_trigger_window_size) do
       :ok -> changeset
