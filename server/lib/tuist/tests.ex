@@ -2442,6 +2442,12 @@ defmodule Tuist.Tests do
   by ReplacingMergeTree on each test run.
 
   Options:
+    * `:default_branch_only`: when `true`, the duration statistic covers only
+      runs on the project's default branch. Defaults to `false`, which covers
+      every branch. It deliberately does not narrow which test cases the
+      listing returns: a test case that ran this fortnight is part of the
+      suite whichever branch it ran on, and dropping rows would turn a
+      question about durations into a question about membership.
     * `:is_ci`: scopes both "active" and the duration statistic to CI (`true`)
       or local (`false`) runs. Activity is read from the matching denormalized
       column on `test_cases`; the duration comes from the matching `is_ci`
@@ -2483,6 +2489,7 @@ defmodule Tuist.Tests do
     has_name_filter = Enum.any?(filters, fn f -> f.field == :name end)
     quarantine_filter? = quarantine_filter?(filters)
     is_ci = Keyword.get(opts, :is_ci)
+    default_branch_only = Keyword.get(opts, :default_branch_only, false)
     duration_fields = requested_duration_fields(opts, attrs)
 
     # `state` / `is_flaky` are resolved from `test_case_states`, not from the
@@ -2560,7 +2567,7 @@ defmodule Tuist.Tests do
       :joined ->
         base_query
         |> select_resolved_test_case_state()
-        |> select_durations(project_id, duration_fields, is_ci)
+        |> select_durations(project_id, duration_fields, is_ci, default_branch_only)
         |> Tuist.ClickHouseFlop.run(flop,
           for: TestCase,
           count: total_count,
@@ -2570,7 +2577,7 @@ defmodule Tuist.Tests do
       :preloaded ->
         {test_cases, meta} =
           base_query
-          |> select_durations(project_id, duration_fields, is_ci)
+          |> select_durations(project_id, duration_fields, is_ci, default_branch_only)
           |> Tuist.ClickHouseFlop.run(flop,
             for: TestCase,
             count: total_count,
@@ -2630,10 +2637,11 @@ defmodule Tuist.Tests do
   # the active window in the selected environment, which does not guarantee it
   # cleared the sample floor, and an inner join would drop those rows from the
   # table entirely rather than showing them unranked.
-  defp select_durations(query, _project_id, [], _is_ci), do: query
+  defp select_durations(query, _project_id, [], _is_ci, _default_branch_only), do: query
 
-  defp select_durations(query, project_id, duration_fields, is_ci) do
-    stats = test_case_duration_stats_subquery(project_id, duration_fields, is_ci)
+  defp select_durations(query, project_id, duration_fields, is_ci, default_branch_only) do
+    stats =
+      test_case_duration_stats_subquery(project_id, duration_fields, is_ci, default_branch_only)
 
     fields = Map.new(duration_fields, &{:"#{&1}_ms", guarded_duration_dynamic(&1)})
 
@@ -2682,7 +2690,7 @@ defmodule Tuist.Tests do
   # rather than NULL, so a test case with no rows here arrives as
   # `run_count = 0` and is handled by the sample floor like any other
   # under-sampled row.
-  defp test_case_duration_stats_subquery(project_id, duration_fields, is_ci) do
+  defp test_case_duration_stats_subquery(project_id, duration_fields, is_ci, default_branch_only) do
     window_start = active_window_start_date()
 
     fields = Map.new(duration_fields, &{&1, duration_merge_dynamic(&1)})
@@ -2700,12 +2708,26 @@ defmodule Tuist.Tests do
         select: ^fields
       )
 
-    apply_duration_environment_filter(query, is_ci)
+    query
+    |> apply_duration_environment_filter(is_ci)
+    |> apply_duration_branch_filter(default_branch_only)
   end
 
   defp apply_duration_environment_filter(query, nil), do: query
 
   defp apply_duration_environment_filter(query, is_ci), do: where(query, [stats], stats.is_ci == ^is_ci)
+
+  # There is deliberately no fallback to every branch when a test case has no
+  # default-branch runs. `Analytics.test_case_reliability_by_id/4` does fall
+  # back, and for a success rate that is harmless. For a duration it is the
+  # opposite of harmless: the rows with no default-branch runs are exactly the
+  # ones whose all-branch figure is a feature-branch outlier, so falling back
+  # would redisplay the number this scoping exists to remove, and do it
+  # silently. Such a row instead drops below the sample floor, renders as "not
+  # enough runs", and sorts last in either direction.
+  defp apply_duration_branch_filter(query, false), do: query
+
+  defp apply_duration_branch_filter(query, true), do: where(query, [stats], stats.is_default_branch == true)
 
   defp state_filter_mode(_project_id, []), do: {:preloaded, %{}}
 

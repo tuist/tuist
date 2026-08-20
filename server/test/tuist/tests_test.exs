@@ -3844,6 +3844,7 @@ defmodule Tuist.TestsTest do
           project_id: project.id,
           account_id: project.account_id,
           is_ci: Keyword.get(opts, :is_ci, false),
+          git_branch: Keyword.get(opts, :git_branch, project.default_branch),
           test_modules: [
             %{
               name: "DurationModule",
@@ -5190,6 +5191,109 @@ defmodule Tuist.TestsTest do
       assert length(test_cases) == 1
       assert hd(test_cases).name == "flakyTest"
       assert hd(test_cases).is_flaky == true
+    end
+  end
+
+  describe "list_test_cases/2 default branch durations" do
+    test "excludes a feature branch outlier the mean cannot survive" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testCollisions", [2, 2, 2, 2, 2])
+
+      run_test_case(project, "testCollisions", [978, 1022, 1040, 196_101, 4_676_155], git_branch: "omarb/fix-collisions")
+
+      # When
+      {[any_branch], _meta} =
+        Tests.list_test_cases(project.id, %{}, preload: [:duration_avg_ms, :duration_p50_ms])
+
+      {[default_branch], _meta} =
+        Tests.list_test_cases(project.id, %{},
+          default_branch_only: true,
+          preload: [:duration_avg_ms, :duration_p50_ms]
+        )
+
+      # Then
+      assert any_branch.duration_avg_ms == 487_531.0
+      assert any_branch.duration_sample_count == 10
+      assert default_branch.duration_avg_ms == 2.0
+      assert default_branch.duration_p50_ms == 2.0
+      assert default_branch.duration_sample_count == 5
+    end
+
+    test "reports no duration rather than falling back to every branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testOnlyOnAFeatureBranch", [900, 900, 900, 900, 4_676_155], git_branch: "feature")
+
+      # When
+      {[test_case], _meta} =
+        Tests.list_test_cases(project.id, %{},
+          default_branch_only: true,
+          preload: [:duration_p50_ms, :duration_p90_ms, :duration_p99_ms, :duration_avg_ms]
+        )
+
+      # Then
+      assert test_case.name == "testOnlyOnAFeatureBranch"
+      assert is_nil(test_case.duration_p50_ms)
+      assert is_nil(test_case.duration_p90_ms)
+      assert is_nil(test_case.duration_p99_ms)
+      assert is_nil(test_case.duration_avg_ms)
+      assert test_case.duration_sample_count == 0
+    end
+
+    test "follows the project's own default branch rather than assuming main" do
+      # Given
+      {:ok, project} = Tuist.Projects.update_project(ProjectsFixtures.project_fixture(), %{default_branch: "master"})
+
+      run_test_case(project, "testOnMaster", [10, 10, 10, 10, 10])
+      run_test_case(project, "testOnMaster", [5000, 5000, 5000, 5000, 5000], git_branch: "main")
+
+      # When
+      {[test_case], _meta} =
+        Tests.list_test_cases(project.id, %{}, default_branch_only: true, preload: [:duration_avg_ms])
+
+      # Then
+      assert test_case.duration_avg_ms == 10.0
+      assert test_case.duration_sample_count == 5
+    end
+
+    test "narrows to the default branch within the selected environment" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testBoth", [100, 100, 100, 100, 100], is_ci: true)
+      run_test_case(project, "testBoth", [700, 700, 700, 700, 700], is_ci: false)
+
+      run_test_case(project, "testBoth", [90_000, 90_000, 90_000, 90_000, 90_000],
+        is_ci: true,
+        git_branch: "feature"
+      )
+
+      # When
+      {[test_case], _meta} =
+        Tests.list_test_cases(project.id, %{},
+          is_ci: true,
+          default_branch_only: true,
+          preload: [:duration_avg_ms]
+        )
+
+      # Then
+      assert test_case.duration_avg_ms == 100.0
+      assert test_case.duration_sample_count == 5
+    end
+
+    test "keeps a test case in the listing even when it has no default branch runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testDefault", [50, 50, 50, 50, 50])
+      run_test_case(project, "testFeatureOnly", [60, 60, 60, 60, 60], git_branch: "feature")
+
+      # When
+      {test_cases, meta} =
+        Tests.list_test_cases(project.id, %{}, default_branch_only: true, preload: [:duration_avg_ms])
+
+      # Then
+      assert meta.total_count == 2
+      assert Enum.sort(Enum.map(test_cases, & &1.name)) == ["testDefault", "testFeatureOnly"]
     end
   end
 

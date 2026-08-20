@@ -1015,6 +1015,13 @@ defmodule Tuist.Tests.Analytics do
     |> ClickHouseRepo.one() || 0
   end
 
+  # Mirrors Flop's `:=~`, which is what the run list applies to the same column,
+  # so the figures above the list describe the runs the list is showing.
+  defp apply_git_branch_filter(query, nil), do: query
+  defp apply_git_branch_filter(query, ""), do: query
+
+  defp apply_git_branch_filter(query, git_branch), do: where(query, [tcr], ilike(tcr.git_branch, ^"%#{git_branch}%"))
+
   defp apply_is_ci_filter(query, nil), do: query
   defp apply_is_ci_filter(query, true), do: where(query, [tcr], tcr.is_ci == true)
   defp apply_is_ci_filter(query, false), do: where(query, [tcr], tcr.is_ci == false)
@@ -1327,6 +1334,9 @@ defmodule Tuist.Tests.Analytics do
 
   Options:
     * `:start_datetime` / `:end_datetime` - bound the runs to a period. Unbounded when omitted.
+    * `:git_branch` - restrict the runs to branches matching this substring,
+      with the same case-insensitive semantics as the branch filter on the run
+      list below these figures. Every branch when omitted.
   """
   def test_case_analytics_by_id(project_id, test_case_id, opts \\ []) do
     query =
@@ -1346,7 +1356,7 @@ defmodule Tuist.Tests.Analytics do
         opts
       )
 
-    result = ClickHouseRepo.one(query)
+    result = query |> apply_git_branch_filter(Keyword.get(opts, :git_branch)) |> ClickHouseRepo.one()
 
     case result do
       nil ->
