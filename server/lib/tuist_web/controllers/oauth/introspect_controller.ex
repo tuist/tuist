@@ -8,17 +8,29 @@ defmodule TuistWeb.Oauth.IntrospectController do
   alias Tuist.Kura.SelfHostedClients
   alias Tuist.OAuth.Introspection
 
-  def introspect(%Plug.Conn{} = conn, _params) do
-    case Request.introspect_request(conn) do
-      {:ok, request} ->
-        if dedicated_kura_client?(request.client_id) do
-          introspect_control_plane(conn, request)
-        else
-          introspect_self_hosted(conn, request)
-        end
+  def introspect(%Plug.Conn{} = conn, params) do
+    # Self-hosted credentials (`cache_…`) are not UUIDs, which Boruta's request
+    # parsing requires of a client id, so they are answered before it — through
+    # it they could only ever 400.
+    if SelfHostedClients.self_hosted_client_id?(params["client_id"]) do
+      introspect_self_hosted(conn, params["client_id"], params["client_secret"], params["token"])
+    else
+      case Request.introspect_request(conn) do
+        {:ok, request} ->
+          if dedicated_kura_client?(request.client_id) do
+            introspect_control_plane(conn, request)
+          else
+            introspect_self_hosted(
+              conn,
+              request.client_id,
+              conn.params["client_secret"],
+              request.token
+            )
+          end
 
-      {:error, %Error{} = error} ->
-        respond_error(conn, error)
+        {:error, %Error{} = error} ->
+          respond_error(conn, error)
+      end
     end
   end
 
@@ -40,15 +52,17 @@ defmodule TuistWeb.Oauth.IntrospectController do
   # Customer self-hosted node: verify the tenant-scoped credential and constrain
   # the response to the credential's account, so a node can only introspect its
   # own tenant's tokens.
-  defp introspect_self_hosted(conn, request) do
-    case SelfHostedClients.verify(request.client_id, conn.params["client_secret"]) do
+  defp introspect_self_hosted(conn, client_id, client_secret, token) when is_binary(token) do
+    case SelfHostedClients.verify(client_id, client_secret) do
       {:ok, account} ->
-        respond_introspection(conn, Introspection.token_response(request.token, account))
+        respond_introspection(conn, Introspection.token_response(token, account))
 
       :error ->
         invalid_client(conn)
     end
   end
+
+  defp introspect_self_hosted(conn, _client_id, _client_secret, _token), do: invalid_client(conn)
 
   defp respond_introspection(conn, response) do
     conn
