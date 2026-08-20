@@ -382,9 +382,15 @@ defmodule Tuist.Runners.InteractiveSessions do
     close(session, reason, now())
   end
 
-  def close_for_job(account_id, workflow_job_id, kind, reason \\ "user")
+  @doc """
+  Closes the job's open session on behalf of the user who currently holds
+  it. `requested_by_user_id` tracks the latest requester (see
+  `refresh_token/2`), so scoping the lookup to it means a stale or forged
+  client cannot end a session another user is working in.
+  """
+  def close_for_job(account_id, workflow_job_id, kind, %User{id: user_id}, reason \\ "user")
       when is_integer(account_id) and is_integer(workflow_job_id) and kind in [:vnc, :shell] do
-    case current_for_job(account_id, workflow_job_id, kind) do
+    case current_for_job_and_user(account_id, workflow_job_id, kind, user_id) do
       nil ->
         {:ok, :no_open_session}
 
@@ -393,6 +399,19 @@ defmodule Tuist.Runners.InteractiveSessions do
           close(session, reason)
         end
     end
+  end
+
+  defp current_for_job_and_user(account_id, workflow_job_id, kind, user_id) do
+    InteractiveSession
+    |> where(
+      [session],
+      session.account_id == ^account_id and session.workflow_job_id == ^workflow_job_id and
+        session.kind == ^kind and session.requested_by_user_id == ^user_id and
+        is_nil(session.closed_at)
+    )
+    |> order_by([session], desc: session.inserted_at)
+    |> limit(1)
+    |> Repo.one()
   end
 
   def close_by_pod_name(pod_name, %DateTime{} = closed_at, reason \\ "pod_exit")
