@@ -2659,6 +2659,193 @@ defmodule Tuist.TestsTest do
       assert merged_test.status == "in_progress"
     end
 
+    test "the last shard completes the run even when its own shard row is not read back" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 300,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert first_test.status == "in_progress"
+
+      # The row a shard writes for itself is not reliably observable by the
+      # read that immediately follows it, so the last shard to report has to
+      # count itself from memory rather than from `shard_runs`.
+      stub(IngestRepo, :insert_all, fn _schema, _rows -> {0, nil} end)
+
+      {:ok, merged_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 600,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert merged_test.status == "success"
+    end
+
+    test "a failing shard fails the run before the remaining shards report" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard_1_id = UUIDv7.generate()
+
+      {:ok, processing_test} =
+        Tests.create_test(%{
+          id: shard_1_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert processing_test.status == "in_progress"
+
+      {:ok, failed_test} =
+        Tests.create_test(%{
+          id: shard_1_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 600,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert failed_test.status == "failure"
+    end
+
+    test "a shard that failed processing fails the run before the remaining shards report" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 3)
+
+      shard_0_id = UUIDv7.generate()
+
+      {:ok, _processing_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, merged_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "failed_processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert merged_test.status == "failed_processing"
+    end
+
+    test "a shard succeeding after a failing shard leaves the run failed" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard_0_id = UUIDv7.generate()
+
+      {:ok, _processing_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, failed_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 300,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert failed_test.status == "failure"
+
+      {:ok, merged_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 600,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert merged_test.status == "failure"
+    end
+
+    test "the first shard to report a failure creates the run as failed" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 300,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert test.status == "failure"
+    end
+
     test "three shards all success" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
@@ -2982,6 +3169,58 @@ defmodule Tuist.TestsTest do
 
       assert updated_test.id == first_test.id
       assert updated_test.scheme == "TuistAcceptanceTests"
+    end
+
+    test "stamps the merged scheme on the test case runs of the shard that supplies it" do
+      # The first shard's controller upload creates the run with
+      # status=processing and no scheme; the scheme only appears once a
+      # worker has parsed an xcresult. The shard whose worker finishes
+      # first both supplies the scheme and writes test case runs, so those
+      # runs must carry it rather than the placeholder row's empty value.
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, _processing_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          scheme: nil,
+          git_branch: "main",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, parsed_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 800,
+          status: "success",
+          scheme: "TuistAcceptanceTests",
+          git_branch: "main",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1,
+          test_modules: [
+            %{
+              name: "ModuleA",
+              status: "success",
+              duration: 800,
+              test_cases: [%{name: "testA", status: "success", duration: 400}]
+            }
+          ]
+        })
+
+      assert parsed_test.scheme == "TuistAcceptanceTests"
+      assert Enum.map(parsed_test.test_case_runs, & &1.scheme) == ["TuistAcceptanceTests"]
     end
 
     test "preserves scheme when a later shard reports without one" do

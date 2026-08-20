@@ -55,10 +55,84 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMv 
   effect is a weighting bias toward corrected runs rather than an invented
   number. Removing it needs a per-run deduplicated source, which every other
   aggregate over this table would want too and which does not belong in this
-  migration. `FINAL` in the backfill would not close it either: the backfill is
-  chunked by partition to survive memory limits, and a correction lands in a
-  later `toYYYYMM(inserted_at)` partition than the run it corrects, so the two
-  versions are never read together.
+  migration.
+
+  ## Starting from an empty table
+
+  `up/0` drops the table and the view before creating them. This runs as a helm
+  `pre-upgrade` hook whose Job retries, and a failed attempt leaves behind
+  whatever ranges it had already inserted; a plain `IF NOT EXISTS` would then
+  add a second copy of every one of them on the next attempt. `run_count`
+  survives that (`uniqExact` over run ids collapses the copies) but the average
+  and the quantile reservoirs do not: they would weight the re-inserted runs
+  once per attempt. Dropping first makes every attempt start from the same
+  empty table, so the states describe each run exactly as many times as the
+  source holds it.
+
+  Nothing below that granularity needs the same treatment. A retry and a split
+  both re-cover ground a failed insert had been working on, which would double
+  those states if a failed `INSERT ... SELECT` committed the part of the result
+  it had produced. It does not: parts are written under temporary names and
+  become visible together when the statement completes. Measured on this exact
+  query shape against a local ClickHouse, a 2.1M-row insert broken off
+  mid-result left no rows behind, for a raised exception and for a genuine
+  `MEMORY_LIMIT_EXCEEDED` alike, and no part of it was visible while it ran.
+  So the unit that can be duplicated is a range that finished, and the table
+  drop is where that is handled.
+
+  The price is that a Job retry restarts the pass instead of resuming it. That
+  is affordable at this size: the window selects a single partition outside the
+  few days a month it straddles two, and a pass over it is a few hundred
+  single-project inserts. Resuming would mean recording which ranges finished,
+  and the only honest place to record it is a table this migration would have
+  to create and clean up for the sake of saving that minute.
+
+  ## What the backfill covers
+
+  The backfill seeds a trailing `@backfill_window_days` window rather than
+  every partition of `test_case_runs`. `Tuist.Tests.list_test_cases/3` is the
+  only reader, it filters `date >= today - Tuist.Tests.active_window_days/0`,
+  and it deliberately exposes no date-window option, so no query can reach a
+  row older than that window. Seeding all history therefore aggregated years of
+  runs nothing would read, and it was that volume rather than the feature that
+  could not fit in the ClickHouse memory budget.
+
+  The seam sits at the day this runs: the backfill ends there and the view
+  carries everything after it. A reader that day asks for the 14 days before
+  it, and every later day asks for a window the view has already covered more
+  of, so the widest gap the backfill ever has to close is the read window
+  itself. The extra days on top of it are slack, not coverage.
+
+  The window cannot go to zero. `list_test_cases/3` renders a test case below
+  the sample floor as "N/A" and explains it as "has run 0 times in the last 14
+  days", which of an unseeded row is untrue rather than merely incomplete, and
+  the Tests overview drops those rows from "Slowest test cases" entirely. The
+  projects that would sit that way longest are the ones that run their suites
+  least often: sampled against the current data, the four largest projects
+  recover 94-99% of their populated duration cells after a single day of
+  filling forward, while several low-frequency projects recover none of theirs
+  in seven.
+
+  ## Surviving the memory budget
+
+  Every query the application issues shares one `max_memory_usage_for_user`
+  ceiling with the running server, so a backfill that expands to fill the pool
+  is picked off by the overcommit tracker and takes production headroom with it
+  on the way. The insert therefore carries a per-query ceiling well under that
+  budget and spills to disk rather than growing into it.
+
+  A ceiling alone is not enough, because the same range passes or fails
+  depending on what else the replica is doing, and an identical retry clears a
+  marginal overrun but never a large one. A range that exhausts its retries is
+  therefore halved by date and each half attempted in turn, down to a single
+  day. Halves are disjoint in `date`, which is a grouping key, so every run is
+  written into exactly one group however the range was cut.
+
+  A single day that still does not fit is logged and skipped rather than
+  raised. Raising would block every server release on one project's worst day,
+  and the listing shows durations only above a minimum-sample floor and renders
+  an empty cell below it, so a skipped day costs samples rather than showing an
+  invented number.
   """
   use Ecto.Migration
 
@@ -69,13 +143,18 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMv 
   @disable_ddl_transaction true
   @disable_migration_lock true
 
-  @project_chunk_size 1
-  @chunk_throttle_ms 250
+  @backfill_window_days 16
+  @attempt_throttle_ms 250
+  @range_attempts 2
+  @max_memory_usage 1_073_741_824
+  @max_bytes_before_external_group_by 268_435_456
 
   def up do
+    drop_objects()
+
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     IngestRepo.query!("""
-    CREATE TABLE IF NOT EXISTS test_case_duration_daily_stats_per_case (
+    CREATE TABLE test_case_duration_daily_stats_per_case (
       project_id Int64,
       date Date,
       test_case_id UUID,
@@ -90,13 +169,13 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMv 
     ORDER BY (project_id, test_case_id, date, is_ci)
     """)
 
-    # The boundary is read from ClickHouse, not from the Elixir node, so it is
-    # on the same clock as the `inserted_at` values it is compared against.
-    boundary = backfill_boundary()
+    # The bounds are read from ClickHouse, not from the Elixir node, so they are
+    # on the same clock as the `inserted_at` values they are compared against.
+    {boundary, window_start, window_end} = backfill_bounds()
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     IngestRepo.query!("""
-    CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_duration_daily_stats_per_case_mv
+    CREATE MATERIALIZED VIEW test_case_duration_daily_stats_per_case_mv
     TO test_case_duration_daily_stats_per_case
     AS SELECT
       project_id,
@@ -113,10 +192,14 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMv 
     GROUP BY project_id, date, test_case_id, is_ci
     """)
 
-    backfill_by_partition(boundary)
+    backfill(boundary, window_start, window_end)
   end
 
   def down do
+    drop_objects()
+  end
+
+  defp drop_objects do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     IngestRepo.query!("DROP VIEW IF EXISTS test_case_duration_daily_stats_per_case_mv")
 
@@ -131,62 +214,130 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMv 
   # moment between the two are seen by neither. That is deliberate: the reverse
   # order would have them seen by both, and a run counted twice can push a test
   # case over the minimum-sample floor, while a run missed for a few
-  # milliseconds cannot. Either way the window is milliseconds, against a
-  # backfill that previously left everything inserted during its whole run
-  # unrecorded.
-  defp backfill_boundary do
-    {:ok, %{rows: [[boundary]]}} = IngestRepo.query("SELECT now64(6)")
-    Logger.info("Backfilling test_case_duration_daily_stats_per_case up to #{boundary}")
-    boundary
-  end
-
-  # Newest partition first. The listing only reads a trailing two-week window,
-  # so the feature is correct as soon as the current partition lands; an older
-  # partition that needs several retries delays nothing user-visible.
-  defp backfill_by_partition(boundary) do
-    {:ok, %{rows: partitions}} =
+  # milliseconds cannot.
+  defp backfill_bounds do
+    {:ok, %{rows: [[boundary, window_start, window_end]]}} =
       IngestRepo.query(
         """
-        SELECT DISTINCT partition
-        FROM system.parts
-        WHERE database = currentDatabase() AND table = {table:String} AND active
-        ORDER BY partition DESC
+        SELECT
+          now64(6) AS boundary,
+          toDate(boundary) - {days:UInt16} AS window_start,
+          toDate(boundary) AS window_end
         """,
-        %{table: "test_case_runs"}
+        %{days: @backfill_window_days}
       )
 
-    for [partition] <- partitions do
-      partition_int = String.to_integer(partition)
-      project_ids = project_ids_for_partition(partition_int)
+    Logger.info(
+      "Backfilling test_case_duration_daily_stats_per_case over " <>
+        "#{window_start}..#{window_end}, up to #{boundary}"
+    )
+
+    {boundary, window_start, window_end}
+  end
+
+  # Newest partition first. The listing reads the most recent days hardest, so
+  # the feature is at its most complete as early as possible; an older
+  # partition that needs several subdivisions delays nothing user-visible.
+  #
+  # A run whose `ran_at` falls in the window cannot have been ingested before
+  # it, so partitions older than the window's own month hold nothing the window
+  # admits.
+  defp backfill(boundary, window_start, window_end) do
+    for partition <- partitions_since(window_start) do
+      project_ids = project_ids_for_partition(partition, window_start)
 
       Logger.info(
         "Backfilling partition #{partition} into test_case_duration_daily_stats_per_case " <>
           "(#{length(project_ids)} projects)"
       )
 
-      project_ids
-      |> Enum.chunk_every(@project_chunk_size)
-      |> Enum.each(fn chunk ->
-        retry_on_transient_failure(fn -> backfill_chunk(partition_int, chunk, boundary) end)
-        Process.sleep(@chunk_throttle_ms)
+      Enum.each(project_ids, fn project_id ->
+        backfill_range(partition, project_id, window_start, window_end, boundary)
       end)
     end
   end
 
-  defp project_ids_for_partition(partition) do
+  defp partitions_since(window_start) do
+    {:ok, %{rows: rows}} =
+      IngestRepo.query(
+        """
+        SELECT DISTINCT partition
+        FROM system.parts
+        WHERE database = currentDatabase() AND table = {table:String} AND active
+          AND toUInt32(partition) >= {min_partition:UInt32}
+        ORDER BY partition DESC
+        """,
+        %{table: "test_case_runs", min_partition: year_month(window_start)}
+      )
+
+    Enum.map(rows, fn [partition] -> String.to_integer(partition) end)
+  end
+
+  defp project_ids_for_partition(partition, window_start) do
     {:ok, %{rows: rows}} =
       IngestRepo.query(
         """
         SELECT DISTINCT project_id
         FROM test_case_runs
         WHERE toYYYYMM(inserted_at) = {partition:UInt32}
+          AND toDate(ran_at) >= {window_start:Date}
+          AND project_id IS NOT NULL
+          AND test_case_id IS NOT NULL
         ORDER BY project_id
         """,
-        %{partition: partition},
+        %{partition: partition, window_start: window_start},
         timeout: 600_000
       )
 
     Enum.map(rows, fn [project_id] -> project_id end)
+  end
+
+  defp backfill_range(
+         partition,
+         project_id,
+         from_date,
+         to_date,
+         boundary,
+         attempts \\ @range_attempts
+       ) do
+    # Ahead of every attempt rather than between projects: the halves a split
+    # produces are fired at a replica that has just refused the range they came
+    # from, which is when leaving it room matters most.
+    Process.sleep(@attempt_throttle_ms)
+
+    insert_range(partition, project_id, from_date, to_date, boundary)
+  rescue
+    e in Ch.Error ->
+      cond do
+        not overrun?(e) ->
+          reraise e, __STACKTRACE__
+
+        attempts > 1 ->
+          Logger.warning(
+            "ClickHouse could not fit #{describe(project_id, from_date, to_date)}; " <>
+              "retrying in 5s (#{attempts - 1} attempts left)"
+          )
+
+          Process.sleep(:timer.seconds(5))
+          backfill_range(partition, project_id, from_date, to_date, boundary, attempts - 1)
+
+        Date.compare(from_date, to_date) == :lt ->
+          midpoint = Date.add(from_date, div(Date.diff(to_date, from_date), 2))
+
+          Logger.warning(
+            "ClickHouse could not fit #{describe(project_id, from_date, to_date)}; " <>
+              "splitting at #{midpoint}"
+          )
+
+          backfill_range(partition, project_id, from_date, midpoint, boundary)
+          backfill_range(partition, project_id, Date.add(midpoint, 1), to_date, boundary)
+
+        true ->
+          Logger.warning(
+            "ClickHouse could not fit #{describe(project_id, from_date, to_date)}, " <>
+              "the smallest range there is; skipping it"
+          )
+      end
   end
 
   # `toYYYYMM(inserted_at)` selects the source partition while `date` groups on
@@ -194,11 +345,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMv 
   # month boundary are therefore written from the partition that holds them,
   # into the destination partition their `ran_at` belongs to, so no run is
   # visited twice and none is skipped.
-  #
-  # The memory ceiling is deliberately generous: an earlier backfill against
-  # the sibling per-case table died at ~3.74 GiB on the heaviest partition
-  # chunk, and quantile states are larger than the count states it was writing.
-  defp backfill_chunk(partition, project_ids, boundary) do
+  defp insert_range(partition, project_id, from_date, to_date, boundary) do
     IngestRepo.query!(
       """
       INSERT INTO test_case_duration_daily_stats_per_case
@@ -217,40 +364,41 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseDurationDailyStatsPerCaseMv 
       FROM test_case_runs
       WHERE toYYYYMM(inserted_at) = {partition:UInt32}
         AND inserted_at < {boundary:DateTime64(6)}
-        AND project_id IN {project_ids:Array(Int64)}
+        AND project_id = {project_id:Int64}
+        AND toDate(ran_at) >= {from_date:Date}
+        AND toDate(ran_at) <= {to_date:Date}
         AND test_case_id IS NOT NULL
       GROUP BY project_id, date, test_case_id, is_ci
       SETTINGS
         optimize_aggregation_in_order = 1,
         max_threads = 1,
-        max_memory_usage = 12000000000,
-        max_bytes_before_external_group_by = 5000000000
+        max_memory_usage = #{@max_memory_usage},
+        max_bytes_before_external_group_by = #{@max_bytes_before_external_group_by}
       """,
-      %{partition: partition, project_ids: project_ids, boundary: boundary},
+      %{
+        partition: partition,
+        project_id: project_id,
+        from_date: from_date,
+        to_date: to_date,
+        boundary: boundary
+      },
       timeout: 1_200_000
     )
   end
 
-  defp retry_on_transient_failure(fun, attempts \\ 5) do
-    fun.()
-  rescue
-    e in Ch.Error ->
-      message = to_string(e.message)
+  # `TABLE_IS_READ_ONLY` is the replica briefly refusing writes rather than a
+  # range that is too large, so it is worth the same retry and is harmless to
+  # subdivide when the retry does not clear it.
+  defp overrun?(%Ch.Error{} = error) do
+    message = to_string(error.message)
 
-      transient? =
-        String.contains?(message, "TABLE_IS_READ_ONLY") or
-          String.contains?(message, "MEMORY_LIMIT_EXCEEDED")
-
-      if attempts > 1 and transient? do
-        Logger.warning(
-          "ClickHouse returned a transient error (#{String.slice(message, 0, 80)}...); " <>
-            "retrying in 5s (#{attempts - 1} attempts left)"
-        )
-
-        Process.sleep(:timer.seconds(5))
-        retry_on_transient_failure(fun, attempts - 1)
-      else
-        reraise e, __STACKTRACE__
-      end
+    String.contains?(message, "MEMORY_LIMIT_EXCEEDED") or
+      String.contains?(message, "TABLE_IS_READ_ONLY")
   end
+
+  defp describe(project_id, from_date, to_date) do
+    "project #{project_id} over #{from_date}..#{to_date}"
+  end
+
+  defp year_month(%Date{year: year, month: month}), do: year * 100 + month
 end

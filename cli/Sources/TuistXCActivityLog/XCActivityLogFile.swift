@@ -4,12 +4,14 @@ import Path
 public struct XCActivityLogFile: Equatable {
     public let path: AbsolutePath
     public let timeStoppedRecording: Date
-    public let signature: String
+    /// The signature reported by `LogStoreManifest.plist`, or `nil` when the log was
+    /// discovered on disk because Xcode never registered it in the manifest.
+    public let signature: String?
 
     public init(
         path: AbsolutePath,
         timeStoppedRecording: Date,
-        signature: String
+        signature: String?
     ) {
         self.path = path
         self.timeStoppedRecording = timeStoppedRecording

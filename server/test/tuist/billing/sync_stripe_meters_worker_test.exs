@@ -254,4 +254,39 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
 
     assert all_enqueued(worker: SyncCustomerStripeMetersWorker) == []
   end
+
+  test "spreads the customer fan-out over time instead of releasing it in one burst" do
+    # More customers than one second's worth of fan-out, so the assertion
+    # sees an actual spread rather than a single batch that happens to fit.
+    customer_ids =
+      Enum.map(1..12, fn index ->
+        customer_id = "account-spread-#{index}-#{UUIDv7.generate()}"
+        AccountsFixtures.user_fixture(customer_id: customer_id)
+        customer_id
+      end)
+
+    period_start = ~U[2026-07-04 00:00:00.000000Z]
+    period_end = ~U[2026-07-05 00:00:00.000000Z]
+
+    assert :ok =
+             SyncStripeMetersWorker.perform(%Oban.Job{
+               args: %{
+                 "period_start" => DateTime.to_unix(period_start, :microsecond),
+                 "period_end" => DateTime.to_unix(period_end, :microsecond)
+               }
+             })
+
+    jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
+
+    assert jobs |> Enum.map(& &1.args["customer_id"]) |> Enum.sort() == Enum.sort(customer_ids)
+
+    # Every customer job spends a Stripe request on a subscription lookup
+    # before its meter jobs post their events. Released together they
+    # arrive as one burst and Stripe answers most of it with HTTP 429, so
+    # the fan-out has to land in per-second batches instead.
+    batches = jobs |> Enum.group_by(& &1.scheduled_at) |> Map.values()
+
+    assert length(batches) > 1
+    assert batches |> Enum.map(&length/1) |> Enum.max() < length(jobs)
+  end
 end

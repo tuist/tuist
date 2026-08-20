@@ -275,7 +275,7 @@ struct XCActivityLogControllerTests {
         // When
         let result = try await subject.mostRecentActivityLogFile(
             projectDerivedDataDirectory: projectDerivedDataDirectory,
-            filter: { $0.signature.contains("Building") }
+            filter: { $0.signature?.contains("Building") == true }
         )
 
         // Then
@@ -326,7 +326,7 @@ struct XCActivityLogControllerTests {
         // When
         let result = try await subject.mostRecentActivityLogFile(
             projectDerivedDataDirectory: projectDerivedDataDirectory,
-            filter: { $0.signature.contains("Building") }
+            filter: { $0.signature?.contains("Building") == true }
         )
 
         // Then
@@ -382,6 +382,223 @@ struct XCActivityLogControllerTests {
         #expect(expectedResult.path.basename == "single-log-id.xcactivitylog")
         #expect(expectedResult.signature == "Building project Framework with scheme Framework")
         #expect(expectedResult.timeStoppedRecording == Date(timeIntervalSinceReferenceDate: 768_154_246.5))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_returnsLogOnDisk_whenManifestHasNoEntries() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+        try await fileSystem.writeText(
+            emptyManifestContent,
+            at: buildLogsDirectory.appending(component: "LogStoreManifest.plist")
+        )
+
+        let logPath = buildLogsDirectory.appending(component: "unregistered-log-id.xcactivitylog")
+        try await fileSystem.writeText("activity-log", at: logPath)
+        let modificationDate = Date(timeIntervalSinceReferenceDate: 768_154_246.0)
+        try setModificationDate(modificationDate, at: logPath)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        let expectedResult = try #require(result)
+        #expect(expectedResult.path == logPath)
+        #expect(expectedResult.signature == nil)
+        #expect(expectedResult.timeStoppedRecording == modificationDate)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_returnsLogOnDisk_whenManifestDoesNotExist() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+        let logPath = buildLogsDirectory.appending(component: "unregistered-log-id.xcactivitylog")
+        try await fileSystem.writeText("activity-log", at: logPath)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        #expect(try #require(result).path == logPath)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_returnsMostRecentLogOnDisk_whenMultipleUnregisteredLogsExist() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+        let olderLogPath = buildLogsDirectory.appending(component: "older-log-id.xcactivitylog")
+        let newerLogPath = buildLogsDirectory.appending(component: "newer-log-id.xcactivitylog")
+        try await fileSystem.writeText("activity-log", at: olderLogPath)
+        try await fileSystem.writeText("activity-log", at: newerLogPath)
+        try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_240.0), at: olderLogPath)
+        try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_246.0), at: newerLogPath)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        #expect(try #require(result).path == newerLogPath)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_prefersManifestEntries_overUnregisteredLogsOnDisk() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+
+        let manifestContent = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>logFormatVersion</key>
+            <integer>11</integer>
+            <key>logs</key>
+            <dict>
+                <key>registered-log-id</key>
+                <dict>
+                    <key>fileName</key>
+                    <string>registered-log-id.xcactivitylog</string>
+                    <key>timeStartedRecording</key>
+                    <real>768154243.5</real>
+                    <key>timeStoppedRecording</key>
+                    <real>768154244.0</real>
+                    <key>signature</key>
+                    <string>Building project App with scheme App</string>
+                </dict>
+            </dict>
+        </dict>
+        </plist>
+        """
+        try await fileSystem.writeText(manifestContent, at: buildLogsDirectory.appending(component: "LogStoreManifest.plist"))
+
+        let registeredLogPath = buildLogsDirectory.appending(component: "registered-log-id.xcactivitylog")
+        try await fileSystem.writeText("activity-log", at: registeredLogPath)
+        let unregisteredLogPath = buildLogsDirectory.appending(component: "unregistered-log-id.xcactivitylog")
+        try await fileSystem.writeText("activity-log", at: unregisteredLogPath)
+        try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_246.0), at: unregisteredLogPath)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        let expectedResult = try #require(result)
+        #expect(expectedResult.path == registeredLogPath)
+        #expect(expectedResult.signature == "Building project App with scheme App")
+    }
+
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_fallsBackToUnregisteredLog_whenManifestEntriesAreFilteredOut() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+
+        let manifestContent = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>logFormatVersion</key>
+            <integer>11</integer>
+            <key>logs</key>
+            <dict>
+                <key>clean-log-id</key>
+                <dict>
+                    <key>fileName</key>
+                    <string>clean-log-id.xcactivitylog</string>
+                    <key>timeStartedRecording</key>
+                    <real>768154243.5</real>
+                    <key>timeStoppedRecording</key>
+                    <real>768154244.0</real>
+                    <key>signature</key>
+                    <string>Cleaning project App with scheme App</string>
+                </dict>
+            </dict>
+        </dict>
+        </plist>
+        """
+        try await fileSystem.writeText(manifestContent, at: buildLogsDirectory.appending(component: "LogStoreManifest.plist"))
+
+        try await fileSystem.writeText("activity-log", at: buildLogsDirectory.appending(component: "clean-log-id.xcactivitylog"))
+        let unregisteredLogPath = buildLogsDirectory.appending(component: "unregistered-log-id.xcactivitylog")
+        try await fileSystem.writeText("activity-log", at: unregisteredLogPath)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory,
+            filter: { !($0.signature ?? "").hasPrefix("Clean") }
+        )
+
+        // Then
+        #expect(try #require(result).path == unregisteredLogPath)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_ignoresEmptyUnregisteredLogs() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+        try await fileSystem.writeText(
+            emptyManifestContent,
+            at: buildLogsDirectory.appending(component: "LogStoreManifest.plist")
+        )
+        try await fileSystem.touch(buildLogsDirectory.appending(component: "empty-log-id.xcactivitylog"))
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        #expect(result == nil)
+    }
+
+    private var emptyManifestContent: String {
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>logFormatVersion</key>
+            <integer>12</integer>
+            <key>logs</key>
+            <dict/>
+        </dict>
+        </plist>
+        """
+    }
+
+    private func setModificationDate(_ date: Date, at path: AbsolutePath) throws {
+        try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: path.pathString)
     }
 
     @Test(.withMockedEnvironment())
