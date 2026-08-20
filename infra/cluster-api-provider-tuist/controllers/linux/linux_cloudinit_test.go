@@ -360,3 +360,55 @@ func TestBootstrapInstallsXFSTools(t *testing.T) {
 		t.Fatalf("expected xfsprogs in the bootstrap apt install, got:\n%s", script)
 	}
 }
+
+// The image store is the one consumer of /data that is not a tenant, and it is
+// otherwise unbounded: the kubelet's image GC triggers on the FILESYSTEM being
+// nearly full, so on a box whose tenants are light containerd can grow into the
+// headroom their quotas were written against and starve them below their own
+// ceilings. Its quota can only be applied after the store has been relocated
+// onto /data (the directory has to exist to carry a project) and after apt has
+// installed xfsprogs.
+func TestBootstrapBoundsContainerdImageStoreAfterItsPrerequisites(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName: "kura-1", KubeconfigYAML: "kubeconfig\n", K8sMinor: "v1.34",
+		BootstrapUser: "ubuntu", InstanceType: "ovh",
+	})
+
+	quotaIdx := strings.Index(script, "bash "+containerdQuotaPath)
+	if quotaIdx < 0 {
+		t.Fatalf("expected the self-join to run %s, got:\n%s", containerdQuotaPath, script)
+	}
+	aptIdx := strings.Index(script, "containerd xfsprogs")
+	relocateIdx := strings.Index(script, "mkdir -p /data/containerd")
+	if aptIdx < 0 || relocateIdx < 0 {
+		t.Fatalf("expected the apt install and the image-store relocation, got:\n%s", script)
+	}
+	if quotaIdx < aptIdx || quotaIdx < relocateIdx {
+		t.Fatalf("containerd quota at %d must follow apt (%d) and the relocation (%d), got:\n%s",
+			quotaIdx, aptIdx, relocateIdx, script)
+	}
+}
+
+// Unlike the /data mount setup, a failed image-store quota must NOT fail the
+// join. Every tenant on the box is bounded either way; what is lost is defence
+// in depth on the shared pool, which is the state the box was in before.
+func TestContainerdQuotaDoesNotFailTheJoin(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "n", K8sMinor: "v1.34"})
+	line := "bash " + containerdQuotaPath + " || echo"
+	if !strings.Contains(script, line) {
+		t.Fatalf("expected the containerd quota step to be tolerated, got:\n%s", script)
+	}
+}
+
+// The reserved project id must stay clear of the range the provisioner hook
+// hashes volume directories into, or the image store and a cache volume would
+// share one ceiling.
+func TestContainerdProjectIDCannotCollideWithAVolume(t *testing.T) {
+	// The hook computes `crc % 16000000 + 1000`, so volumes occupy [1000, 16000999].
+	if containerdProjectID <= 0 || containerdProjectID >= 1000 {
+		t.Fatalf("containerd project id = %d, want a reserved id below the volume range", containerdProjectID)
+	}
+	if !strings.Contains(containerdQuotaScript, "bhard=$bytes") || strings.Contains(containerdQuotaScript, "ihard=") {
+		t.Fatal("expected a byte ceiling and no inode ceiling on the image store")
+	}
+}

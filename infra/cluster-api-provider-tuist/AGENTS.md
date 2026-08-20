@@ -500,6 +500,16 @@ Every install these kinds start lays down a mirrored root plus a **separate XFS
 join a box where it cannot (`dataProjectQuotaScript` in
 `controllers/linux/linux_cloudinit.go`).
 
+The image store gets a reserved project of its own (`containerdQuotaScript`,
+project 100). It is the only consumer of `/data` that is not a tenant, and a
+per-volume quota is a ceiling rather than a reservation, so a tenant inside its
+own ceiling can still be denied space something else took first. Nothing else
+bounds it: the kubelet's image GC triggers on the FILESYSTEM being nearly full,
+so it only reclaims once the box is already squeezing tenants. The ceiling is
+deliberately generous, because containerd hitting it means failed pulls that
+image GC cannot resolve, and unlike the `/data` mount setup a failure to apply
+it does not fail the join.
+
 The chain it exists to close: a Kura cache PV is a local-path *directory* on
 `/data`, a directory has no size, so the pod's `ephemeral-storage` request is
 scheduler admission at placement time and nothing bounds what one account
