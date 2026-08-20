@@ -148,6 +148,13 @@ contention (`kura_egress_tree_class_sent_bytes` rate vs the floor).
 
 Ships disabled (`egressTreeAgent.enabled: false`). Intended sequence:
 observe mode on ca-east (generous ceilings, floors informational), validate
-per-tenant counters, then real ceilings/floors per region. The per-replica
+per-tenant counters, then real ceilings/floors per region.
+`egressTreeAgent.betaPodPrefix` (`BETA_POD_PREFIX`) narrows attachment to
+pods whose name starts with the prefix — the per-account beta gate for the
+first enforcement step. Excluded pods stay unshaped and count in
+`kura_egress_tree_beta_excluded_pods` (deliberately not in `skipped_pods`,
+which alerts). Sibling allowlists are computed over all annotated pods, so a
+matched pod keeps its bypass even when its co-located sibling is excluded;
+prefix changes converge within one reconcile cycle in both directions. The per-replica
 floor double-count in scheduler bin-packing must be fixed before floors go
 live (known issue, separate change).

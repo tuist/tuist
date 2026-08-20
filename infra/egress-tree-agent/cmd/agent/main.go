@@ -53,6 +53,7 @@ func main() {
 	a := &agent.Agent{
 		NodeName:        nodeName,
 		DefaultNodeMbps: defaultNodeMbps,
+		BetaPodPrefix:   os.Getenv("BETA_POD_PREFIX"),
 		Client:          client,
 		Endpoints:       agent.NewEndpointResolver(ciliumSock),
 		Tree:            agent.Tree{TrampolineDev: trampolineDev, ReturnDev: returnDev},

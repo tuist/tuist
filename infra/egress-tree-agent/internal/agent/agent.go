@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +23,17 @@ type Agent struct {
 	// that do not advertise tuist.dev/egress-mbps capacity. Zero means: no
 	// budget, no tree, pods stay unshaped.
 	DefaultNodeMbps int64
+	// BetaPodPrefix, when non-empty, restricts attachment to pods whose
+	// name starts with the prefix (a beta-rollout gate: shape one account's
+	// pods before the fleet). Excluded pods stay on the unshaped
+	// Cilium-only path and are counted separately from skipped pods so the
+	// exclusion never alerts. The desired tree and the sibling allowlists
+	// are still computed over every annotated pod, so a matched pod keeps
+	// its co-located sibling in the bypass even when that sibling is not
+	// itself attached. Clearing or changing the prefix converges through
+	// the normal reconcile: newly matched pods attach, no-longer-matched
+	// pods detach via stale-pin cleanup within one cycle.
+	BetaPodPrefix string
 
 	Client    kubernetes.Interface
 	Endpoints *EndpointResolver
@@ -91,9 +103,14 @@ func (a *Agent) reconcile(ctx context.Context) error {
 	}
 
 	attached := 0
+	betaExcluded := 0
 	active := map[string]bool{}
 	deviceOf := map[string]string{}
 	for _, attachment := range attachments {
+		if a.BetaPodPrefix != "" && !strings.HasPrefix(attachment.Name, a.BetaPodPrefix) {
+			betaExcluded++
+			continue
+		}
 		device, ok := interfaces[attachment.Namespace+"/"+attachment.Name]
 		if !ok {
 			skipped++
@@ -117,6 +134,7 @@ func (a *Agent) reconcile(ctx context.Context) error {
 	}
 	a.Metrics.AttachedPods.Set(float64(attached))
 	a.Metrics.SkippedPods.Set(float64(skipped))
+	a.Metrics.BetaExcludedPods.Set(float64(betaExcluded))
 
 	if err := a.Attacher.CleanupStale(active); err != nil {
 		a.Log.Error("cleaning stale pins failed", "error", err)
