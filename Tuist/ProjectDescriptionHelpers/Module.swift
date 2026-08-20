@@ -1007,6 +1007,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .cache:
                 [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
@@ -1970,6 +1971,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .cache:
                 [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.hasher.targetName),
