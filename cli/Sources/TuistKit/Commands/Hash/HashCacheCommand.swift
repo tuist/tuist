@@ -29,9 +29,6 @@ public struct HashCacheCommand: AsyncParsableCommand {
     )
     var configuration: String?
 
-    @OptionGroup
-    var loggingOptions: HashLoggingOptions
-
     public func run() async throws {
         try await HashCacheCommandService().run(path: path, configuration: configuration)
     }

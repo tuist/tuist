@@ -24,9 +24,6 @@ public struct HashSelectiveTestingCommand: AsyncParsableCommand {
     )
     var path: String?
 
-    @OptionGroup
-    var loggingOptions: HashLoggingOptions
-
     public func run() async throws {
         try await HashSelectiveTestingCommandService(
             generatorFactory: Extension.generatorFactory,

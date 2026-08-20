@@ -123,6 +123,26 @@ defmodule Tuist.Docs.CLI.RendererTest do
       assert generate_page.body =~ "TUIST_GENERATE_PATH"
     end
 
+    test "documents the global arguments on every command page" do
+      pages = Renderer.build_pages(@spec_fixture)
+
+      for page <- pages do
+        assert page.markdown =~ "## Global arguments"
+        assert page.markdown =~ "### verbose"
+        assert page.markdown =~ "### quiet"
+        assert page.markdown =~ "#{page.title} --verbose"
+      end
+    end
+
+    test "documents the global arguments on commands that take no arguments of their own" do
+      pages = Renderer.build_pages(@spec_fixture)
+      warm_page = Enum.find(pages, &(&1.slug == "/en/cli/cache/warm"))
+
+      refute warm_page.markdown =~ "## Arguments"
+      assert warm_page.markdown =~ "## Global arguments"
+      assert warm_page.markdown =~ "tuist cache warm --verbose"
+    end
+
     test "excludes help arguments" do
       pages = Renderer.build_pages(@spec_fixture)
       generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
