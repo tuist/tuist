@@ -401,6 +401,8 @@ defmodule TuistWeb.TestCaseLive do
     %{preset: preset, period: {start_datetime, end_datetime} = period} =
       DatePicker.date_picker_params(params, "analytics")
 
+    git_branch = active_git_branch_filter(socket, params)
+
     # Relative presets run up to now, so they take no upper bound: the picker
     # truncates now down to the second, which would drop runs ingested during it.
     opts =
@@ -418,7 +420,8 @@ defmodule TuistWeb.TestCaseLive do
       {:ok, %{reliability: Analytics.test_case_reliability_by_id(project.id, test_case_id, project.default_branch, opts)}}
     end)
     |> assign_async(:analytics, fn ->
-      {:ok, %{analytics: Analytics.test_case_analytics_by_id(project.id, test_case_id, opts)}}
+      analytics_opts = Keyword.put(opts, :git_branch, git_branch)
+      {:ok, %{analytics: Analytics.test_case_analytics_by_id(project.id, test_case_id, analytics_opts)}}
     end)
     |> assign_async([:flakiness_rate, :flaky_runs_grouped, :flaky_runs_meta], fn ->
       {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case_id)
@@ -468,6 +471,19 @@ defmodule TuistWeb.TestCaseLive do
     |> assign(:test_case_runs_sort_by, sort_by)
     |> assign(:test_case_runs_sort_order, sort_order)
     |> assign(:active_filters, filters)
+  end
+
+  # The headline duration used to describe every run of this test case while the
+  # list underneath it described the filtered ones, so a branch filter moved the
+  # rows and left the number above them unchanged. Reading the same filter here
+  # makes the two agree.
+  defp active_git_branch_filter(%{assigns: %{available_filters: available_filters}}, params) do
+    params
+    |> Filter.Operations.decode_filters_from_query(available_filters)
+    |> Enum.find_value(fn
+      %{field: :git_branch, value: value} when is_binary(value) and value != "" -> value
+      _ -> nil
+    end)
   end
 
   defp build_flop_filters(filters, search) do

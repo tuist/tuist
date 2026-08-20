@@ -1508,6 +1508,69 @@ defmodule Tuist.Tests.AnalyticsTest do
   end
 
   describe "test_case_analytics_by_id/2" do
+    test "restricts the figures to the branch the run list is filtered to" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      for duration <- [100, 100] do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          git_branch: "main",
+          status: 0,
+          duration: duration
+        )
+      end
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "omarb/fix-collisions",
+        status: 0,
+        duration: 4_676_155
+      )
+
+      # When
+      unfiltered = Analytics.test_case_analytics_by_id(project.id, test_case_id)
+      filtered = Analytics.test_case_analytics_by_id(project.id, test_case_id, git_branch: "main")
+
+      # Then
+      assert unfiltered.total_count == 3
+      assert unfiltered.avg_duration == 1_558_785
+      assert filtered.total_count == 2
+      assert filtered.avg_duration == 100
+    end
+
+    test "matches branches case-insensitively by substring, as the run list does" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "Release/1.2",
+        status: 0,
+        duration: 400
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "main",
+        status: 0,
+        duration: 900
+      )
+
+      # When
+      got = Analytics.test_case_analytics_by_id(project.id, test_case_id, git_branch: "release")
+
+      # Then
+      assert got.total_count == 1
+      assert got.avg_duration == 400
+    end
+
     test "aggregates only runs belonging to the project" do
       # Given
       project = ProjectsFixtures.project_fixture()

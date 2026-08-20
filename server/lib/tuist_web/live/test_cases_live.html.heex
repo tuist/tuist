@@ -528,6 +528,28 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
         </.dropdown>
+        <.dropdown
+          id="test-cases-duration-branch"
+          label={@duration_branch_label}
+          secondary_text={dgettext("dashboard_tests", "Durations from:")}
+        >
+          <.dropdown_item
+            value="any"
+            label={duration_branch_label("any")}
+            patch={duration_branch_patch(@uri, "any")}
+            data-selected={@duration_branch == "any"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="default"
+            label={duration_branch_label("default")}
+            patch={duration_branch_patch(@uri, "default")}
+            data-selected={@duration_branch == "default"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
         <.filter_dropdown
           id="filter-dropdown"
           label={dgettext("dashboard_tests", "Filter")}
@@ -635,13 +657,23 @@
               size="large"
               title={dgettext("dashboard_tests", "Not enough runs")}
               description={
-                dgettext(
-                  "dashboard_tests",
-                  "Shown once a test case has run at least %{count} times in the last %{days} days. This one has %{runs}.",
-                  count: Tests.min_duration_samples(),
-                  days: Tests.active_window_days(),
-                  runs: test_case.duration_sample_count || 0
-                )
+                if @duration_branch == "default" do
+                  dgettext(
+                    "dashboard_tests",
+                    "Shown once a test case has run at least %{count} times on the default branch in the last %{days} days. This one has %{runs}.",
+                    count: Tests.min_duration_samples(),
+                    days: Tests.active_window_days(),
+                    runs: test_case.duration_sample_count || 0
+                  )
+                else
+                  dgettext(
+                    "dashboard_tests",
+                    "Shown once a test case has run at least %{count} times in the last %{days} days. This one has %{runs}.",
+                    count: Tests.min_duration_samples(),
+                    days: Tests.active_window_days(),
+                    runs: test_case.duration_sample_count || 0
+                  )
+                end
               }
             >
               <:trigger :let={attrs}>

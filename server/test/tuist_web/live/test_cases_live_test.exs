@@ -39,6 +39,22 @@ defmodule TuistWeb.TestCasesLiveTest do
       :ok
     end
 
+    defp run_test_case(project, name, duration, git_branch) do
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        account_id: project.account_id,
+        git_branch: git_branch,
+        test_modules: [
+          %{
+            name: "DurationModule",
+            status: "success",
+            duration: duration,
+            test_cases: [%{name: name, status: "success", duration: duration}]
+          }
+        ]
+      )
+    end
+
     test "renders test cases page with empty state", %{
       conn: conn,
       organization: organization,
@@ -213,6 +229,89 @@ defmodule TuistWeb.TestCasesLiveTest do
 
       # Then - page should load successfully with default sort
       assert has_element?(lv, "[data-part='test-cases']")
+    end
+
+    test "scopes the duration columns to the default branch when asked", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      for duration <- [2, 2, 2, 2, 2] do
+        run_test_case(project, "testCollisions", duration, "main")
+      end
+
+      for duration <- [978, 1022, 1040, 196_101, 4_676_155] do
+        run_test_case(project, "testCollisions", duration, "omarb/fix-collisions")
+      end
+
+      # When
+      {:ok, any_branch, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
+
+      {:ok, default_branch, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-cases?duration-branch=default"
+        )
+
+      # Then - the all-branches mean is dragged into the minutes by one 78-minute
+      # run on a feature branch; the default-branch figure is the 2ms the test
+      # actually takes.
+      any_branch_html = render_async(any_branch)
+      default_branch_html = render_async(default_branch)
+
+      assert any_branch_html =~ "8m"
+      assert default_branch_html =~ "2ms"
+      refute default_branch_html =~ "8m"
+    end
+
+    test "says a test case has no default branch runs instead of showing every branch", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      for duration <- [900, 900, 900, 900, 4_676_155] do
+        run_test_case(project, "testOnlyOnAFeatureBranch", duration, "feature")
+      end
+
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-cases?duration-branch=default"
+        )
+
+      html = render_async(lv)
+
+      # Then
+      assert html =~ "testOnlyOnAFeatureBranch"
+      assert html =~ "N/A"
+      assert html =~ "on the default branch"
+      refute html =~ "15m"
+    end
+
+    test "offers the branch scope alongside the table's own controls", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
+
+      render_async(lv)
+
+      # Then
+      # The dropdown's items are portaled out of the wrapper, so they are matched
+      # on the rendered markup rather than as descendants of it.
+      html = render(lv)
+
+      assert has_element?(lv, "#test-cases-duration-branch")
+      assert html =~ "Durations from:"
+      assert html =~ ~s|href="?duration-branch=default"|
+      assert html =~ "Default branch"
     end
 
     test "renders total test cases widget", %{

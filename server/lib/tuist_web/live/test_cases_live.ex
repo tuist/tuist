@@ -418,6 +418,8 @@ defmodule TuistWeb.TestCasesLive do
         _ -> nil
       end
 
+    duration_branch = duration_branch_param(params)
+
     flop_filters = build_flop_filters(filters, search)
 
     # Append `:id` as the unique tiebreaker so LIMIT/OFFSET pagination stays
@@ -438,11 +440,14 @@ defmodule TuistWeb.TestCasesLive do
     # its statistic visibly un-preloaded here.
     list_opts = [
       is_ci: is_ci,
+      default_branch_only: duration_branch == "default",
       preload: [:duration_p50_ms, :duration_p90_ms, :duration_p99_ms, :duration_avg_ms]
     ]
 
     socket
     |> assign(:active_filters, filters)
+    |> assign(:duration_branch, duration_branch)
+    |> assign(:duration_branch_label, duration_branch_label(duration_branch))
     |> assign(:test_cases_current_page, page)
     |> assign(:test_cases_sort_by, sort_by)
     |> assign(:test_cases_sort_order, sort_order)
@@ -456,6 +461,30 @@ defmodule TuistWeb.TestCasesLive do
       reset: true
     )
   end
+
+  # Only the duration columns are branch-scoped, so the control lives with the
+  # table rather than in the page's filter bar. The widgets and the chart above
+  # it are served by `test_case_runs_daily_stats`, which has no branch
+  # dimension: putting the control next to the environment dropdown would imply
+  # it narrows them too.
+  #
+  # "Default" rather than a branch name: the scope is resolved per project from
+  # `projects.default_branch`, so a link shared between projects means "each
+  # project's default branch" instead of resolving to whichever name the sender
+  # happened to use.
+  defp duration_branch_param(params) do
+    case params["duration-branch"] do
+      "default" -> "default"
+      _ -> "any"
+    end
+  end
+
+  @doc """
+  Label for the branch scope the listing's duration columns are computed over.
+  """
+  def duration_branch_label("default"), do: dgettext("dashboard_tests", "Default branch")
+
+  def duration_branch_label(_any), do: dgettext("dashboard_tests", "Any branch")
 
   defp parse_page(nil), do: 1
   defp parse_page(page) when is_binary(page), do: String.to_integer(page)
@@ -536,5 +565,9 @@ defmodule TuistWeb.TestCasesLive do
 
   defp sort_by_patch(uri, sort_by) do
     "?#{uri.query |> Query.put("sort_by", sort_by) |> Query.drop("page")}"
+  end
+
+  defp duration_branch_patch(uri, duration_branch) do
+    "?#{uri.query |> Query.put("duration-branch", duration_branch) |> Query.drop("page")}"
   end
 end
