@@ -21,6 +21,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillDenormalizedFieldsInTestModuleRuns
   3. Drop the dictionary once the mutation completes.
   """
   use Ecto.Migration
+  alias Tuist.ClickHouseDictionarySource
   alias Tuist.IngestRepo
   require Logger
 
@@ -31,19 +32,23 @@ defmodule Tuist.IngestRepo.Migrations.BackfillDenormalizedFieldsInTestModuleRuns
   def up do
     IngestRepo.query!("DROP DICTIONARY IF EXISTS #{@dict_name}")
 
-    IngestRepo.query!("""
-    CREATE DICTIONARY #{@dict_name} (
-      id UUID,
-      project_id Int64,
-      is_ci Bool,
-      git_branch String,
-      ran_at DateTime64(6)
+    IngestRepo.query!(
+      """
+      CREATE DICTIONARY #{@dict_name} (
+        id UUID,
+        project_id Int64,
+        is_ci Bool,
+        git_branch String,
+        ran_at DateTime64(6)
+      )
+      PRIMARY KEY id
+      SOURCE(#{ClickHouseDictionarySource.local_table(IngestRepo, "test_runs")})
+      LAYOUT(HASHED())
+      LIFETIME(0)
+      """,
+      [],
+      log: false
     )
-    PRIMARY KEY id
-    SOURCE(CLICKHOUSE(TABLE 'test_runs'))
-    LAYOUT(HASHED())
-    LIFETIME(0)
-    """)
 
     Logger.info("Starting test_module_runs denormalized backfill mutation")
 

@@ -1,4 +1,5 @@
 defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
+  alias Tuist.ClickHouseDictionarySource
   alias Tuist.IngestRepo
   alias Tuist.Repo
   use Ecto.Migration
@@ -123,16 +124,20 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
     # Create a dictionary for efficient lookup
     dict_name = "event_to_test_run_dict_#{:os.system_time(:second)}_#{:rand.uniform(1000)}"
 
-    IngestRepo.query!("""
-      CREATE DICTIONARY #{dict_name} (
-        event_id UUID,
-        test_run_id UUID
-      )
-      PRIMARY KEY event_id
-      SOURCE(CLICKHOUSE(TABLE '#{temp_table_name}'))
-      LAYOUT(HASHED())
-      LIFETIME(0)
-    """)
+    IngestRepo.query!(
+      """
+        CREATE DICTIONARY #{dict_name} (
+          event_id UUID,
+          test_run_id UUID
+        )
+        PRIMARY KEY event_id
+        SOURCE(#{ClickHouseDictionarySource.local_table(IngestRepo, temp_table_name)})
+        LAYOUT(HASHED())
+        LIFETIME(0)
+      """,
+      [],
+      log: false
+    )
 
     IngestRepo.query!("""
       ALTER TABLE command_events

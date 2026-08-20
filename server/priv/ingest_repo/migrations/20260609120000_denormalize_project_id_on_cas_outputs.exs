@@ -10,6 +10,7 @@ defmodule Tuist.IngestRepo.Migrations.DenormalizeProjectIdOnCasOutputs do
   materialized projection.
   """
   use Ecto.Migration
+  alias Tuist.ClickHouseDictionarySource
   alias Tuist.IngestRepo
   require Logger
 
@@ -39,16 +40,20 @@ defmodule Tuist.IngestRepo.Migrations.DenormalizeProjectIdOnCasOutputs do
   end
 
   defp create_project_ids_dictionary do
-    IngestRepo.query!("""
-    CREATE DICTIONARY #{@dict_name} (
-      id UUID,
-      project_id Int64
+    IngestRepo.query!(
+      """
+      CREATE DICTIONARY #{@dict_name} (
+        id UUID,
+        project_id Int64
+      )
+      PRIMARY KEY id
+      SOURCE(#{ClickHouseDictionarySource.local_table(IngestRepo, "build_runs")})
+      LAYOUT(HASHED())
+      LIFETIME(0)
+      """,
+      [],
+      log: false
     )
-    PRIMARY KEY id
-    SOURCE(CLICKHOUSE(TABLE 'build_runs'))
-    LAYOUT(HASHED())
-    LIFETIME(0)
-    """)
   end
 
   defp add_project_id_column do
