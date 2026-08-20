@@ -205,47 +205,6 @@
       </.card_section>
     </div>
   </.card>
-  <div :if={@plan == :air} data-part="plans">
-    <.pricing_cards id="billing-pricing-plans" plan={@plan} />
-  </div>
-  <.card
-    :if={@plan == :pro and @current_month_remote_cache_hits_count > 200}
-    data-part="usage-card"
-    icon="history"
-    title={dgettext("dashboard_account", "Usage")}
-  >
-    <.card_section data-part="usage-card-section">
-      <span data-part="info-label">
-        {dgettext(
-          "dashboard_account",
-          "You’ve exceeded your free tier quota and will incur charges for additional usage."
-        )}
-      </span>
-      <.table
-        id="usage-table"
-        rows={[
-          %{
-            current_month_remote_cache_hits_count: @current_month_remote_cache_hits_count,
-            price: dgettext("dashboard_account", "$0.50"),
-            total: @estimated_next_payment
-          }
-        ]}
-      >
-        <:col :let={usage_item} label={dgettext("dashboard_account", "Remote cache hits")}>
-          <.text_and_description_cell
-            label={usage_item.current_month_remote_cache_hits_count}
-            description={dgettext("dashboard_account", "above free tier")}
-          />
-        </:col>
-        <:col :let={usage_item} label={dgettext("dashboard_account", "Price")}>
-          <.text_cell label={usage_item.price} />
-        </:col>
-        <:col :let={usage_item} label={dgettext("dashboard_account", "Total")}>
-          <.text_cell label={usage_item.total} />
-        </:col>
-      </.table>
-    </.card_section>
-  </.card>
   <.card
     :if={@runner_usage.total_ms > 0}
     data-part="runner-usage-card"
@@ -308,6 +267,47 @@
         </:col>
         <:col :let={grant} label={dgettext("dashboard_account", "Expires")}>
           <.text_cell label={prepaid_credit_expiry_label(grant.expires_at)} />
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
+  <div :if={@plan == :air} data-part="plans">
+    <.pricing_cards id="billing-pricing-plans" plan={@plan} />
+  </div>
+  <.card
+    :if={@plan == :pro and @current_month_remote_cache_hits_count > 200}
+    data-part="usage-card"
+    icon="history"
+    title={dgettext("dashboard_account", "Usage")}
+  >
+    <.card_section data-part="usage-card-section">
+      <span data-part="info-label">
+        {dgettext(
+          "dashboard_account",
+          "You’ve exceeded your free tier quota and will incur charges for additional usage."
+        )}
+      </span>
+      <.table
+        id="usage-table"
+        rows={[
+          %{
+            current_month_remote_cache_hits_count: @current_month_remote_cache_hits_count,
+            price: dgettext("dashboard_account", "$0.50"),
+            total: @estimated_next_payment
+          }
+        ]}
+      >
+        <:col :let={usage_item} label={dgettext("dashboard_account", "Remote cache hits")}>
+          <.text_and_description_cell
+            label={usage_item.current_month_remote_cache_hits_count}
+            description={dgettext("dashboard_account", "above free tier")}
+          />
+        </:col>
+        <:col :let={usage_item} label={dgettext("dashboard_account", "Price")}>
+          <.text_cell label={usage_item.price} />
+        </:col>
+        <:col :let={usage_item} label={dgettext("dashboard_account", "Total")}>
+          <.text_cell label={usage_item.total} />
         </:col>
       </.table>
     </.card_section>
