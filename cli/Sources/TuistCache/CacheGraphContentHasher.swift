@@ -68,15 +68,15 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
         excludedTargets: Set<String>,
         destination: SimulatorDeviceAndRuntime?
     ) async throws -> [GraphTarget: TargetContentHash] {
-        let scopesSettingsToConfiguration = configuration != nil || defaultConfiguration != nil
+        // Hashes depend on the resolved configuration, never on whether it was named explicitly, came
+        // from the manifest, or fell back to the first debug configuration. A cache filled by
+        // `tuist cache --configuration X` has to stay readable by a run that resolves to X without the flag.
         let resolvedConfiguration = try defaultConfigurationFetcher.fetch(
             configuration: configuration,
             defaultConfiguration: defaultConfiguration,
             graph: graph
         )
-        let hashingGraph = scopesSettingsToConfiguration
-            ? graphByScopingSettings(in: graph, to: resolvedConfiguration)
-            : graph
+        let hashingGraph = graphByScopingSettings(in: graph, to: resolvedConfiguration)
 
         if let exportHashedGraphPath = Environment.current.variables["TUIST_EXPORT_HASHED_GRAPH_PATH"],
            let exportPath = try? AbsolutePath(validating: exportHashedGraphPath)
