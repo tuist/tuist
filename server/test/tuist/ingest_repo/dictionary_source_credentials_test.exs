@@ -33,4 +33,28 @@ defmodule Tuist.IngestRepo.DictionarySourceCredentialsTest do
            Render the source with `Tuist.ClickHouseDictionarySource.local_table/2` instead.
            """
   end
+
+  test "every credential-bearing statement is issued with the redacting query options" do
+    unredacted =
+      @migrations_path
+      |> Path.join("*.exs")
+      |> Path.wildcard()
+      |> Enum.filter(fn path ->
+        source = File.read!(path)
+
+        String.contains?(source, "ClickHouseDictionarySource.local_table(") and
+          not String.contains?(source, "ClickHouseDictionarySource.query_opts()")
+      end)
+      |> Enum.map(&Path.basename/1)
+      |> Enum.sort()
+
+    assert unredacted == [],
+           """
+           These migrations render a dictionary source carrying a password but do not issue \
+           the statement with `Tuist.ClickHouseDictionarySource.query_opts/0`, so a statement \
+           that fails to parse reaches `system.query_log` verbatim:
+
+           #{Enum.map_join(unredacted, "\n", &("  " <> &1))}
+           """
+  end
 end

@@ -85,7 +85,7 @@ defmodule Tuist.IngestRepo.Migrations.AddProjectIdToTestCaseEvents do
       LIFETIME(0)
       """,
       [],
-      log: false
+      ClickHouseDictionarySource.query_opts()
     )
   end
 

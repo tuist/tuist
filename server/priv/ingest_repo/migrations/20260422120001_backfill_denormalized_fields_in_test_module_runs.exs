@@ -47,7 +47,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillDenormalizedFieldsInTestModuleRuns
       LIFETIME(0)
       """,
       [],
-      log: false
+      ClickHouseDictionarySource.query_opts()
     )
 
     Logger.info("Starting test_module_runs denormalized backfill mutation")

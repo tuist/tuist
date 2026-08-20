@@ -52,7 +52,7 @@ defmodule Tuist.IngestRepo.Migrations.DenormalizeProjectIdOnCasOutputs do
       LIFETIME(0)
       """,
       [],
-      log: false
+      ClickHouseDictionarySource.query_opts()
     )
   end
 

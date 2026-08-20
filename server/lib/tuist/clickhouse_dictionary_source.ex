@@ -14,7 +14,20 @@ defmodule Tuist.ClickHouseDictionarySource do
   Host and port stay out of the clause on purpose. Omitted, they default to the
   server's own address and native port, which is what a same-instance lookup
   wants; the repo's port is the HTTP one the source would not dial anyway.
+
+  Issue the resulting statement with `query_opts/0`, which keeps the credential
+  out of both logs that would otherwise receive it.
   """
+
+  @doc """
+  Query options for a statement rendered with `local_table/2`.
+
+  `log: false` keeps the credential out of the application log. `log_queries: 0`
+  keeps the whole statement out of `system.query_log`: ClickHouse masks
+  dictionary source passwords there on its own, but it does so from the parsed
+  statement, so anything that fails to parse is logged verbatim instead.
+  """
+  def query_opts, do: [log: false, settings: [log_queries: 0]]
 
   def local_table(repo, table) do
     config = repo.config()
