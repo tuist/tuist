@@ -182,4 +182,79 @@ defmodule Tuist.Runners.AllowanceTest do
       assert breakdown.billed == Money.new(0, :USD)
     end
   end
+
+  describe "monthly_breakdown/1 platform rows" do
+    test "reports the period, its projection, what is included and the period before", %{account: account} do
+      # 60 minutes on the 1st of this month, so the projection scales a
+      # known figure across a known number of days.
+      now = DateTime.utc_now()
+      started = %{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}
+
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: System.unique_integer([:positive]),
+        fleet_name: "tuist-macos",
+        pod_name: "pod-#{System.unique_integer([:positive])}",
+        runner_name: "",
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        billing_multiplier: 10_000,
+        started_at: started,
+        job_started_at: started,
+        job_ended_at: DateTime.add(started, 60 * 60, :second),
+        inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+
+      assert [row] = Allowance.monthly_breakdown(account).platforms
+
+      assert row.platform == :macos
+      assert row.id == "macos"
+      assert row.minutes == 60
+      assert row.included_minutes == Allowance.free_monthly_minutes()
+      assert row.previous_minutes == 0
+      assert row.gross == Money.new(450, :USD)
+      # Inside the allowance, so nothing of it is billable yet.
+      assert row.billed == Money.new(0, :USD)
+
+      days_in_month = Date.days_in_month(DateTime.to_date(now))
+      assert row.projected_minutes == div(60 * days_in_month, now.day)
+    end
+
+    test "shows minutes but no money for a platform with no agreed rate", %{account: account} do
+      started = DateTime.add(DateTime.utc_now(), -1, :hour)
+
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: System.unique_integer([:positive]),
+        fleet_name: "tuist-linux",
+        pod_name: "pod-#{System.unique_integer([:positive])}",
+        runner_name: "",
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8,
+        billing_multiplier: 10_000,
+        started_at: started,
+        job_started_at: started,
+        job_ended_at: DateTime.add(started, 600, :second),
+        inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+
+      assert [row] = Allowance.monthly_breakdown(account).platforms
+
+      assert row.platform == :linux
+      assert row.minutes == 10
+      # No Linux rate exists, so pricing it would mean inventing one.
+      assert is_nil(row.gross)
+      assert is_nil(row.billed)
+      # The allowance is only meaningful against a platform that has a rate.
+      assert is_nil(row.included_minutes)
+    end
+
+    test "reports no rows for an account that ran nothing", %{account: account} do
+      assert Allowance.monthly_breakdown(account).platforms == []
+    end
+  end
 end

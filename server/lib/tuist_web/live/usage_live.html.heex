@@ -150,18 +150,38 @@
       />
     </.card_section>
     <.card_section data-part="runner-usage-card-table-section">
-      <.table id="runner-usage-breakdown" rows={@runner_breakdown.days}>
-        <:col :let={day} label={dgettext("dashboard_usage", "Date")}>
-          <.text_cell label={Timex.format!(day.date, "{Mshort} {D}, {YYYY}")} />
+      <.table id="runner-usage-breakdown" rows={@runner_breakdown.platforms}>
+        <:col :let={row} label={dgettext("dashboard_usage", "Product")}>
+          <.text_and_description_cell
+            label={TuistWeb.UsageLive.platform_label(row.platform)}
+            description={dgettext("dashboard_usage", "Runner minutes")}
+          />
         </:col>
-        <:col :let={day} label={dgettext("dashboard_usage", "Minutes")}>
-          <.text_cell label={to_string(day.minutes)} />
+        <:col :let={row} label={TuistWeb.UsageLive.current_period_label(@runner_breakdown)}>
+          <.text_and_description_cell
+            label={dgettext("dashboard_usage", "%{count} min", count: row.minutes)}
+            description={TuistWeb.UsageLive.money_label(row.gross)}
+          />
         </:col>
-        <:col :let={day} label={dgettext("dashboard_usage", "Usage value")}>
-          <.text_cell label={format_money(day.gross)} />
+        <:col :let={row} label={dgettext("dashboard_usage", "Projection")}>
+          <.text_cell label={
+            dgettext("dashboard_usage", "%{count} min", count: row.projected_minutes)
+          } />
         </:col>
-        <:col :let={day} label={dgettext("dashboard_usage", "Billed")}>
-          <.text_cell label={format_money(day.billed)} />
+        <:col :let={row} label={dgettext("dashboard_usage", "Included")}>
+          <.text_cell label={
+            if row.included_minutes,
+              do: dgettext("dashboard_usage", "%{count} min", count: row.included_minutes),
+              else: "—"
+          } />
+        </:col>
+        <:col :let={row} label={dgettext("dashboard_usage", "Billed")}>
+          <.text_cell label={TuistWeb.UsageLive.money_label(row.billed)} />
+        </:col>
+        <:col :let={row} label={dgettext("dashboard_usage", "Previous period")}>
+          <.text_cell label={
+            dgettext("dashboard_usage", "%{count} min", count: row.previous_minutes)
+          } />
         </:col>
       </.table>
     </.card_section>

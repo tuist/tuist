@@ -285,6 +285,27 @@ defmodule TuistWeb.UsageLive do
     ]
   end
 
+  def platform_label(:macos), do: dgettext("dashboard_usage", "macOS")
+  def platform_label(:linux), do: dgettext("dashboard_usage", "Linux")
+  def platform_label(other), do: to_string(other)
+
+  @doc """
+  Column heading carrying the period it covers, so the figures beneath
+  it are not read as all-time.
+  """
+  def current_period_label(%{period_start: from, period_end: to}) do
+    dgettext("dashboard_usage", "Current period %{from} — %{to}",
+      from: Timex.format!(from, "{Mshort} {D}"),
+      to: Timex.format!(to, "{Mshort} {D}")
+    )
+  end
+
+  @doc """
+  Money, or a dash for a platform with no agreed rate yet.
+  """
+  def money_label(nil), do: "—"
+  def money_label(money), do: CldrHelpers.format_money(money)
+
   def region_label(""), do: dgettext("dashboard_usage", "Unknown")
   def region_label(nil), do: dgettext("dashboard_usage", "Unknown")
   def region_label(region) when is_binary(region), do: region

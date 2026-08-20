@@ -109,7 +109,7 @@ defmodule Tuist.Runners.Allowance do
   it bill nothing. That split is the point: it shows where the free tier
   ran out rather than presenting one blended number.
   """
-  def monthly_breakdown(%Account{id: account_id} = account) do
+  def monthly_breakdown(%Account{id: account_id}) do
     now = DateTime.utc_now()
     period_start = %{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}
     free_ms = free_monthly_minutes() * 60_000
@@ -146,8 +146,77 @@ defmodule Tuist.Runners.Allowance do
       free_minutes: free_monthly_minutes(),
       gross: Prepaid.on_demand_cost_for_milliseconds(total_ms),
       billed: Prepaid.on_demand_cost_for_milliseconds(max(total_ms - free_ms, 0)),
-      days: Enum.reject(days, &(&1.minutes == 0 and &1.gross == Money.new(0, :USD)))
+      days: Enum.reject(days, &(&1.minutes == 0 and &1.gross == Money.new(0, :USD))),
+      platforms: platform_rows(account_id, period_start, now, total_ms)
     }
+  end
+
+  # One row per platform that ran anything, shaped like the usage table
+  # it feeds: what the period has used so far, where that lands by the
+  # end of it, what the plan covers, and what the period before it came
+  # to.
+  defp platform_rows(account_id, period_start, now, total_ms) do
+    previous_start = period_start |> DateTime.add(-1, :day) |> beginning_of_month()
+    previous_end = DateTime.add(period_start, -1, :microsecond)
+
+    previous_by_platform = milliseconds_by_platform(account_id, previous_start, previous_end)
+
+    account_id
+    |> milliseconds_by_platform(period_start, now)
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.map(fn {platform, ms} ->
+      %{
+        id: to_string(platform),
+        platform: platform,
+        minutes: div(ms, 60_000),
+        projected_minutes: project(ms, now),
+        # The allowance is one pot for the account rather than one per
+        # platform, so it is only meaningful against a platform that has
+        # a rate to spend it at. macOS is the only one so far.
+        included_minutes: if(platform == :macos, do: free_monthly_minutes()),
+        previous_minutes: previous_by_platform |> Map.get(platform, 0) |> div(60_000),
+        gross: platform_cost(platform, ms),
+        billed: platform_cost(platform, billable_milliseconds(platform, ms, total_ms))
+      }
+    end)
+  end
+
+  defp milliseconds_by_platform(account_id, period_start, period_end) do
+    account_id
+    |> RunnerBilling.compute_milliseconds_by_machine(period_start, period_end)
+    |> Enum.reduce(%{}, fn usage, acc ->
+      Map.update(acc, usage.platform, usage.total_ms, &(&1 + usage.total_ms))
+    end)
+  end
+
+  # Only macOS has an agreed rate, so any other platform's time is real
+  # but not yet priceable; it shows minutes and no money rather than a
+  # number we invented.
+  defp platform_cost(:macos, ms), do: Prepaid.on_demand_cost_for_milliseconds(ms)
+  defp platform_cost(_platform, _ms), do: nil
+
+  # The allowance is spent by the account, not by the platform, so a
+  # platform's billable share is what is left of it after the account's
+  # free milliseconds are taken off the whole period.
+  defp billable_milliseconds(_platform, ms, total_ms) do
+    free_ms = free_monthly_minutes() * 60_000
+    billable_total = max(total_ms - free_ms, 0)
+
+    if total_ms == 0, do: 0, else: div(ms * billable_total, total_ms)
+  end
+
+  # Straight-line: what the period has used so far, scaled to its full
+  # length. Honest only as an extrapolation, which is what a projection
+  # is.
+  defp project(ms, now) do
+    days_elapsed = now.day
+    days_in_month = Date.days_in_month(DateTime.to_date(now))
+
+    ms |> Kernel.*(days_in_month) |> div(days_elapsed) |> div(60_000)
+  end
+
+  defp beginning_of_month(%DateTime{} = datetime) do
+    %{datetime | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}
   end
 
   @doc """

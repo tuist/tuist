@@ -57,13 +57,13 @@ msgstr ""
 msgid "Project:"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:316
+#: lib/tuist_web/live/usage_live.html.heex:336
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:218
-#: lib/tuist_web/live/usage_live.html.heex:325
+#: lib/tuist_web/live/usage_live.html.heex:238
+#: lib/tuist_web/live/usage_live.html.heex:345
 #, elixir-autogen, elixir-format
 msgid "Requests"
 msgstr ""
@@ -84,45 +84,45 @@ msgstr ""
 msgid "Usage"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:178
-#: lib/tuist_web/live/usage_live.html.heex:319
+#: lib/tuist_web/live/usage_live.html.heex:198
+#: lib/tuist_web/live/usage_live.html.heex:339
 #, elixir-autogen, elixir-format
 msgid "Egress"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:198
-#: lib/tuist_web/live/usage_live.html.heex:322
+#: lib/tuist_web/live/usage_live.html.heex:218
+#: lib/tuist_web/live/usage_live.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "Ingress"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:288
-#: lib/tuist_web/live/usage_live.ex:289
+#: lib/tuist_web/live/usage_live.ex:309
+#: lib/tuist_web/live/usage_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:201
+#: lib/tuist_web/live/usage_live.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "Bytes received by the cache from clients (cache uploads) in the selected window."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:181
+#: lib/tuist_web/live/usage_live.html.heex:201
 #, elixir-autogen, elixir-format
 msgid "Bytes sent from the cache to clients (cache downloads) in the selected window."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:171
+#: lib/tuist_web/live/usage_live.html.heex:191
 #, elixir-autogen, elixir-format
 msgid "Cache traffic"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:296
+#: lib/tuist_web/live/usage_live.ex:317
 #, elixir-autogen, elixir-format
 msgid "No cache traffic in this window yet"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:221
+#: lib/tuist_web/live/usage_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Number of cache requests served in the selected window."
 msgstr ""
@@ -152,7 +152,7 @@ msgstr ""
 msgid "since yesterday"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:282
+#: lib/tuist_web/live/usage_live.html.heex:302
 #, elixir-autogen, elixir-format
 msgid "Traffic by region"
 msgstr ""
@@ -169,7 +169,7 @@ msgstr ""
 
 #: lib/tuist_web/live/usage_live.ex:280
 #: lib/tuist_web/live/usage_live.html.heex:131
-#: lib/tuist_web/live/usage_live.html.heex:163
+#: lib/tuist_web/live/usage_live.html.heex:178
 #, elixir-autogen, elixir-format
 msgid "Billed"
 msgstr ""
@@ -179,17 +179,8 @@ msgstr ""
 msgid "Billing period %{from} to %{to}. Minutes are measured on the macOS 6 vCPU / 14 GB baseline; a larger machine uses more than one minute per minute it runs."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:154
-#, elixir-autogen, elixir-format
-msgid "Date"
-msgstr ""
-
-#: lib/tuist_web/live/usage_live.html.heex:157
-#, elixir-autogen, elixir-format
-msgid "Minutes"
-msgstr ""
-
 #: lib/tuist_web/live/usage_live.html.heex:115
+#: lib/tuist_web/live/usage_live.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "Runner minutes"
 msgstr ""
@@ -205,7 +196,6 @@ msgid "Runner usage"
 msgstr ""
 
 #: lib/tuist_web/live/usage_live.html.heex:125
-#: lib/tuist_web/live/usage_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Usage value"
 msgstr ""
@@ -213,4 +203,47 @@ msgstr ""
 #: lib/tuist_web/live/usage_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "What lands on your invoice"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:162
+#: lib/tuist_web/live/usage_live.html.heex:168
+#: lib/tuist_web/live/usage_live.html.heex:174
+#: lib/tuist_web/live/usage_live.html.heex:183
+#, elixir-autogen, elixir-format
+msgid "%{count} min"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.ex:297
+#, elixir-autogen, elixir-format
+msgid "Current period %{from} — %{to}"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:171
+#, elixir-autogen, elixir-format
+msgid "Included"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.ex:289
+#, elixir-autogen, elixir-format
+msgid "Linux"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:181
+#, elixir-autogen, elixir-format
+msgid "Previous period"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:154
+#, elixir-autogen, elixir-format
+msgid "Product"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:166
+#, elixir-autogen, elixir-format
+msgid "Projection"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.ex:288
+#, elixir-autogen, elixir-format
+msgid "macOS"
 msgstr ""
