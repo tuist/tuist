@@ -146,3 +146,15 @@ The check run shows the baseline size, current size, and percentage change. If t
 To configure thresholds, go to your project's **Settings > Bundles** tab:
 
 ![Bundle size thresholds settings](/images/guides/features/bundle-size/bundle-size-thresholds.png)
+
+### Restricting who can accept {#size-thresholds-approvals}
+
+By default, anyone GitHub lets press the button on a check run can accept a size increase, which is everyone with write access to the repository. To narrow that, set **Who can accept** under **Settings > Bundles**:
+
+- **Anyone with write access**: the default.
+- **Admins only**: admins of the account that owns the project.
+- **Selected GitHub users**: only the GitHub usernames you list. Admins are not included unless you add them.
+
+When someone who is not allowed to accept presses the button, the check run stays failing and explains who can accept instead. The button remains available so that someone who is allowed can press it.
+
+**Admins only** matches the GitHub user who pressed the button against Tuist accounts, so an admin has to have signed in to Tuist with GitHub at least once for Tuist to recognize them. If no admin has, the settings page warns you that the policy would deny everybody. **Selected GitHub users** matches on the GitHub username alone and works regardless of how those people sign in to Tuist.

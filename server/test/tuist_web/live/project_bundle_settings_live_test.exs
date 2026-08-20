@@ -6,7 +6,9 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Bundles
+  alias Tuist.Projects
   alias TuistTestSupport.Fixtures.BundlesFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "create threshold" do
     test "creates a threshold via the modal", %{
@@ -95,6 +97,80 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
       render_hook(lv, "delete_threshold", %{"threshold_id" => other_threshold.id})
 
       assert {:ok, _} = Bundles.get_bundle_threshold(other_threshold.id)
+    end
+  end
+
+  describe "approvals" do
+    test "changes the approval policy", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      render_hook(lv, "select_approval_policy", %{"policy" => "admins"})
+
+      assert Projects.get_project_by_id(project.id).bundle_size_approval_policy == :admins
+    end
+
+    test "warns that an admins-only policy would deny everybody when no admin has linked GitHub", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      html = render_hook(lv, "select_approval_policy", %{"policy" => "admins"})
+
+      assert html =~ "nobody can accept a size increase"
+    end
+
+    test "adds and removes an approver", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      render_hook(lv, "select_approval_policy", %{"policy" => "selected"})
+      render_hook(lv, "update_approver_handle", %{"value" => "octocat"})
+      render_hook(lv, "add_approver")
+
+      assert [approver] = Bundles.list_bundle_size_approvers(project)
+      assert approver.github_handle == "octocat"
+
+      render_hook(lv, "delete_approver", %{"approver_id" => approver.id})
+
+      assert Bundles.list_bundle_size_approvers(project) == []
+    end
+
+    test "surfaces an invalid GitHub username instead of adding it", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      render_hook(lv, "select_approval_policy", %{"policy" => "selected"})
+      render_hook(lv, "update_approver_handle", %{"value" => "not a login"})
+      html = render_hook(lv, "add_approver")
+
+      assert Bundles.list_bundle_size_approvers(project) == []
+      assert html =~ "valid GitHub username"
+    end
+
+    test "does not allow removing an approver from a different project", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      other_project = ProjectsFixtures.project_fixture()
+
+      {:ok, approver} =
+        Bundles.create_bundle_size_approver(%{project_id: other_project.id, github_handle: "octocat"})
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      render_hook(lv, "delete_approver", %{"approver_id" => approver.id})
+
+      assert Bundles.list_bundle_size_approvers(other_project) == [approver]
     end
   end
 end

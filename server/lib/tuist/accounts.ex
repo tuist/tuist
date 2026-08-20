@@ -256,6 +256,33 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
+  Whether any admin of the account has a GitHub identity linked.
+
+  Callers that resolve a GitHub user back to a Tuist user need this to tell
+  an admin-only policy that is enforceable from one that would deny
+  everybody.
+  """
+  def any_admin_with_github_identity?(%{id: account_id}) do
+    case get_account_by_id(account_id, preload: [:organization]) do
+      {:ok, %Account{organization: nil} = account} ->
+        github_identity_linked?(account.user_id)
+
+      {:ok, %Account{organization: organization} = account} ->
+        github_identity_linked?(account.user_id) or
+          organization |> get_organization_members(:admin) |> Enum.any?(&github_identity_linked?(&1.id))
+
+      {:error, :not_found} ->
+        false
+    end
+  end
+
+  defp github_identity_linked?(nil), do: false
+
+  defp github_identity_linked?(user_id) do
+    Repo.exists?(from(o in Oauth2Identity, where: o.user_id == ^user_id and o.provider == :github))
+  end
+
+  @doc """
   Given a token, it returns the user associated with it.
   """
   def get_user_by_token(token) do

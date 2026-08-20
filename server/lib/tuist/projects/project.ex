@@ -37,6 +37,10 @@ defmodule Tuist.Projects.Project do
     field :last_reported_at, :utc_datetime
     field :build_system, Ecto.Enum, values: [xcode: 0, gradle: 1], default: :xcode
 
+    field :bundle_size_approval_policy, Ecto.Enum,
+      values: [everyone: 0, admins: 1, selected: 2],
+      default: :everyone
+
     field :auto_quarantine_flaky_tests, :boolean, default: false
     field :flaky_test_alerts_enabled, :boolean, default: false
     field :flaky_test_alerts_slack_channel_id, :string
@@ -101,7 +105,8 @@ defmodule Tuist.Projects.Project do
       :auto_mark_flaky_tests,
       :auto_mark_flaky_threshold,
       :flaky_cooldown_days,
-      :build_system
+      :build_system,
+      :bundle_size_approval_policy
     ])
     |> validate_name()
     |> validate_length(:default_branch, max: 255)
@@ -110,6 +115,7 @@ defmodule Tuist.Projects.Project do
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
     |> validate_inclusion(:build_system, [:xcode, :gradle])
+    |> validate_inclusion(:bundle_size_approval_policy, [:everyone, :admins, :selected])
   end
 
   def xcode_project?(%__MODULE__{build_system: :xcode}), do: true

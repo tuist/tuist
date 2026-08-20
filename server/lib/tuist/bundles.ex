@@ -5,8 +5,11 @@ defmodule Tuist.Bundles do
 
   import Ecto.Query
 
+  alias Tuist.Accounts
   alias Tuist.Bundles.Artifact
   alias Tuist.Bundles.Bundle
+  alias Tuist.Bundles.BundleSizeApproval
+  alias Tuist.Bundles.BundleSizeApprover
   alias Tuist.Bundles.BundleThreshold
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
@@ -749,6 +752,127 @@ defmodule Tuist.Bundles do
         :ok
       end
     end
+  end
+
+  def list_bundle_size_approvers(%Project{} = project) do
+    Repo.all(from(a in BundleSizeApprover, where: a.project_id == ^project.id, order_by: [asc: a.github_handle]))
+  end
+
+  def get_bundle_size_approver(id) do
+    case Repo.get(BundleSizeApprover, id) do
+      nil -> {:error, :not_found}
+      approver -> {:ok, approver}
+    end
+  end
+
+  def create_bundle_size_approver(attrs) do
+    %BundleSizeApprover{id: UUIDv7.generate()}
+    |> BundleSizeApprover.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def delete_bundle_size_approver(%BundleSizeApprover{} = approver) do
+    Repo.delete(approver)
+  end
+
+  @doc """
+  Whether the GitHub user who requested the `accept_bundle_size` check run
+  action is allowed to accept a size increase for `project`.
+
+  `:everyone` short-circuits before any identity resolution, so the default
+  policy never depends on a member having linked GitHub to their Tuist
+  account. The stricter policies do, which is why the failure is reported as
+  `:github_account_not_linked` rather than a plain denial: the two need
+  different remedies.
+
+  `:selected` matches the allowlist exactly. Admins are not implicitly
+  included, so the list is the whole answer to who can accept, and an admin
+  who wants the ability adds themselves to it.
+  """
+  def authorize_bundle_size_approval(project, sender)
+
+  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :everyone}, _sender), do: :ok
+
+  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :selected} = project, %{handle: handle}) do
+    handle = normalize_github_handle(handle)
+
+    if Repo.exists?(from(a in BundleSizeApprover, where: a.project_id == ^project.id and a.github_handle == ^handle)) do
+      :ok
+    else
+      {:error, :not_an_approver}
+    end
+  end
+
+  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :admins} = project, sender) do
+    case user_for_github_sender(sender) do
+      nil ->
+        {:error, :github_account_not_linked}
+
+      user ->
+        if Accounts.owns_account_or_is_admin_to_account_organization?(user, %{id: project.account_id}) do
+          :ok
+        else
+          {:error, :not_an_admin}
+        end
+    end
+  end
+
+  @doc """
+  Records who accepted a bundle size increase.
+
+  Lives in Postgres rather than on the bundle row because `bundles` is a
+  ClickHouse MergeTree, where updating a single row is an asynchronous
+  mutation.
+
+  The GitHub handle is always stored; the Tuist user is resolved on a
+  best-effort basis and stays `nil` for a sender who never linked GitHub.
+  Resolution here never gates the acceptance, so it runs under every policy.
+  """
+  def record_bundle_size_approval(%{bundle_id: bundle_id, project_id: project_id, sender: sender}) do
+    attrs = %{
+      bundle_id: bundle_id,
+      project_id: project_id,
+      approved_by_handle: normalize_github_handle(sender.handle),
+      approved_by_user_id: sender |> user_for_github_sender() |> then(&(&1 && &1.id))
+    }
+
+    %BundleSizeApproval{id: UUIDv7.generate()}
+    |> BundleSizeApproval.changeset(attrs)
+    |> Repo.insert(on_conflict: :nothing, conflict_target: :bundle_id)
+  end
+
+  def get_bundle_size_approval(bundle_id) do
+    BundleSizeApproval
+    |> Repo.get_by(bundle_id: bundle_id)
+    |> Repo.preload(:approved_by_user)
+  end
+
+  @doc """
+  Whether any admin of the project's account has a GitHub identity linked.
+
+  Surfaced in the settings UI so an admin switching to `:admins` sees up
+  front that the policy would lock everyone out, instead of finding out when
+  a pull request is already stuck.
+  """
+  def account_admin_with_linked_github?(%Project{account_id: account_id}) do
+    Accounts.any_admin_with_github_identity?(%{id: account_id})
+  end
+
+  defp user_for_github_sender(%{id: nil}), do: nil
+
+  defp user_for_github_sender(%{id: id}) do
+    case Accounts.get_oauth2_identity_by_provider_and_id(:github, id) do
+      nil -> nil
+      identity -> Accounts.get_user_by_id(identity.user_id)
+    end
+  end
+
+  defp user_for_github_sender(_sender), do: nil
+
+  defp normalize_github_handle(nil), do: ""
+
+  defp normalize_github_handle(handle) do
+    handle |> String.trim() |> String.trim_leading("@") |> String.downcase()
   end
 
   defp flatten_artifacts(artifacts, bundle_id, parent_id, current_timestamp) do

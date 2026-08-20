@@ -1,7 +1,9 @@
 defmodule TuistWeb.Webhooks.GitHubController do
   use TuistWeb, :controller
 
+  alias Tuist.Bundles
   alias Tuist.Environment
+  alias Tuist.Projects
   alias Tuist.Runners.Workers.DispatchWorker
   alias Tuist.VCS
 
@@ -351,25 +353,23 @@ defmodule TuistWeb.Webhooks.GitHubController do
          conn,
          %{
            "action" => "requested_action",
-           "check_run" => %{"id" => check_run_id, "name" => "tuist/bundle-size"},
+           "check_run" => %{"id" => check_run_id, "name" => "tuist/bundle-size"} = check_run,
            "requested_action" => %{"identifier" => "accept_bundle_size"},
            "installation" => %{"id" => installation_id},
            "repository" => %{"full_name" => repository_full_name}
          } = params
        ) do
     installation_id = to_string(installation_id)
+    sender = sender_from_params(params)
 
     with {:ok, installation} <- lookup_installation_by_id(conn, params, installation_id) do
-      VCS.update_check_run(%{
+      check_run_params = %{
         repository_full_handle: repository_full_name,
         check_run_id: check_run_id,
-        installation: installation,
-        conclusion: "success",
-        output: %{
-          title: "Bundle size increase accepted",
-          summary: "The bundle size increase was manually accepted."
-        }
-      })
+        installation: installation
+      }
+
+      resolve_bundle_size_approval(check_run, check_run_params, sender)
     end
 
     conn
@@ -382,6 +382,92 @@ defmodule TuistWeb.Webhooks.GitHubController do
     |> put_status(:ok)
     |> json(%{status: "ok"})
   end
+
+  defp sender_from_params(%{"sender" => %{"id" => id, "login" => login}}), do: %{id: to_string(id), handle: login}
+  defp sender_from_params(_params), do: %{id: nil, handle: nil}
+
+  # Check runs created before `external_id` was stamped on them carry no
+  # bundle reference, so the project they belong to is unknowable. Those
+  # accept as they did before rather than stranding pull requests that were
+  # already open when this shipped.
+  defp resolve_bundle_size_approval(check_run, check_run_params, sender) do
+    bundle_id = check_run["external_id"]
+
+    case project_for_bundle(bundle_id) do
+      nil ->
+        accept_bundle_size(check_run_params, sender)
+
+      project ->
+        case Bundles.authorize_bundle_size_approval(project, sender) do
+          :ok ->
+            Bundles.record_bundle_size_approval(%{bundle_id: bundle_id, project_id: project.id, sender: sender})
+            accept_bundle_size(check_run_params, sender)
+
+          {:error, reason} ->
+            reject_bundle_size(check_run_params, sender, project, reason)
+        end
+    end
+  end
+
+  defp project_for_bundle(bundle_id) when is_binary(bundle_id) and bundle_id != "" do
+    case Bundles.get_bundle(bundle_id) do
+      {:ok, bundle} -> Projects.get_project_by_id(bundle.project_id)
+      {:error, :not_found} -> nil
+    end
+  end
+
+  defp project_for_bundle(_bundle_id), do: nil
+
+  defp accept_bundle_size(check_run_params, sender) do
+    VCS.update_check_run(
+      Map.merge(check_run_params, %{
+        conclusion: "success",
+        output: %{
+          title: "Bundle size increase accepted",
+          summary: accepted_summary(sender)
+        }
+      })
+    )
+  end
+
+  # Leaves the check run failing and re-sends the action so whoever is
+  # allowed to accept still has a button to press.
+  defp reject_bundle_size(check_run_params, sender, project, reason) do
+    VCS.update_check_run(
+      Map.merge(check_run_params, %{
+        conclusion: "action_required",
+        output: %{
+          title: "Bundle size increase not accepted",
+          summary: rejected_summary(sender, project, reason)
+        },
+        actions: [
+          %{
+            label: "Accept",
+            description: "Accept the bundle size increase",
+            identifier: "accept_bundle_size"
+          }
+        ]
+      })
+    )
+  end
+
+  defp accepted_summary(%{handle: nil}), do: "The bundle size increase was manually accepted."
+  defp accepted_summary(%{handle: handle}), do: "The bundle size increase was accepted by @#{handle}."
+
+  defp rejected_summary(sender, project, :not_an_admin) do
+    "#{who(sender)} is not an admin of the `#{project.account.name}` account. Only admins can accept bundle size increases for this project."
+  end
+
+  defp rejected_summary(sender, _project, :not_an_approver) do
+    "#{who(sender)} is not allowed to accept bundle size increases for this project. A project admin can change who is, under Settings > Bundles in Tuist."
+  end
+
+  defp rejected_summary(sender, _project, :github_account_not_linked) do
+    "#{who(sender)} is not linked to a Tuist account, so their role could not be checked. Signing in to Tuist with GitHub, using the email the Tuist account already has, links the two."
+  end
+
+  defp who(%{handle: nil}), do: "This GitHub account"
+  defp who(%{handle: handle}), do: "@#{handle}"
 
   defp delete_github_app_installation(conn, body, installation_id) do
     case lookup_installation_by_id(conn, body, installation_id) do
