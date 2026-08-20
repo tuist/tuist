@@ -271,7 +271,11 @@ defmodule TuistWeb.BillingLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
+      # Asserts the body, not just the banner: the alert component only
+      # renders its description at one size, so a banner can be present
+      # and say nothing at all.
       assert has_element?(lv, "#runner-trial-banner")
+      assert render(lv) =~ "isn&#39;t billed while your trial is running"
     end
 
     test "is gone once the trial is cancelled", %{conn: conn, account: account} do

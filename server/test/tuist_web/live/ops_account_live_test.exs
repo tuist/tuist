@@ -205,6 +205,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
       assert has_element?(lv, "#prepaid-no-subscription-alert")
+      # The body, not just the alert: it only renders at one size.
+      assert render(lv) =~ "would sit unbilled"
     end
 
     test "lists the credit the account already holds", %{conn: conn, user: user} do
@@ -249,6 +251,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
       assert has_element?(lv, "#runner-trial-active-alert")
+      assert render(lv) =~ "may become billable when the item is added"
 
       lv |> element("button", "Cancel runner trial") |> render_click()
 

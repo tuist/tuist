@@ -116,6 +116,7 @@
       <.alert
         :if={@on_runner_trial}
         id="runner-trial-active-alert"
+        size="large"
         status="information"
         title={dgettext("dashboard", "On a runner trial")}
         description={
@@ -153,6 +154,7 @@
       <.alert
         :if={not @has_subscription}
         id="prepaid-no-subscription-alert"
+        size="large"
         status="warning"
         title={dgettext("dashboard", "No active subscription")}
         description={
