@@ -1,0 +1,134 @@
+{{- if .Values.egressTreeAgent.enabled }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "egress-tree-agent") }}
+{{- $namespace := .Values.egressTreeAgent.namespace | default .Values.kuraController.namespace }}
+{{- if not .Values.egressTreeAgent.image }}
+{{- fail "egressTreeAgent.image is required (pin by digest)" }}
+{{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: egress-tree-agent
+---
+# Cluster-scoped reads only: the agent needs its own Node's advertised egress
+# budget and the pods scheduled onto that node (fieldSelector spec.nodeName).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: egress-tree-agent
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: egress-tree-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: egress-tree-agent
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: egress-tree-agent
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: egress-tree-agent
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: egress-tree-agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.egressTreeAgent.metricsPort | quote }}
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: {{ $name }}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      priorityClassName: system-node-critical
+      {{- with .Values.egressTreeAgent.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.egressTreeAgent.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: agent
+          image: {{ .Values.egressTreeAgent.image | quote }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: RECONCILE_INTERVAL
+              value: {{ .Values.egressTreeAgent.reconcileInterval | quote }}
+            - name: METRICS_ADDR
+              value: ":{{ .Values.egressTreeAgent.metricsPort }}"
+            - name: DEFAULT_NODE_EGRESS_MBPS
+              value: {{ .Values.egressTreeAgent.defaultNodeEgressMbps | quote }}
+          securityContext:
+            # Privileged like every datapath agent on these nodes: it creates
+            # host veth devices, installs qdiscs, writes net sysctls, and
+            # attaches/pins tcx BPF programs — the default container runtime
+            # masks (read-only /proc/sys) break those under a
+            # capabilities-only grant.
+            privileged: true
+          volumeMounts:
+            - name: bpffs
+              mountPath: /sys/fs/bpf
+              mountPropagation: HostToContainer
+            - name: cilium-run
+              mountPath: /var/run/cilium
+              readOnly: true
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.egressTreeAgent.metricsPort }}
+              hostPort: {{ .Values.egressTreeAgent.metricsPort }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: metrics }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.egressTreeAgent.resources | nindent 12 }}
+      volumes:
+        - name: bpffs
+          hostPath:
+            path: /sys/fs/bpf
+            type: Directory
+        - name: cilium-run
+          hostPath:
+            path: /var/run/cilium
+            type: Directory
+{{- end }}

@@ -251,6 +251,39 @@ kuraController:
     #   KURA_AUTH_JWT_SECRET: "<JWT signing secret>"
     #   KURA_CONTROL_PLANE_CLIENT_SECRET: "<Kura OAuth introspection secret>"
 
+# Per-node shared egress HTB tree for kura pods (infra/egress-tree-agent/):
+# enforces the per-tenant floors (egress_guaranteed_mbps), ceilings
+# (egress_burst_mbps) and the node's advertised egress budget
+# (tuist.dev/egress-mbps) via a tcx/HTB trampoline that keeps Cilium's
+# datapath (policy, identity, masquerade) fully applied to shaped traffic.
+# Inert unless the kura-controller also renders the tuist.dev/egress-class
+# pod annotation (it does so for every instance with a floor or ceiling).
+egressTreeAgent:
+  enabled: false
+  # Full image reference, pinned (e.g. ghcr.io/tuist/egress-tree-agent@sha256:...).
+  image: ""
+  # Deployed into the kura namespace (kuraController.namespace) by default.
+  namespace: ""
+  reconcileInterval: 15s
+  metricsPort: 9469
+  # Observe-mode fallback for the tree's root ceiling on nodes that do not
+  # advertise tuist.dev/egress-mbps capacity. 0 = no fallback: such nodes get
+  # no tree and their pods stay unshaped on the node-local leg.
+  defaultNodeEgressMbps: 0
+  # Schedule only onto kura cache pools; same shape as the regional
+  # kura-*-ingress-nginx blocks in infra/helm/platform/values-tuist.yaml.
+  nodeSelector: {}
+  tolerations:
+    - key: tuist.dev/kura-cache
+      operator: Exists
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
 kuraRuntime:
   image:
     repository: ghcr.io/tuist/kura
