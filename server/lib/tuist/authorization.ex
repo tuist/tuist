@@ -356,6 +356,12 @@ defmodule Tuist.Authorization do
     end
   end
 
+  # Browser dashboards only. There is deliberately no `authenticated_as_project`
+  # or `authenticated_as_account` rule here: the account handle in the URL is the
+  # sole subject, and machine callers read the same data through the API objects,
+  # which carry their own scoped rules. Granting a token this action would widen
+  # the API surface without a caller, so add a scoped rule only alongside an API
+  # endpoint that needs it.
   object :account_dashboard do
     action :read do
       desc("Allows anyone to read a public account's non-admin dashboards.")

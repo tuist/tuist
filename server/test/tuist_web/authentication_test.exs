@@ -655,6 +655,95 @@ defmodule TuistWeb.AuthenticationTest do
   end
 
   describe "require_sso_authentication/2" do
+    test "does not redirect an anonymous visitor when the account is public and enforces SSO", %{conn: conn, user: user} do
+      # Given
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
+
+      Accounts.update_organization(organization, %{sso_enforced: true})
+      {:ok, _account} = Accounts.update_account_visibility(organization.account, :public)
+
+      # When
+      conn =
+        Authentication.require_sso_authentication(
+          %{
+            conn
+            | params: %{"account_handle" => organization.account.name},
+              path_info: [organization.account.name, "runners"],
+              query_string: ""
+          },
+          []
+        )
+
+      # Then
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "still redirects a signed-in user when the account is public and enforces SSO", %{conn: conn, user: user} do
+      # Given — signed-in users can see member-level data on a public account,
+      # so the organization's enforcement still applies to them.
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
+
+      Accounts.update_organization(organization, %{sso_enforced: true})
+      {:ok, _account} = Accounts.update_account_visibility(organization.account, :public)
+
+      # When
+      conn =
+        %{
+          conn
+          | params: %{"account_handle" => organization.account.name},
+            path_info: [organization.account.name, "runners"],
+            query_string: ""
+        }
+        |> assign(:current_user, user)
+        |> Authentication.require_sso_authentication([])
+
+      # Then
+      assert conn.halted
+      assert redirected_to(conn) == "/users/auth/google"
+    end
+
+    test "redirects an anonymous visitor when the account is private and enforces SSO", %{conn: conn, user: user} do
+      # Given
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
+
+      Accounts.update_organization(organization, %{sso_enforced: true})
+
+      # When
+      conn =
+        Authentication.require_sso_authentication(
+          %{
+            conn
+            | params: %{"account_handle" => organization.account.name},
+              path_info: [organization.account.name, "runners"],
+              query_string: ""
+          },
+          []
+        )
+
+      # Then
+      assert conn.halted
+      assert redirected_to(conn) == "/users/auth/google"
+    end
+
     test "redirects to Google SSO when org has Google SSO enforced and session auth provider does not match",
          %{conn: conn, user: user} do
       organization =

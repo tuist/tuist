@@ -408,30 +408,52 @@ defmodule TuistWeb.Authentication do
   end
 
   def require_sso_authentication(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
-    if TuistWeb.OperatorGrant.active_grant?(conn, account_handle) do
-      # An operator holding a valid grant for this account bypasses the
-      # customer's SSO enforcement: they authenticated out-of-band at
-      # ops.tuist.dev and the access is reason-logged and time-boxed.
-      # This is the path that makes SSO-enforced orgs reachable.
-      conn
-    else
-      with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
-           organization_id when not is_nil(organization_id) <- account.organization_id,
-           {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
-           true <- organization.sso_enforced and not is_nil(organization.sso_provider),
-           auth_method = get_session(conn, :auth_method),
-           false <- auth_method == organization.sso_provider do
+    cond do
+      TuistWeb.OperatorGrant.active_grant?(conn, account_handle) ->
+        # An operator holding a valid grant for this account bypasses the
+        # customer's SSO enforcement: they authenticated out-of-band at
+        # ops.tuist.dev and the access is reason-logged and time-boxed.
+        # This is the path that makes SSO-enforced orgs reachable.
         conn
-        |> put_session(:oauth_return_to, current_path(conn))
-        |> redirect(to: sso_provider_path(organization))
-        |> halt()
-      else
-        _ -> conn
-      end
+
+      anonymous_public_account?(conn, account_handle) ->
+        # A signed-out visitor to a public account is only ever served that
+        # account's public data, so there is no identity to enforce a
+        # provider on. Without this they would be bounced to the provider
+        # and the public dashboards would be unreachable. Signed-in users
+        # still fall through: they can see member-level data, so the
+        # organization's enforcement still applies to them.
+        conn
+
+      true ->
+        with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
+             organization_id when not is_nil(organization_id) <- account.organization_id,
+             {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
+             true <- organization.sso_enforced and not is_nil(organization.sso_provider),
+             auth_method = get_session(conn, :auth_method),
+             false <- auth_method == organization.sso_provider do
+          conn
+          |> put_session(:oauth_return_to, current_path(conn))
+          |> redirect(to: sso_provider_path(organization))
+          |> halt()
+        else
+          _ -> conn
+        end
     end
   end
 
   def require_sso_authentication(conn, _opts), do: conn
+
+  defp anonymous_public_account?(conn, account_handle) do
+    if authenticated?(conn) do
+      false
+    else
+      case Accounts.get_account_by_handle(account_handle) do
+        nil -> false
+        account -> Authorization.authorize(:account_dashboard_read, nil, account) == :ok
+      end
+    end
+  end
 
   defp sso_provider_path(%{sso_provider: :google}), do: ~p"/users/auth/google"
 

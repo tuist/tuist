@@ -1060,6 +1060,7 @@ defmodule TuistWeb.Router do
     pipe_through [
       :open_api,
       :browser_app,
+      :rate_limit,
       :load_operator_grant,
       :redirect_to_ops_if_operator,
       :require_authenticated_user_for_private_accounts,

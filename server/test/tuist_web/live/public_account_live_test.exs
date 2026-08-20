@@ -1,12 +1,15 @@
 defmodule TuistWeb.PublicAccountLiveTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
+  use Mimic
 
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.RateLimit
 
   setup do
     user = AccountsFixtures.user_fixture()
@@ -71,6 +74,30 @@ defmodule TuistWeb.PublicAccountLiveTest do
           ] do
         assert {:error, {:redirect, %{to: "/users/log_in"}}} = live(conn, path)
       end
+    end
+  end
+
+  describe "rate limiting" do
+    test "applies the dashboard rate limit to signed-out traffic", %{conn: conn, account: account} do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dashboard_rate_limit_bucket_size, fn -> 60 end)
+      stub(RateLimit, :hit, fn _key, _opts -> {:deny, 1} end)
+
+      assert_raise TuistWeb.Errors.TooManyRequestsError, fn ->
+        get(conn, ~p"/#{account.name}/runners")
+      end
+    end
+
+    test "keys the limit on the visitor's address when signed out", %{conn: conn, account: account} do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dashboard_rate_limit_bucket_size, fn -> 60 end)
+
+      expect(RateLimit, :hit, fn key, _opts ->
+        assert key == "dashboard:GET:/:account_handle/runners:ip:127.0.0.1"
+        {:allow, 1}
+      end)
+
+      get(conn, ~p"/#{account.name}/runners")
     end
   end
 
