@@ -146,6 +146,10 @@ defmodule Tuist.Tests do
   @active_quarantine_event_types ~w(muted skipped)
   @active_quarantine_states ~w(muted skipped)
 
+  @terminal_shard_failure_statuses ~w(failed_processing failure)
+
+  @stale_run_window_hours 6
+
   @doc """
   All mute-related event type names (`muted`, `unmuted`).
   """
@@ -626,7 +630,12 @@ defmodule Tuist.Tests do
     result =
       case existing do
         nil ->
-          test_status = if expected_shard_count > 1, do: "in_progress", else: shard_status
+          test_status =
+            if expected_shard_count > 1 and shard_status not in @terminal_shard_failure_statuses do
+              "in_progress"
+            else
+              shard_status
+            end
 
           attrs =
             attrs
@@ -662,18 +671,23 @@ defmodule Tuist.Tests do
 
           # A shard can move through processing, failed_processing, and a
           # successful client retry. Collapse that append-only history before
-          # deciding whether the merged run is complete. Insert the current
-          # row first so concurrent workers cannot both miss each other's
-          # terminal status and leave the merged run in_progress forever.
-          latest_statuses = latest_shard_statuses(existing_test.id)
+          # deciding whether the merged run is complete.
+          #
+          # The row inserted just above is not reliably read back within the
+          # same request, so the reporting shard contributes its status from
+          # memory and the query only supplies the other shards. Reading all
+          # of them back instead made the last shard to report count itself
+          # as still processing, which left the merged run in_progress with
+          # every shard green.
+          latest_statuses =
+            existing_test.id
+            |> latest_shard_statuses()
+            |> Map.put(shard_index || 0, shard_status)
+            |> Map.values()
+
           reported_count = Enum.count(latest_statuses, &(&1 != "processing"))
 
-          merged_status =
-            if reported_count >= expected_shard_count do
-              compute_final_shard_status(latest_statuses)
-            else
-              "in_progress"
-            end
+          merged_status = merged_shard_status(latest_statuses, reported_count, expected_shard_count)
 
           merged_duration = max(existing_test.duration, shard_duration)
 
@@ -792,13 +806,28 @@ defmodule Tuist.Tests do
   defp blank?(_), do: false
 
   defp latest_shard_statuses(test_run_id) do
-    ClickHouseRepo.all(
-      from(sr in ShardRun,
-        where: sr.test_run_id == ^test_run_id,
-        group_by: sr.shard_index,
-        select: fragment("argMax(?, ?)", sr.status, sr.inserted_at)
-      )
+    from(sr in ShardRun,
+      where: sr.test_run_id == ^test_run_id,
+      group_by: sr.shard_index,
+      select: {sr.shard_index, fragment("argMax(?, ?)", sr.status, sr.inserted_at)}
     )
+    |> ClickHouseRepo.all()
+    |> Map.new()
+  end
+
+  # A shard whose report never reaches the server holds the merged run at
+  # `in_progress` until the six-hour reaper runs, so the pull request comment
+  # and the dashboard show an hourglass over a run that is already red. A
+  # failure any shard reported is terminal, so it decides the merged run
+  # without waiting for the missing reports. Only success still needs every
+  # shard to have reported.
+  defp merged_shard_status(latest_statuses, reported_count, expected_shard_count) do
+    if reported_count >= expected_shard_count or
+         Enum.any?(latest_statuses, &(&1 in @terminal_shard_failure_statuses)) do
+      compute_final_shard_status(latest_statuses)
+    else
+      "in_progress"
+    end
   end
 
   defp compute_final_shard_status(latest_statuses) do
@@ -4217,10 +4246,17 @@ defmodule Tuist.Tests do
   end
 
   @doc """
-  Marks in-progress test runs older than 6 hours as failed.
+  How long a run is given to hear from every shard before it is presumed
+  abandoned. The dashboard reads the same window to decide when a shard that
+  never reported can be called missing rather than still running.
+  """
+  def stale_run_window_hours, do: @stale_run_window_hours
+
+  @doc """
+  Marks in-progress test runs older than the stale run window as failed.
   """
   def expire_stale_in_progress_test_runs do
-    six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -6, :hour)
+    six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -@stale_run_window_hours, :hour)
     now = NaiveDateTime.utc_now()
 
     # `test_runs` is ReplacingMergeTree, and FINAL re-expands granule
