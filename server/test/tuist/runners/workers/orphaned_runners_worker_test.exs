@@ -15,6 +15,11 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
   setup :verify_on_exit!
 
+  setup do
+    stub(K8sClient, :list_pods, fn _namespace, _selector -> {:ok, pod_items(["pod-1"])} end)
+    :ok
+  end
+
   defp candidate(opts) do
     %{
       workflow_job_id: Keyword.get(opts, :workflow_job_id, 76_348_428_905),
@@ -26,6 +31,8 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       fleet_name: Keyword.get(opts, :fleet_name, "tuist-tuist-runner-pool-macos-26-6")
     }
   end
+
+  defp pod_items(names), do: Enum.map(names, &%{"metadata" => %{"name" => &1}})
 
   defp account_fixture do
     TuistTestSupport.Fixtures.AccountsFixtures.organization_fixture(name: "tuist-#{System.unique_integer([:positive])}").account
@@ -228,6 +235,42 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
     end
 
+    test "recovers an aged row whose Pod is gone even when its claim records a sibling execution" do
+      # Age decides candidacy, absence decides evidence, and the two must
+      # stay separate. A row that crosses the floor before the first
+      # successful cluster read (a paused worker, an Oban backlog, a run
+      # of failed reads) would otherwise be filed under `:aged_out` for
+      # the rest of its life and never regain the absence that settles the
+      # busy guard, leaving it stranded until `PodReconciliationWorker`.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id, pod_name: "pod-gone")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [orphan] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [] end)
+
+      expect(K8sClient, :list_pods, fn _namespace, _selector ->
+        {:ok, pod_items(["pod-alive"])}
+      end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _installation, _repository, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      stub(Claims, :executing?, fn _wfid -> true end)
+
+      expect(Claims, :release, fn wfid, handle ->
+        assert wfid == orphan.workflow_job_id
+        assert handle == orphan.claimed_at
+        :ok
+      end)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
     test "leaves an aged row alone when its claim records a sibling execution" do
       # Without evidence the Pod is gone, a claim recording an execution is
       # a runner that is genuinely busy on some job. Age alone must not
@@ -238,6 +281,12 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
       expect(Jobs, :list_orphaned_running, fn _threshold -> [orphan] end)
       expect(Jobs, :list_running_since, fn _threshold -> [] end)
+
+      # The Pod is still in the cluster, so there is no absence to settle
+      # the guard with: age alone is all this row has.
+      expect(K8sClient, :list_pods, fn _namespace, _selector ->
+        {:ok, pod_items([orphan.pod_name])}
+      end)
 
       expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
         {:ok, %{installation_id: 1, client_url: "https://github.com"}}
@@ -265,8 +314,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
   end
 
   describe "perform/1 with a Pod that is gone" do
-    defp pod_items(names), do: Enum.map(names, &%{"metadata" => %{"name" => &1}})
-
     test "recovers a row too young for the staleness floor once its Pod is gone" do
       # The age gate is a stand-in for evidence: the sweep cannot tell a
       # healthy in-flight build from an orphan without asking GitHub, so
@@ -385,9 +432,9 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
     end
 
-    test "does not read the cluster when no row is young enough to need it" do
-      # Steady state: the aged sweep already covers everything, so the
-      # extra arm costs one query and no apiserver traffic.
+    test "does not read the cluster when no row is running at all" do
+      # Steady state: nothing to ask about, so the arm costs one query
+      # and no apiserver traffic.
       expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
       expect(Jobs, :list_running_since, fn _threshold -> [] end)
 

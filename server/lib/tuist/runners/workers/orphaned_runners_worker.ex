@@ -89,6 +89,11 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
 
   So the same question is also asked level-triggered, off one cluster
   read per tick: is the Pod bound to this `running` row still there?
+  Age decides which rows are candidates; absence decides what evidence
+  each candidate carries. Keeping those two separate is load-bearing: a
+  row that crosses the floor before the first successful read would
+  otherwise be filed under age for the rest of its life and never regain
+  the absence that settles the busy guard below.
   Absence widens what is asked about, never what is acted on — every
   candidate still goes through the GitHub cross-check — and any read
   that fails or comes back empty narrows straight back to the age
@@ -217,15 +222,14 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   def perform(_job) do
     threshold = DateTime.add(DateTime.utc_now(), -@stale_after_seconds, :second)
 
-    aged_out =
+    recovered =
       threshold
-      |> Jobs.list_orphaned_running()
-      |> Enum.count(&recover_one(&1, :aged_out))
+      |> candidates()
+      |> Enum.filter(fn {orphan, evidence} -> recover_one(orphan, evidence) end)
+      |> Enum.frequencies_by(fn {_orphan, evidence} -> evidence end)
 
-    pod_gone =
-      threshold
-      |> stopped_pod_candidates()
-      |> Enum.count(&recover_one(&1, :pod_stopped))
+    aged_out = Map.get(recovered, :aged_out, 0)
+    pod_gone = Map.get(recovered, :pod_stopped, 0)
 
     if aged_out + pod_gone > 0 do
       Logger.warning("runners: rescued orphaned running rows",
@@ -239,31 +243,48 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     :ok
   end
 
-  # Rows too young for the staleness floor whose Pod is no longer in the
-  # cluster.
+  # `{orphan, evidence}` pairs for everything worth asking GitHub about.
   #
   # The floor is a stand-in for evidence: the sweep cannot tell a healthy
   # in-flight build from an orphan without asking GitHub, so it waits 5
-  # minutes before asking. A Pod that is gone is that evidence directly,
-  # so a row bound to one needs no wait. `pods/stopped` carries the same
-  # evidence sooner, but only as a push on a best-effort billing path —
-  # a dropped POST, a controller restart mid-reap, or a Pod removed by
-  # node loss, eviction or drain rather than by the reap all leave
-  # nothing behind. This asks the same question level-triggered, so the
-  # answer does not depend on how we learned.
+  # minutes before asking. A Pod that is gone is that evidence directly.
+  # `pods/stopped` carries it sooner, but only as a push on a best-effort
+  # billing path — a dropped POST, a controller restart mid-reap, or a Pod
+  # removed by node loss, eviction or drain rather than by the reap all
+  # leave nothing behind. This asks the same question level-triggered, so
+  # the answer does not depend on how we learned.
   #
   # Absence widens what is asked about, never what is acted on:
-  # `recover_one/1` still cross-checks GitHub before re-queueing.
-  defp stopped_pod_candidates(threshold) do
-    case Jobs.list_running_since(threshold) do
-      # No candidate, no cluster read — steady state costs one query.
-      [] ->
-        []
-
-      recent ->
-        observed = observed_pod_names()
-        Enum.filter(recent, &pod_gone?(&1, observed))
+  # `recover_one/2` still cross-checks GitHub before re-queueing.
+  defp candidates(threshold) do
+    case {Jobs.list_orphaned_running(threshold), Jobs.list_running_since(threshold)} do
+      # Nothing running, no cluster read — steady state costs two queries.
+      {[], []} -> []
+      {aged, recent} -> tag_evidence(aged, recent)
     end
+  end
+
+  defp tag_evidence(aged, recent) do
+    observed = observed_pod_names()
+
+    # An aged row is a candidate on age alone; absence, where the read
+    # proves it, is the stronger evidence and outranks age. Evaluating it
+    # here rather than only for `recent` is what stops a row that aged
+    # past the floor from losing that evidence permanently.
+    aged_candidates = Enum.map(aged, &{&1, evidence(&1, observed)})
+
+    # A row inside the floor is a candidate only once its Pod is gone. The
+    # floor still owns "Pod present but the runner never registered".
+    recent_candidates =
+      recent
+      |> Enum.filter(&pod_gone?(&1, observed))
+      |> Enum.map(&{&1, :pod_stopped})
+
+    aged_candidates ++ recent_candidates
+  end
+
+  defp evidence(orphan, observed) do
+    if pod_gone?(orphan, observed), do: :pod_stopped, else: :aged_out
   end
 
   defp pod_gone?(%{pod_name: pod_name}, {:ok, observed}) do
@@ -307,7 +328,9 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   # `evidence` is what the caller knows about the Pod behind the claim:
   # `:pod_stopped` when it has been observed gone (reported stopped, or
   # absent from the cluster read), `:aged_out` when the row's age is all
-  # there is to go on. Only the queued branch reads it.
+  # there is to go on — including when the read failed, so a read we
+  # could not trust degrades to the old behaviour rather than to a
+  # guess. Only the queued branch reads it.
   defp recover_one(%{workflow_job_id: workflow_job_id, account_id: account_id, repository: repository} = orphan, evidence) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id) do
