@@ -57,6 +57,17 @@ defmodule Tuist.Kura.CapacityTest do
     test "falls back to the region's declared claim for an unpinned instance" do
       assert Capacity.resident_gib(region(), %Server{}) == 50 * 2
     end
+
+    test "reads every unit a claim may be persisted in" do
+      # A claim is stored in whatever unit Kubernetes accepts and renders
+      # verbatim onto the manifest. A parser that only understood Gi would read
+      # the rest as unparseable and quietly substitute the region's claim, so an
+      # instance reserving a terabyte would be counted at 50Gi.
+      for {claim, gib} <- [{"1Ti", 1024}, {"40Gi", 40}, {"20480Mi", 20}, {"50G", 46}] do
+        assert Capacity.resident_gib(region(), %Server{storage_claim_size: claim}) == gib * 2,
+               "expected #{claim} to be read as #{gib} GiB per replica"
+      end
+    end
   end
 
   describe "allocatable_gib/1" do

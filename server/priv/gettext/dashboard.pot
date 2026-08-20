@@ -1963,5 +1963,5 @@ msgstr ""
 
 #: lib/tuist_web/live/ops_account_live.html.heex:22
 #, elixir-autogen, elixir-format
-msgid "Disk"
+msgid "Claim"
 msgstr ""

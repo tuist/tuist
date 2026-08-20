@@ -75,14 +75,26 @@ defmodule Tuist.Kura.Capacity do
   """
   def resident_gib(%Regions{} = region, %Server{} = server), do: claim_gib(region, server) * replicas(region)
 
+  # Through the same quantity parser the node and pod readings use, not a
+  # Gi-only one. A claim is persisted in any unit Kubernetes accepts, and one
+  # written as `1Ti` renders correctly on the manifest while a narrower parser
+  # reads it as unparseable and silently substitutes the region's claim — an
+  # instance counted at a fraction of what it reserves, in the direction that
+  # overcommits.
   defp claim_gib(%Regions{} = region, %Server{storage_claim_size: size}) when is_binary(size) do
-    parse_gib(size) || claim_gib(region)
+    case parse_quantity(size) do
+      bytes when is_integer(bytes) and bytes > 0 -> div(bytes, @gib)
+      _ -> claim_gib(region)
+    end
   end
 
   defp claim_gib(%Regions{} = region, %Server{}), do: claim_gib(region)
 
   defp claim_gib(%Regions{provisioner_config: %{storage_size: size}}) when is_binary(size) do
-    parse_gib(size) || @default_claim_gib
+    case parse_quantity(size) do
+      bytes when is_integer(bytes) and bytes > 0 -> div(bytes, @gib)
+      _ -> @default_claim_gib
+    end
   end
 
   defp claim_gib(%Regions{}), do: @default_claim_gib
@@ -274,13 +286,5 @@ defmodule Tuist.Kura.Capacity do
       ),
       :count
     )
-  end
-
-  defp parse_gib(size) do
-    case Integer.parse(size) do
-      {value, "Gi"} -> value
-      {value, "G"} -> value
-      _ -> nil
-    end
   end
 end

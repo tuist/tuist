@@ -316,8 +316,16 @@ defmodule Tuist.Kura.Lifecycle do
     end
   end
 
+  # `account` carries its subscriptions from the batch query, and the claim the
+  # instance is built at is resolved from them, so it is handed over rather than
+  # left to be re-fetched per provision.
   defp cold_provision(account, plan, region_id, image_tag) do
-    case Kura.create_server(%{account_id: account.id, region: region_id, image_tag: image_tag}) do
+    case Kura.create_server(%{
+           account_id: account.id,
+           account: account,
+           region: region_id,
+           image_tag: image_tag
+         }) do
       {:ok, _server} ->
         Telemetry.provisioned(plan, region_id, false)
         Logger.info("[Kura.Lifecycle] provisioned instance for account #{account.id} in #{region_id}")
@@ -333,7 +341,7 @@ defmodule Tuist.Kura.Lifecycle do
   end
 
   defp return_from_archive(lifecycle, server, account, plan, image_tag) do
-    case Kura.return_from_archive(server, image_tag) do
+    case Kura.return_from_archive(server, image_tag, account) do
       {:ok, _server} ->
         mark_returned(lifecycle)
         Telemetry.provisioned(plan, server.region, true)

@@ -40,7 +40,11 @@ defmodule Tuist.Kura do
     "region" => :region,
     "image_tag" => :image_tag
   }
-  @create_server_atom_keys Map.values(@create_server_keys)
+  # `:account` is internal: a caller that already holds the account hands it
+  # over so resolving the claim does not refetch it. Deliberately absent from
+  # @create_server_keys, so it cannot arrive through the string-keyed params the
+  # LiveViews forward.
+  @create_server_atom_keys [:account | Map.values(@create_server_keys)]
   @public_endpoint_timeout 5_000
   @provisioner_node_ref_format ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
   @provisioner_node_ref_max_length 53
@@ -241,17 +245,26 @@ defmodule Tuist.Kura do
     attrs = normalize_attrs(attrs)
 
     with {:ok, region} <- fetch_region(attrs[:region]),
-         {:ok, account} <- Accounts.get_account_by_id(attrs[:account_id]),
+         {:ok, account} <- sizing_account(attrs),
          {:ok, ref} <- region.provisioner.provision(account, region, server_stub(attrs)),
          :ok <- validate_provisioner_node_ref(account, ref) do
       attrs =
         attrs
+        |> Map.delete(:account)
         |> Map.put(:provisioner_node_ref, ref)
         |> Map.merge(storage_claim(account, region))
 
       insert_server(attrs, region)
     end
   end
+
+  # Callers that already hold the account pass it rather than its id, because
+  # resolving the claim reads the account's subscriptions and reloading it here
+  # drops the preload. The archival loop holds one per account it provisions,
+  # so without this every provision in a pass costs a fetch and a subscription
+  # lookup it did not need.
+  defp sizing_account(%{account: %Account{id: id} = account, account_id: id}), do: {:ok, account}
+  defp sizing_account(attrs), do: Accounts.get_account_by_id(attrs[:account_id], preload: [:subscriptions])
 
   # The claim the instance's volumes are about to be created at. Resolved here,
   # at the one moment it can change, and carried on the row from then on: the
@@ -1097,9 +1110,11 @@ defmodule Tuist.Kura do
   the account's plan is read again and the returning instance is built at
   whatever that plan is worth now.
   """
-  def return_from_archive(%Server{status: :archived} = server, image_tag) when is_binary(image_tag) do
+  def return_from_archive(server, image_tag, account \\ nil)
+
+  def return_from_archive(%Server{status: :archived} = server, image_tag, account) when is_binary(image_tag) do
     with {:ok, region} <- Regions.fetch(server.region),
-         {:ok, account} <- Accounts.get_account_by_id(server.account_id),
+         {:ok, account} <- sizing_account_for(server, account),
          {:ok, server} <- return_from_archive_transaction(server, region, account, image_tag) do
       server = Repo.preload(server, :deployments, force: true)
       broadcast_server(server, :updated)
@@ -1107,7 +1122,12 @@ defmodule Tuist.Kura do
     end
   end
 
-  def return_from_archive(%Server{}, _image_tag), do: {:error, :not_archived}
+  def return_from_archive(%Server{}, _image_tag, _account), do: {:error, :not_archived}
+
+  defp sizing_account_for(%Server{account_id: id}, %Account{id: id} = account), do: {:ok, account}
+
+  defp sizing_account_for(%Server{account_id: id}, _account),
+    do: Accounts.get_account_by_id(id, preload: [:subscriptions])
 
   defp return_from_archive_transaction(server, region, account, image_tag) do
     claim = storage_claim(account, region)
