@@ -467,6 +467,22 @@ customer-facing profile selection.
    `TartRunExited` rather than laundering tart's zero into a clean
    runner exit.
 
+   The exit code alone is not enough, because it does not separate
+   the two cases that matter: a runner that finished its job and a
+   runner that halted without ever taking one both report 0. So the
+   trap also publishes `runner.log` — `dispatch-poll.sh`'s own
+   output — into the same share, and tart-kubelet re-emits a bounded
+   tail of it to its own stdout before teardown deletes the share.
+   That stdout is already tailed by the host log shipper, so the
+   trail reaches Loki without the shipper having to discover
+   per-VM shares. Copied from the trap rather than `tee`d as the
+   script runs, so a still-running tee cannot flush a duplicate tail
+   after the copy. Same `status`-share dependency as `runner-rc`:
+   pools with cache volumes off keep the old behaviour of logging
+   only inside the guest, and a guest killed before its trap runs
+   publishes nothing — that case already arrives distinguishably as
+   `TartRunExited`.
+
 For the customer-facing dispatch label and capacity model see
 `server/lib/tuist/runners.ex` and `infra/helm/tuist/values.yaml`
 (`runnersFleet.pools[]`) — they're the right place for routing
