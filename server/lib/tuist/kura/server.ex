@@ -66,6 +66,13 @@ defmodule Tuist.Kura.Server do
   Null on the regions that size every instance alike, which render the region's
   own claim.
 
+  Not derived is not the same as not editable. Both columns are desired state,
+  folded into the manifest revision, so an operator who changes one gets it
+  applied on the next reconciler tick rather than whenever something unrelated
+  next moves the revision. Lowering the replica count is the supported way to
+  hand a co-located replica's disk back: the StatefulSet scales down, and the
+  directory it leaves behind is reclaimed by deleting its retained claim.
+
   Per-server install and update attempts live in `kura_deployments` via
   `kura_server_id`. These rows are the deployment records the
   provisioner later applies with its own rollout strategy.

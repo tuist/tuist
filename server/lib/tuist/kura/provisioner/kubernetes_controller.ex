@@ -187,9 +187,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
-  def manifest_revision(account, %Regions{} = region) do
+  def manifest_revision(%Server{account: account} = server, %Regions{} = region) do
     entitlements = manifest_entitlements(account, region)
-    manifest_revision_string(region, self_hosted_peers(account, region, entitlements), entitlements)
+    manifest_revision_string(region, server, self_hosted_peers(account, region, entitlements), entitlements)
   end
 
   @doc "The base manifest revision, independent of dynamic per-account inputs."
@@ -233,7 +233,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp render_manifest(name, image_tag, account, region, server, external_peers, entitlements) do
     account_handle = dns_handle(account.name)
     external_peers = entitled_self_hosted_peers(region, external_peers, entitlements)
-    revision = manifest_revision_string(region, external_peers, entitlements)
+    revision = manifest_revision_string(region, server, external_peers, entitlements)
     annotations = %{@manifest_revision_annotation => revision}
 
     %{
@@ -386,12 +386,32 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # The desired revision the reconciler compares against the live CR's
   # annotation. Both the reconcile check (manifest_revision/2) and the applied
   # manifest (manifest/7) build it here so they can never disagree and loop.
-  defp manifest_revision_string(%Regions{} = region, peer_urls, entitlements) do
+  defp manifest_revision_string(%Regions{} = region, %Server{} = server, peer_urls, entitlements) do
     @manifest_revision <>
       peers_revision_suffix(peer_urls) <>
       mesh_peers_sync_revision_suffix(region, entitlements) <>
       backfill_revision_suffix(entitlements) <>
-      memory_revision_suffix(region, entitlements)
+      memory_revision_suffix(region, entitlements) <>
+      footprint_revision_suffix(region, server)
+  end
+
+  # The instance's disk footprint is desired state like any other field on the
+  # manifest, so moving it has to move the revision. The reconciler converges on
+  # the revision alone: without this, changing the pinned claim or replica count
+  # would alter what the manifest renders while leaving the desired revision
+  # where it was, and the change would sit unapplied until some unrelated input
+  # happened to move it. Reclaiming a replica is exactly that kind of deliberate
+  # edit, and "I changed the desired state and nothing happened" is not a thing
+  # to leave for whoever is doing it under pressure.
+  #
+  # Rendered from what the manifest actually carries rather than from the pinned
+  # column, so an instance that pins nothing and takes its region's footprint
+  # still moves when the region's moves.
+  defp footprint_revision_suffix(%Regions{} = region, %Server{} = server) do
+    case {storage_size(region, server), replicas(region, server)} do
+      {nil, nil} -> ""
+      {size, replicas} -> "+disk#{size}-#{replicas}"
+    end
   end
 
   # Folded in so an account whose plan changes re-applies onto the other profile. Without it the instance would keep the

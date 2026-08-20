@@ -1109,7 +1109,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
       stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
 
-      assert KubernetesController.manifest_revision(%{name: "tuist"}, eu_region(%{mesh: true})) ==
+      assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, eu_region(%{mesh: true})) ==
                KubernetesController.manifest_revision() <> "+backfill"
     end
 
@@ -1124,7 +1124,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       peers = ["https://kura.acme.example:7443"]
       stub(Mesh, :self_hosted_peer_urls, fn _ -> peers end)
 
-      revision = KubernetesController.manifest_revision(%{name: "tuist"}, region)
+      revision = KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region)
       refute revision == KubernetesController.manifest_revision()
 
       manifest =
@@ -1144,10 +1144,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       region = eu_region(%{mesh: true})
 
       stub(Mesh, :self_hosted_peer_urls, fn _ -> ["https://b.example:7443", "https://a.example:7443"] end)
-      sorted = KubernetesController.manifest_revision(%{name: "tuist"}, region)
+      sorted = KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region)
 
       stub(Mesh, :self_hosted_peer_urls, fn _ -> ["https://a.example:7443", "https://b.example:7443"] end)
-      reordered = KubernetesController.manifest_revision(%{name: "tuist"}, region)
+      reordered = KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region)
 
       assert sorted == reordered
     end
@@ -1155,7 +1155,51 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     test "ignores peers for a region without the mesh enabled" do
       reject(&Mesh.self_hosted_peer_urls/1)
 
-      assert KubernetesController.manifest_revision(%{name: "tuist"}, eu_region()) ==
+      assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, eu_region()) ==
+               KubernetesController.manifest_revision() <> "+backfill"
+    end
+
+    test "crosses a revision boundary on the disk footprint so an edit re-applies" do
+      reject(&Mesh.self_hosted_peer_urls/1)
+      account = %Account{id: 1, name: "tuist"}
+      region = eu_region(%{storage_size: "50Gi", replicas: 1})
+
+      # Reclaiming the second replica of an instance built with two is a
+      # deliberate edit of one column. Without the footprint in the revision the
+      # manifest would render `replicas: 1` while the desired revision stayed
+      # where it was, so the reconciler would never re-apply and the edit would
+      # sit there until an unrelated input moved it.
+      two_replicas =
+        KubernetesController.manifest_revision(
+          %Server{account: account, storage_claim_size: "50Gi", storage_replicas: 2},
+          region
+        )
+
+      one_replica =
+        KubernetesController.manifest_revision(
+          %Server{account: account, storage_claim_size: "50Gi", storage_replicas: 1},
+          region
+        )
+
+      smaller_claim =
+        KubernetesController.manifest_revision(
+          %Server{account: account, storage_claim_size: "24Gi", storage_replicas: 1},
+          region
+        )
+
+      assert Enum.uniq([two_replicas, one_replica, smaller_claim]) == [two_replicas, one_replica, smaller_claim]
+
+      # An instance pinning nothing follows its region, so a region-level change
+      # still moves it.
+      assert KubernetesController.manifest_revision(%Server{account: account}, region) == one_replica
+    end
+
+    test "leaves the revision alone for a region that declares no footprint" do
+      reject(&Mesh.self_hosted_peer_urls/1)
+
+      # Self-hosted peers carry their own disk, so there is nothing to declare
+      # and nothing to fold in.
+      assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, eu_region()) ==
                KubernetesController.manifest_revision() <> "+backfill"
     end
 
@@ -1169,13 +1213,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # the memory profile its instance was created with until some unrelated
       # field happened to move.
       stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
-      air = KubernetesController.manifest_revision(account, region)
+      air = KubernetesController.manifest_revision(%Server{account: account}, region)
 
       stub(Tuist.Billing, :effective_plan, fn _ -> :pro end)
-      pro = KubernetesController.manifest_revision(account, region)
+      pro = KubernetesController.manifest_revision(%Server{account: account}, region)
 
       stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
-      enterprise = KubernetesController.manifest_revision(account, region)
+      enterprise = KubernetesController.manifest_revision(%Server{account: account}, region)
 
       assert Enum.uniq([air, pro, enterprise]) == [air, pro, enterprise]
       assert String.contains?(air, "+mem256-768")
@@ -1197,12 +1241,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # Pending because a node stopped advertising the budget.
       packed =
         KubernetesController.manifest_revision(
-          account,
+          %Server{account: account},
           eu_region(%{memory_governed: true, memory_ceiling_bin_packed: true})
         )
 
       unpacked =
-        KubernetesController.manifest_revision(account, eu_region(%{memory_governed: true}))
+        KubernetesController.manifest_revision(%Server{account: account}, eu_region(%{memory_governed: true}))
 
       assert packed != unpacked
       assert String.contains?(packed, "+mem1024-4096")
@@ -1227,10 +1271,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       account = %Account{id: 1, name: "tuist"}
 
       stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
-      non_entitled = KubernetesController.manifest_revision(account, region)
+      non_entitled = KubernetesController.manifest_revision(%Server{account: account}, region)
 
       stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
-      entitled = KubernetesController.manifest_revision(account, region)
+      entitled = KubernetesController.manifest_revision(%Server{account: account}, region)
 
       # The upgrade crosses a revision boundary, so the reconciler re-applies
       # and arms the peer-view gate instead of leaving the instance ungated.
@@ -1263,7 +1307,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       revision =
         KubernetesController.manifest_revision(
-          %Account{id: 1, name: "tuist"},
+          %Server{account: %Account{id: 1, name: "tuist"}},
           eu_region(%{mesh: true})
         )
 
