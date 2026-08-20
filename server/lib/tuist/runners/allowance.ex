@@ -29,9 +29,13 @@ defmodule Tuist.Runners.Allowance do
   alias Tuist.KeyValueStore
   alias Tuist.Runners.Billing, as: RunnerBilling
 
-  # Must match the first tier of the runner Price (100 minutes, which is
-  # 6_000_000 compute-unit milliseconds on the meter).
-  @free_monthly_minutes 100
+  # Must match the first tier of that environment's runner Price. The
+  # default is the real allowance; staging lowers both together so the
+  # cap and the paid tier can be reached without burning a hundred
+  # minutes of real Mac time to get there. Lowering only this would move
+  # the cap without moving the Price, so an account would be cut off
+  # before it could ever reach the charged tier.
+  @default_free_monthly_minutes 100
 
   # Dispatch is a hot path and this adds an aggregate over
   # `runner_sessions` to it, so the answer is cached briefly. The cost is
@@ -43,7 +47,9 @@ defmodule Tuist.Runners.Allowance do
   @doc """
   Baseline machine-minutes every account gets free each billing period.
   """
-  def free_monthly_minutes, do: @free_monthly_minutes
+  def free_monthly_minutes do
+    Application.get_env(:tuist, :runner_free_monthly_minutes, @default_free_monthly_minutes)
+  end
 
   @doc """
   True when `account` must not be given another runner job.
@@ -54,7 +60,7 @@ defmodule Tuist.Runners.Allowance do
   """
   def exhausted?(%Account{} = account) do
     case Billing.effective_plan(account) do
-      :air -> minutes_used(account) >= @free_monthly_minutes
+      :air -> minutes_used(account) >= free_monthly_minutes()
       _plan -> false
     end
   end
@@ -87,6 +93,6 @@ defmodule Tuist.Runners.Allowance do
   Minutes left on `account`'s allowance, floored at zero.
   """
   def minutes_remaining(%Account{} = account) do
-    max(@free_monthly_minutes - minutes_used(account), 0)
+    max(free_monthly_minutes() - minutes_used(account), 0)
   end
 end

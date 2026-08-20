@@ -93,4 +93,18 @@ defmodule Tuist.Runners.AllowanceTest do
       assert Allowance.minutes_used(account) == 1
     end
   end
+
+  describe "free_monthly_minutes/0" do
+    test "defaults to the production allowance" do
+      assert Allowance.free_monthly_minutes() == 100
+    end
+
+    test "an environment can lower it, so the cap is reachable without burning real Mac time" do
+      original = Application.get_env(:tuist, :runner_free_monthly_minutes)
+      Application.put_env(:tuist, :runner_free_monthly_minutes, 2)
+      on_exit(fn -> Application.put_env(:tuist, :runner_free_monthly_minutes, original) end)
+
+      assert Allowance.free_monthly_minutes() == 2
+    end
+  end
 end
