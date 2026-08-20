@@ -193,6 +193,28 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
 
       assert json_response(conn, :ok) == %{"endpoints" => ["https://kura-cache.example.com"]}
+
+      # A serving instance is a stable answer, so it is cacheable for the usual
+      # interval rather than re-resolved constantly.
+      assert ["private, max-age=3600"] = get_resp_header(conn, "cache-control")
+    end
+
+    test "shortens the cache lifetime while a dedicated instance is being provisioned back", %{conn: conn} do
+      # The stand-in answer stops being right the moment the account's own
+      # instance starts serving, so it must not be held for the usual interval.
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_client_feature_flags(["kura"])
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      assert json_response(conn, :ok) == %{"endpoints" => ["https://default.tuist.dev"]}
+      assert ["private, max-age=30"] = get_resp_header(conn, "cache-control")
     end
 
     test "returns ready account Kura endpoints when the client requests Kura and the account is opted in", %{

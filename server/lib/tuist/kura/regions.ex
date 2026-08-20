@@ -26,6 +26,21 @@ defmodule Tuist.Kura.Regions do
 
   defstruct [:id, :display_name, :provisioner, :provisioner_config, :runner_platforms, retired: false]
 
+  @doc """
+  The region's nodes as a Kubernetes label selector, or `nil` when the region
+  pins its instances to no particular nodes.
+
+  Built from the same `node_selector` the provisioner schedules instances
+  with, so counting a region's machines and placing its instances can never
+  disagree about which nodes are the region's.
+  """
+  def node_label_selector(%__MODULE__{provisioner_config: %{node_selector: selector}})
+      when is_map(selector) and map_size(selector) > 0 do
+    Enum.map_join(selector, ",", fn {label, value} -> "#{label}=#{value}" end)
+  end
+
+  def node_label_selector(%__MODULE__{}), do: nil
+
   # The local controller region's kind cluster + forwarded port are derived from
   # `TUIST_DEV_INSTANCE` so each worktree is isolated. Worktree
   # instance N runs Kura on `kura-dev-N`.

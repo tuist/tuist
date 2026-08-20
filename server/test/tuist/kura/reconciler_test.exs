@@ -78,10 +78,44 @@ defmodule Tuist.Kura.ReconcilerTest do
   test "keeps a deployment running until the public HTTPS endpoint is ready" do
     {account, server, deployment} = create_server()
     {:ok, deployment} = Kura.mark_running(deployment)
+    stub_unready_public_endpoint(account, server)
 
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
+
+    # The workload is up on the desired image but its public endpoint is not
+    # serving yet, and this account has nothing to replicate from — no other
+    # live instance, no self-hosted peer. Calling that "replicating" would
+    # attribute the wait to a bootstrap that can never finish, so a cold start
+    # stays :provisioning while the deployment keeps retrying.
+    assert %Server{status: :provisioning, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
+  end
+
+  test "surfaces replicating while the endpoint is unready and the account has a peer to bootstrap from" do
+    {account, server, deployment} = create_server()
+    {:ok, deployment} = Kura.mark_running(deployment)
+
+    Repo.insert!(%Server{
+      account_id: account.id,
+      region: "us-east",
+      status: :active,
+      url: "https://peer.example.com",
+      current_image_tag: deployment.image_tag,
+      provisioner_node_ref: "kura-#{account.id}-us-east"
+    })
+
+    stub_unready_public_endpoint(account, server)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :replicating} = Repo.get!(Server, server.id)
+  end
+
+  defp stub_unready_public_endpoint(account, server) do
     expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
       assert id == server.id
-      {:ok, deployment.image_tag}
+      {:ok, "0.5.2"}
     end)
 
     expect(Provisioner, :public_url, fn account_arg, %Server{id: id} ->
@@ -97,15 +131,6 @@ defmodule Tuist.Kura.ReconcilerTest do
       assert opts[:retry] == false
       {:error, %Mint.TransportError{reason: {:tls_alert, ~c"unknown ca"}}}
     end)
-
-    assert :ok = Reconciler.reconcile()
-
-    assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
-
-    # The workload is up on the desired image but its public endpoint is not
-    # serving yet, so the server surfaces :replicating while the deployment keeps
-    # retrying (it is not activated until the endpoint is healthy).
-    assert %Server{status: :replicating, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
   end
 
   test "schedules and applies runtime image drift for active servers" do
@@ -664,6 +689,28 @@ defmodule Tuist.Kura.ReconcilerTest do
     Reconciler.reconcile()
 
     refute Repo.reload!(server).status in [:destroying, :destroyed]
+  end
+
+  # A rollout that ran against a draining or archived row would drag it back to
+  # `:active` outside the lifecycle's transitions, or recreate a resource
+  # archival had already reclaimed. `begin_drain/1` closes open deployments, so
+  # this is the second line of defence against one arriving another way.
+  test "cancels a deployment rather than rolling a server out of the demand-driven lifecycle" do
+    for status <- [:drain_pending, :archived] do
+      {_account, server, deployment} = create_server()
+
+      server
+      |> Ecto.Changeset.change(%{status: status})
+      |> Repo.update!()
+
+      reject(&Provisioner.current_image_tag/1)
+      reject(&Provisioner.rollout/2)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Deployment{status: :cancelled} = Repo.get!(Deployment, deployment.id)
+      assert %Server{status: ^status} = Repo.get!(Server, server.id)
+    end
   end
 
   defp create_server do
