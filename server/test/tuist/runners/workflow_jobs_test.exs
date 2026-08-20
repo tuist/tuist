@@ -471,6 +471,55 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       assert candidate.account_id == account.id
     end
 
+    test "list_running_for_pod/1 returns the pod's running rows regardless of whether a claim survives" do
+      account = account_fixture()
+      claimed_at = DateTime.utc_now()
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_150))
+      :ok = WorkflowJobs.transition_claimed(910_150, "pod-stopped", claimed_at)
+      :ok = WorkflowJobs.transition_running(910_150, "runner-x", claimed_at)
+
+      # Another Pod's running row, and a row this Pod only got as far as
+      # claiming — neither is recoverable on this Pod stopping.
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_151))
+      :ok = WorkflowJobs.transition_claimed(910_151, "pod-other", claimed_at)
+      :ok = WorkflowJobs.transition_running(910_151, "runner-y", claimed_at)
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_152))
+      :ok = WorkflowJobs.transition_claimed(910_152, "pod-stopped", claimed_at)
+
+      assert [candidate] = WorkflowJobs.list_running_for_pod("pod-stopped")
+      assert %{workflow_job_id: 910_150, repository: "acme/cli", pod_name: "pod-stopped"} = candidate
+      assert DateTime.compare(candidate.claimed_at, claimed_at) == :eq
+
+      assert WorkflowJobs.list_running_for_pod("pod-never-existed") == []
+      assert WorkflowJobs.list_running_for_pod("") == []
+    end
+
+    test "list_running_since/1 returns the running rows the staleness floor excludes" do
+      account = account_fixture()
+      claimed_at = DateTime.utc_now()
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_160))
+      :ok = WorkflowJobs.transition_claimed(910_160, "pod-young", claimed_at)
+      :ok = WorkflowJobs.transition_running(910_160, "runner-x", claimed_at)
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_161))
+      :ok = WorkflowJobs.transition_claimed(910_161, "pod-old", claimed_at)
+      :ok = WorkflowJobs.transition_running(910_161, "runner-y", claimed_at)
+
+      Repo.update_all(
+        from(j in WorkflowJob, where: j.workflow_job_id == ^910_161),
+        set: [started_at: DateTime.add(claimed_at, -600, :second)]
+      )
+
+      threshold = DateTime.add(DateTime.utc_now(), -300, :second)
+
+      # Exactly the complement of `list_orphaned_running/1`: between them
+      # every `running` row is considered by one arm or the other.
+      assert [%{workflow_job_id: 910_160, pod_name: "pod-young"}] = WorkflowJobs.list_running_since(threshold)
+      assert [%{workflow_job_id: 910_161}] = WorkflowJobs.list_orphaned_running(threshold)
+    end
+
     test "list_stale_queued/2 returns queued rows inside the enqueued_at window with the worker shape" do
       account = account_fixture()
       now = DateTime.utc_now()

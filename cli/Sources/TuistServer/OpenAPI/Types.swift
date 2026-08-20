@@ -12568,6 +12568,22 @@ public enum Operations {
         }
         @frozen public enum Output: Sendable, Hashable {
             public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/headers/cache-control`.
+                    public var cache_hyphen_control: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - cache_hyphen_control: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+                    public init(cache_hyphen_control: Swift.String? = nil) {
+                        self.cache_hyphen_control = cache_hyphen_control
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCacheEndpoints.Output.Ok.Headers
                 /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// List of available cache endpoints
@@ -12607,8 +12623,13 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getCacheEndpoints.Output.Ok.Body) {
+                public init(
+                    headers: Operations.getCacheEndpoints.Output.Ok.Headers = .init(),
+                    body: Operations.getCacheEndpoints.Output.Ok.Body
+                ) {
+                    self.headers = headers
                     self.body = body
                 }
             }
@@ -19185,10 +19206,6 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -19197,20 +19214,24 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
-                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
-                    self.git_branch = git_branch
                     self.page = page
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query

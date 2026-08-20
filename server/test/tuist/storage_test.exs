@@ -645,6 +645,82 @@ defmodule Tuist.StorageTest do
     end
   end
 
+  describe "deletion audit logging" do
+    # The test environment runs Logger at :warning, which filters the audit
+    # line before it reaches any handler, so the level is lowered around the
+    # capture and restored afterwards. Safe here because this file is
+    # `async: false`.
+    defp capture_info_log(fun) do
+      previous = Logger.level()
+      Logger.configure(level: :info)
+
+      try do
+        ExUnit.CaptureLog.capture_log(fun)
+      after
+        Logger.configure(level: previous)
+      end
+    end
+
+    test "records the account and prefix when a prefix is deleted" do
+      # Given
+      project_slug = UUIDv7.generate()
+      account = %Account{name: "acme"}
+
+      stub(Environment, :object_storage_provider, fn -> :azure_blob end)
+      stub(AzureBlob, :delete_all_objects, fn ^project_slug -> :ok end)
+
+      # When
+      log =
+        capture_info_log(fn ->
+          Storage.delete_all_objects(project_slug, account)
+        end)
+
+      # Then
+      assert log =~ "object storage deletion"
+      assert log =~ "delete_all_objects"
+      assert log =~ "acme"
+      assert log =~ project_slug
+    end
+
+    test "records how many objects were deleted" do
+      # Given
+      account = %Account{name: "acme"}
+      object_keys = [UUIDv7.generate(), UUIDv7.generate()]
+
+      stub(Environment, :object_storage_provider, fn -> :azure_blob end)
+      stub(AzureBlob, :delete_objects, fn ^object_keys, _opts -> :ok end)
+
+      # When
+      log =
+        capture_info_log(fn ->
+          Storage.delete_objects(object_keys, account)
+        end)
+
+      # Then
+      assert log =~ "object storage deletion"
+      assert log =~ "delete_objects"
+      assert log =~ "storage_object_count=2"
+    end
+
+    test "records a failed deletion as a failure rather than staying silent" do
+      # Given
+      project_slug = UUIDv7.generate()
+      account = %Account{name: "acme"}
+
+      stub(Environment, :object_storage_provider, fn -> :azure_blob end)
+      stub(AzureBlob, :delete_all_objects, fn ^project_slug -> {:error, :list_failed} end)
+
+      # When
+      log =
+        capture_info_log(fn ->
+          Storage.delete_all_objects(project_slug, account)
+        end)
+
+      # Then
+      assert log =~ "storage_outcome=failure"
+    end
+  end
+
   describe "delete_all_objects/1" do
     test "returns Azure Blob deletion errors instead of hiding them" do
       # Given

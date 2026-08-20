@@ -117,7 +117,9 @@ public struct XCResultParser: Sendable {
                 _ = try await commandRunner.run(
                     arguments: [
                         "/bin/sh", "-c",
-                        "/usr/bin/xcrun xcresulttool get test-results tests --path '\(path.pathString)' > '\(tempFile.pathString)'",
+                        // `exec` replaces the shell with the tool so cancellation, which signals
+                        // only the direct child, reaches xcresulttool instead of orphaning it.
+                        "exec /usr/bin/xcrun xcresulttool get test-results tests --path '\(path.pathString)' > '\(tempFile.pathString)'",
                     ]
                 ).concatenatedString()
 
@@ -727,7 +729,9 @@ public struct XCResultParser: Sendable {
             _ = try await commandRunner.run(
                 arguments: [
                     "/bin/sh", "-c",
-                    "/usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFile.pathString)'",
+                    // `exec` replaces the shell with the tool so cancellation, which signals
+                    // only the direct child, reaches xcresulttool instead of orphaning it.
+                    "exec /usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFile.pathString)'",
                 ]
             ).concatenatedString()
 
@@ -816,7 +820,9 @@ public struct XCResultParser: Sendable {
             _ = try await commandRunner.run(
                 arguments: [
                     "/bin/sh", "-c",
-                    "/usr/bin/xcrun xcresulttool export attachments --path '\(xcresultPath.pathString)' --output-path '\(temporaryDirectory.pathString)' 2>/dev/null",
+                    // `exec` replaces the shell with the tool so cancellation, which signals
+                    // only the direct child, reaches xcresulttool instead of orphaning it.
+                    "exec /usr/bin/xcrun xcresulttool export attachments --path '\(xcresultPath.pathString)' --output-path '\(temporaryDirectory.pathString)' 2>/dev/null",
                 ]
             ).concatenatedString()
 

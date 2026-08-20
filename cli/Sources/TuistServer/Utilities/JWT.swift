@@ -7,7 +7,7 @@ enum JWTError: Equatable, LocalizedError {
         switch self {
         case let .invalidJWT(token):
             return
-                "The access token \(token) is invalid. Try to reauthenticate by running 'tuist auth login'."
+                "The access token is invalid (\(token.count) characters). Try to reauthenticate by running 'tuist auth login'."
         }
     }
 }

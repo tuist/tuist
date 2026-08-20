@@ -6747,6 +6747,14 @@ paths:
                 x-struct:
                 x-validate:
           description: List of cache endpoints
+          headers:
+            cache-control:
+              description: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '403':
           content:
             application/json:
@@ -8799,10 +8807,10 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -8815,20 +8823,20 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.

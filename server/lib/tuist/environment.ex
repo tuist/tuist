@@ -351,6 +351,121 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_KURA_TUIST_BASE_URL")
   end
 
+  @doc """
+  The region Air instances run in. `us-east` unless
+  `TUIST_KURA_AIR_REGION` names another.
+
+  Air carries no storage-residency guarantee to uphold, so where the free
+  tier runs is a deployment decision rather than a policy one. Paid regions
+  are not configurable for the opposite reason: a paid account restricted to
+  Europe or the USA chose that, and no deployment setting may move it.
+
+  Staging has no `us-east` pool, so without this every Air account there
+  resolves to a region whose instances can never schedule, and the Air-only
+  pressure rule cannot be exercised at all.
+  """
+  def kura_air_region do
+    case System.get_env("TUIST_KURA_AIR_REGION") do
+      nil -> "us-east"
+      "" -> "us-east"
+      region -> region
+    end
+  end
+
+  @doc """
+  Days without cache demand before a Kura instance is drained and reclaimed,
+  and the shortened window Air may use under capacity pressure.
+
+  Defaults are the spec's 90 and 60. They are configurable because otherwise
+  the archival half of the lifecycle cannot be exercised in any environment
+  without waiting a quarter: its first real run would be in production against
+  customer instances. Staging runs short windows so every deploy re-validates
+  the whole cycle.
+
+  Read from `TUIST_KURA_INACTIVE_DAYS` and
+  `TUIST_KURA_PRESSURE_INACTIVE_DAYS`.
+  """
+  def kura_inactive_days, do: positive_env_integer("TUIST_KURA_INACTIVE_DAYS", 90)
+
+  def kura_pressure_inactive_days, do: positive_env_integer("TUIST_KURA_PRESSURE_INACTIVE_DAYS", 60)
+
+  @doc """
+  Days an account-region's demand must have been tracked before it can be
+  archived, however old the recorded demand looks.
+
+  This is what makes enabling archival against freshly backfilled data safe, so
+  it defaults to a week. Staging sets it to zero, where the backfill is not the
+  concern and waiting a week to exercise archival would defeat the point.
+
+  Read from `TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS`.
+  """
+  def kura_demand_tracking_grace_days do
+    case System.get_env("TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS") do
+      nil -> 7
+      value -> parse_non_negative_days!("TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS", value)
+    end
+  end
+
+  defp positive_env_integer(name, default) do
+    case System.get_env(name) do
+      nil ->
+        default
+
+      value ->
+        case parse_non_negative_days!(name, value) do
+          0 -> raise ArgumentError, "#{name} must be greater than 0"
+          days -> days
+        end
+    end
+  end
+
+  # An unreadable window must not silently fall back to the default: a typo
+  # would leave an operator believing they had shortened or lengthened it.
+  defp parse_non_negative_days!(name, value) do
+    case Integer.parse(String.trim(value)) do
+      {days, ""} when days >= 0 ->
+        days
+
+      _ ->
+        raise ArgumentError, "#{name} must be a non-negative integer number of days, got: #{inspect(value)}"
+    end
+  end
+
+  @doc """
+  Cron schedule for the Kura archival sweep, which decides that an instance
+  has gone a full inactive window without cache demand.
+
+  Daily by default, matching the 90-day production window: deciding more often
+  than the window's own granularity changes nothing. It is configurable so a
+  deployment running a short window can sweep at a matching cadence, since a
+  daily sweep against a one-day window would leave an instance eligible for up
+  to another day before anything looked at it.
+
+  Read from `TUIST_KURA_ARCHIVAL_SWEEP_CRON`.
+  """
+  def kura_archival_sweep_cron do
+    case System.get_env("TUIST_KURA_ARCHIVAL_SWEEP_CRON") do
+      nil -> "@daily"
+      "" -> "@daily"
+      schedule -> String.trim(schedule)
+    end
+  end
+
+  @doc """
+  Whether Kura cache-demand records bypass the in-memory buffer and are
+  written straight through the caller's repo connection.
+
+  False in every deployed environment: buffering is what keeps the demand hook
+  off the database on the cache-endpoint hot path. Tests turn it on so a
+  process-wide buffer cannot carry one test's demand into another's
+  transaction, the same way `Tuist.Ingestion.Bufferable` does.
+  """
+  def kura_demand_write_through_repo? do
+    :tuist
+    |> Application.get_env(Tuist.Kura.Demand, [])
+    |> Keyword.get(:write_through_repo, false)
+  end
+
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 

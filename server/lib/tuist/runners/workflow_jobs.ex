@@ -425,6 +425,45 @@ defmodule Tuist.Runners.WorkflowJobs do
     )
   end
 
+  @doc """
+  Postgres twin of `Tuist.Runners.Jobs.list_running_for_pod/1`: every
+  `running` row bound to `pod_name`, in the recovery shape.
+
+  Keyed on the lifecycle row rather than the claim because the two
+  answer different questions. The claim is the account's capacity
+  reservation and is released by whichever event frees the Pod's slot
+  first — most often the `completed` webhook of the *sibling* job the
+  runner actually executed (`Claims.release_by_executor/2`). The
+  lifecycle row is what dispatch reads, and it stays at `running` until
+  something moves it. So a stopped Pod routinely has no claim left to
+  release while the job it was minted for is still stuck.
+  """
+  def list_running_for_pod(pod_name) when is_binary(pod_name) and pod_name != "" do
+    Repo.all(
+      from(j in WorkflowJob,
+        where: j.status == "running" and j.pod_name == ^pod_name,
+        select: map(j, ^orphan_fields())
+      )
+    )
+  end
+
+  def list_running_for_pod(_pod_name), do: []
+
+  @doc """
+  Postgres twin of `Tuist.Runners.Jobs.list_running_since/1`: the
+  complement of `list_orphaned_running/1` — `running` rows too young
+  for the staleness floor, which the caller filters by an evidence
+  signal of its own rather than by age.
+  """
+  def list_running_since(%DateTime{} = threshold) do
+    Repo.all(
+      from(j in WorkflowJob,
+        where: j.status == "running" and j.started_at >= ^threshold,
+        select: map(j, ^orphan_fields())
+      )
+    )
+  end
+
   @orphan_fields [:workflow_job_id, :account_id, :repository, :claimed_at, :started_at, :pod_name, :fleet_name]
 
   defp orphan_fields, do: @orphan_fields

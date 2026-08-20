@@ -433,7 +433,7 @@ msgstr ""
 msgid "You need to be authenticated to access this page."
 msgstr ""
 
-#: lib/tuist_web/controllers/user_session_controller.ex:40
+#: lib/tuist_web/controllers/user_session_controller.ex:44
 #, elixir-autogen, elixir-format
 msgid "You've exceeded the rate limit. Try again later."
 msgstr ""

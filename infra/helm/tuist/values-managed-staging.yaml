@@ -91,6 +91,32 @@ server:
       # the OVH bare-metal validation region — a geographic id; OVH is an
       # implementation detail behind it (ovhFleet below, replicas 1).
       value: eu-central,scw-fr-par-runners,ca-east
+    - name: TUIST_KURA_AIR_REGION
+      # Staging has no `us-east` pool, so every Air account would resolve to a
+      # region whose instances could never schedule, and the Air-only 60-day
+      # pressure rule could not be exercised at all. Run the free tier on the
+      # `ca-east` OVH validation box instead. Production omits this and serves
+      # us-east. Only Air moves: a paid account restricted to Europe or the
+      # USA chose that, and no deployment setting may relocate it.
+      value: ca-east
+    - name: TUIST_KURA_INACTIVE_DAYS
+      # Production reclaims after 90 days, which no environment can wait out,
+      # so the archival half of the lifecycle would first run for real against
+      # customer instances. Staging runs a one-day window and a zero-day
+      # tracking grace so a deploy, one build, and a day of quiet exercise the
+      # whole cycle: drain, teardown, archive, and cold return on the next
+      # request. The grace period guards against archiving on freshly
+      # backfilled demand, which is not a concern here.
+      value: "1"
+    - name: TUIST_KURA_PRESSURE_INACTIVE_DAYS
+      value: "1"
+    - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
+      value: "0"
+    - name: TUIST_KURA_ARCHIVAL_SWEEP_CRON
+      # Matches the one-day window above. The production default is @daily,
+      # which suits a 90-day window but would leave a staging instance
+      # eligible for up to another day before the sweep looked at it.
+      value: "*/5 * * * *"
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).

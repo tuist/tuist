@@ -521,6 +521,18 @@ defmodule TuistWeb.DocsLive do
             </div>
             <p>{dgettext("docs", "Follow Tuist on LinkedIn for news and updates.")}</p>
           </a>
+          <a
+            href="https://x.com/tuistdev"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-part="community-card"
+          >
+            <div data-part="community-card-header">
+              <.brand_x />
+              <span>X</span>
+            </div>
+            <p>{dgettext("docs", "Follow us on X to stay up to date with our work.")}</p>
+          </a>
         </section>
       </div>
     </TuistWeb.Docs.Components.layout>

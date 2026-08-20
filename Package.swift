@@ -1023,6 +1023,15 @@ var targets: [Target] = [
         path: "cli/Tests/TuistHTTPTests"
     ),
     .testTarget(
+        name: "TuistLoggingTests",
+        dependencies: [
+            "TuistLogging",
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+        ],
+        path: "cli/Tests/TuistLoggingTests"
+    ),
+    .testTarget(
         name: "TuistUserInputReaderTests",
         dependencies: [
             "TuistUserInputReader",
@@ -1614,6 +1623,7 @@ targets.append(contentsOf: [
             "TuistGit",
             fileSystemDependency,
             pathDependency,
+            .product(name: "Gzip", package: "1024jp.gzipswift"),
             .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
             .product(name: "XCActivityLogParser", package: "xcactivitylog_nif"),
         ],
@@ -1843,7 +1853,7 @@ let package = Package(
         .package(id: "kishikawakatsumi.KeychainAccess", from: "4.2.2"),
         .package(id: "stencilproject.Stencil", exact: "0.15.1"),
         .package(id: "tuist.GraphViz", exact: "0.4.2"),
-        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.14.0")),
+        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.16.0")),
         .package(id: "cpisciotta.xcbeautify", from: "3.1.0"),
         .package(id: "krzysztofzablocki.Difference", from: "1.0.2"),
         .package(id: "kolos65.Mockable", .upToNextMajor(from: "0.6.1")),
@@ -1874,6 +1884,7 @@ let package = Package(
         .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
         .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.49")),
+        .package(id: "1024jp.gzipswift", .upToNextMajor(from: "5.2.0")),
         .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
         .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.22")),

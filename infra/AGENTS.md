@@ -89,6 +89,13 @@ Recovery fallback for the restricted ClickHouse identity reconciled automaticall
 ### `vm-image-builder.md` — bare-metal builder fleet operator runbook
 End-to-end runbook for the bare-metal Mac mini fleet that bakes our Tart VM images (runner-image, xcresult-processor-image). Cluster-managed via the same CAPI provider that runs the other macOS fleets; hosts are regular Nodes with tart-kubelet idle plus a GitHub Actions self-hosted runner installed on top via the `ScalewayAppleSiliconMachineSpec.GHActionsRunner` sub-spec. Scale by editing `buildersFleet.replicas` or `kubectl scale machinedeployment`.
 
+### `log-review.md` — periodic log review runbook
+The queries behind the review cadence in the Logging and monitoring policy, plus the
+record template. Four reconciliations: privileged cluster access against approved
+elevations, operator grant usage against issued grants, authentication failures, and
+loss of log ingestion. Retention is 30 days, so a slipped monthly review cannot be
+performed retrospectively.
+
 ### `grafana-dashboards/` — Grafana Cloud dashboards (managed only)
 Dashboard definitions synced with Grafana Cloud via [Git Sync](https://grafana.com/docs/grafana-cloud/as-code/observability-as-code/git-sync/). The `Tuist Dashboards` folder in Grafana Cloud is bound to this directory; changes propagate in both directions.
 
@@ -147,7 +154,7 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 - `.github/workflows/server-production-deployment.yml` — the monorepo release pipeline (push-on-main): releases the server + fleet/runtime images and, at its tail, runs the production deploy cascade (build → canary → acceptance tests → production, with hotfix fast-path). One serialized lane, no cross-workflow dispatch. Manual re-promotes/rollbacks of a pinned SHA go through `server-deployment.yml`'s own `workflow_dispatch`.
 - **Noora Storybook** (managed) is deployed via `.github/workflows/noora-storybook-deployment.yml` using the standalone `infra/helm/noora-storybook` chart.
 - **Slack invitation app** (managed) is deployed via `.github/workflows/slack-deployment.yml` using the standalone `infra/helm/slack` chart.
-- **kube-system add-ons** (HCCM, node CSI drivers) live in the per-workload bootstrap (`mgmt/bootstrap/`), but bootstrap only runs at cluster onboarding. Edits to their values reach existing clusters via dedicated re-apply workflows so they don't silently drift: `.github/workflows/hccm-deployment.yml` (HCCM) and `.github/workflows/csi-deployment.yml` (re-applies `hcloud-csi` with its pool-exclusion affinity and uninstalls the now-obsolete `scaleway-csi` on the Elastic Metal kura fleets). Both fan out over all envs in parallel and share the `server-deploy-<env>` concurrency lane.
+- **kube-system add-ons** (Cilium, HCCM, node CSI drivers) live in the per-workload bootstrap (`mgmt/bootstrap/`), but bootstrap only runs at cluster onboarding. Edits to their values reach existing clusters via dedicated re-apply workflows so they don't silently drift: `.github/workflows/hccm-deployment.yml` (HCCM), `.github/workflows/csi-deployment.yml` (re-applies `hcloud-csi` with its pool-exclusion affinity and uninstalls the now-obsolete `scaleway-csi` on the Elastic Metal kura fleets), and `.github/workflows/cilium-deployment.yml` (Cilium). All three share the `server-deploy-<env>` concurrency lane (which serializes them against each other, but *not* against `server-deployment.yml`, whose groups are suffixed). HCCM and CSI fan out over all envs in parallel; **Cilium cascades staging → canary → production**, with `preview` hanging off staging outside that path, because it is the CNI. Cilium's re-apply also reconciles pod-template config hashes: the chart renders three ConfigMaps and none of its four workloads carries a checksum annotation over them, so a bare `helm upgrade` rewrites config, rolls nothing, and reports success while the pods keep their old in-memory copy. The workflow records the applied hash on each pod template and rolls only the workloads whose hash actually moved, which is also what makes it safe to re-run.
 - **Swift Registry** (managed) is deployed as the `registry` component of the main `infra/helm/tuist` chart via `.github/workflows/server-deployment.yml`, so the read frontend and server-owned `swift-registry-sync` writer roll in the same Helm release.
 - **Registry Router** — `wrangler deploy` from `registry-router/`.
 - **Helm charts** under `helm/` target Kubernetes (managed + self-hosted).
