@@ -35,8 +35,6 @@ jobs:
   build-deploy:
     name: Build and deploy
     runs-on: tuist-linux
-    container:
-      image: swift:6.2
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -48,12 +46,10 @@ jobs:
           path: .build
           key: linux-project-description-docc-${{ hashFiles('Package.resolved') }}
           restore-keys: linux-project-description-docc-
-      - name: Install system dependencies
-        run: apt-get update -qq && apt-get install -y --no-install-recommends curl
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "node@20.12.0 npm:wrangler@4.30.0"
+          install_args: "swift@6.2.4 node@20.12.0 npm:wrangler@4.30.0"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Build ProjectDescription documentation
