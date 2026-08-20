@@ -479,25 +479,58 @@ defmodule Tuist.Runners.WorkflowJobs do
       pod_name: payload["pod_name"],
       runner_name: payload["runner_name"],
       requested_dispatch_label: payload["requested_dispatch_label"],
+      log_archived_at: parse_datetime(payload["log_archived_at"]),
       updated_at: parse_datetime(payload["updated_at"])
     }
   end
 
   @doc """
-  The ClickHouse `runner_jobs` insert shape for a job's authoritative
-  Postgres state, versioned at `transition_at`. Returns `nil` when no
+  Stamps `log_archived_at` and emits the transition event carrying it.
+
+  Not a status transition: the write is unguarded on status because an
+  archive lands after the job is already terminal, and it preserves
+  whatever status the row holds. Routing it through the outbox is what
+  keeps ClickHouse single-writer, so nothing can re-assert a stale
+  lifecycle state under a newer `updated_at`.
+
+  Returns `:ok` when applied, `:noop` when no lifecycle row exists —
+  jobs archived before this table was introduced have none.
+  """
+  def record_log_archived_at(workflow_job_id, archived_at)
+      when is_integer(workflow_job_id) and (is_nil(archived_at) or is_struct(archived_at, DateTime)) do
+    now = DateTime.utc_now()
+
+    {:ok, outcome} =
+      Repo.transaction(fn ->
+        {count, rows} =
+          Repo.update_all(from(j in WorkflowJob, where: j.workflow_job_id == ^workflow_job_id, select: j),
+            set: [log_archived_at: archived_at, updated_at: DateTime.truncate(now, :second)]
+          )
+
+        case {count, rows} do
+          {1, [row]} ->
+            emit_transition_event(row, now)
+            :ok
+
+          {0, _} ->
+            :noop
+        end
+      end)
+
+    outcome
+  end
+
+  @doc """
+  The authoritative `log_archived_at` for a job, or `:not_found` when no
   lifecycle row exists.
 
-  The CH-only `log_archived_at` write builds its row through this rather
-  than carrying forward what ClickHouse currently holds: the analytics
-  row trails the outbox flush, so a copy-forward can re-assert a
-  pre-terminal status under a newer `updated_at` and outrank the
-  completion for good.
+  Control-plane reads use this rather than the ClickHouse row, which
+  trails the outbox flush by up to a tick after an archive lands.
   """
-  def ch_insert_row(workflow_job_id, %DateTime{} = transition_at) when is_integer(workflow_job_id) do
+  def log_archived_at(workflow_job_id) when is_integer(workflow_job_id) do
     case Repo.get(WorkflowJob, workflow_job_id) do
-      nil -> nil
-      %WorkflowJob{} = row -> ch_row(row, transition_at)
+      nil -> :not_found
+      %WorkflowJob{log_archived_at: archived_at} -> {:ok, archived_at}
     end
   end
 
@@ -579,6 +612,7 @@ defmodule Tuist.Runners.WorkflowJobs do
       pod_name: row.pod_name || "",
       runner_name: row.runner_name || "",
       requested_dispatch_label: row.requested_dispatch_label,
+      log_archived_at: row.log_archived_at,
       updated_at: transition_at
     }
   end

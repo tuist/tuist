@@ -29,6 +29,13 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
     {:ok, _} = Jobs.complete(workflow_job_id, "success")
     :ok = perform_job(FlushJobTransitionEventsWorker, %{})
     :ok = Jobs.set_log_archived_at(workflow_job_id, archived_at)
+    flush!()
+  end
+
+  # The stamp reaches ClickHouse through the outbox, and these assertions
+  # read it from there.
+  defp flush! do
+    :ok = perform_job(FlushJobTransitionEventsWorker, %{})
   end
 
   describe "perform/1" do
@@ -45,6 +52,7 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
       end)
 
       assert :ok = PruneArchivedLogsWorker.perform(%Oban.Job{args: %{}})
+      flush!()
       assert {:ok, %{log_archived_at: nil}} = Jobs.get_for_account(account.id, 8_500_001)
     end
 
@@ -57,6 +65,7 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
       reject(&Storage.delete_object/2)
 
       assert :ok = PruneArchivedLogsWorker.perform(%Oban.Job{args: %{}})
+      flush!()
       assert {:ok, %{log_archived_at: ^recent}} = Jobs.get_for_account(account.id, 8_500_002)
     end
 
@@ -72,6 +81,7 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
       end)
 
       assert :ok = PruneArchivedLogsWorker.perform(%Oban.Job{args: %{}})
+      flush!()
       assert {:ok, %{log_archived_at: ^old}} = Jobs.get_for_account(account.id, 8_500_003)
     end
 
@@ -88,6 +98,7 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
       end)
 
       assert :ok = PruneArchivedLogsWorker.perform(%Oban.Job{args: %{}})
+      flush!()
 
       assert {:ok, %{log_archived_at: ^old}} = Jobs.get_for_account(account.id, 8_500_004)
       assert {:ok, %{log_archived_at: nil}} = Jobs.get_for_account(account.id, 8_500_005)

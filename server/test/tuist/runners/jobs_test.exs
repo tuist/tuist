@@ -1193,6 +1193,7 @@ defmodule Tuist.Runners.JobsTest do
 
       archived_at = ~U[2026-06-04 15:00:00.000000Z]
       :ok = Jobs.set_log_archived_at(7350, archived_at)
+      flush_outbox!()
 
       assert {:ok, job} = Jobs.get_for_account(account.id, 7350)
       assert job.log_archived_at == archived_at
@@ -1209,14 +1210,54 @@ defmodule Tuist.Runners.JobsTest do
       {:ok, _} = Jobs.complete(7351, "success")
       flush_outbox!()
       :ok = Jobs.set_log_archived_at(7351, ~U[2026-03-04 15:00:00.000000Z])
+      flush_outbox!()
+      assert {:ok, %{log_archived_at: %DateTime{}}} = Jobs.get_for_account(account.id, 7351)
 
       :ok = Jobs.set_log_archived_at(7351, nil)
+      flush_outbox!()
 
       assert {:ok, %{log_archived_at: nil}} = Jobs.get_for_account(account.id, 7351)
     end
 
     test "is a no-op when the job row doesn't exist yet" do
       assert :ok = Jobs.set_log_archived_at(7_399_998, DateTime.utc_now())
+    end
+
+    test "reaches ClickHouse through the outbox rather than a direct write" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7353, fleet: "fleet-archive4")
+      {:ok, candidate} = Jobs.pick_queued("fleet-archive4", [])
+      claim!(account, candidate.workflow_job_id, "fleet-archive4", "pod-1")
+      :ok = mark_running!(7353, "runner-x")
+      {:ok, _} = Jobs.complete(7353, "success")
+      flush_outbox!()
+
+      archived_at = ~U[2026-06-04 15:00:00.000000Z]
+      :ok = Jobs.set_log_archived_at(7353, archived_at)
+
+      assert {:ok, %{log_archived_at: nil}} = Jobs.get_for_account(account.id, 7353)
+
+      flush_outbox!()
+
+      assert {:ok, job} = Jobs.get_for_account(account.id, 7353)
+      assert job.log_archived_at == archived_at
+      assert job.status == "completed"
+    end
+
+    test "serves the archive from the control-plane row before the flush lands" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7354, fleet: "fleet-archive5")
+      {:ok, candidate} = Jobs.pick_queued("fleet-archive5", [])
+      claim!(account, candidate.workflow_job_id, "fleet-archive5", "pod-1")
+      :ok = mark_running!(7354, "runner-x")
+      {:ok, _} = Jobs.complete(7354, "success")
+      flush_outbox!()
+
+      :ok = Jobs.set_log_archived_at(7354, ~U[2026-06-04 15:00:00.000000Z])
+
+      {:ok, job} = Jobs.get_for_account(account.id, 7354)
+      assert job.log_archived_at == nil
+      assert Jobs.archive_available?(job)
     end
 
     # The archiver fires inside the outbox flush window, so the CH row it
@@ -1238,6 +1279,59 @@ defmodule Tuist.Runners.JobsTest do
       assert job.status == "completed"
       assert job.conclusion == "success"
       assert job.log_archived_at == ~U[2026-06-04 15:00:00.000000Z]
+    end
+  end
+
+  describe "count_replica_divergence/3" do
+    test "reads zero when ClickHouse and Postgres agree" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7360, fleet: "fleet-div1")
+      {:ok, candidate} = Jobs.pick_queued("fleet-div1", [])
+      claim!(account, candidate.workflow_job_id, "fleet-div1", "pod-1")
+      :ok = mark_running!(7360, "runner-x")
+      {:ok, _} = Jobs.complete(7360, "success")
+      flush_outbox!()
+
+      assert Jobs.count_replica_divergence(DateTime.utc_now(), lookback_floor()) == %{}
+    end
+
+    test "counts a ClickHouse row left non-terminal against a terminal Postgres row" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7361, fleet: "fleet-div2")
+      {:ok, candidate} = Jobs.pick_queued("fleet-div2", [])
+      claim!(account, candidate.workflow_job_id, "fleet-div2", "pod-1")
+      :ok = mark_running!(7361, "runner-x")
+      flush_outbox!()
+
+      # Terminal in Postgres, while the flush that would carry it never runs.
+      {:ok, _} = Jobs.complete(7361, "success")
+
+      assert Jobs.count_replica_divergence(DateTime.utc_now(), lookback_floor()) == %{"fleet-div2" => 1}
+    end
+
+    test "ignores rows young enough to be mid-flush" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7362, fleet: "fleet-div3")
+      {:ok, candidate} = Jobs.pick_queued("fleet-div3", [])
+      claim!(account, candidate.workflow_job_id, "fleet-div3", "pod-1")
+      :ok = mark_running!(7362, "runner-x")
+      flush_outbox!()
+      {:ok, _} = Jobs.complete(7362, "success")
+
+      settled_before = DateTime.add(DateTime.utc_now(), -5, :minute)
+
+      assert Jobs.count_replica_divergence(settled_before, lookback_floor()) == %{}
+    end
+
+    test "ignores a job still genuinely running in both stores" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7363, fleet: "fleet-div4")
+      {:ok, candidate} = Jobs.pick_queued("fleet-div4", [])
+      claim!(account, candidate.workflow_job_id, "fleet-div4", "pod-1")
+      :ok = mark_running!(7363, "runner-x")
+      flush_outbox!()
+
+      assert Jobs.count_replica_divergence(DateTime.utc_now(), lookback_floor()) == %{}
     end
   end
 
@@ -1627,6 +1721,10 @@ defmodule Tuist.Runners.JobsTest do
   # Production threads the caller's own claim handle into `mark_running/3`;
   # these tests only need "promote the claim that exists", so they read it
   # back. The guard itself is covered in the `mark_running/3` describe.
+  defp lookback_floor do
+    DateTime.add(DateTime.utc_now(), -7, :day)
+  end
+
   defp mark_running!(workflow_job_id, runner_name) do
     claim = Repo.get!(Tuist.Runners.Claim, workflow_job_id)
     Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
