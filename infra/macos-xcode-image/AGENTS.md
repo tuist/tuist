@@ -93,9 +93,14 @@ session state to lose.
 
 **Why this one stays on GHCR.** Every image this workflow *publishes*
 goes to the Tuist OCI registry on the tailnet, but the .xip mirror it
-*reads* deliberately does not follow, and it is the only artifact in
-the set that is not anonymously pullable (hence the explicit `oras
-login ghcr.io` in the workflow). The reason is the writer, not the
+*reads* deliberately does not follow. It needs its own credential to
+pull, which is what the explicit `oras login ghcr.io` in the workflow
+is for. That is not special to the mirror: `ghcr.io/tuist/macos-tahoe-xcode`
+answers an anonymous token request with `403 DENIED` too, so anything
+reading either one from CI has to authenticate. Checking from a laptop
+is misleading here, because a developer's `~/.docker/config.json`
+usually carries GHCR credentials already and the pull silently
+succeeds. The reason the mirror stays put is the writer, not the
 reader: the mirror's only writer is `mise run xcode-mirror:upload`
 running on a maintainer's Mac over a home link. Measured from one with
 the same 512 MB blob, that push is 136s to GHCR against 481s to the
