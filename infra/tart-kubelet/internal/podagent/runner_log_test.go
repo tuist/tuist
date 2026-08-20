@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func writeRunnerLog(t *testing.T, body string) string {
@@ -80,5 +82,56 @@ func TestReadRunnerLogBoundsBytes(t *testing.T) {
 
 	if got := len(readRunnerLog(dir)); got > runnerLogTailBytes {
 		t.Errorf("got %d bytes, want at most %d", got, runnerLogTailBytes)
+	}
+}
+
+// The status share is written by the guest, which runs untrusted customer
+// CI. Anything it leaves at runner.log that is not a plain file is an
+// attempt to make the host read something else on its behalf, and the
+// host publishes what it reads straight to Loki.
+func TestReadRunnerLogRejectsGuestSymlink(t *testing.T) {
+	dir := t.TempDir()
+	secret := filepath.Join(t.TempDir(), "host-secret")
+	if err := os.WriteFile(secret, []byte("host-only-content\n"), 0o600); err != nil {
+		t.Fatalf("write secret: %v", err)
+	}
+	if err := os.Symlink(secret, filepath.Join(dir, runnerLogFile)); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	if got := readRunnerLog(dir); got != "" {
+		t.Errorf("got %q, want \"\" — a guest symlink must not be followed", got)
+	}
+}
+
+func TestReadRunnerLogRejectsNonRegularFile(t *testing.T) {
+	// A FIFO is the other half of the same trick: without O_NONBLOCK the
+	// open alone parks the reconcile until someone writes.
+	dir := t.TempDir()
+	if err := syscall.Mkfifo(filepath.Join(dir, runnerLogFile), 0o600); err != nil {
+		t.Skipf("mkfifo unsupported: %v", err)
+	}
+
+	done := make(chan string, 1)
+	go func() { done <- readRunnerLog(dir) }()
+
+	select {
+	case got := <-done:
+		if got != "" {
+			t.Errorf("got %q, want \"\"", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("readRunnerLog blocked on a FIFO")
+	}
+}
+
+func TestReadRunnerLogRejectsDirectory(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, runnerLogFile), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	if got := readRunnerLog(dir); got != "" {
+		t.Errorf("got %q, want \"\"", got)
 	}
 }

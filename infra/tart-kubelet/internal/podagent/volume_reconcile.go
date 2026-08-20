@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -142,18 +143,31 @@ func readRunnerExit(statusDir string) (int32, bool) {
 // is what it said last. Bounded twice because the file is guest-written
 // — by bytes first so a single pathological line cannot blow up the log
 // record, then by lines.
+//
+// Opened O_NOFOLLOW and required to be a regular file, because the guest
+// writes this path and the guest runs untrusted customer CI. A job that
+// replaces runner.log with a symlink would otherwise have the host
+// resolve it and publish up to runnerLogTailBytes of a host-readable
+// file to Loki — the guest picks the target, the host does the reading.
+// O_NONBLOCK covers the same trick with a FIFO, where the open itself
+// would park this reconcile until something wrote to the other end.
+// Whatever the guest left is inspected but never trusted to be a file.
 func readRunnerLog(statusDir string) string {
 	if statusDir == "" {
 		return ""
 	}
-	f, err := os.Open(filepath.Join(statusDir, runnerLogFile))
+	f, err := os.OpenFile(
+		filepath.Join(statusDir, runnerLogFile),
+		os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK,
+		0,
+	)
 	if err != nil {
 		return ""
 	}
 	defer f.Close()
 
 	fi, err := f.Stat()
-	if err != nil {
+	if err != nil || !fi.Mode().IsRegular() {
 		return ""
 	}
 	offset := int64(0)
