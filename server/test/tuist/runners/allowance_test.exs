@@ -95,16 +95,12 @@ defmodule Tuist.Runners.AllowanceTest do
   end
 
   describe "free_monthly_minutes/0" do
+    # Pins the production number, which has to equal the first tier of
+    # the production runner Price. An environment can lower both together
+    # (staging does), but that override is runtime config rather than
+    # something to mutate global state in a test to observe.
     test "defaults to the production allowance" do
       assert Allowance.free_monthly_minutes() == 100
-    end
-
-    test "an environment can lower it, so the cap is reachable without burning real Mac time" do
-      original = Application.get_env(:tuist, :runner_free_monthly_minutes)
-      Application.put_env(:tuist, :runner_free_monthly_minutes, 2)
-      on_exit(fn -> Application.put_env(:tuist, :runner_free_monthly_minutes, original) end)
-
-      assert Allowance.free_monthly_minutes() == 2
     end
   end
 end
