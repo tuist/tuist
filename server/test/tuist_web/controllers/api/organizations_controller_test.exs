@@ -40,14 +40,14 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
                  "invitations" => [],
                  "members" => [],
                  "name" => "tuist-org",
-                 "plan" => "none"
+                 "plan" => "air"
                },
                %{
                  "id" => organization_three.id,
                  "invitations" => [],
                  "members" => [],
                  "name" => "tuist-org-3",
-                 "plan" => "none"
+                 "plan" => "air"
                }
              ] == Enum.sort_by(response["organizations"], & &1["name"])
     end
@@ -90,7 +90,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
                %{
                  "id" => organization.id,
                  "name" => "tuist-org",
-                 "plan" => "none",
+                 "plan" => "air",
                  "members" => [],
                  "invitations" => []
                }
@@ -123,7 +123,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       # Then
       response = json_response(conn, :ok)
       assert response["name"] == "tuist-org"
-      assert response["plan"] == "none"
+      assert response["plan"] == "air"
     end
 
     test "returns an organization with an active pro plan", %{conn: conn, user: user} do
@@ -457,6 +457,143 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert response["sso_provider"] == "google"
       assert response["sso_organization_id"] == domain
       assert response["sso_enforced"] == false
+      assert response["sso_automatic_enrollment"] == true
+    end
+
+    test "can explicitly make Google enrollment invitation-only", %{conn: conn} do
+      domain = unique_sso_domain()
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+
+      conn = Authentication.put_current_user(conn, user)
+
+      AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org",
+          sso_provider: "google",
+          sso_organization_id: domain,
+          sso_automatic_enrollment: false
+        )
+
+      response = json_response(conn, :ok)
+      assert response["sso_automatic_enrollment"] == false
+    end
+
+    test "preserves an existing Google enrollment policy when it is omitted", %{conn: conn} do
+      domain = unique_sso_domain()
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+
+      conn = Authentication.put_current_user(conn, user)
+
+      AccountsFixtures.organization_fixture(
+        name: "tuist-org",
+        creator: user,
+        sso_provider: :google,
+        sso_organization_id: domain,
+        sso_automatic_enrollment: false
+      )
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org",
+          sso_provider: "google",
+          sso_organization_id: domain
+        )
+
+      response = json_response(conn, :ok)
+      assert response["sso_automatic_enrollment"] == false
+    end
+
+    test "preserves enforcement when updating the same provider", %{conn: conn} do
+      domain = unique_sso_domain()
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+
+      conn = Authentication.put_current_user(conn, user)
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          name: "tuist-org",
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: domain
+        )
+
+      {:ok, _organization} = Accounts.update_organization(organization, %{sso_enforced: true})
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org",
+          sso_provider: "google",
+          sso_organization_id: domain
+        )
+
+      response = json_response(conn, :ok)
+      assert response["sso_enforced"] == true
+    end
+
+    test "uses the incoming provider default when changing providers", %{conn: conn} do
+      domain = unique_sso_domain()
+      okta_domain = "#{System.unique_integer([:positive])}.okta.com"
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+
+      {:ok, _identity} =
+        Accounts.link_oauth_identity_to_user(user, %{
+          provider: :okta,
+          id_in_provider: UUIDv7.generate(),
+          provider_organization_id: okta_domain
+        })
+
+      conn = Authentication.put_current_user(conn, user)
+
+      AccountsFixtures.organization_fixture(
+        name: "tuist-org",
+        creator: user,
+        sso_provider: :google,
+        sso_organization_id: domain,
+        sso_automatic_enrollment: true,
+        oauth2_client_id: UUIDv7.generate(),
+        oauth2_client_secret: UUIDv7.generate(),
+        oauth2_authorize_url: "https://#{okta_domain}/oauth2/v1/authorize",
+        oauth2_token_url: "https://#{okta_domain}/oauth2/v1/token",
+        oauth2_user_info_url: "https://#{okta_domain}/oauth2/v1/userinfo"
+      )
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org",
+          sso_provider: "okta",
+          sso_organization_id: okta_domain
+        )
+
+      response = json_response(conn, :ok)
+      assert response["sso_provider"] == "okta"
+      assert response["sso_automatic_enrollment"] == false
+    end
+
+    test "uses the provider default when automatic enrollment is null", %{conn: conn} do
+      domain = unique_sso_domain()
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+
+      conn = Authentication.put_current_user(conn, user)
+
+      AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org",
+          sso_provider: "google",
+          sso_organization_id: domain,
+          sso_automatic_enrollment: nil
+        )
+
+      response = json_response(conn, :ok)
+      assert response["sso_automatic_enrollment"] == true
     end
 
     test "updates SSO to nil",
@@ -469,7 +606,11 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
         name: "tuist-org",
         creator: user,
         sso_provider: :google,
-        sso_organization_id: domain
+        sso_organization_id: domain,
+        sso_login_domain: domain,
+        sso_login_domain_verification_token: "verification-token",
+        sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+        sso_automatic_enrollment: true
       )
 
       # When
@@ -486,6 +627,12 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert response["sso_provider"] == nil
       assert response["sso_organization_id"] == nil
       assert response["sso_enforced"] == false
+      assert response["sso_automatic_enrollment"] == false
+
+      organization = Accounts.get_organization_by_handle("tuist-org")
+      assert organization.sso_login_domain == nil
+      assert organization.sso_login_domain_verified_at == nil
+      assert organization.sso_automatic_enrollment == false
     end
 
     test "returns :forbidden when user is not an admin of an organization", %{
@@ -634,7 +781,8 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
         name: "tuist-org",
         creator: user,
         sso_provider: :google,
-        sso_organization_id: domain
+        sso_organization_id: domain,
+        sso_automatic_enrollment: true
       )
 
       member = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, "tuist-member"))

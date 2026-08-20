@@ -2,10 +2,7 @@
   "apiVersion": "dashboard.grafana.app/v1",
   "kind": "Dashboard",
   "metadata": {
-    "name": "tuist-runners",
-    "annotations": {
-      "grafana.app/folder": "tuist"
-    }
+    "name": "tuist-runners"
   },
   "spec": {
     "title": "Tuist Runners",

@@ -27,6 +27,7 @@ func TestClientSignals_Success(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(Signals{
 			Fleet:                 "linux-pool",
 			Claimed:               3,
+			Occupied:              4,
 			Queued:                2,
 			P95ConcurrentLastHour: 5,
 		})
@@ -41,8 +42,8 @@ func TestClientSignals_Success(t *testing.T) {
 		t.Fatalf("Signals: %v", err)
 	}
 
-	if signals.Fleet != "linux-pool" || signals.Claimed != 3 || signals.Queued != 2 || signals.P95ConcurrentLastHour != 5 {
-		t.Errorf("Signals = %+v, want {linux-pool, 3, 2, 5}", signals)
+	if signals.Fleet != "linux-pool" || signals.Claimed != 3 || signals.Occupied != 4 || signals.Queued != 2 || signals.P95ConcurrentLastHour != 5 {
+		t.Errorf("Signals = %+v, want {linux-pool, 3, 4, 2, 5}", signals)
 	}
 }
 

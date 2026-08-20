@@ -126,7 +126,7 @@ defmodule TuistWeb.Storybook.Tag do
             attributes: %{
               id: "tag-numbers",
               label: "v2.1.0",
-              icon: "git-branch"
+              icon: "git_branch"
             }
           },
           %Variation{
@@ -134,7 +134,7 @@ defmodule TuistWeb.Storybook.Tag do
             attributes: %{
               id: "tag-status",
               label: "In Progress",
-              icon: "progress-x",
+              icon: "progress_x",
               dismissible: true
             }
           }

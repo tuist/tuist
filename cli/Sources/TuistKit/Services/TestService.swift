@@ -77,7 +77,7 @@ public enum TestServiceError: FatalError, Equatable {
             return "Could not find .xctestproducts bundle. Pass -derivedDataPath explicitly."
         case let .unspecifiedPlatform(target, platforms):
             return
-                "Only single platform targets supported. The target \(target) specifies multiple supported platforms (\(platforms.joined(separator: ", ")))."
+                "Could not infer which platform to use for the multi-platform target \(target) (\(platforms.joined(separator: ", "))). Pass --platform or forward a destination to xcodebuild after --."
         case .shardPlanningRequiresBuildOnly:
             return
                 "Shard planning flags (--shard-min/--shard-max/--shard-total) only apply when building tests for sharding. Pass --build-only to create a shard plan, or remove the shard flag(s) to run tests normally."
@@ -243,6 +243,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String],
         skipQuarantine: Bool = false,
         shardReference: String? = nil,
+        shardPlanId: String? = nil,
         shardGranularity: ShardGranularity = .module,
         shardMin: Int? = nil,
         shardMax: Int? = nil,
@@ -303,6 +304,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 runId: runId,
                 shardReference: shardReference,
+                shardPlanId: shardPlanId,
                 shardArchivePath: shardArchivePath,
                 quarantinedTests: mutedQuarantinedTests,
                 mode: mode
@@ -462,14 +464,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
             schemes = [scheme]
         } else {
-            let workspaceSchemes = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
-            schemes = defaultSchemes(
-                workspaceSchemes: workspaceSchemes,
-                candidateTestSchemes: testableSchemes,
-                graphTraverser: graphTraverser,
-                testPlanConfiguration: testPlanConfiguration,
-                action: action
-            )
+            schemes = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
             await updateTestServiceAnalytics(
                 mapperEnvironment: mapperEnvironment,
                 schemes: schemes,
@@ -587,6 +582,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     let buildRunId = await RunMetadataStorage.current.buildRunId
                     _ = try await shardPlanService.plan(
                         xctestproductsPath: testProductsPath,
+                        projectPath: path,
                         reference: shardReference,
                         shardGranularity: shardGranularity,
                         shardMin: shardMin,
@@ -662,6 +658,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String],
         runId: String,
         shardReference: String?,
+        shardPlanId: String?,
         shardArchivePath: AbsolutePath?,
         quarantinedTests: [TestIdentifier],
         mode: TestProcessingMode
@@ -677,6 +674,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             fullHandle: fullHandle,
             serverURL: serverURL,
             reference: shardReference,
+            shardPlanId: shardPlanId,
             testProductsPath: localTestProductsPath,
             testProductsArchivePath: shardArchivePath
         )
@@ -740,7 +738,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             scheme: schemeName,
             shardPlanId: shard.shardPlanId,
             shardIndex: shardIndex,
-            mode: mode
+            mode: mode,
+            onlyTestIdentifiers: testTargets.map(\.description),
+            skipTestIdentifiers: skipTestTargets.map(\.description)
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
@@ -877,7 +877,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             action: .testWithoutBuilding,
             scheme: schemeName,
-            mode: mode
+            mode: mode,
+            onlyTestIdentifiers: testTargets.map(\.description),
+            skipTestIdentifiers: skipTestTargets.map(\.description)
         )
 
         try await storeSuccessfulTestHashesFromGraph(
@@ -1431,141 +1433,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
     }
 
-    private func defaultSchemes(
-        workspaceSchemes: [Scheme],
-        candidateTestSchemes: [Scheme],
-        graphTraverser: GraphTraversing,
-        testPlanConfiguration: TestPlanConfiguration?,
-        action: XcodeBuildTestAction
-    ) -> [Scheme] {
-        guard action == .test,
-              containsMixedHostedAndHostlessUnitTests(
-                  schemes: workspaceSchemes,
-                  graphTraverser: graphTraverser,
-                  testPlanConfiguration: testPlanConfiguration,
-                  action: action
-              )
-        else {
-            return workspaceSchemes
-        }
-
-        let workspaceSchemeNames = Set(workspaceSchemes.map(\.name))
-        let workspaceTargets = Set(
-            workspaceSchemes.flatMap {
-                testActionTargetReferences(
-                    scheme: $0,
-                    testPlanConfiguration: testPlanConfiguration,
-                    action: action
-                )
-            }
-        )
-        let schemesByTarget = Dictionary(
-            candidateTestSchemes.compactMap { scheme -> (TargetReference, Scheme)? in
-                guard !workspaceSchemeNames.contains(scheme.name) else { return nil }
-                let targets = testActionTargetReferences(
-                    scheme: scheme,
-                    testPlanConfiguration: testPlanConfiguration,
-                    action: action
-                )
-                guard targets.count == 1,
-                      let target = targets.first,
-                      workspaceTargets.contains(target),
-                      !isHostlessUnitTest(target, graphTraverser: graphTraverser)
-                      || isCompatibleHostlessTestScheme(scheme, graphTraverser: graphTraverser)
-                else {
-                    return nil
-                }
-                return (target, scheme)
-            },
-            uniquingKeysWith: { first, _ in first }
-        )
-
-        guard workspaceTargets.allSatisfy({ schemesByTarget[$0] != nil }) else {
-            return workspaceSchemes
-        }
-
-        return workspaceTargets
-            .sorted {
-                ($0.name, $0.projectPath.pathString) < ($1.name, $1.projectPath.pathString)
-            }
-            .compactMap { schemesByTarget[$0] }
-    }
-
-    private func isCompatibleHostlessTestScheme(
-        _ scheme: Scheme,
-        graphTraverser: GraphTraversing
-    ) -> Bool {
-        let targetReferences = scheme.targetDependencies()
-        let schemeTargets = targetReferences.compactMap {
-            graphTraverser.target(path: $0.projectPath, name: $0.name)
-        }
-        guard schemeTargets.count == targetReferences.count else { return false }
-
-        let dependencies = graphTraverser.allTargetDependencies(traversingFromTargets: schemeTargets)
-        return (Set(schemeTargets).union(dependencies)).allSatisfy {
-            !$0.target.product.canHostTests()
-        }
-    }
-
-    private func isHostlessUnitTest(
-        _ targetReference: TargetReference,
-        graphTraverser: GraphTraversing
-    ) -> Bool {
-        guard let graphTarget = graphTraverser.target(
-            path: targetReference.projectPath,
-            name: targetReference.name
-        ), graphTarget.target.product == .unitTests
-        else {
-            return false
-        }
-
-        let dependencies = graphTraverser
-            .directTargetDependencies(path: graphTarget.path, name: graphTarget.target.name)
-        return !dependencies.isEmpty && !dependencies.contains(where: { $0.target.product.canHostTests() })
-    }
-
-    private func containsMixedHostedAndHostlessUnitTests(
-        schemes: [Scheme],
-        graphTraverser: GraphTraversing,
-        testPlanConfiguration: TestPlanConfiguration?,
-        action: XcodeBuildTestAction
-    ) -> Bool {
-        schemes.contains { scheme in
-            let testTargets = testActionTargetReferences(
-                scheme: scheme,
-                testPlanConfiguration: testPlanConfiguration,
-                action: action
-            )
-
-            var hasHostedTests = false
-            var hasHostlessUnitTests = false
-
-            for targetReference in testTargets {
-                guard let graphTarget = graphTraverser.target(
-                    path: targetReference.projectPath,
-                    name: targetReference.name
-                ) else {
-                    continue
-                }
-
-                let dependencies = graphTraverser
-                    .directTargetDependencies(path: graphTarget.path, name: graphTarget.target.name)
-
-                if dependencies.contains(where: { $0.target.product.canHostTests() }) {
-                    hasHostedTests = true
-                } else if graphTarget.target.product == .unitTests, !dependencies.isEmpty {
-                    hasHostlessUnitTests = true
-                }
-
-                if hasHostedTests, hasHostlessUnitTests {
-                    return true
-                }
-            }
-
-            return false
-        }
-    }
-
     private func shouldRunTest(
         for schemes: [Scheme],
         testPlanConfiguration: TestPlanConfiguration?,
@@ -1701,20 +1568,27 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         action: XcodeBuildTestAction
     ) -> [TargetReference] {
+        // Skipped testables are dropped because xcodebuild never runs them: counting one reports a
+        // target as needing tests that can never record a result, so it stays an un-cached miss on
+        // every subsequent run. On the plan-based paths this matches the test-plan filter in
+        // `GraphTraverser.filterIncludedTargets` and `BuildGraphInspector.isIncluded`. Note the two
+        // still diverge on the no-plan path: `BuildGraphInspector.testableTarget`'s final fallback
+        // anchors on `testAction.targets.first` without consulting `isSkipped`.
         return if let testPlanConfiguration {
             scheme.testAction?.testPlans?
                 .first(
                     where: { $0.name == testPlanConfiguration.testPlan }
-                )?.testTargets.map(\.target) ?? []
+                )?.testTargets.filter { !$0.isSkipped }.map(\.target) ?? []
         } else if action == .build, let testPlans = scheme.testAction?.testPlans {
             // If we are building a scheme that has testplans but none specified then we should return all test targets
-            testPlans.flatMap(\.testTargets).map(\.target)
+            testPlans.flatMap(\.testTargets).filter { !$0.isSkipped }.map(\.target)
         } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: {
             $0.isDefault
         }) {
-            defaultTestPlan.testTargets.map(\.target)
-        } else if let testActionTargets = scheme.testAction?.targets.map(\.target),
-                  !testActionTargets.isEmpty
+            defaultTestPlan.testTargets.filter { !$0.isSkipped }.map(\.target)
+        } else if let testActionTargets = scheme.testAction?.targets
+            .filter({ !$0.isSkipped }).map(\.target),
+            !testActionTargets.isEmpty
         {
             testActionTargets
         } else {
@@ -1897,26 +1771,36 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        let buildPlatform: XcodeGraph.Platform
-
-        if let platform {
-            buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
-        } else if let resolvedPlatform = buildableTarget.target.destinations.first?.platform,
-                  buildableTarget.target.destinations.platforms.count == 1
-        {
-            buildPlatform = resolvedPlatform
-        } else {
-            throw TestServiceError.unspecifiedPlatform(
-                target: buildableTarget.target.name,
-                platforms: buildableTarget.target.supportedPlatforms.map(\.rawValue)
-            )
+        let explicitPlatform = try platform.map {
+            try XcodeGraph.Platform.from(commandLineValue: $0)
         }
-
         let destination: XcodeBuildDestination?
 
         if passthroughXcodeBuildArguments.contains("-destination") {
             destination = nil
         } else {
+            let buildPlatform: XcodeGraph.Platform
+
+            if let explicitPlatform {
+                buildPlatform = explicitPlatform
+            } else if let resolvedPlatform = Self.resolvePlatform(
+                for: buildableTarget,
+                scheme: scheme,
+                testActionTargets: testActionTargetReferences(
+                    scheme: scheme,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: action
+                ),
+                graphTraverser: graphTraverser
+            ) {
+                buildPlatform = resolvedPlatform
+            } else {
+                throw TestServiceError.unspecifiedPlatform(
+                    target: buildableTarget.target.name,
+                    platforms: buildableTarget.target.supportedPlatforms.map(\.rawValue).sorted()
+                )
+            }
+
             destination = try await XcodeBuildDestination.find(
                 for: buildableTarget.target,
                 on: buildPlatform,
@@ -1983,7 +1867,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 action: action,
                 scheme: scheme.name,
                 quarantinedTests: quarantinedTests,
-                mode: mode
+                mode: mode,
+                onlyTestIdentifiers: testTargets.map(\.description),
+                skipTestIdentifiers: skipTestTargets.map(\.description)
             )
             throw error
         }
@@ -2006,7 +1892,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             action: action,
             scheme: scheme.name,
             quarantinedTests: quarantinedTests,
-            mode: mode
+            mode: mode,
+            onlyTestIdentifiers: testTargets.map(\.description),
+            skipTestIdentifiers: skipTestTargets.map(\.description)
         )
     }
 
@@ -2074,7 +1962,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         quarantinedTests: [TestIdentifier] = [],
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
-        mode: TestProcessingMode = .local
+        mode: TestProcessingMode = .local,
+        onlyTestIdentifiers: [String] = [],
+        skipTestIdentifiers: [String] = []
     ) async {
         guard config.fullHandle != nil, action != .build
         else { return }
@@ -2090,7 +1980,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     config: config,
                     shardPlanId: shardPlanId,
-                    shardIndex: shardIndex
+                    shardIndex: shardIndex,
+                    onlyTestIdentifiers: onlyTestIdentifiers,
+                    skipTestIdentifiers: skipTestIdentifiers
                 )
             case .remote:
                 guard let resultBundlePath else { return }
@@ -2101,7 +1993,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     quarantinedTests: quarantinedTests,
                     buildRunId: buildRunId,
                     shardPlanId: shardPlanId,
-                    shardIndex: shardIndex
+                    shardIndex: shardIndex,
+                    onlyTestIdentifiers: onlyTestIdentifiers,
+                    skipTestIdentifiers: skipTestIdentifiers
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
@@ -2203,7 +2097,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
             shardPlanId: nil,
-            shardIndex: nil
+            shardIndex: nil,
+            // Everything selective testing skipped. The run carries no modules, so it never reaches
+            // the suite inventory either way.
+            onlyTestIdentifiers: [],
+            skipTestIdentifiers: []
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)
@@ -2221,6 +2119,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlan: String? = nil,
         graphTraverser: GraphTraversing
     ) -> String? {
+        let testPlanConfiguration = testPlan.map { TestPlanConfiguration(testPlan: $0) }
         for scheme in schemes {
             guard let target = buildGraphInspector.testableTarget(
                 scheme: scheme,
@@ -2231,13 +2130,50 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 action: .build
             ) else { continue }
 
-            guard let resolvedPlatform = target.target.destinations.first?.platform,
-                  target.target.destinations.platforms.count == 1
-            else { continue }
+            guard let resolvedPlatform = Self.resolvePlatform(
+                for: target,
+                scheme: scheme,
+                testActionTargets: testActionTargetReferences(
+                    scheme: scheme,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: .build
+                ),
+                graphTraverser: graphTraverser
+            ) else { continue }
 
             return resolvedPlatform.xcodebuildPlatformDestination
         }
         return nil
+    }
+
+    static func resolvePlatform(
+        for target: GraphTarget,
+        scheme: Scheme,
+        testActionTargets: [TargetReference],
+        graphTraverser: GraphTraversing
+    ) -> XcodeGraph.Platform? {
+        let targetPlatforms = target.target.supportedPlatforms
+        if targetPlatforms.count == 1 {
+            return targetPlatforms.first
+        }
+
+        let platformConstrainingTargets =
+            (scheme.buildAction?.targets ?? [])
+                + testActionTargets
+        let compatibleSchemePlatformSets = platformConstrainingTargets
+            .compactMap {
+                graphTraverser.target(path: $0.projectPath, name: $0.name)?
+                    .target
+                    .supportedPlatforms
+                    .intersection(targetPlatforms)
+            }
+            .filter { !$0.isEmpty }
+
+        let sharedPlatforms = compatibleSchemePlatformSets.reduce(targetPlatforms) {
+            $0.intersection($1)
+        }
+        guard sharedPlatforms.count == 1 else { return nil }
+        return sharedPlatforms.first
     }
 
     private func xcodebuildDestination(

@@ -1,0 +1,123 @@
+{
+  "name": "InlineDropdown",
+  "tagName": "noora-inline-dropdown",
+  "elementClassName": "NooraInlineDropdown",
+  "className": "noora-inline-dropdown",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Opens a compact inline menu.",
+  "usage": "<noora-inline-dropdown label=\"Sort\">\n  <noora-dropdown-item value=\"newest\">Newest</noora-dropdown-item>\n</noora-inline-dropdown>",
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the trigger label."
+    },
+    {
+      "name": "size",
+      "property": "size",
+      "type": "string",
+      "values": ["small", "large"],
+      "default": "small",
+      "description": "Controls the trigger dimensions."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables the trigger."
+    },
+    {
+      "name": "open",
+      "property": "open",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Controls whether the menu is open."
+    },
+    {
+      "name": "keep-open",
+      "property": "keepOpen",
+      "type": "boolean",
+      "default": false,
+      "description": "Keeps the menu open after selection."
+    }
+  ],
+  "properties": [
+    {
+      "name": "items",
+      "type": "json",
+      "typescriptType": "Array<Record<string, unknown>>",
+      "default": [],
+      "description": "Defines menu items programmatically when declarative noora-dropdown-item children are not used."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "icon",
+      "description": "The trigger icon."
+    },
+    {
+      "name": "",
+      "description": "Declarative noora-dropdown-item children."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "trigger",
+      "description": "The menu trigger."
+    },
+    {
+      "name": "content",
+      "description": "The menu content."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-open-change",
+      "type": "CustomEvent<{ open: boolean }>",
+      "description": "Emitted when the dropdown opens or closes."
+    },
+    {
+      "name": "noora-select",
+      "type": "CustomEvent<{ item: Record<string, unknown>; value: unknown }>",
+      "description": "Emitted when an enabled item is selected."
+    }
+  ],
+  "notes": ["Selections emit a `noora-select` event."],
+  "examples": [
+    {
+      "id": "default",
+      "title": "Default",
+      "description": "Use an inline menu for compact choices.",
+      "markup": "<noora-inline-dropdown label=\"Sort\">\n  <noora-dropdown-item value=\"newest\">Newest</noora-dropdown-item>\n  <noora-dropdown-item value=\"oldest\">Oldest</noora-dropdown-item>\n</noora-inline-dropdown>"
+    },
+    {
+      "id": "disabled",
+      "title": "Disabled",
+      "description": "Prevent changes while the choice is unavailable.",
+      "markup": "<noora-inline-dropdown label=\"Sort\" disabled>\n  <noora-dropdown-item value=\"newest\">Newest</noora-dropdown-item>\n</noora-inline-dropdown>"
+    },
+    {
+      "id": "large-items",
+      "title": "Large items",
+      "description": "Use larger item rows for more prominent menus.",
+      "markup": "<noora-inline-dropdown label=\"Environment\" size=\"large\">\n  <noora-dropdown-item value=\"production\" size=\"large\">Production</noora-dropdown-item>\n  <noora-dropdown-item value=\"staging\" size=\"large\">Staging</noora-dropdown-item>\n</noora-inline-dropdown>"
+    },
+    {
+      "id": "icons",
+      "title": "Items with icons",
+      "description": "Pair choices with recognizable icons.",
+      "markup": "<noora-inline-dropdown label=\"View\">\n  <noora-dropdown-item value=\"grid\" icon=\"layout_grid\">Grid</noora-dropdown-item>\n  <noora-dropdown-item value=\"list\" icon=\"list\">List</noora-dropdown-item>\n</noora-inline-dropdown>"
+    },
+    {
+      "id": "secondary-text",
+      "title": "Secondary text",
+      "description": "Add concise context beside each label.",
+      "markup": "<noora-inline-dropdown label=\"Branch\">\n  <noora-dropdown-item value=\"main\" secondary-text=\"default\">main</noora-dropdown-item>\n  <noora-dropdown-item value=\"release\" secondary-text=\"protected\">release</noora-dropdown-item>\n</noora-inline-dropdown>"
+    }
+  ]
+}

@@ -55,6 +55,7 @@ defmodule Tuist.Kura.Reconciler do
   import Ecto.Query
 
   alias Oban.Job
+  alias Tuist.Billing.Subscription
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
@@ -269,7 +270,7 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   # A `:moving_in` target warms with no public endpoint, so its readiness is the
-  # peer-plane bootstrap gate (the pod's /ready probe surfaced as caught_up?),
+  # peer-plane backfill gate (the pod's /ready probe surfaced as caught_up?),
   # not a public /up probe. Once it is up on the desired image and caught up, it
   # is promoted (source -> :moving_out, target -> :none). Its deployment stays
   # open across the promotion so the now-`:none` row activates through the normal
@@ -333,9 +334,9 @@ defmodule Tuist.Kura.Reconciler do
 
           # The workload is up on the desired image but the endpoint is not
           # serving yet: the pod is typically still replicating from mesh peers
-          # behind the /ready bootstrap gate, so it offers no healthy upstream to
+          # behind the /ready backfill gate, so it offers no healthy upstream to
           # the gateway. Surface :replicating so the dashboard shows progress
-          # instead of a stuck "Deploying" for the whole bootstrap.
+          # instead of a stuck "Deploying" for the whole catch-up.
           record(server, :replicating, deployment.image_tag, now())
 
         {:error, :node_port_endpoint_not_ready} ->
@@ -389,7 +390,7 @@ defmodule Tuist.Kura.Reconciler do
 
       {:ok, false} ->
         # Up on the desired image but still replicating from the source behind
-        # the bootstrap gate. Surface :replicating so the move shows progress.
+        # the backfill gate. Surface :replicating so the move shows progress.
         record(server, :replicating, image_tag, now())
 
       {:error, reason} ->
@@ -410,6 +411,12 @@ defmodule Tuist.Kura.Reconciler do
   # drifted ones surface the drift. Bounded by the same converge
   # ceiling as the rest of the loop; the rest is picked up next tick.
   defp reconcile_observed_servers(handled_server_ids) do
+    active_subscriptions_query =
+      from(s in Subscription,
+        where: s.status in ["active", "trialing"],
+        order_by: [desc: s.inserted_at, desc: s.id]
+      )
+
     servers =
       Server
       |> where([s], s.status in ^@present_intent_statuses)
@@ -420,7 +427,7 @@ defmodule Tuist.Kura.Reconciler do
       |> where([s], s.move_phase == :none)
       |> order_by([s], asc: s.updated_at, asc: s.id)
       |> limit(^@reconcile_batch_size)
-      |> preload(:account)
+      |> preload([s], account: [subscriptions: ^active_subscriptions_query])
       |> Repo.all()
       |> Enum.reject(&MapSet.member?(handled_server_ids, &1.id))
 

@@ -9,23 +9,22 @@
     <meta property="og:url" content={Tuist.Environment.app_url(path: "/")} />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={assigns[:head_title] || "Tuist"} />
-    <meta
-      property="og:image"
-      content={
-        Tuist.Environment.app_url(
-          path:
-            TuistWeb.Helpers.OpenGraph.marketing_og_image_path(
-              "/marketing/images/og/generated/api-docs.jpg"
-            )
-        )
-      }
-    />
-    <meta property="og:image:width" content="1920" />
-    <meta property="og:image:height" content="1080" />
+    <%!-- Open Graph images are rendered at runtime by the marketing image route.
+    On-premise deployments cannot mint a signature that the hosted route accepts. --%>
+    <%= if @head_image do %>
+      <meta
+        property="og:image"
+        content={@head_image}
+      />
+      <meta property="og:image:width" content="1920" />
+      <meta property="og:image:height" content="1080" />
+    <% end %>
     <!-- Twitter Meta Tags -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@tuistdev" />
-    <meta name="twitter:image" content={Tuist.Environment.app_url(path: "/")} />
+    <%= if @head_image do %>
+      <meta name="twitter:image" content={@head_image} />
+    <% end %>
     <meta name="twitter:title" content={assigns[:head_title] || "Tuist"} />
     <meta
       property="twitter:domain"

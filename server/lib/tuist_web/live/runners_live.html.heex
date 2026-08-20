@@ -378,7 +378,7 @@
         size="medium"
         label={dgettext("dashboard_runners", "View more")}
         navigate={~p"/#{@selected_account.name}/runners/workflows"}
-        disabled={Enum.empty?(@recent_workflow_runs)}
+        disabled={Enum.empty?(@recent_workflow_runs) and not @recent_workflow_runs_hidden}
       />
     </:actions>
     <.card_section
@@ -494,8 +494,18 @@
       </div>
       <div :if={Enum.empty?(@recent_workflow_runs)} data-part="empty-recent-workflows">
         <.empty_card_section
-          title={TuistWeb.RunnersLive.widget_empty_label()}
-          get_started_href="https://tuist.dev/en/docs"
+          title={
+            if @recent_workflow_runs_hidden,
+              do:
+                dgettext(
+                  "dashboard_runners",
+                  "Every recent workflow run was skipped or cancelled"
+                ),
+              else: TuistWeb.RunnersLive.widget_empty_label()
+          }
+          get_started_href={
+            if @recent_workflow_runs_hidden, do: nil, else: "https://tuist.dev/en/docs"
+          }
         >
           <:image>
             <img
@@ -527,7 +537,7 @@
         size="medium"
         label={dgettext("dashboard_runners", "View more")}
         navigate={~p"/#{@selected_account.name}/runners/jobs"}
-        disabled={Enum.empty?(@recent_jobs)}
+        disabled={Enum.empty?(@recent_jobs) and not @recent_jobs_hidden}
       />
     </:actions>
     <.card_section
@@ -661,8 +671,12 @@
       </div>
       <div :if={Enum.empty?(@recent_jobs)} data-part="empty-recent-jobs">
         <.empty_card_section
-          title={TuistWeb.RunnersLive.widget_empty_label()}
-          get_started_href="https://tuist.dev/en/docs"
+          title={
+            if @recent_jobs_hidden,
+              do: dgettext("dashboard_runners", "Every recent job was skipped or cancelled"),
+              else: TuistWeb.RunnersLive.widget_empty_label()
+          }
+          get_started_href={if @recent_jobs_hidden, do: nil, else: "https://tuist.dev/en/docs"}
         >
           <:image>
             <img

@@ -208,6 +208,12 @@ func TestPodLifecycle_FallsBackToDeletionTimestamp(t *testing.T) {
 	}
 }
 
+func runnerPodExitReason(name string, exitCode int32, reason string, phase corev1.PodPhase) *corev1.Pod {
+	pod := runnerPodExit(name, exitCode, phase)
+	pod.Status.ContainerStatuses[0].State.Terminated.Reason = reason
+	return pod
+}
+
 func runnerPodExit(name string, exitCode int32, phase corev1.PodPhase) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -252,6 +258,12 @@ func TestAbnormalEnd(t *testing.T) {
 		want bool
 	}{
 		{"clean exit 0", runnerPodExit("p", 0, corev1.PodSucceeded), false},
+		{"guest-reported clean exit", runnerPodExitReason("p", 0, "Completed", corev1.PodSucceeded), false},
+		// tart-kubelet publishes these when the exit code is the VM
+		// process's rather than the runner's own, which is not evidence
+		// of a clean run.
+		{"unreported macOS exit", runnerPodExitReason("p", 0, "TartRunExited", corev1.PodSucceeded), true},
+		{"tart failed with no guest report", runnerPodExitReason("p", 0, "TartRunFailed", corev1.PodFailed), true},
 		{"non-zero exit", runnerPodExit("p", 1, corev1.PodFailed), true},
 		{"sigkilled microVM teardown", runnerPodExit("p", 137, corev1.PodFailed), true},
 		{"reaped while running (lost comm)", deleting, true},

@@ -522,5 +522,54 @@ defmodule Tuist.Alerts.AlertRuleTest do
       assert changeset.valid? == false
       assert "is invalid" in errors_on(changeset).environment
     end
+
+    test "trims whitespace around the scoping fields" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      changeset =
+        AlertRule.changeset(%AlertRule{}, %{
+          project_id: project.id,
+          name: "Test Alert",
+          category: :cache_hit_rate,
+          metric: :p90,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
+          git_branch: "  main\n",
+          scheme: " App ",
+          bundle_name: " App.ipa ",
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel"
+        })
+
+      # Then
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :git_branch) == "main"
+      assert Ecto.Changeset.get_field(changeset, :scheme) == "App"
+      assert Ecto.Changeset.get_field(changeset, :bundle_name) == "App.ipa"
+    end
+
+    test "is invalid when a bundle_size branch is only whitespace" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      changeset =
+        AlertRule.changeset(%AlertRule{}, %{
+          project_id: project.id,
+          name: "Test Alert",
+          category: :bundle_size,
+          metric: :install_size,
+          deviation_percentage: 20.0,
+          git_branch: "   ",
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel"
+        })
+
+      # Then
+      assert changeset.valid? == false
+      assert "can't be blank" in errors_on(changeset).git_branch
+    end
   end
 end

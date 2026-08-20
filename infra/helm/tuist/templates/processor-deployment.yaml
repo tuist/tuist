@@ -51,12 +51,23 @@ spec:
       # DoNotSchedule for hard separation. nodeTaintsPolicy=Honor excludes a
       # draining node from the topology so a single-node failure under
       # DoNotSchedule doesn't deadlock the replacement pod.
+      #
+      # matchLabelKeys scopes the skew calculation to the ReplicaSet being
+      # rolled out. Without it the constraint counts the outgoing pods too,
+      # and at maxSurge=1/maxUnavailable=0 that lets both new replicas land
+      # on one node: each new pod is admitted while an old pod still holds
+      # the other node's slot (skew stays 1), and once the old pods drain
+      # the survivors sit stacked at skew 2. Nothing rebalances them
+      # afterwards, so the pair stayed co-resident until the next deploy
+      # happened to spread them.
       {{- if .Values.processor.topologySpread.enabled }}
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: {{ .Values.processor.topologySpread.whenUnsatisfiable | default "ScheduleAnyway" }}
           nodeTaintsPolicy: Honor
+          matchLabelKeys:
+            - pod-template-hash
           labelSelector:
             matchLabels:
               {{- include "tuist.componentLabels" (dict "root" . "component" "processor") | nindent 14 }}
@@ -81,6 +92,11 @@ spec:
           # priv/secrets exactly in sync with what enqueued the job.
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          # Preserve the last container output in the pod's termination
+          # message whenever the processor exits unsuccessfully. This gives
+          # `kubectl describe pod` and Kubernetes event consumers the failure
+          # context even when the BEAM cannot write its own crash report.
+          terminationMessagePolicy: FallbackToLogsOnError
           command:
             - /app/bin/tuist
             - start

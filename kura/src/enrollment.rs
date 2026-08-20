@@ -31,6 +31,7 @@ const KURA_INTERNAL_TLS_CERT_PATH: &str = "KURA_INTERNAL_TLS_CERT_PATH";
 const KURA_INTERNAL_TLS_KEY_PATH: &str = "KURA_INTERNAL_TLS_KEY_PATH";
 const KURA_TENANT_ID: &str = "KURA_TENANT_ID";
 const KURA_PEERS: &str = "KURA_PEERS";
+const KURA_DATA_DIR: &str = "KURA_DATA_DIR";
 
 pub struct EnrollmentOutcome {
     pub tenant_id: String,
@@ -75,10 +76,12 @@ struct EnrollmentInputs {
     ca_cert_path: String,
     cert_path: String,
     key_path: String,
+    tls_paths_derived: bool,
 }
 
 /// Enrolls the node if `KURA_ENROLL_ON_BOOT` is enabled, writing the issued
-/// certificate material and injecting `KURA_TENANT_ID`/`KURA_PEERS` into the
+/// certificate material and injecting `KURA_TENANT_ID`/`KURA_PEERS`, plus the
+/// peer TLS paths when they were derived rather than configured, into the
 /// environment so `Config::from_env` picks them up. Returns `Ok(None)` when
 /// enrollment is disabled.
 pub async fn enroll_on_boot() -> Result<Option<EnrollmentOutcome>, String> {
@@ -87,6 +90,7 @@ pub async fn enroll_on_boot() -> Result<Option<EnrollmentOutcome>, String> {
     }
 
     let inputs = inputs()?;
+    apply_tls_path_env_defaults(&inputs);
     eprintln!(
         "kura: enrolling node {} with control plane",
         inputs.node_url
@@ -104,15 +108,74 @@ fn enabled() -> bool {
 }
 
 fn inputs() -> Result<EnrollmentInputs, String> {
+    let tls = resolve_tls_paths(
+        env_value(KURA_INTERNAL_TLS_CA_CERT_PATH),
+        env_value(KURA_INTERNAL_TLS_CERT_PATH),
+        env_value(KURA_INTERNAL_TLS_KEY_PATH),
+        env_value(KURA_DATA_DIR),
+    )?;
+
     Ok(EnrollmentInputs {
         control_plane_url: required(KURA_CONTROL_PLANE_URL)?,
         client_id: required(KURA_CONTROL_PLANE_CLIENT_ID)?,
         client_secret: required(KURA_CONTROL_PLANE_CLIENT_SECRET)?,
         node_url: required(KURA_NODE_URL)?,
-        ca_cert_path: required(KURA_INTERNAL_TLS_CA_CERT_PATH)?,
-        cert_path: required(KURA_INTERNAL_TLS_CERT_PATH)?,
-        key_path: required(KURA_INTERNAL_TLS_KEY_PATH)?,
+        ca_cert_path: tls.ca_cert_path,
+        cert_path: tls.cert_path,
+        key_path: tls.key_path,
+        tls_paths_derived: tls.derived,
     })
+}
+
+#[derive(Debug)]
+struct ResolvedTlsPaths {
+    ca_cert_path: String,
+    cert_path: String,
+    key_path: String,
+    derived: bool,
+}
+
+/// Resolves where enrollment writes the issued certificate material.
+///
+/// The three paths are the node's peer TLS settings rather than enrollment's:
+/// the TLS listener reads them, and `Config::from_env` rejects a partially
+/// configured triple. Enrollment therefore only supplies them when the operator
+/// supplied none, so a node mounting its own material keeps pointing at that
+/// mount, and a half-configured triple still surfaces the configuration error
+/// instead of being silently completed with derived paths.
+fn resolve_tls_paths(
+    ca_cert_path: Option<String>,
+    cert_path: Option<String>,
+    key_path: Option<String>,
+    data_dir: Option<String>,
+) -> Result<ResolvedTlsPaths, String> {
+    match (ca_cert_path, cert_path, key_path) {
+        (Some(ca_cert_path), Some(cert_path), Some(key_path)) => Ok(ResolvedTlsPaths {
+            ca_cert_path,
+            cert_path,
+            key_path,
+            derived: false,
+        }),
+        (None, None, None) => {
+            let data_dir = data_dir.ok_or_else(|| {
+                format!(
+                    "{KURA_DATA_DIR} must be set to derive the peer TLS paths, or set {KURA_INTERNAL_TLS_CA_CERT_PATH}, {KURA_INTERNAL_TLS_CERT_PATH}, and {KURA_INTERNAL_TLS_KEY_PATH} explicitly"
+                )
+            })?;
+            let dir = Path::new(&data_dir).join("tls");
+            let path = |name: &str| dir.join(name).to_string_lossy().into_owned();
+
+            Ok(ResolvedTlsPaths {
+                ca_cert_path: path("ca.pem"),
+                cert_path: path("tls.crt"),
+                key_path: path("tls.key"),
+                derived: true,
+            })
+        }
+        _ => Err(format!(
+            "{KURA_INTERNAL_TLS_CA_CERT_PATH}, {KURA_INTERNAL_TLS_CERT_PATH}, and {KURA_INTERNAL_TLS_KEY_PATH} must either all be set or all be unset"
+        )),
+    }
 }
 
 async fn enroll(inputs: &EnrollmentInputs) -> Result<EnrollmentOutcome, String> {
@@ -204,6 +267,29 @@ fn generate_key_and_csr() -> Result<(String, String), String> {
     Ok((key_pair.serialize_pem(), csr_pem))
 }
 
+fn apply_tls_path_env_defaults(inputs: &EnrollmentInputs) {
+    if !inputs.tls_paths_derived {
+        return;
+    }
+
+    eprintln!(
+        "kura: writing peer certificate material to {}",
+        Path::new(&inputs.cert_path)
+            .parent()
+            .unwrap_or(Path::new(&inputs.cert_path))
+            .display()
+    );
+
+    for (key, value) in [
+        (KURA_INTERNAL_TLS_CA_CERT_PATH, &inputs.ca_cert_path),
+        (KURA_INTERNAL_TLS_CERT_PATH, &inputs.cert_path),
+        (KURA_INTERNAL_TLS_KEY_PATH, &inputs.key_path),
+    ] {
+        // SAFETY: runs at startup before any worker threads read the environment.
+        unsafe { std::env::set_var(key, value) };
+    }
+}
+
 fn apply_env_defaults(outcome: &EnrollmentOutcome) {
     if env_value(KURA_TENANT_ID).is_none() {
         // SAFETY: runs at startup before any worker threads read the environment.
@@ -265,6 +351,55 @@ mod tests {
 
         assert_eq!(static_peer_seed(&managed, &full), managed.as_slice());
         assert_eq!(static_peer_seed(&[], &full), full.as_slice());
+    }
+
+    #[test]
+    fn derives_tls_paths_under_the_data_dir_when_none_are_configured() {
+        let resolved = resolve_tls_paths(None, None, None, Some("/var/cache/kura".to_string()))
+            .expect("deriving should succeed");
+
+        assert_eq!(resolved.ca_cert_path, "/var/cache/kura/tls/ca.pem");
+        assert_eq!(resolved.cert_path, "/var/cache/kura/tls/tls.crt");
+        assert_eq!(resolved.key_path, "/var/cache/kura/tls/tls.key");
+        assert!(resolved.derived);
+    }
+
+    #[test]
+    fn keeps_configured_tls_paths_and_does_not_mark_them_derived() {
+        let resolved = resolve_tls_paths(
+            Some("/etc/kura/peer-ca.pem".to_string()),
+            Some("/etc/kura/peer.pem".to_string()),
+            Some("/etc/kura/peer.key".to_string()),
+            Some("/var/cache/kura".to_string()),
+        )
+        .expect("configured paths should be accepted");
+
+        assert_eq!(resolved.ca_cert_path, "/etc/kura/peer-ca.pem");
+        assert_eq!(resolved.cert_path, "/etc/kura/peer.pem");
+        assert_eq!(resolved.key_path, "/etc/kura/peer.key");
+        // A read-only mount must never be reported as somewhere enrollment may write.
+        assert!(!resolved.derived);
+    }
+
+    #[test]
+    fn rejects_a_partially_configured_tls_triple_instead_of_completing_it() {
+        let error = resolve_tls_paths(
+            Some("/etc/kura/peer-ca.pem".to_string()),
+            None,
+            None,
+            Some("/var/cache/kura".to_string()),
+        )
+        .expect_err("a half-configured triple should not be silently completed");
+
+        assert!(error.contains("all be set or all be unset"), "{error}");
+    }
+
+    #[test]
+    fn refuses_to_derive_tls_paths_without_a_data_dir() {
+        let error = resolve_tls_paths(None, None, None, None)
+            .expect_err("there is nowhere to derive the paths from");
+
+        assert!(error.contains(KURA_DATA_DIR), "{error}");
     }
 
     #[test]

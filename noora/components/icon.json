@@ -1,0 +1,65 @@
+{
+  "name": "Icon",
+  "tagName": "noora-icon",
+  "elementClassName": "NooraIcon",
+  "className": "noora-icon",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Renders an icon from Noora's shared icon catalog.",
+  "usage": "<noora-icon name=\"settings\" label=\"Settings\"></noora-icon>",
+  "attributes": [
+    {
+      "name": "name",
+      "property": "name",
+      "type": "string",
+      "default": "",
+      "description": "Selects the icon by its underscore or hyphen-separated name."
+    },
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "description": "Provides an accessible label. Omit for decorative icons."
+    },
+    {
+      "name": "size",
+      "property": "size",
+      "type": "number",
+      "default": 24,
+      "description": "Sets the width and height in pixels."
+    },
+    {
+      "name": "active-name",
+      "property": "activeName",
+      "type": "string",
+      "description": "Selects the icon shown while the parent element has an open data state."
+    },
+    {
+      "name": "transition",
+      "property": "transition",
+      "type": "string",
+      "values": ["morph", "crossfade_rotate", "auto"],
+      "default": "auto",
+      "description": "Controls the animated transition between the default and active icons."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [],
+  "cssParts": [
+    {
+      "name": "icon",
+      "description": "The rendered scalable vector graphic."
+    }
+  ],
+  "notes": [
+    "Unknown icon names render no graphic.",
+    "When active-name is set, the icon observes its parent element's data-state attribute and switches when that state is open."
+  ],
+  "examples": [
+    {
+      "id": "transitions",
+      "title": "Animated transitions",
+      "description": "Click each button to toggle its state and transition between paired icons.",
+      "markup": "<button data-state=\"closed\" onclick=\"this.dataset.state = this.dataset.state === 'open' ? 'closed' : 'open'\" aria-label=\"Toggle selector\"><noora-icon name=\"selector\" active-name=\"selector_2\" transition=\"morph\"></noora-icon></button>\n<button data-state=\"closed\" onclick=\"this.dataset.state = this.dataset.state === 'open' ? 'closed' : 'open'\" aria-label=\"Toggle menu\"><noora-icon name=\"menu\" active-name=\"close\" transition=\"crossfade_rotate\"></noora-icon></button>\n<button data-state=\"closed\" onclick=\"this.dataset.state = this.dataset.state === 'open' ? 'closed' : 'open'\" aria-label=\"Toggle theme\"><noora-icon name=\"sun_high\" active-name=\"moon\" transition=\"crossfade_rotate\"></noora-icon></button>\n<button data-state=\"closed\" onclick=\"this.dataset.state = this.dataset.state === 'open' ? 'closed' : 'open'\" aria-label=\"Toggle playback\"><noora-icon name=\"player_play\" active-name=\"player_pause\" transition=\"auto\"></noora-icon></button>"
+    }
+  ]
+}

@@ -45,13 +45,18 @@ Alert rules notify you in Slack when key metrics significantly regress, helping 
 To create an alert rule, go to your project's notification settings and click **Add alert rule**. You can configure:
 
 - **Name**: A descriptive name for the alert
-- **Category**: What to measure (build duration, test duration, or cache hit rate)
+- **Category**: What to measure (build duration, test duration, cache hit rate, or bundle size)
 - **Metric**: How to aggregate the data (p50, p90, p99, or average)
 - **Deviation**: The percentage change that triggers an alert
 - **Rolling window**: How many recent runs to compare against
+- **Branch**: For cache hit rate alerts, restrict the comparison to runs on a single branch. Leave it empty to consider every branch. Bundle size alerts always target a single branch.
 - **Slack channel**: The destination channel. You authorize the channel through the same `incoming-webhook` flow described above.
 
 For example, you might create an alert that triggers when the p90 build duration increases by more than 20% compared to the previous 100 builds.
+
+Scoping a cache hit rate alert to your default branch is useful when only that branch populates the cache. Pull request branches that touch a low-level module legitimately miss the cache, and including them would make the alert fire on expected regressions.
+
+A cache hit rate alert only compares windows it can compare fairly. Both windows have to hold as many runs as the rolling window size, and a source of cache data that only appears in one of the two windows is left out of both. A branch that hasn't accumulated twice the rolling window size in runs yet, or a branch name that matches nothing, therefore never triggers the rule. If you scope a rule to a low-traffic branch, keep the rolling window small enough that the branch fills it.
 
 When an alert triggers, you'll receive a message like this in your Slack channel:
 

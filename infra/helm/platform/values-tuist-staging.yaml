@@ -7,12 +7,22 @@
 # and fails over on loss; the host-configurer configures eth0 on the active
 # node. Staging mirrors production so the whole flow is validated here first.
 ciliumEgressGateway:
+  # Stable SSH egress for the CAPI Apple Silicon operator, so the minis'
+  # :22 allow list (macosFleet.sshIngressAllowCIDRs) has one durable address
+  # to name instead of per-node addresses that change on every roll. Shares
+  # the server entry's Floating IP and gateway node.
+  capi:
+    enabled: true
+    namespace: tuist-staging
+    egressIP: 78.47.186.71
   server:
     enabled: true
     namespace: tuist-staging
     egressIP: 78.47.186.71
     hostConfigurator:
       enabled: true
+      nodeSelector:
+        tuist.dev/stable-egress-candidate: server
     failoverController:
       enabled: true
       # Image tag is resolved at deploy time by k8s:install-platform (the

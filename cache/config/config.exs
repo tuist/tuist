@@ -54,12 +54,16 @@ config :cache, Oban,
   queues: [
     clean: 10,
     maintenance: 1,
-    s3_transfers: 1,
-    registry_sync: 1,
-    registry_release: 5
+    s3_transfers: 1
   ],
   plugins: [
     {Oban.Plugins.Pruner, interval: to_timeout(minute: 5), max_age: to_timeout(day: 1)},
+    # Containers are stopped mid-job on every deploy, which strands `executing`
+    # rows that no other plugin clears. 2h is deliberately well above anything
+    # expected to run here rather than a measured ceiling — a rescue that fires
+    # while the original is still running double-runs the job — and the queues
+    # this can touch are concurrency-1 or do idempotent deletes.
+    {Oban.Plugins.Lifeline, rescue_after: to_timeout(hour: 2)},
     {Oban.Plugins.Cron,
      crontab: [
        {"*/10 * * * *", Cache.DiskEvictionWorker},
@@ -93,8 +97,7 @@ config :cache,
   key_value_read_busy_timeout_ms: 2_000,
   key_value_maintenance_busy_timeout_ms: 50,
   key_value_eviction_max_duration_ms: 300_000,
-  key_value_eviction_hysteresis_release_bytes: 23 * 1024 * 1024 * 1024,
-  registry_sync_limit: 1_000
+  key_value_eviction_hysteresis_release_bytes: 23 * 1024 * 1024 * 1024
 
 config :ex_aws, http_client: TuistCommon.AWS.Client
 
@@ -102,6 +105,11 @@ config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [
     :request_id,
+    :method,
+    :route,
+    :request_path,
+    :status,
+    :duration_ms,
     :auth_account_handle,
     :selected_account_handle,
     :selected_project_handle

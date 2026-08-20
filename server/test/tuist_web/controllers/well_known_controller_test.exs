@@ -6,7 +6,16 @@ defmodule TuistWeb.WellKnownControllerTest do
   alias TuistWeb.AgentSkillsDiscovery
 
   setup do
-    stub(Environment, :app_url, fn -> "http://www.example.com" end)
+    stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+    stub(Environment, :app_url, fn options ->
+      if Keyword.get(options, :route_type) == :app do
+        "http://www.example.com"
+      else
+        "https://tuist.dev#{Keyword.get(options, :path, "")}"
+      end
+    end)
+
     :ok
   end
 

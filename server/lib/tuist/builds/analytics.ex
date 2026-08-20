@@ -2758,6 +2758,13 @@ defmodule Tuist.Builds.Analytics do
     * `opts` - Options:
       * `:limit` - Number of builds to consider (default: 100)
       * `:offset` - Number of builds to skip (default: 0)
+      * `:git_branch` - Only consider builds run on the given branch
+      * `:is_ci` - Only consider CI (`true`) or local (`false`) builds
+      * `:min_sample_size` - Return `nil` unless the window matched at least this
+        many builds. The reversed percentiles degenerate to `min(values)` on
+        short windows (the p90 index floors to 0 below 10 rows, p99 below 100),
+        so callers comparing two windows can use this to reject a window that
+        did not fill up.
 
   ## Returns
     The calculated metric value (as a ratio 0.0-1.0), or `nil` if no data available.
@@ -2765,6 +2772,7 @@ defmodule Tuist.Builds.Analytics do
   def build_cache_hit_rate_metric_by_count(project_id, metric, opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
+    git_branch = Keyword.get(opts, :git_branch)
     is_ci = Keyword.get(opts, :is_ci)
 
     query =
@@ -2785,6 +2793,13 @@ defmodule Tuist.Builds.Analytics do
       )
 
     query =
+      if is_binary(git_branch) and git_branch != "" do
+        where(query, [b], b.git_branch == ^git_branch)
+      else
+        query
+      end
+
+    query =
       case is_ci do
         nil -> query
         true -> where(query, [b], b.is_ci == true)
@@ -2793,8 +2808,15 @@ defmodule Tuist.Builds.Analytics do
 
     hit_rates = ClickHouseRepo.all(query)
 
-    calculate_hit_rate_metric_from_values(hit_rates, metric)
+    if below_min_sample_size?(hit_rates, Keyword.get(opts, :min_sample_size)) do
+      nil
+    else
+      calculate_hit_rate_metric_from_values(hit_rates, metric)
+    end
   end
+
+  defp below_min_sample_size?(_values, nil), do: false
+  defp below_min_sample_size?(values, min_sample_size), do: length(values) < min_sample_size
 
   defp calculate_metric_from_values([], _metric), do: nil
 

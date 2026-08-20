@@ -192,6 +192,9 @@ func TestPeerDemuxReconcileCreatesAndTearsDown(t *testing.T) {
 	if !daemonSet.Spec.Template.Spec.HostNetwork {
 		t.Fatal("demux DaemonSet must be host-network")
 	}
+	if serviceLinks := daemonSet.Spec.Template.Spec.EnableServiceLinks; serviceLinks == nil || *serviceLinks {
+		t.Fatal("expected demux service-link environment injection to be disabled")
+	}
 	if daemonSet.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"] != "kura-dedibox" {
 		t.Fatalf("demux must pin to the region pool, got %+v", daemonSet.Spec.Template.Spec.NodeSelector)
 	}

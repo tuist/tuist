@@ -11,6 +11,7 @@ defmodule TuistWeb.RunnerPodsControllerTest do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.Workers.OrphanedRunnersWorker
 
   defp session_fixture(account, attrs) do
     defaults = %{
@@ -83,7 +84,7 @@ defmodule TuistWeb.RunnerPodsControllerTest do
       {:ok, _} =
         Claims.attempt(99_500, account.id, "fleet-podctrl", pod_name, %{platform: :linux, vcpus: 1, memory_gb: 1})
 
-      :ok = Claims.mark_running(99_500, "runner-stranded")
+      :ok = mark_running!(99_500, "runner-stranded")
 
       ok_tokenreview_stub()
 
@@ -97,6 +98,51 @@ defmodule TuistWeb.RunnerPodsControllerTest do
 
       assert response(conn, 204)
       assert Repo.all(from(c in Claim, where: c.pod_name == ^pod_name)) == []
+    end
+
+    test "schedules recovery of the released claim's job so dispatch stops skipping it", %{conn: conn} do
+      account = account_fixture()
+      pod_name = "tuist-linux-runner-stranded-2"
+
+      # Releasing the claim frees the account's budget but leaves the
+      # ClickHouse row at `running`, which `pick_queued` skips. Without a
+      # targeted recovery the job waits out `OrphanedRunnersWorker`'s
+      # 5-minute staleness floor before it can be dispatched again.
+      {:ok, _} =
+        Claims.attempt(99_501, account.id, "fleet-podctrl", pod_name, %{platform: :linux, vcpus: 1, memory_gb: 1})
+
+      :ok = mark_running!(99_501, "runner-stranded-2")
+
+      ok_tokenreview_stub()
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/pods/stopped", %{
+          "pod_name" => pod_name,
+          "ended_at" => DateTime.to_iso8601(~U[2026-05-26 14:00:00.000000Z])
+        })
+
+      assert response(conn, 204)
+
+      # `pod_name` binds the recovery to this attempt: a delayed run must
+      # not act on a row a replacement Pod has since claimed.
+      assert_enqueued(worker: OrphanedRunnersWorker, args: %{workflow_job_id: 99_501, pod_name: pod_name})
+    end
+
+    test "schedules no recovery when the stopped pod held no claim", %{conn: conn} do
+      ok_tokenreview_stub()
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/pods/stopped", %{
+          "pod_name" => "tuist-linux-runner-idle-warm",
+          "ended_at" => DateTime.to_iso8601(~U[2026-05-26 14:00:00.000000Z])
+        })
+
+      assert response(conn, 204)
+      refute_enqueued(worker: OrphanedRunnersWorker)
     end
 
     test "returns 204 when no open session matches (idempotent / out-of-order delivery)", %{conn: conn} do
@@ -202,5 +248,13 @@ defmodule TuistWeb.RunnerPodsControllerTest do
 
       assert json_response(conn, 503)["error"] =~ "kubernetes"
     end
+  end
+
+  # Production threads the caller's own claim handle into `mark_running/3`;
+  # these tests only need "promote the claim that exists", so they read it
+  # back. The guard itself is covered in the `mark_running/3` describe.
+  defp mark_running!(workflow_job_id, runner_name) do
+    claim = Repo.get!(Claim, workflow_job_id)
+    Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
   end
 end

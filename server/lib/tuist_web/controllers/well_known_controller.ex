@@ -118,7 +118,7 @@ defmodule TuistWeb.WellKnownController do
   Returns OAuth Authorization Server metadata.
   """
   def oauth_authorization_server(conn, _params) do
-    issuer = Environment.app_url()
+    issuer = Environment.app_url(route_type: :app)
 
     configuration = %{
       resource: "#{issuer}#{@mcp_path}",
@@ -172,7 +172,7 @@ defmodule TuistWeb.WellKnownController do
   Returns OAuth Protected Resource metadata.
   """
   def oauth_protected_resource(conn, params) do
-    app_url = Environment.app_url()
+    app_url = Environment.app_url(route_type: :app)
 
     case Map.get(params, "resource_path", []) do
       [] ->

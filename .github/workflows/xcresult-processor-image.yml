@@ -12,7 +12,7 @@ name: Xcresult Processor Image
 # workflow's `:<git-sha>` tag is dispatch-only and not consumed by
 # the chart.
 #
-# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
+# Builds on top of `<oci-registry>/macos-tahoe-xcode:<xcode-version-dashes>`
 # (built by `infra/macos-xcode-image`). Xcode lives in the base —
 # the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
 # ships in full Xcode (not the Command Line Tools). This build just
@@ -43,7 +43,7 @@ permissions:
 jobs:
   build:
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 100
+    timeout-minutes: 150
     env:
       PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
       MISE_VERSION: "2026.5.15"
@@ -101,17 +101,15 @@ jobs:
           ls -lh /tmp/release.tar.gz
 
       # Log in BEFORE Packer build so Tart's clone of the
-      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
-      # authenticates. crane writes creds to ~/.docker/config.json,
-      # which Tart reads via the Docker credential-helper protocol
-      # for both the pull (this build's clone of the base) and the
-      # push at the end of the job. See runner-image.yml's matching
-      # step for the long explanation of why we use crane instead
-      # of `tart login`.
-      - name: Log in to GHCR (crane)
-        run: |
-          set -euo pipefail
-          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+      # macos-tahoe-xcode base authenticates. The registry is
+      # tailnet-only and every image on it needs a credential, for
+      # reads as well as writes.
+      - name: Log in to the Tuist OCI registry
+        uses: ./.github/actions/oci-registry-login
+        with:
+          host: ${{ vars.OCI_REGISTRY_HOST }}
+          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
+          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
 
       # 2. Bake the tarball into a Tart image.
       - name: Initialize Packer
@@ -124,9 +122,10 @@ jobs:
         working-directory: infra/xcresult-processor-image
         env:
           XCODE_VERSION: ${{ inputs.xcode_version }}
+          OCI_REGISTRY_HOST: ${{ vars.OCI_REGISTRY_HOST }}
         run: |
           set -euo pipefail
-          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
+          BASE_IMAGE="${OCI_REGISTRY_HOST}/macos-tahoe-xcode:${XCODE_VERSION//./-}"
           echo "Base image: ${BASE_IMAGE}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \
@@ -134,46 +133,22 @@ jobs:
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
 
-      - name: Push image to GHCR
-        env:
-          TART_REGISTRY_HOSTNAME: ghcr.io
-          TART_REGISTRY_USERNAME: tuist-bot
-          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        # Direct tart push, 5 attempts with growing backoff — blob
-        # uploads are content-addressed so each retry only re-uploads
-        # layers that didn't land on the previous attempt, and the
-        # backoff spreads attempts past upload-path degradation windows
-        # (see server-production-deployment.yml's
-        # release-xcresult-processor-image push step). Earlier attempts
-        # here layered on TART_NO_AUTO_PRUNE and a clone-the-base
-        # "restore nvram.bin" step; both failed to fix the intermittent
-        # `Error: The file "nvram.bin" doesn't exist` and the disk-heavy
-        # restore made it worse (the whole VM bundle vanished mid-push).
+      - name: Resolve image tag
+        id: image-tag
         run: |
-          # SHA-tagged builds for ad-hoc deploys; semver tags + `:latest`
-          # are owned by server-production-deployment.yml's release-xcresult-processor job.
           set -euo pipefail
-          GIT_SHA="${GITHUB_SHA::8}"
-          DST="ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
-          for attempt in 1 2 3 4 5; do
-            echo "tart push attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
-            if tart push tuist-xcresult-processor "$DST"; then
-              echo "Pushed ${DST} on attempt ${attempt}"
-              exit 0
-            fi
-            if [ "$attempt" = 5 ]; then
-              echo "tart push failed five times in a row" >&2
-              exit 1
-            fi
-            case "$attempt" in
-              1) delay=60 ;;
-              2) delay=120 ;;
-              3) delay=300 ;;
-              *) delay=600 ;;
-            esac
-            echo "tart push attempt ${attempt} failed; sleeping ${delay}s before retry" >&2
-            sleep "$delay"
-          done
+          echo "value=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+
+      - name: Push image to the Tuist OCI registry
+        timeout-minutes: 90
+        # The production workflow owns semantic-version and latest tags.
+        # This on-demand workflow publishes only its commit tag.
+        uses: ./.github/actions/tart-push
+        with:
+          local-name: tuist-xcresult-processor
+          remote-names: ${{ vars.OCI_REGISTRY_HOST }}/tuist-xcresult-processor:${{ steps.image-tag.outputs.value }}
+          chunk-size: "64"
+          concurrency: "4"
 
       - name: Cleanup
         if: always()

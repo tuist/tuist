@@ -143,7 +143,7 @@ defmodule Tuist.Storage.AzureBlob do
   end
 
   def put_object(object_key, content) do
-    request!(:put, object_key,
+    request(:put, object_key,
       headers: [
         {"content-type", "application/octet-stream"},
         {"x-ms-blob-type", "BlockBlob"}
@@ -182,6 +182,10 @@ defmodule Tuist.Storage.AzureBlob do
 
   def get_object_range(object_key, first..last//1) do
     request(:get, object_key, headers: [{"range", "bytes=#{first}-#{last}"}])
+  end
+
+  def get_object(object_key) do
+    request(:get, object_key)
   end
 
   def multipart_start(_object_key), do: UUIDv7.generate()
@@ -328,13 +332,6 @@ defmodule Tuist.Storage.AzureBlob do
     object_key
     |> blob_url(config: config, query_params: Keyword.get(opts, :query_params, []) ++ sas_params)
     |> URI.to_string()
-  end
-
-  defp request!(method, object_key, opts) do
-    case request(method, object_key, opts) do
-      {:ok, response} -> response
-      {:error, reason} -> raise "Azure Blob request failed: #{inspect(reason)}"
-    end
   end
 
   defp request(method, object_key, opts \\ []) do

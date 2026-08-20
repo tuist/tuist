@@ -19,11 +19,49 @@ defmodule TuistWeb.AcceptInvitationLive do
         organization: nil,
         organization_name: nil,
         invitee_state: resolve(token, user),
-        post_accept_return_to: session["post_invitation_return_to"]
+        post_invitation_return_to: post_invitation_return_to(session, user, token)
       )
 
-    {:ok, hydrate_invitation(socket, token)}
+    socket = hydrate_invitation(socket, token)
+
+    if socket.assigns.invitee_state in [:expired, :not_found] and
+         is_binary(socket.assigns.post_invitation_return_to) do
+      {:ok, redirect(socket, to: socket.assigns.post_invitation_return_to)}
+    else
+      {:ok, socket}
+    end
   end
+
+  defp post_invitation_return_to(
+         %{
+           "post_invitation_return_to" => return_to,
+           "post_invitation_user_id" => expected_user_id,
+           "post_invitation_token" => expected_token
+         },
+         %{id: user_id},
+         token
+       )
+       when expected_user_id == user_id and expected_token == token and is_binary(return_to) do
+    return_path = return_to |> URI.parse() |> Map.get(:path) |> decode_path()
+    return_segments = if is_binary(return_path), do: String.split(return_path, "/", trim: true)
+
+    if String.starts_with?(return_to, "/") and
+         not String.starts_with?(return_to, "//") and
+         is_list(return_segments) and
+         return_segments != ["auth", "invitations", token] do
+      return_to
+    end
+  end
+
+  defp post_invitation_return_to(_session, _user, _token), do: nil
+
+  defp decode_path(path) when is_binary(path) do
+    URI.decode(path)
+  rescue
+    ArgumentError -> nil
+  end
+
+  defp decode_path(_path), do: nil
 
   defp resolve(token, user) do
     case Accounts.get_invitation_by_token(token) do
@@ -259,22 +297,20 @@ defmodule TuistWeb.AcceptInvitationLive do
         organization: socket.assigns.organization
       })
 
-    case {result, socket.assigns.post_accept_return_to} do
+    case {result, socket.assigns.post_invitation_return_to} do
       {{:ok, _invitation}, nil} ->
         {:noreply, assign(socket, accepted: true)}
 
       {{:ok, _invitation}, path} when is_binary(path) ->
-        # Resume whatever flow brought the user here — e.g. the device-code
-        # URL from `tuist auth login`. The session key
-        # `:post_invitation_return_to` is only read here; subsequent SSO
-        # redirects overwrite it, so leaving it behind is harmless.
+        # Resume the flow only when its stored user and invitation context
+        # matched this page during mount.
         {:noreply, redirect(socket, to: path)}
 
       {{:error, :expired}, _path} ->
-        {:noreply, assign(socket, invitee_state: :expired, invitation: nil, organization: nil)}
+        resume_or_assign_invitation_state(socket, :expired)
 
       {{:error, :not_found}, _path} ->
-        {:noreply, assign(socket, invitee_state: :not_found, invitation: nil, organization: nil)}
+        resume_or_assign_invitation_state(socket, :not_found)
     end
   end
 
@@ -284,15 +320,28 @@ defmodule TuistWeb.AcceptInvitationLive do
     case Accounts.get_invitation_by_token(socket.assigns.invitation.token) do
       {:ok, invitation} ->
         Accounts.delete_invitation(%{invitation: invitation})
-        {:noreply, assign(socket, declined: true)}
+
+        if is_binary(socket.assigns.post_invitation_return_to) do
+          {:noreply, redirect(socket, to: socket.assigns.post_invitation_return_to)}
+        else
+          {:noreply, assign(socket, declined: true)}
+        end
 
       {:error, :expired} ->
-        {:noreply, assign(socket, invitee_state: :expired, invitation: nil, organization: nil)}
+        resume_or_assign_invitation_state(socket, :expired)
 
       {:error, :not_found} ->
-        {:noreply, assign(socket, invitee_state: :not_found, invitation: nil, organization: nil)}
+        resume_or_assign_invitation_state(socket, :not_found)
     end
   end
 
   def handle_event("decline_invitation", _params, socket), do: {:noreply, socket}
+
+  defp resume_or_assign_invitation_state(socket, state) do
+    if is_binary(socket.assigns.post_invitation_return_to) do
+      {:noreply, redirect(socket, to: socket.assigns.post_invitation_return_to)}
+    else
+      {:noreply, assign(socket, invitee_state: state, invitation: nil, organization: nil)}
+    end
+  end
 end

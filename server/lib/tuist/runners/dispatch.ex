@@ -25,7 +25,7 @@ defmodule Tuist.Runners.Dispatch do
        no such coupling.
     2. Reject if runners aren't enabled for the customer
        (`FeatureFlags.runners_enabled?/1`, gated by the `:runners`
-       flag in production).
+       flag in canary and production).
     3. LIST RunnerPool CRs in the runners namespace and find the
        one whose `spec.dispatchLabel` is in the workflow_job's
        `labels` array. Reject when nothing matches (the
@@ -51,6 +51,7 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.Workers.FetchLogsWorker
+  alias Tuist.Runners.WorkflowJobs
   alias Tuist.VCS
 
   require Logger
@@ -198,6 +199,15 @@ defmodule Tuist.Runners.Dispatch do
         # Logger.error inside `match_pool/1` gives ops something
         # to alert on.
         {:ignored, :ambiguous_pool}
+
+      {:error, reason} ->
+        Logger.error("runners: failed to enqueue webhook job",
+          repo: full_name,
+          workflow_job_id: Map.get(job, "id"),
+          reason: inspect(reason)
+        )
+
+        {:error, reason}
     end
   end
 
@@ -249,6 +259,7 @@ defmodule Tuist.Runners.Dispatch do
   defp record_execution(runner_name, executed_workflow_job_id, account_id) do
     claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id, account_id)
     session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id, account_id)
+    :ok = WorkflowJobs.record_execution(runner_name, executed_workflow_job_id, account_id)
     outcome = combine_attribution(claim_outcome, session_outcome)
 
     case outcome do
@@ -305,13 +316,44 @@ defmodule Tuist.Runners.Dispatch do
       # the durable session here. `runner_name` is null for a job
       # cancelled while still queued (no runner ever ran it), so this
       # is a no-op for that class.
-      if runner_name != "" and account_id,
-        do: RunnerSessions.record_execution(runner_name, workflow_job_id, account_id)
+      case record_session_execution(runner_name, workflow_job_id, account_id, job) do
+        :ok ->
+          mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps(job), installation_id, repository)
 
-      mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps(job), installation_id, repository)
+        {:error, reason} ->
+          # Leave the delivery unacknowledged so it retries. The billable
+          # job window is recorded nowhere else, and a session missing
+          # either bound bills nothing, so acknowledging here would turn a
+          # transient Postgres failure into permanently lost usage.
+          {:error, reason}
+      end
     else
       :ignored
     end
+  end
+
+  # No runner name means nothing ran (a job cancelled while queued), and no
+  # account means this delivery authenticates as nobody we can attribute to
+  # — neither is a failure, and neither has a window to record.
+  defp record_session_execution("", _workflow_job_id, _account_id, _job), do: :ok
+  defp record_session_execution(_runner_name, _workflow_job_id, nil, _job), do: :ok
+
+  defp record_session_execution(runner_name, workflow_job_id, account_id, job) do
+    case RunnerSessions.record_execution(runner_name, workflow_job_id, account_id, job_execution_window(job)) do
+      {:error, changeset} -> {:error, {:session_execution_write_failed, inspect(changeset.errors)}}
+      _outcome -> :ok
+    end
+  end
+
+  # GitHub's own bounds for the job, which is what the customer is
+  # charged for. The Pod that ran it boots before this window and tears
+  # down after it, and that overhead is ours rather than theirs. Missing
+  # or unparseable timestamps yield an empty window, which bills nothing.
+  defp job_execution_window(job) do
+    %{
+      started_at: parse_step_time(Map.get(job, "started_at")),
+      ended_at: parse_step_time(Map.get(job, "completed_at"))
+    }
   end
 
   defp mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps, installation_id, repository) do
@@ -363,9 +405,15 @@ defmodule Tuist.Runners.Dispatch do
                 conclusion
               )
 
-            ignored ->
-              ignored
+            other ->
+              other
           end
+
+        # Any other failure of the completion write (a rolled-back
+        # transaction, an ordering lock we could not take) is transient, so
+        # the reason goes back to the worker for a retry.
+        {:error, reason} ->
+          {:error, reason}
       end
     end)
   end
@@ -408,6 +456,9 @@ defmodule Tuist.Runners.Dispatch do
     else
       {:error, reason} when reason in [:no_account, :runners_disabled, :no_matching_pool, :no_pools, :ambiguous_pool] ->
         {:ignored, reason}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

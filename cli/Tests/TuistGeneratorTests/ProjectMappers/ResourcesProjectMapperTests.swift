@@ -118,8 +118,40 @@ struct ResourcesProjectMapperTests {
     func mapWhenExternalObjcStaticFrameworkHasResources() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .staticFramework, sources: ["/Absolute/File.m"], resources: .init(resources))
+        let target = Target.test(
+            product: .staticFramework,
+            sources: ["/Absolute/File.m"],
+            resources: .init(resources),
+            metadata: .test(tags: [TargetTags.swiftPackage])
+        )
         let project = Project.test(targets: [target], type: .external(hash: nil))
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        verifyObjcBundleAccessor(
+            for: target,
+            gotTarget: gotTarget,
+            gotSideEffects: gotSideEffects,
+            project: project
+        )
+    }
+
+    @Test
+    func mapWhenLocalSwiftPackageObjcStaticFrameworkHasResources() async throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(
+            product: .staticFramework,
+            sources: ["/Absolute/File.m"],
+            resources: .init(resources),
+            metadata: .test(tags: [TargetTags.swiftPackage])
+        )
+        let project = Project.test(targets: [target], type: .local)
         given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
         given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
@@ -1133,7 +1165,12 @@ struct ResourcesProjectMapperTests {
         // Given
         let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
-        let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
+        let target = Target.test(
+            product: .staticLibrary,
+            sources: sources,
+            resources: .init(resources),
+            metadata: .test(tags: [TargetTags.swiftPackage])
+        )
         let project = Project.test(
             path: try AbsolutePath(validating: "/AbsolutePath/Project"),
             targets: [target],
@@ -1156,12 +1193,20 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenProjectIsNotExternalTargetHasObjcSourceFiles() async throws {
+    func mapWhenRegularProjectHasSwiftPackageDefinitionDoesNotGenerateObjcAccessors() async throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        let project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], type: .local)
+        let project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            settings: Settings(
+                base: ["GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "SWIFT_PACKAGE=0"]],
+                configurations: [:]
+            ),
+            targets: [target],
+            type: .local
+        )
         given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
         given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
@@ -1285,6 +1330,186 @@ struct ResourcesProjectMapperTests {
         #expect(bundleNameSetting == .string("\(project.name)_\(target.name)"))
         let targetKindSetting = gotTarget.settings?.base["PACKAGE_RESOURCE_TARGET_KIND"]
         #expect(targetKindSetting == .string("regular"))
+    }
+
+    @Test
+    func mapWhenStaticTargetHasResourcesSetsModuleResourceBundleAvailableCondition() async throws {
+        // Given
+        let target = Target.test(
+            product: .staticFramework,
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(
+            gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE"])
+        )
+    }
+
+    @Test
+    func mapWhenStaticTargetHasExistingConditionsAppendsModuleResourceBundleAvailable() async throws {
+        // Given
+        let target = Target.test(
+            product: .staticFramework,
+            settings: Settings(
+                base: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["$(inherited)", "CUSTOM_CONDITION"])],
+                configurations: [:]
+            ),
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(
+            gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "CUSTOM_CONDITION", "SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE"])
+        )
+    }
+
+    @Test
+    func mapWhenConfigurationDefinesConditionsAppendsModuleResourceBundleAvailable() async throws {
+        // Given
+        let target = Target.test(
+            product: .staticFramework,
+            settings: Settings(
+                base: [:],
+                configurations: [
+                    .debug: Configuration(settings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": .string("CUSTOM_DEBUG")]),
+                    .release: Configuration(settings: [:]),
+                ]
+            ),
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        let settings = try #require(gotTarget.settings)
+        #expect(
+            settings.configurations[.debug]??.settings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .string("CUSTOM_DEBUG SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE")
+        )
+        #expect(settings.configurations[.release]??.settings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == nil)
+        #expect(
+            settings.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE"])
+        )
+    }
+
+    @Test
+    func mapWhenConditionsContainLookalikeTokenStillAppendsModuleResourceBundleAvailable() async throws {
+        // Given
+        let target = Target.test(
+            product: .staticFramework,
+            settings: Settings(
+                base: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": .string("NOT_SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE")],
+                configurations: [:]
+            ),
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(
+            gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .string("NOT_SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE")
+        )
+    }
+
+    @Test
+    func mapWhenConditionAlreadyPresentInStringDoesNotDuplicateIt() async throws {
+        // Given
+        let target = Target.test(
+            product: .staticFramework,
+            settings: Settings(
+                base: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": .string("SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE CUSTOM")],
+                configurations: [:]
+            ),
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(
+            gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .string("SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE CUSTOM")
+        )
+    }
+
+    @Test
+    func mapWhenDynamicFrameworkHasResourcesDoesNotSetModuleResourceBundleAvailableCondition() async throws {
+        // Given
+        let target = Target.test(
+            product: .framework,
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.first(where: { $0.name == target.name }))
+        #expect(gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == nil)
+    }
+
+    @Test
+    func mapWhenObjcOnlyStaticTargetHasResourcesDoesNotSetModuleResourceBundleAvailableCondition() async throws {
+        // Given
+        let target = Target.test(
+            product: .staticFramework,
+            sources: ["/Absolute/File.m"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.first(where: { $0.name == target.name }))
+        #expect(gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == nil)
     }
 
     @Test

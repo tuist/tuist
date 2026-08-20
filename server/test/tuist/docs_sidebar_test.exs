@@ -14,6 +14,24 @@ defmodule Tuist.Docs.SidebarTest do
     assert [_ | _] = tree
   end
 
+  test "puts the starting journeys first in the guides sidebar" do
+    [%Sidebar.Group{label: nil, items: [chooser]} | rest] = Sidebar.guides_tree()
+
+    assert chooser.label == "Get started"
+    assert chooser.slug == "/en/guides/get-started"
+    assert chooser.icon == "bulb"
+
+    assert Enum.map(chooser.items, &{&1.label, &1.slug}) == [
+             {"Observe", "/en/guides/get-started/observability"},
+             {"Optimize", "/en/guides/get-started/optimization"},
+             {"Run", "/en/guides/get-started/tuist-runners"},
+             {"Ask", "/en/guides/get-started/ask"}
+           ]
+
+    refute Enum.any?(rest, &(&1.label == "Guides"))
+    refute Enum.any?(rest, &(&1.label == "Tutorials"))
+  end
+
   test "all sidebar slugs correspond to actual docs pages" do
     stub(CLI, :sidebar_items, fn -> [] end)
 
@@ -61,6 +79,13 @@ defmodule Tuist.Docs.SidebarTest do
     assert Sidebar.item_or_children_active?(item, "/en/parent")
     assert Sidebar.item_or_children_active?(item, "/en/parent/child")
     refute Sidebar.item_or_children_active?(item, "/en/other")
+  end
+
+  test "returns the top-level category for localized slugs" do
+    assert Sidebar.category_for_slug("/en/guides/install-tuist") == "Guides"
+    assert Sidebar.category_for_slug("/ko/guides/install-tuist") == "Guides"
+    assert Sidebar.category_for_slug("/en/guides/get-started/ask") == "Guides"
+    assert Sidebar.category_for_slug("/en/not-in-the-sidebar") == "Docs"
   end
 
   defp collect_slugs(groups) do

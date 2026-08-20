@@ -85,7 +85,8 @@ These logs are also visible in Console.app by filtering for the `dev.tuist.cache
 All of Tuist's [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) traffic, including server calls, the registry, previews, and cache artifact transfers, goes through a shared `URLSession` with sensible defaults. On slow or congested network paths (for example, a self-hosted setup reaching object storage through a corporate proxy), an individual request can starve and hit the resource timeout before it completes. For cache downloads in particular, hitting the timeout makes Tuist fall back to building the module from source, which is far more expensive than waiting a bit longer for the cached binary. You can tune the underlying settings through environment variables, with the defaults applied when they are unset or set to an invalid value:
 
 ```bash
-# Maximum time (in seconds) a single resource transfer can take before it's cancelled (default: 90)
+# Maximum time (in seconds) a single resource transfer can take before it's cancelled
+# (default: 90, or 600 for whole-file transfers such as test-product shard artifacts)
 export TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE=600
 
 # Maximum time (in seconds) to wait for new data on an existing request (default: 120)
@@ -101,4 +102,24 @@ export TUIST_HTTP_MAXIMUM_RETRY_COUNT=1
 export TUIST_HTTP_RETRY_BASE_DELAY_IN_MILLISECONDS=250
 ```
 
-Raising `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` lets a recoverable but slow download finish instead of timing out. For cache downloads, that means landing a cache hit rather than falling back to a build from source. Lowering `TUIST_HTTP_MAXIMUM_RETRY_COUNT` can keep a longer timeout from multiplying the worst-case wait across several attempts. Retry delays double after every failure, include up to one base delay of random jitter, and never exceed 30 seconds.
+The resource timeout is a wall-clock cap on the whole transfer, not a stall guard, so it has to be large enough for the biggest artifact you move. Whole-file transfers, such as the test products a shard downloads, therefore default to 10 minutes instead of 90 seconds, and a stalled transfer still fails after `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST` without new data. Those transfers read `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` only to raise their cap, never to lower it below 10 minutes, so a value chosen to make cache requests fail fast does not also cancel a shard's download of its test products. Raising `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` lets a recoverable but slow download finish instead of timing out. For cache downloads, that means landing a cache hit rather than falling back to a build from source, so raise it deliberately: the same value that keeps a slow cache download alive also delays the fallback to building from source. Lowering `TUIST_HTTP_MAXIMUM_RETRY_COUNT` can keep a longer timeout from multiplying the worst-case wait across several attempts. Retry delays double after every failure, include up to one base delay of random jitter, and never exceed 30 seconds.
+
+## Trusting a custom CA certificate {#trusting-a-custom-ca-certificate}
+
+By default, Tuist validates TLS certificates against the operating system's root store. When you run a self-hosted Tuist or Kura server that uses a private certificate authority, Tuist needs to trust that CA too. Installing the root in the System keychain (and marking it trusted for SSL) is the standard approach, but that's often impractical on headless CI hosts where there's no GUI session or mobile device management (MDM) to set the trust bit.
+
+In those cases you can point Tuist at a CA certificate bundle directly. The bundle can be PEM (one or more concatenated `-----BEGIN CERTIFICATE-----` blocks) or a single DER file. The system root store stays trusted alongside it, so public certificates keep validating normally and certificate evaluation is never bypassed.
+
+```bash
+# Path to a PEM/DER CA bundle to trust on top of the system root store (default: unset)
+export TUIST_CA_CERTIFICATE=/etc/ssl/certs/self-hosted-ca.pem
+```
+
+You can also declare it in your <.localized_link href="/references/tuist-toml">configuration file</.localized_link>:
+
+```toml
+[network]
+ca_certificate = "/etc/ssl/certs/self-hosted-ca.pem"
+```
+
+The `TUIST_CA_CERTIFICATE` environment variable takes precedence over the configuration file, which makes it convenient to provide as a CI secret without changing the committed manifest.

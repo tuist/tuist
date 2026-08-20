@@ -6,13 +6,10 @@ the registry Worker, which forwards requests to the `registry.tuist.dev`
 ingress. **The pod is a stateless read frontend.** The server-owned writer
 lives under `Tuist.Registry.Swift.*`
 and runs in a separate `TUIST_MODE=swift_registry_sync` pod (see
-`server/AGENTS.md` and
-`infra/helm/tuist/templates/swift-registry-sync-deployment.yaml`). During
-the managed cutover, the currently deployed legacy cache release remains
-the sole scheduled writer for canary and production while staging and
-previews exercise the server-owned writer. Do not redeploy cache from the
-current main branch before cutover because its registry cron has already
-been removed.
+`server/lib/tuist/registry/AGENTS.md` and
+`infra/helm/tuist/templates/swift-registry-sync-deployment.yaml`). The
+server-owned writer is the sole scheduled writer in managed environments;
+the legacy cache registry cron remains disabled.
 
 The service currently hosts the **Swift Package Registry** under
 `/api/registry/swift/*`. The same surface is available under `/swift/*` for
@@ -22,7 +19,14 @@ managed environments that expose the registry service directly.
 - Serve the Swift Package Registry read surface under
   `/api/registry/swift/*` and `/swift/*`.
 - Read package metadata from S3 (`registry/metadata/<scope>/<name>/index.json`).
-- Emit 303 redirects to presigned S3 URLs for source archives.
+- Request strong consistency for metadata reads and revalidation so a reader
+  cannot cache a previous catalog revision after a writer has repaired it.
+- Emit 303 redirects to strongly consistent presigned S3 URLs for source
+  archives without a separate existence request. The consistency query keeps
+  a repaired archive from being shadowed by an older regional object copy.
+  The object-storage download is authoritative for whether an archive exists,
+  so a temporary storage lookup failure cannot be converted into a registry
+  404.
 - Serve manifest bodies in-process. Default `Package.swift` responses
   also include the `Link` header listing alternate manifests.
 - Emit per-ecosystem download/manifest metrics via PromEx, scraped by
@@ -38,9 +42,10 @@ managed environments that expose the registry service directly.
 
 ## Serving model
 - **Source archives** are served as `303` redirects to presigned Tigris
-  URLs. The signed request overrides the object response content type with
-  `application/zip`, including for existing objects with generic metadata.
-  SE-0292 §4.4 explicitly permits this shape for signed archive URLs.
+  URLs. The signed request requests strong consistency and overrides the
+  object response content type with `application/zip`, including for existing
+  objects with generic metadata. SE-0292 §4.4 explicitly permits this shape
+  for signed archive URLs.
 - **Default `Package.swift`** is loaded from Tigris into memory and
   served in-process with an alternate-manifest `Link` header attached.
 - **Version-specific manifests** are also loaded from Tigris and served
@@ -84,8 +89,7 @@ managed environments that expose the registry service directly.
 - Normal deploys run through `.github/workflows/server-deployment.yml`,
   which builds and deploys the registry read image together with the
   server image. In managed canary and production, the
-  `swift_registry_sync` writer remains disabled until cache sync is turned
-  off as a separate, deliberate cutover step.
+  `swift_registry_sync` writer runs as the sole scheduled registry writer.
 
 ### Cluster prereqs
 The chart assumes these are installed in the target cluster (they

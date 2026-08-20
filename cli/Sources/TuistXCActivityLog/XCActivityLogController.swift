@@ -68,12 +68,27 @@ public struct XCActivityLogController: XCActivityLogControlling {
         let logsBuildDirectoryPath = projectDerivedDataDirectory.appending(
             components: "Logs", "Build"
         )
+        let manifestLogFiles = try await manifestLogFiles(in: logsBuildDirectoryPath)
+        if let logFile = mostRecentLogFile(in: manifestLogFiles, filter: filter) {
+            return logFile
+        }
+
+        // Xcode does not always register the logs it writes in LogStoreManifest.plist, which leaves
+        // a valid log on disk that the manifest does not know about. Scanning the directory recovers it.
+        let unregisteredLogFiles = try await unregisteredLogFiles(
+            in: logsBuildDirectoryPath,
+            registeredPaths: Set(manifestLogFiles.map(\.path))
+        )
+        return mostRecentLogFile(in: unregisteredLogFiles, filter: filter)
+    }
+
+    private func manifestLogFiles(in logsBuildDirectoryPath: AbsolutePath) async throws -> [XCActivityLogFile] {
         let logManifestPlistPath = logsBuildDirectoryPath.appending(
             components: "LogStoreManifest.plist"
         )
         guard try await fileSystem.exists(logManifestPlistPath) else {
             Logger.current.debug("Activity log manifest not found at \(logManifestPlistPath.pathString)")
-            return nil
+            return []
         }
         Logger.current.debug("Activity log manifest found at \(logManifestPlistPath.pathString)")
         let plist: XCLogStoreManifestPlist
@@ -86,26 +101,61 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
         Logger.current.debug("Activity log manifest contains \(plist.logs.count) log(s)")
 
-        let logFiles = plist.logs.values.map {
+        return plist.logs.values.map {
             XCActivityLogFile(
                 path: logsBuildDirectoryPath.appending(component: $0.fileName),
                 timeStoppedRecording: Date(timeIntervalSinceReferenceDate: $0.timeStoppedRecording),
                 signature: $0.signature
             )
         }
+    }
+
+    private func unregisteredLogFiles(
+        in logsBuildDirectoryPath: AbsolutePath,
+        registeredPaths: Set<AbsolutePath>
+    ) async throws -> [XCActivityLogFile] {
+        guard try await fileSystem.exists(logsBuildDirectoryPath) else { return [] }
+        let paths = try await fileSystem.glob(
+            directory: logsBuildDirectoryPath,
+            include: ["*.xcactivitylog"]
+        )
+        .collect()
+        .filter { !registeredPaths.contains($0) }
+
+        var logFiles: [XCActivityLogFile] = []
+        for path in paths {
+            // Xcode creates the log file before it writes to it, so an empty log is one that was
+            // never filled in and can't be parsed.
+            guard let metadata = try await fileSystem.fileMetadata(at: path), metadata.size > 0 else { continue }
+            logFiles.append(
+                XCActivityLogFile(
+                    path: path,
+                    timeStoppedRecording: metadata.lastModificationDate,
+                    signature: nil
+                )
+            )
+        }
+        Logger.current.debug("Found \(logFiles.count) activity log(s) on disk that the manifest does not register")
+        return logFiles
+    }
+
+    private func mostRecentLogFile(
+        in logFiles: [XCActivityLogFile],
+        filter: (XCActivityLogFile) -> Bool
+    ) -> XCActivityLogFile? {
         let sortedLogFiles = logFiles.sorted(by: {
             $0.timeStoppedRecording > $1.timeStoppedRecording
         })
         for logFile in sortedLogFiles.prefix(5) {
             Logger.current
                 .debug(
-                    "Activity log entry: signature=\(logFile.signature), timeStoppedRecording=\(logFile.timeStoppedRecording) (timeIntervalSinceReferenceDate: \(logFile.timeStoppedRecording.timeIntervalSinceReferenceDate)), path=\(logFile.path.pathString)"
+                    "Activity log entry: signature=\(logFile.signature ?? "none"), timeStoppedRecording=\(logFile.timeStoppedRecording) (timeIntervalSinceReferenceDate: \(logFile.timeStoppedRecording.timeIntervalSinceReferenceDate)), path=\(logFile.path.pathString)"
                 )
         }
         let logFile = sortedLogFiles
             .filter(filter)
             .first
-        if logFile == nil {
+        if logFile == nil, !sortedLogFiles.isEmpty {
             Logger.current.debug("No activity log matched the filter (all \(sortedLogFiles.count) entries were filtered out)")
         }
         return logFile

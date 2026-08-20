@@ -1788,6 +1788,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        git_branch:
+          description: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
+          type: string
+          x-struct:
+          x-validate:
         gradle_build_id:
           description: The UUID of the associated Gradle build.
           format: uuid
@@ -1804,6 +1809,15 @@ components:
           x-validate:
         modules:
           description: Test module names (for module-level granularity).
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        parallelizable_modules:
+          description: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
           items:
             type: string
             x-struct:
@@ -2112,7 +2126,7 @@ components:
           x-struct:
           x-validate:
         plan:
-          description: The plan associated with the organization
+          description: The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
           enum:
             - air
             - pro
@@ -4280,6 +4294,26 @@ components:
       description: Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
       title: GenerationsIndexAfter
       type: string
+      x-struct:
+      x-validate:
+    CacheToken:
+      description: A short-lived token that proves the subject's cache access
+      properties:
+        expires_in:
+          description: Seconds until the token expires.
+          type: integer
+          x-struct:
+          x-validate:
+        token:
+          description: The token to send to cache nodes.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - token
+        - expires_in
+      title: CacheToken
+      type: object
       x-struct:
       x-validate:
     CASOutputType:
@@ -7727,6 +7761,15 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                only_test_identifiers:
+                  description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
                 scheme:
                   description: The scheme used for the test run.
                   type: string
@@ -7741,6 +7784,15 @@ paths:
                 shard_plan_id:
                   description: The shard plan ID if this test run is part of a sharded execution.
                   type: string
+                  x-struct:
+                  x-validate:
+                skip_test_identifiers:
+                  description: The tests the caller asked this run to exclude.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
                   x-struct:
                   x-validate:
                 status:
@@ -9499,6 +9551,11 @@ paths:
                                     subhashes:
                                       description: Individual component hashes that make up the final hash
                                       properties:
+                                        additional_hashing_inputs:
+                                          description: Additional hashing inputs hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
                                         additional_strings:
                                           description: Additional strings used in the hash
                                           items:
@@ -9681,6 +9738,11 @@ paths:
                                     subhashes:
                                       description: Individual component hashes that make up the final hash
                                       properties:
+                                        additional_hashing_inputs:
+                                          description: Additional hashing inputs hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
                                         additional_strings:
                                           description: Additional strings used in the hash
                                           items:
@@ -9930,6 +9992,12 @@ paths:
           application/json:
             schema:
               properties:
+                sso_automatic_enrollment:
+                  description: When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
+                  nullable: true
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 sso_enforced:
                   description: When true, organization members must use SSO and cannot log in with email and password
                   nullable: true
@@ -10008,6 +10076,12 @@ paths:
           application/json:
             schema:
               properties:
+                sso_automatic_enrollment:
+                  description: When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
+                  nullable: true
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 sso_enforced:
                   description: When true, organization members must use SSO and cannot log in with email and password
                   nullable: true
@@ -15652,6 +15726,15 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: The exact shard plan identifier. When present, it takes precedence over the reference.
+          in: query
+          name: shard_plan_id
+          required: false
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
         - description: The zero-based shard index.
           in: path
           name: shard_index
@@ -15667,6 +15750,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Shard'
           description: The shard
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request parameters are invalid
         '401':
           content:
             application/json:
@@ -16362,6 +16451,11 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                git_branch:
+                  description: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
+                  type: string
+                  x-struct:
+                  x-validate:
                 gradle_build_id:
                   description: The UUID of the associated Gradle build.
                   format: uuid
@@ -16378,6 +16472,15 @@ paths:
                   x-validate:
                 modules:
                   description: Test module names (for module-level granularity).
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                parallelizable_modules:
+                  description: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
                   items:
                     type: string
                     x-struct:
@@ -21259,6 +21362,61 @@ paths:
       summary: Create an automation alert.
       tags:
         - Automation Alerts
+  /api/cache/token:
+    post:
+      callbacks: {}
+      description: |
+        Returns a short-lived token that carries the authenticated subject's cache grants.
+
+        Cache nodes verify it themselves and authorize from the grants it carries, so
+        clients holding a credential a cache node cannot verify locally (a CI project
+        token, for example) avoid a server round-trip per cache authorization. Exchange
+        it once and reuse it until it expires. It is only accepted by cache nodes; it is
+        not an API credential.
+      operationId: getCacheToken
+      parameters:
+        - description: 'Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account.'
+          in: query
+          name: full_handle
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: A short-lived token that proves the subject's cache access
+                properties:
+                  expires_in:
+                    description: Seconds until the token expires.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  token:
+                    description: The token to send to cache nodes.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - token
+                  - expires_in
+                title: CacheToken
+                type: object
+                x-struct:
+                x-validate:
+          description: A cache token for the authenticated subject
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+      summary: Exchange the current credential for a cache token.
+      tags:
+        - Cache
 security:
   - authorization: []
   - cookie: []

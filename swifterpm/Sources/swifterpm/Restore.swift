@@ -5,6 +5,11 @@ enum WorkspaceRestorer {
         let packageRef: [String: String]
         let packagePath: URL
         let canonicalizeLocalBinaryPaths: Bool
+
+        func manifestLoadError(_ error: any Error) -> ToolError {
+            let identity = packageRef["identity"] ?? packagePath.lastPathComponent
+            return ToolError.message("failed to load the manifest for \(identity): \(error)")
+        }
     }
 
     private struct BinaryArtifact {
@@ -101,10 +106,15 @@ enum WorkspaceRestorer {
         // slower ones. Per-target downloads still run concurrently within each
         // context, preserving total parallelism on multi-package restores.
         try await ConcurrentTasks.forEach(contexts) { context in
-            let manifest = try await ManifestLoader.dumpPackage(
-                packageDir: context.packagePath,
-                disableSandbox: disableSandbox
-            )
+            let manifest: Any
+            do {
+                manifest = try await ManifestLoader.dumpPackage(
+                    packageDir: context.packagePath,
+                    disableSandbox: disableSandbox
+                )
+            } catch {
+                throw context.manifestLoadError(error)
+            }
             let binaryTargets = try ManifestParser.binaryTargets(manifest)
             try await ConcurrentTasks.forEach(binaryTargets) { target in
                 try await restoreBinaryArtifact(
@@ -526,7 +536,22 @@ enum WorkspaceRestorer {
 
     private static func binaryArtifacts(in directory: URL) async throws -> [BinaryArtifact] {
         guard try await fileSystem.exists(directory.absolutePath) else { return [] }
-        if fileSystem.isDirectoryAndNotSymlink(directory) {
+        // Follows symlinks, unlike the traversal guard below, because `directory`
+        // here is a path a manifest named explicitly.
+        //
+        // How we materialise a cached package decides whether that path is a
+        // symlink. `replaceWithRegistryDownloadDirectory` gives a registry download
+        // a real package root whose entries are individually symlinked into the
+        // shared source cache, so a root-level `.binaryTarget(path: "Foo.xcframework")`
+        // is itself a symlink. `replaceWithCachedDirectory` symlinks a source-control
+        // checkout as one whole tree, so the same declaration resolves through the
+        // parent link to a real directory and lstat accepts it. Classifying the
+        // registry case with lstat dropped the artifact from the workspace state, and
+        // the generated project then referenced a target that no longer existed.
+        //
+        // CI copies rather than symlinks (`shouldCopyCachedDirectories`), which is
+        // why this only ever reproduced locally.
+        if fileSystem.isDirectoryFollowingSymlinks(directory) {
             if directory.pathExtension == "xcframework" {
                 return [BinaryArtifact(path: directory, kind: ["xcframework": [:]])]
             }

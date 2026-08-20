@@ -1,0 +1,310 @@
+{
+  "apiVersion": "dashboard.grafana.app/v2",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "defu61g6uzswsgf"
+  },
+  "spec": {
+    "annotations": [
+      {
+        "kind": "AnnotationQuery",
+        "spec": {
+          "builtIn": true,
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations \u0026 Alerts",
+          "query": {
+            "datasource": {
+              "name": "-- Grafana --"
+            },
+            "group": "grafana",
+            "kind": "DataQuery",
+            "spec": {},
+            "version": "v0"
+          }
+        }
+      }
+    ],
+    "cursorSync": "Off",
+    "editable": true,
+    "elements": {
+      "panel-1": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "app": "grafana-assistant-app",
+                        "expr": "label_replace(100 * (1 - (node_filesystem_avail_bytes{instance=~\"cache-.*\", mountpoint=\"/cas\"} / node_filesystem_size_bytes{instance=~\"cache-.*\", mountpoint=\"/cas\"})), \"region\", \"$1\", \"instance\", \"cache-(.*)\")",
+                        "instant": true,
+                        "legendFormat": "{{region}}",
+                        "queryType": "instant",
+                        "range": false
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 1,
+          "links": [],
+          "title": "mount point: /cas",
+          "vizConfig": {
+            "group": "gauge",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "max": 100,
+                  "min": 0,
+                  "thresholds": {
+                    "mode": "percentage",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "#EAB839",
+                        "value": 60
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  "unit": "percent"
+                },
+                "overrides": []
+              },
+              "options": {
+                "barShape": "flat",
+                "barWidthFactor": 0.54,
+                "effects": {
+                  "barGlow": false,
+                  "centerGlow": false,
+                  "gradient": false
+                },
+                "endpointMarker": "point",
+                "minVizHeight": 75,
+                "minVizWidth": 75,
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "segmentCount": 63,
+                "segmentSpacing": 0.3,
+                "shape": "gauge",
+                "showThresholdLabels": false,
+                "showThresholdMarkers": true,
+                "sizing": "auto",
+                "sparkline": true,
+                "textMode": "auto"
+              }
+            },
+            "version": "13.2.0-30402795349"
+          }
+        }
+      },
+      "panel-2": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "app": "grafana-assistant-app",
+                        "editorMode": "code",
+                        "expr": "label_replace(100 * (1 - (node_filesystem_avail_bytes{instance=~\"cache-.*\", mountpoint=\"/\"} / node_filesystem_size_bytes{instance=~\"cache-.*\", mountpoint=\"/\"})), \"region\", \"$1\", \"instance\", \"cache-(.*)\")",
+                        "instant": true,
+                        "legendFormat": "{{region}}",
+                        "queryType": "instant",
+                        "range": false
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 2,
+          "links": [],
+          "title": "mount point: /",
+          "vizConfig": {
+            "group": "gauge",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "max": 100,
+                  "min": 0,
+                  "thresholds": {
+                    "mode": "percentage",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "#EAB839",
+                        "value": 60
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  "unit": "percent"
+                },
+                "overrides": []
+              },
+              "options": {
+                "barShape": "flat",
+                "barWidthFactor": 0.54,
+                "effects": {
+                  "barGlow": false,
+                  "centerGlow": false,
+                  "gradient": false
+                },
+                "endpointMarker": "point",
+                "minVizHeight": 75,
+                "minVizWidth": 75,
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "segmentCount": 63,
+                "segmentSpacing": 0.3,
+                "shape": "gauge",
+                "showThresholdLabels": false,
+                "showThresholdMarkers": true,
+                "sizing": "auto",
+                "sparkline": true,
+                "textMode": "auto"
+              }
+            },
+            "version": "13.2.0-30402795349"
+          }
+        }
+      }
+    },
+    "layout": {
+      "kind": "GridLayout",
+      "spec": {
+        "items": [
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-2"
+              },
+              "height": 4,
+              "width": 24,
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-1"
+              },
+              "height": 4,
+              "width": 24,
+              "x": 0,
+              "y": 4
+            }
+          }
+        ]
+      }
+    },
+    "links": [],
+    "liveNow": false,
+    "preferences": {
+      "layout": {
+        "kind": "GridLayout",
+        "spec": {
+          "items": []
+        }
+      }
+    },
+    "preload": false,
+    "tags": [],
+    "timeSettings": {
+      "autoRefresh": "",
+      "autoRefreshIntervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ],
+      "fiscalYearStartMonth": 0,
+      "from": "now-6h",
+      "hideTimepicker": false,
+      "timezone": "browser",
+      "to": "now"
+    },
+    "title": "Tuist Cache Service / Overview",
+    "variables": []
+  }
+}

@@ -7,7 +7,7 @@ defmodule TuistWeb.Router do
   import TuistWeb.Authentication
   import TuistWeb.Authorization
   import TuistWeb.OperatorGrant
-  import TuistWeb.RateLimit.InMemory
+  import TuistWeb.RateLimit
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
@@ -18,12 +18,20 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
-  @public_robots_txt [train_ai: true, search: true]
+  @public_robots_txt [train_ai: true, search: true, ai_input: true]
   @marketing_route_metadata %{type: :marketing, robots_txt: @public_robots_txt}
   @docs_route_metadata %{type: :docs, robots_txt: @public_robots_txt}
 
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
+  end
+
+  pipeline :open_graph_image do
+    plug :put_request_kind, "open_graph_image"
+    # Open Graph images belong to the marketing and docs sites, which are not served
+    # on-premise. Forward these requests away there instead of spinning up a
+    # headless browser render the deployment does not need.
+    plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
   end
 
   pipeline :content_security_policy do
@@ -198,6 +206,11 @@ defmodule TuistWeb.Router do
     plug :put_request_kind, "mcp"
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
+    # Operators are not members of customer accounts, so without this an
+    # operator's MCP session sees only their own projects. Runs after
+    # authentication because the grant is honoured only for the operator it
+    # was minted for.
+    plug :accept_operator_grant_header
     plug TuistWeb.Plugs.MCPRateLimitPlug
   end
 
@@ -237,6 +250,12 @@ defmodule TuistWeb.Router do
 
   scope "/", TuistWeb do
     get "/robots.txt", RobotsTxtController, :show, metadata: %{robots_txt: false}
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:open_api, :open_graph_image]
+
+    get "/open-graph-images/:key", OpenGraphImageController, :show, metadata: %{type: :marketing, robots_txt: false}
   end
 
   # Marketing
@@ -702,6 +721,7 @@ defmodule TuistWeb.Router do
     scope "/cache" do
       get "/access", CacheController, :access
       get "/endpoints", CacheController, :endpoints
+      post "/token", CacheController, :token
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
 
@@ -778,6 +798,10 @@ defmodule TuistWeb.Router do
     post "/atlas/db/query", AtlasDatabaseController, :query
     get "/atlas/db/tables", AtlasDatabaseController, :tables
     get "/atlas/db/tables/:schema/:name", AtlasDatabaseController, :describe
+
+    post "/atlas/clickhouse/query", AtlasClickHouseController, :query
+    get "/atlas/clickhouse/tables", AtlasClickHouseController, :tables
+    get "/atlas/clickhouse/tables/:database/:name", AtlasClickHouseController, :describe
   end
 
   scope "/_internal", TuistWeb.Internal do
@@ -889,6 +913,7 @@ defmodule TuistWeb.Router do
       live "/users/log_in/sso", SSOLoginLive, :new
       live "/users/reset_password", UserForgotPasswordLive, :new
       live "/users/reset_password/:token", UserResetPasswordLive, :edit
+      live "/users/confirm", UserConfirmationInstructionsLive, :new
       live "/users/choose-username", ChooseUsernameLive, :new
     end
 

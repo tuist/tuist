@@ -6,12 +6,13 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
   use Tuist.MCP.Tool,
     name: "list_xcode_module_cache_targets",
     title: "List Xcode Module Cache Targets",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{
         "run_id" => %{
           "type" => "string",
-          "description" => "The ID of the generation or cache run."
+          "description" => "The ID of the generation or cache run, or a Tuist dashboard URL."
         },
         "cache_status" => %{
           "type" => "string",
@@ -59,6 +60,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
                   "project_settings" => %{"type" => "string"},
                   "target_settings" => %{"type" => "string"},
                   "buildable_folders" => %{"type" => "string"},
+                  "additional_hashing_inputs" => %{"type" => "string"},
                   "external" => %{"type" => "string"}
                 },
                 "additionalProperties" => false
@@ -92,6 +94,8 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
       "List module cache targets for a generation or cache run, showing per-target cache hit/miss status and subhashes. Only available for projects with build_system=xcode. The run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/runs/{id}."
 
   def execute(conn, %{"run_id" => run_id} = args) do
+    run_id = MCPTool.resource_id(run_id)
+
     with {:ok, event, _project} <-
            MCPTool.load_and_authorize(
              get_command_event(run_id),
@@ -165,6 +169,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
       project_settings: non_empty(target.project_settings_hash),
       target_settings: non_empty(target.target_settings_hash),
       buildable_folders: non_empty(target.buildable_folders_hash),
+      additional_hashing_inputs: non_empty(target.additional_hashing_inputs_hash),
       external: non_empty(target.external_hash)
     }
     |> Enum.reject(fn {_k, v} -> is_nil(v) end)

@@ -1,6 +1,4 @@
 {{- if .Values.registryCache.enabled }}
-{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
-{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 # Docker Hub pull-through cache (CNCF distribution `registry:2` in proxy
 # mode). The runner fleet's dind sidecars point `--registry-mirror` here
 # instead of pulling docker.io directly: every microVM on a bare-metal
@@ -87,50 +85,7 @@ spec:
             - name: REGISTRY_HTTP_SECRET
               value: {{ . | quote }}
             {{- end }}
-            - name: REGISTRY_STORAGE
-              value: s3
-            - name: REGISTRY_STORAGE_S3_REGION
-              value: {{ include "tuist.objectStorageRegion" . | quote }}
-            - name: REGISTRY_STORAGE_S3_REGIONENDPOINT
-              value: {{ include "tuist.objectStorageEndpoint" . | quote }}
-            - name: REGISTRY_STORAGE_S3_FORCEPATHSTYLE
-              value: "true"
-            # Embedded MinIO is plain http (:9000); external object stores
-            # (Tigris) are https. Drive TLS off the storage mode so the S3
-            # driver doesn't try to speak TLS to an http endpoint.
-            - name: REGISTRY_STORAGE_S3_SECURE
-              value: {{ ternary "false" "true" (eq .Values.objectStorage.mode "embedded") | quote }}
-            - name: REGISTRY_STORAGE_S3_BUCKET
-              value: {{ .Values.registryCache.s3.bucket | quote }}
-            - name: REGISTRY_STORAGE_S3_ROOTDIRECTORY
-              value: {{ .Values.registryCache.s3.rootDirectory | quote }}
-            {{- if and (eq .Values.objectStorage.mode "external") .Values.objectStorage.external.managedSecrets }}
-            # Managed envs: the real S3 creds live in the ESO-synced
-            # object-storage-external-secrets Secret. app-secrets carries
-            # only the (empty) values-supplied key, so the cache must read
-            # from here — same branch the server uses.
-            - name: REGISTRY_STORAGE_S3_ACCESSKEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
-                  key: object-storage-access-key
-            - name: REGISTRY_STORAGE_S3_SECRETKEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
-                  key: object-storage-secret-key
-            {{- else if and $objectStorageAccessKey $objectStorageSecretKey }}
-            - name: REGISTRY_STORAGE_S3_ACCESSKEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
-                  key: object-storage-access-key
-            - name: REGISTRY_STORAGE_S3_SECRETKEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
-                  key: object-storage-secret-key
-            {{- end }}
+            {{- include "tuist.registryStorageEnv" (dict "root" . "s3" .Values.registryCache.s3) | nindent 12 }}
             {{- with .Values.registryCache.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

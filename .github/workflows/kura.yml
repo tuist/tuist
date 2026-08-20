@@ -434,13 +434,23 @@ jobs:
             specs: "spec/e2e/clients_spec.sh"
           - shard_name: discovery-faults-handoff
             specs: "spec/e2e/discovery_spec.sh spec/e2e/faults_spec.sh spec/e2e/handoff_spec.sh"
-          - shard_name: extension-mtls
-            specs: "spec/e2e/extension_spec.sh spec/e2e/mtls_spec.sh"
+          - shard_name: authorization-mtls
+            specs: "spec/e2e/authorization_spec.sh spec/e2e/mtls_spec.sh"
           - shard_name: large-artifact
             specs: "spec/e2e/large_artifact_spec.sh"
           - shard_name: gateway-throughput
             specs: "spec/e2e/grpc_upload_throughput_spec.sh"
             throughput: "1"
+          # rollout_spec.sh joins CI here (it previously ran nowhere): it now
+          # carries the backfill readiness-latch flap check alongside the
+          # drain/writer-lock cases, and backfill_spec.sh is its natural
+          # neighbor (both are flag-on mesh lifecycle suites). This shard also
+          # opts in the multi-GiB undersized-ring capacity check (the #12047
+          # shape), which is why it gets its own shard instead of joining
+          # discovery-faults-handoff.
+          - shard_name: rollout-backfill
+            specs: "spec/e2e/rollout_spec.sh spec/e2e/backfill_spec.sh"
+            backfill_capacity: "1"
     env:
       # Point every compose service at the one prebuilt image (replaces the per-suite retag loop);
       # KURA_E2E_SKIP_BUILD keeps the suites from rebuilding from source.
@@ -449,6 +459,14 @@ jobs:
       # Empty on normal shards; "1" opts the gateway-throughput spec in (it
       # otherwise skips). Only that shard lists the throughput spec.
       KURA_E2E_THROUGHPUT: ${{ matrix.throughput || '' }}
+      # Empty on normal shards; "1" opts the backfill undersized-ring capacity
+      # check in (it moves several GiB, so local runs skip it by default).
+      KURA_E2E_BACKFILL_CAPACITY: ${{ matrix.backfill_capacity || '' }}
+      # NOTE: the mixed-version harness kura/test/e2e/kura_compatibility_rollout.sh
+      # deliberately has no CI job — it builds two Docker images from git refs,
+      # which is too expensive for the PR loop. It is a documented MANUAL
+      # pre-release gate: run it with PREVIOUS_REF set to the previously
+      # released ref before tagging any Kura release (see the script header).
     steps:
       - uses: actions/checkout@v4
 

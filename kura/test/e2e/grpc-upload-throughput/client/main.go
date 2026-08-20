@@ -29,11 +29,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	bs "google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"gopkg.in/yaml.v3"
 )
 
@@ -287,6 +290,13 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "load" {
+		if err := runConcurrentLoad(); err != nil {
+			fmt.Fprintln(os.Stderr, "load:", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	toxAPI := env("TOXIPROXY_API", "http://toxiproxy:8474")
 	toxHost := env("TOXIPROXY_HOST", "toxiproxy")
@@ -358,6 +368,113 @@ func main() {
 	fmt.Printf("\nPASS: raising the nginx HTTP/2 upload window improved throughput %.1fx under %dms RTT\n", speedup, rttMs)
 }
 
+type loadResult struct {
+	duration time.Duration
+	code     codes.Code
+}
+
+// runConcurrentLoad measures the many-small-writes shape used by build caches.
+// All workers share one HTTP/2 connection and begin together, which catches
+// admission policies that are safe for large blobs but reject ordinary burst
+// concurrency independently of actual message size.
+func runConcurrentLoad() error {
+	target := env("LOAD_TARGET", kuraUpstream)
+	concurrency := envInt("LOAD_CONCURRENCY", 100)
+	requests := envInt("LOAD_REQUESTS", concurrency)
+	size := envInt("LOAD_SIZE_KB", 256) * 1024
+	chunk := envInt("CHUNK_KB", 64) * 1024
+	if concurrency < 1 || requests < 1 || size < 1 || chunk < 1 {
+		return fmt.Errorf("load concurrency, requests, size, and chunk must be positive")
+	}
+
+	conn, err := grpc.NewClient(target,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(64<<20)),
+	)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	client := bs.NewByteStreamClient(conn)
+
+	for attempt := 0; attempt < 60; attempt++ {
+		if err := uploadBlob(client, 4096, chunk, 900000+attempt); err == nil {
+			break
+		} else if attempt == 59 {
+			return fmt.Errorf("warmup/readiness failed: %w", err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	jobs := make(chan int)
+	results := make(chan loadResult, requests)
+	start := make(chan struct{})
+	var workers sync.WaitGroup
+	for worker := 0; worker < concurrency; worker++ {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			<-start
+			for seed := range jobs {
+				began := time.Now()
+				err := uploadBlob(client, size, chunk, 1000000+seed)
+				results <- loadResult{duration: time.Since(began), code: status.Code(err)}
+			}
+		}()
+	}
+	go func() {
+		for request := 0; request < requests; request++ {
+			jobs <- request
+		}
+		close(jobs)
+	}()
+
+	wallStarted := time.Now()
+	close(start)
+	workers.Wait()
+	close(results)
+	wall := time.Since(wallStarted)
+
+	codesByName := map[string]int{}
+	latencies := make([]time.Duration, 0, requests)
+	for result := range results {
+		codesByName[result.code.String()]++
+		latencies = append(latencies, result.duration)
+	}
+	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
+	percentile := func(percent int) time.Duration {
+		index := (len(latencies)*percent + 99) / 100
+		if index == 0 {
+			return 0
+		}
+		return latencies[index-1]
+	}
+
+	fmt.Printf("=== Kura concurrent ByteStream load ===\n")
+	fmt.Printf("target=%s requests=%d concurrency=%d size=%dKB chunk=%dKB\n", target, requests, concurrency, size/1024, chunk/1024)
+	fmt.Printf("wall=%s throughput=%.1f requests/s codes=%v\n", wall.Round(time.Millisecond), float64(requests)/wall.Seconds(), codesByName)
+	fmt.Printf("latency min=%s p50=%s p95=%s p99=%s max=%s\n",
+		latencies[0].Round(time.Microsecond),
+		percentile(50).Round(time.Microsecond),
+		percentile(95).Round(time.Microsecond),
+		percentile(99).Round(time.Microsecond),
+		latencies[len(latencies)-1].Round(time.Microsecond),
+	)
+	encoded, _ := json.Marshal(map[string]any{
+		"requests":       requests,
+		"concurrency":    concurrency,
+		"size_kb":        size / 1024,
+		"wall_ms":        wall.Milliseconds(),
+		"requests_per_s": round2(float64(requests) / wall.Seconds()),
+		"codes":          codesByName,
+		"p50_ms":         percentile(50).Milliseconds(),
+		"p95_ms":         percentile(95).Milliseconds(),
+		"p99_ms":         percentile(99).Milliseconds(),
+	})
+	fmt.Printf("LOAD_RESULT_JSON %s\n", encoded)
+	return nil
+}
+
 func round2(f float64) float64 { return float64(int(f*100+0.5)) / 100 }
 
 // measure warms the connection (and waits out backend startup) with a tiny
@@ -427,6 +544,10 @@ func uploadBlob(client bs.ByteStreamClient, size, chunk, seed int) error {
 			first = false
 		}
 		if err := stream.Send(req); err != nil {
+			_, closeErr := stream.CloseAndRecv()
+			if closeErr != nil {
+				return fmt.Errorf("close after send: %w", closeErr)
+			}
 			return fmt.Errorf("send: %w", err)
 		}
 		off = end

@@ -90,6 +90,15 @@ defmodule TuistWeb.ModuleCacheLiveTest do
       assert html_a =~ "iPad, iPhone, Mac with iPad design"
       assert html_a == html_b
     end
+
+    test "renders the additional hashing inputs subhash" do
+      target = target_fixture(additional_hashing_inputs_hash: "additional-inputs-hash")
+
+      html = render_component(&ModuleCacheTab.subhashes_list/1, target: target)
+
+      assert html =~ "Additional hashing inputs"
+      assert html =~ "additional-inputs-hash"
+    end
   end
 
   defp target_fixture(attrs) do
@@ -116,6 +125,7 @@ defmodule TuistWeb.ModuleCacheLiveTest do
         project_settings_hash: "",
         target_settings_hash: "",
         buildable_folders_hash: "",
+        additional_hashing_inputs_hash: "",
         destinations: [],
         additional_strings: []
       },
