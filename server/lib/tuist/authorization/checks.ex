@@ -212,6 +212,18 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
+  def public_account(_, %Account{visibility: :public}) do
+    true
+  end
+
+  def public_account(_, %Account{}) do
+    false
+  end
+
+  def public_account(_, _) do
+    false
+  end
+
   def billing_access(%User{} = user, %Account{} = account) do
     subscription = Tuist.Billing.get_current_active_subscription(account)
 
@@ -221,6 +233,10 @@ defmodule Tuist.Authorization.Checks do
     else
       Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
     end
+  end
+
+  def billing_access(_, _) do
+    false
   end
 
   @doc """
