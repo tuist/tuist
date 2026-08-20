@@ -226,7 +226,13 @@ defmodule TuistWeb.API.CacheController do
   )
 
   def token(conn, params) do
-    case params[:full_handle] |> scope_account_handle() |> free_tier_exhausted_account() do
+    # Authorized before its billing status is revealed: `full_handle` is
+    # caller-controlled, so answering 402 for an account the subject cannot
+    # reach would let anyone probe which accounts are over the free tier.
+    case params[:full_handle]
+         |> scope_account_handle()
+         |> authorized_account_handle(conn)
+         |> free_tier_exhausted_account() do
       nil ->
         {:ok, token, _claims} =
           conn

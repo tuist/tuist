@@ -3,9 +3,11 @@ defmodule Tuist.CacheTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Billing
   alias Tuist.Cache
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -121,6 +123,38 @@ defmodule Tuist.CacheTest do
       assert grants["project"]["write"] == []
       assert grants["account"]["read"] == []
       assert grants["account"]["write"] == []
+    end
+
+    # Resolving the plan per account put one subscription query behind every
+    # account the subject could reach, on the same paths a cache node falls back
+    # to for credentials it cannot verify itself.
+    test "issues the same number of queries regardless of how many accounts are over the free tier" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      queries_for = fn organization_count ->
+        user = AccountsFixtures.user_fixture(preload: [:account])
+
+        for _ <- 1..organization_count do
+          organization = AccountsFixtures.organization_fixture(creator: user)
+          Accounts.add_user_to_organization(user, organization, role: :admin)
+          ProjectsFixtures.project_fixture(account: organization.account)
+
+          Account
+          |> Repo.get!(organization.account.id)
+          |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold)
+          |> Repo.update!()
+        end
+
+        count_queries(fn -> Cache.cache_grants(user) end)
+      end
+
+      # When
+      few = queries_for.(2)
+      many = queries_for.(8)
+
+      # Then
+      assert few == many
     end
 
     test "keeps granting while the account is under the free tier" do

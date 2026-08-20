@@ -5,11 +5,18 @@ defmodule Tuist.Repo.Migrations.ResetFreeTierUsageForAirAccounts do
   # is blocked on the first day for usage it accrued while the cap was not
   # enforced. `plan` 2 is Air; an account with no active or trialing
   # subscription resolves to Air too.
+  #
+  # The persisted counter is zeroed alongside the timestamp because the gate
+  # reads it directly. Setting only the timestamp would leave accounts already
+  # over the threshold blocked until the next daily recomputation, which is the
+  # opposite of what this reset is for. The timestamp is what makes the reset
+  # survive that recomputation.
   def up do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute("""
     UPDATE accounts a
-    SET free_tier_reset_at = now()
+    SET free_tier_reset_at = now(),
+        current_month_remote_cache_hits_count = 0
     WHERE COALESCE((
       SELECT s.plan
       FROM subscriptions s

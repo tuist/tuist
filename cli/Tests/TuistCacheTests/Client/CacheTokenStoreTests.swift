@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Synchronization
 import Testing
+import TuistAlert
 import TuistServer
 import TuistTesting
 
@@ -22,7 +23,7 @@ struct CacheTokenStoreTests {
         )
 
         // When
-        let token = await subject.cacheToken(
+        let token = try await subject.cacheToken(
             authenticationURL: authenticationURL,
             fullHandle: "acme/ios"
         )
@@ -46,7 +47,7 @@ struct CacheTokenStoreTests {
 
         // When
         for _ in 0 ..< 5 {
-            _ = await subject.cacheToken(
+            _ = try await subject.cacheToken(
                 authenticationURL: authenticationURL,
                 fullHandle: "acme/ios"
             )
@@ -72,8 +73,8 @@ struct CacheTokenStoreTests {
         )
 
         // When
-        _ = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
-        _ = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
+        _ = try await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
+        _ = try await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
 
         // Then
         verify(service)
@@ -96,8 +97,8 @@ struct CacheTokenStoreTests {
         )
 
         // When
-        let ios = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
-        let android = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/android")
+        let ios = try await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
+        let android = try await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/android")
 
         // Then
         #expect(ios == "ios-token")
@@ -116,16 +117,16 @@ struct CacheTokenStoreTests {
         )
 
         // When
-        let tokens = await withTaskGroup(of: String?.self) { group in
+        let tokens = try await withThrowingTaskGroup(of: String?.self) { group in
             for _ in 0 ..< 20 {
                 group.addTask {
-                    await subject.cacheToken(
+                    try await subject.cacheToken(
                         authenticationURL: URL(string: "https://auth.tuist.dev")!,
                         fullHandle: "acme/ios"
                     )
                 }
             }
-            return await group.reduce(into: [String?]()) { $0.append($1) }
+            return try await group.reduce(into: [String?]()) { $0.append($1) }
         }
 
         // Then
@@ -149,7 +150,7 @@ struct CacheTokenStoreTests {
         )
 
         // When
-        let token = await subject.cacheToken(
+        let token = try await subject.cacheToken(
             authenticationURL: authenticationURL,
             fullHandle: "acme/ios"
         )
@@ -158,33 +159,42 @@ struct CacheTokenStoreTests {
         #expect(token == nil)
     }
 
-    /// An account over its plan's free tier is refused by cache nodes too, so
-    /// falling back to the original credential silently would leave the build
-    /// looking like a long run of cache misses with nothing explaining it.
-    @Test(.withMockedDependencies()) func warns_when_the_free_tier_is_exhausted() async throws {
+    /// An account over its plan's free tier is refused by cache nodes too, and a
+    /// credential minted before it crossed the threshold can still carry
+    /// locally verifiable grants, so falling back to that credential would keep
+    /// the cache reachable past the point the server refused to mint for it.
+    @Test(.withMockedDependencies()) func refuses_to_fall_back_when_the_free_tier_is_exhausted() async throws {
         // Given
+        let message = "The account 'acme' has reached the limits of the plan 'Tuist Air'."
         let service = MockGetCacheTokenServicing()
         given(service)
             .getCacheToken(serverURL: .any, fullHandle: .any)
-            .willThrow(
-                GetCacheTokenServiceError.freeTierExhausted(
-                    "The account 'acme' has reached the limits of the plan 'Tuist Air'."
-                )
-            )
+            .willThrow(GetCacheTokenServiceError.freeTierExhausted(message))
         let subject = CacheTokenStore(
             getCacheTokenService: service,
             cachedValueStore: CachedValueStore(backend: .inSystemProcess)
         )
 
-        // When
-        let token = await subject.cacheToken(
-            authenticationURL: authenticationURL,
-            fullHandle: "acme/ios"
-        )
+        // When / Then
+        await #expect(throws: GetCacheTokenServiceError.self) {
+            try await subject.cacheToken(
+                authenticationURL: authenticationURL,
+                fullHandle: "acme/ios"
+            )
+        }
 
-        // Then
-        #expect(token == nil)
-        TuistTest.expectLogs("has reached the limits of the plan 'Tuist Air'")
+        // The refusal sticks, rather than lapsing into the credential fallback
+        // the way an unreachable exchange does.
+        await #expect(throws: GetCacheTokenServiceError.self) {
+            try await subject.cacheToken(
+                authenticationURL: authenticationURL,
+                fullHandle: "acme/ios"
+            )
+        }
+
+        #expect(
+            AlertController.current.warnings().map(\.message).map { $0.plain() } == [message]
+        )
     }
 
     /// A server that cannot mint a token stays that way, and a build makes
@@ -205,7 +215,7 @@ struct CacheTokenStoreTests {
         // When
         var tokens: [String?] = []
         for _ in 0 ..< 50 {
-            await tokens.append(
+            try await tokens.append(
                 subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
             )
         }
@@ -234,9 +244,9 @@ struct CacheTokenStoreTests {
         )
 
         // When
-        _ = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
+        _ = try await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
         clock.advance(by: 61)
-        _ = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
+        _ = try await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
 
         // Then
         verify(service)
@@ -258,16 +268,16 @@ struct CacheTokenStoreTests {
         )
 
         // When
-        _ = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
+        _ = try await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
         clock.advance(by: 61)
-        let recovered = await subject.cacheToken(
+        let recovered = try await subject.cacheToken(
             authenticationURL: authenticationURL,
             fullHandle: "acme/ios"
         )
         // The token it hands back is already past the refresh margin, so this
         // needs a fresh exchange and would be blocked by the unavailability the earlier
         // failure left behind.
-        let refreshed = await subject.cacheToken(
+        let refreshed = try await subject.cacheToken(
             authenticationURL: authenticationURL,
             fullHandle: "acme/ios"
         )

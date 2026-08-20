@@ -734,6 +734,47 @@ defmodule Tuist.Billing do
       over_free_tier?(account.current_month_remote_cache_hits_count)
   end
 
+  @doc """
+  The ids of the given accounts whose free tier is exhausted.
+
+  Only accounts already past the threshold need their plan resolved, and those
+  are resolved in one query rather than one apiece, so the cache authorization
+  paths do not scale a query per account the subject can reach.
+  """
+  def cache_blocked_account_ids(accounts) do
+    candidates =
+      accounts
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.filter(&over_free_tier?(&1.current_month_remote_cache_hits_count))
+
+    case candidates do
+      [] ->
+        MapSet.new()
+
+      candidates ->
+        plans = latest_active_plans(Enum.map(candidates, & &1.id))
+
+        candidates
+        |> Enum.filter(&(Map.get(plans, &1.id, :air) == :air))
+        |> MapSet.new(& &1.id)
+    end
+  end
+
+  # Ordered rather than compared in memory: `Enum.group_by/3` keeps the order it
+  # is given within each group, and comparing `inserted_at` structs by term
+  # order is not chronological.
+  defp latest_active_plans(account_ids) do
+    from(s in Subscription,
+      where: s.account_id in ^account_ids,
+      where: s.status in ["active", "trialing"],
+      order_by: [desc: s.inserted_at, desc: s.id],
+      select: {s.account_id, s.plan}
+    )
+    |> Repo.all()
+    |> Enum.group_by(fn {account_id, _plan} -> account_id end, fn {_account_id, plan} -> plan end)
+    |> Map.new(fn {account_id, [latest | _]} -> {account_id, latest} end)
+  end
+
   # Elixir orders atoms above numbers, so a nil counter would compare as being
   # over the threshold and deny the account.
   defp over_free_tier?(nil), do: false

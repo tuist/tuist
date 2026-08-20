@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistAlert
 import TuistLogging
 import TuistServer
 
@@ -8,8 +9,10 @@ public protocol CacheTokenStoring: Sendable {
     /// Returns a token that cache nodes can verify by themselves, exchanging the
     /// caller's credential for one when there is no live token to reuse.
     /// Returns nil when the exchange is unavailable, leaving the caller to send
-    /// the credential it already has.
-    func cacheToken(authenticationURL: URL, fullHandle: String?) async -> String?
+    /// the credential it already has. Throws when the account's plan bars it
+    /// from the cache, which the caller must not paper over by sending the
+    /// credential instead.
+    func cacheToken(authenticationURL: URL, fullHandle: String?) async throws -> String?
 }
 
 /// Exchanges the credential the CLI authenticates with for one a cache node can
@@ -47,6 +50,11 @@ public actor CacheTokenStore: CacheTokenStoring {
     /// rather than on every one of them.
     private var warnedFreeTierExhausted = false
 
+    /// Keyed like `unavailableUntil`. Held for the life of the process because
+    /// an exhausted plan is not something the next request recovers from, and
+    /// forgetting it would resume the credential fallback it exists to stop.
+    private var freeTierExhausted: [String: String] = [:]
+
     public init() {
         self.init(getCacheTokenService: GetCacheTokenService())
     }
@@ -64,11 +72,15 @@ public actor CacheTokenStore: CacheTokenStoring {
     private func warnFreeTierExhausted(_ message: String) {
         guard !warnedFreeTierExhausted else { return }
         warnedFreeTierExhausted = true
-        Logger.current.warning("\(message)")
+        AlertController.current.warning(.alert("\(message)"))
     }
 
-    public func cacheToken(authenticationURL: URL, fullHandle: String?) async -> String? {
+    public func cacheToken(authenticationURL: URL, fullHandle: String?) async throws -> String? {
         let key = "cache-token-\(authenticationURL.absoluteString)-\(fullHandle ?? "")"
+
+        if let message = freeTierExhausted[key] {
+            throw GetCacheTokenServiceError.freeTierExhausted(message)
+        }
 
         if let unavailableUntil = unavailableUntil[key], unavailableUntil > now() {
             return nil
@@ -97,10 +109,13 @@ public actor CacheTokenStore: CacheTokenStoring {
             if let tokenError = error as? GetCacheTokenServiceError,
                case let .freeTierExhausted(message) = tokenError
             {
-                // Cache nodes refuse the original credential too, so falling back
-                // silently would present an exhausted plan as a long run of cache
-                // misses with nothing explaining it.
+                // Not a fallback case. A credential minted before the account
+                // crossed the threshold can still carry locally verifiable cache
+                // grants, so sending it would keep the cache reachable past the
+                // point the server refused to mint for it.
                 warnFreeTierExhausted(message)
+                freeTierExhausted[key] = message
+                throw tokenError
             } else {
                 // Cache nodes still accept the original credential, so a server
                 // that cannot mint one (an older self-hosted deployment, for

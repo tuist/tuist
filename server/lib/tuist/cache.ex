@@ -238,9 +238,10 @@ defmodule Tuist.Cache do
   # is dropped here rather than at each of the four callers that turn these
   # into handles, grants or token claims.
   defp accessible_accounts(resource) do
-    resource
-    |> resolve_accessible_accounts()
-    |> Enum.reject(&Billing.cache_access_blocked?/1)
+    accounts = resolve_accessible_accounts(resource)
+    blocked = Billing.cache_blocked_account_ids(accounts)
+
+    Enum.reject(accounts, &MapSet.member?(blocked, &1.id))
   end
 
   defp resolve_accessible_accounts(%User{} = user) do
@@ -297,14 +298,14 @@ defmodule Tuist.Cache do
     |> reject_projects_of_blocked_accounts()
   end
 
-  # The plan is resolved once per distinct account rather than once per project,
-  # so the cost stays flat in the number of projects an account owns.
+  # Plans are resolved for every distinct account in one query, so the cost stays
+  # flat in both the number of projects and the number of accounts.
   defp reject_projects_of_blocked_accounts(projects) do
     blocked =
       projects
       |> Enum.uniq_by(& &1.account_id)
-      |> Enum.filter(&Billing.cache_access_blocked?(&1.account))
-      |> MapSet.new(& &1.account_id)
+      |> Enum.map(& &1.account)
+      |> Billing.cache_blocked_account_ids()
 
     Enum.reject(projects, &MapSet.member?(blocked, &1.account_id))
   end
