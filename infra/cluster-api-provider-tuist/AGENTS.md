@@ -522,16 +522,57 @@ the same shape by formatting the default layout's `/data` as XFS
 (`internal/dedibox`), since its API already carves small-root + large-`/data`.
 
 **Already-adopted boxes need a reinstall.** Partitioning cannot change in place,
-so a box installed before this (every OVH and Dedibox box adopted to date) has
-either no separate `/data` or an ext4 one, and its cache volumes stay unbounded.
-They keep working: the provisioner hooks no-op with a log rather than refusing,
-so an old box does not become unschedulable, and `kura_volume_quota_enforced` is
-`0` on exactly those nodes. To convert one, drain and release it, then re-prep it
-(`baremetal:prep-ovh` / `baremetal:prep-dedibox`), which reinstalls it onto the
-split layout and marks it back into the pool. Sequence it region by region: the
-reinstall wipes the box, so the region's cache is cold afterwards. That is safe,
-since a Kura miss is a miss and the client rebuilds and re-uploads, but it is a cold
-region until it refills, so do not do two regions at once.
+so a box installed before this has either no separate `/data` or an ext4 one, and
+its cache volumes stay unbounded. They keep working: the provisioner hooks no-op
+with a log rather than refusing, so an old box does not become unschedulable, and
+`kura_volume_quota_enforced` is `0` on exactly those nodes, which is the query for
+what is left to convert.
+
+### Converting a live cache box
+
+**Do not delete the Machine out from under running cache pods.** It deadlocks,
+and this is pre-existing rather than anything the quota work introduced:
+
+1. CAPI drains the Node before the infrastructure controller runs. Draining
+   evicts a cache pod.
+2. That pod's PVC is still bound to a local-path PV with a
+   `kubernetes.io/hostname` affinity to the box being drained, so the replacement
+   pod has nowhere to schedule and stays Pending.
+3. Each `KuraInstance` has a `PodDisruptionBudget` of `minAvailable: 1`, so with
+   the first replica down the eviction API refuses the second.
+4. `deleteNodeLocalPVCs` (below) is what would free the volume, and it runs
+   AFTER drain in `reconcileDelete`. With `nodeDrainTimeout` unset on these
+   fleets, drain has no deadline, so the Machine sits in Deleting indefinitely.
+
+Free the volumes first, onto a second box. A region's instances run a primary
+plus a warm standby, and the public Service selects ONE of them by pod name, so
+the standby can be moved with nothing user-visible happening:
+
+1. Prep a second box into the region's pool and raise `replicas`. Before
+   touching anything live, confirm the new box can actually enforce: provision a
+   throwaway PVC on it and check `kura_volume_quota_enforced` is `1` there. The
+   provisioner hook is fail-closed, so a box that cannot enforce will hold the
+   migration at Pending rather than proceeding, and that is much better
+   discovered before the old box is cordoned.
+2. Cordon the old box.
+3. Move the STANDBY replica: delete its PVC (it stays Terminating under
+   `pvc-protection`), then delete its pod. Deleting the pod first only rebinds it
+   to the same PV. Once both are gone the StatefulSet recreates them and
+   `WaitForFirstConsumer` binds the new claim on the second box.
+4. Wait for the moved replica to catch up from its peer before handing it
+   traffic. Kura backfills a fresh replica from the peer it joins (`kura/src/backfill/`),
+   so the cache content follows even though the volume does not; gate on that
+   pod's backfill metrics rather than a timer.
+5. Let the primary role hand over, then repeat 3-4 for the ex-primary.
+6. Delete the old Machine once it holds no cache pods. Drain is trivial now, and
+   release reinstalls it onto the split layout and returns it to the pool.
+
+Releasing an OVH box is not a contract termination, so a region left at two boxes
+keeps paying for both. Decide whether the second box is capacity you want or a
+contract to cancel out of band.
+
+Setting `nodeDrainTimeout` on these fleets would turn the deadlock above into a
+bounded failure. Worth doing independently of any conversion.
 
 ### Scale up
 ```bash
