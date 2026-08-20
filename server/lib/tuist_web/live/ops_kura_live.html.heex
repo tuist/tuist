@@ -19,6 +19,14 @@
 
   <%= if @rollout do %>
     <.card title={"Rollout #{@rollout.image_tag}"} icon="cube_send">
+      <:actions>
+        <.button
+          variant="secondary"
+          label="View details"
+          size="medium"
+          navigate={~p"/ops/kura/rollouts/#{@rollout.id}"}
+        />
+      </:actions>
       <.card_section>
         <div data-part="rollout-summary">
           <.rollout_facts rollout={@rollout} />
@@ -32,21 +40,6 @@
     <.card title="Waves" icon="chart_column">
       <.card_section>
         <.waves_table id="kura-rollout-waves-table" waves={@waves} />
-      </.card_section>
-    </.card>
-
-    <.card title="Recent events" icon="history">
-      <:actions>
-        <.button
-          variant="secondary"
-          label="View all"
-          size="medium"
-          navigate={~p"/ops/kura/rollouts/#{@rollout.id}"}
-          disabled={@events_total == 0}
-        />
-      </:actions>
-      <.card_section>
-        <.events_table id="kura-rollout-events-table" events={@events} />
       </.card_section>
     </.card>
   <% else %>

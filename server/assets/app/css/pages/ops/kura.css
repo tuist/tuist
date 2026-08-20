@@ -46,26 +46,31 @@
     align-items: flex-end;
     gap: var(--noora-spacing-5);
 
-    & [data-part="action-label"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    & > [data-part="reason-field"] {
+      flex: 1;
+      min-width: 280px;
     }
 
-    & [data-part="action-select"] {
-      height: var(--noora-spacing-9);
-      padding: var(--noora-spacing-2) var(--noora-spacing-4);
-      border: 1px solid var(--noora-surface-border-primary);
-      border-radius: var(--noora-radius-medium);
-      background: var(--noora-surface-background-primary);
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-    }
-  }
+    & .select-field {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      min-width: 240px;
 
-  & [data-part="rollout-link"] {
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-    text-decoration: underline;
+      /* Plain <select> (not Noora's <.select>) — Noora's select doesn't
+         serialize through the form submit, so a native select styled to
+         match is used, as on the ops account page. */
+      & > select {
+        appearance: auto;
+        height: var(--noora-spacing-9);
+        padding: var(--noora-spacing-2) var(--noora-spacing-4);
+        border: 1px solid var(--noora-surface-border-primary);
+        border-radius: var(--noora-radius-medium);
+        background: var(--noora-surface-background-primary);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-body-medium);
+      }
+    }
   }
 
   & [data-part="disabled-note"],

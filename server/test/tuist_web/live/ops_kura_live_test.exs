@@ -85,14 +85,16 @@ defmodule TuistWeb.OpsKuraLiveTest do
     assert event.reason == "observed suspicious latency"
   end
 
-  test "shows only recent events and links to the full trail", %{conn: conn} do
+  test "links to the rollout detail page for the audit trail", %{conn: conn} do
     rollout = create_rollout()
     record_events(rollout, 12)
 
     {:ok, _lv, html} = live(conn, ~p"/ops/kura")
 
-    assert html =~ "View all"
+    # The overview carries no event table; the trail lives on the detail page.
+    assert html =~ "View details"
     assert html =~ ~p"/ops/kura/rollouts/#{rollout.id}"
+    refute html =~ "wave_completed"
   end
 
   test "links to the paginated rollout history when there are more rollouts", %{conn: conn} do

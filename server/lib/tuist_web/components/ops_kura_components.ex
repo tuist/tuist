@@ -70,24 +70,39 @@ defmodule TuistWeb.OpsKuraComponents do
   def rollout_controls(assigns) do
     ~H"""
     <form phx-submit="operate" data-part="rollout-controls">
-      <.text_input
-        id="reason"
-        name="reason"
-        label="Reason"
-        placeholder="Recorded on the rollout's audit trail"
-        required
-        show_required
-      />
-      <label data-part="action-label" for="action">Action</label>
-      <select name="action" id="action" data-part="action-select">
-        <option :if={@rollout.status == :running} value="pause">Pause</option>
-        <option :if={@rollout.status == :paused} value="resume">Resume (re-attempt)</option>
-        <option value="expedite">Expedite (fan out remainder)</option>
-        <option value="abort">Abort</option>
-      </select>
+      <div data-part="reason-field">
+        <.text_input
+          id="reason"
+          name="reason"
+          label="Reason"
+          placeholder="Recorded on the rollout's audit trail"
+          required
+          show_required
+        />
+      </div>
+      <div class="select-field">
+        <.label label="Action" required />
+        <select name="action" id="action">
+          <option :for={{value, label} <- operator_actions(@rollout)} value={value}>{label}</option>
+        </select>
+      </div>
       <.button type="submit" variant="primary" label="Apply" />
     </form>
     """
+  end
+
+  # Resume and pause are mutually exclusive on status; expedite and abort
+  # apply to any non-terminal rollout.
+  defp operator_actions(%{status: :running}) do
+    [{"pause", "Pause"} | shared_operator_actions()]
+  end
+
+  defp operator_actions(%{status: :paused}) do
+    [{"resume", "Resume (re-attempt)"} | shared_operator_actions()]
+  end
+
+  defp shared_operator_actions do
+    [{"expedite", "Expedite (fan out remainder)"}, {"abort", "Abort"}]
   end
 
   attr :id, :string, required: true
@@ -155,11 +170,13 @@ defmodule TuistWeb.OpsKuraComponents do
 
   def rollouts_table(assigns) do
     ~H"""
-    <.table id={@id} rows={@rollouts}>
+    <.table
+      id={@id}
+      rows={@rollouts}
+      row_navigate={fn rollout -> ~p"/ops/kura/rollouts/#{rollout.id}" end}
+    >
       <:col :let={rollout} label="Tag">
-        <.link data-part="rollout-link" navigate={~p"/ops/kura/rollouts/#{rollout.id}"}>
-          {rollout.image_tag}
-        </.link>
+        <.text_cell label={rollout.image_tag} />
       </:col>
       <:col :let={rollout} label="Status">
         <.text_cell label={to_string(rollout.status)} />

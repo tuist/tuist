@@ -56,8 +56,6 @@ defmodule TuistWeb.OpsKuraLive do
     |> assign(:orchestration_enabled, FeatureFlags.kura_rollout_orchestration_enabled?())
     |> assign(:rollout, rollout)
     |> assign(:waves, (rollout && Rollouts.wave_summary(rollout)) || [])
-    |> assign(:events, (rollout && Rollouts.list_events(rollout, @recent_limit)) || [])
-    |> assign(:events_total, (rollout && Rollouts.count_events(rollout)) || 0)
     |> assign(:rollouts, Rollouts.list_rollouts(@recent_limit))
     |> assign(:rollouts_total, Rollouts.count_rollouts())
   end
