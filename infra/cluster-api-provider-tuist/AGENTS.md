@@ -493,6 +493,46 @@ the box back into the pool**. It stays a monthly contract (release is not a cont
 termination), but the reinstall wipes the OS to a clean, claimable state — any
 node-local volume is lost and the host key rotates, so the next claim re-TOFUs it.
 
+### Disk layout, and why it is an install-time decision
+
+Every install these kinds start lays down a mirrored root plus a **separate XFS
+`/data`**, and the self-join then mounts `/data` with `prjquota` and refuses to
+join a box where it cannot (`dataProjectQuotaScript` in
+`controllers/linux/linux_cloudinit.go`).
+
+The chain it exists to close: a Kura cache PV is a local-path *directory* on
+`/data`, a directory has no size, so the pod's `ephemeral-storage` request is
+scheduler admission at placement time and nothing bounds what one account
+actually writes. An `ephemeral-storage` limit would not help: it is enforced
+against the pod's writable layer, logs and emptyDir, none of which is where the
+cache lives. XFS project quotas are the only real boundary, and the
+local-path-provisioner hooks in `infra/helm/tuist/templates/kura-fleet-storage.yaml`
+set one per volume from the PVC's requested size (which the kura-controller
+sizes from `KuraInstance.spec.storageSize`). Without it, one instance filling
+the box crosses kubelet's eviction line and takes down every tenant on it.
+
+The layout comes from the box's real disk groups (`ovh.PlanStorage`,
+`GET /dedicated/server/{name}/specifications/hardware`), so one code path covers
+both shapes in the fleet: a single NVMe mirror gets `/boot` + a capped `/` +
+`/data` filling the rest, and a box with a small OS mirror plus a larger data
+mirror puts `/` on the smaller group and gives the larger one to `/data` whole.
+`StartInstall` refuses to post a reinstall it cannot plan a layout for, rather
+than falling back to the provider's default single-root install. Dedibox takes
+the same shape by formatting the default layout's `/data` as XFS
+(`internal/dedibox`), since its API already carves small-root + large-`/data`.
+
+**Already-adopted boxes need a reinstall.** Partitioning cannot change in place,
+so a box installed before this (every OVH and Dedibox box adopted to date) has
+either no separate `/data` or an ext4 one, and its cache volumes stay unbounded.
+They keep working: the provisioner hooks no-op with a log rather than refusing,
+so an old box does not become unschedulable, and `kura_volume_quota_enforced` is
+`0` on exactly those nodes. To convert one, drain and release it, then re-prep it
+(`baremetal:prep-ovh` / `baremetal:prep-dedibox`), which reinstalls it onto the
+split layout and marks it back into the pool. Sequence it region by region: the
+reinstall wipes the box, so the region's cache is cold afterwards. That is safe,
+since a Kura miss is a miss and the client rebuilds and re-uploads, but it is a cold
+region until it refills, so do not do two regions at once.
+
 ### Scale up
 ```bash
 kubectl scale machinedeployment <fleet-name> --replicas=4

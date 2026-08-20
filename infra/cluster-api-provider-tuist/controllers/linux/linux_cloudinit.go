@@ -346,7 +346,7 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 %[2]ssystemctl daemon-reexec || true
 export DEBIAN_FRONTEND=noninteractive
 %[3]sapt-get update
-%[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd
+%[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd xfsprogs
 %[2]smkdir -p /etc/containerd /etc/containerd/certs.d/docker.io
 %[4]s
 %[6]s
@@ -603,6 +603,10 @@ func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euxo pipefail
 %[8]s%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
+# Turn project quotas on for /data before anything mounts off it: XFS only takes
+# quota accounting at mount time, and the bind below would pin the filesystem
+# busy. Aborts the join on a box whose /data cannot carry per-account quotas.
+%[11]s
 # Bring up the kubelet root's /data bind-mount BEFORE writing its config below, so
 # a box with a separate /data disk doesn't shadow config.yaml + kubeconfig once
 # the mount lands (which left the kubelet crash-looping on a missing config).
@@ -625,7 +629,94 @@ set -euxo pipefail
 		nopasswdSetup(opts.BootstrapUser, opts.SudoPassword),
 		dataKubeletMount(sudo),
 		caWrite,
+		dataProjectQuotaSetup(sudo, writeFile),
 	)
+}
+
+// dataProjectQuotaPath is where the self-join drops the script that turns
+// project quotas on for /data. Kept on disk (rather than inlined) because it is
+// also the recovery step an operator runs by hand after changing /etc/fstab.
+const dataProjectQuotaPath = "/usr/local/sbin/tuist-data-prjquota.sh"
+
+// dataProjectQuotaScript makes /data carry XFS project quotas, or refuses to let
+// the box join.
+//
+// Every Kura cache directory on these boxes is a local-path PV: a directory on
+// /data. A directory has no size, so nothing in Kubernetes bounds what one
+// account's instance writes. The pod's ephemeral-storage request is scheduler
+// admission at placement time, and an ephemeral-storage LIMIT would be enforced
+// against the pod's writable layer, logs and emptyDir, none of which is where
+// the cache lives. XFS project quotas are the only real boundary, and they are
+// what the provisioner's per-volume hooks set. One instance filling the box
+// crosses kubelet's eviction line and takes down every tenant on it, not just
+// the account that filled it.
+//
+// Two things make this a hard failure rather than a warning. Quota accounting is
+// a mount-time decision on XFS (`mount -o remount` cannot add it), so the
+// remount has to happen here, before anything binds onto /data, or not until the
+// next reboot. And a box that joins without it looks completely healthy while
+// being the one thing this change exists to prevent: unbounded, shared, and
+// only visibly wrong once a tenant has already taken the box down. Failing the
+// join surfaces that as a Machine that never goes Ready.
+//
+// A box with no separate /data (the single-filesystem Elastic Metal shape) is
+// left alone: it has no /data for cache directories to land on, so there is
+// nothing here to enforce.
+const dataProjectQuotaScript = `#!/usr/bin/env bash
+set -euo pipefail
+
+data=/data
+
+mountpoint -q "$data" || exit 0
+[ "$(findmnt -no SOURCE "$data")" != "$(findmnt -no SOURCE /)" ] || exit 0
+
+fstype="$(findmnt -no FSTYPE "$data")"
+if [ "$fstype" != xfs ]; then
+  echo "tuist: $data is $fstype, but per-account cache quotas need xfs project quotas." >&2
+  echo "tuist: this box predates the xfs /data layout and cannot grow one in place; reinstall it (mise run baremetal:prep-ovh / prep-dedibox) before it can rejoin." >&2
+  exit 1
+fi
+
+has_project_quota() {
+  case ",$(findmnt -no OPTIONS "$data")," in
+    *,prjquota,*|*,pquota,*) return 0 ;;
+  esac
+  return 1
+}
+
+if ! has_project_quota; then
+  if ! grep -qE "^[^#]+[[:space:]]+/data[[:space:]]" /etc/fstab; then
+    echo "tuist: $data is mounted but has no /etc/fstab entry to add prjquota to." >&2
+    exit 1
+  fi
+  # Rewrite only the /data options field; awk leaves every other line byte-identical
+  # because it only rebuilds a record whose fields it assigned. Written back through
+  # cat so /etc/fstab keeps its own inode and permissions.
+  awk '$1 !~ /^#/ && $2 == "/data" && $4 !~ /(^|,)(prjquota|pquota)(,|$)/ { $4 = $4 ",prjquota" } { print }' /etc/fstab > /tmp/fstab.tuist
+  cat /tmp/fstab.tuist > /etc/fstab
+  rm -f /tmp/fstab.tuist
+  # Safe at this point in the join: nothing has bind-mounted off /data yet, so
+  # the cycle cannot hit EBUSY and no running workload sees it disappear.
+  umount "$data"
+  mount "$data"
+fi
+
+if ! has_project_quota; then
+  echo "tuist: $data remounted without project quotas active; refusing to join an unbounded cache box." >&2
+  exit 1
+fi
+`
+
+// dataProjectQuotaSetup installs and runs dataProjectQuotaScript. It has to run
+// before ANY bind-mount off /data: enabling quota accounting means a real
+// unmount/mount cycle, and the kubelet-root bind two lines later would pin the
+// filesystem busy.
+func dataProjectQuotaSetup(sudo string, writeFile func(producer, path string) string) string {
+	return strings.Join([]string{
+		writeFile("printf '%s' "+shellSingleQuote(dataProjectQuotaScript), dataProjectQuotaPath),
+		sudo + "chmod 0755 " + dataProjectQuotaPath,
+		sudo + "bash " + dataProjectQuotaPath,
+	}, "\n")
 }
 
 // dataKubeletMount brings up the /data bind-mount for the kubelet root. The

@@ -172,8 +172,24 @@ func TestEnsureSSHKeyIdempotent(t *testing.T) {
 	}
 }
 
+// hardwareSpec is the /specifications/hardware shape the fake serves.
+type hardwareSpec struct {
+	DiskGroups []DiskGroup `json:"diskGroups"`
+}
+
+func group(id, disks, sizeGB int64) DiskGroup {
+	return DiskGroup{
+		DiskGroupID:   id,
+		NumberOfDisks: disks,
+		DiskSize:      unitAndValue{Unit: "GB", Value: sizeGB},
+		DiskType:      "NVME",
+	}
+}
+
 func TestStartInstallPostsReinstall(t *testing.T) {
-	api := &fakeAPI{}
+	api := &fakeAPI{get: map[string]any{
+		"/dedicated/server/srv/specifications/hardware": hardwareSpec{DiskGroups: []DiskGroup{group(1, 2, 1920)}},
+	}}
 	c := &Client{API: api}
 	if err := c.StartInstall(context.Background(), "srv", InstallParams{
 		TemplateName: "ubuntu2404-server_64",
@@ -192,6 +208,111 @@ func TestStartInstallPostsReinstall(t *testing.T) {
 	cust, ok := body["customizations"].(map[string]any)
 	if !ok || cust["hostname"] != "host1" || cust["sshKey"] != "ssh-ed25519 AAAA..." {
 		t.Fatalf("customizations not set: %+v", body["customizations"])
+	}
+
+	// The wire form is what OVH validates, and a wrong one wipes a box onto the
+	// wrong layout, so assert the marshalled JSON rather than the Go structs:
+	// field names and the two values whose zero is meaningful (size 0 = fill the
+	// group, raidLevel absent = OVH's default of 1) have to survive marshalling.
+	wire, err := json.Marshal(body["storage"])
+	if err != nil {
+		t.Fatalf("marshal storage: %v", err)
+	}
+	want := `[{"diskGroupId":1,"partitioning":{"disks":2,"layout":[` +
+		`{"fileSystem":"ext4","mountPoint":"/boot","size":1024,"raidLevel":1},` +
+		`{"fileSystem":"ext4","mountPoint":"/","size":65536,"raidLevel":1},` +
+		`{"fileSystem":"xfs","mountPoint":"/data","size":0,"raidLevel":1}]}}]`
+	if string(wire) != want {
+		t.Fatalf("storage block =\n%s\nwant\n%s", wire, want)
+	}
+}
+
+// An install that cannot see the box's disks must not fall back to OVH's
+// default single-root layout: the box would come up with every cache directory
+// on root and no enforceable per-account ceiling, and undoing that costs
+// another wipe.
+func TestStartInstallRefusesWithoutDiskGroups(t *testing.T) {
+	api := &fakeAPI{get: map[string]any{
+		"/dedicated/server/srv/specifications/hardware": hardwareSpec{DiskGroups: []DiskGroup{}},
+	}}
+	c := &Client{API: api}
+	if err := c.StartInstall(context.Background(), "srv", InstallParams{TemplateName: "ubuntu2404-server_64"}); err == nil {
+		t.Fatal("StartInstall: expected an error when no disk group is reported")
+	}
+	if len(api.posts) != 0 {
+		t.Fatalf("StartInstall posted a reinstall despite an unusable plan: %+v", api.posts)
+	}
+}
+
+// The split-mirror shape (a small OS mirror plus a larger data mirror): the OS
+// lands on the smaller group and the whole larger group becomes /data.
+func TestPlanStorageSplitsOSAndDataMirrors(t *testing.T) {
+	got, err := PlanStorage([]DiskGroup{group(2, 2, 1920), group(1, 2, 960)})
+	if err != nil {
+		t.Fatalf("PlanStorage: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("PlanStorage returned %d groups, want 2: %+v", len(got), got)
+	}
+	if got[0].DiskGroupID != 1 {
+		t.Fatalf("OS group = %d, want the smaller group 1", got[0].DiskGroupID)
+	}
+	// Root fills its own group: nothing else lives there, so a cap would strand
+	// the remainder instead of saving it for /data.
+	if root := got[0].Partitioning.Layout[1]; root.MountPoint != "/" || root.SizeMiB != fillRemainingMiB {
+		t.Fatalf("OS layout root = %+v, want / filling the group", root)
+	}
+	if got[1].DiskGroupID != 2 {
+		t.Fatalf("data group = %d, want the larger group 2", got[1].DiskGroupID)
+	}
+	data := got[1].Partitioning.Layout
+	if len(data) != 1 || data[0].MountPoint != DataMountPoint || data[0].FileSystem != dataFileSystem || data[0].SizeMiB != fillRemainingMiB {
+		t.Fatalf("data layout = %+v, want a single XFS /data filling the group", data)
+	}
+}
+
+// Project quotas are the only per-account boundary on a shared box, and XFS is
+// the only filesystem in OVH's enum that has them, so /data must never be
+// installed as anything else.
+func TestPlanStorageAlwaysFormatsDataAsXFS(t *testing.T) {
+	for _, groups := range [][]DiskGroup{
+		{group(1, 2, 1920)},
+		{group(1, 2, 960), group(2, 2, 1920)},
+	} {
+		plan, err := PlanStorage(groups)
+		if err != nil {
+			t.Fatalf("PlanStorage(%+v): %v", groups, err)
+		}
+		found := false
+		for _, sg := range plan {
+			for _, part := range sg.Partitioning.Layout {
+				if part.MountPoint != DataMountPoint {
+					continue
+				}
+				found = true
+				if part.FileSystem != "xfs" {
+					t.Fatalf("/data filesystem = %q, want xfs", part.FileSystem)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("PlanStorage(%+v) produced no /data partition: %+v", groups, plan)
+		}
+	}
+}
+
+// A mirror is only a mirror if the layout asks for one. OVH defaults an absent
+// raidLevel to 1, but the plan states it so a disk loss on these boxes stays a
+// degraded array rather than a lost cache region.
+func TestPlanStorageMirrorsEveryPartition(t *testing.T) {
+	plan, err := PlanStorage([]DiskGroup{group(1, 2, 1920)})
+	if err != nil {
+		t.Fatalf("PlanStorage: %v", err)
+	}
+	for _, part := range plan[0].Partitioning.Layout {
+		if part.RaidLevel != 1 {
+			t.Fatalf("partition %s raidLevel = %d, want 1", part.MountPoint, part.RaidLevel)
+		}
 	}
 }
 

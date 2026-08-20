@@ -365,6 +365,9 @@ type OSChoice struct {
 	RequiresPanelPassword   bool
 	AllowSSHKeys            bool
 	AllowCustomPartitioning bool
+	// AllowedFileSystems are the filesystems this OS can format a partition
+	// with. Read so the install can put /data on XFS where the OS supports it.
+	AllowedFileSystems []scwdedibox.PartitionFileSystem
 }
 
 // ResolveOS maps an `ubuntu_24.04`-style label to an installable OS on the
@@ -396,6 +399,7 @@ func (c *Client) ResolveOS(ctx context.Context, zone string, serverID uint64, os
 				RequiresPanelPassword:   os.RequiresPanelPassword,
 				AllowSSHKeys:            os.AllowSSHKeys,
 				AllowCustomPartitioning: os.AllowCustomPartitioning,
+				AllowedFileSystems:      os.AllowedFilesystems,
 			}, nil
 		}
 	}
@@ -453,7 +457,7 @@ func (c *Client) StartInstall(ctx context.Context, p InstallParams) error {
 		if err := c.t.get(ctx, fmt.Sprintf("/dedibox/v1/zones/%s/servers/%d/partitioning/%d", p.Zone, p.ServerID, p.OS.ID), nil, &part); err != nil {
 			return fmt.Errorf("default partitioning for server %d: %w", p.ServerID, err)
 		}
-		body.Partitions = toInstallPartitions(part.Partitions)
+		body.Partitions = toInstallPartitions(part.Partitions, p.OS.AllowedFileSystems)
 	}
 	// A user-login OS (e.g. Ubuntu) locks root and grants the created user sudo,
 	// so the install API rejects a root_password ("should be blank") and takes
@@ -490,11 +494,39 @@ func (c *Client) StartInstall(ctx context.Context, p InstallParams) error {
 	return nil
 }
 
-func toInstallPartitions(parts []*scwdedibox.Partition) []*scwdedibox.InstallPartition {
+// DataMountPoint is the separate filesystem every Kura cache directory lives on.
+// The self-join binds the local-path StorageClass root and the kubelet root onto
+// it, so a cache PV is a directory on THIS filesystem rather than on root.
+const DataMountPoint = "/data"
+
+// toInstallPartitions converts the API's default layout into an install layout,
+// formatting /data as XFS wherever the OS allows it. Everything else is passed
+// through untouched: the default layout already carves the small-root +
+// large-/data shape these boxes want, so the only thing worth overriding is the
+// filesystem, and only for /data.
+//
+// XFS is what makes a per-account cache quota enforceable: project quotas are
+// the only boundary on how much of a shared box one account's Kura instance can
+// write, and no other filesystem the API offers has them. An OS that cannot
+// format XFS keeps the default and installs without that boundary, which the
+// self-join then refuses to bootstrap rather than joining a box whose tenants
+// can fill it for each other.
+func toInstallPartitions(parts []*scwdedibox.Partition, allowedFileSystems []scwdedibox.PartitionFileSystem) []*scwdedibox.InstallPartition {
+	xfsAllowed := false
+	for _, fs := range allowedFileSystems {
+		if fs == scwdedibox.PartitionFileSystemXfs {
+			xfsAllowed = true
+			break
+		}
+	}
 	out := make([]*scwdedibox.InstallPartition, 0, len(parts))
 	for _, p := range parts {
+		fileSystem := p.FileSystem
+		if xfsAllowed && p.MountPoint != nil && *p.MountPoint == DataMountPoint {
+			fileSystem = scwdedibox.PartitionFileSystemXfs
+		}
 		out = append(out, &scwdedibox.InstallPartition{
-			FileSystem: p.FileSystem,
+			FileSystem: fileSystem,
 			MountPoint: p.MountPoint,
 			RaidLevel:  p.RaidLevel,
 			Capacity:   p.Capacity,
