@@ -68,6 +68,32 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   agent registers → GH dispatches the workflow_job); 5 min is a
   generous floor that won't false-positive a slow boot.
 
+  It is a floor on *asking*, not on acting, and it is only needed
+  while the Pod is still there — the sweep cannot tell a booting
+  runner from a dead one without GitHub's answer, and paying a GitHub
+  call per `running` row per minute to find out is what the floor
+  buys off. Once the Pod is gone the ambiguity is gone with it, so the
+  pod-gone arm below skips the wait. Cutting the floor itself would
+  trade directly against cold-boot time, which is why it stays where
+  it is now that the arm covers the case it was costing.
+
+  ## Pod-gone arm
+
+  The push signal that a Pod stopped (`pods/stopped` →
+  `OrphanedRunnersWorker` in targeted mode) is the fast path, but it
+  rides a best-effort billing endpoint: a dropped POST, a controller
+  restart mid-reap, or a Pod removed by node loss, eviction or drain
+  rather than by the reap all leave nothing behind, and the customer
+  waits out the floor plus up to a full cron period of phase
+  misalignment on top.
+
+  So the same question is also asked level-triggered, off one cluster
+  read per tick: is the Pod bound to this `running` row still there?
+  Absence widens what is asked about, never what is acted on — every
+  candidate still goes through the GitHub cross-check — and any read
+  that fails or comes back empty narrows straight back to the age
+  gate.
+
   ## Targeted mode
 
   The threshold exists because the sweep cannot distinguish a
@@ -115,7 +141,9 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   use Oban.Worker, queue: :default, max_attempts: 1
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.GitHub.Client, as: GitHubClient
+  alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Telemetry
@@ -125,6 +153,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   require Logger
 
   @stale_after_seconds 300
+  @runner_label_selector "tuist.dev/runner=true"
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"workflow_job_id" => workflow_job_id, "pod_name" => pod_name}})
@@ -175,19 +204,91 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   def perform(_job) do
     threshold = DateTime.add(DateTime.utc_now(), -@stale_after_seconds, :second)
 
-    rescued =
+    aged_out =
       threshold
       |> Jobs.list_orphaned_running()
       |> Enum.count(&recover_one/1)
 
-    if rescued > 0 do
+    pod_gone =
+      threshold
+      |> stopped_pod_candidates()
+      |> Enum.count(&recover_one/1)
+
+    if aged_out + pod_gone > 0 do
       Logger.warning("runners: rescued orphaned running rows",
-        count: rescued,
+        count: aged_out + pod_gone,
+        aged_out: aged_out,
+        pod_gone: pod_gone,
         stale_after_seconds: @stale_after_seconds
       )
     end
 
     :ok
+  end
+
+  # Rows too young for the staleness floor whose Pod is no longer in the
+  # cluster.
+  #
+  # The floor is a stand-in for evidence: the sweep cannot tell a healthy
+  # in-flight build from an orphan without asking GitHub, so it waits 5
+  # minutes before asking. A Pod that is gone is that evidence directly,
+  # so a row bound to one needs no wait. `pods/stopped` carries the same
+  # evidence sooner, but only as a push on a best-effort billing path —
+  # a dropped POST, a controller restart mid-reap, or a Pod removed by
+  # node loss, eviction or drain rather than by the reap all leave
+  # nothing behind. This asks the same question level-triggered, so the
+  # answer does not depend on how we learned.
+  #
+  # Absence widens what is asked about, never what is acted on:
+  # `recover_one/1` still cross-checks GitHub before re-queueing.
+  defp stopped_pod_candidates(threshold) do
+    case Jobs.list_running_since(threshold) do
+      # No candidate, no cluster read — steady state costs one query.
+      [] ->
+        []
+
+      recent ->
+        observed = observed_pod_names()
+        Enum.filter(recent, &pod_gone?(&1, observed))
+    end
+  end
+
+  defp pod_gone?(%{pod_name: pod_name}, {:ok, observed}) do
+    # A blank name matches no Pod, so it would read as absent
+    # unconditionally. Every `running` row carries the Pod that minted
+    # it; anything else is not ours to recover on this signal.
+    is_binary(pod_name) and pod_name != "" and not MapSet.member?(observed, pod_name)
+  end
+
+  defp pod_gone?(_candidate, :error), do: false
+
+  defp observed_pod_names do
+    case K8sClient.list_pods(Environment.runners_namespace(), @runner_label_selector) do
+      {:ok, items} ->
+        observed =
+          items
+          |> Enum.map(&get_in(&1, ["metadata", "name"]))
+          |> Enum.reject(&is_nil/1)
+          |> MapSet.new()
+
+        if MapSet.size(observed) == 0 do
+          # Rows are running, so the fleet cannot really be empty: a
+          # wrong selector or an empty page reads the same as every Pod
+          # vanishing at once. Narrow back to the age gate.
+          Logger.error("runners: orphan sweep read no Pods while rows are running; skipping the pod-gone arm")
+
+          :error
+        else
+          {:ok, observed}
+        end
+
+      {:error, reason} ->
+        Logger.warning("runners: orphan sweep cluster read failed; skipping the pod-gone arm",
+          reason: inspect(reason)
+        )
+
+        :error
+    end
   end
 
   defp recover_one(%{workflow_job_id: workflow_job_id, account_id: account_id, repository: repository} = orphan) do

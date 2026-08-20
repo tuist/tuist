@@ -1136,6 +1136,30 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  Returns the same recovery shape as `list_orphaned_running/1` for
+  every `running` row bound to `pod_name`.
+
+  Feeds the `pods/stopped` fast path: a stopped Pod is proof that none
+  of the jobs it holds at `running` are executing on it, without
+  waiting out the staleness floor.
+  """
+  def list_running_for_pod(pod_name) when is_binary(pod_name) do
+    WorkflowJobs.list_running_for_pod(pod_name)
+  end
+
+  @doc """
+  Returns the same recovery shape as `list_orphaned_running/1` for
+  `running` rows *newer* than `threshold` — the rows the age gate
+  excludes.
+
+  `OrphanedRunnersWorker` narrows these by Pod absence, which is the
+  same evidence the age gate is a proxy for.
+  """
+  def list_running_since(%DateTime{} = threshold) do
+    WorkflowJobs.list_running_since(threshold)
+  end
+
+  @doc """
   Returns the same recovery shape as `list_orphaned_running/1` for a
   single `workflow_job_id`, or `nil` when that job's current status is
   not `running`.

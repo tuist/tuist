@@ -4,6 +4,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
   import Mimic
 
   alias Tuist.GitHub.Client, as: GitHubClient
+  alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
@@ -232,6 +233,117 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
       reject(&Tuist.VCS.get_github_app_installation_for_account/1)
       reject(&GitHubClient.get_workflow_job/3)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+  end
+
+  describe "perform/1 with a Pod that is gone" do
+    defp pod_items(names), do: Enum.map(names, &%{"metadata" => %{"name" => &1}})
+
+    test "recovers a row too young for the staleness floor once its Pod is gone" do
+      # The age gate is a stand-in for evidence: the sweep cannot tell a
+      # healthy in-flight build from an orphan without asking GitHub, so
+      # it waits 5 minutes before asking. A Pod that is no longer in the
+      # cluster is that evidence, so the wait buys nothing — and the
+      # push signal that carries it (`pods/stopped`) is best-effort.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id, pod_name: "pod-gone")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [orphan] end)
+
+      expect(K8sClient, :list_pods, fn _namespace, "tuist.dev/runner=true" ->
+        {:ok, pod_items(["pod-alive"])}
+      end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _installation, _repository, wfid ->
+        assert wfid == orphan.workflow_job_id
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      expect(Claims, :release, fn _wfid, _handle -> :ok end)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "leaves a young row alone while its Pod is still in the cluster" do
+      # A Pod that is present is either booting or executing; the age
+      # gate owns that case and only GitHub can settle it.
+      orphan = candidate(pod_name: "pod-alive")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [orphan] end)
+
+      expect(K8sClient, :list_pods, fn _namespace, _selector ->
+        {:ok, pod_items(["pod-alive", "pod-other"])}
+      end)
+
+      reject(&GitHubClient.get_workflow_job/3)
+      reject(&Claims.release/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "widens nothing when the cluster read fails" do
+      # A partial read is indistinguishable from mass absence, and
+      # acting on it would recover live runners' rows in bulk.
+      orphan = candidate(pod_name: "pod-gone")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [orphan] end)
+      expect(K8sClient, :list_pods, fn _namespace, _selector -> {:error, :timeout} end)
+
+      reject(&GitHubClient.get_workflow_job/3)
+      reject(&Claims.release/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "widens nothing when the cluster read comes back empty" do
+      # Rows are open, so the fleet cannot really be empty: a wrong
+      # selector or an empty page reads the same as every Pod vanishing.
+      orphan = candidate(pod_name: "pod-gone")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [orphan] end)
+      expect(K8sClient, :list_pods, fn _namespace, _selector -> {:ok, []} end)
+
+      reject(&GitHubClient.get_workflow_job/3)
+      reject(&Claims.release/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "does not read the cluster when no row is young enough to need it" do
+      # Steady state: the aged sweep already covers everything, so the
+      # extra arm costs one query and no apiserver traffic.
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [] end)
+
+      reject(&K8sClient.list_pods/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "never treats a row without a Pod name as absent" do
+      # A `running` row always carries the Pod that minted it, but an
+      # empty name would match no Pod and recover unconditionally.
+      orphan = candidate(pod_name: "")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [orphan] end)
+
+      expect(K8sClient, :list_pods, fn _namespace, _selector ->
+        {:ok, pod_items(["pod-alive"])}
+      end)
+
+      reject(&GitHubClient.get_workflow_job/3)
+      reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
     end

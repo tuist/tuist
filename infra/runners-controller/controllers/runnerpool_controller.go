@@ -668,9 +668,16 @@ func (r *RunnerPoolReconciler) reportStopped(ctx context.Context, pod *corev1.Po
 		return
 	}
 
-	if err := r.SessionsClient.Stopped(ctx, pod.Name, podEndedAt(pod, r.now())); err != nil {
+	endedAt := podEndedAt(pod, r.now())
+	if err := r.SessionsClient.Stopped(ctx, pod.Name, endedAt); err != nil {
 		log.FromContext(ctx).Error(err, "close session before reap; backstop will retry", "pod", pod.Name)
+		return
 	}
+	// Logged for the same reason as the pod-lifecycle reconciler's
+	// report, and tagged so the two are distinguishable: the reconcilers
+	// race for the same Pod, and which one lands decides whether the
+	// report happens before or after the Pod is deleted.
+	log.FromContext(ctx).Info("reported pod stopped", "pod", pod.Name, "endedAt", endedAt, "source", "reap")
 }
 
 type podPhaseReplicaCounts struct {
