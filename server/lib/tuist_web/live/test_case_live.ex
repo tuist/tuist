@@ -102,8 +102,11 @@ defmodule TuistWeb.TestCaseLive do
     Float.round(flaky_count / total_count * 100, 1)
   end
 
-  defp runs_count(analytics, "failed"), do: analytics.failed_count
-  defp runs_count(analytics, "flaky"), do: analytics.flaky_count
+  # A run can be failed and flaky and quarantined at once, and the bar files it
+  # under one of those. The widget counts the same way, so selecting Failed
+  # cannot report runs the chart draws in another segment.
+  defp runs_count(analytics, "failed"), do: analytics.outcome_counts.failed
+  defp runs_count(analytics, "flaky"), do: analytics.outcome_counts.flaky
   defp runs_count(analytics, _total), do: analytics.total_count
 
   defp duration(analytics, "p99"), do: analytics.p99_duration
@@ -585,9 +588,14 @@ defmodule TuistWeb.TestCaseLive do
     # The window before this one, of the same length, is what every trend on the
     # card compares against. A relative preset runs up to now, so its length is
     # measured to now rather than to the bound it does not carry.
+    #
+    # It ends a microsecond before the current window opens, not on the same
+    # instant: `ran_at` is a DateTime64(6) and the period filter is inclusive at
+    # both ends, so sharing the boundary would count a run landing exactly on it
+    # in both windows and flatten every trend it touches.
     previous_opts = [
       start_datetime: DateTime.add(start_datetime, -period_seconds(start_datetime, end_datetime), :second),
-      end_datetime: start_datetime
+      end_datetime: DateTime.add(start_datetime, -1, :microsecond)
     ]
 
     socket

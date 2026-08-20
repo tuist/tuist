@@ -223,8 +223,8 @@
               if @analytics.ok? do
                 format_number(
                   case @selected_runs_type do
-                    "failed" -> @analytics.result.failed_count
-                    "flaky" -> @analytics.result.flaky_count
+                    "failed" -> @analytics.result.outcome_counts.failed
+                    "flaky" -> @analytics.result.outcome_counts.flaky
                     _ -> @analytics.result.total_count
                   end
                 )
@@ -277,7 +277,7 @@
                   <span data-part="separator">-</span>
                   <span data-part="value">
                     {if @analytics.ok?,
-                      do: format_number(@analytics.result.failed_count),
+                      do: format_number(@analytics.result.outcome_counts.failed),
                       else: dgettext("dashboard_tests", "N/A")}
                   </span>
                 </div>
@@ -294,7 +294,7 @@
                   <span data-part="separator">-</span>
                   <span data-part="value">
                     {if @analytics.ok?,
-                      do: format_number(@analytics.result.flaky_count),
+                      do: format_number(@analytics.result.outcome_counts.flaky),
                       else: dgettext("dashboard_tests", "N/A")}
                   </span>
                 </div>

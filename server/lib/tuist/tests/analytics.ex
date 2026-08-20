@@ -1321,6 +1321,14 @@ defmodule Tuist.Tests.Analytics do
   failed runs, flaky runs, and the duration distribution (average plus p50 / p90
   / p99).
 
+  `failed_count` and `flaky_count` answer "how many runs failed at all" and "how
+  many flaked at all", so a run that did both is in both. `outcome_counts` answers
+  a different question: which single segment of the stacked bar a run belongs to,
+  under the precedence `test_case_run_series_by_id/3` uses (quarantined, then
+  flaky, then the status). Its members are mutually exclusive and sum to
+  `total_count`, which is what lets a card show a count and the segment it names
+  as the same number.
+
   The percentiles come from the same pass over the same rows as the average, so
   the detail page can offer the whole distribution for the cost it already paid
   for the mean. They matter here for the same reason they do in the Test Cases
@@ -1339,6 +1347,29 @@ defmodule Tuist.Tests.Analytics do
             total_count: count(),
             failed_count: fragment("countIf(? = 'failure')", tcr.status),
             flaky_count: fragment("countIf(?)", tcr.is_flaky),
+            quarantined: fragment("countIf(?)", tcr.is_quarantined),
+            flaky: fragment("countIf(? AND NOT ?)", tcr.is_flaky, tcr.is_quarantined),
+            successful:
+              fragment(
+                "countIf(? = 'success' AND NOT ? AND NOT ?)",
+                tcr.status,
+                tcr.is_flaky,
+                tcr.is_quarantined
+              ),
+            failed:
+              fragment(
+                "countIf(? = 'failure' AND NOT ? AND NOT ?)",
+                tcr.status,
+                tcr.is_flaky,
+                tcr.is_quarantined
+              ),
+            skipped:
+              fragment(
+                "countIf(? = 'skipped' AND NOT ? AND NOT ?)",
+                tcr.status,
+                tcr.is_flaky,
+                tcr.is_quarantined
+              ),
             avg_duration: avg(tcr.duration),
             p50_duration: fragment("quantile(0.5)(?)", tcr.duration),
             p90_duration: fragment("quantile(0.9)(?)", tcr.duration),
@@ -1356,6 +1387,7 @@ defmodule Tuist.Tests.Analytics do
           total_count: 0,
           failed_count: 0,
           flaky_count: 0,
+          outcome_counts: %{successful: 0, failed: 0, flaky: 0, quarantined: 0, skipped: 0},
           avg_duration: 0,
           p50_duration: 0,
           p90_duration: 0,
@@ -1367,6 +1399,13 @@ defmodule Tuist.Tests.Analytics do
           total_count: total,
           failed_count: failed,
           flaky_count: result.flaky_count,
+          outcome_counts: %{
+            successful: result.successful,
+            failed: result.failed,
+            flaky: result.flaky,
+            quarantined: result.quarantined,
+            skipped: result.skipped
+          },
           avg_duration: normalize_duration(avg),
           p50_duration: normalize_duration(result.p50_duration),
           p90_duration: normalize_duration(result.p90_duration),

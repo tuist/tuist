@@ -1543,6 +1543,7 @@ defmodule Tuist.Tests.AnalyticsTest do
                total_count: 2,
                failed_count: 1,
                flaky_count: 0,
+               outcome_counts: %{successful: 1, failed: 1, flaky: 0, quarantined: 0, skipped: 0},
                avg_duration: 200,
                p50_duration: 200,
                p90_duration: 280,
@@ -1572,6 +1573,51 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert got.total_count == 4
       assert got.failed_count == 1
       assert got.flaky_count == 2
+    end
+
+    test "counts each outcome the way the stacked bar segments it" do
+      # Given - one run that is failed and flaky at once, and one plainly failed
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: 1,
+        is_flaky: true,
+        duration: 100
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: 1,
+        duration: 100
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: 1,
+        is_quarantined: true,
+        duration: 100
+      )
+
+      # When
+      got = Analytics.test_case_analytics_by_id(project.id, test_case_id)
+
+      # Then - the totals answer "how many runs failed at all", the outcome
+      # counts answer "which segment of the bar is this run in"
+      assert got.failed_count == 3
+      assert got.flaky_count == 1
+
+      assert got.outcome_counts == %{
+               successful: 0,
+               failed: 1,
+               flaky: 1,
+               quarantined: 1,
+               skipped: 0
+             }
     end
 
     test "only aggregates runs within the given period" do
@@ -1618,6 +1664,7 @@ defmodule Tuist.Tests.AnalyticsTest do
                total_count: 2,
                failed_count: 1,
                flaky_count: 0,
+               outcome_counts: %{successful: 1, failed: 1, flaky: 0, quarantined: 0, skipped: 0},
                avg_duration: 200,
                p50_duration: 200,
                p90_duration: 280,
@@ -1651,6 +1698,7 @@ defmodule Tuist.Tests.AnalyticsTest do
                total_count: 0,
                failed_count: 0,
                flaky_count: 0,
+               outcome_counts: %{successful: 0, failed: 0, flaky: 0, quarantined: 0, skipped: 0},
                avg_duration: 0,
                p50_duration: 0,
                p90_duration: 0,

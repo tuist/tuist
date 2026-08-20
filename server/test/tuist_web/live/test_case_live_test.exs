@@ -281,6 +281,45 @@ defmodule TuistWeb.TestCaseLiveTest do
       assert render(lv) =~ "Flaky test case runs"
     end
 
+    test "counts the same runs the bar segment it names does", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - a run that is failed and flaky at once, which the bar files under
+      # Flaky, plus one plainly failed run
+      test_case_run = passing_test_case_run(project)
+      ran_at = DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_naive()
+
+      for {status, is_flaky} <- [{1, true}, {1, false}] do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_run.test_case_id,
+          status: status,
+          is_flaky: is_flaky,
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+
+      render_async(lv)
+
+      # When
+      render_hook(lv, "select_widget", %{"widget" => "test_case_runs"})
+      render_hook(lv, "select_runs_type", %{"type" => "failed"})
+
+      # Then - the widget cannot report runs the chart draws somewhere else
+      segments = chart_option(lv, "test-case-runs-chart")["series"]
+      failed = Enum.find(segments, &(&1["name"] == "Failed"))
+      drawn = failed["data"] |> Enum.map(&segment_count/1) |> Enum.sum()
+
+      assert widget_value(lv, "widget-test-case-runs") == "#{drawn}"
+      assert drawn == 1
+    end
+
     test "counting a run type pulls the card back to the runs chart", %{
       conn: conn,
       account: account,
@@ -338,6 +377,47 @@ defmodule TuistWeb.TestCaseLiveTest do
       # Then - three runs this week against one the week before
       assert widget_trend(lv, "widget-test-case-runs") =~ "+200.0%"
       assert widget_trend(lv, "widget-test-case-runs") =~ "since last week"
+    end
+
+    test "counts a run on the window boundary once, not in both windows", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - one run before the window, one exactly on its first instant, and
+      # one inside it
+      test_case_run = passing_test_case_run(project)
+
+      for ran_at <- [
+            ~N[2024-04-27 12:00:00.000000],
+            ~N[2024-04-28 00:00:00.000000],
+            ~N[2024-04-29 12:00:00.000000]
+          ] do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_run.test_case_id,
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      query =
+        URI.encode_query(%{
+          "analytics-date-range" => "custom",
+          "analytics-start-date" => "2024-04-28T00:00:00Z",
+          "analytics-end-date" => "2024-04-30T00:00:00Z"
+        })
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, "/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}?#{query}")
+
+      render_async(lv)
+
+      # Then - two runs this window against one before it. Counting the boundary
+      # run in both would read as two against two, and no change at all.
+      assert widget_value(lv, "widget-test-case-runs") == "2"
+      assert widget_trend(lv, "widget-test-case-runs") =~ "+100.0%"
     end
 
     test "leaves a widget without a trend when the window before it was empty", %{
