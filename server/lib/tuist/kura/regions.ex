@@ -164,6 +164,9 @@ defmodule Tuist.Kura.Regions do
   @enterprise_storage_claim "50Gi"
   @pro_storage_claim "30Gi"
   @standard_storage_claim "14Gi"
+  # The same cliff bounds any claim, not just the ones on the ladder above. An
+  # operator override (`Tuist.Kura.StorageClaims`) is validated against this.
+  @minimum_storage_claim "14Gi"
   # The claim every instance in these regions held before they were sized per
   # plan, and what one provisioned then still holds. A historical constant, not
   # a quota: it happens to equal the enterprise claim today, but it describes
@@ -449,6 +452,48 @@ defmodule Tuist.Kura.Regions do
   def storage_profile(:pro), do: %{claim_size: @pro_storage_claim}
 
   def storage_profile(_plan), do: %{claim_size: @standard_storage_claim}
+
+  @doc """
+  The smallest claim any instance may be built with.
+
+  Set by fixed overhead rather than by cache need: Kura reserves a flat staging
+  ceiling and one rotation segment out of every claim before the CAS ring is
+  sized, and clamps the ring up to a floor of five segments. A claim that leaves
+  less than that makes `cas_capacity_bytes/1` emit no `KURA_CAS_CAPACITY_BYTES`
+  at all, and the runtime falls back to sizing its ring from the whole box —
+  the failure that derivation exists to prevent. Every plan on the ladder above
+  clears this; an override has to be held to it too.
+  """
+  def minimum_storage_claim, do: @minimum_storage_claim
+
+  @doc """
+  Parses a Kubernetes storage quantity like `"24Gi"` into bytes.
+
+  Lives here, beside the claims it measures, because both the manifest that
+  derives a CAS budget from a claim and the validation that admits an operator's
+  override have to read the same quantity the same way.
+  """
+  def parse_storage_quantity(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {quantity, suffix} when quantity > 0 ->
+        case storage_multiplier(String.trim(suffix)) do
+          nil -> :error
+          multiplier -> {:ok, quantity * multiplier}
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  def parse_storage_quantity(_value), do: :error
+
+  defp storage_multiplier(""), do: 1
+  defp storage_multiplier("Ki"), do: 1024
+  defp storage_multiplier("Mi"), do: 1024 * 1024
+  defp storage_multiplier("Gi"), do: 1024 * 1024 * 1024
+  defp storage_multiplier("Ti"), do: 1024 * 1024 * 1024 * 1024
+  defp storage_multiplier(_suffix), do: nil
 
   @doc """
   True iff the region sizes an instance's data volume from its account's plan

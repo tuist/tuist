@@ -104,6 +104,65 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert html =~ "50Gi"
   end
 
+  test "sets a claim override and re-pins the instance it rebuilds", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+    server =
+      Repo.insert!(%Server{
+        account_id: user.account.id,
+        region: "us-east",
+        status: :active,
+        url: "https://acme-us-east-1.kura.tuist.dev",
+        current_image_tag: "0.5.2",
+        provisioner_node_ref: "kura-#{user.account.id}-us-east",
+        storage_claim_size: "14Gi"
+      })
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    html =
+      lv
+      |> form("#kura-storage-claim-form", account: %{kura_storage_claim_size: "40Gi"})
+      |> render_submit()
+
+    assert Kura.storage_claim_override(user.account) == "40Gi"
+
+    # Re-pinned, which is what carries the new claim into the manifest and has
+    # the controller rebuild the volumes that no longer match it.
+    assert Repo.get!(Server, server.id).storage_claim_size == "40Gi"
+
+    # And the table the operator is looking at reflects it without a reload.
+    assert html =~ "40Gi"
+  end
+
+  test "clears the override from the form and returns the account to its plan", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv
+    |> form("#kura-storage-claim-form", account: %{kura_storage_claim_size: "40Gi"})
+    |> render_submit()
+
+    lv
+    |> form("#kura-storage-claim-form", account: %{kura_storage_claim_size: ""})
+    |> render_submit()
+
+    assert Kura.storage_claim_override(user.account) == nil
+  end
+
+  test "refuses a claim below the floor a ring can be derived from", %{conn: conn, user: user} do
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    html =
+      lv
+      |> form("#kura-storage-claim-form", account: %{kura_storage_claim_size: "11Gi"})
+      |> render_submit()
+
+    assert html =~ "must be at least 14Gi"
+    assert Kura.storage_claim_override(user.account) == nil
+  end
+
   test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do
     stub(Stripe.Customer, :retrieve, fn _customer_id ->
       {:ok,

@@ -308,14 +308,16 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// A StatefulSet's volumeClaimTemplates are immutable, and a node-local data
-	// volume is pinned to the box it was carved on. Two states wedge an instance
-	// Pending forever with nothing to self-heal it: a storageClassName change on
-	// the CR that the live StatefulSet silently ignores (immutable template), and
-	// a bare-metal fleet node reprovisioned out from under a node-local PV. The
-	// cache is regenerable, so recreate the StatefulSet — dropping its PVCs via the
-	// Delete retention policy — and let it provision fresh volumes on the current
-	// storage class and node. Requeue while the cleanup is in flight so the
-	// recreated StatefulSet never re-adopts a stale PVC.
+	// volume is pinned to the box it was carved on. Three states leave an instance
+	// serving something other than what the CR declares, with nothing to
+	// self-heal it: a storageClassName change the live StatefulSet silently
+	// ignores (immutable template), a storageSize change the fleet's storage
+	// class cannot expand into, and a bare-metal fleet node reprovisioned out
+	// from under a node-local PV. The cache is regenerable, so recreate the
+	// StatefulSet — dropping its PVCs via the Delete retention policy — and let it
+	// provision fresh volumes at the current class, size and node. Requeue while
+	// the cleanup is in flight so the recreated StatefulSet never re-adopts a
+	// stale PVC.
 	if inProgress, err := r.reconcileStaleDataStorage(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	} else if inProgress {
@@ -2272,10 +2274,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		}
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return r.reconcileDataPersistentVolumeClaims(ctx, instance)
+	return err
 }
 
 // replaceUnreadyPodsForImageChange lets a new Kura image escape a rollout that
@@ -2333,35 +2332,6 @@ func podKuraImage(pod *corev1.Pod) string {
 		}
 	}
 	return ""
-}
-
-func (r *KuraInstanceReconciler) reconcileDataPersistentVolumeClaims(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	desiredStorage := storageQuantity(instance)
-	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
-		pvc := &corev1.PersistentVolumeClaim{}
-		name := fmt.Sprintf("data-%s-%d", instance.Name, ordinal)
-		if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: instance.Namespace}, pvc); err != nil {
-			if apierrors.IsNotFound(err) {
-				continue
-			}
-			return err
-		}
-
-		currentStorage := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-		if desiredStorage.Cmp(currentStorage) <= 0 {
-			continue
-		}
-
-		before := pvc.DeepCopy()
-		if pvc.Spec.Resources.Requests == nil {
-			pvc.Spec.Resources.Requests = corev1.ResourceList{}
-		}
-		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = desiredStorage.DeepCopy()
-		if err := r.Patch(ctx, pvc, client.MergeFrom(before)); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // reclaimDataVolumes flips the bound PersistentVolume of each of the instance's
@@ -2449,15 +2419,26 @@ func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, 
 }
 
 // staleDataStorageReason returns a non-empty reason when a data PVC can never
-// bind and the StatefulSet must be recreated: it is still terminating from an
-// earlier pass, its storage class no longer matches spec.StorageClassName
-// (StatefulSet volumeClaimTemplates are immutable, so a CR change is otherwise
-// silently dropped), or it is Bound to a volume pinned to a node that no longer
+// serve spec as written and the StatefulSet must be recreated: it is still
+// terminating from an earlier pass, its storage class no longer matches
+// spec.StorageClassName (StatefulSet volumeClaimTemplates are immutable, so a CR
+// change is otherwise silently dropped), its size no longer matches
+// spec.StorageSize, or it is Bound to a volume pinned to a node that no longer
 // exists (a bare-metal fleet node was reprovisioned). A still-present stale PVC
 // keeps returning a reason so the caller waits for deletion to finish before the
 // StatefulSet is recreated.
+//
+// Size is in that list for the same reason the storage class is, and it is not
+// resolved by resizing. The fleet's storage class is allowVolumeExpansion:
+// false, so patching a bound claim to a new size is rejected outright, and the
+// volumeClaimTemplate that would carry it is immutable on a live StatefulSet.
+// Recreating is the only path that actually lands a new size. Both directions
+// count: a claim smaller than declared lets Kura budget its CAS ring past the
+// end of the disk, and a claim larger than declared keeps disk reserved on a
+// box whose packing density is the thing the declared size was lowered to fix.
 func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
 	desiredStorageClass := instance.Spec.StorageClassName
+	desiredStorage := storageQuantity(instance)
 	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
 		name := fmt.Sprintf("data-%s-%d", instance.Name, ordinal)
 		pvc := &corev1.PersistentVolumeClaim{}
@@ -2472,6 +2453,9 @@ func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, ins
 		}
 		if desiredStorageClass != "" && pvcStorageClassName(pvc) != desiredStorageClass {
 			return fmt.Sprintf("data PVC %s storage class %q no longer matches desired %q", name, pvcStorageClassName(pvc), desiredStorageClass), nil
+		}
+		if boundStorage, ok := pvc.Spec.Resources.Requests[corev1.ResourceStorage]; ok && boundStorage.Cmp(desiredStorage) != 0 {
+			return fmt.Sprintf("data PVC %s is %s and no longer matches desired %s", name, boundStorage.String(), desiredStorage.String()), nil
 		}
 		if pvc.Status.Phase == corev1.ClaimBound && pvc.Spec.VolumeName != "" {
 			node, err := r.pvMissingPinnedNode(ctx, pvc.Spec.VolumeName)

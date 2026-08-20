@@ -29,6 +29,9 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:account, account)
          |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
+         |> assign(:kura_storage_claim_form, kura_storage_claim_form(account))
+         |> assign(:kura_plan_claim, Kura.plan_storage_claim(account))
+         |> assign(:kura_minimum_claim, Kura.minimum_storage_claim())
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
 
@@ -79,6 +82,26 @@ defmodule TuistWeb.OpsAccountLive do
          socket
          |> assign(:runner_concurrency_form, to_form(changeset, as: "account"))
          |> put_flash(:error, dgettext("dashboard", "Runner concurrency limits could not be updated."))}
+    end
+  end
+
+  @impl true
+  def handle_event("update_kura_storage_claim", %{"account" => params}, socket) do
+    account = socket.assigns.account
+
+    case Kura.update_storage_claim_override(account, params) do
+      {:ok, %{claim_size: claim_size, rebuilt: rebuilt}} ->
+        {:noreply,
+         socket
+         |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
+         |> assign(:kura_storage_claim_form, kura_storage_claim_form(account))
+         |> put_flash(:info, kura_storage_claim_message(claim_size, rebuilt))}
+
+      {:error, changeset} ->
+        {:noreply,
+         socket
+         |> assign(:kura_storage_claim_form, to_form(changeset, as: "account"))
+         |> put_flash(:error, dgettext("dashboard", "Kura disk claim could not be updated."))}
     end
   end
 
@@ -251,6 +274,34 @@ defmodule TuistWeb.OpsAccountLive do
     account
     |> Concurrency.change_limits()
     |> to_form(as: "account")
+  end
+
+  defp kura_storage_claim_form(account) do
+    account
+    |> Kura.change_storage_claim_override()
+    |> to_form(as: "account")
+  end
+
+  # Raising a claim and lowering one have the same consequence for a running
+  # instance: its volumes are rebuilt at the new size and it starts empty. Say
+  # so rather than reporting a successful save. An operator raising a claim to
+  # rescue a capped account is the one most likely to assume otherwise.
+  defp kura_storage_claim_message(claim_size, []) do
+    dgettext(
+      "dashboard",
+      "Kura disk claim set to %{claim}. No running instance changed; it applies the next time volumes are built.",
+      claim: claim_size
+    )
+  end
+
+  defp kura_storage_claim_message(claim_size, rebuilt) do
+    dngettext(
+      "dashboard",
+      "Kura disk claim set to %{claim}. %{count} running instance rebuilds its volumes and starts with an empty cache.",
+      "Kura disk claim set to %{claim}. %{count} running instances rebuild their volumes and start with an empty cache.",
+      length(rebuilt),
+      claim: claim_size
+    )
   end
 
   # ISO 3166-1 alpha-2 codes for the countries most likely to appear on

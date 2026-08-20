@@ -662,25 +662,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  defp parse_storage_quantity(value) do
-    case Integer.parse(value) do
-      {quantity, suffix} when quantity > 0 ->
-        case storage_multiplier(String.trim(suffix)) do
-          nil -> :error
-          multiplier -> {:ok, quantity * multiplier}
-        end
-
-      _ ->
-        :error
-    end
-  end
-
-  defp storage_multiplier(""), do: 1
-  defp storage_multiplier("Ki"), do: 1024
-  defp storage_multiplier("Mi"), do: 1024 * 1024
-  defp storage_multiplier("Gi"), do: 1024 * 1024 * 1024
-  defp storage_multiplier("Ti"), do: 1024 * 1024 * 1024 * 1024
-  defp storage_multiplier(_), do: nil
+  defp parse_storage_quantity(value), do: Regions.parse_storage_quantity(value)
 
   # Managed pods of self-hosting-capable accounts fetch the account's
   # self-hosted peer list from the control plane at boot and on cadence, so a

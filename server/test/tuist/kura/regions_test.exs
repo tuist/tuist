@@ -114,6 +114,33 @@ defmodule Tuist.Kura.RegionsTest do
       assert Regions.storage_profile(:open_source) == Regions.storage_profile(:air)
     end
 
+    test "holds an operator override to the same cliff the ladder clears" do
+      # The floor is not about how much cache an account needs. It is the fixed
+      # reserve Kura takes out of any claim before it sizes the ring. A
+      # hand-typed override is the one claim that can land under it, so it is
+      # bounded by the same number the ladder is.
+      {minimum_gib, "Gi"} = Integer.parse(Regions.minimum_storage_claim())
+      assert minimum_gib >= 14
+
+      for plan <- [:enterprise, :pro, :air, :open_source] do
+        {:ok, claim_bytes} = Regions.parse_storage_quantity(Regions.storage_profile(plan).claim_size)
+        {:ok, minimum_bytes} = Regions.parse_storage_quantity(Regions.minimum_storage_claim())
+
+        assert claim_bytes >= minimum_bytes
+      end
+    end
+
+    test "parses the storage quantities a claim is written in" do
+      assert Regions.parse_storage_quantity("14Gi") == {:ok, 14 * 1024 * 1024 * 1024}
+      assert Regions.parse_storage_quantity("1Ti") == {:ok, 1024 * 1024 * 1024 * 1024}
+      assert Regions.parse_storage_quantity("512Mi") == {:ok, 512 * 1024 * 1024}
+      assert Regions.parse_storage_quantity("1024") == {:ok, 1024}
+
+      for value <- ["", "0Gi", "-4Gi", "24GB", "big", nil] do
+        assert Regions.parse_storage_quantity(value) == :error
+      end
+    end
+
     test "keeps every claim clear of the budget cliff" do
       # Staging takes a flat 8Gi out of every claim before the ring is sized, so
       # a claim that is too small leaves less than the five segments Kura clamps

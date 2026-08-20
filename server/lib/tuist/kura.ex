@@ -23,18 +23,23 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
-  alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StorageClaims
   alias Tuist.Repo
 
   require Logger
 
   @pubsub Tuist.PubSub
+  # Statuses in which a row holds no volumes: teardown deleted the StatefulSet
+  # and every claim with it, and `:destroying` is on its way there. A claim
+  # change has nothing to apply to these, and they pick up the current one when
+  # they are next built.
+  @volumeless_statuses [:destroying, :destroyed, :archived]
   @create_server_keys %{
     "account_id" => :account_id,
     "region" => :region,
@@ -224,6 +229,113 @@ defmodule Tuist.Kura do
   """
   def storage_claim_label(%Server{storage_claim_size: claim}), do: claim
 
+  @doc """
+  The account's claim override, or `nil` when its plan still decides.
+  """
+  defdelegate storage_claim_override(account), to: StorageClaims, as: :override_for
+
+  @doc """
+  The claim the account's plan gives it, which is what applies when it carries
+  no override.
+  """
+  defdelegate plan_storage_claim(account), to: StorageClaims, as: :plan_claim_size
+
+  @doc """
+  The smallest claim an override may set.
+  """
+  defdelegate minimum_storage_claim, to: Regions
+
+  @doc """
+  Builds a changeset for the ops claim-override form.
+  """
+  defdelegate change_storage_claim_override(account, attrs \\ %{}), to: StorageClaims, as: :change_override
+
+  @doc """
+  Sets or clears an account's claim override and applies it to the instances it
+  already has running.
+
+  Re-pinning the running rows is the whole of "apply this now". The pinned claim
+  is what renders into the manifest, so an override that only moved the
+  account's default would never reach a cluster: every existing instance would
+  keep serving at the claim it was built with, and the new number would sit in
+  the database describing nothing. Writing it onto the rows puts it in the
+  manifest revision, which carries it to the next reconciler tick.
+
+  What the cluster does with it there is destructive, and deliberately so. The
+  bare-metal regions run a storage class that cannot expand a claim and a
+  StatefulSet cannot re-template one, so the controller has no in-place resize
+  to offer: it recreates the StatefulSet and lets fresh volumes bind at the new
+  size. The instance comes back with an empty cache and refills from real
+  traffic or an account peer. That is acceptable because Kura is terminal
+  storage for a regenerable cache, where a miss is a 404 rather than an origin
+  fetch, but it is not invisible: the returned `:rebuilt` list names exactly the
+  instances whose cache this drops. An operator raising a claim to rescue a
+  capped account is told what it cost.
+
+  Returns `{:ok, %{claim_size: claim, rebuilt: servers}}`, where `claim_size` is
+  what the account's instances are now built at (its override, or the claim its
+  plan gives it back when the override is cleared).
+  """
+  def update_storage_claim_override(%Account{} = account, attrs) when is_map(attrs) do
+    with {:ok, override} <- StorageClaims.cast_override(account, attrs),
+         {:ok, result} <- write_storage_claim_override(account, override) do
+      Enum.each(result.rebuilt, &broadcast_server(&1, :updated))
+      {:ok, result}
+    end
+  end
+
+  defp write_storage_claim_override(account, override) do
+    Repo.transaction(fn ->
+      case StorageClaims.put_override(account, override) do
+        :ok ->
+          claim_size = StorageClaims.effective_claim_size(account)
+
+          %{claim_size: claim_size, rebuilt: repin_storage_claims(account, claim_size)}
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  # Only the rows that still hold volumes, and only in the regions that size
+  # instances from their account rather than alike. An archived or destroyed row
+  # holds nothing, because teardown took the StatefulSet and every claim with it,
+  # so it needs no re-pin and takes the current claim on its cold return.
+  #
+  # A row already rendering `claim_size` is left alone: re-pinning it would
+  # produce no manifest change, and reporting it as rebuilt would tell an
+  # operator a cache was dropped that never was.
+  defp repin_storage_claims(%Account{id: account_id}, claim_size) do
+    Server
+    |> where([server], server.account_id == ^account_id)
+    |> where([server], server.status not in ^@volumeless_statuses)
+    |> Repo.all()
+    |> Enum.filter(&storage_claim_moves?(&1, claim_size))
+    |> Enum.map(fn server ->
+      server
+      |> Server.lifecycle_changeset(%{storage_claim_size: claim_size})
+      |> Repo.update!()
+    end)
+  end
+
+  defp storage_claim_moves?(%Server{} = server, claim_size) do
+    case Regions.fetch(server.region) do
+      {:ok, region} ->
+        Regions.storage_governed?(region) and rendered_storage_claim(server, region) != claim_size
+
+      {:error, _reason} ->
+        false
+    end
+  end
+
+  # What the manifest renders today: the row's own claim when it pins one, the
+  # region's declared claim when it does not.
+  defp rendered_storage_claim(%Server{storage_claim_size: claim}, _region) when is_binary(claim) and claim != "",
+    do: claim
+
+  defp rendered_storage_claim(%Server{}, %Regions{provisioner_config: config}), do: config[:storage_size]
+
   ## Servers
 
   @doc """
@@ -261,9 +373,7 @@ defmodule Tuist.Kura do
   # `Tuist.Kura.Server`.
   defp storage_claim(account, %Regions{} = region) do
     if Regions.storage_governed?(region) do
-      %{claim_size: claim_size} = Regions.storage_profile(AccountPolicies.sizing_plan(account))
-
-      %{storage_claim_size: claim_size}
+      %{storage_claim_size: StorageClaims.effective_claim_size(account)}
     else
       %{}
     end

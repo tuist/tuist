@@ -44,6 +44,37 @@
         </:col>
       </.table>
     </.card_section>
+    <.card_section>
+      <p data-part="kura-storage-claim-description">
+        {dgettext(
+          "dashboard",
+          "Each replica reserves this much disk. Leave it empty to size the account from its plan, which is the right default for most accounts and a poor fit at both ends of the range. Saving a different claim rebuilds the volumes of every running instance in a region that sizes per account, so those instances start with an empty cache."
+        )}
+      </p>
+      <.form
+        for={@kura_storage_claim_form}
+        id="kura-storage-claim-form"
+        phx-submit="update_kura_storage_claim"
+      >
+        <.text_input
+          field={@kura_storage_claim_form[:kura_storage_claim_size]}
+          label={dgettext("dashboard", "Disk claim override")}
+          placeholder={@kura_plan_claim}
+          hint={
+            dgettext("dashboard", "A Kubernetes storage quantity of at least %{minimum}.",
+              minimum: @kura_minimum_claim
+            )
+          }
+        />
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Save disk claim")}
+          />
+        </div>
+      </.form>
+    </.card_section>
   </.card>
 
   <.card title={dgettext("dashboard", "Runner concurrency")} icon="server">
