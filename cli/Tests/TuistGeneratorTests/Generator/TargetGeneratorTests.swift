@@ -101,6 +101,40 @@ struct TargetGeneratorTests {
         #expect(exception.platformFiltersByRelativePath == ["Resources/ios_only.mp4": ["ios"]])
     }
 
+    @Test func generateTarget_macro_usesHostBuildToolProductType() async throws {
+        // Given
+        let target = Target.test(name: "MacroImplementation", destinations: [.mac], product: .macro)
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Test.xcodeproj"),
+            targets: [target]
+        )
+        let graphTraverser = GraphTraverser(graph: .test())
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // When
+        let (generatedTarget, _) = try await subject.generateTarget(
+            target: target,
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject,
+            projectSettings: .test(),
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        #expect(generatedTarget.productType == .hostBuildTool)
+    }
+
     @Test func generateTarget_synchronizedGroups_mapsTargetHeadersIntoSynchronizedExceptions() async throws {
         // Given
         let buildableFolderPath = path.appending(component: "Sources")

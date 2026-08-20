@@ -294,40 +294,71 @@ exists for exactly this, but it ships `dryRun: true` and no environment
 overrides it today, so it only logs. Until an environment arms it, the volume
 has to be deleted by hand.
 
-Order matters: once the PVC is gone, the PV is the only object still holding
-the volume handle.
+Split it in two. Phase 1 removes the workload and is data-preserving, because
+`Retain` keeps the volume whatever happens to the PVC. Phase 2 destroys the
+data and can wait as long as you like; a stranded 10Gi volume costs well under
+a euro a month, so there is never a reason to rush it.
 
-1. Record the handle first — `kubectl get pv <name> -o jsonpath='{.spec.csi.volumeHandle}'`.
-   Cluster-scoped reads on `persistentvolumes` are not available to the normal
-   SSO identity, so this needs JIT elevation.
-2. Confirm the data is disposable, or take a final base backup.
-3. Delete the `Cluster` CR.
-4. Delete the `Released` PV, then delete the volume in the `tuist-workloads`
-   Hetzner project.
+Phase 1, under an active `/elevate <env>` write elevation:
 
-### The orphaned `registry` namespace
+1. Confirm the data is disposable, or take a final base backup. A Cluster whose
+   Pod has never started cannot be backed up at all, so decide before deleting.
+2. `kubectl delete cluster.postgresql.cnpg.io <name> -n <ns>`. The operator
+   removes the Pods, Services, and PVCs it owns.
 
-`registry/registry-pg` is a live example still waiting on this. It was created
-on 2026-06-15 by a standalone `registry` chart that moved the registry's Oban
-journal from SQLite onto CloudNativePG. Two days later the sync workers moved
-to the server under `TUIST_MODE=registry_sync`, the registry app became a
-stateless read frontend with no Repo, and the commit that did it also deleted
-the chart's `cnpg-cluster.yaml`. Neither that chart nor its removal ever landed
-on `main` — the registry moved into the `tuist` chart's `registry-*` templates
-in the `tuist` namespace instead — so nothing has run `helm upgrade` or
-`helm uninstall` against the old release since. Its `Cluster`, three Services,
-and PVC were left running in a namespace no chart owns.
+Phase 2, whenever you are satisfied nothing missed it:
 
-Its Pod has been `Pending` since 2026-07-06, when the node its volume was
-pinned to was destroyed, so the database has served nothing for six weeks with
-no consequence. Nothing depends on the data: the registry's source of truth is
-its Tigris bucket, and the Oban journal the cluster held is regenerable from a
-sync. It should be removed with the steps above, deleting the `registry`
-namespace once the `Cluster` is gone.
+3. `hcloud volume delete <id>` in the `tuist-workloads` project.
+
+Find the volume by the labels the CSI driver stamps on it rather than through
+the PV, which is what the earlier version of this runbook suggested:
+
+```bash
+hcloud volume list -l pvc-namespace=<ns>,pvc-name=<pvc>
+```
+
+That indirection is not cosmetic. `persistentvolumes` is cluster-scoped and
+readable by **no** tier here, elevated or not: it is absent from
+`tuist-view-infra-read` and from the CNPG roles added in
+[#12445](https://github.com/tuist/tuist/pull/12445). So `kubectl get pv` fails
+even mid-decommission, and the `hcloud` labels are the only route to the
+handle. The orphaned PV object is left behind for `released-pv-reaper` or an
+admin; it is inert once its volume is gone.
+
+Namespaces are likewise not deletable from the write tier, so a retired cluster
+leaves an empty namespace for an admin to sweep.
+
+### The orphaned `registry` namespace (worked example, completed)
+
+`registry/registry-pg` was decommissioned on 2026-08-19 by the steps above. It
+was created on 2026-06-15 by a standalone `registry` chart that moved the
+registry's Oban journal from SQLite onto CloudNativePG. Two days later the sync
+workers moved to the server under `TUIST_MODE=registry_sync`, the registry app
+became a stateless read frontend with no Repo, and the commit that did it also
+deleted the chart's `cnpg-cluster.yaml`. Neither that chart nor its removal
+ever landed on `main` (the registry moved into the `tuist` chart's
+`registry-*` templates in the `tuist` namespace instead), so nothing ran
+`helm upgrade` or `helm uninstall` against the old release again. Its
+`Cluster`, three Services, and PVC were left running in a namespace no chart
+owns.
+
+Its Pod sat `Pending` from 2026-07-06, when the node its volume was pinned to
+was destroyed, until the deletion: six weeks serving nothing, with no
+consequence and no alert. Nothing depended on the data. The registry's source
+of truth is its Tigris bucket, and the only migration ever run against that
+Postgres was `Oban.Migrations.up(version: 13)`, so the database held a job
+queue and no application tables at all.
+
+The generalisable part is how it stayed invisible. A Helm release deployed from
+a branch that never merged leaves objects no chart on `main` renders, so no
+deploy can ever prune them and no `helm uninstall` is ever run. Nothing owned
+them, nothing reconciled them, and their Services reported zero endpoints
+rather than an error. Worth grepping the live clusters for namespaces no chart
+owns; this was the third single-instance CNPG cluster found this way.
 
 ### How the volume ended up unschedulable
 
-The PVC's `volume.kubernetes.io/selected-node` names an OVH bare-metal kura
+The PVC's `volume.kubernetes.io/selected-node` named an OVH bare-metal kura
 node, which should never have been a candidate for an `hcloud-volumes` PVC.
 It was, because `hcloud-csi-node` still ran there: the DaemonSet's node
 affinity excluded non-Hetzner pools by enumerating pool names, and the list
@@ -335,7 +366,10 @@ only covered the pools that existed when each entry was written. With the
 driver registered on that node, the scheduler treated it as a valid
 `selected-node` for a `WaitForFirstConsumer` claim and the provisioner bound a
 location-pinned Hetzner volume behind a Pod that could only ever run off
-Hetzner.
+Hetzner. The volume was provisioned in Hetzner `ash`, a location the cluster
+has no nodes in at all, which is why the replacement Pod could never satisfy
+its node affinity: the scheduler reported the five untainted `fsn1` workers as
+failing it.
 
 That enumeration bug is already fixed — `hcloud-csi-values.yaml` now excludes
 by provider label (`node.cluster.x-k8s.io/instance-type NotIn [ovh, dedibox,

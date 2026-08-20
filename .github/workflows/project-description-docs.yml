@@ -1,0 +1,75 @@
+name: ProjectDescription documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - cli/Sources/ProjectDescription/**
+      - Package.swift
+      - Package.resolved
+      - mise/tasks/docs/project-description.sh
+      - .github/workflows/project-description-docs.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - cli/Sources/ProjectDescription/**
+      - Package.swift
+      - Package.resolved
+      - mise/tasks/docs/project-description.sh
+      - .github/workflows/project-description-docs.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-description-docs-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+
+jobs:
+  build-deploy:
+    name: Build and deploy
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Swift Package Manager cache
+        id: package-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: linux-project-description-docc-${{ hashFiles('Package.resolved') }}
+          restore-keys: linux-project-description-docc-
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "swift@6.2.4 node@20.12.0 npm:wrangler@4.30.0"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Build ProjectDescription documentation
+        run: >-
+          MISE_PROJECT_ROOT="$GITHUB_WORKSPACE" mise exec swift@6.2.4 --
+          bash mise/tasks/docs/project-description.sh
+      - name: Save Swift Package Manager cache
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.package-cache.outputs.cache-primary-key }}
+      - uses: 1password/install-cli-action@v2
+        if: github.ref == 'refs/heads/main'
+      - name: Deploy to Cloudflare Pages
+        if: github.ref == 'refs/heads/main'
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          CLOUDFLARE_API_TOKEN: op://tuist/Cloudflare/CLOUDFLARE_API_TOKEN
+          CLOUDFLARE_ACCOUNT_ID: op://tuist/Cloudflare/CLOUDFLARE_ACCOUNT_ID
+        run: >-
+          mise exec node@20.12.0 npm:wrangler@4.30.0 -- /usr/local/bin/op run --
+          wrangler pages deploy --commit-hash ${{ github.sha }} --branch main
+          --project-name tuist-projectdescription .build/documentation

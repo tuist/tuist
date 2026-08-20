@@ -70,6 +70,54 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "touch_last_sign_in/1" do
+    test "records the first authentication" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      assert is_nil(user.last_sign_in_at)
+
+      # When
+      got = Accounts.touch_last_sign_in(user)
+
+      # Then
+      assert got.last_sign_in_at
+      assert Accounts.get_user_by_id(user.id).last_sign_in_at
+    end
+
+    test "does not write again within the throttle window" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      %{last_sign_in_at: first} = Accounts.touch_last_sign_in(user)
+      user = Accounts.get_user_by_id(user.id)
+
+      # When
+      got = Accounts.touch_last_sign_in(user)
+
+      # Then
+      assert got.last_sign_in_at == first
+    end
+
+    test "writes again once the throttle window has passed" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      stale = NaiveDateTime.add(NaiveDateTime.utc_now(:second), -13, :hour)
+
+      Tuist.Repo.update_all(
+        from(u in User, where: u.id == ^user.id),
+        set: [last_sign_in_at: stale]
+      )
+
+      user = Accounts.get_user_by_id(user.id)
+
+      # When
+      got = Accounts.touch_last_sign_in(user)
+
+      # Then
+      assert NaiveDateTime.after?(got.last_sign_in_at, stale)
+      assert NaiveDateTime.after?(Accounts.get_user_by_id(user.id).last_sign_in_at, stale)
+    end
+  end
+
   describe "create_customer_when_absent/1" do
     test "doesn't create the customer if it's already present" do
       # Given

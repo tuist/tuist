@@ -245,7 +245,6 @@ defmodule Tuist.RunnersTest do
     # for real against the sandboxed repo.
     defp stub_dispatch_path(account, candidate, test_pid, opts \\ []) do
       pod_name = Keyword.get(opts, :pod_name, "pod-1")
-      excluded_workflow_job_ids = Keyword.get(opts, :excluded_workflow_job_ids, [])
       workflow_job_id = candidate.workflow_job_id
 
       node_name = Keyword.get(opts, :node_name)
@@ -275,9 +274,7 @@ defmodule Tuist.RunnersTest do
         end)
       end
 
-      expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> excluded_workflow_job_ids end)
-
-      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], ^excluded_workflow_job_ids, _k ->
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k ->
         {:ok, [candidate]}
       end)
 
@@ -312,7 +309,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
       end)
 
-      expect(Claims, :mark_running, fn ^workflow_job_id, runner_name ->
+      expect(Claims, :mark_running, fn ^workflow_job_id, runner_name, _claimed_at ->
         assert String.starts_with?(runner_name, String.slice(pod_name, 0, 55))
         assert byte_size(runner_name) <= 64
         :ok
@@ -349,7 +346,6 @@ defmodule Tuist.RunnersTest do
         {:error, :not_found}
       end)
 
-      expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
       expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [failed_candidate]} end)
 
       expect(Claims, :attempt, fn workflow_job_id, account_id, "fleet-a", ^pod_name, _resources ->
@@ -376,11 +372,6 @@ defmodule Tuist.RunnersTest do
       expect(GitHubClient, :generate_jit_config, fn _installation, _login, attrs ->
         assert attrs.repository_full_handle == failed_candidate.repository
         mint_error
-      end)
-
-      expect(Jobs, :record_queued, fn candidate ->
-        assert candidate == failed_candidate
-        :ok
       end)
 
       expect(Claims, :release, fn workflow_job_id, ^first_claimed_at ->
@@ -424,7 +415,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: attrs.name}}
       end)
 
-      expect(Claims, :mark_running, fn workflow_job_id, _runner_name ->
+      expect(Claims, :mark_running, fn workflow_job_id, _runner_name, _claimed_at ->
         assert workflow_job_id == eligible_candidate.workflow_job_id
         :ok
       end)
@@ -701,14 +692,6 @@ defmodule Tuist.RunnersTest do
       assert "shape-linux-4vcpu-16gb" in labels
     end
 
-    test "excludes workflow jobs that already have active Postgres claims before picking queued work" do
-      account = account_fixture()
-      candidate = candidate_with_label(account, "tuist-default", workflow_job_id: 90_002)
-      stub_dispatch_path(account, candidate, self(), excluded_workflow_job_ids: [90_001])
-
-      assert {:ok, %{workflow_job_id: 90_002}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
-    end
-
     test "tries the next queued job after losing a claim race" do
       account = account_fixture()
       stale_candidate = candidate_with_label(account, "tuist-default", workflow_job_id: 90_001)
@@ -728,8 +711,6 @@ defmodule Tuist.RunnersTest do
       expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
         {:error, :not_found}
       end)
-
-      expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
 
       expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [stale_candidate]} end)
 
@@ -761,7 +742,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
       end)
 
-      expect(Claims, :mark_running, fn 90_002, runner_name ->
+      expect(Claims, :mark_running, fn 90_002, runner_name, _claimed_at ->
         assert String.starts_with?(runner_name, pod_name)
         :ok
       end)
@@ -857,7 +838,6 @@ defmodule Tuist.RunnersTest do
         {:error, :not_found}
       end)
 
-      expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
       expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [capped_candidate]} end)
 
       expect(Claims, :attempt, fn 91_001, account_id, "fleet-a", ^pod_name, resources ->
@@ -899,7 +879,6 @@ defmodule Tuist.RunnersTest do
         {:error, :not_found}
       end)
 
-      expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
       expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [busy_candidate]} end)
 
       expect(Claims, :attempt, fn 91_010, account_id, "fleet-a", ^pod_name, _resources ->
@@ -940,8 +919,6 @@ defmodule Tuist.RunnersTest do
         {:error, :not_found}
       end)
 
-      expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
-
       expect(Jobs, :pick_queued_top_k, 17, fn "fleet-a", excluded_account_ids, [], [], _k ->
         candidate = Enum.find(candidates, &(&1.account_id not in excluded_account_ids))
         {:ok, [candidate]}
@@ -981,7 +958,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
       end)
 
-      expect(Claims, :mark_running, fn 92_017, _runner_name -> :ok end)
+      expect(Claims, :mark_running, fn 92_017, _runner_name, _claimed_at -> :ok end)
       expect(Jobs, :record_running, fn 92_017, _runner_name -> :ok end)
 
       assert {:ok, %{workflow_job_id: 92_017}} =
@@ -1330,6 +1307,9 @@ defmodule Tuist.RunnersTest do
                  workflow_job_id: 91_050,
                  account_id: account.id,
                  fleet_name: fleet,
+                 platform: :macos,
+                 vcpus: 6,
+                 memory_gb: 14,
                  pod_name: "pod-session-tail",
                  started_at: DateTime.utc_now()
                })

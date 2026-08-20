@@ -26,6 +26,19 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   @metadata_lock_max_attempts 5
   @metadata_lock_backoff_ms 200
   @metadata_lock_snooze_seconds 30
+
+  # Same bounds as `Tuist.Registry.Swift.SyncWorker`: GitHub's primary quota
+  # window is an hour, and a reset that has already elapsed must not turn into
+  # an immediate re-run against a budget that has not recovered.
+  @min_snooze_seconds 60
+  @max_snooze_seconds 3_600
+  @default_snooze_seconds 600
+
+  @release_deferred_event [:tuist, :registry, :swift, :release, :deferred]
+
+  @doc false
+  def release_deferred_event_name, do: @release_deferred_event
+
   # Symlinks nested inside these code-signed bundles are part of the bundle's
   # sealed layout (e.g. a Mac Catalyst framework's `Versions/Current -> A` and
   # the `Binary`/`Resources` links). Code signing records them as symlinks in
@@ -104,8 +117,19 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   defp do_sync_release(scope, name, full_handle, tag, opts) do
     case Registry.swift_registry_github_token() do
       nil ->
-        Logger.warning("Registry release sync skipped for #{scope}/#{name}@#{tag}: missing token")
-        :ok
+        # A configured mirror whose App momentarily cannot issue a token would
+        # otherwise report a clean run for a release it never attempted, which
+        # is exactly the silent loss of coverage this path is meant to avoid.
+        if Registry.swift_registry_github_credentials_configured?() do
+          Logger.error("Deferring registry release #{scope}/#{name}@#{tag}: no GitHub credential could be resolved")
+
+          :telemetry.execute(@release_deferred_event, %{releases: 1}, %{reason: :missing_credential})
+
+          {:snooze, @default_snooze_seconds}
+        else
+          Logger.warning("Registry release sync skipped for #{scope}/#{name}@#{tag}: missing token")
+          :ok
+        end
 
       token ->
         normalized_version = KeyNormalizer.normalize_version(tag)
@@ -163,8 +187,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
           :ok ->
             :ok
 
+          # Every deferral path logs its own reason before returning, so this
+          # only forwards the delay.
           {:snooze, seconds} ->
-            Logger.info("Deferring release #{scope}/#{name}@#{tag}: package metadata lock is contended")
             {:snooze, seconds}
 
           {:discard, discard_reason} ->
@@ -1056,23 +1081,24 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     @metadata_lock_backoff_ms * step + :rand.uniform(@metadata_lock_backoff_ms)
   end
 
-  # Retrying re-clones the repository and every submodule already walked, aimed
-  # at a host that has just asked us to slow down, and reports each attempt
-  # separately. Deferring to the next sync tick is what `SyncWorker` already does
-  # with throttling responses, and the version stays unrecorded so that tick
-  # picks it up again.
+  # Retrying immediately re-clones the repository and every submodule already
+  # walked, aimed at a host that has just asked us to slow down, and reports each
+  # attempt separately. A third-party host sends no quota headers, so this backs
+  # off by the default window rather than to a reported reset.
   defp maybe_skip_release(
          scope,
          name,
          _full_handle,
          version,
-         {:git_submodule_update_throttled, submodule_path, _status, _output} = reason
+         {:git_submodule_update_throttled, submodule_path, _status, _output}
        ) do
     Logger.warning(
-      "Deferring registry release #{scope}/#{name}@#{version}: the host serving submodule #{submodule_path} is throttling requests"
+      "Deferring registry release #{scope}/#{name}@#{version} for #{@default_snooze_seconds}s: the host serving submodule #{submodule_path} is throttling requests"
     )
 
-    {:discard, reason}
+    :telemetry.execute(@release_deferred_event, %{releases: 1}, %{reason: :submodule_host_throttled})
+
+    {:snooze, @default_snooze_seconds}
   end
 
   defp maybe_skip_release(scope, name, full_handle, version, {:missing_manifests, failed_full_handle, tag}) do
@@ -1091,28 +1117,47 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     update_metadata_with_skipped_release(scope, name, full_handle, version, "missing_default_manifest")
   end
 
-  defp maybe_skip_release(_scope, _name, _full_handle, _version, reason) do
-    case rate_limit_status(reason) do
+  # Discarding here dropped the job's arguments, so the release was only
+  # revisited if a later catalog rotation happened to notice it missing again.
+  # Snoozing to the quota reset keeps the same job, with the same scope, name
+  # and tag, and lets it run once the budget is back.
+  defp maybe_skip_release(scope, name, _full_handle, version, reason) do
+    case rate_limit_deferral(reason) do
       nil ->
         :not_skipped
 
-      status ->
-        Logger.warning("Deferring registry release after GitHub rate limit (HTTP #{status})")
-        {:discard, reason}
+      {status, retry_after} ->
+        seconds = snooze_seconds(retry_after)
+
+        Logger.warning(
+          "Deferring registry release #{scope}/#{name}@#{version} for #{seconds}s after GitHub rate limit (HTTP #{status})"
+        )
+
+        :telemetry.execute(@release_deferred_event, %{releases: 1}, %{reason: :rate_limited})
+
+        {:snooze, seconds}
     end
   end
 
-  defp rate_limit_status({:rate_limited, status}), do: status
+  defp rate_limit_deferral({:rate_limited, status, retry_after}), do: {status, retry_after}
 
-  defp rate_limit_status(tuple) when is_tuple(tuple) do
+  defp rate_limit_deferral(tuple) when is_tuple(tuple) do
     tuple
     |> Tuple.to_list()
-    |> Enum.find_value(&rate_limit_status/1)
+    |> Enum.find_value(&rate_limit_deferral/1)
   end
 
-  defp rate_limit_status(list) when is_list(list), do: Enum.find_value(list, &rate_limit_status/1)
-  defp rate_limit_status(map) when is_map(map), do: map |> Map.values() |> Enum.find_value(&rate_limit_status/1)
-  defp rate_limit_status(_reason), do: nil
+  defp rate_limit_deferral(list) when is_list(list), do: Enum.find_value(list, &rate_limit_deferral/1)
+
+  defp rate_limit_deferral(map) when is_map(map), do: map |> Map.values() |> Enum.find_value(&rate_limit_deferral/1)
+
+  defp rate_limit_deferral(_reason), do: nil
+
+  defp snooze_seconds(nil), do: @default_snooze_seconds
+
+  defp snooze_seconds(retry_after) when is_integer(retry_after) do
+    retry_after |> max(@min_snooze_seconds) |> min(@max_snooze_seconds)
+  end
 
   defp update_metadata_with_skipped_release(scope, name, full_handle, version, reason) do
     lock_key = {:package, scope, name}

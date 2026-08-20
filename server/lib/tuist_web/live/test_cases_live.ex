@@ -391,7 +391,12 @@ defmodule TuistWeb.TestCasesLive do
   defp analytics_environment_label("local"), do: dgettext("dashboard_tests", "Local")
   defp analytics_environment_label("ci"), do: dgettext("dashboard_tests", "CI")
 
-  @allowed_sort_fields ~w(name last_duration avg_duration last_ran_at)
+  # The `duration_*` fields are alias fields `Tests.list_test_cases/3` computes
+  # from the per-case duration aggregates. `avg_duration` is still accepted so
+  # links and bookmarks pointing at the old denormalized column keep sorting the
+  # table by a duration rather than silently falling back to "Last ran at".
+  @allowed_sort_fields ~w(name last_duration duration_p50 duration_p90 duration_p99 duration_avg last_ran_at)
+  @legacy_sort_fields %{"avg_duration" => "duration_avg"}
   @default_sort_field "last_ran_at"
 
   defp assign_test_cases(%{assigns: %{selected_project: project}} = socket, params) do
@@ -418,7 +423,7 @@ defmodule TuistWeb.TestCasesLive do
     # Append `:id` as the unique tiebreaker so LIMIT/OFFSET pagination stays
     # deterministic when the primary sort column has ties.
     order_by = [String.to_existing_atom(sort_by), :id]
-    order_directions = [String.to_existing_atom(sort_order), :asc]
+    order_directions = [order_direction(sort_by, sort_order), :asc]
 
     options = %{
       filters: flop_filters,
@@ -428,7 +433,13 @@ defmodule TuistWeb.TestCasesLive do
       page_size: 20
     }
 
-    list_opts = [is_ci: is_ci]
+    # Spelled out rather than derived from `Tests.duration_fields/0`, to match
+    # the four columns the template spells out: dropping a column should leave
+    # its statistic visibly un-preloaded here.
+    list_opts = [
+      is_ci: is_ci,
+      preload: [:duration_p50_ms, :duration_p90_ms, :duration_p99_ms, :duration_avg_ms]
+    ]
 
     socket
     |> assign(:active_filters, filters)
@@ -452,7 +463,35 @@ defmodule TuistWeb.TestCasesLive do
 
   defp validate_sort_by(nil), do: @default_sort_field
   defp validate_sort_by(field) when field in @allowed_sort_fields, do: field
+
+  defp validate_sort_by(field) when is_map_key(@legacy_sort_fields, field), do: Map.fetch!(@legacy_sort_fields, field)
+
   defp validate_sort_by(_invalid), do: @default_sort_field
+
+  # Test cases without enough runs to rank carry null durations. Sorting them
+  # last in both directions keeps them out of "slowest" and out of "fastest":
+  # the listing does not know how long they take, which is not the same as
+  # knowing they are quick.
+  defp order_direction("duration_" <> _statistic, "asc"), do: :asc_nulls_last
+  defp order_direction("duration_" <> _statistic, _desc), do: :desc_nulls_last
+  defp order_direction(_field, "asc"), do: :asc
+  defp order_direction(_field, _desc), do: :desc
+
+  @doc """
+  Column header and sort-menu label for each of the listing's duration columns.
+  """
+  def duration_field_label(:duration_p50), do: dgettext("dashboard_tests", "p50")
+  def duration_field_label(:duration_p90), do: dgettext("dashboard_tests", "p90")
+  def duration_field_label(:duration_p99), do: dgettext("dashboard_tests", "p99")
+  def duration_field_label(:duration_avg), do: dgettext("dashboard_tests", "Avg.")
+
+  @doc """
+  Cell label for a duration the listing has, or a placeholder for one it does
+  not. The reason it is missing is spelled out once per row, on the p50 column.
+  """
+  def duration_cell_label(nil), do: dgettext("dashboard_tests", "N/A")
+
+  def duration_cell_label(duration_ms), do: Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(duration_ms)
 
   defp build_flop_filters(filters, search) do
     flop_filters =

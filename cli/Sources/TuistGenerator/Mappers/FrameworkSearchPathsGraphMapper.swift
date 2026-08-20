@@ -182,18 +182,17 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         for input: TargetInput,
         graphTraverser: GraphTraverser
     ) throws -> TargetOutput? {
-        let linkableModules = try graphTraverser
-            .searchablePathDependencies(path: input.id.projectPath, name: input.id.targetName).sorted()
+        // `precompiledSearchPathDependencies` rather than `searchablePathDependencies`: the latter builds a
+        // `GraphDependencyReference` for every dependency reachable from the target, and everything below
+        // reduces those to artifact paths and SDK search paths. On a binary-cache-substituted graph that is
+        // hundreds of references per target materialized to be discarded. The two are held in agreement by
+        // `PrecompiledSearchPathsDifferentialTests`.
+        let searchPathDependencies = graphTraverser
+            .precompiledSearchPathDependencies(path: input.id.projectPath, name: input.id.targetName)
 
-        let precompiledArtifacts = Set(linkableModules.compactMap(\.precompiledPath).map(PrecompiledArtifact.init))
+        let precompiledArtifacts = Set(searchPathDependencies.precompiledPaths.map(PrecompiledArtifact.init))
         let precompiledPaths = Set(precompiledArtifacts.map(\.searchPath))
-        let sdkPaths = Set(linkableModules.compactMap { (dependency: GraphDependencyReference) -> LinkGeneratorPath? in
-            if case let GraphDependencyReference.sdk(_, _, source, _) = dependency {
-                return source.frameworkSearchPath.map { LinkGeneratorPath.string($0) }
-            } else {
-                return nil
-            }
-        })
+        let sdkPaths = Set(searchPathDependencies.sdkSearchPaths.map { LinkGeneratorPath.string($0) })
 
         guard !precompiledPaths.isEmpty || !sdkPaths.isEmpty else { return nil }
 

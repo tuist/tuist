@@ -485,7 +485,12 @@ topk(10, sum by (source, destination) (
 An in-cluster source resolves to a pod name; a mis-sourced runner VM or a SNATed
 path resolves to a bare IP, which is the distinction that matters here. Those
 labels come from `drop:sourceContext=pod|ip;destinationContext=pod` in
-[`cilium-values.yaml`](../../k8s/mgmt/bootstrap/cilium-values.yaml). A cluster
+[`cilium-values.yaml`](../../k8s/mgmt/bootstrap/cilium-values.yaml), which
+reaches existing clusters through
+[`cilium-deployment.yml`](../../../.github/workflows/cilium-deployment.yml) —
+editing the values file alone does nothing until that workflow runs, and it was
+this gap that left production unattributable for two days after the value
+merged. A cluster
 that has not had that Cilium value applied still reports `hubble_drop_total`
 aggregated to `(protocol, reason)` only, and needs the job caught live
 (`kubectl get pod -o wide`) with `pfctl -a com.apple/tuist.vmnat -s nat` plus
@@ -802,6 +807,53 @@ plugin, the scrape, or the queue's registration went away, not that the
 queue is idle. Production only: staging and canary can legitimately run
 with no processor deployment at all.
 
+### Swift registry catalog coverage deferred
+
+Same shape as the queue rule above, for the writer rather than a
+consumer: the swift-registry-sync pod can be `1/1 Running` with zero
+restarts and still not be mirroring anything.
+
+That is not hypothetical. During the July 2026 registry incident the
+production pod logged 2,566 GitHub rate-limit failures and dropped nine
+consecutive scheduled catalog passes in a little over six hours, while
+every availability signal stayed green. Nothing paged, and the first
+detection of the resulting catalog drift was a customer issue.
+
+`Tuist.Registry.Swift.SyncWorker` now defers a throttled pass to the
+quota reset instead of discarding it, holds the rotation cursor at the
+package it stopped on, and counts the packages it gave up on. This rule
+reads that count.
+
+```promql
+sum by (cluster, env) (
+  increase(tuist_registry_swift_sync_coverage_deferred_total[30m])
+) >= 3
+```
+
+- Pending period: 0 minutes
+- Severity: critical
+- Label: `affected_service` set to the registry component
+- Summary: `The Swift registry mirror deferred {{ $value }} scheduled
+  catalog passes in the last 30 minutes in {{ $labels.cluster }}`
+
+Passes, not packages: a single deferred pass is ordinary (the mirror
+backs off, the next one catches up), and three inside half an hour means
+the deferral is not clearing on its own. The catalog rotates roughly
+every ten minutes, so three consecutive deferrals is the whole window.
+
+`reason` separates the causes without changing the threshold, and is
+worth reading before acting. `rate_limited` points at the request budget
+(check `tuist_github_rate_limit_used` against `tuist_github_rate_limit_limit`
+and, if it is genuinely exhausted, at `swiftRegistrySync.syncLimit`).
+`missing_credential` means the GitHub App could not issue an installation
+token at all. `unauthorized` means GitHub refused the token the mirror
+does hold. `all_packages_failed` means every package in a pass failed,
+which is the mirror being broken rather than several hundred unrelated
+repositories failing at once, and is the shape a credential problem takes
+because GitHub answers an invisible repository with 404 rather than 401.
+For either, reverting `swiftRegistrySync.githubAppInstallation` falls back
+to the personal access token. None of these three is fixed by waiting.
+
 ### xcresult processor guest metrics unavailable fleet-wide
 
 The direct detector for "the BEAM inside the Tart VM is not running".
@@ -997,6 +1049,43 @@ absent_over_time(
 
 ## Warning alerts
 
+### Swift registry release work repeatedly deferred
+
+```promql
+sum by (cluster, env) (
+  increase(tuist_registry_swift_release_deferred_total[1h])
+) > 50
+```
+
+- Pending period: 10 minutes
+- Summary: `{{ $value }} Swift registry release jobs were deferred in the
+  last hour in {{ $labels.cluster }}`
+
+Deferred release jobs keep their arguments and run once the throttling
+clears, so a handful is the mechanism working. A sustained rate means new
+versions are not reaching the catalog, which surfaces to customers as a
+version that never appears rather than as an error. Pairs with the
+critical coverage rule above: that one fires when whole passes stop,
+this one when individual releases pile up behind throttling.
+
+### Swift registry packages skipped without being read
+
+```promql
+sum by (cluster, env) (
+  increase(tuist_registry_swift_sync_package_skipped_total[1h])
+) > 100
+```
+
+- Pending period: 10 minutes
+- Summary: `The Swift registry mirror passed over {{ $value }} packages
+  without reading their tags in the last hour in {{ $labels.cluster }}`
+
+Distinct from the deferral rules: these are packages the pass moved past
+after a non-throttling failure, so the cursor has already rotated beyond
+them and they wait a full catalog rotation for another look. A steady
+rate here is upstream repositories going away or a scope problem on the
+mirror's credential, not a quota problem.
+
 ### Worker node pool stuck mid-rollout
 
 Catches a worker MachineDeployment that started replacing Machines and cannot
@@ -1116,7 +1205,7 @@ endpoints, which reads as "no traffic" rather than "no backend".
 
 That is how `registry/registry-pg-1` — the sole instance of a
 CloudNativePG cluster — sat `Pending` in production from 2026-07-06 to
-2026-08-18 without anyone noticing. Its volume had been provisioned
+2026-08-19 without anyone noticing. Its volume had been provisioned
 against a node that was later destroyed, and Hetzner Cloud Volumes are
 location-bound, so the replacement Pod could not satisfy the volume's
 node affinity anywhere in the cluster. All three of that cluster's
@@ -1124,13 +1213,59 @@ Services served zero endpoints for six weeks.
 
 ```promql
 max by (cluster, namespace, pod) (
-  kube_pod_status_unschedulable{namespace!="tuist-runners"}
+  kube_pod_status_unschedulable{
+    cluster="tuist-production",
+    namespace!="tuist-runners"
+  }
 ) == 1
 ```
 
 - Pending period: 30 minutes
 - Severity: warning
+- No-data state: OK, and the same for the execution-error state
 - Summary: `Pod {{ $labels.namespace }}/{{ $labels.pod }} has been unschedulable for 30 minutes in {{ $labels.cluster }}`
+
+The no-data state is not incidental. Production's healthy baseline for
+this query is *no series at all*, so the rule sits in no-data rather than
+at zero whenever nothing is wrong. Left at the `Alerting` default it
+would fire permanently from the moment it is created.
+
+The `cluster` scope is also load-bearing, and this rule was documented
+without it first. When it was written the unscoped query matched 15
+permanently unschedulable Pods in `tuist-staging`, so saving it would
+have fired 15 alerts on its first evaluation. That is the failure mode
+the *Worker node pool stuck mid-rollout* rule warns about in its own
+pending-period note: a rule that cries wolf on the expected path gets
+muted, and a muted rule is worth less than no rule.
+
+Those 15 turned out to be orphans rather than a reason to widen the rule,
+and were cleared on 2026-08-19:
+
+- 11 `kura-<account>-staging` instances stranded in the retired
+  `hetzner-staging-runners` region, whose `kura` node pool was deleted
+  with it. Their Postgres rows were already gone, and
+  `reconcile_retired_region_servers` drives teardown from those rows, so
+  the orphaned `KuraInstance` CRs were invisible to it permanently.
+- 3 belonging to `kgw-…-eu-central-controller`, left behind when the
+  per-account Kura gateway was removed in
+  [#11644](https://github.com/tuist/tuist/pull/11644). Helm does not prune
+  CRDs, so the CRD and its CR outlived the controller that reconciled
+  them, and the CR's finalizer had to be cleared by hand because nothing
+  was left to process it.
+- 1 `tailscale-operator` subnet-router Pod, which is churn rather than a
+  stuck Pod: the operator replaces it every few minutes, so no single
+  instance survives the pending period.
+
+Staging is clean enough to alert on today. The scope stays at production
+because that is what the deployed rule uses, and the two should not drift;
+widening it is a deliberate follow-up rather than an oversight. Before
+doing so, confirm the subnet-router churn still never persists past 30
+minutes, because one instance did sit unschedulable for 18 consecutive
+hours in the 48 hours before the cleanup.
+
+Validate any change to this query against live data before saving it. The
+staging noise above was invisible in review and only showed up by running
+the expression over a 48-hour window.
 
 No metric change is needed. The kube-state-metrics tuning in
 [`values.yaml`](./values.yaml) already keeps `kube_pod_status_unschedulable`
@@ -1152,9 +1287,9 @@ scheduler could not place them.
 Thirty minutes clears the ordinary path where a Pod waits on the cluster
 autoscaler to add a node, and is short enough that a volume-affinity or
 taint mistake surfaces the same morning instead of six weeks later. This
-is a warning rather than a page because it fires on any workload in any
-namespace: the Pod that motivated it was critical, but most Pods that
-briefly cannot schedule are not.
+is a warning rather than a page because it fires on any production
+workload in any namespace: the Pod that motivated it was critical, but
+most Pods that briefly cannot schedule are not.
 
 ### Kubernetes request latency
 

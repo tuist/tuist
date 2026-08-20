@@ -4,13 +4,15 @@ defmodule Tuist.Runners.AnalyticsTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Runners.Analytics
+  alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
 
   # Walks a workflow_job through the full lifecycle so it lands as
-  # `status=completed` with the supplied conclusion. Each step is a
-  # separate INSERT, exactly like production — so without the GROUP
-  # BY + argMax dedup in Analytics, the row would be counted three
-  # times instead of once.
+  # `status=completed` with the supplied conclusion, then flushes the
+  # transition outbox so ClickHouse holds one row per transition —
+  # exactly like production. Without the GROUP BY + argMax dedup in
+  # Analytics, the job would be counted once per transition row.
   defp completed_job(account, workflow_job_id, conclusion, opts \\ []) do
     fleet = Keyword.get(opts, :fleet, "fleet-analytics-#{workflow_job_id}")
 
@@ -29,10 +31,19 @@ defmodule Tuist.Runners.AnalyticsTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued(fleet, [])
-    :ok = Jobs.record_claimed(candidate, "pod-#{workflow_job_id}", DateTime.utc_now())
-    :ok = Jobs.record_running(workflow_job_id, "runner-#{workflow_job_id}")
+
+    {:ok, _claim} =
+      Claims.attempt(candidate.workflow_job_id, account.id, fleet, "pod-#{workflow_job_id}", %{
+        platform: :linux,
+        vcpus: 1,
+        memory_gb: 1
+      })
+
+    :ok = mark_running!(workflow_job_id, "runner-#{workflow_job_id}")
     Process.sleep(Keyword.get(opts, :run_ms, 20))
     {:ok, _} = Jobs.complete(workflow_job_id, conclusion)
+    :ok = Claims.complete(workflow_job_id)
+    :ok = perform_job(FlushJobTransitionEventsWorker, %{})
   end
 
   describe "jobs_count/2" do
@@ -171,6 +182,8 @@ defmodule Tuist.Runners.AnalyticsTest do
           head_sha: "abc"
         })
 
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
+
       result = Analytics.workflows_duration(account.id)
 
       assert result.avg == 0
@@ -250,5 +263,13 @@ defmodule Tuist.Runners.AnalyticsTest do
       assert %{count: 2} = Analytics.jobs_count(account.id, platform: "linux")
       assert %{count: 0} = Analytics.jobs_count(account.id, platform: "macos")
     end
+  end
+
+  # Production threads the caller's own claim handle into `mark_running/3`;
+  # these tests only need "promote the claim that exists", so they read it
+  # back. The guard itself is covered in the `mark_running/3` describe.
+  defp mark_running!(workflow_job_id, runner_name) do
+    claim = Tuist.Repo.get!(Tuist.Runners.Claim, workflow_job_id)
+    Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
   end
 end

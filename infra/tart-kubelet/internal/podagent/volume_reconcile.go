@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -82,6 +83,30 @@ const dirtyMarkerFile = "cache-dirty"
 // see runnerTermination.
 const runnerExitFile = "runner-rc"
 
+// runnerLogFile is dispatch-poll.sh's own output, mirrored into the
+// writable status share by the guest so it outlives the VM. The copy
+// inside the guest (/var/log/tuist-runner/poll.log) dies with the VM at
+// teardown, and Tart cannot capture a macOS guest's console, so without
+// this the host has an exit code and nothing that explains it.
+//
+// That gap is not academic: the trap reports 0 both for a finished job
+// and for a runner that halted without ever taking one, so the exit code
+// alone cannot tell those apart. This file is what does.
+//
+// Absent for the same two reasons as runnerExitFile — a guest killed
+// before its trap ran, and hosts with no status share attached at all.
+const runnerLogFile = "runner.log"
+
+// runnerLogTailLines / runnerLogTailBytes bound what publishRunnerLog
+// re-emits. dispatch-poll.sh is quiet by design — the job's own output
+// goes to GitHub server-side, so this log is warm-standby ticks plus the
+// cache teardown trail — but the file is guest-writable, so it is bounded
+// rather than trusted.
+const (
+	runnerLogTailLines = 200
+	runnerLogTailBytes = 64 << 10
+)
+
 // readRunnerExit reads the guest-reported exit code from the status share.
 // The bool is false when the guest reported nothing usable.
 //
@@ -108,6 +133,62 @@ func readRunnerExit(statusDir string) (int32, bool) {
 		return 0, false
 	}
 	return int32(code), true
+}
+
+// readRunnerLog returns a bounded tail of the guest's mirrored log, or
+// "" when there is nothing usable. Callers re-emit it to tart-kubelet's
+// own stdout before teardown deletes the share.
+//
+// Tail rather than head: the interesting part of a runner that gave up
+// is what it said last. Bounded twice because the file is guest-written
+// — by bytes first so a single pathological line cannot blow up the log
+// record, then by lines.
+//
+// Opened O_NOFOLLOW and required to be a regular file, because the guest
+// writes this path and the guest runs untrusted customer CI. A job that
+// replaces runner.log with a symlink would otherwise have the host
+// resolve it and publish up to runnerLogTailBytes of a host-readable
+// file to Loki — the guest picks the target, the host does the reading.
+// O_NONBLOCK covers the same trick with a FIFO, where the open itself
+// would park this reconcile until something wrote to the other end.
+// Whatever the guest left is inspected but never trusted to be a file.
+func readRunnerLog(statusDir string) string {
+	if statusDir == "" {
+		return ""
+	}
+	f, err := os.OpenFile(
+		filepath.Join(statusDir, runnerLogFile),
+		os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK,
+		0,
+	)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil || !fi.Mode().IsRegular() {
+		return ""
+	}
+	offset := int64(0)
+	if fi.Size() > runnerLogTailBytes {
+		offset = fi.Size() - runnerLogTailBytes
+	}
+	b := make([]byte, fi.Size()-offset)
+	if _, err := f.ReadAt(b, offset); err != nil {
+		return ""
+	}
+
+	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
+	// A byte-bounded read almost certainly starts mid-line; drop that
+	// fragment so the tail begins on a real record.
+	if offset > 0 && len(lines) > 1 {
+		lines = lines[1:]
+	}
+	if len(lines) > runnerLogTailLines {
+		lines = lines[len(lines)-runnerLogTailLines:]
+	}
+	return strings.Join(lines, "\n")
 }
 
 // readRunnerExitTime returns when the guest wrote its exit report, which
@@ -370,6 +451,29 @@ func writeBaseGeneration(statusDir string, generation int) {
 		return
 	}
 	_ = os.WriteFile(filepath.Join(statusDir, baseGenerationFile), []byte(strconv.Itoa(generation)), 0o644)
+}
+
+// nodeNameFile carries this host's Kubernetes Node name into the writable status
+// share. The guest relays it with its promote report, which is how a HEAD row
+// records the host that published it — the only attribution the fleet has for a
+// generation once it stands. It is the Node name rather than the Pod name
+// deliberately: the Pod is gone minutes later, whereas the Node name is what the
+// `tuist.dev/cache-master-<account>` advertisements and the volume affinities are
+// keyed on, so a HEAD can be traced back to the host still holding its master.
+//
+// Staged at VM create alongside the branch budget, not at materialize: it is a
+// property of the host, constant for the VM's whole life, and known before
+// dispatch binds the VM to an account.
+const nodeNameFile = "node-name"
+
+// writeNodeName stages the host's Node name for the guest to relay at promote.
+// Best-effort, like every other host to guest signal here: an unstaged name
+// leaves the attribution field empty, which is exactly the status quo.
+func writeNodeName(statusDir, nodeName string) {
+	if statusDir == "" || nodeName == "" {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(statusDir, nodeNameFile), []byte(nodeName), 0o644)
 }
 
 // promoteResultFile carries the outcome of this job's HEAD fast-forward, written

@@ -7,6 +7,7 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorkerTest do
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Workers.ArchiveLogsWorker
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Storage
 
   setup :verify_on_exit!
@@ -24,6 +25,8 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorkerTest do
         head_branch: "main",
         head_sha: "deadbeef"
       })
+
+    :ok = perform_job(FlushJobTransitionEventsWorker, %{})
   end
 
   describe "perform/1" do

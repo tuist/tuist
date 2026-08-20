@@ -13,6 +13,70 @@ defmodule Tuist.OAuth.IntrospectionTest do
       assert Introspection.token_response("unknown-token") == %{active: false}
     end
 
+    # Every managed cache node authenticates as the control-plane client and so
+    # lands here. A node holds no verification key, so this is the only thing
+    # that can tell it what an exchanged cache token reaches; answering inactive
+    # made it deny every request from a CLI that sends one.
+    test "answers a cache token from the grants it carries" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "control-plane-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+      full_handle = "#{organization.account.name}/#{project.name}"
+
+      {:ok, token, _claims} = Cache.issue_cache_token(user, scope: full_handle)
+
+      assert %{
+               active: true,
+               cache_grants: %{
+                 "project" => %{"read" => project_reads, "write" => project_writes}
+               }
+             } = Introspection.token_response(token)
+
+      assert full_handle in project_reads
+      assert full_handle in project_writes
+    end
+
+    # The tenant-scoped path narrows to one account. This one serves every
+    # tenant, so a token minted for a project in one organization has to come
+    # back carrying that project rather than being filtered to nothing.
+    test "answers a cache token whatever tenant it was minted for" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      first = AccountsFixtures.organization_fixture(name: "first-tenant", creator: user)
+      second = AccountsFixtures.organization_fixture(name: "second-tenant", creator: user)
+      Accounts.add_user_to_organization(user, first, role: :admin)
+      Accounts.add_user_to_organization(user, second, role: :admin)
+      ProjectsFixtures.project_fixture(account: first.account, name: "ios")
+      ProjectsFixtures.project_fixture(account: second.account, name: "android")
+
+      for handle <- ["first-tenant/ios", "second-tenant/android"] do
+        {:ok, token, _claims} = Cache.issue_cache_token(user, scope: handle)
+
+        assert %{active: true, cache_grants: %{"project" => %{"read" => reads}}} =
+                 Introspection.token_response(token)
+
+        assert handle in reads
+      end
+    end
+
+    # The refusal answering a cache token depends on: resolving one as a subject
+    # would make a token minted for the cache work on every API endpoint, and its
+    # `sub` is a project id that the user lookup would read as a user id.
+    test "a cache token still resolves to no API subject" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "no-api-control-plane", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      ProjectsFixtures.project_fixture(account: organization.account)
+
+      {:ok, token, _claims} = Cache.issue_cache_token(user)
+
+      assert Tuist.Authentication.authenticated_subject(token) == nil
+    end
+
+    test "reports a tampered cache token inactive" do
+      assert Introspection.token_response("not.a.jwt") == %{active: false}
+    end
+
     test "returns user cache grants for personal and organization accounts" do
       user = AccountsFixtures.user_fixture(preload: [:account])
       organization = AccountsFixtures.organization_fixture(name: "acme-org", creator: user)
