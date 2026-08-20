@@ -56,7 +56,8 @@ defmodule TuistWeb.Docs.Layouts do
         label: dgettext("docs", "Bluesky"),
         icon: "brand_bluesky",
         href: "https://bsky.app/profile/tuist.dev"
-      }
+      },
+      %{label: "X", icon: "brand_x", href: "https://x.com/tuistdev"}
     ]
   end
 
