@@ -85,6 +85,22 @@ defmodule TuistWeb.OpsKuraLiveTest do
     assert event.reason == "observed suspicious latency"
   end
 
+  test "leaving the action dropdown unselected operates on nothing", %{conn: conn} do
+    rollout = create_rollout()
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/kura")
+
+    lv
+    |> form("form[phx-submit=operate]", %{reason: "no action picked", action: ""})
+    |> render_submit()
+
+    assert Repo.get!(Rollout, rollout.id).status == :running
+    assert Rollouts.list_events(rollout) == []
+
+    assert TuistWeb.OpsKuraComponents.operate_error_message(:no_action_selected, "") ==
+             "Choose an action to apply."
+  end
+
   test "links to the rollout detail page for the audit trail", %{conn: conn} do
     rollout = create_rollout()
     record_events(rollout, 12)

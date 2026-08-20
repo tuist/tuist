@@ -14,6 +14,10 @@ defmodule TuistWeb.OpsKuraComponents do
   Dispatches an operator verb from a LiveView `operate` event. Returns
   the verb result; unknown actions error rather than defaulting.
   """
+  def operate(_rollout, action, _actor, _reason) when action in [nil, ""] do
+    {:error, :no_action_selected}
+  end
+
   def operate(rollout, action, actor, reason) do
     case action do
       "pause" -> Rollouts.pause(rollout, actor, reason)
@@ -82,14 +86,32 @@ defmodule TuistWeb.OpsKuraComponents do
       </div>
       <div class="select-field">
         <.label label="Action" required />
-        <select name="action" id="action">
-          <option :for={{value, label} <- operator_actions(@rollout)} value={value}>{label}</option>
-        </select>
+        <%!-- The id carries the status so a verb that changes it remounts
+        the hook: its item collection and selected value live in JS, and a
+        stale "Resume" would otherwise linger on a now-running rollout. --%>
+        <.select
+          id={"rollout-action-#{@rollout.status}"}
+          name="action"
+          value=""
+          label="Select an action"
+        >
+          <:item :for={{value, label} <- operator_actions(@rollout)} value={value} label={label} />
+        </.select>
       </div>
       <.button type="submit" variant="primary" label="Apply" />
     </form>
     """
   end
+
+  @doc """
+  Message for a failed operator verb. The dropdown starts unselected —
+  its hook initializes the underlying select empty, and an operator verb
+  is worth choosing deliberately — so an empty action is a normal
+  outcome, not an internal error.
+  """
+  def operate_error_message(:no_action_selected, _action), do: "Choose an action to apply."
+
+  def operate_error_message(reason, action), do: "Could not #{action} the rollout: #{inspect(reason)}"
 
   # Resume and pause are mutually exclusive on status; expedite and abort
   # apply to any non-terminal rollout.

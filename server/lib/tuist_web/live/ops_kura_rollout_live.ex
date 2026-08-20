@@ -72,7 +72,7 @@ defmodule TuistWeb.OpsKuraRolloutLive do
           put_flash(socket, :info, "Rollout #{action} applied.")
 
         {:error, reason} ->
-          put_flash(socket, :error, "Could not #{action} the rollout: #{inspect(reason)}")
+          put_flash(socket, :error, operate_error_message(reason, action))
       end
 
     socket = load_rollout_state(socket)

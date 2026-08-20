@@ -56,20 +56,6 @@
       flex-direction: column;
       gap: var(--noora-spacing-2);
       min-width: 240px;
-
-      /* Plain <select> (not Noora's <.select>) — Noora's select doesn't
-         serialize through the form submit, so a native select styled to
-         match is used, as on the ops account page. */
-      & > select {
-        appearance: auto;
-        height: var(--noora-spacing-9);
-        padding: var(--noora-spacing-2) var(--noora-spacing-4);
-        border: 1px solid var(--noora-surface-border-primary);
-        border-radius: var(--noora-radius-medium);
-        background: var(--noora-surface-background-primary);
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-body-medium);
-      }
     }
   }
 
