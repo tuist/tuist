@@ -70,6 +70,6 @@ jobs:
           CLOUDFLARE_API_TOKEN: op://tuist/Cloudflare/CLOUDFLARE_API_TOKEN
           CLOUDFLARE_ACCOUNT_ID: op://tuist/Cloudflare/CLOUDFLARE_ACCOUNT_ID
         run: >-
-          mise exec node@20.12.0 npm:wrangler@4.30.0 -- /usr/local/bin/op run --
+          mise exec node@20.12.0 npm:wrangler@4.30.0 -- op run --
           wrangler pages deploy --commit-hash ${{ github.sha }} --branch main
           --project-name tuist-projectdescription .build/documentation
