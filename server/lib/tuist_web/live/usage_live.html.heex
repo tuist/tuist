@@ -149,41 +149,37 @@
         y_axis_min={0}
       />
     </.card_section>
-    <.card_section data-part="runner-usage-card-table-section">
-      <.table id="runner-usage-breakdown" rows={@runner_breakdown.platforms}>
-        <:col :let={row} label={dgettext("dashboard_usage", "Product")}>
-          <.text_and_description_cell
-            label={TuistWeb.UsageLive.platform_label(row.platform)}
-            description={dgettext("dashboard_usage", "Runner minutes")}
-          />
-        </:col>
-        <:col :let={row} label={TuistWeb.UsageLive.current_period_label(@runner_breakdown)}>
-          <.text_and_description_cell
-            label={dgettext("dashboard_usage", "%{count} min", count: row.minutes)}
-            description={TuistWeb.UsageLive.money_label(row.gross)}
-          />
-        </:col>
-        <:col :let={row} label={dgettext("dashboard_usage", "Projection")}>
-          <.text_cell label={
-            dgettext("dashboard_usage", "%{count} min", count: row.projected_minutes)
-          } />
-        </:col>
-        <:col :let={row} label={dgettext("dashboard_usage", "Included")}>
-          <.text_cell label={
-            if row.included_minutes,
-              do: dgettext("dashboard_usage", "%{count} min", count: row.included_minutes),
-              else: "—"
-          } />
-        </:col>
-        <:col :let={row} label={dgettext("dashboard_usage", "Billed")}>
-          <.text_cell label={TuistWeb.UsageLive.money_label(row.billed)} />
-        </:col>
-        <:col :let={row} label={dgettext("dashboard_usage", "Previous period")}>
-          <.text_cell label={
-            dgettext("dashboard_usage", "%{count} min", count: row.previous_minutes)
-          } />
-        </:col>
-      </.table>
+    <.card_section
+      :for={row <- @runner_breakdown.platforms}
+      data-part="runner-usage-card-receipt-section"
+    >
+      <div data-part="receipt">
+        <div data-part="heading">
+          <span data-part="platform">{TuistWeb.UsageLive.platform_label(row.platform)}</span>
+          <span data-part="shape">{TuistWeb.UsageLive.platform_shape(row.platform)}</span>
+        </div>
+        <dl data-part="lines">
+          <div data-part="line">
+            <dt>{dgettext("dashboard_usage", "%{count} minutes run", count: row.minutes)}</dt>
+            <dd>{TuistWeb.UsageLive.money_label(row.gross)}</dd>
+          </div>
+          <div :if={row.included_minutes} data-part="line" data-kind="credit">
+            <dt>
+              {dgettext("dashboard_usage", "%{count} minutes included",
+                count: row.included_minutes
+              )}
+            </dt>
+            <dd>{TuistWeb.UsageLive.included_credit_label(row)}</dd>
+          </div>
+          <div data-part="line" data-kind="total">
+            <dt>{dgettext("dashboard_usage", "Billed this period")}</dt>
+            <dd>{TuistWeb.UsageLive.money_label(row.billed)}</dd>
+          </div>
+        </dl>
+        <p data-part="footnote">
+          {TuistWeb.UsageLive.pace_label(row)}
+        </p>
+      </div>
     </.card_section>
   </.card>
 

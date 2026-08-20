@@ -285,6 +285,38 @@ defmodule TuistWeb.UsageLive do
     ]
   end
 
+  def platform_shape(:macos), do: "6 vCPU / 14 GB"
+  def platform_shape(:linux), do: "2 vCPU / 8 GB"
+  def platform_shape(_other), do: ""
+
+  @doc """
+  The allowance expressed as the money it takes off the bill, so the
+  receipt reads as a subtraction rather than as a bare minute count.
+  """
+  def included_credit_label(%{included_minutes: nil}), do: "—"
+
+  def included_credit_label(%{gross: gross, billed: billed}) when not is_nil(gross) do
+    "−" <> CldrHelpers.format_money(Money.subtract(gross, billed))
+  end
+
+  def included_credit_label(_row), do: "—"
+
+  @doc """
+  Where the month lands if it carries on at this rate. A sentence
+  rather than a column, because it is an extrapolation and should read
+  like one.
+  """
+  def pace_label(%{minutes: minutes, projected_minutes: projected, previous_minutes: previous}) do
+    pace =
+      dgettext("dashboard_usage", "On track for about %{count} minutes this month.", count: projected)
+
+    case previous do
+      0 when minutes > 0 -> pace <> " " <> dgettext("dashboard_usage", "Nothing ran last month.")
+      0 -> pace
+      _ -> pace <> " " <> dgettext("dashboard_usage", "Last month came to %{count}.", count: previous)
+    end
+  end
+
   def platform_label(:macos), do: dgettext("dashboard_usage", "macOS")
   def platform_label(:linux), do: dgettext("dashboard_usage", "Linux")
   def platform_label(other), do: to_string(other)

@@ -206,4 +206,40 @@ defmodule TuistWeb.UsageLiveTest do
       assert has_element?(lv, ~s|[phx-value-widget="egress"][data-selected]|)
     end
   end
+
+  describe "runner usage receipt" do
+    test "walks from minutes to money, showing the allowance as a credit", %{conn: conn, user: user} do
+      account = user.account
+      started = DateTime.add(DateTime.utc_now(), -2, :hour)
+
+      Tuist.Repo.insert!(%Tuist.Runners.RunnerSession{
+        account_id: account.id,
+        workflow_job_id: System.unique_integer([:positive]),
+        fleet_name: "tuist-macos",
+        pod_name: "pod-#{System.unique_integer([:positive])}",
+        runner_name: "",
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        billing_multiplier: 10_000,
+        started_at: started,
+        job_started_at: started,
+        job_ended_at: DateTime.add(started, 120 * 60, :second),
+        inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      html = render(lv)
+      assert html =~ "120 minutes run"
+      assert html =~ "100 minutes included"
+      assert html =~ "Billed this period"
+      # The credit reads as money off the bill, not as a bare minute count.
+      assert html =~ "−7.50"
+      # 20 minutes past the allowance at the standard rate.
+      assert html =~ "1.50"
+      assert html =~ "On track for about"
+    end
+  end
 end
