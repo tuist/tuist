@@ -1496,6 +1496,19 @@ defmodule Tuist.Environment do
     get([:secret_key, :cache_tokens], secrets)
   end
 
+  @doc """
+  Whether cache tokens are signed with `secret_key_cache_tokens/1` yet.
+
+  Deliberately separate from holding the key. Installing the key teaches a
+  replica to verify tokens signed with it; this switches on issuing them. Doing
+  both at once means that during a rolling deploy a token minted by a replica
+  that has the key can be introspected by one that does not, and be reported
+  inactive.
+  """
+  def cache_token_signing_enabled?(secrets \\ secrets()) do
+    truthy?(get([:cache_token, :signing_enabled], secrets, default_value: "0"))
+  end
+
   def secret_key_encryption(secrets \\ secrets()) do
     get([:secret_key, :encryption], secrets, default_value: secret_key_base(secrets))
   end

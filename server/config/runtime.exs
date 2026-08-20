@@ -867,18 +867,12 @@ end
 
 # Cache tokens are signed with their own keypair where one is configured, so a
 # cache node can be handed a half that reads them and cannot mint them. Parsed
-# here rather than per token, and refused loudly: a key that cannot be read
-# would otherwise surface as the token exchange failing under load.
+# and proven here rather than per token: a key that cannot sign would otherwise
+# boot cleanly and fail the token exchange on the first request.
 cache_token_signing_jwk =
   case Tuist.Environment.secret_key_cache_tokens(secrets) do
-    nil ->
-      nil
-
-    pem ->
-      case JOSE.JWK.from_pem(pem) do
-        %JOSE.JWK{} = jwk -> jwk
-        _ -> raise "TUIST_SECRET_KEY_CACHE_TOKENS is set but is not a readable PEM private key"
-      end
+    nil -> nil
+    pem -> Tuist.CacheGuardian.signing_jwk!(pem)
   end
 
 config :tuist, Tuist.CacheGuardian,

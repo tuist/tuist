@@ -501,8 +501,17 @@ server:
     # a pair exists in the environment's vault: cache tokens are then signed by
     # the API-credential key instead and nodes answer them through introspection,
     # which is what every environment did before the pair existed.
+    #
+    # The two flags are switched on in order, in separate rollouts. `enabled`
+    # installs the key, which only teaches a replica to verify tokens signed
+    # with it and changes nothing a client sees. `signing` then makes replicas
+    # issue those tokens. Doing both at once means that partway through the
+    # rollout a token minted by a replica holding the key can be introspected
+    # by one that does not yet hold it, which reports it inactive and 401s a
+    # request that was perfectly valid.
     cacheTokenKey:
       enabled: false
+      signing: false
     externalSecrets:
       refreshInterval: "1h"
       storeRef:

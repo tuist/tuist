@@ -1,5 +1,6 @@
 defmodule Tuist.OAuth.IntrospectionTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.Accounts
   alias Tuist.Cache
@@ -53,6 +54,41 @@ defmodule Tuist.OAuth.IntrospectionTest do
 
       {:ok, token, _claims} =
         Tuist.Guardian.encode_and_sign(user, %{"cache_grants" => grants},
+          token_type: "cache",
+          ttl: {Cache.cache_token_ttl_seconds(), :second}
+        )
+
+      assert %{active: true, cache_grants: %{"project" => %{"read" => reads}}} =
+               Introspection.token_response(token)
+
+      assert full_handle in reads
+    end
+
+    # The skew this rollout's two steps exist to close. Installing the key and
+    # switching on issuance are separate rollouts, so partway through the second
+    # one a replica still signing with the old key receives, for introspection,
+    # a token a replica ahead of it has already signed with the new one. It
+    # holds the key from the first step, so it answers rather than reporting a
+    # valid token inactive and 401ing a request that was fine.
+    test "answers a cache token signed by a replica already issuing them" do
+      stub(Tuist.Environment, :cache_token_signing_enabled?, fn -> false end)
+
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "skew-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+      full_handle = "#{organization.account.name}/#{project.name}"
+
+      refute Tuist.CacheGuardian.signing?()
+      assert Tuist.CacheGuardian.configured?()
+
+      grants = %{
+        "account" => %{"read" => [], "write" => []},
+        "project" => %{"read" => [full_handle], "write" => [full_handle]}
+      }
+
+      {:ok, token, _claims} =
+        Tuist.CacheGuardian.encode_and_sign(user, %{"cache_grants" => grants},
           token_type: "cache",
           ttl: {Cache.cache_token_ttl_seconds(), :second}
         )

@@ -136,6 +136,87 @@ func TestReplaceUnreadyPodsForImageChange(t *testing.T) {
 	}
 }
 
+// Adding a key to kura-shared-secrets has to reach running pods. envFrom is
+// resolved at pod start, so a Secret edit alone would leave every existing node
+// on its old environment indefinitely. The pod template carries the Secret's
+// resourceVersion, so editing it changes the template and the StatefulSet rolls;
+// the Secret watch in SetupWithManager is what schedules the reconcile that
+// recomputes it.
+func TestSharedSecretChangeRollsKuraPods(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:    "tuist",
+			TenantID:         "tuist",
+			Region:           "eu",
+			Image:            "ghcr.io/tuist/kura:0.5.2",
+			PublicHost:       "tuist-eu-1.kura.tuist.dev",
+			IngressClassName: "kura-eu-central",
+			StorageClassName: "hcloud-volumes",
+		},
+	}
+	sharedSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: sharedSecretsName, Namespace: instance.Namespace, ResourceVersion: "12345"},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(instance, sharedSecret).WithStatusSubresource(instance).Build(),
+		Scheme:            scheme,
+		GRPCClusterIssuer: "letsencrypt-prod",
+		Environment:       "canary",
+	}
+	request := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+
+	if _, err := reconciler.Reconcile(ctx, request); err != nil {
+		t.Fatal(err)
+	}
+	before := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, before); err != nil {
+		t.Fatal(err)
+	}
+	if got := before.Spec.Template.Annotations[sharedSecretsRVAnnotation]; got != "12345" {
+		t.Fatalf("expected the pod template to carry the shared secret resource version, got %q", got)
+	}
+
+	// What ESO does when the cache-token public key lands in the Secret.
+	stored := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: sharedSecretsName, Namespace: instance.Namespace}, stored); err != nil {
+		t.Fatal(err)
+	}
+	stored.StringData = map[string]string{"KURA_AUTH_JWT_PUBLIC_KEY": "-----BEGIN PUBLIC KEY-----"}
+	if err := reconciler.Update(ctx, stored); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := reconciler.Reconcile(ctx, request); err != nil {
+		t.Fatal(err)
+	}
+	after := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, after); err != nil {
+		t.Fatal(err)
+	}
+
+	if after.Spec.Template.Annotations[sharedSecretsRVAnnotation] == before.Spec.Template.Annotations[sharedSecretsRVAnnotation] {
+		t.Fatal("expected the pod template to change so the StatefulSet rolls and pods pick up the new environment")
+	}
+
+	// And the Secret watch is what makes that reconcile happen at all.
+	requests := reconciler.kuraInstancesForSharedSecret(ctx, stored)
+	if len(requests) != 1 || requests[0].NamespacedName != request.NamespacedName {
+		t.Fatalf("expected the shared secret to enqueue its instances, got %v", requests)
+	}
+}
+
 func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()

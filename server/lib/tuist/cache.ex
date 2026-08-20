@@ -81,12 +81,16 @@ defmodule Tuist.Cache do
     )
   end
 
-  # Signed with the dedicated keypair where one exists, because a cache node
-  # holds its public half and can then read the token where the request lands.
-  # Where none exists the API-token key signs it, which no node is given, so
-  # those tokens are answered through introspection instead.
+  # Signed with the dedicated keypair once issuance is switched on, because a
+  # cache node holds its public half and can then read the token where the
+  # request lands. Until then the API-token key signs it, which no node is
+  # given, so those tokens are answered through introspection instead.
+  #
+  # `signing?` rather than `configured?`: holding the key comes first and by
+  # itself changes nothing a client sees, which is what lets every replica
+  # learn to verify before any replica starts issuing.
   defp cache_token_signer do
-    if CacheGuardian.configured?(), do: CacheGuardian, else: Tuist.Guardian
+    if CacheGuardian.signing?(), do: CacheGuardian, else: Tuist.Guardian
   end
 
   # Narrows the grants to the one project the caller is about to use. An
