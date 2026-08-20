@@ -466,6 +466,19 @@ if Enum.member?([:prod, :stag, :can, :preview, :dev], env) do
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 end
 
+# Identity of the instance this node runs as, when the platform supplies one.
+#
+# Sentry and Oban both default to the OS hostname. That is unique per Pod on
+# the Linux deployments, but every VM booted from the xcresult-processor Tart
+# image reports the image's hostname, so on that fleet the default names all
+# Pods identically and an event cannot be traced back to the Pod that produced
+# it. The chart binds POD_NAME to metadata.name there.
+pod_name =
+  case System.get_env("POD_NAME") do
+    name when is_binary(name) and name != "" -> name
+    _ -> nil
+  end
+
 if Tuist.Environment.error_tracking_enabled?() do
   config :sentry,
     client: TuistCommon.SentryHTTPClient,
@@ -475,6 +488,10 @@ if Tuist.Environment.error_tracking_enabled?() do
     enable_source_code_context: true,
     root_source_code_paths: [File.cwd!()],
     before_send: {Tuist.SentryEventFilter, :before_send}
+
+  if pod_name do
+    config :sentry, server_name: pod_name
+  end
 end
 
 if Tuist.Environment.env() not in [:test] do
@@ -685,6 +702,13 @@ config :tuist, Oban,
 
 if !RuntimeConfig.peer_eligible?(mode) do
   config :tuist, Oban, peer: false
+end
+
+# Oban stamps this onto `oban_jobs.attempted_by`, which is what makes per-Pod
+# throughput answerable: given the Pod a failure came from, the jobs it
+# completed over the same window say whether it was wedged or working.
+if pod_name do
+  config :tuist, Oban, node: pod_name
 end
 
 # Registry config.
