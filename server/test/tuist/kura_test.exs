@@ -534,6 +534,24 @@ defmodule Tuist.KuraTest do
       assert server.storage_claim_size == "14Gi"
     end
 
+    test "ignores an account handed in under a mismatched id", %{account: account} do
+      other = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      BillingFixtures.subscription_fixture(account_id: other.id, plan: :enterprise)
+
+      # The handed-over account is an optimisation, not an identity: it is only
+      # believed when it is the account the row is for.
+      assert {:ok, server} =
+               Kura.create_server(%{
+                 account_id: account.id,
+                 account: other,
+                 region: "us-east",
+                 image_tag: "0.5.2"
+               })
+
+      assert server.account_id == account.id
+      assert server.storage_claim_size == "14Gi"
+    end
+
     test "pins nothing where the region sizes every instance alike", %{account: account} do
       stub(Tuist.Environment, :dev?, fn -> true end)
 
