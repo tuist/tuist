@@ -14,12 +14,12 @@ defmodule Tuist.Runners.Concurrency do
 
   alias Ecto.Changeset
   alias Tuist.Accounts.Account
-  alias Tuist.ClickHouseRepo
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claim
   alias Tuist.Runners.ConcurrencyLimit
-  alias Tuist.Runners.Job
+  alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
 
   @platforms [:linux, :macos]
@@ -77,33 +77,34 @@ defmodule Tuist.Runners.Concurrency do
   @doc """
   Returns the peak concurrent vCPU and memory usage per time bucket.
 
-  The ClickHouse query turns every claimed job into a positive event
-  and every completion into a negative event, then computes the exact
-  running resource totals. Bucketing happens after that event sweep so
-  even a short-lived peak remains visible in the chart.
+  Reconstructed from `runner_sessions`, one row per Pod the account
+  held. Each session becomes a positive resource event when its claim
+  is taken and a negative one when the claim is released; running
+  totals over that sweep are the concurrent usage, and bucketing
+  happens afterwards so even a short-lived peak stays visible.
 
-  A job with no recorded completion releases its resources at the
-  runner-session ceiling rather than at the end of the window. The slot
-  is held by a runner session, and one cannot outlive that bound, so
-  running such a job to the window's end reports capacity nobody could
-  have been holding — and does it for every day between the missing
-  completion and today, which is how a handful of rows that never
-  received their terminal event turn into a peak many times the
-  account's limit.
+  The session is what holds the slot, which is why the reconstruction
+  reads it rather than the job. GitHub hands a queued job to any
+  label-eligible runner, so the Pod that claimed job A frequently
+  executes job B; charting `A.claimed_at → A.completed_at` measures a
+  window the account was not reserving, and overstates the peak past a
+  limit that admission makes it impossible to exceed. It also keeps the
+  chart on the Postgres records admission itself reads, rather than on
+  a ClickHouse replica that can diverge from them.
   """
   def usage_over_time(account_id, %DateTime{} = start_dt, %DateTime{} = end_dt, bucket)
       when is_integer(account_id) and bucket in [:hour, :day] do
     dates = bucket_range(start_dt, end_dt, bucket)
 
-    events =
+    usage =
       account_id
-      |> usage_events(start_dt, end_dt)
-      |> Enum.group_by(& &1.platform)
+      |> claim_intervals(start_dt, end_dt)
+      |> cumulative_usage(start_dt, end_dt)
 
     %{
       dates: dates,
-      linux: peak_usage(Map.get(events, :linux, []), dates, bucket),
-      macos: peak_usage(Map.get(events, :macos, []), dates, bucket)
+      linux: peak_usage(Map.get(usage, :linux, []), dates, bucket),
+      macos: peak_usage(Map.get(usage, :macos, []), dates, bucket)
     }
   end
 
@@ -267,225 +268,120 @@ defmodule Tuist.Runners.Concurrency do
     }
   end
 
-  defp usage_events(account_id, start_dt, end_dt) do
-    linux_default = Catalog.default_shape(:linux) || %{vcpus: 1, memory_gb: 1}
-    macos_default = Catalog.default_shape(:macos) || %{vcpus: 1, memory_gb: 1}
-    [linux_legacy_prefix, linux_pool_prefix] = Catalog.fleet_name_prefixes(:linux)
-    [macos_legacy_prefix, macos_pool_prefix] = Catalog.fleet_name_prefixes(:macos)
-
-    latest_rows = latest_rows_query(account_id, end_dt)
-    latest_jobs = latest_jobs_query(latest_rows, start_dt, end_dt)
-    linux_fleet_resources = Catalog.linux_fleet_resources()
-
-    normalized_platforms =
-      normalized_platforms_query(latest_jobs, %{
-        linux_legacy: linux_legacy_prefix,
-        linux_pool: linux_pool_prefix,
-        macos_legacy: macos_legacy_prefix,
-        macos_pool: macos_pool_prefix
-      })
-
-    intervals =
-      active_intervals_query(
-        normalized_platforms,
-        start_dt,
-        end_dt,
-        linux_default,
-        macos_default,
-        linux_fleet_resources
-      )
-
-    intervals
-    |> resource_events_query()
-    |> cumulative_usage_query()
-    |> ClickHouseRepo.all()
-    |> Enum.map(fn event ->
-      %{
-        event
-        | platform: String.to_existing_atom(event.platform),
-          event_time: to_datetime(event.event_time)
-      }
-    end)
-  end
-
-  defp latest_rows_query(account_id, end_dt) do
-    from(job in Job,
-      where: job.account_id == ^account_id and job.enqueued_at <= ^end_dt,
-      group_by: job.workflow_job_id,
-      select: %{
-        latest_state:
-          fragment(
-            "argMax(tuple(?, ?, ?, ?, ?, ?), ?)",
-            job.platform,
-            job.fleet_name,
-            job.vcpus,
-            job.memory_gb,
-            job.claimed_at,
-            job.completed_at,
-            job.updated_at
-          )
-      }
-    )
-  end
-
-  defp latest_jobs_query(latest_rows, start_dt, end_dt) do
-    from(row in subquery(latest_rows),
-      where:
-        not is_nil(fragment("tupleElement(?, 5)", row.latest_state)) and
-          fragment("tupleElement(?, 5) <= ?", row.latest_state, ^end_dt) and
-          (is_nil(fragment("tupleElement(?, 6)", row.latest_state)) or
-             fragment("tupleElement(?, 6) > ?", row.latest_state, ^start_dt)),
-      select: %{
-        stored_platform: fragment("tupleElement(?, 1)", row.latest_state),
-        fleet_name: fragment("tupleElement(?, 2)", row.latest_state),
-        stored_vcpus: fragment("tupleElement(?, 3)", row.latest_state),
-        stored_memory_gb: fragment("tupleElement(?, 4)", row.latest_state),
-        claimed_at: fragment("tupleElement(?, 5)", row.latest_state),
-        completed_at: fragment("tupleElement(?, 6)", row.latest_state)
-      }
-    )
-  end
-
-  defp normalized_platforms_query(latest_jobs, prefixes) do
-    from(job in subquery(latest_jobs),
-      select: %{
-        platform:
-          fragment(
-            """
-            multiIf(
-              ? = 'linux', 'linux',
-              ? = 'macos', 'macos',
-              startsWith(?, ?), 'linux',
-              startsWith(?, ?), 'linux',
-              startsWith(?, ?), 'macos',
-              startsWith(?, ?), 'macos',
-              ''
-            )
-            """,
-            job.stored_platform,
-            job.stored_platform,
-            job.fleet_name,
-            ^prefixes.linux_legacy,
-            job.fleet_name,
-            ^prefixes.linux_pool,
-            job.fleet_name,
-            ^prefixes.macos_legacy,
-            job.fleet_name,
-            ^prefixes.macos_pool
-          ),
-        stored_vcpus: job.stored_vcpus,
-        stored_memory_gb: job.stored_memory_gb,
-        fleet_name: job.fleet_name,
-        claimed_at: job.claimed_at,
-        completed_at: job.completed_at
-      }
-    )
-  end
-
-  defp active_intervals_query(normalized_platforms, start_dt, end_dt, linux_default, macos_default, linux_fleet_resources) do
-    linux_fleet_names = Enum.map(linux_fleet_resources, & &1.fleet_name)
-    linux_fleet_vcpus = Enum.map(linux_fleet_resources, & &1.vcpus)
-    linux_fleet_memory_gb = Enum.map(linux_fleet_resources, & &1.memory_gb)
-
-    from(job in subquery(normalized_platforms),
-      where: job.platform != "",
-      select: %{
-        platform: job.platform,
-        active_from: fragment("greatest(?, ?)", job.claimed_at, ^start_dt),
-        active_until:
-          fragment(
-            "least(ifNull(?, ? + toIntervalSecond(?)), ?)",
-            job.completed_at,
-            job.claimed_at,
-            ^RunnerSessions.max_session_lifetime_seconds(),
-            ^end_dt
-          ),
-        vcpus:
-          fragment(
-            """
-            multiIf(
-              ? > 0, toInt64(?),
-              ? = 'linux', toInt64(transform(?, ?, ?, ?)),
-              toInt64(?)
-            )
-            """,
-            job.stored_vcpus,
-            job.stored_vcpus,
-            job.platform,
-            job.fleet_name,
-            ^linux_fleet_names,
-            ^linux_fleet_vcpus,
-            ^linux_default.vcpus,
-            ^macos_default.vcpus
-          ),
-        memory_gb:
-          fragment(
-            """
-            multiIf(
-              ? > 0, toInt64(?),
-              ? = 'linux', toInt64(transform(?, ?, ?, ?)),
-              toInt64(?)
-            )
-            """,
-            job.stored_memory_gb,
-            job.stored_memory_gb,
-            job.platform,
-            job.fleet_name,
-            ^linux_fleet_names,
-            ^linux_fleet_memory_gb,
-            ^linux_default.memory_gb,
-            ^macos_default.memory_gb
-          )
-      }
-    )
-  end
-
-  defp resource_events_query(intervals) do
-    expanded_events =
-      from(interval in subquery(intervals),
+  # One row per runner session that held a slot inside the window, with
+  # the moment its claim was released already resolved in SQL.
+  #
+  # A claim is released by whichever event frees the Pod first: the
+  # completed webhook of the job the runner actually executed, or the
+  # Pod stopping. `job_ended_at` records the first directly and is the
+  # sharpest signal; `runner_job_completions` is the same evidence
+  # `Claims.release_completed/1` releases on, and covers sessions that
+  # predate the column. `ended_at` bounds both, since a stopped Pod
+  # cannot still be holding the slot, and `started_at` floors the
+  # result so no session can produce a backwards interval.
+  #
+  # Anything still open falls back to the session ceiling, so a session
+  # whose close was never reported cannot accrue capacity for the rest
+  # of the window.
+  defp claim_intervals(account_id, start_dt, end_dt) do
+    released =
+      from(session in RunnerSession,
+        left_join: completion in JobCompletion,
+        on:
+          completion.workflow_job_id ==
+            coalesce(session.executed_workflow_job_id, session.workflow_job_id),
+        where: session.account_id == ^account_id and session.started_at <= ^end_dt,
         select: %{
-          platform: interval.platform,
-          event:
+          platform: session.platform,
+          fleet_name: session.fleet_name,
+          vcpus: session.vcpus,
+          memory_gb: session.memory_gb,
+          started_at: session.started_at,
+          released_at:
             fragment(
-              "arrayJoin([tuple(?, ?, ?), tuple(?, -?, -?)])",
-              interval.active_from,
-              interval.vcpus,
-              interval.memory_gb,
-              interval.active_until,
-              interval.vcpus,
-              interval.memory_gb
+              "GREATEST(?, LEAST(COALESCE(?, ?, ?, ?), COALESCE(?, ?), ? + make_interval(secs => ?)))",
+              session.started_at,
+              session.job_ended_at,
+              completion.completed_at,
+              session.ended_at,
+              ^end_dt,
+              session.ended_at,
+              ^end_dt,
+              session.started_at,
+              ^RunnerSessions.max_session_lifetime_seconds()
             )
         }
       )
 
-    from(event in subquery(expanded_events),
-      group_by: [event.platform, fragment("tupleElement(?, 1)", event.event)],
-      select: %{
-        platform: event.platform,
-        event_time: fragment("tupleElement(?, 1)", event.event),
-        vcpus_delta: sum(fragment("tupleElement(?, 2)", event.event)),
-        memory_gb_delta: sum(fragment("tupleElement(?, 3)", event.event))
-      }
-    )
+    Repo.all(from(interval in subquery(released), where: interval.released_at > ^start_dt))
   end
 
-  defp cumulative_usage_query(events) do
-    from(event in subquery(events),
-      windows: [
-        running: [
-          partition_by: event.platform,
-          order_by: event.event_time,
-          frame: fragment("ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW")
+  # Running resource totals per platform, one entry per distinct event
+  # time. Sessions whose shape resolves to neither platform are dropped
+  # rather than bucketed under a guess.
+  defp cumulative_usage(intervals, start_dt, end_dt) do
+    intervals
+    |> Enum.flat_map(&interval_events(&1, start_dt, end_dt))
+    |> Enum.group_by(fn {platform, _event_time, _vcpus, _memory_gb} -> platform end)
+    |> Map.new(fn {platform, events} -> {platform, running_totals(events)} end)
+  end
+
+  defp interval_events(interval, start_dt, end_dt) do
+    case session_shape(interval) do
+      {:ok, resources} ->
+        active_from = later_of(interval.started_at, start_dt)
+        active_until = earlier_of(interval.released_at, end_dt)
+
+        [
+          {resources.platform, active_from, resources.vcpus, resources.memory_gb},
+          {resources.platform, active_until, -resources.vcpus, -resources.memory_gb}
         ]
-      ],
-      order_by: [event.platform, event.event_time],
-      select: %{
-        platform: event.platform,
-        event_time: event.event_time,
-        vcpus: fragment("toInt64(?)", over(sum(event.vcpus_delta), :running)),
-        memory_gb: fragment("toInt64(?)", over(sum(event.memory_gb_delta), :running))
-      }
-    )
+
+      {:error, _reason} ->
+        []
+    end
+  end
+
+  # Same resolution order admission uses in `Claims`: the shape frozen on
+  # the row when it has one, the fleet's configured shape otherwise, so a
+  # session predating the resource columns is charted at what it reserved.
+  defp session_shape(%{platform: platform, vcpus: vcpus, memory_gb: memory_gb})
+       when platform in @platforms and is_integer(vcpus) and is_integer(memory_gb) and vcpus > 0 and memory_gb > 0 do
+    {:ok, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb}}
+  end
+
+  defp session_shape(%{fleet_name: fleet_name}) when is_binary(fleet_name) do
+    Catalog.resources_for_fleet(fleet_name)
+  end
+
+  defp session_shape(_interval), do: {:error, :invalid_resources}
+
+  defp running_totals(events) do
+    {totals, _running} =
+      events
+      |> Enum.group_by(
+        fn {_platform, event_time, _vcpus, _memory_gb} -> event_time end,
+        fn {_platform, _event_time, vcpus, memory_gb} -> {vcpus, memory_gb} end
+      )
+      |> Enum.sort_by(fn {event_time, _deltas} -> DateTime.to_unix(event_time, :microsecond) end)
+      |> Enum.map_reduce(%{vcpus: 0, memory_gb: 0}, fn {event_time, deltas}, running ->
+        running =
+          Enum.reduce(deltas, running, fn {vcpus, memory_gb}, acc ->
+            %{vcpus: acc.vcpus + vcpus, memory_gb: acc.memory_gb + memory_gb}
+          end)
+
+        {Map.put(running, :event_time, event_time), running}
+      end)
+
+    totals
+  end
+
+  defp later_of(%DateTime{} = left, %DateTime{} = right) do
+    if DateTime.after?(left, right), do: left, else: right
+  end
+
+  defp earlier_of(%DateTime{} = left, %DateTime{} = right) do
+    if DateTime.before?(left, right), do: left, else: right
   end
 
   defp peak_usage(events, dates, bucket) do
@@ -555,9 +451,6 @@ defmodule Tuist.Runners.Concurrency do
   defp floor_to_hour(%DateTime{} = datetime) do
     %{datetime | minute: 0, second: 0, microsecond: {0, 0}}
   end
-
-  defp to_datetime(%DateTime{} = datetime), do: datetime
-  defp to_datetime(%NaiveDateTime{} = datetime), do: DateTime.from_naive!(datetime, "Etc/UTC")
 
   @doc """
   Returns the configured resource limits for `platform`.
