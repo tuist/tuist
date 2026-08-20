@@ -227,7 +227,7 @@ spec:
                       type: boolean
                     ringConsistent:
                       type: boolean
-                    bootstrapInflightPeers:
+                    backfillingPeers:
                       type: integer
                       format: int64
                     outboxMessages:

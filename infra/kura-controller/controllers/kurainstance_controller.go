@@ -201,7 +201,7 @@ type runtimeStatus struct {
 	RingFingerprint            string `json:"ring_fingerprint"`
 	WriterLockOwned            bool   `json:"writer_lock_owned"`
 	Generation                 uint64 `json:"generation"`
-	BootstrapInflightPeers     int64  `json:"bootstrap_inflight_peers"`
+	BackfillingPeers           int64  `json:"backfill_backfilling_peers"`
 	OutboxMessages             int64  `json:"outbox_messages"`
 	MemoryPressureState        int64  `json:"memory_pressure_state"`
 	FDTimeoutCount             uint64 `json:"fd_timeout_count"`
@@ -1784,25 +1784,25 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 	return primaryPodHealthFromSamples(instance, pods, r.sampleRuntimeStatuses(ctx, instance, pods), time.Now())
 }
 
-	// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
-	// status endpoint is unreachable for every pod: without the runtime's own
-	// catch-up signal we keep the minPrimaryPodAge buffer so a pod that is still
-	// filling isn't promoted. When the runtime status IS reachable it supersedes
-	// this, and the runtime-confirmed path does NOT age-gate — which is what lets
-	// a freshly-rolled but caught-up standby be promoted immediately, making a
-	// rolling deploy gapless instead of waiting out the 10-minute age with no
-	// eligible primary. The runtime status is therefore probed for every Ready
-	// pod, not just the age-eligible ones.
-	//
-	// Note that Ready+serving is NOT proof of a completed catch-up. It once was
-	// (is_serving required bootstrapped_peers == known_peers), but readiness now
-	// latches at a ring-fullness threshold or when the initial backfill cycle
-	// settles, and a cycle settles even when a peer stays unreachable. A pod that
-	// reports serving can therefore still be filling, or be cold on an empty
-	// volume whose only peer is down. Ring members and the writer lock below are
-	// what this gate actually rests on; `backfill_initial_cycle` on
-	// /status/rollout is the completeness signal, and it is deliberately not
-	// consumed here (see the region-move note in kura/README.md).
+// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
+// status endpoint is unreachable for every pod: without the runtime's own
+// catch-up signal we keep the minPrimaryPodAge buffer so a pod that is still
+// filling isn't promoted. When the runtime status IS reachable it supersedes
+// this, and the runtime-confirmed path does NOT age-gate — which is what lets
+// a freshly-rolled but caught-up standby be promoted immediately, making a
+// rolling deploy gapless instead of waiting out the 10-minute age with no
+// eligible primary. The runtime status is therefore probed for every Ready
+// pod, not just the age-eligible ones.
+//
+// Note that Ready+serving is NOT proof of a completed catch-up. It once was
+// (is_serving required bootstrapped_peers == known_peers), but readiness now
+// latches at a ring-fullness threshold or when the initial backfill cycle
+// settles, and a cycle settles even when a peer stays unreachable. A pod that
+// reports serving can therefore still be filling, or be cold on an empty
+// volume whose only peer is down. Ring members and the writer lock below are
+// what this gate actually rests on; `backfill_initial_cycle` on
+// /status/rollout is the completeness signal, and it is deliberately not
+// consumed here (see the region-move note in kura/README.md).
 func primaryPodHealthFromSamples(
 	instance *kurav1alpha1.KuraInstance,
 	pods []corev1.Pod,
@@ -1878,7 +1878,7 @@ func (r *KuraInstanceReconciler) aggregateRolloutHealth(
 		health.SampledPods++
 		allReady = allReady && sample.status.Ready
 		allServing = allServing && sample.status.State == "serving"
-		health.BootstrapInflightPeers += sample.status.BootstrapInflightPeers
+		health.BackfillingPeers += sample.status.BackfillingPeers
 		health.OutboxMessages += sample.status.OutboxMessages
 		health.FDTimeoutCount += int64(sample.clampedFDTimeouts())
 		health.PeerConnectionFailures += int64(sample.clampedPeerFailures())

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"testing"
@@ -2672,12 +2673,12 @@ func TestAggregateRolloutHealthAppliesPerFieldSemantics(t *testing.T) {
 			statuses: map[string]runtimeStatus{
 				name + "-0": {
 					Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2,
-					BootstrapInflightPeers: 0, OutboxMessages: 10, MemoryPressureState: 0,
+					BackfillingPeers: 0, OutboxMessages: 10, MemoryPressureState: 0,
 					FDTimeoutCount: 2, PeerConnectionFailureCount: 1,
 				},
 				name + "-1": {
 					Ready: false, State: "bootstrapping", RingMembers: 1,
-					BootstrapInflightPeers: 1, OutboxMessages: 5, MemoryPressureState: 2,
+					BackfillingPeers: 1, OutboxMessages: 5, MemoryPressureState: 2,
 					FDTimeoutCount: 1, PeerConnectionFailureCount: 4,
 				},
 			},
@@ -2696,8 +2697,8 @@ func TestAggregateRolloutHealthAppliesPerFieldSemantics(t *testing.T) {
 	if health.RingConsistent {
 		t.Fatal("expected mismatched ring-member counts to clear RingConsistent")
 	}
-	if health.BootstrapInflightPeers != 1 {
-		t.Fatalf("expected summed bootstrap inflight peers, got %d", health.BootstrapInflightPeers)
+	if health.BackfillingPeers != 1 {
+		t.Fatalf("expected summed backfilling peers, got %d", health.BackfillingPeers)
 	}
 	if health.OutboxMessages != 15 {
 		t.Fatalf("expected summed outbox depth, got %d", health.OutboxMessages)
@@ -3280,4 +3281,35 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 			t.Fatalf("a pending PVC on the desired storage class is not stale, got reason %q", reason)
 		}
 	})
+}
+
+func TestRuntimeStatusDecodesTheBackfillWireContract(t *testing.T) {
+	// The runtime renamed its in-flight catch-up field when backfill
+	// replaced bootstrap. Decoding the old key left the gate's in-flight
+	// check reading a constant zero, so waves could complete while peers
+	// were still filling.
+	body := []byte(`{
+		"ready": true,
+		"state": "serving",
+		"ring_members": 3,
+		"ring_fingerprint": "aaaa000011112222",
+		"writer_lock_owned": true,
+		"backfill_backfilling_peers": 2,
+		"outbox_messages": 7,
+		"memory_pressure_state": 1,
+		"fd_timeout_count": 4,
+		"peer_connection_failure_count": 5
+	}`)
+
+	var status runtimeStatus
+	if err := json.Unmarshal(body, &status); err != nil {
+		t.Fatalf("decode runtime status: %v", err)
+	}
+
+	if status.BackfillingPeers != 2 {
+		t.Fatalf("expected backfilling peers from backfill_backfilling_peers, got %d", status.BackfillingPeers)
+	}
+	if status.RingFingerprint != "aaaa000011112222" || status.PeerConnectionFailureCount != 5 {
+		t.Fatalf("expected the rest of the rollout contract to decode, got %+v", status)
+	}
 }

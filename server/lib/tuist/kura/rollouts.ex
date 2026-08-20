@@ -15,7 +15,7 @@ defmodule Tuist.Kura.Rollouts do
   (outbox depth, file-descriptor wait timeouts, peer-connection failures)
   are compared against a baseline captured just before the server's wave
   scheduled, on top of the absolute conditions the standalone chart gate
-  already proved (ready, serving, ring-consistent, no bootstrap in
+  already proved (ready, serving, ring-consistent, no backfill in
   flight, no critical memory pressure, fresh sample). The health authority
   is the `KuraInstance` status aggregate the Go controller publishes from
   the per-pod `/status/rollout` reports; it never crosses the public
@@ -57,7 +57,17 @@ defmodule Tuist.Kura.Rollouts do
   # reach degraded servers, not only healthy ones; only terminal servers
   # are out of scope.
   @rollout_server_statuses [:provisioning, :replicating, :active, :failed]
-  @terminal_server_statuses [:destroying, :destroyed]
+  # Out of rollout scope, whether the row got there before or after being
+  # scoped. `:destroying`/`:destroyed` are operator teardown;
+  # `:drain_pending`/`:archived` are the demand-driven lifecycle reclaiming
+  # an idle instance, and the reconciler cancels deployments in both (see
+  # `Tuist.Kura.Reconciler.reconcile_deployment/1`). A scoped server that
+  # is reclaimed mid-rollout would otherwise never converge and never
+  # answer a health read, holding its wave open until the deadline paused
+  # the rollout. When demand returns, the cold return leaves the row
+  # `:provisioning` on the tag `provisioning_image_tag/2` picks, and it
+  # re-enters convergence.
+  @terminal_server_statuses [:destroying, :destroyed, :drain_pending, :archived]
   @open_deployment_statuses [:pending, :running]
 
   # Wave sizing over the non-canary accounts, ordered by recent usage
@@ -86,6 +96,16 @@ defmodule Tuist.Kura.Rollouts do
   @outbox_regression_floor 50
 
   @usage_window_days 7
+
+  # Bounded per tick: scoping runs inside the rollout's `FOR UPDATE`
+  # transaction (so a concurrent abort or supersede cannot cancel
+  # deployments while this mints them), and each server costs a health
+  # read against the Kubernetes API plus an insert. A whole final wave in
+  # one pass would hold the lock through hundreds of round trips — long
+  # enough to block the operator verbs, exactly when someone is most
+  # likely to reach for pause. The reconciler ticks every 30s, so the
+  # remainder is picked up promptly.
+  @scope_batch_size 50
 
   ## Tick entrypoint
 
@@ -610,7 +630,15 @@ defmodule Tuist.Kura.Rollouts do
   defp open_current_wave(rollout) do
     cond do
       rollout.current_wave > max_wave(rollout) ->
-        if all_converged?(rollout) and is_nil(gate_failure(rollout)) do
+        # `unscoped_servers?` is checked before completing, not just
+        # convergence of what is already scoped: an account assigned to
+        # the last wave earlier in this same tick (a server created, or a
+        # warm-handoff move that just returned its row to `:none` on the
+        # source's older image) has no RolloutServer row yet, so
+        # `all_converged?` would say yes and complete the rollout with
+        # that server still on the old image.
+        if all_converged?(rollout) and not unscoped_servers?(rollout, max_wave(rollout)) and
+             is_nil(gate_failure(rollout)) do
           {:completed, complete_rollout(rollout)}
         else
           # Late joiners of already-completed waves still converge under
@@ -655,12 +683,7 @@ defmodule Tuist.Kura.Rollouts do
       |> where([rs], rs.kura_rollout_id == ^rollout.id and rs.wave == ^wave)
       |> Repo.exists?()
 
-    schedulable? =
-      rollout
-      |> schedulable_servers_query(wave)
-      |> Repo.exists?()
-
-    not scoped? and not schedulable?
+    not scoped? and not unscoped_servers?(rollout, wave)
   end
 
   # Accounts whose servers appeared after wave assignment (created
@@ -700,9 +723,16 @@ defmodule Tuist.Kura.Rollouts do
     |> select([s, w], {s, w.wave})
   end
 
+  defp unscoped_servers?(rollout, max_open_wave) do
+    rollout
+    |> schedulable_servers_query(max_open_wave)
+    |> Repo.exists?()
+  end
+
   defp scope_servers(rollout, max_open_wave) do
     rollout
     |> schedulable_servers_query(max_open_wave)
+    |> limit(@scope_batch_size)
     |> Repo.all()
     |> Enum.each(fn {server, wave} -> scope_server(rollout, server, wave) end)
   end
@@ -765,15 +795,21 @@ defmodule Tuist.Kura.Rollouts do
     end
   end
 
-  # Scoped servers whose deployment could not be minted yet (an initial
-  # install or move deployment was still open) get their rollout
-  # deployment as soon as the server frees up.
+  # Scoped servers with no deployment carrying them to the target: either
+  # none could be minted yet (an initial install or move deployment was
+  # still open), or the one they had was cancelled out from under the
+  # rollout — entering drain cancels it, and a cancelled deployment never
+  # ran, so the server is still on its old image. Both need a fresh one
+  # once the server frees up; without the cancelled case the attempt would
+  # keep its dead deployment id and never be re-minted.
   defp mint_missing_deployments(rollout) do
     RolloutServer
     |> join(:inner, [rs], s in assoc(rs, :kura_server))
-    |> where([rs], rs.kura_rollout_id == ^rollout.id and is_nil(rs.deployment_id) and is_nil(rs.converged_at))
-    |> where([_rs, s], s.status not in ^@terminal_server_statuses and s.move_phase == :none)
-    |> preload([rs, s], kura_server: s)
+    |> join(:left, [rs], d in assoc(rs, :deployment))
+    |> where([rs], rs.kura_rollout_id == ^rollout.id and is_nil(rs.converged_at))
+    |> where([rs, _s, d], is_nil(rs.deployment_id) or d.status == :cancelled)
+    |> where([_rs, s, _d], s.status not in ^@terminal_server_statuses and s.move_phase == :none)
+    |> preload([rs, s, _d], kura_server: s)
     |> Repo.all()
     |> Enum.each(fn rollout_server ->
       case mint_deployment(rollout, rollout_server.kura_server) do
@@ -822,11 +858,15 @@ defmodule Tuist.Kura.Rollouts do
   end
 
   # Mirrors every absolute condition the post-upgrade gate checks
-  # (including ring consistency): a server failing any of them before its
-  # wave schedules would read that pre-existing sickness as a regression
-  # the new image caused, so it is excluded from the comparative soak.
+  # (ring consistency and backfill in flight included): a server failing
+  # any of them before its wave schedules would read that pre-existing
+  # sickness as a regression the new image caused — backfill already
+  # running would reset the soak clock, or exhaust the wave deadline,
+  # on work that started before the upgrade — so it is excluded from the
+  # comparative soak.
   defp baseline_healthy?(health) do
     health.ready and health.serving and health.ring_consistent and
+      health.backfilling_peers == 0 and
       health.sampled_pods >= health.expected_pods and
       health.memory_pressure_state < 2 and fresh_sample?(health)
   end
@@ -1052,7 +1092,7 @@ defmodule Tuist.Kura.Rollouts do
       {not health.ready, {:unhealthy, :not_ready}},
       {not health.serving, {:unhealthy, :not_serving}},
       {not health.ring_consistent, {:unhealthy, :ring_skew}},
-      {health.bootstrap_inflight_peers > 0, {:unhealthy, :bootstrap_in_flight}},
+      {health.backfilling_peers > 0, {:unhealthy, :backfill_in_flight}},
       {counter_regressed?(health.outbox_messages, outbox_threshold), {:unhealthy, :outbox_regressed}},
       {counter_grew?(health.fd_timeout_count, rollout_server.baseline_fd_timeout_count),
        {:unhealthy, :fd_timeouts_regressed}},

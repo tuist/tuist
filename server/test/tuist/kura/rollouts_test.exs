@@ -40,7 +40,7 @@ defmodule Tuist.Kura.RolloutsTest do
         ready: true,
         serving: true,
         ring_consistent: true,
-        bootstrap_inflight_peers: 0,
+        backfilling_peers: 0,
         outbox_messages: 10,
         fd_timeout_count: 0,
         peer_connection_failures: 0,
@@ -398,6 +398,82 @@ defmodule Tuist.Kura.RolloutsTest do
       rollout = Repo.get!(Rollout, rollout.id)
       assert rollout.status == :paused
       assert rollout.pause_reason == "memory_pressure_critical"
+    end
+
+    test "a server reclaimed by the demand-driven lifecycle drops out of the wave" do
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      assert rollout_server(rollout, canary_server)
+
+      # The lifecycle reclaims the idle instance mid-wave; the reconciler
+      # cancels its deployment, so it can never converge on the target.
+      {1, _} =
+        Server
+        |> where([s], s.id == ^canary_server.id)
+        |> Repo.update_all(set: [status: :archived])
+
+      assert :ok = Rollouts.sync()
+
+      # The wave completes on the servers still in scope instead of holding
+      # open until the deadline pauses the rollout.
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).current_wave > 0
+    end
+
+    test "a cancelled attempt is re-minted once the server is back in scope" do
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      original = Repo.get!(Deployment, rollout_server(rollout, canary_server).deployment_id)
+
+      # Entering drain cancels the deployment; demand then returns and the
+      # server comes back on its old image with the dead id still attached.
+      {:ok, _} = Kura.mark_cancelled(original, "server is drain_pending; skipping rollout")
+
+      assert :ok = Rollouts.sync()
+
+      rollout_server = rollout_server(rollout, canary_server)
+      assert rollout_server.deployment_id != original.id
+      assert Repo.get!(Deployment, rollout_server.deployment_id).status == :pending
+    end
+
+    test "a late joiner of the final wave is scoped before the rollout completes" do
+      %{server: first_server} = create_active_server()
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, first_server.id), @target_tag)
+
+      # Let convergence be recorded first: it is marked after the completion
+      # check, so without this tick the rollout could not complete anyway and
+      # the test would pass whether or not the unscoped check exists.
+      assert :ok = Rollouts.sync()
+      assert rollout_server(rollout, first_server).converged_at
+
+      # A server whose account has no wave assignment yet appears while the
+      # rollout sits past its last wave, one tick from completing.
+      %{server: late_server} = create_active_server()
+
+      {1, _} =
+        Rollout
+        |> where([r], r.id == ^rollout.id)
+        |> Repo.update_all(set: [current_wave: 4])
+
+      assert :ok = Rollouts.sync()
+
+      # Everything scoped has converged, so without the unscoped check the
+      # rollout would complete here and leave the late server behind.
+      rollout = Repo.get!(Rollout, rollout.id)
+      assert rollout.status == :running
+      assert rollout_server(rollout, late_server)
     end
 
     test "a baseline-unhealthy server is excluded from the soak but still must converge" do

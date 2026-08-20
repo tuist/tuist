@@ -190,7 +190,7 @@ type KuraInstanceSpec struct {
 //     (each pod increments its own and resets on restart), so absolute
 //     values are never comparable across pods; the ring size the pods have
 //     converged on is,
-//   - BootstrapInflightPeers and OutboxMessages are sums,
+//   - BackfillingPeers and OutboxMessages are sums,
 //   - FDTimeoutCount and PeerConnectionFailures are sums with per-pod reset
 //     clamping, so a pod restart never makes the published counter go
 //     backwards,
@@ -201,7 +201,7 @@ type KuraInstanceRolloutHealth struct {
 	Ready                  bool         `json:"ready"`
 	Serving                bool         `json:"serving"`
 	RingConsistent         bool         `json:"ringConsistent"`
-	BootstrapInflightPeers int64        `json:"bootstrapInflightPeers"`
+	BackfillingPeers       int64        `json:"backfillingPeers"`
 	OutboxMessages         int64        `json:"outboxMessages"`
 	FDTimeoutCount         int64        `json:"fdTimeoutCount"`
 	PeerConnectionFailures int64        `json:"peerConnectionFailures"`

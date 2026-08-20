@@ -202,7 +202,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       ready: health["ready"] == true,
       serving: health["serving"] == true,
       ring_consistent: health["ringConsistent"] == true,
-      bootstrap_inflight_peers: integer_field(health, "bootstrapInflightPeers"),
+      backfilling_peers: integer_field(health, "backfillingPeers"),
       outbox_messages: integer_field(health, "outboxMessages"),
       fd_timeout_count: integer_field(health, "fdTimeoutCount"),
       peer_connection_failures: integer_field(health, "peerConnectionFailures"),
