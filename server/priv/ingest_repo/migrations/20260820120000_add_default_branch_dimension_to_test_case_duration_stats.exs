@@ -23,9 +23,21 @@ defmodule Tuist.IngestRepo.Migrations.AddDefaultBranchDimensionToTestCaseDuratio
 
   Keying a per-day aggregate on the name multiplies its rows by the branches a
   test case touched that day, which on CI is one row per pull request that ran
-  it. That multiplier lands on quantile states, which are reservoirs rather
-  than counters, on a table whose seed already has to carry a 1 GiB ceiling and
-  subdivide by date to fit.
+  it. Measured on production over a trailing window, comparing
+  `uniqExact((test_case_id, date, is_ci))` against the same tuple with
+  `git_branch` added:
+
+      project 2289    54 branches    25,095 ->    26,401 rows    1.05x
+      project 5096    91 branches   116,883 ->   770,014 rows    6.59x
+      project 3592    91 branches    70,995 -> 1,350,613 rows   19.02x
+      project 2509   233 branches   107,317 -> 3,256,391 rows   30.34x
+
+  The multiplier is not a property of the branch count but of how much CI runs
+  per branch, so it cannot be bounded by capping branches. It is near 1 on the
+  project that reported the problem and 30x on the heaviest measured, and it
+  lands on quantile states, which are reservoirs rather than counters, on a
+  table whose seed already carries a 1 GiB ceiling and subdivides by date to
+  fit at 1x.
 
   The read is the sharper half. `Tuist.Tests.list_test_cases/3` merges every
   state in the window per test case, so a branch-keyed table would merge orders
