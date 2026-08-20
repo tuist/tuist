@@ -14,8 +14,7 @@ defmodule Tuist.OAuth.IntrospectionTest do
     end
 
     # Every managed cache node authenticates as the control-plane client and so
-    # lands here. A node holds no verification key, so this is the only thing
-    # that can tell it what an exchanged cache token reaches; answering inactive
+    # lands here whenever it cannot read the token itself. Answering inactive
     # made it deny every request from a CLI that sends one.
     test "answers a cache token from the grants it carries" do
       user = AccountsFixtures.user_fixture(preload: [:account])
@@ -35,6 +34,33 @@ defmodule Tuist.OAuth.IntrospectionTest do
 
       assert full_handle in project_reads
       assert full_handle in project_writes
+    end
+
+    # A cache token outlives the deploy that minted it, so the key it was signed
+    # with has to keep answering for its whole lifetime. Without this every build
+    # holding a token from the previous release is cut off mid-flight.
+    test "answers a cache token signed with the API-credential key" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "overlap-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+      full_handle = "#{organization.account.name}/#{project.name}"
+
+      grants = %{
+        "account" => %{"read" => [], "write" => []},
+        "project" => %{"read" => [full_handle], "write" => [full_handle]}
+      }
+
+      {:ok, token, _claims} =
+        Tuist.Guardian.encode_and_sign(user, %{"cache_grants" => grants},
+          token_type: "cache",
+          ttl: {Cache.cache_token_ttl_seconds(), :second}
+        )
+
+      assert %{active: true, cache_grants: %{"project" => %{"read" => reads}}} =
+               Introspection.token_response(token)
+
+      assert full_handle in reads
     end
 
     # The tenant-scoped path narrows to one account. This one serves every

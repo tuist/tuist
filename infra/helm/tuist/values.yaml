@@ -245,10 +245,26 @@ kuraController:
         name: onepassword
       item: ""
       field: KURA_SENTRY_DSN
+  # Public half of the keypair the server signs cache tokens with. A node
+  # holding it reads a cache token where the request lands instead of asking
+  # the server, and cannot mint one. Only ever the public half: the private
+  # half stays on the server as TUIST_SECRET_KEY_CACHE_TOKENS.
+  #
+  # The value may carry two concatenated PEM blocks during a rotation, so that
+  # the server and the nodes, which roll independently, are never required to
+  # switch keys at the same instant.
+  cacheTokenPublicKey:
+    externalSecret:
+      enabled: false
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      item: ""
+      field: KURA_AUTH_JWT_PUBLIC_KEY
     # Example shape — never commit real values here:
-    #   KURA_AUTH_JWT_ALGORITHM: HS512
     #   KURA_AUTH_JWT_ISSUER: tuist
-    #   KURA_AUTH_JWT_SECRET: "<JWT signing secret>"
+    #   KURA_AUTH_JWT_PUBLIC_KEY: "<PEM public key>"
     #   KURA_CONTROL_PLANE_CLIENT_SECRET: "<Kura OAuth introspection secret>"
 
 kuraRuntime:
@@ -479,6 +495,13 @@ server:
     # environment that owns the production audience should write to it, so
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
+      enabled: false
+    # Private half of the keypair cache tokens are signed with, so that a cache
+    # node given the public half reads them without calling back here. Off until
+    # a pair exists in the environment's vault: cache tokens are then signed by
+    # the API-credential key instead and nodes answer them through introspection,
+    # which is what every environment did before the pair existed.
+    cacheTokenKey:
       enabled: false
     externalSecrets:
       refreshInterval: "1h"

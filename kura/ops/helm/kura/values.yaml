@@ -199,9 +199,10 @@ extraEnvFrom: []
 extraVolumes: []
 extraVolumeMounts: []
 
-# Cache authorization against a Tuist server. The JWT verification key and the
-# control-plane credentials are secrets, so they come in through extraEnv or
-# extraEnvFrom as KURA_AUTH_JWT_SECRET and KURA_CONTROL_PLANE_CLIENT_ID /
+# Cache authorization against a Tuist server. The verification key and the
+# control-plane credentials come in through extraEnv or extraEnvFrom as
+# KURA_AUTH_JWT_PUBLIC_KEY (or KURA_AUTH_JWT_SECRET, where the node and the
+# server are the same trust boundary) and KURA_CONTROL_PLANE_CLIENT_ID /
 # KURA_CONTROL_PLANE_CLIENT_SECRET.
 auth:
   enabled: false

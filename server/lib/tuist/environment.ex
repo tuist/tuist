@@ -1485,6 +1485,17 @@ defmodule Tuist.Environment do
     get([:secret_key, :tokens], secrets, default_value: secret_key_base(secrets))
   end
 
+  @doc """
+  The private half of the keypair cache tokens are signed with, as a PEM.
+
+  Absent unless a deployment has minted one, in which case cache tokens are
+  signed with `secret_key_tokens/1` instead and cache nodes cannot read them
+  without asking.
+  """
+  def secret_key_cache_tokens(secrets \\ secrets()) do
+    get([:secret_key, :cache_tokens], secrets)
+  end
+
   def secret_key_encryption(secrets \\ secrets()) do
     get([:secret_key, :encryption], secrets, default_value: secret_key_base(secrets))
   end

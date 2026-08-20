@@ -9,6 +9,7 @@ defmodule Tuist.Cache do
   alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Cache.CASEvent
+  alias Tuist.CacheGuardian
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.KeyValueStore
@@ -56,6 +57,8 @@ defmodule Tuist.Cache do
   no call back here. It exists for subjects holding an opaque credential, such
   as a CI project token: a cache node cannot verify those itself, so every
   authorization that misses its local cache costs a round-trip to introspection.
+  A node reads this one for itself only where a dedicated keypair is configured
+  and its public half has reached the node; otherwise it introspects this too.
   A project token reaches exactly one project, so the grants stay small enough
   to ride in a request header.
 
@@ -70,12 +73,20 @@ defmodule Tuist.Cache do
       |> cache_grants(opts)
       |> scope_grants(Keyword.get(opts, :scope))
 
-    Tuist.Guardian.encode_and_sign(
+    cache_token_signer().encode_and_sign(
       subject,
       %{"cache_grants" => grants},
       token_type: @cache_token_type,
       ttl: {ttl, :second}
     )
+  end
+
+  # Signed with the dedicated keypair where one exists, because a cache node
+  # holds its public half and can then read the token where the request lands.
+  # Where none exists the API-token key signs it, which no node is given, so
+  # those tokens are answered through introspection instead.
+  defp cache_token_signer do
+    if CacheGuardian.configured?(), do: CacheGuardian, else: Tuist.Guardian
   end
 
   # Narrows the grants to the one project the caller is about to use. An

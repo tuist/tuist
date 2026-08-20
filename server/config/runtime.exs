@@ -865,6 +865,27 @@ if Tuist.Environment.swift_registry_sync_mode?() do
     region: registry_s3_region
 end
 
+# Cache tokens are signed with their own keypair where one is configured, so a
+# cache node can be handed a half that reads them and cannot mint them. Parsed
+# here rather than per token, and refused loudly: a key that cannot be read
+# would otherwise surface as the token exchange failing under load.
+cache_token_signing_jwk =
+  case Tuist.Environment.secret_key_cache_tokens(secrets) do
+    nil ->
+      nil
+
+    pem ->
+      case JOSE.JWK.from_pem(pem) do
+        %JOSE.JWK{} = jwk -> jwk
+        _ -> raise "TUIST_SECRET_KEY_CACHE_TOKENS is set but is not a readable PEM private key"
+      end
+  end
+
+config :tuist, Tuist.CacheGuardian,
+  issuer: "tuist",
+  allowed_algos: ["ES256"],
+  secret_key: cache_token_signing_jwk
+
 # Guardian
 config :tuist, Tuist.Guardian,
   issuer: "tuist",
