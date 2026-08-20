@@ -53,7 +53,9 @@ jobs:
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Build ProjectDescription documentation
-        run: mise run --skip-tools docs:project-description
+        run: >-
+          MISE_PROJECT_ROOT="$GITHUB_WORKSPACE" mise exec swift@6.2.4 --
+          bash mise/tasks/docs/project-description.sh
       - name: Save Swift Package Manager cache
         uses: actions/cache/save@v4
         with:
@@ -68,5 +70,6 @@ jobs:
           CLOUDFLARE_API_TOKEN: op://tuist/Cloudflare/CLOUDFLARE_API_TOKEN
           CLOUDFLARE_ACCOUNT_ID: op://tuist/Cloudflare/CLOUDFLARE_ACCOUNT_ID
         run: >-
-          op run -- wrangler pages deploy --commit-hash ${{ github.sha }} --branch main
+          mise exec node@20.12.0 npm:wrangler@4.30.0 -- /usr/local/bin/op run --
+          wrangler pages deploy --commit-hash ${{ github.sha }} --branch main
           --project-name tuist-projectdescription .build/documentation
