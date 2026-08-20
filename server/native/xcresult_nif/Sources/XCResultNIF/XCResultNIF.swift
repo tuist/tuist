@@ -1,67 +1,25 @@
 import Foundation
+import os
 import Path
 import XCResultParser
 
-/// Errors raised at the NIF boundary, where a path that failed `AbsolutePath`
-/// validation leaves nothing to build an `XCResultParserError` from. The
-/// messages mirror their `XCResultParserError` counterparts so a given failure
-/// reads the same whichever type carries it.
-enum XCResultNIFError: LocalizedError {
-    case timedOut(path: String, seconds: Int)
-    case failedToParseOutput(path: String)
-
-    var errorDescription: String? {
-        switch self {
-        case let .timedOut(path, seconds):
-            return "xcresult parsing timed out after \(seconds)s at \(path)"
-        case let .failedToParseOutput(path):
-            return "Failed to parse xcresult output at \(path)"
-        }
-    }
-}
-
-/// Carries the parse outcome from the Task that produces it to the NIF thread
-/// that reads it.
+/// Outcome of a parse in the form the C boundary carries.
 ///
-/// A parse that outlives its timeout keeps writing here after the NIF has
-/// returned, so the storage outlives the call (the Task holds the only
-/// remaining reference) and every access is serialised. Writing the outcome
-/// through `finalize` in the same critical section it is read from keeps a
-/// late write from replacing the value the caller is about to receive.
-private final class ParseResultBox: @unchecked Sendable {
-    private let lock = NSLock()
-    private var result: Result<TestSummary, Error>?
-
-    func store(_ value: Result<TestSummary, Error>) {
-        lock.lock()
-        defer { lock.unlock() }
-        result = value
-    }
-
-    func value() -> Result<TestSummary, Error>? {
-        lock.lock()
-        defer { lock.unlock() }
-        return result
-    }
-
-    func finalize(with value: Result<TestSummary, Error>) -> Result<TestSummary, Error> {
-        lock.lock()
-        defer { lock.unlock() }
-        result = value
-        return value
-    }
+/// Failures are reduced to their message because that is all `parse_xcresult`
+/// writes back, and it keeps the value `Sendable` so it can cross from the
+/// parse task to the thread blocked on it.
+private enum ParseOutcome: Sendable {
+    case parsed(TestSummary)
+    case failed(String)
 }
 
-/// Seconds a parse may run before it is cancelled.
+/// Seconds a parse may run before it cancels itself.
 private let timeoutSeconds = 600
 
-/// Seconds a cancelled parse is given to unwind before the NIF returns.
-///
-/// Cancellation reaches the `xcresulttool`/`sips` child through Command's
-/// `continuation.onTermination`, which terminates the process. Waiting for that
-/// to land keeps the child from surviving as an orphan holding a
-/// `CommandRunner` process-limiter permit for the lifetime of the BEAM, and
-/// keeps it from writing into the temp directory the worker deletes next.
+/// Seconds a cancelled parse is given to unwind before the caller gives up on
+/// it. Cancellation reaches the `xcresulttool`/`sips` child through Command's
+/// `continuation.onTermination`, which terminates the process; a child that
+/// ignores it would otherwise hold this thread for the life of the BEAM.
 private let cancellationGraceSeconds = 30
 
 @_cdecl("parse_xcresult")
@@ -74,45 +32,41 @@ public func parseXCResult(
     let path = String(cString: pathPtr)
     let rootDir = String(cString: rootDirPtr)
 
-    let box = ParseResultBox()
+    let outcome = OSAllocatedUnfairLock<ParseOutcome?>(initialState: nil)
     let semaphore = DispatchSemaphore(value: 0)
 
-    let task = Task { @Sendable in
-        defer { semaphore.signal() }
-
+    let task = Task {
+        let value: ParseOutcome
         do {
-            let xcresultPath = try AbsolutePath(validating: path)
-            let rootDirectory = try AbsolutePath(validating: rootDir)
-            // The server worker passes its per-run temp dir as rootDir and
-            // removes it wholesale once the run is processed, so it's also
-            // a directory we can export attachments into — point them there
-            // so the worker's cleanup reclaims them instead of leaking them
-            // in a process-wide temp dir.
-            guard let parsed = try await XCResultParser().parse(
-                path: xcresultPath,
-                rootDirectory: rootDirectory,
-                attachmentsDirectory: rootDirectory
-            ) else {
-                box.store(.failure(XCResultParserError.failedToParseOutput(xcresultPath)))
-                return
-            }
-            box.store(.success(parsed))
+            let parsed = try await parse(path: path, rootDir: rootDir, timeout: timeoutSeconds)
+            value = .parsed(parsed)
         } catch {
-            box.store(.failure(error))
+            value = .failed(error.localizedDescription)
         }
+        outcome.withLock { $0 = value }
+        semaphore.signal()
     }
 
-    let outcome: Result<TestSummary, Error>
-    if semaphore.wait(timeout: .now() + .seconds(timeoutSeconds)) == .timedOut {
+    // The parse cancels itself at `timeoutSeconds` and the task group it runs
+    // in cannot return until that cancellation has been awaited, so reaching
+    // this deadline means the child never honoured it. Nothing is read from
+    // `outcome` on that path, so a late write cannot race the value returned.
+    let deadline = DispatchTime.now() + .seconds(timeoutSeconds + cancellationGraceSeconds)
+    guard semaphore.wait(timeout: deadline) == .success else {
         task.cancel()
-        _ = semaphore.wait(timeout: .now() + .seconds(cancellationGraceSeconds))
-        outcome = box.finalize(with: .failure(timedOutError(path: path, seconds: timeoutSeconds)))
-    } else {
-        outcome = box.value() ?? .failure(XCResultNIFError.failedToParseOutput(path: path))
+        return write(
+            timedOutMessage(path: path, seconds: timeoutSeconds),
+            outputPtr: outputPtr,
+            outputLen: outputLen
+        )
     }
 
-    switch outcome {
-    case let .success(parsed):
+    guard let value = outcome.withLock({ $0 }) else {
+        return write(failedToParseMessage(path: path), outputPtr: outputPtr, outputLen: outputLen)
+    }
+
+    switch value {
+    case let .parsed(parsed):
         do {
             let jsonData = try JSONEncoder().encode(parsed)
             let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: jsonData.count)
@@ -126,27 +80,67 @@ public func parseXCResult(
             outputLen.pointee = Int32(jsonData.count)
             return 0
         } catch {
-            return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
+            return write(error.localizedDescription, outputPtr: outputPtr, outputLen: outputLen)
         }
-    case let .failure(error):
-        return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
+    case let .failed(message):
+        return write(message, outputPtr: outputPtr, outputLen: outputLen)
     }
 }
 
-private func timedOutError(path: String, seconds: Int) -> Error {
-    guard let xcresultPath = try? AbsolutePath(validating: path) else {
-        return XCResultNIFError.timedOut(path: path, seconds: seconds)
+/// Runs the parse against a deadline, racing it with a sleeping sibling.
+///
+/// Losing the race cancels the winner's sibling, and the group cannot return
+/// until every child has been awaited, so a timed-out parse is torn down
+/// before the caller sees the error rather than left running with a
+/// `CommandRunner` process-limiter permit and a temp directory the worker is
+/// about to delete.
+private func parse(path: String, rootDir: String, timeout: Int) async throws -> TestSummary {
+    let xcresultPath = try AbsolutePath(validating: path)
+    let rootDirectory = try AbsolutePath(validating: rootDir)
+
+    return try await withThrowingTaskGroup(of: TestSummary?.self) { group in
+        group.addTask {
+            // The server worker passes its per-run temp dir as rootDir and
+            // removes it wholesale once the run is processed, so it's also
+            // a directory we can export attachments into — point them there
+            // so the worker's cleanup reclaims them instead of leaking them
+            // in a process-wide temp dir.
+            try await XCResultParser().parse(
+                path: xcresultPath,
+                rootDirectory: rootDirectory,
+                attachmentsDirectory: rootDirectory
+            )
+        }
+        group.addTask {
+            try await Task.sleep(for: .seconds(timeout))
+            throw XCResultParserError.timedOut(xcresultPath, seconds: timeout)
+        }
+
+        defer { group.cancelAll() }
+
+        guard let finished = try await group.next(), let parsed = finished else {
+            throw XCResultParserError.failedToParseOutput(xcresultPath)
+        }
+        return parsed
     }
-    return XCResultParserError.timedOut(xcresultPath, seconds: seconds)
 }
 
-private func writeError(
-    _ error: Error,
+/// Mirror `XCResultParserError`'s descriptions, for the paths where no
+/// validated `AbsolutePath` is at hand to build the error itself from.
+private func timedOutMessage(path: String, seconds: Int) -> String {
+    "xcresult parsing timed out after \(seconds)s at \(path)"
+}
+
+private func failedToParseMessage(path: String) -> String {
+    "Failed to parse xcresult output at \(path)"
+}
+
+private func write(
+    _ message: String,
     outputPtr: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>,
     outputLen: UnsafeMutablePointer<Int32>
 ) -> Int32 {
-    let errorJSON =
-        "{\"error\": \"\(error.localizedDescription.replacingOccurrences(of: "\"", with: "\\\""))\"}"
+    let errorJSON = "{\"error\": \"\(message.replacingOccurrences(of: "\"", with: "\\\""))\"}"
     let data = Array(errorJSON.utf8)
     let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: data.count)
     for (i, byte) in data.enumerated() {
