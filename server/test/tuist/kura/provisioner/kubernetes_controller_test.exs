@@ -104,6 +104,55 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "1500M"}
     end
 
+    test "renders the HAProxy ingress class and folds it into the revision when the region pilots the gateway" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{haproxy_ingress_class_name: "kura-eu-central-haproxy"}),
+          %Server{}
+        )
+
+      assert manifest["spec"]["haproxyIngressClassName"] == "kura-eu-central-haproxy"
+
+      # The reconciler converges on the revision alone, so enrolling a region
+      # into the HAProxy gateway pilot must move it or live instances never
+      # gain the field.
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
+               KubernetesController.manifest_revision() <> "+backfill+haproxy-gw"
+    end
+
+    test "omits the HAProxy ingress class when the region does not pilot the gateway" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(),
+          %Server{}
+        )
+
+      refute Map.has_key?(manifest["spec"], "haproxyIngressClassName")
+
+      refute String.contains?(
+               manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"],
+               "haproxy"
+             )
+    end
+
     test "renders a zero egress floor for non-enterprise accounts" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 

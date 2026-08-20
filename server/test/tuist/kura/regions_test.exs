@@ -70,6 +70,18 @@ defmodule Tuist.Kura.RegionsTest do
              }
     end
 
+    test "enrolls only the pilot region into the HAProxy gateway" do
+      # ca-east (staging/canary-only) pilots the gateway-enforced egress
+      # ceiling; the other regions stay nginx-only until the pilot validates
+      # (tuist/tuist#12363).
+      assert Regions.get("ca-east").provisioner_config.haproxy_ingress_class_name ==
+               "kura-ca-east-haproxy"
+
+      for id <- ["us-east", "us-west", "eu-central"] do
+        assert is_nil(Regions.get(id).provisioner_config.haproxy_ingress_class_name)
+      end
+    end
+
     test "sizes the managed regions per tier" do
       # Safe here and not before: a tiered floor sits far below its ceiling, so
       # it is only a scheduling promise until the kubelet's MemoryQoS gate makes

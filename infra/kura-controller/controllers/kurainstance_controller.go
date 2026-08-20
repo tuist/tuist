@@ -55,6 +55,14 @@ const (
 	// and REAPI gRPC (h2c) on one listener (KURA_PORT).
 	httpPort int32 = 4000
 	peerPort int32 = 7443
+	// grpcServicePort is a second Service port onto the same co-hosted
+	// listener (targetPort http/4000). It exists only to give the HAProxy
+	// ingress controller a distinct backend for REAPI traffic: haproxytech
+	// keys its backends on (namespace, service, port name), so the h2c
+	// server-proto forced on the gRPC ingress must reference its own port
+	// name or it would drag the whole shared backend — including plain HTTP,
+	// whose HTTP/1.1 path is what keeps Kura's sendfile fast path — onto h2.
+	grpcServicePort int32 = 4001
 
 	// drainCompletionTimeoutMs and preStopDelaySeconds together set how
 	// long a Kura pod is given to bleed connections off before SIGTERM.
@@ -357,6 +365,12 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileGRPCIngress(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileHAProxyPublicIngress(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileHAProxyGRPCIngress(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
@@ -1592,6 +1606,139 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 		return nil
 	})
 	return err
+}
+
+// haproxyGRPCPathPrefixes are the same REAPI/ByteStream URL prefixes as
+// grpcREAPIPathPrefixes, unescaped: the haproxytech ingress controller has no
+// regex routing and implements PathTypeImplementationSpecific as a plain
+// begins-with string match (map_beg), so a method path such as
+// /build.bazel.remote.execution.v2.Capabilities/GetCapabilities matches these
+// literally. The regex-escaped nginx variants would be matched byte-for-byte
+// (backslashes included) and never hit.
+var haproxyGRPCPathPrefixes = []string{
+	"/build.bazel.remote.execution.v2.",
+	"/google.bytestream.",
+}
+
+func haproxyPublicIngressName(instance *kurav1alpha1.KuraInstance) string {
+	return instance.Name + "-haproxy"
+}
+
+func haproxyGRPCIngressName(instance *kurav1alpha1.KuraInstance) string {
+	return grpcServiceName(instance) + "-haproxy"
+}
+
+// reconcileHAProxyPublicIngress renders the HAProxy-flavored copy of the
+// public Ingress when spec.haproxyIngressClassName opts the instance into the
+// region's side-by-side HAProxy gateway (issue #12363: the gateway is where
+// the per-tenant egress ceiling is actually enforceable on host-network
+// regions). It is a separate object rather than extra annotations on the
+// nginx Ingress because the two controllers need different path flavors
+// (regex vs begins-with) and the haproxytech controller only accepts classes
+// whose IngressClass carries its own controller string.
+func (r *KuraInstanceReconciler) reconcileHAProxyPublicIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: haproxyPublicIngressName(instance), Namespace: instance.Namespace}}
+	if !haproxyIngressEnabled(instance) {
+		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, ingress, func() error {
+		if err := controllerutil.SetControllerReference(instance, ingress, r.Scheme); err != nil {
+			return err
+		}
+		ingress.Labels = labels(instance)
+		ingress.Annotations = haproxyPublicIngressAnnotations()
+		ingress.Spec.IngressClassName = ptr(haproxyIngressClassName(instance))
+		// Same cert-manager Secret as the nginx Ingress: both gateways
+		// terminate TLS for the host during the side-by-side phase.
+		ingress.Spec.TLS = []networkingv1.IngressTLS{{
+			Hosts:      []string{instance.Spec.PublicHost},
+			SecretName: publicTLSSecretName(instance),
+		}}
+		ingress.Spec.Rules = []networkingv1.IngressRule{{
+			Host: instance.Spec.PublicHost,
+			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+				Paths: []networkingv1.HTTPIngressPath{{
+					Path:     "/",
+					PathType: ptr(networkingv1.PathTypePrefix),
+					Backend:  ingressBackend(instance.Name, "http"),
+				}},
+			}},
+		}}
+		return nil
+	})
+	return err
+}
+
+// reconcileHAProxyGRPCIngress splits the REAPI/ByteStream prefixes to the
+// Service's dedicated grpc port so haproxytech builds a separate h2c backend
+// for them (see grpcServicePort). map_beg picks the longest matching prefix,
+// so these paths win over the public Ingress's "/".
+func (r *KuraInstanceReconciler) reconcileHAProxyGRPCIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: haproxyGRPCIngressName(instance), Namespace: instance.Namespace}}
+	if !haproxyIngressEnabled(instance) {
+		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, ingress, func() error {
+		if err := controllerutil.SetControllerReference(instance, ingress, r.Scheme); err != nil {
+			return err
+		}
+		ingress.Labels = labels(instance)
+		ingress.Annotations = haproxyGRPCIngressAnnotations()
+		ingress.Spec.IngressClassName = ptr(haproxyIngressClassName(instance))
+		// The public HAProxy Ingress terminates TLS for the shared host.
+		ingress.Spec.TLS = nil
+		paths := make([]networkingv1.HTTPIngressPath, 0, len(haproxyGRPCPathPrefixes))
+		for _, prefix := range haproxyGRPCPathPrefixes {
+			paths = append(paths, networkingv1.HTTPIngressPath{
+				Path:     prefix,
+				PathType: ptr(networkingv1.PathTypeImplementationSpecific),
+				Backend:  ingressBackend(instance.Name, "grpc"),
+			})
+		}
+		ingress.Spec.Rules = []networkingv1.IngressRule{{
+			Host: instance.Spec.PublicHost,
+			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+				Paths: paths,
+			}},
+		}}
+		return nil
+	})
+	return err
+}
+
+func haproxyIngressEnabled(instance *kurav1alpha1.KuraInstance) bool {
+	return !instance.Spec.Private &&
+		instance.Spec.PublicHost != "" &&
+		haproxyIngressClassName(instance) != ""
+}
+
+func haproxyIngressClassName(instance *kurav1alpha1.KuraInstance) string {
+	return strings.TrimSpace(instance.Spec.HAProxyIngressClassName)
+}
+
+func haproxyPublicIngressAnnotations() map[string]string {
+	// timeout-server is the only streaming knob that is per-Ingress in
+	// haproxytech (client/tunnel timeouts are ConfigMap-level, set in the
+	// regional gateway values). It mirrors nginx's proxy-read-timeout 3600.
+	return map[string]string{
+		"haproxy.org/timeout-server": "3600s",
+	}
+}
+
+func haproxyGRPCIngressAnnotations() map[string]string {
+	annotations := haproxyPublicIngressAnnotations()
+	// h2c to the co-hosted listener, scoped to the grpc Service port's
+	// backend only (see grpcServicePort).
+	annotations["haproxy.org/server-proto"] = "h2"
+	return annotations
 }
 
 func ingressBackend(serviceName string, servicePortName string) networkingv1.IngressBackend {
@@ -3170,6 +3317,8 @@ func livenessProbe() *corev1.Probe {
 func ports() []corev1.ServicePort {
 	return []corev1.ServicePort{
 		{Name: "http", Port: httpPort, TargetPort: intstr.FromString("http")},
+		// grpc targets the same co-hosted listener as http; see grpcServicePort.
+		{Name: "grpc", Port: grpcServicePort, TargetPort: intstr.FromString("http")},
 		{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer")},
 	}
 }

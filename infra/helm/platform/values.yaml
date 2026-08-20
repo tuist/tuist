@@ -195,6 +195,123 @@ kura-us-west-ingress-nginx:
     metrics:
       enabled: true
 
+# HAProxy regional Kura gateways (tuist/tuist#12363). One haproxytech
+# kubernetes-ingress controller per bare-metal region, serving the
+# `kura-<region>-haproxy` IngressClass side by side with the nginx gateway on
+# the same nodes: nginx keeps :443 while HAProxy binds :8443 (its container
+# default), so the pilot is reachable at `https://<tenant-host>:8443` without
+# touching customer traffic. The kura-controller emits the HAProxy-flavored
+# Ingress pair only for instances whose spec.haproxyIngressClassName is set,
+# which the server gates per region in server/lib/tuist/kura/regions.ex.
+#
+# Why HAProxy at all: the Cilium `kubernetes.io/egress-bandwidth` pod ceiling
+# never governs the customer read path on host-network regions (the bytes are
+# consumed node-locally by the gateway and re-sent from the host namespace).
+# The gateway is where the bytes leave the box, and HAProxy's shared bwlim-out
+# filter is a true per-tenant aggregate: one limiter per hostname across every
+# connection and both protocols (HTTP + REAPI/gRPC), so it holds under
+# concurrency. It limits forwarded payload bytes — TLS/TCP overhead and
+# retransmits are outside it — a forwarded-data ceiling, not a physical one.
+kura-eu-central-haproxy:
+  enabled: false
+  controller:
+    ingressClass: kura-eu-central-haproxy
+    ingressClassResource:
+      name: kura-eu-central-haproxy
+    extraArgs: &kuraHAProxyGatewayArgs
+      # No plaintext tenant plane: without this the controller also serves
+      # every routed host on :8080 in the clear.
+      - --disable-http
+      # No QUIC/UDP surface; clients are gRPC/HTTP2-over-TCP.
+      - --disable-quic
+    # The annotation-based scrape the cluster monitoring uses; HAProxy's
+    # native prometheus-exporter lives on the stat port. This closes the
+    # "fleet gateways emit no metrics" gap for the HAProxy path.
+    podAnnotations: &kuraHAProxyGatewayScrape
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "1024"
+      prometheus.io/path: /metrics
+    # Access logs to stdout (the pod log stream) — the nginx gateways ship
+    # none today.
+    logging: &kuraHAProxyGatewayLogging
+      traffic:
+        address: stdout
+        format: raw
+        facility: daemon
+    config: &kuraHAProxyGatewayConfig500M
+      # Streaming parity with the nginx gateway (proxy-read/send-timeout 3600).
+      timeout-client: "3600s"
+      timeout-server: "3600s"
+      # HTTP/2 upload flow control, the HAProxy equivalent of the nginx
+      # http2_body_preread_size 4m fix above: the default 64KB window caps
+      # every upload stream at ~window/RTT (~310KB/s at 193ms). Same 4m window
+      # and 32-stream bound as kuraGatewayNginxConfig, so worst-case buffered
+      # upload memory per client connection stays 32 x 4m = 128MB.
+      global-config-snippet: |
+        tune.h2.fe.initial-window-size 4194304
+        tune.h2.fe.max-concurrent-streams 32
+      # The per-tenant egress ceiling. A shared bwlim-out filter keyed by the
+      # Host header: every stream of a tenant hostname draws from one
+      # bytes_out_rate(1s) bucket, so the cap is an aggregate — 8 parallel
+      # restores share one ceiling instead of getting 8. The limit is in
+      # bytes/second: 62500000 = 500 Mbit/s, this region's egress_burst_mbps
+      # in server/lib/tuist/kura/regions.ex (keep the two in sync; the same
+      # value still feeds the Cilium pod annotation as defense in depth).
+      # len 96 covers the longest tenant host (32-char handle + region + env
+      # suffix). `peers localinstance` carries the table across hitless
+      # reloads so a config reload does not briefly lift the cap. min-size
+      # ~2 TCP MSS keeps pacing overhead off small responses.
+      frontend-config-snippet: |
+        stick-table type string len 96 size 1k expire 1h store bytes_out_rate(1s) peers localinstance
+        filter bwlim-out kura-tenant-egress limit 62500000 key req.hdr(host),lower,word(1,:) min-size 2896
+        http-response set-bandwidth-limit kura-tenant-egress
+
+kura-ca-east-haproxy:
+  enabled: false
+  controller:
+    ingressClass: kura-ca-east-haproxy
+    ingressClassResource:
+      name: kura-ca-east-haproxy
+    extraArgs: *kuraHAProxyGatewayArgs
+    podAnnotations: *kuraHAProxyGatewayScrape
+    logging: *kuraHAProxyGatewayLogging
+    # SYS-1 ~1 Gbit NIC: same 500 Mbit/s tenant ceiling as eu-central.
+    config: *kuraHAProxyGatewayConfig500M
+
+kura-us-east-haproxy:
+  enabled: false
+  controller:
+    ingressClass: kura-us-east-haproxy
+    ingressClassResource:
+      name: kura-us-east-haproxy
+    extraArgs: *kuraHAProxyGatewayArgs
+    podAnnotations: *kuraHAProxyGatewayScrape
+    logging: *kuraHAProxyGatewayLogging
+    config: &kuraHAProxyGatewayConfig1500M
+      timeout-client: "3600s"
+      timeout-server: "3600s"
+      global-config-snippet: |
+        tune.h2.fe.initial-window-size 4194304
+        tune.h2.fe.max-concurrent-streams 32
+      # 187500000 bytes/s = 1500 Mbit/s, the OVH Advance-1 regions'
+      # egress_burst_mbps in server/lib/tuist/kura/regions.ex. See the
+      # eu-central block for the full commentary.
+      frontend-config-snippet: |
+        stick-table type string len 96 size 1k expire 1h store bytes_out_rate(1s) peers localinstance
+        filter bwlim-out kura-tenant-egress limit 187500000 key req.hdr(host),lower,word(1,:) min-size 2896
+        http-response set-bandwidth-limit kura-tenant-egress
+
+kura-us-west-haproxy:
+  enabled: false
+  controller:
+    ingressClass: kura-us-west-haproxy
+    ingressClassResource:
+      name: kura-us-west-haproxy
+    extraArgs: *kuraHAProxyGatewayArgs
+    podAnnotations: *kuraHAProxyGatewayScrape
+    logging: *kuraHAProxyGatewayLogging
+    config: *kuraHAProxyGatewayConfig1500M
+
 external-dns:
   enabled: true
   provider: cloudflare

@@ -9,6 +9,7 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 | `cert-manager` | TLS certificate issuance via Let's Encrypt + Cloudflare DNS-01 |
 | `ingress-nginx` | Ingress controller backed by a cloud LoadBalancer |
 | `kura-*-ingress-nginx` | Optional region-local Kura ingress controllers backed by shared regional cloud LoadBalancers |
+| `kura-*-haproxy` | Optional region-local HAProxy Kura gateways (haproxytech `kubernetes-ingress`) running side by side with the nginx gateways on `:8443`; they enforce the per-tenant egress ceiling with a shared `bwlim-out` filter keyed by hostname (tuist/tuist#12363) |
 | `external-dns` | Sync Ingress / Service hostnames into Cloudflare DNS |
 | `external-secrets` | Pull secrets from external stores (1Password, SOPS, etc.) into the cluster |
 | `metrics-server` | Resource metrics API (`pods.metrics.k8s.io`) consumed by HPAs and `kubectl top` |

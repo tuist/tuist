@@ -262,6 +262,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "publicHost" => if(owns_public_endpoints?(server), do: public_host(account_handle, region)),
           "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(account_handle, region)),
           "ingressClassName" => ingress_class_name(region),
+          "haproxyIngressClassName" => haproxy_ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
           "peerTLSSecretName" => peer_tls_secret_name(region),
           "mesh" => mesh_enabled?(region),
@@ -317,6 +318,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
        when is_binary(ingress_class_name) and ingress_class_name != "", do: ingress_class_name
 
   defp ingress_class_name(_region), do: nil
+
+  defp haproxy_ingress_class_name(%Regions{provisioner_config: %{haproxy_ingress_class_name: name}})
+       when is_binary(name) and name != "", do: name
+
+  defp haproxy_ingress_class_name(_region), do: nil
 
   defp peer_tls_secret_name(%Regions{provisioner_config: %{peer_tls_secret_name: secret_name}})
        when is_binary(secret_name) and secret_name != "", do: secret_name
@@ -399,7 +405,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       peers_revision_suffix(peer_urls) <>
       mesh_peers_sync_revision_suffix(region, entitlements) <>
       backfill_revision_suffix(entitlements) <>
-      memory_revision_suffix(region, entitlements)
+      memory_revision_suffix(region, entitlements) <>
+      haproxy_gateway_revision_suffix(region)
+  end
+
+  # Folded in so flipping a region's haproxy_gateway flag re-applies its live
+  # instances: the reconciler converges on the revision alone, and the flag
+  # changes only spec.haproxyIngressClassName, which no other suffix moves
+  # with. That matters in both directions — enrolling a region into the
+  # HAProxy gateway pilot and pulling it back out.
+  defp haproxy_gateway_revision_suffix(region) do
+    if haproxy_ingress_class_name(region), do: "+haproxy-gw", else: ""
   end
 
   # Folded in so an account whose plan changes re-applies onto the other profile. Without it the instance would keep the
