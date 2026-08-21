@@ -23,6 +23,7 @@ public enum ModuleCacheExistsServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
+    case freeTierExhausted(String)
     case badRequest(String)
 
     public var errorDescription: String? {
@@ -31,6 +32,7 @@ public enum ModuleCacheExistsServiceError: LocalizedError {
             return "Could not check if module cache artifact exists due to an unknown response of \(statusCode)."
         case let .unauthorized(message),
              let .forbidden(message),
+             let .freeTierExhausted(message),
              let .badRequest(message):
             return message
         }
@@ -84,6 +86,11 @@ public struct ModuleCacheExistsService: ModuleCacheExistsServicing {
             switch forbidden.body {
             case let .json(error):
                 throw ModuleCacheExistsServiceError.forbidden(error.message)
+            }
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
+            case let .json(error):
+                throw ModuleCacheExistsServiceError.freeTierExhausted(error.message)
             }
         case let .badRequest(badRequest):
             switch badRequest.body {

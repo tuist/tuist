@@ -23,6 +23,7 @@ public enum DownloadModuleCacheServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
+    case freeTierExhausted(String)
     case notFound(String)
     case badRequest(String)
 
@@ -32,6 +33,7 @@ public enum DownloadModuleCacheServiceError: LocalizedError {
             return "The module cache artifact could not be downloaded due to an unknown response of \(statusCode)."
         case let .unauthorized(message),
              let .forbidden(message),
+             let .freeTierExhausted(message),
              let .notFound(message),
              let .badRequest(message):
             return message
@@ -87,6 +89,11 @@ public struct DownloadModuleCacheService: DownloadModuleCacheServicing {
             switch forbidden.body {
             case let .json(error):
                 throw DownloadModuleCacheServiceError.forbidden(error.message)
+            }
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
+            case let .json(error):
+                throw DownloadModuleCacheServiceError.freeTierExhausted(error.message)
             }
         case let .notFound(notFound):
             switch notFound.body {

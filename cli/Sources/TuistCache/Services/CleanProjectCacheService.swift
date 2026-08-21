@@ -20,6 +20,7 @@ public enum CleanProjectCacheServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
+    case freeTierExhausted(String)
     case internalServerError(String)
 
     public var errorDescription: String? {
@@ -28,6 +29,7 @@ public enum CleanProjectCacheServiceError: LocalizedError {
             return "The project cache could not be cleaned due to an unknown response of \(statusCode)."
         case let .unauthorized(message),
              let .forbidden(message),
+             let .freeTierExhausted(message),
              let .internalServerError(message):
             return message
         }
@@ -72,6 +74,11 @@ public struct CleanProjectCacheService: CleanProjectCacheServicing {
             switch forbidden.body {
             case let .json(error):
                 throw CleanProjectCacheServiceError.forbidden(error.message)
+            }
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
+            case let .json(error):
+                throw CleanProjectCacheServiceError.freeTierExhausted(error.message)
             }
         case let .internalServerError(internalServerError):
             switch internalServerError.body {

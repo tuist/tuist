@@ -21,6 +21,7 @@ public enum SaveCacheCASServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
+    case freeTierExhausted(String)
     case notFound(String)
     case badRequest(String)
     case requestTimeout(String)
@@ -33,6 +34,7 @@ public enum SaveCacheCASServiceError: LocalizedError {
             return "The CAS artifact could not be uploaded due to an unknown Tuist response of \(statusCode)."
         case let .unauthorized(message),
              let .forbidden(message),
+             let .freeTierExhausted(message),
              let .notFound(message),
              let .badRequest(message),
              let .requestTimeout(message),
@@ -96,6 +98,11 @@ public struct SaveCacheCASService: SaveCacheCASServicing {
             switch forbidden.body {
             case let .json(error):
                 throw SaveCacheCASServiceError.forbidden(error.message)
+            }
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
+            case let .json(error):
+                throw SaveCacheCASServiceError.freeTierExhausted(error.message)
             }
         case let .badRequest(badRequest):
             switch badRequest.body {

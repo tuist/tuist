@@ -25,13 +25,14 @@ public protocol GetCacheValueServicing: Sendable {
 public enum GetCacheValueServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
+    case freeTierExhausted(String)
     case badRequest(String)
 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS value could not be retrieved due to an unknown Tuist response of \(statusCode)."
-        case let .unauthorized(message), let .badRequest(message):
+        case let .unauthorized(message), let .badRequest(message), let .freeTierExhausted(message):
             return message
         }
     }
@@ -89,6 +90,11 @@ public struct GetCacheValueService: GetCacheValueServicing {
             switch unauthorized.body {
             case let .json(error):
                 throw GetCacheValueServiceError.unauthorized(error.message)
+            }
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
+            case let .json(error):
+                throw GetCacheValueServiceError.freeTierExhausted(error.message)
             }
         case let .badRequest(badRequest):
             switch badRequest.body {
