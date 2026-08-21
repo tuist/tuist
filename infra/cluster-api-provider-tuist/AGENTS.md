@@ -594,7 +594,11 @@ nothing user-visible happening:
    provisioner hook is fail-closed, so a box that cannot enforce will hold the
    migration at Pending rather than proceeding, and that is much better
    discovered before the old box is cordoned.
-2. Cordon the old box.
+2. Cordon the old box. This is not optional and the controller enforces it: an
+   annotated box that is still schedulable is refused, because
+   `instancePodAffinity` PREFERS co-locating an instance's pods, so the
+   replacement would be pulled straight back onto the box being retired and the
+   move would loop, burning the volume's cache on every turn.
 3. Move the STANDBY replica: delete its PVC (it stays Terminating under
    `pvc-protection`), then delete its pod. Deleting the pod first only rebinds it
    to the same PV. Once both are gone the StatefulSet recreates them and

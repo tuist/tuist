@@ -1651,7 +1651,7 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
 		return "", err
 	}
-	health := r.primaryPodHealth(ctx, instance, pods.Items)
+	health, caughtUp := r.primaryPodHealth(ctx, instance, pods.Items)
 
 	// A pod on a box being retired must not hold the primary role: evacuation
 	// deletes it, and a Service still pointing at it has no endpoint until the
@@ -1662,7 +1662,7 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 	// Only when something else can actually serve. If every pod is on the way
 	// out there is no better primary, and dropping the role would replace a
 	// short gap with no endpoint at all.
-	if err := r.demoteEvacuatingPods(ctx, pods.Items, health); err != nil {
+	if err := r.demoteEvacuatingPods(ctx, pods.Items, health, caughtUp); err != nil {
 		return "", err
 	}
 	return choosePrimaryPod(current, instance.Name, pods.Items, health), nil
@@ -1672,7 +1672,7 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 // unroutable, so primary selection hands the role to a pod that is staying.
 // A no-op unless some pod outside the evacuating set is healthy enough to take
 // over.
-func (r *KuraInstanceReconciler) demoteEvacuatingPods(ctx context.Context, pods []corev1.Pod, health map[string]bool) error {
+func (r *KuraInstanceReconciler) demoteEvacuatingPods(ctx context.Context, pods []corev1.Pod, health, caughtUp map[string]bool) error {
 	onEvacuating := map[string]bool{}
 	for i := range pods {
 		if health[pods[i].Name] && pods[i].Spec.NodeName != "" {
@@ -1697,9 +1697,13 @@ func (r *KuraInstanceReconciler) demoteEvacuatingPods(ctx context.Context, pods 
 		return nil
 	}
 
+	// A successor has to be able to serve AND have the content to serve. Moving
+	// the role to a pod that is still filling gives the account a cold cache
+	// with none of the outage a bad handover would cause, which is the failure
+	// that looks like success and so is worth gating on explicitly.
 	staying := false
 	for i := range pods {
-		if health[pods[i].Name] && !leaving[pods[i].Spec.NodeName] {
+		if health[pods[i].Name] && caughtUp[pods[i].Name] && !leaving[pods[i].Spec.NodeName] {
 			staying = true
 			break
 		}
@@ -1715,7 +1719,7 @@ func (r *KuraInstanceReconciler) demoteEvacuatingPods(ctx context.Context, pods 
 	return nil
 }
 
-func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]bool {
+func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) (map[string]bool, map[string]bool) {
 	now := time.Now()
 
 	statusClient := r.RuntimeStatusClient
@@ -1744,6 +1748,13 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 	// consumed here (see the region-move note in kura/README.md).
 	fallbackReady := map[string]bool{}
 	runtimeHealthy := map[string]bool{}
+	// caughtUp is reported separately from routability because they answer
+	// different questions. Routable means a pod can serve; caught up means it
+	// has the content to serve WELL. Primary selection rightly moves on the
+	// first, since a rolling deploy has to promote quickly; handing traffic to a
+	// pod during an evacuation additionally wants the second, or the handover is
+	// warm in name only.
+	caughtUp := map[string]bool{}
 	runtimeStatuses := 0
 	for i := range pods {
 		if !podReady(&pods[i]) {
@@ -1759,12 +1770,15 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 		}
 		runtimeStatuses++
 		runtimeHealthy[pods[i].Name] = runtimeStatusRoutable(status, replicas(instance))
+		caughtUp[pods[i].Name] = status.BackfillInitialCycle == backfillCycleComplete
 	}
 
 	if runtimeStatuses == 0 {
-		return fallbackReady
+		// No runtime status anywhere means no catch-up evidence either, and a
+		// guess is not evidence: leave caughtUp empty so demotion holds.
+		return fallbackReady, map[string]bool{}
 	}
-	return runtimeHealthy
+	return runtimeHealthy, caughtUp
 }
 
 func defaultRuntimeStatusClient() RuntimeStatusClient {

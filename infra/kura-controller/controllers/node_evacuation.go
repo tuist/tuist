@@ -75,15 +75,36 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 	}
 
 	leaving := map[string]bool{}
+	stillSchedulable := map[string]bool{}
 	for i := range nodes.Items {
-		if _, marked := nodes.Items[i].Annotations[EvacuateNodeAnnotation]; marked {
-			leaving[nodes.Items[i].Name] = true
+		node := &nodes.Items[i]
+		if _, marked := node.Annotations[EvacuateNodeAnnotation]; !marked {
+			continue
+		}
+		leaving[node.Name] = true
+		if !node.Spec.Unschedulable {
+			stillSchedulable[node.Name] = true
 		}
 	}
 
 	stranded := podsOnNodes(pods.Items, leaving)
 	if len(stranded) == 0 {
 		return nil
+	}
+
+	// The annotation marks intent; the cordon is what makes the intent
+	// achievable. Without it the replacement is free to be scheduled straight
+	// back onto the box being retired, and it actively will be: instancePodAffinity
+	// PREFERS co-locating an instance's pods, so the soft affinity pulls the new
+	// replica back alongside the primary that has not moved yet. That loop
+	// deletes and rebuilds the same volume forever, burning its cache on every
+	// turn and never converging, so refuse rather than start it.
+	for _, pod := range stranded {
+		if stillSchedulable[pod.Spec.NodeName] {
+			logger.Info("node is marked for evacuation but still schedulable; cordon it first or the replacement lands back on it",
+				"instance", instance.Name, "node", pod.Spec.NodeName)
+			return nil
+		}
 	}
 
 	if !hasLandingNode(nodes.Items, leaving, instance) {

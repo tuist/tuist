@@ -85,6 +85,7 @@ func evacNode(name string, marked bool) *corev1.Node {
 			Name:   name,
 			Labels: map[string]string{"node.cluster.x-k8s.io/pool": "kura-region"},
 		},
+		Spec: corev1.NodeSpec{Unschedulable: marked},
 		Status: corev1.NodeStatus{
 			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
 		},
@@ -119,6 +120,18 @@ func servingEndpoints(pods ...string) *corev1.Endpoints {
 		ObjectMeta: metav1.ObjectMeta{Name: "kura-acct-region", Namespace: "kura"},
 		Subsets:    []corev1.EndpointSubset{{Addresses: addresses}},
 	}
+}
+
+// annotatedNode is marked for evacuation and cordoned, the state the runbook
+// puts a retiring box into.
+func annotatedNode(name string) *corev1.Node { return evacNode(name, true) }
+
+// annotatedButSchedulableNode is the operator error the controller has to
+// refuse: marked for evacuation but never cordoned.
+func annotatedButSchedulableNode(name string) *corev1.Node {
+	node := evacNode(name, true)
+	node.Spec.Unschedulable = false
+	return node
 }
 
 func evacScheme(t *testing.T) *runtime.Scheme {
@@ -428,5 +441,65 @@ func TestEvacuateHoldsWhileTheOutgoingPodStillHoldsThePrimaryRole(t *testing.T) 
 	}
 	if !podExists(t, c, "kura-acct-region-0") {
 		t.Fatal("deleted the pod still holding the primary role; the Service selector would name nothing")
+	}
+}
+
+// The annotation states intent; the cordon is what makes it achievable. Without
+// it the replacement is free to be scheduled back onto the box being retired,
+// and instancePodAffinity actively prefers exactly that, since it co-locates an
+// instance's pods and the primary has not moved yet. The result is a loop that
+// rebuilds the same volume forever, so the controller refuses to start it.
+func TestEvacuateRefusesWhileTheNodeIsStillSchedulable(t *testing.T) {
+	instance := evacInstance()
+	r, c := evacReconciler(t, stubRuntimeStatus{byPod: map[string]runtimeStatus{
+		"kura-acct-region-0": routableStatus(backfillCycleComplete),
+		"kura-acct-region-1": routableStatus(backfillCycleComplete),
+	}},
+		instance,
+		primaryService("kura-acct-region-0"),
+		servingEndpoints("kura-acct-region-0"),
+		evacPod("kura-acct-region-0", "old-box", true),
+		evacPod("kura-acct-region-1", "old-box", true),
+		annotatedButSchedulableNode("old-box"),
+		evacNode("new-box", false),
+	)
+
+	if err := r.evacuateMarkedNodes(context.Background(), instance); err != nil {
+		t.Fatalf("evacuateMarkedNodes: %v", err)
+	}
+	if !podExists(t, c, "kura-acct-region-1") {
+		t.Fatal("evacuated off an uncordoned node; the replacement can be scheduled straight back onto it")
+	}
+}
+
+// Demotion hands an account's traffic to the successor, so the successor has to
+// have the content to serve, not merely the ability to. A pod that is routable
+// but still filling would give a cold cache with none of the visible symptoms of
+// a bad handover.
+func TestDemotionWaitsForTheSuccessorToCatchUp(t *testing.T) {
+	instance := evacInstance()
+	pods := []corev1.Pod{
+		*evacPod("kura-acct-region-0", "old-box", true),
+		*evacPod("kura-acct-region-1", "new-box", true),
+	}
+	r, _ := evacReconciler(t, stubRuntimeStatus{}, instance,
+		annotatedNode("old-box"), evacNode("new-box", false))
+
+	health := map[string]bool{"kura-acct-region-0": true, "kura-acct-region-1": true}
+	stillFilling := map[string]bool{"kura-acct-region-0": true}
+
+	if err := r.demoteEvacuatingPods(context.Background(), pods, health, stillFilling); err != nil {
+		t.Fatalf("demoteEvacuatingPods: %v", err)
+	}
+	if !health["kura-acct-region-0"] {
+		t.Fatal("demoted the primary while the only successor was still catching up")
+	}
+
+	caughtUp := map[string]bool{"kura-acct-region-0": true, "kura-acct-region-1": true}
+	if err := r.demoteEvacuatingPods(context.Background(), pods, health, caughtUp); err != nil {
+		t.Fatalf("demoteEvacuatingPods: %v", err)
+	}
+	if health["kura-acct-region-0"] {
+		t.Fatal("kept the primary on the outgoing box after the successor caught up")
 	}
 }
