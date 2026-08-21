@@ -152,6 +152,15 @@ components:
           type: string
           x-struct:
           x-validate:
+        only_test_identifiers:
+          description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         scheme:
           description: The scheme used for the test run.
           type: string
@@ -166,6 +175,15 @@ components:
         shard_plan_id:
           description: The shard plan ID if this test run is part of a sharded execution.
           type: string
+          x-struct:
+          x-validate:
+        skip_test_identifiers:
+          description: The tests the caller asked this run to exclude.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         status:
@@ -1789,7 +1807,7 @@ components:
           x-struct:
           x-validate:
         git_branch:
-          description: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
+          description: "The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch."
           type: string
           x-struct:
           x-validate:
@@ -5131,7 +5149,7 @@ components:
       x-validate:
     AbsentCacheArtifact:
       properties:
-        error:
+        errors:
           items:
             properties:
               code:
@@ -6767,7 +6785,12 @@ paths:
   /api/cache:
     get:
       callbacks: {}
-      description: This endpoint returns a signed URL that can be used to download an artifact from the cache.
+      description: |
+        This endpoint returns a signed URL that can be used to download an artifact from the cache.
+
+        The URL is signed from the request parameters alone, without a storage round trip, so
+        this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+        miss, or treat a failing download as the miss signal.
       operationId: downloadCacheArtifact
       parameters:
         - description: The category of the cache. It's used to differentiate between different types of caches.
@@ -6806,7 +6829,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CacheArtifactDownloadURL'
-          description: The artifact exists and is downloadable
+          description: 'A signed download URL was generated. The URL is returned without verifying that the artifact is stored, so this status does not imply a cache hit: a hash that was never uploaded is signed just the same, and the download then fails with a 404 at the storage provider.'
         '401':
           content:
             application/json:
@@ -6830,7 +6853,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The project or the cache artifact doesn't exist
+          description: The project doesn't exist
       summary: Downloads an artifact from the cache.
       tags:
         - Cache
@@ -8807,10 +8830,10 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
           schema:
             type: string
             x-struct:
@@ -8823,20 +8846,20 @@ paths:
             type: integer
             x-struct:
             x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -11278,8 +11301,12 @@ paths:
   /api/cache/exists:
     get:
       callbacks: {}
-      deprecated: true
-      description: This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
+      description: |
+        This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
+
+        It is the only cache endpoint that reaches storage to answer, so it is what clients
+        should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+        checking storage and answers 200 either way.
       operationId: cacheArtifactExists
       parameters:
         - description: The category of the cache. It's used to differentiate between different types of caches.
@@ -11359,7 +11386,7 @@ paths:
             application/json:
               schema:
                 properties:
-                  error:
+                  errors:
                     items:
                       properties:
                         code:
@@ -16451,7 +16478,7 @@ paths:
                   x-struct:
                   x-validate:
                 git_branch:
-                  description: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
+                  description: "The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch."
                   type: string
                   x-struct:
                   x-validate:

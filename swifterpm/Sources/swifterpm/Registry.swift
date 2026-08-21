@@ -134,7 +134,7 @@ enum RegistryAuthorization {
             environmentNetrc: netrc.credential(for: url, from: .environment),
             fileNetrc: netrc.credential(for: url, from: .file),
             forcesNetrc: netrc.forcesNetrc,
-            keychain: { await RegistryKeychain.credential(for: url) }
+            keychain: { await KeychainAuthorization.credential(for: url) }
         ) {
             return header(for: credential, url: url, registryConfig: registryConfig)
         }
@@ -196,7 +196,7 @@ enum RegistryAuthorization {
     }
 }
 
-private enum RegistryKeychain {
+enum KeychainAuthorization {
     static func credential(for url: URL) async -> RegistryCredential? {
         #if canImport(Security)
             guard let searchQuery = query(for: url, includeData: false) else { return nil }

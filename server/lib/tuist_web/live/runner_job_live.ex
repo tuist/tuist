@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerJobLive do
 
   import TuistWeb.Components.RunnerJobMetricsCharts
 
+  alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.FeatureFlags
@@ -35,7 +36,7 @@ defmodule TuistWeb.RunnerJobLive do
         _session,
         %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket
       ) do
-    if Authorization.authorize(:runners_read, current_user, selected_account) != :ok or
+    if Authorization.authorize(:account_dashboard_read, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
       raise NotFoundError,
             dgettext(
@@ -832,14 +833,35 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp maybe_auto_request_interactive_sessions(socket), do: socket
 
-  defp close_interactive_session(socket, kind) when kind in [:vnc, :shell] do
+  # A public account lets anyone mount this LiveView, and any client can push
+  # the disconnect event regardless of which tabs were rendered, so re-check
+  # `:runners_read` here rather than trusting that the interactive tabs were
+  # visible. `close_for_job/5` additionally scopes the close to the user who
+  # holds the session.
+  defp close_interactive_session(%{assigns: %{interactive: %{can_read?: false}}} = socket, kind)
+       when kind in [:vnc, :shell] do
+    socket
+  end
+
+  defp close_interactive_session(%{assigns: %{current_user: %User{} = current_user}} = socket, kind)
+       when kind in [:vnc, :shell] do
     %{selected_account: selected_account, job: job} = socket.assigns
-    _ = InteractiveSessions.close_for_job(selected_account.id, job.workflow_job_id, kind, "browser_disconnect")
+
+    _ =
+      InteractiveSessions.close_for_job(
+        selected_account.id,
+        job.workflow_job_id,
+        kind,
+        current_user,
+        "browser_disconnect"
+      )
 
     socket
     |> clear_interactive_session_token(kind)
     |> refresh_interactive_state()
   end
+
+  defp close_interactive_session(socket, kind) when kind in [:vnc, :shell], do: socket
 
   defp clear_interactive_session_token(socket, :vnc), do: assign(socket, :vnc_session_token, nil)
   defp clear_interactive_session_token(socket, :shell), do: assign(socket, :shell_session_token, nil)
@@ -1055,6 +1077,8 @@ defmodule TuistWeb.RunnerJobLive do
     running? = job.status in ["claimed", "running"]
     pod_available? = is_binary(job.pod_name) and job.pod_name != ""
 
+    # `:runners_read`, not the page's `:account_dashboard_read`: attaching to a
+    # running VM stays members-only even when the account is public.
     can_read? = Authorization.authorize(:runners_read, current_user, selected_account) == :ok
 
     vnc_requestable? = can_read? and InteractiveSessions.vnc_requestable?(job)

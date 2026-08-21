@@ -565,8 +565,19 @@ Core env vars:
   its own, and `KURA_AUTH_ENABLED=false` does not override it; a node that knows
   which server to authorize against does not stay open. Unset the URL to run
   without authorization.
-- `KURA_AUTH_JWT_SECRET`, with optional `KURA_AUTH_JWT_ALGORITHM` (default
-  `HS256`), `KURA_AUTH_JWT_ISSUER` and `KURA_AUTH_JWT_AUDIENCES`
+- `KURA_AUTH_JWT_PUBLIC_KEY` — the public half of the keypair the server signs
+  cache tokens with, as one or more concatenated PEM blocks (`ES256`). A node
+  holding it reads those tokens where the request lands and cannot mint one, so
+  it is what a node reachable from the internet should be given. During a key
+  rotation the value carries both blocks, and the token is tried against each.
+- `KURA_AUTH_JWT_SECRET` — the shared-secret alternative, with
+  `KURA_AUTH_JWT_ALGORITHM` defaulting to `HS256`. It signs as well as it
+  verifies, so a node holding it can mint the tokens it checks; use it only
+  where the node and the server are the same trust boundary. Mutually exclusive
+  with `KURA_AUTH_JWT_PUBLIC_KEY`.
+- Optional `KURA_AUTH_JWT_ISSUER` and `KURA_AUTH_JWT_AUDIENCES` for either
+- A token no configured key can read is not refused; the node asks the server
+  about it, exactly as a node holding no key at all does
 - `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET`, which
   let a node introspect tokens it cannot verify itself
 - `KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS` (default `3000`) and

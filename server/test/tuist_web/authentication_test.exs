@@ -477,6 +477,71 @@ defmodule TuistWeb.AuthenticationTest do
     end
   end
 
+  describe "require_authenticated_user_for_private_accounts/2" do
+    test "does not redirect if a user is authenticated", %{conn: conn, user: user} do
+      # Given
+      %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
+      conn = %{conn | path_params: %{"account_handle" => account.name}}
+
+      # When
+      conn =
+        conn
+        |> assign(:current_user, user)
+        |> Authentication.require_authenticated_user_for_private_accounts([])
+
+      # Then
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "does not redirect if a user is anonymous and an account is public", %{conn: conn} do
+      # Given
+      %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
+      {:ok, _account} = Accounts.update_account_visibility(account, :public)
+      conn = %{conn | path_params: %{"account_handle" => account.name}}
+
+      # When
+      conn = Authentication.require_authenticated_user_for_private_accounts(conn, [])
+
+      # Then
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "redirects if a user is anonymous and an account is private", %{conn: conn} do
+      # Given
+      %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
+      conn = %{conn | path_params: %{"account_handle" => account.name}}
+
+      # When
+      conn =
+        conn
+        |> Phoenix.ConnTest.init_test_session(%{})
+        |> fetch_flash()
+        |> Authentication.require_authenticated_user_for_private_accounts([])
+
+      # Then
+      assert conn.halted
+      assert redirected_to(conn) == ~p"/users/log_in"
+    end
+
+    test "redirects if the account doesn't exist", %{conn: conn} do
+      # Given
+      conn = %{conn | path_params: %{"account_handle" => "does-not-exist"}}
+
+      # When
+      conn =
+        conn
+        |> Phoenix.ConnTest.init_test_session(%{})
+        |> fetch_flash()
+        |> Authentication.require_authenticated_user_for_private_accounts([])
+
+      # Then
+      assert conn.halted
+      assert redirected_to(conn) == ~p"/users/log_in"
+    end
+  end
+
   describe "require_authenticated_user_for_previews/2" do
     test "does not redirect if a user is authenticated", %{conn: conn, user: user} do
       # Given
@@ -590,6 +655,95 @@ defmodule TuistWeb.AuthenticationTest do
   end
 
   describe "require_sso_authentication/2" do
+    test "does not redirect an anonymous visitor when the account is public and enforces SSO", %{conn: conn, user: user} do
+      # Given
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
+
+      Accounts.update_organization(organization, %{sso_enforced: true})
+      {:ok, _account} = Accounts.update_account_visibility(organization.account, :public)
+
+      # When
+      conn =
+        Authentication.require_sso_authentication(
+          %{
+            conn
+            | params: %{"account_handle" => organization.account.name},
+              path_info: [organization.account.name, "runners"],
+              query_string: ""
+          },
+          []
+        )
+
+      # Then
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "still redirects a signed-in user when the account is public and enforces SSO", %{conn: conn, user: user} do
+      # Given — signed-in users can see member-level data on a public account,
+      # so the organization's enforcement still applies to them.
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
+
+      Accounts.update_organization(organization, %{sso_enforced: true})
+      {:ok, _account} = Accounts.update_account_visibility(organization.account, :public)
+
+      # When
+      conn =
+        %{
+          conn
+          | params: %{"account_handle" => organization.account.name},
+            path_info: [organization.account.name, "runners"],
+            query_string: ""
+        }
+        |> assign(:current_user, user)
+        |> Authentication.require_sso_authentication([])
+
+      # Then
+      assert conn.halted
+      assert redirected_to(conn) == "/users/auth/google"
+    end
+
+    test "redirects an anonymous visitor when the account is private and enforces SSO", %{conn: conn, user: user} do
+      # Given
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
+
+      Accounts.update_organization(organization, %{sso_enforced: true})
+
+      # When
+      conn =
+        Authentication.require_sso_authentication(
+          %{
+            conn
+            | params: %{"account_handle" => organization.account.name},
+              path_info: [organization.account.name, "runners"],
+              query_string: ""
+          },
+          []
+        )
+
+      # Then
+      assert conn.halted
+      assert redirected_to(conn) == "/users/auth/google"
+    end
+
     test "redirects to Google SSO when org has Google SSO enforced and session auth provider does not match",
          %{conn: conn, user: user} do
       organization =

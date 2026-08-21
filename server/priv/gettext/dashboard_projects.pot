@@ -37,7 +37,7 @@ msgstr ""
 msgid "%{selective_tests_effectiveness}%"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:246
+#: lib/tuist_web/live/projects_live.ex:271
 #, elixir-autogen, elixir-format
 msgid "All projects"
 msgstr ""
@@ -161,7 +161,7 @@ msgstr ""
 msgid "Continue"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:357
+#: lib/tuist_web/live/projects_live.ex:383
 #, elixir-autogen, elixir-format
 msgid "Create a new project"
 msgstr ""
@@ -171,14 +171,14 @@ msgstr ""
 msgid "Create a project"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:341
+#: lib/tuist_web/live/projects_live.ex:367
 #, elixir-autogen, elixir-format
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:187
-#: lib/tuist_web/live/projects_live.ex:236
-#: lib/tuist_web/live/projects_live.ex:310
+#: lib/tuist_web/live/projects_live.ex:212
+#: lib/tuist_web/live/projects_live.ex:261
+#: lib/tuist_web/live/projects_live.ex:336
 #, elixir-autogen, elixir-format
 msgid "Created %{time}"
 msgstr ""
@@ -251,9 +251,9 @@ msgstr ""
 msgid "Last 40 runs"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:182
-#: lib/tuist_web/live/projects_live.ex:231
-#: lib/tuist_web/live/projects_live.ex:305
+#: lib/tuist_web/live/projects_live.ex:207
+#: lib/tuist_web/live/projects_live.ex:256
+#: lib/tuist_web/live/projects_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "Last interacted with %{time}"
 msgstr ""
@@ -284,7 +284,7 @@ msgstr ""
 #: lib/tuist_web/live/project_notifications_live.html.heex:520
 #: lib/tuist_web/live/project_notifications_live.html.heex:587
 #: lib/tuist_web/live/project_notifications_live.html.heex:760
-#: lib/tuist_web/live/projects_live.ex:366
+#: lib/tuist_web/live/projects_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -346,13 +346,13 @@ msgstr ""
 msgid "Project name"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:33
-#: lib/tuist_web/live/projects_live.ex:129
+#: lib/tuist_web/live/projects_live.ex:41
+#: lib/tuist_web/live/projects_live.ex:152
 #, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:197
+#: lib/tuist_web/live/projects_live.ex:222
 #, elixir-autogen, elixir-format
 msgid "Recent projects"
 msgstr ""
@@ -393,7 +393,7 @@ msgstr ""
 msgid "Saved"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:258
+#: lib/tuist_web/live/projects_live.ex:283
 #, elixir-autogen, elixir-format
 msgid "Search projects..."
 msgstr ""
@@ -420,7 +420,7 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:219
+#: lib/tuist_web/live/projects_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "Supported platforms"
 msgstr ""
@@ -456,6 +456,7 @@ msgstr ""
 #: lib/tuist_web/live/project_bundle_settings_live.ex:15
 #: lib/tuist_web/live/project_notifications_live.ex:26
 #: lib/tuist_web/live/project_settings_live.ex:15
+#: lib/tuist_web/live/projects_live.ex:495
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr ""
@@ -756,7 +757,7 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.html.heex:909
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:198
 #: lib/tuist_web/live/project_notifications_live.html.heex:503
-#: lib/tuist_web/live/projects_live.ex:400
+#: lib/tuist_web/live/projects_live.ex:426
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr ""
@@ -813,13 +814,13 @@ msgid "Automations"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:99
-#: lib/tuist_web/live/projects_live.ex:378
+#: lib/tuist_web/live/projects_live.ex:404
 #, elixir-autogen, elixir-format
 msgid "Build system"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:93
-#: lib/tuist_web/live/projects_live.ex:372
+#: lib/tuist_web/live/projects_live.ex:398
 #, elixir-autogen, elixir-format
 msgid "Select build system"
 msgstr ""
@@ -1430,7 +1431,7 @@ msgstr ""
 msgid "When a test is updated: %{events}"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:348
+#: lib/tuist_web/live/projects_live.ex:374
 #, elixir-autogen, elixir-format
 msgid "New Project"
 msgstr ""

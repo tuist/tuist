@@ -274,9 +274,10 @@ enum HTTPAuthorization {
         // repo-scoped CI token shadows the netrc credential that can actually read
         // a private release asset. This mirrors SwiftPM, whose download
         // AuthorizationProvider resolves netrc and never consults GITHUB_TOKEN.
-        if let header = prioritizedHeader(
+        if let header = await prioritizedHeader(
             isGitHub: isGitHub(url),
             netrcCredential: Environment.netrc.credential(for: url),
+            keychain: { await KeychainAuthorization.credential(for: url) },
             gitHubEnvToken: environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]
         ) {
             return header
@@ -292,9 +293,13 @@ enum HTTPAuthorization {
     static func prioritizedHeader(
         isGitHub: Bool,
         netrcCredential: RegistryCredential?,
+        keychain: () async -> RegistryCredential?,
         gitHubEnvToken: String?
-    ) -> String? {
+    ) async -> String? {
         if let credential = netrcCredential {
+            return basicHeader(credential)
+        }
+        if let credential = await keychain() {
             return basicHeader(credential)
         }
         if isGitHub, let token = nonEmpty(gitHubEnvToken) {
