@@ -20,7 +20,7 @@ defmodule Tuist.Kura.StorageClaimsTest do
   describe "effective_claim_size/1" do
     test "falls back to the claim the account's plan buys", %{account: account} do
       assert StorageClaims.override_for(account) == nil
-      assert StorageClaims.effective_claim_size(account) == "14Gi"
+      assert StorageClaims.effective_claim_size(account) == "8Gi"
 
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
 
@@ -31,8 +31,8 @@ defmodule Tuist.Kura.StorageClaimsTest do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
 
       # An account on the largest plan that never fills the ring it buys.
-      assert :ok = StorageClaims.put_override(account, "14Gi")
-      assert StorageClaims.effective_claim_size(account) == "14Gi"
+      assert :ok = StorageClaims.put_override(account, "10Gi")
+      assert StorageClaims.effective_claim_size(account) == "10Gi"
 
       # And the other end: the plan is not a ceiling either.
       assert :ok = StorageClaims.put_override(account, "80Gi")
@@ -44,7 +44,7 @@ defmodule Tuist.Kura.StorageClaimsTest do
       assert :ok = StorageClaims.put_override(account, nil)
 
       assert StorageClaims.override_for(account) == nil
-      assert StorageClaims.effective_claim_size(account) == "14Gi"
+      assert StorageClaims.effective_claim_size(account) == "8Gi"
     end
   end
 
@@ -54,18 +54,19 @@ defmodule Tuist.Kura.StorageClaimsTest do
       assert {:ok, nil} = StorageClaims.cast_override(account, %{"kura_storage_claim_size" => ""})
     end
 
-    # The floor is fixed overhead, not cache need: Kura carves a flat staging
-    # ceiling and a rotation segment out of any claim before it sizes the ring,
-    # so a claim under it derives no ring budget at all and the runtime sizes
-    # one from the whole box instead.
+    # The floor is the smallest claim the ladder hands out, and what stops it
+    # going lower is the reserve rather than cache need: staging and a rotation
+    # segment come out of any claim before the ring is sized, so a claim under
+    # the floor derives no ring budget at all and the runtime sizes one from the
+    # whole box instead.
     test "refuses a claim under the floor every plan clears", %{account: account} do
-      assert {:error, changeset} = StorageClaims.cast_override(account, %{"kura_storage_claim_size" => "11Gi"})
-      assert "must be at least 14Gi" in errors_on(changeset).kura_storage_claim_size
+      assert {:error, changeset} = StorageClaims.cast_override(account, %{"kura_storage_claim_size" => "4Gi"})
+      assert "must be at least 8Gi" in errors_on(changeset).kura_storage_claim_size
 
       assert {:error, changeset} = StorageClaims.cast_override(account, %{"kura_storage_claim_size" => "500Mi"})
-      assert "must be at least 14Gi" in errors_on(changeset).kura_storage_claim_size
+      assert "must be at least 8Gi" in errors_on(changeset).kura_storage_claim_size
 
-      assert {:ok, "14Gi"} = StorageClaims.cast_override(account, %{"kura_storage_claim_size" => "14Gi"})
+      assert {:ok, "8Gi"} = StorageClaims.cast_override(account, %{"kura_storage_claim_size" => "8Gi"})
       assert {:ok, "1Ti"} = StorageClaims.cast_override(account, %{"kura_storage_claim_size" => "1Ti"})
     end
 

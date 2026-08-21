@@ -531,7 +531,7 @@ defmodule Tuist.KuraTest do
       assert {:ok, server} =
                Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
 
-      assert server.storage_claim_size == "14Gi"
+      assert server.storage_claim_size == "8Gi"
     end
 
     test "ignores an account handed in under a mismatched id", %{account: account} do
@@ -549,7 +549,7 @@ defmodule Tuist.KuraTest do
                })
 
       assert server.account_id == account.id
-      assert server.storage_claim_size == "14Gi"
+      assert server.storage_claim_size == "8Gi"
     end
 
     test "pins nothing where the region sizes every instance alike", %{account: account} do
@@ -563,7 +563,7 @@ defmodule Tuist.KuraTest do
 
     test "reads the plan again on the cold return, which is when the volumes are rebuilt", %{account: account} do
       {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
-      assert server.storage_claim_size == "14Gi"
+      assert server.storage_claim_size == "8Gi"
 
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
 
@@ -580,7 +580,7 @@ defmodule Tuist.KuraTest do
       # Nothing re-derives it: the claim cannot be expanded under a running
       # instance on this storage class, so the upgrade lands when the volumes
       # are next built.
-      assert Repo.get!(Server, server.id).storage_claim_size == "14Gi"
+      assert Repo.get!(Server, server.id).storage_claim_size == "8Gi"
     end
 
     test "builds a warm-handoff target at the account's current footprint", %{account: account} do
@@ -666,7 +666,7 @@ defmodule Tuist.KuraTest do
     # the size it was built at and the new number describing nothing.
     test "re-pins the instances the account already has running", %{account: account} do
       {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
-      assert server.storage_claim_size == "14Gi"
+      assert server.storage_claim_size == "8Gi"
 
       assert {:ok, %{claim_size: "40Gi", rebuilt: [rebuilt]}} =
                Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "40Gi"})
@@ -680,8 +680,8 @@ defmodule Tuist.KuraTest do
 
       # Same claim the account's plan already gave it, so no manifest changes and
       # no cache is dropped. An operator must not be told one was.
-      assert {:ok, %{claim_size: "14Gi", rebuilt: []}} =
-               Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "14Gi"})
+      assert {:ok, %{claim_size: "8Gi", rebuilt: []}} =
+               Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "8Gi"})
     end
 
     test "hands the account back to its plan when the override is cleared", %{account: account} do
@@ -689,11 +689,11 @@ defmodule Tuist.KuraTest do
 
       {:ok, _} = Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "40Gi"})
 
-      assert {:ok, %{claim_size: "14Gi", rebuilt: [_rebuilt]}} =
+      assert {:ok, %{claim_size: "8Gi", rebuilt: [_rebuilt]}} =
                Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => ""})
 
       assert Kura.storage_claim_override(account) == nil
-      assert Repo.get!(Server, server.id).storage_claim_size == "14Gi"
+      assert Repo.get!(Server, server.id).storage_claim_size == "8Gi"
     end
 
     # An archived row holds no volumes: teardown took the StatefulSet and every
@@ -706,7 +706,7 @@ defmodule Tuist.KuraTest do
       assert {:ok, %{rebuilt: []}} =
                Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "40Gi"})
 
-      assert Repo.get!(Server, archived.id).storage_claim_size == "14Gi"
+      assert Repo.get!(Server, archived.id).storage_claim_size == "8Gi"
     end
 
     # The region sizes every instance alike on capacity ordered for the runner
@@ -727,11 +727,11 @@ defmodule Tuist.KuraTest do
       {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
 
       assert {:error, changeset} =
-               Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "11Gi"})
+               Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "4Gi"})
 
-      assert "must be at least 14Gi" in errors_on(changeset).kura_storage_claim_size
+      assert "must be at least 8Gi" in errors_on(changeset).kura_storage_claim_size
       assert Kura.storage_claim_override(account) == nil
-      assert Repo.get!(Server, server.id).storage_claim_size == "14Gi"
+      assert Repo.get!(Server, server.id).storage_claim_size == "8Gi"
     end
 
     defp archive_server(%Server{} = server) do

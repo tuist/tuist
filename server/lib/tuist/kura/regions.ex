@@ -128,7 +128,7 @@ defmodule Tuist.Kura.Regions do
   # shares it with the upload staging directory and the RocksDB index, and the
   # provisioner reserves those before deriving the ring budget it hands the pod
   # (see `cas_capacity_bytes/1` in the Kubernetes controller provisioner). The
-  # rings these leave are 40 GiB, 20.5 GiB and 5.3 GiB.
+  # rings these leave are 40 GiB, 20.5 GiB and 3.4 GiB.
   #
   # This is what the region's disk is ordered against, so it is sized from the
   # working set each plan actually keeps warm rather than from what an instance
@@ -151,27 +151,14 @@ defmodule Tuist.Kura.Regions do
   # full of, and volume far past it is a reason to be on another plan rather
   # than a reason to reserve another account's disk.
   #
-  # Air is the floor as well as the default, and what stops it going lower is
-  # the fixed reserve rather than the cache. Staging alone takes a flat 8 GiB
-  # whatever the plan, so the ring is what is left of the claim after it: a
-  # 12Gi claim leaves 3.4 GiB and an 11Gi one leaves less than the five
-  # segments Kura clamps its ring up to, at which point `cas_capacity_bytes/1`
-  # emits no budget at all and the runtime sizes its ring from the whole box
-  # instead. 14Gi keeps ~2.8 GiB of margin above that cliff. Going meaningfully
-  # smaller means cutting the staging budget first — at 2Gi of staging the same
-  # ring fits in an 8Gi claim — which is a Kura-side decision about how many
-  # replication bodies have to fit at once, so it is not made here.
+  # Air is the floor as well as the default. It is this small because the
+  # staging budget scales with the claim rather than staying at Kura's flat
+  # 8 GiB default (see `staging_bytes/1` in the Kubernetes controller
+  # provisioner); held flat, 8 GiB of reserve would leave an 8Gi claim no ring
+  # at all.
   @enterprise_storage_claim "50Gi"
   @pro_storage_claim "30Gi"
-  @standard_storage_claim "14Gi"
-  # The same cliff bounds any claim, not just the ones on the ladder above. An
-  # operator override (`Tuist.Kura.StorageClaims`) is validated against this.
-  @minimum_storage_claim "14Gi"
-  # The claim every instance in these regions held before they were sized per
-  # plan, and what one provisioned then still holds. A historical constant, not
-  # a quota: it happens to equal the enterprise claim today, but it describes
-  # volumes that were already carved and must not follow that quota if it moves.
-  @legacy_storage_claim "50Gi"
+  @air_storage_claim "8Gi"
   @managed_region_specs [
     # US East (Vint Hill VA) and US West (Hillsboro OR) run on OVH bare metal:
     # their own OVH fleets (kura-us-east / kura-us-west node pools), local-NVMe
@@ -191,7 +178,6 @@ defmodule Tuist.Kura.Regions do
       storage_class: "scw-local-nvme",
       gateway: :host_network,
       replicas: 2,
-      storage_size: @legacy_storage_claim,
       # Egress governance on the shared box (Advance-1 ~3 Gbit/s public NIC):
       # the enterprise per-tenant floor (uniform across regions) is bin-packed as
       # the tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst
@@ -211,7 +197,6 @@ defmodule Tuist.Kura.Regions do
       storage_class: "scw-local-nvme",
       gateway: :host_network,
       replicas: 2,
-      storage_size: @legacy_storage_claim,
       # Egress governance on the shared box (Advance-1 ~3 Gbit/s public NIC):
       # the enterprise per-tenant floor (uniform across regions) is bin-packed as
       # the tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst
@@ -242,7 +227,6 @@ defmodule Tuist.Kura.Regions do
       storage_class: "scw-local-nvme",
       gateway: :host_network,
       replicas: 2,
-      storage_size: @legacy_storage_claim,
       # Egress governance on the shared box (~1 Gbit/s NIC): the enterprise
       # per-tenant floor (uniform across regions) is bin-packed as the
       # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
@@ -270,7 +254,6 @@ defmodule Tuist.Kura.Regions do
       storage_class: "scw-local-nvme",
       gateway: :host_network,
       replicas: 2,
-      storage_size: @legacy_storage_claim,
       # Egress governance on the shared box (SYS-1 ~1 Gbit/s NIC): the
       # enterprise per-tenant floor (uniform across regions) is bin-packed as the
       # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
@@ -443,28 +426,36 @@ defmodule Tuist.Kura.Regions do
   each replica of that plan's cache instance reserves.
 
   Every plan gets a profile, the same way memory does. `:enterprise` and `:pro`
-  have their own; every other plan, `:air` included, takes the smallest, which
-  is also the floor no instance is sized below. Unknown plans fall there too,
-  which is the side that admits rather than the side that refuses.
+  have their own; every other plan takes air's, which is also the floor no
+  instance is sized below. Unknown plans land there too, which is the side that
+  admits rather than the side that refuses.
   """
   def storage_profile(:enterprise), do: %{claim_size: @enterprise_storage_claim}
 
   def storage_profile(:pro), do: %{claim_size: @pro_storage_claim}
 
-  def storage_profile(_plan), do: %{claim_size: @standard_storage_claim}
+  def storage_profile(_plan), do: %{claim_size: @air_storage_claim}
 
   @doc """
-  The smallest claim any instance may be built with.
+  The smallest claim any instance may be built with, whatever sets it.
 
-  Set by fixed overhead rather than by cache need: Kura reserves a flat staging
-  ceiling and one rotation segment out of every claim before the CAS ring is
-  sized, and clamps the ring up to a floor of five segments. A claim that leaves
-  less than that makes `cas_capacity_bytes/1` emit no `KURA_CAS_CAPACITY_BYTES`
-  at all, and the runtime falls back to sizing its ring from the whole box —
-  the failure that derivation exists to prevent. Every plan on the ladder above
-  clears this; an override has to be held to it too.
+  Air's claim, deliberately: the ladder's floor is already the smallest claim we
+  are willing to run an instance on, and an operator override
+  (`Tuist.Kura.StorageClaims`) is not a reason to go under it. Tying the two
+  together rather than repeating a number means the bound follows the ladder if
+  the ladder moves, which it has.
+
+  What stops the floor going lower is the reserve rather than the cache. Staging
+  and one rotation segment come out of a claim before the ring is sized, and
+  Kura clamps its ring up to five segments; a claim too small to clear that
+  leaves `cas_capacity_bytes/1` emitting no `KURA_CAS_CAPACITY_BYTES` at all and
+  the runtime sizes its ring from the whole box instead, which is the failure
+  that derivation exists to prevent. Now that staging scales with the claim
+  (`staging_bytes/1` in the Kubernetes controller provisioner) the cliff sits
+  below air rather than above it, so air clears it with margin; `regions_test`
+  asserts that against the derivation rather than against a number.
   """
-  def minimum_storage_claim, do: @minimum_storage_claim
+  def minimum_storage_claim, do: @air_storage_claim
 
   @doc """
   Parses a Kubernetes storage quantity like `"24Gi"` into bytes.
@@ -659,13 +650,12 @@ defmodule Tuist.Kura.Regions do
         # healthy box by the CAPI provider. nil on the Hetzner cloud regions
         # (their public peer plane is a per-instance LoadBalancer instead).
         failover_ip: Tuist.Environment.kura_peer_failover_ip(spec.id),
-        # The claim rendered for an instance carrying none of its own, which on
-        # these regions means one provisioned before instances were sized per
-        # plan — hence the legacy claim, which is what those volumes were carved
-        # at. Everything provisioned since pins its own (see `Tuist.Kura.Server`).
-        # nil for the multi-box Hetzner regions (controller default applies);
-        # bare-metal regions set 2 replicas (a warm standby for gapless rolling
-        # deploys).
+        # These regions declare no claim of their own: every instance carries the
+        # one its volumes were created at, and an instance that somehow carries
+        # none is sized from its account's plan at render time rather than from a
+        # region-wide constant. nil replicas for the multi-box Hetzner regions
+        # (controller default applies); bare-metal regions set 2 (a warm standby
+        # for gapless rolling deploys).
         replicas: Map.get(spec, :replicas),
         storage_size: Map.get(spec, :storage_size),
         disk_envelope_size: Map.get(spec, :disk_envelope_size),

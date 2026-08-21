@@ -38,8 +38,11 @@ defmodule Tuist.Kura.RegionsTest do
         assert config.storage_class == "scw-local-nvme"
         assert config.gateway == :host_network
         assert config.replicas == 2
-        assert config.storage_size == "50Gi"
         assert config.storage_governed == true
+
+        # No region-wide claim: every instance carries the one its volumes were
+        # created at, resolved from its account's plan.
+        assert config.storage_size == nil
       end
 
       assert Regions.get("us-east").provisioner_config.node_selector == %{
@@ -108,23 +111,23 @@ defmodule Tuist.Kura.RegionsTest do
 
     test "descends the storage ladder and floors it at air" do
       claims = Enum.map([:enterprise, :pro, :air], &Regions.storage_profile(&1).claim_size)
-      assert claims == ["50Gi", "30Gi", "14Gi"]
+      assert claims == ["50Gi", "30Gi", "8Gi"]
 
       # Air is the floor, and unknown plans land on it.
       assert Regions.storage_profile(:open_source) == Regions.storage_profile(:air)
     end
 
-    test "holds an operator override to the same cliff the ladder clears" do
-      # The floor is not about how much cache an account needs. It is the fixed
-      # reserve Kura takes out of any claim before it sizes the ring. A
-      # hand-typed override is the one claim that can land under it, so it is
-      # bounded by the same number the ladder is.
-      {minimum_gib, "Gi"} = Integer.parse(Regions.minimum_storage_claim())
-      assert minimum_gib >= 14
+    test "bounds an operator override by the floor the ladder already sits on" do
+      # One floor, not two. A hand-typed override is the one claim that can land
+      # under the reserve, and the bound it is held to is air's claim rather than
+      # a number of its own, so the budget-cliff test above covers it: whatever
+      # clears the derivation for air clears it for the smallest override.
+      assert Regions.minimum_storage_claim() == Regions.storage_profile(:air).claim_size
+
+      {:ok, minimum_bytes} = Regions.parse_storage_quantity(Regions.minimum_storage_claim())
 
       for plan <- [:enterprise, :pro, :air, :open_source] do
         {:ok, claim_bytes} = Regions.parse_storage_quantity(Regions.storage_profile(plan).claim_size)
-        {:ok, minimum_bytes} = Regions.parse_storage_quantity(Regions.minimum_storage_claim())
 
         assert claim_bytes >= minimum_bytes
       end
@@ -142,14 +145,22 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "keeps every claim clear of the budget cliff" do
-      # Staging takes a flat 8Gi out of every claim before the ring is sized, so
-      # a claim that is too small leaves less than the five segments Kura clamps
-      # its ring up to. `cas_capacity_bytes/1` then emits nothing and the runtime
-      # sizes its ring from the whole box instead — the failure the derivation
-      # exists to prevent. The cliff is at 11Gi; nothing may sit on or near it.
+      # Staging and one rotation segment come out of a claim before the ring is
+      # sized, and Kura clamps its ring up to five segments. A claim too small to
+      # clear that leaves `cas_capacity_bytes/1` emitting nothing at all, and the
+      # runtime sizes its ring from the whole box instead — the failure the
+      # derivation exists to prevent. Asserted against the derivation rather than
+      # a claim number, so it still holds if the reserves move.
+      gib = 1024 * 1024 * 1024
+      kura_ring_floor = 5 * 512 * 1024 * 1024
+
       for plan <- [:enterprise, :pro, :air, :open_source] do
         {claim_gib, "Gi"} = Integer.parse(Regions.storage_profile(plan).claim_size)
-        assert claim_gib >= 14
+        staging = min(div(claim_gib * gib, 2), 8 * gib)
+        ring = div((claim_gib * gib - staging - 512 * 1024 * 1024) * 97, 100)
+
+        assert ring >= kura_ring_floor * 5 / 4,
+               "#{plan} leaves #{ring} bytes of ring, too close to Kura's #{kura_ring_floor} floor"
       end
     end
 
@@ -183,7 +194,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert config.storage_class == "scw-local-nvme"
       assert config.gateway == :host_network
       assert config.replicas == 2
-      assert config.storage_size == "50Gi"
+      assert config.storage_size == nil
       assert config.hetzner_location == nil
 
       # Identity is unchanged so the cutover is invisible to the customer and CLI.

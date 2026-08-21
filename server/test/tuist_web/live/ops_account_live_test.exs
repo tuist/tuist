@@ -115,7 +115,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
         url: "https://acme-us-east-1.kura.tuist.dev",
         current_image_tag: "0.5.2",
         provisioner_node_ref: "kura-#{user.account.id}-us-east",
-        storage_claim_size: "14Gi"
+        storage_claim_size: "8Gi"
       })
 
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
@@ -156,10 +156,10 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     html =
       lv
-      |> form("#kura-storage-claim-form", account: %{kura_storage_claim_size: "11Gi"})
+      |> form("#kura-storage-claim-form", account: %{kura_storage_claim_size: "4Gi"})
       |> render_submit()
 
-    assert html =~ "must be at least 14Gi"
+    assert html =~ "must be at least 8Gi"
     assert Kura.storage_claim_override(user.account) == nil
   end
 

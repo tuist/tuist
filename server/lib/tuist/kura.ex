@@ -290,11 +290,17 @@ defmodule Tuist.Kura do
 
   defp write_storage_claim_override(account, override) do
     Repo.transaction(fn ->
+      # Read before the write. A governed region resolves an instance that pins
+      # no claim of its own from its account rather than from a region-wide
+      # constant, so this is what those instances are rendering right now, and
+      # what a change to the override has to be measured against.
+      previous = StorageClaims.effective_claim_size(account)
+
       case StorageClaims.put_override(account, override) do
         :ok ->
           claim_size = StorageClaims.effective_claim_size(account)
 
-          %{claim_size: claim_size, rebuilt: repin_storage_claims(account, claim_size)}
+          %{claim_size: claim_size, rebuilt: repin_storage_claims(account, previous, claim_size)}
 
         {:error, changeset} ->
           Repo.rollback(changeset)
@@ -310,12 +316,12 @@ defmodule Tuist.Kura do
   # A row already rendering `claim_size` is left alone: re-pinning it would
   # produce no manifest change, and reporting it as rebuilt would tell an
   # operator a cache was dropped that never was.
-  defp repin_storage_claims(%Account{id: account_id}, claim_size) do
+  defp repin_storage_claims(%Account{id: account_id}, previous, claim_size) do
     Server
     |> where([server], server.account_id == ^account_id)
     |> where([server], server.status not in ^@volumeless_statuses)
     |> Repo.all()
-    |> Enum.filter(&storage_claim_moves?(&1, claim_size))
+    |> Enum.filter(&storage_claim_moves?(&1, previous, claim_size))
     |> Enum.map(fn server ->
       server
       |> Server.lifecycle_changeset(%{storage_claim_size: claim_size})
@@ -323,22 +329,25 @@ defmodule Tuist.Kura do
     end)
   end
 
-  defp storage_claim_moves?(%Server{} = server, claim_size) do
+  defp storage_claim_moves?(%Server{} = server, previous, claim_size) do
     case Regions.fetch(server.region) do
       {:ok, region} ->
-        Regions.storage_governed?(region) and rendered_storage_claim(server, region) != claim_size
+        Regions.storage_governed?(region) and rendered_storage_claim(server, previous) != claim_size
 
       {:error, _reason} ->
         false
     end
   end
 
-  # What the manifest renders today: the row's own claim when it pins one, the
-  # region's declared claim when it does not.
-  defp rendered_storage_claim(%Server{storage_claim_size: claim}, _region) when is_binary(claim) and claim != "",
+  # What the instance renders today: the claim pinned on the row, or the claim
+  # its account resolved to before this write for a row that pins none. Pinning
+  # such a row is the point rather than a side effect: it stops resolving with
+  # the account and holds the claim its volumes were actually built at, which is
+  # what every row created in a governed region already does.
+  defp rendered_storage_claim(%Server{storage_claim_size: claim}, _previous) when is_binary(claim) and claim != "",
     do: claim
 
-  defp rendered_storage_claim(%Server{}, %Regions{provisioner_config: config}), do: config[:storage_size]
+  defp rendered_storage_claim(%Server{}, previous), do: previous
 
   ## Servers
 

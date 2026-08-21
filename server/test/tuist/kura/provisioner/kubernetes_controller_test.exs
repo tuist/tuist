@@ -839,7 +839,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
 
       segment = 512 * 1024 * 1024
-      tmp = 8 * 1024 * 1024 * 1024
       floor = 5 * segment
 
       for region <- Enum.filter(Regions.all(), &(&1.provisioner == KubernetesController)) do
@@ -866,9 +865,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           value ->
             capacity = String.to_integer(value)
             envelope = envelope_bytes(region)
+            # Absent means Kura's own 8Gi default, which is what a claim large
+            # enough to keep it renders.
+            tmp = staging_bytes(env)
 
             assert capacity < Integer.pow(2, 64), "#{region.id} declares a capacity Kura's u64 config rejects"
             assert capacity >= floor, "#{region.id} budgets under Kura's ring floor, which the runtime raises"
+
+            assert tmp >= 2 * 1024 * 1024 * 1024,
+                   "#{region.id} stages less than one replication body, which Kura rejects outright"
 
             assert div(capacity, segment) * segment + tmp + segment <= envelope,
                    "#{region.id} overruns its declared envelope once staging and a rotation are reserved"
@@ -880,8 +885,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
 
-      # 10Gi clears the reserves, so a budget is derivable, but it comes to
-      # ~1.4GiB and Kura clamps the ring up to its 2.5GiB floor. Emitting the
+      # 6Gi clears the reserves, so a budget is derivable, but it comes to
+      # ~2.4GiB and Kura clamps the ring up to its 2.5GiB floor. Emitting the
       # derived value would promise a ring the runtime does not honour, and the
       # floor plus the reserves overruns the volume.
       manifest =
@@ -889,7 +894,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "kura-tuist-under-floor-1",
           "0.5.2",
           %{name: "tuist"},
-          eu_region(%{storage_size: "10Gi"}),
+          eu_region(%{storage_size: "6Gi"}),
           %Server{}
         )
 
@@ -913,6 +918,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       capacity = String.to_integer(env["KURA_CAS_CAPACITY_BYTES"])
+      tmp = staging_bytes(env)
 
       segment = 512 * 1024 * 1024
       floor = 5 * segment
@@ -920,7 +926,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # Above the floor the clamp is a no-op, so the ring Kura resolves is the
       # segment count this budget buys and the reserves still hold.
       assert capacity >= floor
-      assert div(capacity, segment) * segment + 8 * 1024 * 1024 * 1024 + segment < 12 * 1024 * 1024 * 1024
+      assert div(capacity, segment) * segment + tmp + segment < 12 * 1024 * 1024 * 1024
     end
 
     test "raises rather than falling back to statvfs when a region's size cannot be parsed" do
@@ -947,7 +953,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "kura-tuist-tiny-1",
           "0.5.2",
           %{name: "tuist"},
-          eu_region(%{storage_size: "8Gi"}),
+          eu_region(%{storage_size: "2Gi"}),
           %Server{}
         )
 
@@ -1007,7 +1013,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # rotation segment and 3% for the index are reserved: 40 GiB, 20.5 GiB and
       # 5.3 GiB. A region-derived budget would hand all three the same ring and
       # let an Air instance overrun the claim its pod reserved.
-      for {claim, ring_gib} <- [{"50Gi", 40.2}, {"30Gi", 20.8}, {"14Gi", 5.3}] do
+      for {claim, ring_gib} <- [{"50Gi", 40.2}, {"30Gi", 20.8}, {"8Gi", 3.4}] do
         manifest =
           KubernetesController.manifest(
             "kura-tuist-eu-central-1",
@@ -1025,7 +1031,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         # Whatever the claim, the ring plus staging plus one rotation stays
         # inside it.
         {claim_gib, "Gi"} = Integer.parse(claim)
-        assert capacity + 8 * 1024 * 1024 * 1024 + 512 * 1024 * 1024 < claim_gib * 1024 * 1024 * 1024
+        assert capacity + staging_bytes(env) + 512 * 1024 * 1024 < claim_gib * 1024 * 1024 * 1024
       end
     end
 
@@ -1457,8 +1463,23 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   # The size the region's budget is derived against: the envelope override where
   # the claim is a fiction, the claim itself otherwise.
+  # The staging budget the instance runs with: the variable when the derivation
+  # narrows it, and Kura's own default when it does not, which is why a large
+  # claim renders no variable at all.
+  defp staging_bytes(env) do
+    case env["KURA_TMP_DIR_MAX_BYTES"] do
+      nil -> 8 * 1024 * 1024 * 1024
+      value -> String.to_integer(value)
+    end
+  end
+
+  # A region that declares no claim of its own sizes each instance from its
+  # account's plan, and the accounts these manifests render for resolve to air.
   defp envelope_bytes(%Regions{provisioner_config: config}) do
-    size = config[:disk_envelope_size] || config[:storage_size]
+    size =
+      config[:disk_envelope_size] || config[:storage_size] ||
+        Regions.storage_profile(:air).claim_size
+
     {quantity, "Gi"} = Integer.parse(size)
     quantity * 1024 * 1024 * 1024
   end
