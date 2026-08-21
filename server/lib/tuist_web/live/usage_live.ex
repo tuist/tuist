@@ -8,21 +8,20 @@ defmodule TuistWeb.UsageLive do
   import TuistWeb.Widget
 
   alias Tuist.Authorization
+  alias Tuist.Billing
   alias Tuist.FeatureFlags
   alias Tuist.Kura.Usage
-  alias Tuist.Projects
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Prepaid
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.CldrHelpers
-  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
   @hourly_bucket_max_hours 36
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
-    runner_breakdown = Allowance.monthly_breakdown(account)
+    runner_breakdown = Allowance.period_breakdown(account)
 
     # The page used to exist only for accounts with cache traffic. Runner
     # usage is billed the same way and belongs on the same page, so an
@@ -33,25 +32,15 @@ defmodule TuistWeb.UsageLive do
             dgettext("dashboard_usage", "The page you are looking for doesn't exist or has been moved.")
     end
 
-    project_opts =
-      if Authorization.authorize(:projects_read, current_user, account) == :ok do
-        [preload: []]
-      else
-        [preload: [], visibility: :public]
-      end
-
-    accessible_projects = Projects.list_accessible_projects(account, project_opts)
-    projects_with_usage_ids = account.id |> Usage.project_ids_with_usage() |> MapSet.new()
-
-    projects =
-      accessible_projects
-      |> Enum.filter(&MapSet.member?(projects_with_usage_ids, &1.id))
-      |> Enum.sort_by(& &1.name)
+    # Twelve is enough history to look back a year without listing
+    # periods the account did not exist for; empty ones simply report
+    # nothing.
+    periods = Billing.recent_billing_periods(account, 12)
 
     {:ok,
      socket
      |> assign(:head_title, "#{dgettext("dashboard_usage", "Usage")} · #{account.name} · Tuist")
-     |> assign(:projects, projects)
+     |> assign(:periods, periods)
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:prepaid_balance, Prepaid.balance(account))
      |> assign(:kura_enabled, FeatureFlags.kura_enabled?(account))}
@@ -60,47 +49,71 @@ defmodule TuistWeb.UsageLive do
   @widgets ["egress", "ingress", "requests"]
 
   @impl true
-  def handle_params(params, uri, %{assigns: %{selected_account: account, projects: projects}} = socket) do
-    %{preset: preset, period: {start_dt, end_dt} = period} =
-      DatePicker.date_picker_params(params, "usage", default_preset: "last-30-days")
-
-    project_handle = params["project"] || "any"
-    project_id = project_id_for_handle(projects, project_handle)
-    bucket = bucket_for_window(start_dt, end_dt)
+  def handle_params(params, uri, %{assigns: %{selected_account: account, periods: periods}} = socket) do
+    {start_dt, end_dt} = period = selected_period(periods, params["period"])
     selected_widget = widget_param(params["widget"])
 
-    base_opts =
-      case project_id do
-        nil -> [bucket: bucket]
-        id -> [bucket: bucket, project_id: id]
-      end
-
+    # The page reports one billing period, so the cache traffic beside
+    # the runner usage is scoped to the same window rather than to a
+    # range of its own. Daily buckets: a period is a month, and an hourly
+    # bucket over a month is unreadable.
+    base_opts = [bucket: :day]
     egress_opts = Keyword.merge(base_opts, direction: "egress", metric: :bytes)
     ingress_opts = Keyword.merge(base_opts, direction: "ingress", metric: :bytes)
     requests_opts = Keyword.put(base_opts, :metric, :requests)
 
+    usage_end = if DateTime.before?(DateTime.utc_now(), end_dt), do: DateTime.utc_now(), else: end_dt
+
     {:noreply,
      socket
      |> assign(:uri, URI.parse(uri))
-     |> assign(:analytics_preset, preset)
      |> assign(:analytics_period, period)
-     |> assign(:project_handle, project_handle)
-     |> assign(:bucket, bucket)
+     |> assign(:selected_period, period)
+     |> assign(:bucket, :day)
      |> assign(:analytics_selected_widget, selected_widget)
-     |> assign(:analytics_trend_label, trend_label(preset))
+     |> assign(:analytics_trend_label, dgettext("dashboard_usage", "since the previous period"))
+     |> assign(:runner_breakdown, Allowance.period_breakdown(account, period))
      |> assign_async(
        [:totals, :egress_series, :ingress_series, :requests_series, :per_region],
        fn ->
          {:ok,
           %{
-            totals: Usage.totals(account.id, start_dt, end_dt, base_opts),
-            egress_series: Usage.traffic_time_series_by_region(account.id, start_dt, end_dt, egress_opts),
-            ingress_series: Usage.traffic_time_series_by_region(account.id, start_dt, end_dt, ingress_opts),
-            requests_series: Usage.traffic_time_series_by_region(account.id, start_dt, end_dt, requests_opts),
-            per_region: Usage.per_region(account.id, start_dt, end_dt, base_opts)
+            totals: Usage.totals(account.id, start_dt, usage_end, base_opts),
+            egress_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, egress_opts),
+            ingress_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, ingress_opts),
+            requests_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, requests_opts),
+            per_region: Usage.per_region(account.id, start_dt, usage_end, base_opts)
           }}
        end
      )}
+  end
+
+  @doc """
+  The period whose start matches the `period` param, or the current one.
+  """
+  def selected_period(periods, nil), do: hd(periods)
+
+  def selected_period(periods, param) do
+    Enum.find(periods, hd(periods), fn {period_start, _} ->
+      Date.to_iso8601(DateTime.to_date(period_start)) == param
+    end)
+  end
+
+  def period_param({period_start, _}), do: Date.to_iso8601(DateTime.to_date(period_start))
+
+  def period_patch(uri, period) do
+    query =
+      uri.query
+      |> Kernel.||("")
+      |> URI.decode_query()
+      |> Map.put("period", period_param(period))
+      |> URI.encode_query()
+
+    "#{uri.path}?#{query}"
+  end
+
+  def period_label({period_start, period_end}) do
+    "#{Timex.format!(period_start, "{Mshort} {D}")} – #{Timex.format!(period_end, "{Mshort} {D}, {YYYY}")}"
   end
 
   @impl true
@@ -134,39 +147,12 @@ defmodule TuistWeb.UsageLive do
   defp widget_param(widget) when widget in @widgets, do: widget
   defp widget_param(_), do: "egress"
 
-  defp trend_label("last-24-hours"), do: dgettext("dashboard_usage", "since yesterday")
-  defp trend_label("last-7-days"), do: dgettext("dashboard_usage", "since last week")
-  defp trend_label("last-12-months"), do: dgettext("dashboard_usage", "since last year")
-  defp trend_label("custom"), do: dgettext("dashboard_usage", "since last period")
-  defp trend_label(_), do: dgettext("dashboard_usage", "since last month")
-
-  def project_patch(%URI{} = uri, handle) do
-    "?" <> Query.put(uri.query, "project", handle)
-  end
-
-  def project_label("any"), do: dgettext("dashboard_usage", "Any")
-  def project_label(handle) when is_binary(handle), do: handle
-
-  defp project_id_for_handle(_projects, "any"), do: nil
-  defp project_id_for_handle(_projects, ""), do: nil
-
-  defp project_id_for_handle(projects, handle) when is_binary(handle) do
-    case Enum.find(projects, &(&1.name == handle)) do
-      nil -> nil
-      project -> project.id
-    end
-  end
-
-  defp bucket_for_window(start_dt, end_dt) do
-    if DateTime.diff(end_dt, start_dt, :hour) <= @hourly_bucket_max_hours, do: :hour, else: :day
-  end
-
   @doc """
   echarts `extra_options` for the traffic chart. The y-axis + tooltip
   formatter depend on which widget is selected: bytes for egress/ingress,
   raw count for requests.
   """
-  def traffic_chart_options(dates, analytics_preset, bucket, selected_widget) do
+  def traffic_chart_options(dates, selected_widget) do
     {axis_formatter, tooltip_format} = formatters_for(selected_widget)
 
     %{
@@ -205,12 +191,9 @@ defmodule TuistWeb.UsageLive do
           formatter: axis_formatter
         }
       },
-      tooltip:
-        if analytics_preset == "last-24-hours" or bucket == :hour do
-          Map.put(tooltip_format, :dateFormat, "hour")
-        else
-          tooltip_format
-        end
+      # Always daily now: the window is a billing period, so there is no
+      # hourly preset left to format for.
+      tooltip: tooltip_format
     }
   end
 
@@ -255,8 +238,6 @@ defmodule TuistWeb.UsageLive do
   """
   def runner_chart_options(dates) do
     %{
-      # One series, so a legend naming it adds nothing.
-      legend: %{show: false},
       # `containLabel` lets the grid reserve whatever the axis labels
       # need. Currency labels are wider than the byte labels the traffic
       # chart uses, and a fixed left inset clipped the leading symbol.
@@ -280,17 +261,44 @@ defmodule TuistWeb.UsageLive do
     }
   end
 
-  def runner_chart_series(points) do
-    [
+  @repository_colors ["primary", "secondary", "tertiary", "quaternary", "p50", "p90", "p99", "warning"]
+
+  @doc """
+  One stacked bar series per repository, valued in dollars.
+
+  Stacked rather than overlaid: the reader's question is where a
+  period's spend went, so the bars have to sum to the period's total
+  and each segment has to be comparable against the others in the same
+  day.
+  """
+  def runner_chart_series(by_repository) do
+    dates = by_repository |> Enum.map(& &1.date) |> Enum.uniq() |> Enum.sort(Date)
+
+    by_repository
+    |> Enum.group_by(& &1.repository)
+    |> Enum.sort_by(fn {_repository, rows} -> -Enum.sum(Enum.map(rows, & &1.total_ms)) end)
+    |> Enum.with_index()
+    |> Enum.map(fn {{repository, rows}, index} ->
+      per_day = Map.new(rows, &{&1.date, &1.total_ms})
+
       %{
-        color: "var:noora-chart-primary",
-        data: Enum.map(points, &[&1.date, &1.value]),
-        name: dgettext("dashboard_usage", "Billed"),
-        type: "line",
-        smooth: 0.1,
-        symbol: "none"
+        color: "var:noora-chart-#{Enum.at(@repository_colors, rem(index, length(@repository_colors)))}",
+        data: Enum.map(dates, fn date -> [date, dollars(Map.get(per_day, date, 0))] end),
+        name: repository_label(repository),
+        type: "bar",
+        stack: "spend"
       }
-    ]
+    end)
+  end
+
+  def repository_label(nil), do: dgettext("dashboard_usage", "Unknown")
+  def repository_label(""), do: dgettext("dashboard_usage", "Unknown")
+  def repository_label(repository), do: repository
+
+  # The chart has no currency formatter for its data, only its labels,
+  # so values arrive already in dollars.
+  defp dollars(total_ms) do
+    total_ms |> Prepaid.on_demand_cost_for_milliseconds() |> Map.get(:amount) |> Kernel./(100) |> Float.round(2)
   end
 
   @doc """
@@ -317,6 +325,13 @@ defmodule TuistWeb.UsageLive do
     %{available: available, covered: covered, due: Money.subtract(billed, covered)}
   end
 
+  @doc """
+  A credit, signed only when there is something to subtract. A bare
+  "−0.00" reads as a rounding artefact rather than as nothing owed.
+  """
+  def credit_label(%Money{amount: 0}), do: money_label(Money.new(0, :USD))
+  def credit_label(money), do: "−" <> money_label(money)
+
   def platform_shape(:macos), do: "6 vCPU / 14 GB"
   def platform_shape(:linux), do: "2 vCPU / 8 GB"
   def platform_shape(_other), do: ""
@@ -338,14 +353,28 @@ defmodule TuistWeb.UsageLive do
   rather than a column, because it is an extrapolation and should read
   like one.
   """
+  def pace_label(%{projected_minutes: nil, previous_minutes: previous}) when previous > 0,
+    do: dgettext("dashboard_usage", "Last period came to %{count} minutes.", count: CldrHelpers.format_number(previous))
+
+  def pace_label(%{projected_minutes: nil}), do: nil
+
   def pace_label(%{minutes: minutes, projected_minutes: projected, previous_minutes: previous}) do
     pace =
-      dgettext("dashboard_usage", "On track for about %{count} minutes this month.", count: projected)
+      dgettext("dashboard_usage", "On track for about %{count} minutes this period.",
+        count: CldrHelpers.format_number(projected)
+      )
 
     case previous do
-      0 when minutes > 0 -> pace <> " " <> dgettext("dashboard_usage", "Nothing ran last month.")
-      0 -> pace
-      _ -> pace <> " " <> dgettext("dashboard_usage", "Last month came to %{count}.", count: previous)
+      0 when minutes > 0 ->
+        pace <> " " <> dgettext("dashboard_usage", "Nothing ran last period.")
+
+      0 ->
+        pace
+
+      _ ->
+        pace <>
+          " " <>
+          dgettext("dashboard_usage", "Last period came to %{count}.", count: CldrHelpers.format_number(previous))
     end
   end
 
@@ -379,21 +408,4 @@ defmodule TuistWeb.UsageLive do
   def format_count(_), do: CldrHelpers.format_number(0)
 
   def empty_label, do: dgettext("dashboard_usage", "No cache traffic in this window yet")
-
-  @doc """
-  Cumulative billed spend per day, which is what a reader wants from a
-  spend chart: the line only climbs once the free allowance is gone, so
-  the shape shows when the month started costing money.
-  """
-  def runner_cost_series(%{days: days}) do
-    {points, _running} =
-      Enum.map_reduce(days, 0, fn day, running ->
-        running = running + day.billed.amount
-        # Dollars rather than cents: Noora's chart has no currency
-        # formatter, so the axis reads the raw number it is given.
-        {%{date: day.date, value: Float.round(running / 100, 2)}, running}
-      end)
-
-    points
-  end
 end

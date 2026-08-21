@@ -29,6 +29,7 @@ defmodule Tuist.Runners.Allowance do
   alias Tuist.KeyValueStore
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Prepaid
+  alias Tuist.Runners.Trials
 
   # Must match the first tier of that environment's runner Price. The
   # default is the real allowance; staging lowers both together so the
@@ -37,6 +38,10 @@ defmodule Tuist.Runners.Allowance do
   # the cap without moving the Price, so an account would be cut off
   # before it could ever reach the charged tier.
   @default_free_monthly_minutes 100
+
+  # A projection needs a tenth of the period behind it before it says
+  # anything useful.
+  @projection_minimum_elapsed_percent 10
 
   # Dispatch is a hot path and this adds an aggregate over
   # `runner_sessions` to it, so the answer is cached briefly. The cost is
@@ -109,14 +114,22 @@ defmodule Tuist.Runners.Allowance do
   it bill nothing. That split is the point: it shows where the free tier
   ran out rather than presenting one blended number.
   """
-  def monthly_breakdown(%Account{id: account_id}) do
+  def period_breakdown(account, period \\ nil)
+
+  def period_breakdown(%Account{id: account_id} = account, period) do
+    # An account on a trial is billed nothing for runner usage, so the
+    # breakdown must say so too. Reporting what it would otherwise owe
+    # would contradict the bill it is actually going to get.
+    on_trial = Trials.on_trial?(account)
     now = DateTime.utc_now()
-    period_start = %{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}
+    {period_start, period_end} = period || billing_window(account, now)
+    # A closed period is reported whole; the open one only as far as now.
+    usage_end = if DateTime.before?(now, period_end), do: now, else: period_end
     free_ms = free_monthly_minutes() * 60_000
 
     per_day =
       account_id
-      |> RunnerBilling.compute_milliseconds_per_bucket(period_start, now, :day)
+      |> RunnerBilling.compute_milliseconds_per_bucket(period_start, usage_end, :day)
       |> Enum.sort_by(fn {date, _ms} -> Date.to_erl(date) end)
 
     {days, _remaining} =
@@ -141,13 +154,23 @@ defmodule Tuist.Runners.Allowance do
 
     %{
       period_start: DateTime.to_date(period_start),
-      period_end: DateTime.to_date(now),
+      period_end: DateTime.to_date(period_end),
+      usage_through: DateTime.to_date(usage_end),
       minutes: div(total_ms, 60_000),
       free_minutes: free_monthly_minutes(),
       gross: Prepaid.on_demand_cost_for_milliseconds(total_ms),
-      billed: Prepaid.on_demand_cost_for_milliseconds(max(total_ms - free_ms, 0)),
+      billed:
+        if(on_trial,
+          do: Money.new(0, :USD),
+          else: Prepaid.on_demand_cost_for_milliseconds(max(total_ms - free_ms, 0))
+        ),
       days: Enum.reject(days, &(&1.minutes == 0 and &1.gross == Money.new(0, :USD))),
-      platforms: platform_rows(account_id, period_start, now, total_ms)
+      by_repository: RunnerBilling.compute_milliseconds_per_repository(account_id, period_start, usage_end),
+      on_trial: on_trial,
+      platforms:
+        account_id
+        |> platform_rows(period_start, period_end, usage_end, total_ms)
+        |> zero_billed_on_trial(on_trial)
     }
   end
 
@@ -155,9 +178,12 @@ defmodule Tuist.Runners.Allowance do
   # it feeds: what the period has used so far, where that lands by the
   # end of it, what the plan covers, and what the period before it came
   # to.
-  defp platform_rows(account_id, period_start, now, total_ms) do
-    previous_start = period_start |> DateTime.add(-1, :day) |> beginning_of_month()
+  defp platform_rows(account_id, period_start, period_end, now, total_ms) do
+    # The period immediately before this one, the same length, so
+    # "previous period" compares like with like whether the window is a
+    # subscription cycle or a calendar month.
     previous_end = DateTime.add(period_start, -1, :microsecond)
+    previous_start = DateTime.add(period_start, -DateTime.diff(period_end, period_start, :second), :second)
 
     previous_by_platform = milliseconds_by_platform(account_id, previous_start, previous_end)
 
@@ -169,7 +195,7 @@ defmodule Tuist.Runners.Allowance do
         id: to_string(platform),
         platform: platform,
         minutes: div(ms, 60_000),
-        projected_minutes: project(ms, now),
+        projected_minutes: project(ms, period_start, period_end, now),
         # The allowance is one pot for the account rather than one per
         # platform, so it is only meaningful against a platform that has
         # a rate to spend it at. macOS is the only one so far.
@@ -178,6 +204,14 @@ defmodule Tuist.Runners.Allowance do
         gross: platform_cost(platform, ms),
         billed: platform_cost(platform, billable_milliseconds(platform, ms, total_ms))
       }
+    end)
+  end
+
+  defp zero_billed_on_trial(rows, false), do: rows
+
+  defp zero_billed_on_trial(rows, true) do
+    Enum.map(rows, fn row ->
+      %{row | billed: if(is_nil(row.gross), do: nil, else: Money.new(0, :USD))}
     end)
   end
 
@@ -207,12 +241,39 @@ defmodule Tuist.Runners.Allowance do
 
   # Straight-line: what the period has used so far, scaled to its full
   # length. Honest only as an extrapolation, which is what a projection
-  # is.
-  defp project(ms, now) do
-    days_elapsed = now.day
-    days_in_month = Date.days_in_month(DateTime.to_date(now))
+  # is. Measured against the actual window, so a subscription cycle
+  # projects over its own length rather than a calendar month's.
+  #
+  # Returns nil until enough of the period has passed to extrapolate
+  # from. Scaling an hour of a month-long cycle to its full length turns
+  # a few hundred minutes into a few hundred thousand, which is not a
+  # forecast so much as a division artefact.
+  defp project(ms, period_start, period_end, now) do
+    elapsed = max(DateTime.diff(now, period_start, :second), 1)
+    total = max(DateTime.diff(period_end, period_start, :second), elapsed)
 
-    ms |> Kernel.*(days_in_month) |> div(days_elapsed) |> div(60_000)
+    if elapsed * 100 < total * @projection_minimum_elapsed_percent do
+      nil
+    else
+      ms |> Kernel.*(total) |> div(elapsed) |> div(60_000)
+    end
+  end
+
+  # Stripe resets a tiered allowance on the subscription cycle, so usage
+  # has to be attributed to that same window or the free tier shown here
+  # refreshes on a different day from the one the customer is billed
+  # against. An account with no subscription has no cycle, and the
+  # calendar month is what its allowance follows.
+  defp billing_window(account, now) do
+    case Billing.current_billing_period(account) do
+      {period_start, period_end} -> {period_start, period_end}
+      nil -> {beginning_of_month(now), end_of_month(now)}
+    end
+  end
+
+  defp end_of_month(%DateTime{} = datetime) do
+    days = Date.days_in_month(DateTime.to_date(datetime))
+    %{datetime | day: days, hour: 23, minute: 59, second: 59, microsecond: {999_999, 6}}
   end
 
   defp beginning_of_month(%DateTime{} = datetime) do

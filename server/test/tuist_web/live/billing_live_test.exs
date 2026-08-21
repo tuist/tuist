@@ -246,7 +246,7 @@ defmodule TuistWeb.BillingLiveTest do
       # Prepaid minutes are already paid for, so they raise the ceiling
       # rather than appearing as a balance of their own.
       assert html =~ "10100"
-      assert html =~ "100 free plus 10000 prepaid"
+      assert html =~ "100 free plus 10,000 prepaid"
       # Nothing here may move as credit is spent.
       refute html =~ "3000.00"
       refute html =~ "left."

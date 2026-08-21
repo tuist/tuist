@@ -37,6 +37,7 @@ defmodule Tuist.Runners.AllowanceTest do
   describe "exhausted?/1" do
     test "a free account with room left may still dispatch", %{account: account} do
       stub(Billing, :effective_plan, fn _account -> :air end)
+      stub(Billing, :current_billing_period, fn _account -> nil end)
       used_minutes(account, 40)
 
       refute Allowance.exhausted?(account)
@@ -45,6 +46,7 @@ defmodule Tuist.Runners.AllowanceTest do
 
     test "a free account is cut off once the allowance is spent", %{account: account} do
       stub(Billing, :effective_plan, fn _account -> :air end)
+      stub(Billing, :current_billing_period, fn _account -> nil end)
       used_minutes(account, Allowance.free_monthly_minutes())
 
       assert Allowance.exhausted?(account)
@@ -62,6 +64,7 @@ defmodule Tuist.Runners.AllowanceTest do
 
     test "an account that has run nothing is not exhausted", %{account: account} do
       stub(Billing, :effective_plan, fn _account -> :air end)
+      stub(Billing, :current_billing_period, fn _account -> nil end)
 
       refute Allowance.exhausted?(account)
       assert Allowance.minutes_remaining(account) == Allowance.free_monthly_minutes()
@@ -104,7 +107,14 @@ defmodule Tuist.Runners.AllowanceTest do
     end
   end
 
-  describe "monthly_breakdown/1" do
+  describe "period_breakdown/1" do
+    setup do
+      # No subscription in these fixtures, so the window is the calendar
+      # month; stubbed so the fallback is exercised without Stripe.
+      stub(Billing, :current_billing_period, fn _account -> nil end)
+      :ok
+    end
+
     test "spends the allowance in date order, so the day it runs out is split", %{account: account} do
       # Three days of 60 minutes against a 100 minute allowance: the
       # first is entirely free, the second straddles the boundary, the
@@ -130,7 +140,7 @@ defmodule Tuist.Runners.AllowanceTest do
         })
       end
 
-      breakdown = Allowance.monthly_breakdown(account)
+      breakdown = Allowance.period_breakdown(account)
 
       assert breakdown.minutes == 180
       # 180 minutes at $0.075, of which 80 are past the allowance.
@@ -167,7 +177,7 @@ defmodule Tuist.Runners.AllowanceTest do
         updated_at: DateTime.truncate(DateTime.utc_now(), :second)
       })
 
-      breakdown = Allowance.monthly_breakdown(account)
+      breakdown = Allowance.period_breakdown(account)
 
       ids = Enum.map(breakdown.days, & &1.id)
       assert ids == Enum.uniq(ids)
@@ -175,7 +185,7 @@ defmodule Tuist.Runners.AllowanceTest do
     end
 
     test "reports nothing for an account that has run no jobs", %{account: account} do
-      breakdown = Allowance.monthly_breakdown(account)
+      breakdown = Allowance.period_breakdown(account)
 
       assert breakdown.minutes == 0
       assert breakdown.days == []
@@ -183,7 +193,12 @@ defmodule Tuist.Runners.AllowanceTest do
     end
   end
 
-  describe "monthly_breakdown/1 platform rows" do
+  describe "period_breakdown/1 platform rows" do
+    setup do
+      stub(Billing, :current_billing_period, fn _account -> nil end)
+      :ok
+    end
+
     test "reports the period, its projection, what is included and the period before", %{account: account} do
       # 60 minutes on the 1st of this month, so the projection scales a
       # known figure across a known number of days.
@@ -207,7 +222,7 @@ defmodule Tuist.Runners.AllowanceTest do
         updated_at: DateTime.truncate(DateTime.utc_now(), :second)
       })
 
-      assert [row] = Allowance.monthly_breakdown(account).platforms
+      assert [row] = Allowance.period_breakdown(account).platforms
 
       assert row.platform == :macos
       assert row.id == "macos"
@@ -218,8 +233,12 @@ defmodule Tuist.Runners.AllowanceTest do
       # Inside the allowance, so nothing of it is billable yet.
       assert row.billed == Money.new(0, :USD)
 
+      # Straight-line to the end of the window. Measured in seconds
+      # rather than whole days, so allow a minute either side of the
+      # day-granular estimate rather than restating the arithmetic.
       days_in_month = Date.days_in_month(DateTime.to_date(now))
-      assert row.projected_minutes == div(60 * days_in_month, now.day)
+      assert_in_delta row.projected_minutes, div(60 * days_in_month, now.day), 2
+      assert row.projected_minutes >= row.minutes
     end
 
     test "shows minutes but no money for a platform with no agreed rate", %{account: account} do
@@ -242,7 +261,7 @@ defmodule Tuist.Runners.AllowanceTest do
         updated_at: DateTime.truncate(DateTime.utc_now(), :second)
       })
 
-      assert [row] = Allowance.monthly_breakdown(account).platforms
+      assert [row] = Allowance.period_breakdown(account).platforms
 
       assert row.platform == :linux
       assert row.minutes == 10
@@ -254,7 +273,7 @@ defmodule Tuist.Runners.AllowanceTest do
     end
 
     test "reports no rows for an account that ran nothing", %{account: account} do
-      assert Allowance.monthly_breakdown(account).platforms == []
+      assert Allowance.period_breakdown(account).platforms == []
     end
   end
 end

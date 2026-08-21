@@ -582,6 +582,55 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  The account's current billing period as `{start, end}`, or `nil` when
+  it has no active subscription or Stripe cannot be reached.
+
+  Callers that need a window to attribute usage to should prefer this
+  over the calendar month whenever it is available: Stripe resets
+  tiered allowances on the subscription cycle, so a customer whose cycle
+  does not start on the first would otherwise be shown a free tier that
+  refreshes on a different day from the one they are billed against.
+
+  Returns `nil` rather than raising, because a usage page that cannot
+  reach Stripe should fall back to the calendar month rather than fail.
+  """
+  def current_billing_period(%Account{} = account) do
+    with %Subscription{subscription_id: subscription_id} when is_binary(subscription_id) <-
+           get_current_active_subscription(account),
+         {:ok, stripe_subscription} <- Stripe.Subscription.retrieve(subscription_id),
+         period_start when is_integer(period_start) <- Map.get(stripe_subscription, :current_period_start),
+         period_end when is_integer(period_end) <- Map.get(stripe_subscription, :current_period_end) do
+      {DateTime.from_unix!(period_start), DateTime.from_unix!(period_end)}
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  The `count` most recent billing periods, newest first, as
+  `{start, end}` datetimes.
+
+  Derived by stepping the current period back a month at a time rather
+  than read from Stripe's invoice history: the anchor day is what makes
+  a period, and stepping it reproduces the same bounds without a call
+  per period. Accounts with no subscription get calendar months, which
+  is the window their allowance follows.
+  """
+  def recent_billing_periods(%Account{} = account, count) when is_integer(count) and count > 0 do
+    {period_start, period_end} = current_billing_period(account) || calendar_month(DateTime.utc_now())
+
+    Enum.map(0..(count - 1), fn months_back ->
+      {Timex.shift(period_start, months: -months_back), Timex.shift(period_end, months: -months_back)}
+    end)
+  end
+
+  defp calendar_month(%DateTime{} = now) do
+    period_start = %{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}
+
+    {period_start, Timex.shift(period_start, months: 1)}
+  end
+
+  @doc """
   Flags an active Stripe subscription to cancel at the end of the current
   billing period. The local DB row keeps its `active`/`trialing` status until
   Stripe emits the cancellation event at period end; we don't mark it cancelled

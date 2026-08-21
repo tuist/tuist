@@ -15,6 +15,15 @@ defmodule TuistWeb.UsageLiveTest do
 
   setup :set_mimic_from_context
 
+  setup do
+    # Keeps the page off the network: the balance comes from Stripe and
+    # the period from the subscription, neither of which a render test
+    # should depend on.
+    stub(Tuist.Runners.Prepaid, :balance, fn _account -> nil end)
+    stub(Tuist.Billing, :current_billing_period, fn _account -> nil end)
+    :ok
+  end
+
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
@@ -117,12 +126,16 @@ defmodule TuistWeb.UsageLiveTest do
       :ok
     end
 
-    test "shows the subtitle and project + date filters", %{conn: conn, account: account} do
-      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/usage")
+    test "scopes the page to a billing period rather than a free range", %{conn: conn, account: account} do
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/usage")
 
       assert html =~ "Runner time and cache traffic billed to this account"
-      assert html =~ "Project:"
-      assert html =~ "Last 30 days"
+      assert html =~ "Billing period:"
+      # Both the free-range and project controls are gone: the page
+      # reports one period, and everything on it follows that period.
+      refute html =~ "Last 30 days"
+      refute html =~ "Project:"
+      assert has_element?(lv, "#usage-period-dropdown")
     end
 
     test "shows the empty state when there's no Kura traffic", %{conn: conn, account: account} do
