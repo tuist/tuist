@@ -21,7 +21,8 @@
         </:col>
         <:col :let={server} label={dgettext("dashboard", "Claim")}>
           <.text_cell label={
-            Tuist.Kura.storage_claim_label(server) || dgettext("dashboard", "None")
+            Kura.instance_storage_claim(server, @kura_account_claim) ||
+              dgettext("dashboard", "None")
           } />
         </:col>
         <:col :let={server} label={dgettext("dashboard", "URL")}>

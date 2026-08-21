@@ -85,23 +85,62 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert html =~ ~p"/ops/accounts/#{user.account.id}/kura/deployments/#{deployment.id}"
   end
 
-  test "shows the claim an instance's volumes were created at", %{conn: conn, user: user} do
-    # The claim an instance holds and the one its plan would give it today
-    # diverge for as long as it holds volumes built under different sizing, and
-    # nothing converges them on its own.
+  test "shows the claim each instance actually holds", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+    # Pinned: what this instance's volumes were created at, which diverges from
+    # what its account would be sized at today for as long as it holds them, and
+    # nothing converges the two on its own.
+    Repo.insert!(%Server{
+      account_id: user.account.id,
+      region: "us-east",
+      status: :active,
+      url: "https://acme-us-east-1.kura.tuist.dev",
+      current_image_tag: "0.5.2",
+      provisioner_node_ref: "kura-#{user.account.id}-us-east",
+      storage_claim_size: "50Gi"
+    })
+
+    # Pins nothing, and its region sizes every instance alike rather than per
+    # account, so it holds the region's own claim. Reading the pinned column
+    # alone reported "None" here while the instance was reserving 10Gi.
     Repo.insert!(%Server{
       account_id: user.account.id,
       region: "local-controller",
       status: :active,
       url: "http://localhost:4100",
       current_image_tag: "0.5.2",
-      provisioner_node_ref: "kura-#{user.account.id}-local-controller",
-      storage_claim_size: "50Gi"
+      provisioner_node_ref: "kura-#{user.account.id}-local-controller"
     })
 
     {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
     assert html =~ "50Gi"
+    assert html =~ "10Gi"
+  end
+
+  test "resolves an unpinned instance in a per-account region against the override", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+    # A governed region pins at creation, so this row is the state the resolution
+    # exists to cover rather than one the product creates. It holds whatever the
+    # account resolves to, which is the override once there is one.
+    Repo.insert!(%Server{
+      account_id: user.account.id,
+      region: "us-east",
+      status: :active,
+      url: "https://acme-us-east-1.kura.tuist.dev",
+      current_image_tag: "0.5.2",
+      provisioner_node_ref: "kura-#{user.account.id}-us-east"
+    })
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    assert html =~ "8Gi"
+
+    {:ok, _} = Kura.update_storage_claim_override(user.account, %{"kura_storage_claim_size" => "24Gi"})
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    assert html =~ "24Gi"
   end
 
   test "sets a claim override and re-pins the instance it rebuilds", %{conn: conn, user: user} do

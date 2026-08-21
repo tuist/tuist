@@ -222,16 +222,42 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  The claim each of an instance's replicas holds, or `nil` when the instance
-  pins none of its own and takes its region's.
+  The claim each of an instance's replicas actually holds.
 
-  Read from the claim pinned on the row, which is what the instance's volumes
-  were actually created at rather than what its account's plan would give it
-  today. The two diverge for as long as an instance holds volumes built under
-  different sizing, and nothing converges them on its own, so an operator
-  looking at a region's occupancy can see which instances account for it.
+  The claim pinned on the row when it carries one, which is what its volumes
+  were created at rather than what its account would be sized at today. The two
+  diverge for as long as an instance holds volumes built under different sizing,
+  and nothing converges them on its own, so an operator looking at a region's
+  occupancy can see which instances account for it.
+
+  A row that pins none holds what it resolves to instead: its account's
+  effective claim where the region sizes per account, the region's own declared
+  claim everywhere else. Reading the pinned column alone reported `nil` for a
+  whole region that reserves a claim without ever pinning one.
+
+  `account_claim` is `effective_storage_claim/1`, taken as an argument so a page
+  listing an account's instances resolves it once rather than once per row.
   """
-  def storage_claim_label(%Server{storage_claim_size: claim}), do: claim
+  def instance_storage_claim(%Server{storage_claim_size: claim}, _account_claim) when is_binary(claim) and claim != "",
+    do: claim
+
+  def instance_storage_claim(%Server{region: region_id}, account_claim) do
+    case Regions.fetch(region_id) do
+      {:ok, region} ->
+        if Regions.storage_governed?(region),
+          do: account_claim,
+          else: region.provisioner_config[:storage_size]
+
+      {:error, _reason} ->
+        nil
+    end
+  end
+
+  @doc """
+  The claim the account's instances are built at: its override when it carries
+  one, the claim its plan gives it otherwise.
+  """
+  defdelegate effective_storage_claim(account), to: StorageClaims, as: :effective_claim_size
 
   @doc """
   The account's claim override, or `nil` when its plan still decides.
@@ -329,25 +355,20 @@ defmodule Tuist.Kura do
     end)
   end
 
+  # Resolved exactly as the ops card resolves it, against the claim the account
+  # held before this write: for a row that pins none, that is what it renders
+  # today. Pinning such a row is the point rather than a side effect, since it
+  # stops resolving with the account and holds what its volumes were built at,
+  # which is what every row created in a governed region already does.
   defp storage_claim_moves?(%Server{} = server, previous, claim_size) do
     case Regions.fetch(server.region) do
       {:ok, region} ->
-        Regions.storage_governed?(region) and rendered_storage_claim(server, previous) != claim_size
+        Regions.storage_governed?(region) and instance_storage_claim(server, previous) != claim_size
 
       {:error, _reason} ->
         false
     end
   end
-
-  # What the instance renders today: the claim pinned on the row, or the claim
-  # its account resolved to before this write for a row that pins none. Pinning
-  # such a row is the point rather than a side effect: it stops resolving with
-  # the account and holds the claim its volumes were actually built at, which is
-  # what every row created in a governed region already does.
-  defp rendered_storage_claim(%Server{storage_claim_size: claim}, _previous) when is_binary(claim) and claim != "",
-    do: claim
-
-  defp rendered_storage_claim(%Server{}, previous), do: previous
 
   ## Servers
 

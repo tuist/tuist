@@ -27,11 +27,9 @@ defmodule TuistWeb.OpsAccountLive do
          socket
          |> assign(:head_title, "#{account.name} · Tuist Ops")
          |> assign(:account, account)
-         |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
-         |> assign(:kura_storage_claim_form, kura_storage_claim_form(account))
-         |> assign(:kura_plan_claim, Kura.plan_storage_claim(account))
          |> assign(:kura_minimum_claim, Kura.minimum_storage_claim())
+         |> assign_kura_storage_claim(account)
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
 
@@ -93,8 +91,7 @@ defmodule TuistWeb.OpsAccountLive do
       {:ok, %{claim_size: claim_size, rebuilt: rebuilt}} ->
         {:noreply,
          socket
-         |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
-         |> assign(:kura_storage_claim_form, kura_storage_claim_form(account))
+         |> assign_kura_storage_claim(account)
          |> put_flash(:info, kura_storage_claim_message(claim_size, rebuilt))}
 
       {:error, changeset} ->
@@ -274,6 +271,17 @@ defmodule TuistWeb.OpsAccountLive do
     account
     |> Concurrency.change_limits()
     |> to_form(as: "account")
+  end
+
+  # The rows, the form and the claim the rows resolve against move together: an
+  # override write re-pins instances, so a table left on the old assign would
+  # show claims that no longer exist.
+  defp assign_kura_storage_claim(socket, account) do
+    socket
+    |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
+    |> assign(:kura_account_claim, Kura.effective_storage_claim(account))
+    |> assign(:kura_plan_claim, Kura.plan_storage_claim(account))
+    |> assign(:kura_storage_claim_form, kura_storage_claim_form(account))
   end
 
   defp kura_storage_claim_form(account) do
