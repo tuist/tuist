@@ -81,7 +81,6 @@ defmodule TuistWeb.API.CacheController do
           }
         }
       },
-      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error},
       forbidden: {"Not authorized to perform this action", "application/json", Error}
     }
   )
@@ -93,23 +92,21 @@ defmodule TuistWeb.API.CacheController do
   @serving_cache_max_age 3600
   @provisioning_cache_max_age 30
 
+  # Answers where the cache is, not whether the caller may use it. Clients hold
+  # the answer for up to an hour, so a plan that lapses inside that window would
+  # never be reported here; the refusal belongs on the token exchange, and
+  # finally on the cache node itself.
   def endpoints(conn, params) do
-    account_handle = authorized_account_handle(params[:account_handle], conn)
+    %{endpoints: endpoints, provisioning: provisioning} =
+      params[:account_handle]
+      |> authorized_account_handle(conn)
+      |> Accounts.get_cache_resolution_for_handle(technology(conn))
 
-    case free_tier_exhausted_account(account_handle) do
-      nil ->
-        %{endpoints: endpoints, provisioning: provisioning} =
-          Accounts.get_cache_resolution_for_handle(account_handle, technology(conn))
+    max_age = if provisioning, do: @provisioning_cache_max_age, else: @serving_cache_max_age
 
-        max_age = if provisioning, do: @provisioning_cache_max_age, else: @serving_cache_max_age
-
-        conn
-        |> put_resp_header("cache-control", "private, max-age=#{max_age}")
-        |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1)})
-
-      account ->
-        render_free_tier_exhausted(conn, account)
-    end
+    conn
+    |> put_resp_header("cache-control", "private, max-age=#{max_age}")
+    |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1)})
   end
 
   defp free_tier_exhausted_account(nil), do: nil

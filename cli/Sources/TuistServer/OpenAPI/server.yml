@@ -6773,12 +6773,6 @@ paths:
                 x-struct:
                 x-validate:
               style: simple
-        '402':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The account has exhausted its plan's free tier
         '403':
           content:
             application/json:

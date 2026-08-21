@@ -44,25 +44,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert response["endpoints"] == expected_endpoints
     end
 
-    test "returns payment required when the account is over the free tier", %{conn: conn} do
-      # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
-
-      user =
-        AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
-          preload: [:account]
-        )
-
-      conn = Authentication.put_current_user(conn, user)
-
-      # When
-      conn = get(conn, ~p"/api/cache/endpoints?#{[account_handle: user.account.name]}")
-
-      # Then
-      assert json_response(conn, 402)["message"] =~ "Tuist Air"
-    end
-
     test "returns empty list when self-hosted without endpoints configured", %{conn: conn} do
       # Given
       stub(Tuist.Environment, :tuist_hosted?, fn -> false end)

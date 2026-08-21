@@ -12690,57 +12690,6 @@ public enum Operations {
                     }
                 }
             }
-            public struct Code402: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/402/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/402/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getCacheEndpoints.Output.Code402.Body
-                /// Creates a new `Code402`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getCacheEndpoints.Output.Code402.Body) {
-                    self.body = body
-                }
-            }
-            /// The account has exhausted its plan's free tier
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)/responses/402`.
-            ///
-            /// HTTP response code: `402 code402`.
-            case code402(Operations.getCacheEndpoints.Output.Code402)
-            /// The associated value of the enum case if `self` is `.code402`.
-            ///
-            /// - Throws: An error if `self` is not `.code402`.
-            /// - SeeAlso: `.code402`.
-            public var code402: Operations.getCacheEndpoints.Output.Code402 {
-                get throws {
-                    switch self {
-                    case let .code402(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "code402",
-                            response: self
-                        )
-                    }
-                }
-            }
             public struct Forbidden: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
