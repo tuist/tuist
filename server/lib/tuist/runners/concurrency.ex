@@ -283,14 +283,30 @@ defmodule Tuist.Runners.Concurrency do
   # Anything still open falls back to the session ceiling, so a session
   # whose close was never reported cannot accrue capacity for the rest
   # of the window.
+  #
+  # That ceiling also bounds the scan: a session released after
+  # `start_dt` cannot have started more than one ceiling before it, so
+  # the window fixes both ends of the index range. Without the lower
+  # bound the scan reads every session the account has ever had and
+  # discards most of them, which grows with history rather than with
+  # the window being charted.
+  #
+  # The completions join carries only sessions predating `job_ended_at`
+  # and retires with them; gating it on that column being NULL keeps the
+  # probe set to the shrinking population that needs it.
   defp claim_intervals(account_id, start_dt, end_dt) do
+    scan_floor = DateTime.add(start_dt, -RunnerSessions.max_session_lifetime_seconds(), :second)
+
     released =
       from(session in RunnerSession,
         left_join: completion in JobCompletion,
         on:
-          completion.workflow_job_id ==
-            coalesce(session.executed_workflow_job_id, session.workflow_job_id),
-        where: session.account_id == ^account_id and session.started_at <= ^end_dt,
+          is_nil(session.job_ended_at) and
+            completion.workflow_job_id ==
+              coalesce(session.executed_workflow_job_id, session.workflow_job_id),
+        where:
+          session.account_id == ^account_id and session.started_at <= ^end_dt and
+            session.started_at > ^scan_floor,
         select: %{
           platform: session.platform,
           fleet_name: session.fleet_name,

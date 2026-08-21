@@ -279,6 +279,27 @@ defmodule Tuist.Runners.ConcurrencyTest do
     assert usage.linux.memory_gb == [16, 16, 16, 16, 16, 16, 16, 0, 0, 0, 0]
   end
 
+  test "counts a session claimed before the window that is still holding its slot inside it" do
+    account = account_fixture()
+
+    session_fixture(account,
+      platform: :linux,
+      vcpus: 4,
+      memory_gb: 16,
+      started_at: datetime("2026-07-10T10:00:00Z")
+    )
+
+    usage =
+      Concurrency.usage_over_time(
+        account.id,
+        datetime("2026-07-10T12:00:00Z"),
+        datetime("2026-07-10T16:00:00Z"),
+        :hour
+      )
+
+    assert usage.linux.vcpus == [4, 4, 4, 4, 0]
+  end
+
   test "uses fleet platform and default resources for legacy rows" do
     account = account_fixture()
     default = Catalog.default_shape(:linux)
