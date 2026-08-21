@@ -192,6 +192,7 @@ defmodule TuistWeb.Authentication do
       end
 
     Analytics.user_authenticate(user)
+    Accounts.touch_last_sign_in(user)
 
     conn
     |> renew_session()
@@ -280,6 +281,10 @@ defmodule TuistWeb.Authentication do
   def fetch_current_user(conn, _opts) do
     {user_token, conn} = ensure_user_token(conn)
     user = user_token && Accounts.get_user_by_session_token(user_token, preload: [:account])
+    # A session resumed from the remember-me cookie is still the account being
+    # used, so it has to count as activity. Otherwise a user who never logs in
+    # again because they never log out looks dormant.
+    user = user && Accounts.touch_last_sign_in(user)
     assign(conn, :current_user, user)
   end
 
@@ -403,30 +408,52 @@ defmodule TuistWeb.Authentication do
   end
 
   def require_sso_authentication(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
-    if TuistWeb.OperatorGrant.active_grant?(conn, account_handle) do
-      # An operator holding a valid grant for this account bypasses the
-      # customer's SSO enforcement: they authenticated out-of-band at
-      # ops.tuist.dev and the access is reason-logged and time-boxed.
-      # This is the path that makes SSO-enforced orgs reachable.
-      conn
-    else
-      with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
-           organization_id when not is_nil(organization_id) <- account.organization_id,
-           {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
-           true <- organization.sso_enforced and not is_nil(organization.sso_provider),
-           auth_method = get_session(conn, :auth_method),
-           false <- auth_method == organization.sso_provider do
+    cond do
+      TuistWeb.OperatorGrant.active_grant?(conn, account_handle) ->
+        # An operator holding a valid grant for this account bypasses the
+        # customer's SSO enforcement: they authenticated out-of-band at
+        # ops.tuist.dev and the access is reason-logged and time-boxed.
+        # This is the path that makes SSO-enforced orgs reachable.
         conn
-        |> put_session(:oauth_return_to, current_path(conn))
-        |> redirect(to: sso_provider_path(organization))
-        |> halt()
-      else
-        _ -> conn
-      end
+
+      anonymous_public_account?(conn, account_handle) ->
+        # A signed-out visitor to a public account is only ever served that
+        # account's public data, so there is no identity to enforce a
+        # provider on. Without this they would be bounced to the provider
+        # and the public dashboards would be unreachable. Signed-in users
+        # still fall through: they can see member-level data, so the
+        # organization's enforcement still applies to them.
+        conn
+
+      true ->
+        with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
+             organization_id when not is_nil(organization_id) <- account.organization_id,
+             {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
+             true <- organization.sso_enforced and not is_nil(organization.sso_provider),
+             auth_method = get_session(conn, :auth_method),
+             false <- auth_method == organization.sso_provider do
+          conn
+          |> put_session(:oauth_return_to, current_path(conn))
+          |> redirect(to: sso_provider_path(organization))
+          |> halt()
+        else
+          _ -> conn
+        end
     end
   end
 
   def require_sso_authentication(conn, _opts), do: conn
+
+  defp anonymous_public_account?(conn, account_handle) do
+    if authenticated?(conn) do
+      false
+    else
+      case Accounts.get_account_by_handle(account_handle) do
+        nil -> false
+        account -> Authorization.authorize(:account_dashboard_read, nil, account) == :ok
+      end
+    end
+  end
 
   defp sso_provider_path(%{sso_provider: :google}), do: ~p"/users/auth/google"
 
@@ -443,6 +470,14 @@ defmodule TuistWeb.Authentication do
     project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
 
     if is_nil(project) or Authorization.authorize(:dashboard_read, nil, project) != :ok,
+      do: require_authenticated_user(conn, opts),
+      else: conn
+  end
+
+  def require_authenticated_user_for_private_accounts(%{path_params: %{"account_handle" => account_handle}} = conn, opts) do
+    account = Accounts.get_account_by_handle(account_handle)
+
+    if is_nil(account) or Authorization.authorize(:account_dashboard_read, nil, account) != :ok,
       do: require_authenticated_user(conn, opts),
       else: conn
   end

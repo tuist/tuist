@@ -27,9 +27,9 @@ Describe 'core cluster behaviour'
     wait_for_http "${KURA_US_URL}/up"
     wait_for_http "${KURA_EU_URL}/up"
     wait_for_http "${KURA_AP_URL}/up"
-    capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":3' || return 1
-    capture_into eu_up wait_for_contains "${KURA_EU_URL}/up" '"ring_members":3' || return 1
-    capture_into ap_up wait_for_contains "${KURA_AP_URL}/up" '"ring_members":3' || return 1
+    capture_into us_up wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":3' || return 1
+    capture_into eu_up wait_for_contains "${KURA_EU_URL}/status/cluster" '"ring_members":3' || return 1
+    capture_into ap_up wait_for_contains "${KURA_AP_URL}/status/cluster" '"ring_members":3' || return 1
     wait_for_http "${GRAFANA_URL}/api/health"
     wait_for_http "${PROMETHEUS_URL}/-/ready"
   }
@@ -73,7 +73,7 @@ Describe 'core cluster behaviour'
     dc restart kura-eu >/dev/null 2>&1 || return 1
     resolve_http_node KURA_EU kura-eu
     wait_for_http "${KURA_EU_URL}/up" || return 1
-    capture_into eu_up wait_for_contains "${KURA_EU_URL}/up" '"ring_members":3' || return 1
+    capture_into eu_up wait_for_contains "${KURA_EU_URL}/status/cluster" '"ring_members":3' || return 1
     The variable eu_up should include '"ring_members":3'
 
     capture_into restarted_body \

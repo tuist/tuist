@@ -1,0 +1,136 @@
+name: OCI registry login
+description: >-
+  Read the Tuist OCI registry credentials from 1Password and authenticate
+  the tooling that pushes and pulls Tart images and OCI artifacts.
+
+# The credentials are read at run time rather than mirrored into GitHub
+# secrets, so 1Password stays the only place they live and rotation is a
+# single `op item edit`. Same shape as `notify-deploy-success.yml`, which
+# reads `op://cache/...` with a vault-scoped service-account token.
+#
+# Reads from the `cache` vault, which is where CI and ops credentials
+# already live (`GITHUB_ACTIONS_VM_IMAGE_BUILDER_TOKEN`,
+# `KAMAL_REGISTRY_PASSWORD`, and the rest), via the service-account token
+# that already exists for it. Deliberately not an environment vault: a
+# token pointed at one would hand every image build read access to that
+# environment's master key, database passwords and object-storage
+# credentials in order to fetch one registry login.
+#
+# The cluster's half of these credentials — the htpasswd files and the
+# HTTP secret — stays in the environment vault, where ESO reads it. The
+# two consumers need different fields, so neither vault holds the
+# other's.
+#
+# Credentials are exported to the job environment rather than returned as
+# outputs, so the push steps that follow need no credential wiring of
+# their own. `TART_REGISTRY_HOSTNAME` scopes them to this registry, which
+# keeps any other registry a job talks to on its own footing.
+#
+# The host is a tailnet name, and resolving one is not the same as being
+# on the tailnet. These builders are members but do not resolve through
+# it: tailscaled on macOS never rewrites the system resolver, so anything
+# using ordinary OS resolution — crane, oras, tart — sees NXDOMAIN unless
+# the host carries the scoped `/etc/resolver/ts.net` the CAPI bootstrap
+# installs. Conflating the two took image publishing down once already,
+# so the step below names that cause instead of letting it surface as an
+# opaque auth failure.
+
+inputs:
+  host:
+    description: Registry host, e.g. `tuist-oci-production.taild6d7bb.ts.net`
+    required: true
+  op-service-account-token:
+    description: 1Password service-account token, scoped to the vault below
+    required: true
+  vault:
+    description: 1Password vault holding the registry credential item
+    required: true
+  item:
+    description: 1Password item name
+    required: false
+    default: OCI_REGISTRY_CREDENTIALS
+
+runs:
+  using: composite
+  steps:
+    - uses: 1password/install-cli-action@v4
+      with:
+        version: 2.31.1
+
+    - name: Read registry credentials from 1Password
+      shell: bash
+      env:
+        OP_SERVICE_ACCOUNT_TOKEN: ${{ inputs.op-service-account-token }}
+        REGISTRY_HOST: ${{ inputs.host }}
+        OP_VAULT: ${{ inputs.vault }}
+        OP_ITEM: ${{ inputs.item }}
+      run: |
+        set -euo pipefail
+        for v in OP_SERVICE_ACCOUNT_TOKEN REGISTRY_HOST OP_VAULT; do
+          if [ -z "${!v}" ]; then
+            echo "::error::${v} is empty; the registry credentials are not configured for this workflow"
+            exit 1
+          fi
+        done
+
+        username="$(op read "op://${OP_VAULT}/${OP_ITEM}/username")"
+        password="$(op read "op://${OP_VAULT}/${OP_ITEM}/password")"
+
+        # Mask before anything else can echo them — `set -x` in a later
+        # step, or a tool that prints its own argv, would otherwise put
+        # them in the log verbatim.
+        echo "::add-mask::$username"
+        echo "::add-mask::$password"
+
+        {
+          echo "TART_REGISTRY_HOSTNAME=${REGISTRY_HOST}"
+          echo "TART_REGISTRY_USERNAME=${username}"
+          echo "TART_REGISTRY_PASSWORD=${password}"
+        } >> "$GITHUB_ENV"
+
+        # Resolve first: a failure here is the scoped resolver missing
+        # from this host, not a credential problem, and the two look
+        # nothing alike once you know which you are reading.
+        #
+        # The check has to go through getaddrinfo, because that is the
+        # only resolver every client here shares. `dig` and `host` read
+        # /etc/resolv.conf and ignore the scoped resolvers under
+        # /etc/resolver, so on macOS they answer NXDOMAIN for exactly the
+        # tailnet names crane resolves fine. A guard built on either
+        # fails the job once the resolver is in place. `host` is also
+        # wrong in the other direction: it exits 0 for a name that
+        # returns no records, which is how the withdrawn `oci.tuist.dev`
+        # walked straight past this guard and surfaced as an opaque
+        # crane error instead. And `getent` does not exist on macOS, so
+        # the check it fronted never ran on these builders at all.
+        resolves_via_getaddrinfo() {
+          if command -v python3 >/dev/null 2>&1; then
+            python3 -c 'import socket, sys; socket.getaddrinfo(sys.argv[1], 443)' "$1" >/dev/null 2>&1
+          elif command -v dscacheutil >/dev/null 2>&1; then
+            dscacheutil -q host -a name "$1" 2>/dev/null | grep -qE '^ipv?6?_?address:'
+          else
+            getent hosts "$1" >/dev/null 2>&1
+          fi
+        }
+
+        if ! resolves_via_getaddrinfo "$REGISTRY_HOST"; then
+          case "$REGISTRY_HOST" in
+            *.ts.net)
+              echo "::error::${REGISTRY_HOST} does not resolve on this runner. It is a tailnet name, and tailscaled on macOS does not rewrite the system resolver, so it only resolves through the scoped /etc/resolver/ts.net pointing at 100.100.100.100. That file is installed by the CAPI host bootstrap (installTailnetResolver), on both the first-bootstrap and the drift path; check the host carries it and that the operator is new enough to apply it on drift."
+              ;;
+            *)
+              echo "::error::${REGISTRY_HOST} does not resolve on this runner."
+              ;;
+          esac
+          exit 1
+        fi
+
+        # crane and oras both persist to ~/.docker/config.json, which
+        # Tart reads through the Docker credential-helper protocol. That
+        # sidesteps the macOS keychain, whose "User interaction" prompt
+        # is not reachable from the LaunchAgent these builders run under.
+
+        printf '%s' "$password" | crane auth login --username "$username" --password-stdin "$REGISTRY_HOST"
+        printf '%s' "$password" | oras login "$REGISTRY_HOST" --username "$username" --password-stdin
+
+        echo "Authenticated against ${REGISTRY_HOST}"

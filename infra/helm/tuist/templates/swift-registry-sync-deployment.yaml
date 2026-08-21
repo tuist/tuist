@@ -171,6 +171,14 @@ spec:
             - name: SWIFT_REGISTRY_SYNC_LIMIT
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.swiftRegistrySync.githubAppInstallation }}
+            # The App credentials themselves come from `tuist.githubEnv` above.
+            # This names the installation whose request budget the mirror draws
+            # on, as an organization handle or a numeric installation id;
+            # without it the mirror falls back to the personal access token.
+            - name: SWIFT_REGISTRY_GITHUB_APP_INSTALLATION
+              value: {{ . | quote }}
+            {{- end }}
             # Always emit so an override of `false` (bool or string) actually
             # disables sync. A `with` block treats false as empty and would
             # silently fall back to the runtime.exs default of true.

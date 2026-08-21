@@ -41,7 +41,9 @@ public protocol UploadResultBundleServicing {
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         shardPlanId: String?,
-        shardIndex: Int?
+        shardIndex: Int?,
+        onlyTestIdentifiers: [String],
+        skipTestIdentifiers: [String]
     ) async throws -> Components.Schemas.RunsTest
 
     func uploadResultBundle(
@@ -50,7 +52,9 @@ public protocol UploadResultBundleServicing {
         quarantinedTests: [TestIdentifier],
         buildRunId: String?,
         shardPlanId: String?,
-        shardIndex: Int?
+        shardIndex: Int?,
+        onlyTestIdentifiers: [String],
+        skipTestIdentifiers: [String]
     ) async throws -> Components.Schemas.RunsTest
 }
 
@@ -104,7 +108,9 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         shardPlanId: String? = nil,
-        shardIndex: Int? = nil
+        shardIndex: Int? = nil,
+        onlyTestIdentifiers: [String] = [],
+        skipTestIdentifiers: [String] = []
     ) async throws -> Components.Schemas.RunsTest {
         let rootDirectory = try await rootDirectory()
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
@@ -151,7 +157,9 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
             shardPlanId: shardPlanId,
-            shardIndex: shardIndex
+            shardIndex: shardIndex,
+            onlyTestIdentifiers: onlyTestIdentifiers,
+            skipTestIdentifiers: skipTestIdentifiers
         )
 
         let testCaseRunsByIdentity = testCaseRunsByIdentity(testCaseRuns: test.test_case_runs)
@@ -176,7 +184,9 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         quarantinedTests: [TestIdentifier] = [],
         buildRunId: String? = nil,
         shardPlanId: String? = nil,
-        shardIndex: Int? = nil
+        shardIndex: Int? = nil,
+        onlyTestIdentifiers: [String] = [],
+        skipTestIdentifiers: [String] = []
     ) async throws -> Components.Schemas.RunsTest {
         guard let fullHandle = config.fullHandle else {
             throw UploadResultBundleServiceError.missingFullHandle
@@ -240,7 +250,9 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
             shardPlanId: shardPlanId,
-            shardIndex: shardIndex
+            shardIndex: shardIndex,
+            onlyTestIdentifiers: onlyTestIdentifiers,
+            skipTestIdentifiers: skipTestIdentifiers
         )
 
         return test

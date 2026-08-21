@@ -55,6 +55,24 @@ const SNAPSHOT_DELTA_INTERVAL_DEFAULT_SECS: u64 = 10 * 60;
 // compiler worker thread, which demand fetches already block on network I/O).
 const SNAPSHOT_FETCH_WAIT: Duration = Duration::from_secs(20);
 const SNAPSHOT_FULL_INTERVAL: Duration = Duration::from_secs(30 * 60);
+// How stale a snapshot may be and still answer a resolve from its own copy of
+// the keyspace, measured from the last FULL fetch and never the last delta:
+// deltas only ADD, so only the full fetch re-applies the server's eviction
+// gate, and a view kept current by deltas alone goes on advertising keys the
+// remote has already dropped.
+//
+// It matters here and not on the per-key path because the per-key path is
+// gated at the server on every call — kura refuses to serve an ActionResult
+// whose blobs are gone. The snapshot bypasses that: it is a bulk dump, gated
+// once when the index was built. So the client's copy is the ONLY thing
+// standing between an evicted entry and a compiler that will fail the build on
+// it, and how recently it was gated is the whole of its authority.
+//
+// Twice the full cadence, so healthy operation never trips it — a scheduled
+// refresh lands well inside — and what it catches is a refresh loop that
+// stopped. That is reachable rather than theoretical: refreshes are held off on
+// a loaded machine and while a build is active, and CI runners are both.
+const SNAPSHOT_SERVE_MAX_AGE: Duration = Duration::from_secs(2 * 30 * 60);
 const SNAPSHOT_RETRY_INTERVAL: Duration = Duration::from_secs(60 * 60);
 // Ceiling on a compressed snapshot's declared uncompressed size, so a torn or
 // hostile length prefix cannot drive an unbounded allocation. Comfortably
@@ -1111,6 +1129,9 @@ pub struct Proxy {
     // cold machines cannot stampede version bumps.
     view_refresh: Mutex<VecDeque<ViewRefresh>>,
     view_refreshed: Mutex<HashSet<RefreshKey>>,
+    // Instances already reported as serving per key because their snapshot aged
+    // out; see `note_stale_snapshot`. One line per instance, not per resolve.
+    stale_snapshot_logged: Mutex<HashSet<String>>,
 
     // instance -> demand-fetch coalescer, created on first demand miss. Groups
     // concurrent OP_FETCH_OBJECT blob reads into shared BatchReadBlobs calls.
@@ -1159,6 +1180,7 @@ impl Proxy {
             unprimed: AtomicU64::new(0),
             view_refresh: Mutex::new(VecDeque::new()),
             view_refreshed: Mutex::new(HashSet::new()),
+            stale_snapshot_logged: Mutex::new(HashSet::new()),
             demand_coalescers: Mutex::new(HashMap::new()),
             active_instances: Mutex::new(HashSet::new()),
             analytics,
@@ -3196,6 +3218,52 @@ impl Proxy {
         }
     }
 
+    /// How long ago this instance's snapshot last had a FULL fetch, which is the
+    /// only refresh that re-applies the server's eviction gate. `None` when
+    /// there is no Ready snapshot to age.
+    fn snapshot_full_fetch_age(&self, instance: &str) -> Option<Duration> {
+        match self.snapshots.lock().unwrap().get(instance) {
+            Some(SnapshotState::Ready { full_at, .. }) => Some(full_at.elapsed()),
+            _ => None,
+        }
+    }
+
+    /// Whether a snapshot that old may still answer resolves. Pure, and split
+    /// out from the serving path so the policy is testable without a store on
+    /// disk or a remote to talk to.
+    ///
+    /// `None` (no Ready snapshot) is not fresh: there is nothing to answer from,
+    /// and the per-key path already handles that case.
+    fn snapshot_may_serve(full_fetch_age: Option<Duration>) -> bool {
+        full_fetch_age.is_some_and(|age| age <= SNAPSHOT_SERVE_MAX_AGE)
+    }
+
+    /// Whether this instance's stale snapshot is worth reporting, and claims the
+    /// report if so. Split from the logging because that is the half a test can
+    /// see: `log_line` writes to a file named by an env var, and mutating the
+    /// environment races every other test in the binary.
+    fn should_report_stale_snapshot(&self, instance: &str) -> bool {
+        self.stale_snapshot_logged
+            .lock()
+            .unwrap()
+            .insert(instance.to_string())
+    }
+
+    /// Says once per instance that its snapshot has aged out of serving. Worth a
+    /// line: the effect is silent otherwise — resolves keep succeeding, just via
+    /// a round trip each — so a refresh loop that stopped would surface only as
+    /// "builds got slower" with nothing naming the cause.
+    fn note_stale_snapshot(&self, instance: &str, age: Duration) {
+        if self.should_report_stale_snapshot(instance) {
+            crate::log_line(&format!(
+                "snapshot for {instance} last fully fetched {}s ago (limit {}s); \
+                 serving resolves per key until it refreshes",
+                age.as_secs(),
+                SNAPSHOT_SERVE_MAX_AGE.as_secs()
+            ));
+        }
+    }
+
     /// Counts (and occasionally logs) a request that could not be routed to an
     /// instance. Logged on the first occurrence and every 1000th after.
     fn note_unprimed(&self, cas_path: &str) {
@@ -3269,7 +3337,23 @@ impl Proxy {
                 };
                 let remote = self.remote_for(&instance);
                 self.ensure_snapshot(&instance, &remote);
-                let snapshot = self.snapshot_ready(&instance);
+                // A snapshot answers from a copy of the remote's keyspace, so
+                // its authority expires. Past the bound, stop serving from it
+                // and let the key take the per-key path, which kura gates on
+                // every call. Dropping it here rather than inside `resolve` also
+                // suppresses the view refresh that a per-key hit would otherwise
+                // queue: that refresh exists to re-rank a key that fell out of a
+                // CURRENT view, which says nothing when the view is stale.
+                let snapshot = self.snapshot_ready(&instance).filter(|_| {
+                    let age = self.snapshot_full_fetch_age(&instance);
+                    let fresh = Self::snapshot_may_serve(age);
+                    if !fresh {
+                        if let Some(age) = age {
+                            self.note_stale_snapshot(&instance, age);
+                        }
+                    }
+                    fresh
+                });
                 let outcome = self.path_state(&request.cas_path).and_then(|state| {
                     self.resolve(&remote, &instance, state, &request.payload, snapshot.as_deref())
                 });
@@ -3579,6 +3663,119 @@ mod tests {
     /// the one CI runs on and the one this parse exists to keep reachable. A
     /// value that fell through to `Full` here would turn CI's one round trip
     /// into a full closure pull, which is the failure this pins.
+    /// A snapshot's answer is only as good as the last time its copy of the
+    /// remote's keyspace was gated, and only a FULL fetch re-gates it — deltas
+    /// add and never remove. Past the bound it stops serving and keys take the
+    /// per-key path, which kura gates on every call.
+    #[test]
+    fn a_snapshot_stops_serving_once_its_gate_is_stale() {
+        assert!(Proxy::snapshot_may_serve(Some(Duration::from_secs(0))));
+        assert!(Proxy::snapshot_may_serve(Some(SNAPSHOT_SERVE_MAX_AGE)));
+        assert!(!Proxy::snapshot_may_serve(Some(
+            SNAPSHOT_SERVE_MAX_AGE + Duration::from_secs(1)
+        )));
+        // Nothing to serve from is not "fresh"; the per-key path covers it.
+        assert!(!Proxy::snapshot_may_serve(None));
+        // A scheduled full refresh lands at SNAPSHOT_FULL_INTERVAL, so healthy
+        // operation must never trip this. Tightening the bound below the cadence
+        // would put every build on per-key round trips.
+        assert!(
+            SNAPSHOT_SERVE_MAX_AGE > SNAPSHOT_FULL_INTERVAL,
+            "the bound must leave room for the refresh cadence meant to keep it fresh"
+        );
+    }
+
+    /// The field choice is the substance, and it is the easy one to get wrong:
+    /// age comes from the last FULL fetch, never the last delta. Deltas only
+    /// ADD, so a view refreshed by deltas alone looks continuously fresh while
+    /// never re-applying the server's eviction gate — which is precisely the
+    /// state that serves keys the remote has dropped.
+    #[test]
+    fn snapshot_age_comes_from_the_full_fetch_not_the_delta() {
+        let dir = std::env::temp_dir().join(format!("tuist-snapage-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            r#"{"tuist/writer":{"trunk":"main"}}"#,
+        )
+        .expect("write sources");
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+
+        // What a held-off refresh loop leaves behind: deltas kept landing, the
+        // full re-gate did not.
+        let stale = Instant::now()
+            .checked_sub(SNAPSHOT_SERVE_MAX_AGE + Duration::from_secs(60))
+            .expect("clock has enough history");
+        proxy.snapshots.lock().unwrap().insert(
+            "tuist/writer".to_string(),
+            SnapshotState::Ready {
+                snapshot: Arc::new(Snapshot {
+                    nodes: Vec::new(),
+                    node_index: HashMap::new(),
+                    keys: HashMap::new(),
+                    key_order: Vec::new(),
+                    watermark: 0,
+                }),
+                full_at: stale,
+                refreshed_at: Instant::now(),
+                last_used: Instant::now(),
+            },
+        );
+
+        let age = proxy
+            .snapshot_full_fetch_age("tuist/writer")
+            .expect("a Ready snapshot has an age");
+        assert!(
+            age > SNAPSHOT_SERVE_MAX_AGE,
+            "reading `refreshed_at` instead of `full_at` would have called this fresh"
+        );
+        assert!(!Proxy::snapshot_may_serve(Some(age)));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// One line per instance, not one per resolve: the condition persists for as
+    /// long as the refresh stays stuck, and a warm build issues thousands of
+    /// resolves through it.
+    #[test]
+    fn an_aged_out_snapshot_is_reported_once_per_instance() {
+        let dir = std::env::temp_dir().join(format!("tuist-snaplog-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(dir.join("registry")),
+            None,
+        );
+
+        assert!(
+            proxy.should_report_stale_snapshot("tuist/writer"),
+            "the first resolve through a stale view reports it"
+        );
+        for _ in 0..5 {
+            assert!(
+                !proxy.should_report_stale_snapshot("tuist/writer"),
+                "and the thousands behind it in a warm build do not"
+            );
+        }
+        assert!(
+            proxy.should_report_stale_snapshot("tuist/other"),
+            "a second instance is its own report"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     #[test]
     fn prefetch_keys_is_its_own_mode_and_not_a_way_of_spelling_off() {
         assert_eq!(prefetch_mode_from(Some("keys")), PrefetchMode::Keys);

@@ -39,6 +39,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseBranchPresence
   alias Tuist.Tests.TestCaseCurrentState
+  alias Tuist.Tests.TestCaseDurationDailyStatsPerCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
@@ -71,6 +72,26 @@ defmodule Tuist.Tests do
   # identifiers stay comfortably below its default one-mebibyte limit while
   # still covering the small explicit-state sets this path is designed for.
   @max_preloaded_test_case_states 10_000
+  # Sortable duration fields the listing exposes, each backed by a matching
+  # aggregate state on `test_case_duration_daily_stats_per_case`. They are
+  # shown side by side rather than one at a time: the useful question about a
+  # test case is usually the shape of its durations, not a single number, and
+  # the median beside the p99 answers "slow always or slow sometimes" without
+  # reloading the table. Reading all four costs one extra merge each over the
+  # groups the scan already builds.
+  @duration_fields [:duration_p50, :duration_p90, :duration_p99, :duration_avg]
+  # Runs a test case needs inside the active window before its durations are
+  # shown or ranked. Below it the listing has no opinion: the cells render
+  # empty and the row sorts last in either direction, rather than letting one
+  # recorded run place a test at the top of "slowest".
+  @min_duration_samples 5
+  # `test_case_duration_daily_stats_per_case` is sorted by `test_case_id` ahead
+  # of `date` precisely so the listing's per-test-case grouping runs in sorted
+  # order. Without this the grouping falls back to a hash aggregation that holds
+  # a quantile state per test case for the length of the scan, which for a large
+  # project is the whole active suite at once. The `:joined` path sets the same
+  # flag as part of its own settings.
+  @duration_join_settings [optimize_aggregation_in_order: 1]
   @test_case_state_probe_settings [
     max_threads: 1,
     max_memory_usage: 128 * 1024 * 1024,
@@ -124,6 +145,10 @@ defmodule Tuist.Tests do
   @quarantine_event_types @mute_event_types ++ @skip_event_types
   @active_quarantine_event_types ~w(muted skipped)
   @active_quarantine_states ~w(muted skipped)
+
+  @terminal_shard_failure_statuses ~w(failed_processing failure)
+
+  @stale_run_window_hours 6
 
   @doc """
   All mute-related event type names (`muted`, `unmuted`).
@@ -605,7 +630,12 @@ defmodule Tuist.Tests do
     result =
       case existing do
         nil ->
-          test_status = if expected_shard_count > 1, do: "in_progress", else: shard_status
+          test_status =
+            if expected_shard_count > 1 and shard_status not in @terminal_shard_failure_statuses do
+              "in_progress"
+            else
+              shard_status
+            end
 
           attrs =
             attrs
@@ -616,9 +646,15 @@ defmodule Tuist.Tests do
           create_new_test(attrs, shard_index, shard_plan)
 
         existing_test ->
+          # Merged before the test case runs are built, not just before the
+          # Test row is rewritten: the runs copy `scheme` and the git fields
+          # off this struct, and the shard that first carries parsed metadata
+          # would otherwise stamp them with the placeholder row's blanks.
+          merged_test = merge_shard_metadata(existing_test, attrs)
+
           {test_case_ids_with_flaky_run, test_case_runs} =
             OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
-              create_test_modules(existing_test, test_modules, shard_index, shard_plan)
+              create_test_modules(merged_test, test_modules, shard_index, shard_plan)
             end
 
           # Every shard carries its own errors, and only unattributed issues
@@ -627,7 +663,7 @@ defmodule Tuist.Tests do
           # already-red run. Shards write concurrently and ClickHouse has no
           # uniqueness, so an error hit by several shards is deduplicated on
           # read instead of here.
-          create_run_errors(existing_test, Map.get(attrs, :run_errors, []))
+          create_run_errors(merged_test, Map.get(attrs, :run_errors, []))
 
           insert_shard_run(
             shard_plan_id,
@@ -641,26 +677,30 @@ defmodule Tuist.Tests do
 
           # A shard can move through processing, failed_processing, and a
           # successful client retry. Collapse that append-only history before
-          # deciding whether the merged run is complete. Insert the current
-          # row first so concurrent workers cannot both miss each other's
-          # terminal status and leave the merged run in_progress forever.
-          latest_statuses = latest_shard_statuses(existing_test.id)
+          # deciding whether the merged run is complete.
+          #
+          # The row inserted just above is not reliably read back within the
+          # same request, so the reporting shard contributes its status from
+          # memory and the query only supplies the other shards. Reading all
+          # of them back instead made the last shard to report count itself
+          # as still processing, which left the merged run in_progress with
+          # every shard green.
+          latest_statuses =
+            existing_test.id
+            |> latest_shard_statuses()
+            |> Map.put(shard_index || 0, shard_status)
+            |> Map.values()
+
           reported_count = Enum.count(latest_statuses, &(&1 != "processing"))
 
-          merged_status =
-            if reported_count >= expected_shard_count do
-              compute_final_shard_status(latest_statuses)
-            else
-              "in_progress"
-            end
+          merged_status = merged_shard_status(latest_statuses, reported_count, expected_shard_count)
 
           merged_duration = max(existing_test.duration, shard_duration)
 
           updated_test =
-            existing_test
+            merged_test
             |> Map.put(:status, merged_status)
             |> Map.put(:duration, merged_duration)
-            |> merge_shard_metadata(attrs)
 
           update_attrs =
             updated_test
@@ -771,13 +811,28 @@ defmodule Tuist.Tests do
   defp blank?(_), do: false
 
   defp latest_shard_statuses(test_run_id) do
-    ClickHouseRepo.all(
-      from(sr in ShardRun,
-        where: sr.test_run_id == ^test_run_id,
-        group_by: sr.shard_index,
-        select: fragment("argMax(?, ?)", sr.status, sr.inserted_at)
-      )
+    from(sr in ShardRun,
+      where: sr.test_run_id == ^test_run_id,
+      group_by: sr.shard_index,
+      select: {sr.shard_index, fragment("argMax(?, ?)", sr.status, sr.inserted_at)}
     )
+    |> ClickHouseRepo.all()
+    |> Map.new()
+  end
+
+  # A shard whose report never reaches the server holds the merged run at
+  # `in_progress` until the six-hour reaper runs, so the pull request comment
+  # and the dashboard show an hourglass over a run that is already red. A
+  # failure any shard reported is terminal, so it decides the merged run
+  # without waiting for the missing reports. Only success still needs every
+  # shard to have reported.
+  defp merged_shard_status(latest_statuses, reported_count, expected_shard_count) do
+    if reported_count >= expected_shard_count or
+         Enum.any?(latest_statuses, &(&1 in @terminal_shard_failure_statuses)) do
+      compute_final_shard_status(latest_statuses)
+    else
+      "in_progress"
+    end
   end
 
   defp compute_final_shard_status(latest_statuses) do
@@ -2357,22 +2412,48 @@ defmodule Tuist.Tests do
   by ReplacingMergeTree on each test run.
 
   Options:
-    * `:is_ci` — scopes "active" to CI (`true`) or local (`false`) runs by
-      reading the matching denormalized column on `test_cases`. `nil` (the
-      default) means "any environment".
+    * `:is_ci`: scopes both "active" and the duration statistic to CI (`true`)
+      or local (`false`) runs. Activity is read from the matching denormalized
+      column on `test_cases`; the duration comes from the matching `is_ci`
+      slice of `test_case_duration_daily_stats_per_case`. `nil` (the default)
+      means "any environment".
+    * `:preload`: which duration fields to compute, any of
+      `:duration_p50_ms`, `:duration_p90_ms`, `:duration_p99_ms` and
+      `:duration_avg_ms`.
+
+  A preloaded field carries that statistic over the active window. Each is
+  `nil` when the test case has fewer than `#{@min_duration_samples}` runs in the
+  window, and `:duration_sample_count` comes along with any of them, since a
+  caller that gets `nil` needs to know how many runs there were. Sort by them
+  with the matching `:duration_p50` / `:duration_p90` / `:duration_p99` /
+  `:duration_avg` fields, which order on the same values. Together they replace
+  `:avg_duration`, the denormalized mean of the last 50 runs that is unbounded
+  in time and blind to environment, as what the dashboard shows and ranks by.
+  `:avg_duration` is still populated for the public API and MCP tool, which
+  expose the column by name.
+
+  Each statistic costs a merge across the project's whole active suite, so
+  callers ask for the ones they render rather than the set: the Test Cases
+  table takes all four, the "Slowest test cases" card takes only the median.
+  Ordering by a duration field also computes it, since the ordering reads the
+  alias the computation puts in the SELECT. Callers that do neither, namely the
+  public API and the MCP tool, run exactly the query they ran before.
 
   The listing intentionally has no date-window option. Callers that take a
   user-controlled date picker on the same page (e.g. the Test Cases LiveView)
   show analytics for the picked range while the table stays anchored to the
   trailing `@active_window_days` window — that way the table is a stable
   view of the project's active surface and never silently drops rows because
-  a custom historical range excluded their most recent run.
+  a custom historical range excluded their most recent run. The duration
+  statistic is bounded to that same window, so it covers exactly the runs that
+  decide whether a row appears at all.
   """
   def list_test_cases(project_id, attrs, opts \\ []) do
     filters = Map.get(attrs, :filters, [])
     has_name_filter = Enum.any?(filters, fn f -> f.field == :name end)
     quarantine_filter? = quarantine_filter?(filters)
     is_ci = Keyword.get(opts, :is_ci)
+    duration_fields = requested_duration_fields(opts, attrs)
 
     # `state` / `is_flaky` are resolved from `test_case_states`, not from the
     # legacy columns on `test_cases`, so they are pulled out of the Flop filter
@@ -2440,12 +2521,16 @@ defmodule Tuist.Tests do
         []
       end
 
+    # The duration join is added after the count: the count only needs the
+    # filtered `test_cases` rows, and the aggregate scan behind the join would
+    # be pure overhead there.
     total_count = test_cases_count(base_query, flop, query_settings)
 
     case state_filter_mode do
       :joined ->
         base_query
         |> select_resolved_test_case_state()
+        |> select_durations(project_id, duration_fields, is_ci)
         |> Tuist.ClickHouseFlop.run(flop,
           for: TestCase,
           count: total_count,
@@ -2454,7 +2539,13 @@ defmodule Tuist.Tests do
 
       :preloaded ->
         {test_cases, meta} =
-          Tuist.ClickHouseFlop.run(base_query, flop, for: TestCase, count: total_count)
+          base_query
+          |> select_durations(project_id, duration_fields, is_ci)
+          |> Tuist.ClickHouseFlop.run(flop,
+            for: TestCase,
+            count: total_count,
+            query_opts: [settings: @duration_join_settings]
+          )
 
         resolved_page_states =
           resolve_test_case_states(project_id, Enum.map(test_cases, & &1.id))
@@ -2468,6 +2559,123 @@ defmodule Tuist.Tests do
         {test_cases, meta}
     end
   end
+
+  @doc """
+  Duration fields `list_test_cases/3` can compute and sort by.
+  """
+  def duration_fields, do: @duration_fields
+
+  @doc """
+  Runs a test case needs inside the active window before `list_test_cases/3`
+  reports durations for it.
+  """
+  def min_duration_samples, do: @min_duration_samples
+
+  # A field is computed when the caller preloads it by the name it is read under
+  # (`:duration_p90_ms`) or orders by the name it sorts under (`:duration_p90`).
+  # The second is not a convenience: the ordering reads the alias this puts in
+  # the SELECT, so ordering without computing would build an ORDER BY over a
+  # name ClickHouse cannot resolve.
+  #
+  # Flop accepts both atom and string params, so an order can arrive either way.
+  defp requested_duration_fields(opts, attrs) do
+    preloaded = to_string_set(Keyword.get(opts, :preload, []))
+    ordered = to_string_set(Map.get(attrs, :order_by) || Map.get(attrs, "order_by"))
+
+    Enum.filter(@duration_fields, fn field ->
+      MapSet.member?(preloaded, "#{field}_ms") or MapSet.member?(ordered, to_string(field))
+    end)
+  end
+
+  defp to_string_set(value), do: MapSet.new(List.wrap(value), &to_string/1)
+
+  # Each statistic is aliased with `selected_as/2` so `Tuist.ClickHouseFlop` can
+  # order by it even though it lives in a different table than `test_cases`.
+  # `NULL` below the sample floor is what makes the unranked rows sortable:
+  # `:asc_nulls_last` / `:desc_nulls_last` then keeps them at the bottom
+  # whichever column and direction is chosen, instead of a sentinel that would
+  # put them first in one direction.
+  #
+  # The join is `left_join`: a test case is in the listing because it ran inside
+  # the active window in the selected environment, which does not guarantee it
+  # cleared the sample floor, and an inner join would drop those rows from the
+  # table entirely rather than showing them unranked.
+  defp select_durations(query, _project_id, [], _is_ci), do: query
+
+  defp select_durations(query, project_id, duration_fields, is_ci) do
+    stats = test_case_duration_stats_subquery(project_id, duration_fields, is_ci)
+
+    fields = Map.new(duration_fields, &{:"#{&1}_ms", guarded_duration_dynamic(&1)})
+
+    fields =
+      Map.put(
+        fields,
+        :duration_sample_count,
+        dynamic([duration_stats: duration_stats], duration_stats.run_count)
+      )
+
+    from(test_case in query,
+      left_join: duration_stats in subquery(stats),
+      as: :duration_stats,
+      on: test_case.id == duration_stats.test_case_id,
+      select_merge: ^fields
+    )
+  end
+
+  defp guarded_duration_dynamic(field) do
+    dynamic(
+      [duration_stats: duration_stats],
+      selected_as(
+        fragment(
+          "if(? >= ?, ?, NULL)",
+          duration_stats.run_count,
+          ^@min_duration_samples,
+          field(duration_stats, ^field)
+        ),
+        ^field
+      )
+    )
+  end
+
+  # One clause per statistic rather than an interpolated expression: a fragment
+  # takes SQL at compile time, and `literal/1` would render the whole call as a
+  # quoted identifier.
+  defp duration_merge_dynamic(:duration_p50), do: dynamic(fragment("round(quantileMerge(0.5)(p50_duration))"))
+
+  defp duration_merge_dynamic(:duration_p90), do: dynamic(fragment("round(quantileMerge(0.9)(p90_duration))"))
+
+  defp duration_merge_dynamic(:duration_p99), do: dynamic(fragment("round(quantileMerge(0.99)(p99_duration))"))
+
+  defp duration_merge_dynamic(:duration_avg), do: dynamic(fragment("round(avgMerge(avg_duration))"))
+
+  # ClickHouse fills the missing side of a LEFT JOIN with each type's default
+  # rather than NULL, so a test case with no rows here arrives as
+  # `run_count = 0` and is handled by the sample floor like any other
+  # under-sampled row.
+  defp test_case_duration_stats_subquery(project_id, duration_fields, is_ci) do
+    window_start = active_window_start_date()
+
+    fields = Map.new(duration_fields, &{&1, duration_merge_dynamic(&1)})
+
+    fields =
+      fields
+      |> Map.put(:test_case_id, dynamic([stats], stats.test_case_id))
+      |> Map.put(:run_count, dynamic(fragment("uniqExactMerge(run_count)")))
+
+    query =
+      from(stats in TestCaseDurationDailyStatsPerCase,
+        where: stats.project_id == ^project_id,
+        where: stats.date >= ^window_start,
+        group_by: stats.test_case_id,
+        select: ^fields
+      )
+
+    apply_duration_environment_filter(query, is_ci)
+  end
+
+  defp apply_duration_environment_filter(query, nil), do: query
+
+  defp apply_duration_environment_filter(query, is_ci), do: where(query, [stats], stats.is_ci == ^is_ci)
 
   defp state_filter_mode(_project_id, []), do: {:preloaded, %{}}
 
@@ -2687,6 +2895,15 @@ defmodule Tuist.Tests do
     end)
   end
 
+  # The window starts at midnight rather than at an instant `@active_window_days`
+  # x 24 hours ago, because the per-case duration aggregates are keyed by day and
+  # cannot express a cutoff inside one. Both halves of the listing therefore mean
+  # the same window: a row is admitted on exactly the runs its durations are
+  # computed from. The alternative, a timestamp for admission and a whole
+  # boundary day for durations, let a row be ranked on up to a day of runs that
+  # the window itself would not have admitted.
+  defp active_window_start_date, do: Date.add(Date.utc_today(), -@active_window_days)
+
   # `last_ran_at_ci` and `last_ran_at_local` are denormalized on `test_cases`
   # (kept current by `create_test_cases/4`'s read-modify-write merge per
   # test_case_id). Reading them directly — no `test_case_runs` join —
@@ -2695,7 +2912,7 @@ defmodule Tuist.Tests do
   # the window and many times since still has its latest timestamp ≥
   # window_start, so it correctly stays in the listing.
   defp apply_active_window(query, is_ci) do
-    window_start = NaiveDateTime.add(NaiveDateTime.utc_now(), -@active_window_days, :day)
+    window_start = NaiveDateTime.new!(active_window_start_date(), ~T[00:00:00])
 
     case is_ci do
       true ->
@@ -4034,10 +4251,17 @@ defmodule Tuist.Tests do
   end
 
   @doc """
-  Marks in-progress test runs older than 6 hours as failed.
+  How long a run is given to hear from every shard before it is presumed
+  abandoned. The dashboard reads the same window to decide when a shard that
+  never reported can be called missing rather than still running.
+  """
+  def stale_run_window_hours, do: @stale_run_window_hours
+
+  @doc """
+  Marks in-progress test runs older than the stale run window as failed.
   """
   def expire_stale_in_progress_test_runs do
-    six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -6, :hour)
+    six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -@stale_run_window_hours, :hour)
     now = NaiveDateTime.utc_now()
 
     # `test_runs` is ReplacingMergeTree, and FINAL re-expands granule

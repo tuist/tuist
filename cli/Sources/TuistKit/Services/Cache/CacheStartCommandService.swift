@@ -65,9 +65,8 @@ struct CacheStartCommandService {
                 try await fileSystem.makeDirectory(at: socketPath.parentDirectory)
             }
 
-            Logger.current.debug("Warming cache endpoint URL for \(serverURL.absoluteString)")
             let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
-            _ = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+            try await warmCacheEndpoint(serverURL: serverURL, accountHandle: accountHandle)
 
             let server = GRPCServer(
                 transport: .http2NIOPosix(
@@ -97,6 +96,29 @@ struct CacheStartCommandService {
                     try await server.serve()
                 }
             }
+        }
+    }
+
+    /// Resolves the cache endpoint once at start-up so the first build does not
+    /// pay the endpoint latency race.
+    ///
+    /// Best-effort by design. An account whose cache instance was reclaimed for
+    /// inactivity has no endpoint until the server provisions one back, which
+    /// this very request is what triggers. Refusing to start the daemon over
+    /// that would turn a transient absence into no caching at all for the whole
+    /// provisioning window, and in CI into a failed step. The gRPC services
+    /// resolve per request and degrade to building locally, and nothing
+    /// negative-caches, so they pick the endpoint up on their own once it
+    /// appears.
+    private func warmCacheEndpoint(serverURL: URL, accountHandle: String?) async throws {
+        Logger.current.debug("Warming cache endpoint URL for \(serverURL.absoluteString)")
+
+        do {
+            _ = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+        } catch let error as CacheURLStoreError where error.isTransientAbsence {
+            Logger.current.debug(
+                "No cache endpoint is serving \(serverURL.absoluteString) yet (\(error.localizedDescription)). Starting the cache daemon anyway; it will pick one up once it is available."
+            )
         }
     }
 

@@ -39,6 +39,34 @@ exec >>"${LOG}" 2>&1
 # reason.
 STATUS_SHARE="/Volumes/My Shared Files/status"
 
+# publish_runner_log copies this script's log into the status share on
+# the way out, so it survives the VM. `${LOG}` lives inside the ephemeral
+# guest and dies with it, which is why a runner that halts without ever
+# taking its job leaves an exit code and nothing that explains it: the
+# EXIT trap reports 0 both for a finished job and for a runner that gave
+# up, so the code alone cannot separate them. tart-kubelet re-emits a
+# bounded tail of this file to its own stdout before teardown deletes the
+# share, and that reaches Loki via the host log shipper.
+#
+# A copy from the trap rather than a `tee` alongside `${LOG}`. A tee is
+# the obvious shape and the wrong one here: it would still be running
+# when the trap fires, so its buffered tail can land after this copy and
+# duplicate it, and bash 3.2 (what /bin/bash is on macOS) does not report
+# a process substitution's PID in `$!`, so there is no portable way to
+# reap it first. Copying after the last line is written is exact.
+#
+# The cost is that a guest killed without running its trap publishes
+# nothing — but that case already reaches the host distinguishably, as
+# `TartRunExited` rather than a reported exit code.
+#
+# Guarded on the share being mounted, exactly like report_runner_exit:
+# pools with the cache-volume feature off have no share, and there the
+# guest keeps logging only to `${LOG}`.
+publish_runner_log() {
+  [ -d "${STATUS_SHARE:-}" ] || return 0
+  cp "${LOG}" "${STATUS_SHARE}/runner.log" 2>/dev/null || true
+}
+
 # report_runner_exit hands this script's exit code to the host through
 # the writable status share, for tart-kubelet to publish as the Pod's
 # terminated container state.
@@ -71,7 +99,7 @@ report_runner_exit() {
 # refilling. The trap fires once on EXIT so the happy path
 # (clean ./run.sh exit) and every error path halt the VM the
 # same way.
-trap '_rc=$?; report_runner_exit "${_rc}"; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
+trap '_rc=$?; report_runner_exit "${_rc}"; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; publish_runner_log; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
 
 if [ ! -f /etc/tuist.env ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: /etc/tuist.env missing; aborting"
@@ -851,6 +879,29 @@ read_unverifiable_head() {
   printf '%s' "${digest}"
 }
 
+# read_node_name returns this host's Kubernetes Node name, staged by the host into
+# the status share when the VM was created. It rides the promote report purely as
+# attribution: it is the only record of WHICH host published a given HEAD
+# generation, which is the first thing you want when a HEAD turns out to be one no
+# host can reproduce and the account's cache is frozen fleet-wide.
+#
+# Deliberately the Node name and not TUIST_RUNNER_POD_NAME, which the guest also
+# holds: the Pod is deleted minutes after the job, whereas the Node name is what
+# `tuist.dev/cache-master-<account_id>` advertisements and the volume affinities
+# are keyed on, so it still resolves to the host holding that master. An
+# unstaged name reports empty rather than falling back to the Pod name — empty
+# means "not reported", and a column holding two kinds of name identifies neither.
+#
+# Sanitised to the DNS-subdomain alphabet and length a Node name can have, so
+# nothing from a share can escape into the request body.
+read_node_name() {
+  local node=""
+  if [ -r "${STATUS_SHARE}/node-name" ]; then
+    node=$(tr -cd 'A-Za-z0-9.-' < "${STATUS_SHARE}/node-name" 2>/dev/null | cut -c1-253)
+  fi
+  printf '%s' "${node}"
+}
+
 # write_promote_result relays the promote outcome to the host so it can tell a
 # genuine fast-forward REJECTION (409 — a stale base another host advanced past,
 # real cross-host contention) apart from an upload/network/control-plane FAILURE.
@@ -897,7 +948,7 @@ report_volume_head() {
   [ -n "${CACHE_INVENTORY_AFTER}" ] || return 0
   [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ] || return 0
 
-  local base_generation unverifiable promote_body
+  local base_generation unverifiable node_name promote_body
   base_generation=$(read_base_generation)
   # One body for both requests: the mint's pre-flight has to evaluate the same
   # inputs as the bump it precedes, or a promote the bump would accept gets a 409
@@ -906,7 +957,8 @@ report_volume_head() {
   # which the pre-flight would otherwise turn away forever on a base (cold or
   # stale) that can never catch up.
   unverifiable=$(read_unverifiable_head)
-  promote_body="{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation},\"unverifiable_digest\":\"${unverifiable}\"}"
+  node_name=$(read_node_name)
+  promote_body="{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation},\"unverifiable_digest\":\"${unverifiable}\",\"node_name\":\"${node_name}\"}"
   if [ -n "${unverifiable}" ]; then
     echo "$(date -u +%FT%TZ) dispatch-poll: reporting HEAD ${unverifiable} as unverifiable on this host"
   fi

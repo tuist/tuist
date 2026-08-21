@@ -105,6 +105,44 @@
     </.card_section>
   </.card>
 
+  <.card title={dgettext("dashboard", "Visibility")} icon="eye">
+    <.card_section>
+      <.table id="account-visibility-table" rows={[@account]}>
+        <:col :let={account} label={dgettext("dashboard", "Dashboards")}>
+          <.text_cell label={
+            if account.visibility == :public,
+              do: dgettext("dashboard", "Public"),
+              else: dgettext("dashboard", "Private")
+          } />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Signed-out visitors see")}>
+          <.text_cell label={
+            if account.visibility == :public,
+              do:
+                dgettext(
+                  "dashboard",
+                  "Public projects, runners, and usage. Members, webhooks, cache, billing, and settings stay private."
+                ),
+              else: dgettext("dashboard", "Nothing.")
+          } />
+        </:col>
+        <:col label={dgettext("dashboard", "Actions")}>
+          <div data-part="actions">
+            <.button
+              variant="secondary"
+              label={
+                if @account.visibility == :public,
+                  do: dgettext("dashboard", "Make private"),
+                  else: dgettext("dashboard", "Make public")
+              }
+              phx-click="toggle_visibility"
+            />
+          </div>
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
+
   <.card title={dgettext("dashboard", "Plan & billing")} icon="credit_card">
     <.card_section>
       <.table id="account-plan-table" rows={[@account]}>

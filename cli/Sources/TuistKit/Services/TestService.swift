@@ -582,6 +582,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     let buildRunId = await RunMetadataStorage.current.buildRunId
                     _ = try await shardPlanService.plan(
                         xctestproductsPath: testProductsPath,
+                        projectPath: path,
                         reference: shardReference,
                         shardGranularity: shardGranularity,
                         shardMin: shardMin,
@@ -737,7 +738,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             scheme: schemeName,
             shardPlanId: shard.shardPlanId,
             shardIndex: shardIndex,
-            mode: mode
+            mode: mode,
+            onlyTestIdentifiers: testTargets.map(\.description),
+            skipTestIdentifiers: skipTestTargets.map(\.description)
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
@@ -874,7 +877,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             action: .testWithoutBuilding,
             scheme: schemeName,
-            mode: mode
+            mode: mode,
+            onlyTestIdentifiers: testTargets.map(\.description),
+            skipTestIdentifiers: skipTestTargets.map(\.description)
         )
 
         try await storeSuccessfulTestHashesFromGraph(
@@ -1862,7 +1867,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 action: action,
                 scheme: scheme.name,
                 quarantinedTests: quarantinedTests,
-                mode: mode
+                mode: mode,
+                onlyTestIdentifiers: testTargets.map(\.description),
+                skipTestIdentifiers: skipTestTargets.map(\.description)
             )
             throw error
         }
@@ -1885,7 +1892,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             action: action,
             scheme: scheme.name,
             quarantinedTests: quarantinedTests,
-            mode: mode
+            mode: mode,
+            onlyTestIdentifiers: testTargets.map(\.description),
+            skipTestIdentifiers: skipTestTargets.map(\.description)
         )
     }
 
@@ -1953,7 +1962,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         quarantinedTests: [TestIdentifier] = [],
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
-        mode: TestProcessingMode = .local
+        mode: TestProcessingMode = .local,
+        onlyTestIdentifiers: [String] = [],
+        skipTestIdentifiers: [String] = []
     ) async {
         guard config.fullHandle != nil, action != .build
         else { return }
@@ -1969,7 +1980,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     config: config,
                     shardPlanId: shardPlanId,
-                    shardIndex: shardIndex
+                    shardIndex: shardIndex,
+                    onlyTestIdentifiers: onlyTestIdentifiers,
+                    skipTestIdentifiers: skipTestIdentifiers
                 )
             case .remote:
                 guard let resultBundlePath else { return }
@@ -1980,7 +1993,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     quarantinedTests: quarantinedTests,
                     buildRunId: buildRunId,
                     shardPlanId: shardPlanId,
-                    shardIndex: shardIndex
+                    shardIndex: shardIndex,
+                    onlyTestIdentifiers: onlyTestIdentifiers,
+                    skipTestIdentifiers: skipTestIdentifiers
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
@@ -2082,7 +2097,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
             shardPlanId: nil,
-            shardIndex: nil
+            shardIndex: nil,
+            // Everything selective testing skipped. The run carries no modules, so it never reaches
+            // the suite inventory either way.
+            onlyTestIdentifiers: [],
+            skipTestIdentifiers: []
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)

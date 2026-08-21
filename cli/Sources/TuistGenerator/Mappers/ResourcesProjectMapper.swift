@@ -14,7 +14,8 @@ import XcodeGraph
 ///      cannot host their own resources).
 ///   2. Writes a `TuistBundle+<Target>.swift` accessor into the target's Derived directory so
 ///      that user code can call `Bundle.module`.
-///   3. For external Obj-C targets, also emits SwiftPM-shaped C bridging files.
+///   3. For Objective-C targets generated from Swift packages, also emits
+///      Swift Package Manager-shaped C bridging files.
 public struct ResourcesProjectMapper: ProjectMapping {
     private let contentHasher: ContentHashing
     private let buildableFolderChecker: BuildableFolderChecking
@@ -81,7 +82,7 @@ public struct ResourcesProjectMapper: ProjectMapping {
             }
         }
 
-        if targetNeedsObjcAccessor(target, project: project) {
+        if targetNeedsObjcAccessor(target) {
             try appendObjcBundleAccessor(
                 to: &modifiedTarget,
                 sideEffects: &sideEffects,
@@ -119,8 +120,8 @@ public struct ResourcesProjectMapper: ProjectMapping {
         return containsSwift || containsSourcesInBuildableFolders
     }
 
-    private func targetNeedsObjcAccessor(_ target: Target, project: Project) -> Bool {
-        guard case .external = project.type else { return false }
+    private func targetNeedsObjcAccessor(_ target: Target) -> Bool {
+        guard target.metadata.tags.contains(TargetTags.swiftPackage) else { return false }
         let containsObjc = target.sources.contains {
             $0.path.extension == "m" || $0.path.extension == "mm"
         }

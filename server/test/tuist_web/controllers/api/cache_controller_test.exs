@@ -193,6 +193,28 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
 
       assert json_response(conn, :ok) == %{"endpoints" => ["https://kura-cache.example.com"]}
+
+      # A serving instance is a stable answer, so it is cacheable for the usual
+      # interval rather than re-resolved constantly.
+      assert ["private, max-age=3600"] = get_resp_header(conn, "cache-control")
+    end
+
+    test "shortens the cache lifetime while a dedicated instance is being provisioned back", %{conn: conn} do
+      # The stand-in answer stops being right the moment the account's own
+      # instance starts serving, so it must not be held for the usual interval.
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_client_feature_flags(["kura"])
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      assert json_response(conn, :ok) == %{"endpoints" => ["https://default.tuist.dev"]}
+      assert ["private, max-age=30"] = get_resp_header(conn, "cache-control")
     end
 
     test "returns ready account Kura endpoints when the client requests Kura and the account is opted in", %{
@@ -650,6 +672,106 @@ defmodule TuistWeb.API.CacheControllerTest do
       # Then
       response = json_response(conn, 200)
       assert response["data"]["url"] == download_url
+    end
+
+    test "returns a signed url without consulting storage, so an unstored hash is still a 200", %{
+      conn: conn,
+      cache: cache
+    } do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
+      hash = "hash-that-was-never-uploaded"
+      name = "name"
+      project_slug = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      download_url = "https://tuist.dev/download/1234"
+      object_key = "#{project_slug}/#{cache_category}/#{hash}/#{name}"
+
+      reject(&Storage.object_exists?/2)
+
+      expect(Storage, :generate_download_url, fn ^object_key, _, _ ->
+        download_url
+      end)
+
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> assign(:cache, cache)
+        |> get(~p"/api/cache",
+          hash: hash,
+          name: name,
+          project_id: project_slug,
+          cache_category: cache_category
+        )
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["data"]["url"] == download_url
+    end
+  end
+
+  describe "GET /api/cache/exists" do
+    test "returns ok when the artifact is stored", %{conn: conn, cache: cache} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_slug = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      object_key = "#{project_slug}/#{cache_category}/#{hash}/#{name}"
+
+      expect(Storage, :object_exists?, fn ^object_key, _ -> true end)
+
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> assign(:cache, cache)
+        |> get(~p"/api/cache/exists",
+          hash: hash,
+          name: name,
+          project_id: project_slug,
+          cache_category: cache_category
+        )
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+    end
+
+    test "returns not found when the artifact is absent", %{conn: conn, cache: cache} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_slug = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      object_key = "#{project_slug}/#{cache_category}/#{hash}/#{name}"
+
+      expect(Storage, :object_exists?, fn ^object_key, _ -> false end)
+
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> assign(:cache, cache)
+        |> get(~p"/api/cache/exists",
+          hash: hash,
+          name: name,
+          project_id: project_slug,
+          cache_category: cache_category
+        )
+
+      # Then
+      response = json_response(conn, 404)
+      assert [%{"code" => "not_found", "message" => "The artifact was not found"}] = response["errors"]
     end
   end
 

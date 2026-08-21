@@ -96,14 +96,11 @@ func (r *PodLifecycleReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	pod := &corev1.Pod{}
 	if err := r.Get(ctx, req.NamespacedName, pod); err != nil {
 		if apierrors.IsNotFound(err) {
-			// Pod is fully gone from the apiserver. If we never
-			// reported it stopped (controller raced the reap), the
-			// server-side max-lifetime safety clamp in
-			// `Tuist.Runners.Billing` bounds the over-bill — we
-			// have no finishedAt to send at this point anyway.
-			// Drop the reported entry so a re-created Pod with the
-			// same name (unlikely; names carry a random suffix)
-			// gets a fresh emission.
+			// Nothing to report: `reapRunner` closes the session
+			// before it issues the Delete, so a Pod that is already
+			// gone has already been accounted for. Drop the dedup
+			// entry so a re-created Pod with the same name (unlikely;
+			// names carry a random suffix) gets a fresh emission.
 			r.reported.Delete(req.NamespacedName.String())
 			return ctrl.Result{}, nil
 		}
@@ -137,7 +134,14 @@ func (r *PodLifecycleReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	r.reported.Store(key, struct{}{})
-	logger.V(1).Info("reported pod stopped", "endedAt", endedAt)
+	// Info, not V(1): this POST is the only edge that recovers a job
+	// stranded on a Pod that took its JIT config and never ran it, and
+	// the server emits no request log for it (`Plug.Telemetry` is
+	// configured with `log: false`). At debug level the success case was
+	// invisible on both ends, so "the fast path did not fire" and "the
+	// POST never happened" could not be told apart from the logs. One
+	// line per Pod death is a rounding error against this stream.
+	logger.Info("reported pod stopped", "endedAt", endedAt, "source", "phase-transition")
 	return ctrl.Result{}, nil
 }
 
@@ -171,6 +175,12 @@ func isEnding(pod *corev1.Pod) bool {
 //     somehow in a terminal phase with no terminated containers
 //     and no deletion timestamp — defensive only.
 func (r *PodLifecycleReconciler) endedAt(pod *corev1.Pod) time.Time {
+	return podEndedAt(pod, r.now())
+}
+
+// podEndedAt is the shared resolution, used by this reconciler on the
+// terminal transition and by `reapRunner` immediately before it deletes.
+func podEndedAt(pod *corev1.Pod, fallback time.Time) time.Time {
 	var latest time.Time
 	for _, cs := range pod.Status.ContainerStatuses {
 		if cs.State.Terminated == nil {
@@ -188,7 +198,7 @@ func (r *PodLifecycleReconciler) endedAt(pod *corev1.Pod) time.Time {
 	if !pod.DeletionTimestamp.IsZero() {
 		return pod.DeletionTimestamp.Time
 	}
-	return r.now()
+	return fallback
 }
 
 func (r *PodLifecycleReconciler) now() time.Time {

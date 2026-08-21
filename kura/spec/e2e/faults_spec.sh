@@ -22,7 +22,7 @@ Describe 'eventual-consistency fault recovery'
     dc up -d kura-us >/dev/null 2>&1
     resolve_http_node KURA_US kura-us
     wait_for_http "${KURA_US_URL}/up"
-    capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":1' || return 1
+    capture_into us_up wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":1' || return 1
     [[ "${us_up}" == *'"ring_members":1'* ]]
   }
 
@@ -34,7 +34,7 @@ Describe 'eventual-consistency fault recovery'
   Before 'reset_cluster'
   AfterAll 'teardown_suite'
 
-  It 'does not resurrect deleted namespace state during bootstrap'
+  It 'does not resurrect deleted namespace state during backfill'
     keyvalue_status="$(status_only -X PUT \
       "${KURA_US_URL}/api/cache/keyvalue?tenant_id=acme&namespace_id=ios" \
       -H "content-type: application/json" \
@@ -54,8 +54,8 @@ Describe 'eventual-consistency fault recovery'
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
     resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
-    capture_into us_ring wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
-    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
+    capture_into us_ring wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":2' || return 1
+    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/status/cluster" '"ring_members":2' || return 1
     The variable us_ring should include '"ring_members":2'
     The variable us2_ring should include '"ring_members":2'
 
@@ -68,12 +68,12 @@ Describe 'eventual-consistency fault recovery'
     The variable artifact_read_status should eq 404
   End
 
-  It 'converges after a node rejoins and queued retries race with bootstrap'
+  It 'converges after a node rejoins and queued retries race with backfill'
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
     resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
-    capture_into us_ring wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
-    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
+    capture_into us_ring wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":2' || return 1
+    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/status/cluster" '"ring_members":2' || return 1
     The variable us_ring should include '"ring_members":2'
     The variable us2_ring should include '"ring_members":2'
 
@@ -94,8 +94,8 @@ Describe 'eventual-consistency fault recovery'
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
     resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
-    capture_into us_ring_after wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
-    capture_into us2_ring_after wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
+    capture_into us_ring_after wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":2' || return 1
+    capture_into us2_ring_after wait_for_contains "${KURA_US_2_URL}/status/cluster" '"ring_members":2' || return 1
     The variable us_ring_after should include '"ring_members":2'
     The variable us2_ring_after should include '"ring_members":2'
 
@@ -126,13 +126,11 @@ Describe 'eventual-consistency fault recovery'
   End
 End
 
-# Flag-on twins of the two scenarios above: tombstone non-resurrection and the
-# rejoin race must hold when catch-up runs through the backfill walker
-# (KURA_BACKFILL_ENABLED) instead of legacy bootstrap. The flag-off Describe
-# above stays untouched — both walkers ship until Release C. These wait for
-# the joiner's initial cycle to settle before asserting, so the 404s prove
+# Twins of the two scenarios above under the backfill suite overlay: the same
+# tombstone non-resurrection and rejoin-race properties, but asserted after
+# the joiner's initial backfill cycle settles, so the 404s prove
 # non-resurrection rather than not-yet-transferred.
-Describe 'eventual-consistency fault recovery through backfill (flag-on)'
+Describe 'eventual-consistency fault recovery through backfill'
   Include spec/e2e/support.sh
 
   setup_suite() {
@@ -157,7 +155,7 @@ Describe 'eventual-consistency fault recovery through backfill (flag-on)'
     dc up -d kura-us >/dev/null 2>&1
     resolve_http_node KURA_US kura-us
     wait_for_http "${KURA_US_URL}/up"
-    capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":1' || return 1
+    capture_into us_up wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":1' || return 1
     [[ "${us_up}" == *'"ring_members":1'* ]]
   }
 
@@ -189,8 +187,8 @@ Describe 'eventual-consistency fault recovery through backfill (flag-on)'
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
     resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
-    capture_into us_ring wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
-    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
+    capture_into us_ring wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":2' || return 1
+    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/status/cluster" '"ring_members":2' || return 1
     The variable us_ring should include '"ring_members":2'
     The variable us2_ring should include '"ring_members":2'
 
@@ -212,8 +210,8 @@ Describe 'eventual-consistency fault recovery through backfill (flag-on)'
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
     resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
-    capture_into us_ring wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
-    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
+    capture_into us_ring wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":2' || return 1
+    capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/status/cluster" '"ring_members":2' || return 1
     The variable us_ring should include '"ring_members":2'
     The variable us2_ring should include '"ring_members":2'
     capture_into us2_rollout \
@@ -238,8 +236,8 @@ Describe 'eventual-consistency fault recovery through backfill (flag-on)'
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
     resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
-    capture_into us_ring_after wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
-    capture_into us2_ring_after wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
+    capture_into us_ring_after wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":2' || return 1
+    capture_into us2_ring_after wait_for_contains "${KURA_US_2_URL}/status/cluster" '"ring_members":2' || return 1
     The variable us_ring_after should include '"ring_members":2'
     The variable us2_ring_after should include '"ring_members":2'
 

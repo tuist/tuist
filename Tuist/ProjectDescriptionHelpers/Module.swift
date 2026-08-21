@@ -356,7 +356,7 @@ public enum Module: String, CaseIterable {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
              .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
-             .constants, .environment, .logging, .swifterPMCore,
+             .constants, .environment, .swifterPMCore,
              .envKey, .versionCommand, .encodable,
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe, .macOSSDK,
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
@@ -1585,7 +1585,7 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] =
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
-                 .constants, .environment, .logging, .nooraTesting, .loggerTesting, .swifterPMCore,
+                 .constants, .environment, .nooraTesting, .loggerTesting, .swifterPMCore,
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .macOSSDK, .encodable,
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
@@ -1594,6 +1594,11 @@ public enum Module: String, CaseIterable {
                 []
             case .xcodeGraph:
                 []
+            case .logging:
+                [
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
             case .xcodeMetadata:
                 [
                     .target(name: Module.xcodeGraph.targetName),

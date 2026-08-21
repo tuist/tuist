@@ -159,6 +159,35 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert is_integer(response["shard_count"])
     end
 
+    test "forwards the git_branch parameter", %{conn: conn, user: user, project: project} do
+      plan_id = Ecto.UUID.generate()
+
+      expect(Tuist.Shards, :create_shard_plan, fn _project, params ->
+        assert params.git_branch == "feature/current"
+
+        %{
+          plan: %{id: plan_id, reference: "git-branch-ref"},
+          shard_count: 1,
+          shard_assignments: [%{"index" => 0, "test_targets" => [], "estimated_duration_ms" => 0}]
+        }
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            reference: "git-branch-ref",
+            modules: ["AppTests"],
+            git_branch: "feature/current"
+          }
+        )
+
+      assert json_response(conn, :ok)
+    end
+
     test "accepts and stores build_run_id parameter", %{conn: conn, user: user, project: project} do
       build_run_id = Ecto.UUID.generate()
 

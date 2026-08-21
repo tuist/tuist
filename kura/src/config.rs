@@ -5,7 +5,6 @@ use tokio::fs;
 use crate::{
     constants::{
         BACKFILL_BODIES_BATCH_BYTES, DEFAULT_BACKFILL_BATCH_BYTES, DEFAULT_BACKFILL_MARGIN_PERCENT,
-        DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
         DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS,
         DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH,
         DEFAULT_REPLICATION_UPLOAD_STALL_MS, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
@@ -95,9 +94,6 @@ const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
 const KURA_MULTIPART_MAX_ACTIVE_UPLOADS: &str = "KURA_MULTIPART_MAX_ACTIVE_UPLOADS";
 const KURA_MULTIPART_MAX_STORED_BYTES: &str = "KURA_MULTIPART_MAX_STORED_BYTES";
-const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
-const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
-const KURA_BACKFILL_ENABLED: &str = "KURA_BACKFILL_ENABLED";
 const KURA_BACKFILL_MARGIN_PERCENT: &str = "KURA_BACKFILL_MARGIN_PERCENT";
 const KURA_BACKFILL_READY_RING_PERCENT: &str = "KURA_BACKFILL_READY_RING_PERCENT";
 const KURA_BACKFILL_BATCH_BYTES: &str = "KURA_BACKFILL_BATCH_BYTES";
@@ -178,20 +174,12 @@ pub struct Config {
     /// How long an outbox artifact upload may produce no body chunk before the
     /// attempt is abandoned. This is the only deadline on that path — the
     /// upload client carries no read timeout — so it is tunable without a
-    /// rollout, like `bootstrap_timeout_ms`.
+    /// rollout.
     pub replication_upload_stall_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
     pub multipart_max_active_uploads: usize,
     pub multipart_max_stored_bytes: u64,
-    pub bootstrap_timeout_ms: u64,
-    pub bootstrap_max_concurrent_peers: usize,
-    /// Boot-time selection of the peer catch-up walker: `true` runs the
-    /// recency-first backfill lifecycle, `false` (the default) the legacy
-    /// bootstrap walker. Read once at process start — the two paths share no
-    /// state and never run together; flipping is an env change plus restart,
-    /// with `backfill/` rows sitting inert while the flag is off.
-    pub backfill_enabled: bool,
     /// Share of the age-ordered segment ring (counted from the newest) whose
     /// boundary segment's seal-time stat becomes the backfill horizon; the
     /// margin's share of the ring's time span is the window's structural
@@ -201,7 +189,7 @@ pub struct Config {
     /// percentage) at which a node still running its initial backfill cycle
     /// marks itself ready. Defaults to half the backfill margin
     /// ([`default_backfill_ready_ring_percent`]); an explicit env value
-    /// overrides the derivation. Only consulted while `backfill_enabled`.
+    /// overrides the derivation.
     pub backfill_ready_ring_percent: u64,
     /// Byte threshold a backfill pass composes one bodies batch against, and
     /// the cutoff above which a listed entry is fetched through the
@@ -400,9 +388,15 @@ impl Config {
     /// memory the kernel *can* reclaim.
     ///
     /// Subtracts the anon this process holds outside admission: the metadata
-    /// store's block cache and write-buffer pool, the manifest cache, and a
-    /// baseline for the process itself (measured at ~150 MiB total on an idle
-    /// instance, of which the caches are the larger part).
+    /// store's block cache and write-buffer pool, the manifest cache, the
+    /// action-cache snapshot cache, and a baseline for the process itself
+    /// (measured at ~150 MiB total on an idle instance, of which the caches are
+    /// the larger part).
+    ///
+    /// The snapshot cache counts for the same reason the manifest cache does:
+    /// it fills to its own ceiling and is never admitted through this budget,
+    /// so every byte of `KURA_SNAPSHOT_CACHE_MAX_BYTES` is anon this budget
+    /// must not hand out twice.
     ///
     /// `None` when nothing published a floor, which leaves the ceiling-derived
     /// sizing in place.
@@ -410,6 +404,7 @@ impl Config {
         let untracked = (self.rocksdb_block_cache_bytes as u64)
             .saturating_add(self.rocksdb_write_buffer_manager_bytes as u64)
             .saturating_add(self.manifest_cache_max_bytes as u64)
+            .saturating_add(self.snapshot_cache_max_bytes as u64)
             .saturating_add(PROCESS_ANON_BASELINE_BYTES);
         Some(self.memory_floor_bytes?.saturating_sub(untracked))
     }
@@ -1050,45 +1045,6 @@ impl Config {
                 "{KURA_MULTIPART_MAX_STORED_BYTES} must be greater than 0"
             ));
         }
-        let bootstrap_timeout_ms = optional_parsed_value(
-            &mut lookup,
-            KURA_BOOTSTRAP_TIMEOUT_MS,
-            &mut invalid,
-            |value| {
-                value
-                    .parse::<u64>()
-                    .map_err(|_| format!("{KURA_BOOTSTRAP_TIMEOUT_MS} must be a valid u64"))
-            },
-        )
-        .unwrap_or(DEFAULT_BOOTSTRAP_TIMEOUT_MS);
-        if bootstrap_timeout_ms == 0 {
-            invalid.push(format!(
-                "{KURA_BOOTSTRAP_TIMEOUT_MS} must be greater than 0"
-            ));
-        }
-        let bootstrap_max_concurrent_peers = optional_parsed_value(
-            &mut lookup,
-            KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS,
-            &mut invalid,
-            |value| {
-                value.parse::<usize>().map_err(|_| {
-                    format!("{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be a valid usize")
-                })
-            },
-        )
-        .unwrap_or(DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS);
-        if bootstrap_max_concurrent_peers == 0 {
-            invalid.push(format!(
-                "{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be greater than 0"
-            ));
-        }
-        let backfill_enabled =
-            optional_parsed_value(&mut lookup, KURA_BACKFILL_ENABLED, &mut invalid, |value| {
-                value
-                    .parse::<bool>()
-                    .map_err(|_| format!("{KURA_BACKFILL_ENABLED} must be a valid bool"))
-            })
-            .unwrap_or(false);
         let backfill_margin_percent = optional_parsed_value(
             &mut lookup,
             KURA_BACKFILL_MARGIN_PERCENT,
@@ -1560,9 +1516,6 @@ impl Config {
             multipart_janitor_interval_ms,
             multipart_max_active_uploads,
             multipart_max_stored_bytes,
-            bootstrap_timeout_ms,
-            bootstrap_max_concurrent_peers,
-            backfill_enabled,
             backfill_margin_percent,
             backfill_ready_ring_percent,
             backfill_batch_bytes,
@@ -1589,13 +1542,15 @@ impl Config {
         _data_dir_lock: &DataDirLock,
     ) -> Result<(), std::io::Error> {
         // Reclaim transient staging from a previous run before opening the store.
-        // Everything under tmp_dir (in-flight uploads, multipart parts, bootstrap
-        // staging) is dead once the process restarts, and a failed transfer can
-        // leave a partial file behind. Left to accumulate they fill the data disk
-        // and RocksDB then fails to open with "No space left on device", wedging
-        // the pod in a crash loop. Clearing them here — before Store::open — lets
-        // such a pod free space and recover on the next start instead of staying
-        // stuck out-of-space.
+        // Everything under tmp_dir (in-flight uploads, multipart parts, peer
+        // catch-up staging) is dead once the process restarts, and a failed
+        // transfer can leave a partial file behind. Left to accumulate they fill
+        // the data disk and RocksDB then fails to open with "No space left on
+        // device", wedging the pod in a crash loop. Clearing them here — before
+        // Store::open — lets such a pod free space and recover on the next start
+        // instead of staying stuck out-of-space. `bootstrap` is the retired
+        // legacy walker's staging directory: still swept (an upgrading node can
+        // carry its leftovers in) but no longer recreated.
         for staging in ["uploads", "parts", "bootstrap", "backfill"] {
             let path = self.tmp_dir.join(staging);
             match fs::remove_dir_all(&path).await {
@@ -1606,7 +1561,6 @@ impl Config {
         }
         fs::create_dir_all(self.tmp_dir.join("uploads")).await?;
         fs::create_dir_all(self.tmp_dir.join("parts")).await?;
-        fs::create_dir_all(self.tmp_dir.join("bootstrap")).await?;
         fs::create_dir_all(self.tmp_dir.join("backfill")).await?;
         fs::create_dir_all(self.data_dir.join("rocksdb")).await?;
         fs::create_dir_all(self.data_dir.join("blobs")).await?;
@@ -2016,6 +1970,38 @@ mod tests {
     }
 
     #[test]
+    fn anon_admission_budget_subtracts_the_snapshot_cache() {
+        let mut values = base_values();
+        values.insert(
+            KURA_MEMORY_FLOOR_BYTES.to_owned(),
+            (1024 * BYTES_PER_MIB).to_string(),
+        );
+        values.insert(
+            KURA_SNAPSHOT_CACHE_MAX_BYTES.to_owned(),
+            (256 * BYTES_PER_MIB).to_string(),
+        );
+        let config = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 4096 * BYTES_PER_MIB,
+                cpu_count: 6,
+            },
+        )
+        .expect("a floor-and-ceiling memory configuration should be valid");
+
+        let untracked = (config.rocksdb_block_cache_bytes as u64)
+            .saturating_add(config.rocksdb_write_buffer_manager_bytes as u64)
+            .saturating_add(config.manifest_cache_max_bytes as u64)
+            .saturating_add(config.snapshot_cache_max_bytes as u64)
+            .saturating_add(PROCESS_ANON_BASELINE_BYTES);
+        assert_eq!(
+            config.anon_admission_budget_bytes(),
+            Some(1024 * BYTES_PER_MIB - untracked)
+        );
+    }
+
+    #[test]
     fn from_lookup_explains_an_explicit_soft_watermark_without_runtime_headroom() {
         let mut values = base_values();
         values.insert(
@@ -2139,20 +2125,6 @@ mod tests {
         assert_eq!(config.otel_service_name, "kura-eu");
         assert_eq!(config.otel_deployment_environment, "staging");
         assert_eq!(config.sentry_dsn, None);
-    }
-
-    #[test]
-    fn from_lookup_parses_backfill_enabled() {
-        let config = config_from(&[]).expect("default backfill selection should be valid");
-        assert!(!config.backfill_enabled, "the flag must default off");
-
-        let config = config_from(&[(KURA_BACKFILL_ENABLED, "true")])
-            .expect("an explicit backfill flag should be valid");
-        assert!(config.backfill_enabled);
-
-        let error = config_from(&[(KURA_BACKFILL_ENABLED, "definitely")])
-            .expect_err("a non-bool backfill flag must fail");
-        assert!(error.contains(KURA_BACKFILL_ENABLED));
     }
 
     #[test]
@@ -2907,8 +2879,11 @@ mod tests {
 
         assert!(config.tmp_dir.join("uploads").exists());
         assert!(config.tmp_dir.join("parts").exists());
-        assert!(config.tmp_dir.join("bootstrap").exists());
         assert!(config.tmp_dir.join("backfill").exists());
+        assert!(
+            !config.tmp_dir.join("bootstrap").exists(),
+            "the retired legacy walker's staging directory must not be recreated"
+        );
         assert!(config.data_dir.join("rocksdb").exists());
         assert!(config.data_dir.join("blobs").exists());
         assert!(config.data_dir.join("segments").exists());
