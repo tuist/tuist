@@ -74,6 +74,8 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             defaultConfiguration: defaultConfiguration,
             graph: graph
         )
+        Logger.current.debug("Hashing targets against the configuration \(resolvedConfiguration)")
+
         let hashingGraph = scopesSettingsToConfiguration
             ? graphByScopingSettings(in: graph, to: resolvedConfiguration)
             : graph
