@@ -14,12 +14,10 @@ defmodule Tuist.Runners.Concurrency do
 
   alias Ecto.Changeset
   alias Tuist.Accounts.Account
+  alias Tuist.ClickHouseRepo
   alias Tuist.Repo
-  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claim
   alias Tuist.Runners.ConcurrencyLimit
-  alias Tuist.Runners.JobCompletion
-  alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
 
   @platforms [:linux, :macos]
@@ -77,34 +75,37 @@ defmodule Tuist.Runners.Concurrency do
   @doc """
   Returns the peak concurrent vCPU and memory usage per time bucket.
 
-  Reconstructed from `runner_sessions`, one row per Pod the account
-  held. Each session becomes a positive resource event when its claim
-  is taken and a negative one when the claim is released; running
-  totals over that sweep are the concurrent usage, and bucketing
-  happens afterwards so even a short-lived peak stays visible.
+  Reconstructed from runner sessions, one per Pod the account held.
+  Each becomes a positive resource event when its claim is taken and a
+  negative one when the claim is released; running totals over that
+  sweep are the concurrent usage, and bucketing happens afterwards so
+  even a short-lived peak stays visible.
 
-  The session is what holds the slot, which is why the reconstruction
-  reads it rather than the job. GitHub hands a queued job to any
-  label-eligible runner, so the Pod that claimed job A frequently
-  executes job B; charting `A.claimed_at → A.completed_at` measures a
-  window the account was not reserving, and overstates the peak past a
-  limit that admission makes it impossible to exceed. It also keeps the
-  chart on the Postgres records admission itself reads, rather than on
-  a ClickHouse replica that can diverge from them.
+  The session is what holds the slot, which is why this reads it rather
+  than the job. GitHub hands a queued job to any label-eligible runner,
+  so the Pod that claimed job A frequently executes job B; charting
+  `A.claimed_at → A.completed_at` measures a window the account was not
+  reserving, and overstates the peak past a limit that admission makes
+  it impossible to exceed.
+
+  Served from `Tuist.Runners.ConcurrencySession`, the ClickHouse
+  replica of those sessions, because the sweep is an analytical scan
+  over every session in the window and the Postgres original is the
+  primary that dispatch and claim transactions run on. The replica is
+  fed by `Tuist.Runners.SessionReplication` and is a read-model: it
+  never feeds a control-plane decision, so trailing the source by a
+  tick costs nothing here.
   """
   def usage_over_time(account_id, %DateTime{} = start_dt, %DateTime{} = end_dt, bucket)
       when is_integer(account_id) and bucket in [:hour, :day] do
     dates = bucket_range(start_dt, end_dt, bucket)
 
-    usage =
-      account_id
-      |> claim_intervals(start_dt, end_dt)
-      |> cumulative_usage(start_dt, end_dt)
+    peaks = bucket_peaks(account_id, start_dt, end_dt, bucket)
 
     %{
       dates: dates,
-      linux: peak_usage(Map.get(usage, :linux, []), dates, bucket),
-      macos: peak_usage(Map.get(usage, :macos, []), dates, bucket)
+      linux: peak_usage(Map.get(peaks, :linux, %{}), dates, bucket),
+      macos: peak_usage(Map.get(peaks, :macos, %{}), dates, bucket)
     }
   end
 
@@ -268,173 +269,159 @@ defmodule Tuist.Runners.Concurrency do
     }
   end
 
-  # One row per runner session that held a slot inside the window, with
-  # the moment its claim was released already resolved in SQL.
+  # Per-bucket peak, computed in ClickHouse.
   #
-  # A claim is released by whichever event frees the Pod first: the
-  # completed webhook of the job the runner actually executed, or the
-  # Pod stopping. `job_ended_at` records the first directly and is the
-  # sharpest signal; `runner_job_completions` is the same evidence
-  # `Claims.release_completed/1` releases on, and covers sessions that
-  # predate the column. `ended_at` bounds both, since a stopped Pod
-  # cannot still be holding the slot, and `started_at` floors the
-  # result so no session can produce a backwards interval.
+  # The replica holds one interval per session, so the sweep is: expand
+  # each into a claim and a release event, running-sum them into the
+  # concurrent total, then reduce to one row per bucket. Only those
+  # rows cross the wire — a few hundred, whatever the account's volume
+  # — which is the point of the replica. The same sweep against
+  # Postgres shipped an interval per session into the BEAM and cost
+  # 122ms at 19k sessions, 798ms at 100k.
   #
-  # Anything still open falls back to the session ceiling, so a session
-  # whose close was never reported cannot accrue capacity for the rest
-  # of the window.
+  # `argMax(…, ingested_at) GROUP BY id` collapses re-ingests of the
+  # same session. Without it two rows for one session would both count
+  # and double its resources until a background merge happened to run.
+  # Its outputs carry `latest_` names because an alias that shadows the
+  # column it aggregates resolves back to the aggregate downstream, and
+  # ClickHouse then rejects the filter as an aggregate in WHERE.
   #
-  # That ceiling also bounds the scan: a session released after
-  # `start_dt` cannot have started more than one ceiling before it, so
-  # the window fixes both ends of the index range. Without the lower
-  # bound the scan reads every session the account has ever had and
-  # discards most of them, which grows with history rather than with
-  # the window being charted.
-  #
-  # The completions join carries only sessions predating `job_ended_at`
-  # and retires with them; gating it on that column being NULL keeps the
-  # probe set to the shrinking population that needs it.
-  defp claim_intervals(account_id, start_dt, end_dt) do
+  # `opens_bucket` carries the one thing the bucket totals cannot say
+  # on their own: whether the earliest event lands exactly on the
+  # boundary. If it does, the level it establishes replaces the one
+  # carried in rather than competing with it.
+  defp bucket_peaks(account_id, start_dt, end_dt, bucket) do
     scan_floor = DateTime.add(start_dt, -RunnerSessions.max_session_lifetime_seconds(), :second)
 
-    released =
-      from(session in RunnerSession,
-        left_join: completion in JobCompletion,
-        on:
-          is_nil(session.job_ended_at) and
-            completion.workflow_job_id ==
-              coalesce(session.executed_workflow_job_id, session.workflow_job_id),
-        where:
-          session.account_id == ^account_id and session.started_at <= ^end_dt and
-            session.started_at > ^scan_floor,
-        select: %{
-          platform: session.platform,
-          fleet_name: session.fleet_name,
-          vcpus: session.vcpus,
-          memory_gb: session.memory_gb,
-          started_at: session.started_at,
-          released_at:
-            fragment(
-              "GREATEST(?, LEAST(COALESCE(?, ?, ?, ?), COALESCE(?, ?), ? + make_interval(secs => ?)))",
-              session.started_at,
-              session.job_ended_at,
-              completion.completed_at,
-              session.ended_at,
-              ^end_dt,
-              session.ended_at,
-              ^end_dt,
-              session.started_at,
-              ^RunnerSessions.max_session_lifetime_seconds()
-            )
-        }
+    query = """
+    WITH latest AS (
+      SELECT
+        id,
+        argMax(platform, ingested_at) AS latest_platform,
+        argMax(vcpus, ingested_at) AS latest_vcpus,
+        argMax(memory_gb, ingested_at) AS latest_memory_gb,
+        argMax(started_at, ingested_at) AS latest_started_at,
+        argMax(released_at, ingested_at) AS latest_released_at
+      FROM runner_concurrency_sessions
+      WHERE account_id = {account_id:Int64}
+        AND started_at <= {end_dt:DateTime64(6)}
+        AND started_at > {scan_floor:DateTime64(6)}
+      GROUP BY id
+    ),
+    intervals AS (
+      SELECT
+        latest_platform AS platform,
+        greatest(latest_started_at, {start_dt:DateTime64(6)}) AS active_from,
+        least(latest_released_at, {end_dt:DateTime64(6)}) AS active_until,
+        toInt64(latest_vcpus) AS vcpus,
+        toInt64(latest_memory_gb) AS memory_gb
+      FROM latest
+      WHERE latest_released_at > {start_dt:DateTime64(6)}
+    ),
+    events AS (
+      SELECT
+        platform,
+        tupleElement(event, 1) AS ts,
+        sum(tupleElement(event, 2)) AS vcpus_delta,
+        sum(tupleElement(event, 3)) AS memory_delta
+      FROM intervals
+      ARRAY JOIN [
+        tuple(active_from, vcpus, memory_gb),
+        tuple(active_until, -vcpus, -memory_gb)
+      ] AS event
+      GROUP BY platform, ts
+    ),
+    running AS (
+      SELECT
+        platform,
+        ts,
+        toInt64(sum(vcpus_delta) OVER running_total) AS vcpus,
+        toInt64(sum(memory_delta) OVER running_total) AS memory_gb
+      FROM events
+      WINDOW running_total AS (
+        PARTITION BY platform ORDER BY ts
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
       )
+    )
+    SELECT
+      platform,
+      #{bucket_expression(bucket)} AS bucket,
+      max(vcpus) AS max_vcpus,
+      max(memory_gb) AS max_memory_gb,
+      argMin(vcpus, ts) AS first_vcpus,
+      argMin(memory_gb, ts) AS first_memory_gb,
+      argMax(vcpus, ts) AS last_vcpus,
+      argMax(memory_gb, ts) AS last_memory_gb,
+      min(ts) = #{boundary_expression(bucket)}(min(ts)) AS opens_bucket
+    FROM running
+    GROUP BY platform, bucket
+    ORDER BY platform, bucket
+    """
 
-    Repo.all(from(interval in subquery(released), where: interval.released_at > ^start_dt))
+    {:ok, %{rows: rows}} =
+      ClickHouseRepo.query(query, %{
+        account_id: account_id,
+        start_dt: start_dt,
+        end_dt: end_dt,
+        scan_floor: scan_floor
+      })
+
+    rows
+    |> Enum.map(&decode_bucket_peak(&1, bucket))
+    |> Enum.group_by(& &1.platform, &{&1.key, &1})
+    |> Map.new(fn {platform, buckets} -> {platform, Map.new(buckets)} end)
   end
 
-  # Running resource totals per platform, one entry per distinct event
-  # time. Sessions whose shape resolves to neither platform are dropped
-  # rather than bucketed under a guess.
-  defp cumulative_usage(intervals, start_dt, end_dt) do
-    intervals
-    |> Enum.flat_map(&interval_events(&1, start_dt, end_dt))
-    |> Enum.group_by(fn {platform, _event_time, _vcpus, _memory_gb} -> platform end)
-    |> Map.new(fn {platform, events} -> {platform, running_totals(events)} end)
+  defp bucket_expression(:hour), do: "toStartOfHour(ts)"
+  defp bucket_expression(:day), do: "toDate(ts)"
+
+  defp boundary_expression(:hour), do: "toStartOfHour"
+  defp boundary_expression(:day), do: "toStartOfDay"
+
+  defp decode_bucket_peak(
+         [
+           platform,
+           bucket,
+           max_vcpus,
+           max_memory_gb,
+           first_vcpus,
+           first_memory_gb,
+           last_vcpus,
+           last_memory_gb,
+           opens_bucket
+         ],
+         bucket_unit
+       ) do
+    %{
+      platform: String.to_existing_atom(platform),
+      key: bucket_key(bucket, bucket_unit),
+      peak: %{vcpus: max_vcpus, memory_gb: max_memory_gb},
+      first: %{vcpus: first_vcpus, memory_gb: first_memory_gb},
+      last: %{vcpus: last_vcpus, memory_gb: last_memory_gb},
+      opens_bucket: opens_bucket == 1
+    }
   end
 
-  defp interval_events(interval, start_dt, end_dt) do
-    case session_shape(interval) do
-      {:ok, resources} ->
-        active_from = later_of(interval.started_at, start_dt)
-        active_until = earlier_of(interval.released_at, end_dt)
+  # Walks the bucket range carrying the concurrent level across buckets
+  # the sweep produced no event in — the account still held those
+  # resources, there was simply nothing to record.
+  defp peak_usage(peaks, dates, bucket) do
+    {values, _carried} =
+      Enum.map_reduce(dates, %{vcpus: 0, memory_gb: 0}, fn date, carried ->
+        case Map.get(peaks, bucket_key(date, bucket)) do
+          nil ->
+            {carried, carried}
 
-        [
-          {resources.platform, active_from, resources.vcpus, resources.memory_gb},
-          {resources.platform, active_until, -resources.vcpus, -resources.memory_gb}
-        ]
+          bucket_peak ->
+            starting = if bucket_peak.opens_bucket, do: bucket_peak.first, else: carried
 
-      {:error, _reason} ->
-        []
-    end
-  end
-
-  # Same resolution order admission uses in `Claims`: the shape frozen on
-  # the row when it has one, the fleet's configured shape otherwise, so a
-  # session predating the resource columns is charted at what it reserved.
-  defp session_shape(%{platform: platform, vcpus: vcpus, memory_gb: memory_gb})
-       when platform in @platforms and is_integer(vcpus) and is_integer(memory_gb) and vcpus > 0 and memory_gb > 0 do
-    {:ok, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb}}
-  end
-
-  defp session_shape(%{fleet_name: fleet_name}) when is_binary(fleet_name) do
-    Catalog.resources_for_fleet(fleet_name)
-  end
-
-  defp session_shape(_interval), do: {:error, :invalid_resources}
-
-  defp running_totals(events) do
-    {totals, _running} =
-      events
-      |> Enum.group_by(
-        fn {_platform, event_time, _vcpus, _memory_gb} -> event_time end,
-        fn {_platform, _event_time, vcpus, memory_gb} -> {vcpus, memory_gb} end
-      )
-      |> Enum.sort_by(fn {event_time, _deltas} -> DateTime.to_unix(event_time, :microsecond) end)
-      |> Enum.map_reduce(%{vcpus: 0, memory_gb: 0}, fn {event_time, deltas}, running ->
-        running =
-          Enum.reduce(deltas, running, fn {vcpus, memory_gb}, acc ->
-            %{vcpus: acc.vcpus + vcpus, memory_gb: acc.memory_gb + memory_gb}
-          end)
-
-        {Map.put(running, :event_time, event_time), running}
-      end)
-
-    totals
-  end
-
-  defp later_of(%DateTime{} = left, %DateTime{} = right) do
-    if DateTime.after?(left, right), do: left, else: right
-  end
-
-  defp earlier_of(%DateTime{} = left, %DateTime{} = right) do
-    if DateTime.before?(left, right), do: left, else: right
-  end
-
-  defp peak_usage(events, dates, bucket) do
-    events_by_bucket = Enum.group_by(events, &bucket_key(&1.event_time, bucket))
-
-    {values, _current} =
-      Enum.map_reduce(dates, %{vcpus: 0, memory_gb: 0}, fn date, current ->
-        bucket_events = Map.get(events_by_bucket, date, [])
-
-        starting_usage =
-          case bucket_events do
-            [%{event_time: event_time} = first | _] ->
-              if DateTime.compare(event_time, bucket_start(date, bucket)) == :eq,
-                do: resource_usage(first),
-                else: current
-
-            [] ->
-              current
-          end
-
-        peak =
-          Enum.reduce(bucket_events, starting_usage, fn event, peak ->
-            usage = resource_usage(event)
-
-            %{
-              vcpus: max(peak.vcpus, usage.vcpus),
-              memory_gb: max(peak.memory_gb, usage.memory_gb)
+            peak = %{
+              vcpus: max(starting.vcpus, bucket_peak.peak.vcpus),
+              memory_gb: max(starting.memory_gb, bucket_peak.peak.memory_gb)
             }
-          end)
 
-        next_current =
-          case List.last(bucket_events) do
-            nil -> starting_usage
-            event -> resource_usage(event)
-          end
-
-        {peak, next_current}
+            {peak, bucket_peak.last}
+        end
       end)
 
     %{
@@ -443,13 +430,17 @@ defmodule Tuist.Runners.Concurrency do
     }
   end
 
-  defp resource_usage(event), do: Map.take(event, [:vcpus, :memory_gb])
+  # ClickHouse and `bucket_range/3` describe the same bucket with
+  # different structs, so both go through one canonical key.
+  defp bucket_key(%Date{} = date, :day), do: Date.to_erl(date)
+  defp bucket_key(%DateTime{} = datetime, :day), do: datetime |> DateTime.to_date() |> Date.to_erl()
+  defp bucket_key(%NaiveDateTime{} = datetime, :day), do: datetime |> NaiveDateTime.to_date() |> Date.to_erl()
 
-  defp bucket_key(%DateTime{} = datetime, :hour), do: floor_to_hour(datetime)
-  defp bucket_key(%DateTime{} = datetime, :day), do: DateTime.to_date(datetime)
+  defp bucket_key(%DateTime{} = datetime, :hour), do: datetime |> floor_to_hour() |> DateTime.to_unix()
 
-  defp bucket_start(%DateTime{} = datetime, :hour), do: datetime
-  defp bucket_start(%Date{} = date, :day), do: DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
+  defp bucket_key(%NaiveDateTime{} = datetime, :hour) do
+    datetime |> DateTime.from_naive!("Etc/UTC") |> bucket_key(:hour)
+  end
 
   defp bucket_range(%DateTime{} = start_dt, %DateTime{} = end_dt, :day) do
     start_dt |> DateTime.to_date() |> Date.range(DateTime.to_date(end_dt)) |> Enum.to_list()

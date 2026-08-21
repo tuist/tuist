@@ -4,12 +4,11 @@ defmodule Tuist.Runners.ConcurrencyTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts.Account
+  alias Tuist.IngestRepo
   alias Tuist.Repo
-  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Concurrency
-  alias Tuist.Runners.JobCompletion
-  alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.ConcurrencySession
 
   test "returns the default platform limits and empty usage" do
     account = account_fixture()
@@ -120,36 +119,36 @@ defmodule Tuist.Runners.ConcurrencyTest do
     start_dt = datetime("2026-07-10T10:00:00Z")
     end_dt = datetime("2026-07-10T14:00:00Z")
 
-    session_fixture(account,
-      platform: :linux,
+    replica_fixture(account,
+      platform: "linux",
       vcpus: 4,
       memory_gb: 8,
       started_at: datetime("2026-07-10T10:10:00Z"),
-      job_ended_at: datetime("2026-07-10T11:40:00Z")
+      released_at: datetime("2026-07-10T11:40:00Z")
     )
 
-    session_fixture(account,
-      platform: :linux,
+    replica_fixture(account,
+      platform: "linux",
       vcpus: 4,
       memory_gb: 16,
       started_at: datetime("2026-07-10T10:30:00Z"),
-      job_ended_at: datetime("2026-07-10T10:45:00Z")
+      released_at: datetime("2026-07-10T10:45:00Z")
     )
 
-    session_fixture(account,
-      platform: :macos,
+    replica_fixture(account,
+      platform: "macos",
       vcpus: 6,
       memory_gb: 14,
       started_at: datetime("2026-07-10T12:10:00Z"),
-      job_ended_at: datetime("2026-07-10T12:50:00Z")
+      released_at: datetime("2026-07-10T12:50:00Z")
     )
 
-    session_fixture(account,
-      platform: :macos,
+    replica_fixture(account,
+      platform: "macos",
       vcpus: 6,
       memory_gb: 14,
       started_at: datetime("2026-07-10T12:20:00Z"),
-      job_ended_at: datetime("2026-07-10T12:40:00Z")
+      released_at: datetime("2026-07-10T12:40:00Z")
     )
 
     usage = Concurrency.usage_over_time(account.id, start_dt, end_dt, :hour)
@@ -159,6 +158,28 @@ defmodule Tuist.Runners.ConcurrencyTest do
     assert usage.linux.memory_gb == [24, 8, 0, 0, 0]
     assert usage.macos.vcpus == [0, 0, 12, 0, 0]
     assert usage.macos.memory_gb == [0, 0, 28, 0, 0]
+  end
+
+  test "buckets by day as well as by hour" do
+    account = account_fixture()
+
+    replica_fixture(account,
+      platform: "linux",
+      vcpus: 4,
+      memory_gb: 8,
+      started_at: datetime("2026-07-11T10:10:00Z"),
+      released_at: datetime("2026-07-11T11:40:00Z")
+    )
+
+    usage =
+      Concurrency.usage_over_time(
+        account.id,
+        datetime("2026-07-10T00:00:00Z"),
+        datetime("2026-07-12T00:00:00Z"),
+        :day
+      )
+
+    assert usage.linux.vcpus == [0, 4, 0]
   end
 
   test "keeps hourly resolution across a 30-day window" do
@@ -174,48 +195,22 @@ defmodule Tuist.Runners.ConcurrencyTest do
     assert length(usage.macos.memory_gb) == 721
   end
 
-  test "releases the slot when the runner's own job completed, not when the claimed job did" do
+  # The tailer is at-least-once, so one session can land more than
+  # once. Counting both would double its resources.
+  test "counts a session once when it has been ingested more than once" do
     account = account_fixture()
-    claimed_job_id = 95_001 + System.unique_integer([:positive])
-    executed_job_id = 95_501 + System.unique_integer([:positive])
+    session_id = System.unique_integer([:positive])
 
-    # The claimed job was handed to a different runner and finishes hours
-    # later; this Pod ran a sibling and freed the slot when that ended.
-    completion_fixture(account, executed_job_id, datetime("2026-07-10T10:40:00Z"))
-    completion_fixture(account, claimed_job_id, datetime("2026-07-10T15:00:00Z"))
-
-    session_fixture(account,
-      workflow_job_id: claimed_job_id,
-      executed_workflow_job_id: executed_job_id,
-      platform: :linux,
-      vcpus: 4,
-      memory_gb: 16,
-      started_at: datetime("2026-07-10T10:10:00Z")
-    )
-
-    usage =
-      Concurrency.usage_over_time(
-        account.id,
-        datetime("2026-07-10T10:00:00Z"),
-        datetime("2026-07-10T13:00:00Z"),
-        :hour
+    for released_at <- [datetime("2026-07-10T10:40:00Z"), datetime("2026-07-10T10:50:00Z")] do
+      replica_fixture(account,
+        id: session_id,
+        platform: "linux",
+        vcpus: 4,
+        memory_gb: 16,
+        started_at: datetime("2026-07-10T10:10:00Z"),
+        released_at: released_at
       )
-
-    assert usage.linux.vcpus == [4, 0, 0, 0]
-    assert usage.linux.memory_gb == [16, 0, 0, 0]
-  end
-
-  test "releases the slot at the job's end rather than the Pod's teardown" do
-    account = account_fixture()
-
-    session_fixture(account,
-      platform: :macos,
-      vcpus: 6,
-      memory_gb: 14,
-      started_at: datetime("2026-07-10T10:10:00Z"),
-      job_ended_at: datetime("2026-07-10T10:50:00Z"),
-      ended_at: datetime("2026-07-10T11:30:00Z")
-    )
+    end
 
     usage =
       Concurrency.usage_over_time(
@@ -225,68 +220,19 @@ defmodule Tuist.Runners.ConcurrencyTest do
         :hour
       )
 
-    assert usage.macos.vcpus == [6, 0, 0]
-    assert usage.macos.memory_gb == [14, 0, 0]
-  end
-
-  test "never holds the slot past the Pod stop" do
-    account = account_fixture()
-    workflow_job_id = 96_001 + System.unique_integer([:positive])
-
-    # A Pod that stopped without ever running the job it claimed: the
-    # claimed job's own completion lands much later, elsewhere.
-    completion_fixture(account, workflow_job_id, datetime("2026-07-10T13:30:00Z"))
-
-    session_fixture(account,
-      workflow_job_id: workflow_job_id,
-      platform: :linux,
-      vcpus: 4,
-      memory_gb: 16,
-      started_at: datetime("2026-07-10T10:10:00Z"),
-      ended_at: datetime("2026-07-10T10:40:00Z")
-    )
-
-    usage =
-      Concurrency.usage_over_time(
-        account.id,
-        datetime("2026-07-10T10:00:00Z"),
-        datetime("2026-07-10T13:00:00Z"),
-        :hour
-      )
-
-    assert usage.linux.vcpus == [4, 0, 0, 0]
-  end
-
-  test "stops counting a session whose close was never reported at the runner session ceiling" do
-    account = account_fixture()
-
-    session_fixture(account,
-      platform: :linux,
-      vcpus: 4,
-      memory_gb: 16,
-      started_at: datetime("2026-07-10T10:10:00Z")
-    )
-
-    usage =
-      Concurrency.usage_over_time(
-        account.id,
-        datetime("2026-07-10T10:00:00Z"),
-        datetime("2026-07-10T20:00:00Z"),
-        :hour
-      )
-
-    assert usage.linux.vcpus == [4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0]
-    assert usage.linux.memory_gb == [16, 16, 16, 16, 16, 16, 16, 0, 0, 0, 0]
+    assert usage.linux.vcpus == [4, 0, 0]
+    assert usage.linux.memory_gb == [16, 0, 0]
   end
 
   test "counts a session claimed before the window that is still holding its slot inside it" do
     account = account_fixture()
 
-    session_fixture(account,
-      platform: :linux,
+    replica_fixture(account,
+      platform: "linux",
       vcpus: 4,
       memory_gb: 16,
-      started_at: datetime("2026-07-10T10:00:00Z")
+      started_at: datetime("2026-07-10T10:00:00Z"),
+      released_at: datetime("2026-07-10T16:00:00Z")
     )
 
     usage =
@@ -300,58 +246,16 @@ defmodule Tuist.Runners.ConcurrencyTest do
     assert usage.linux.vcpus == [4, 4, 4, 4, 0]
   end
 
-  test "uses fleet platform and default resources for legacy rows" do
+  test "ignores sessions belonging to another account" do
     account = account_fixture()
-    default = Catalog.default_shape(:linux)
+    other = account_fixture()
 
-    session_fixture(account,
-      fleet_name: "linux-amd64",
+    replica_fixture(other,
+      platform: "linux",
+      vcpus: 4,
+      memory_gb: 16,
       started_at: datetime("2026-07-10T10:10:00Z"),
-      job_ended_at: datetime("2026-07-10T10:40:00Z")
-    )
-
-    usage =
-      Concurrency.usage_over_time(
-        account.id,
-        datetime("2026-07-10T10:00:00Z"),
-        datetime("2026-07-10T11:00:00Z"),
-        :hour
-      )
-
-    assert usage.linux.vcpus == [default.vcpus, 0]
-    assert usage.linux.memory_gb == [default.memory_gb, 0]
-  end
-
-  test "uses the fleet's configured shape for legacy history" do
-    account = account_fixture()
-    shape = Enum.find(Catalog.shapes(:linux), &(!&1.default?))
-    fleet_name = Catalog.pool_name(Map.put(shape, :platform, :linux))
-
-    session_fixture(account,
-      fleet_name: fleet_name,
-      started_at: datetime("2026-07-10T10:10:00Z"),
-      job_ended_at: datetime("2026-07-10T10:40:00Z")
-    )
-
-    usage =
-      Concurrency.usage_over_time(
-        account.id,
-        datetime("2026-07-10T10:00:00Z"),
-        datetime("2026-07-10T11:00:00Z"),
-        :hour
-      )
-
-    assert usage.linux.vcpus == [shape.vcpus, 0]
-    assert usage.linux.memory_gb == [shape.memory_gb, 0]
-  end
-
-  test "ignores a session whose fleet resolves to no known platform" do
-    account = account_fixture()
-
-    session_fixture(account,
-      fleet_name: "retired-pool",
-      started_at: datetime("2026-07-10T10:10:00Z"),
-      job_ended_at: datetime("2026-07-10T10:40:00Z")
+      released_at: datetime("2026-07-10T10:40:00Z")
     )
 
     usage =
@@ -363,39 +267,27 @@ defmodule Tuist.Runners.ConcurrencyTest do
       )
 
     assert usage.linux.vcpus == [0, 0]
-    assert usage.macos.vcpus == [0, 0]
   end
 
-  defp session_fixture(account, attrs) do
-    now = DateTime.truncate(DateTime.utc_now(), :second)
+  defp replica_fixture(account, attrs) do
+    attrs = Map.new(attrs)
+    started_at = Map.fetch!(attrs, :started_at)
 
     defaults = %{
+      id: System.unique_integer([:positive]),
       account_id: account.id,
-      workflow_job_id: System.unique_integer([:positive]),
-      fleet_name: "linux-pool",
-      pod_name: "pod-#{System.unique_integer([:positive])}",
-      runner_name: "",
-      started_at: DateTime.utc_now(),
-      ended_at: nil,
-      job_ended_at: nil,
-      inserted_at: now,
-      updated_at: now
+      platform: "linux",
+      vcpus: 4,
+      memory_gb: 16,
+      started_at: started_at,
+      released_at: started_at,
+      source_updated_at: started_at,
+      ingested_at: DateTime.utc_now()
     }
 
-    Repo.insert!(struct(RunnerSession, Map.merge(defaults, Map.new(attrs))))
-  end
+    {1, _} = IngestRepo.insert_all(ConcurrencySession, [Map.merge(defaults, attrs)])
 
-  defp completion_fixture(account, workflow_job_id, %DateTime{} = completed_at) do
-    now = DateTime.truncate(DateTime.utc_now(), :second)
-
-    Repo.insert!(%JobCompletion{
-      workflow_job_id: workflow_job_id,
-      account_id: account.id,
-      conclusion: "success",
-      completed_at: DateTime.truncate(completed_at, :second),
-      inserted_at: now,
-      updated_at: now
-    })
+    :ok
   end
 
   defp datetime(value) do
