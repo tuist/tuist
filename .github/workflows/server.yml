@@ -296,15 +296,13 @@ jobs:
     # failed build (#12515). Running the suite here replays every ClickHouse
     # migration and every runtime query against the floor.
     #
-    # 25.8 is the oldest ClickHouse 25 still receiving upstream patches; 25.3
-    # LTS stopped in February 2026. Keep this in step with
-    # @minimum_supported_version in lib/tuist/clickhouse_capabilities.ex and the
-    # matrix in priv/docs/en/guides/server/self-host/server.md.
+    # The release under test comes from Tuist.ClickHouseVersions, which is also
+    # what the migration guard asserts and what the self-hosting requirements
+    # publish, so the three cannot drift apart.
     runs-on: tuist-linux-large
     timeout-minutes: 75
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     env:
-      CLICKHOUSE_FLOOR_VERSION: "25.8.31.9-lts"
       # Matches the Test job. Several locale assertions live in tests that carry
       # no `:locale` tag, so they run either way and fail against the "en"-only
       # locale set that `mix test` compiles by default.
@@ -324,6 +322,16 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve the oldest supported ClickHouse release
+        run: |
+          file=lib/tuist/clickhouse_versions.ex
+          version="$(grep -E '^\s*@oldest_tested_release' "$file" | sed -E 's/.*"([^"]+)".*/\1/' | head -1)"
+          if [ -z "$version" ]; then
+            echo "Could not resolve @oldest_tested_release from $file" >&2
+            exit 1
+          fi
+          echo "CLICKHOUSE_FLOOR_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Testing against ClickHouse ${version}"
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-version: ${{ env.MISE_VERSION }}

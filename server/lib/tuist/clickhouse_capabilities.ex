@@ -11,10 +11,13 @@ defmodule Tuist.ClickHouseCapabilities do
   the server what it supports instead.
   """
 
+  alias Tuist.ClickHouseVersions
   alias Tuist.Environment
 
   @deduplicate_insert_select_since [26, 1]
-  @minimum_supported_version [25]
+  @minimum_supported_version ClickHouseVersions.minimum_supported_version()
+                             |> String.split(".")
+                             |> Enum.map(&String.to_integer/1)
 
   @doc """
   Whether `generateSerialID/1` is usable against `repo`, which requires a
