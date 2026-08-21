@@ -19,6 +19,12 @@
             style="light-fill"
           />
         </:col>
+        <:col :let={server} label={dgettext("dashboard", "Claim")}>
+          <.text_cell label={
+            Kura.instance_storage_claim(server, @kura_account_claim) ||
+              dgettext("dashboard", "None")
+          } />
+        </:col>
         <:col :let={server} label={dgettext("dashboard", "URL")}>
           <.text_cell label={server.url || dgettext("dashboard", "None")} />
         </:col>
@@ -38,6 +44,37 @@
           <% end %>
         </:col>
       </.table>
+    </.card_section>
+    <.card_section>
+      <p data-part="kura-storage-claim-description">
+        {dgettext(
+          "dashboard",
+          "Each replica reserves this much disk. Leave it empty to size the account from its plan. Raising it replaces volumes one replica at a time, so the standby keeps serving and the rebuilt replica refills from it; lowering it keeps the cache and evicts down."
+        )}
+      </p>
+      <.form
+        for={@kura_storage_claim_form}
+        id="kura-storage-claim-form"
+        phx-submit="update_kura_storage_claim"
+      >
+        <.text_input
+          field={@kura_storage_claim_form[:kura_storage_claim_size]}
+          label={dgettext("dashboard", "Disk claim override")}
+          placeholder={@kura_plan_claim}
+          hint={
+            dgettext("dashboard", "A Kubernetes storage quantity of at least %{minimum}.",
+              minimum: @kura_minimum_claim
+            )
+          }
+        />
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Save disk claim")}
+          />
+        </div>
+      </.form>
     </.card_section>
   </.card>
 

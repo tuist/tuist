@@ -117,6 +117,33 @@ defmodule Tuist.Kura.RegionsTest do
       assert Regions.storage_profile(:open_source) == Regions.storage_profile(:air)
     end
 
+    test "bounds an operator override by the floor the ladder already sits on" do
+      # One floor, not two. A hand-typed override is the one claim that can land
+      # under the reserve, and the bound it is held to is air's claim rather than
+      # a number of its own, so the budget-cliff test above covers it: whatever
+      # clears the derivation for air clears it for the smallest override.
+      assert Regions.minimum_storage_claim() == Regions.storage_profile(:air).claim_size
+
+      {:ok, minimum_bytes} = Regions.parse_storage_quantity(Regions.minimum_storage_claim())
+
+      for plan <- [:enterprise, :pro, :air, :open_source] do
+        {:ok, claim_bytes} = Regions.parse_storage_quantity(Regions.storage_profile(plan).claim_size)
+
+        assert claim_bytes >= minimum_bytes
+      end
+    end
+
+    test "parses the storage quantities a claim is written in" do
+      assert Regions.parse_storage_quantity("14Gi") == {:ok, 14 * 1024 * 1024 * 1024}
+      assert Regions.parse_storage_quantity("1Ti") == {:ok, 1024 * 1024 * 1024 * 1024}
+      assert Regions.parse_storage_quantity("512Mi") == {:ok, 512 * 1024 * 1024}
+      assert Regions.parse_storage_quantity("1024") == {:ok, 1024}
+
+      for value <- ["", "0Gi", "-4Gi", "24GB", "big", nil] do
+        assert Regions.parse_storage_quantity(value) == :error
+      end
+    end
+
     test "keeps every claim clear of the budget cliff" do
       # Staging and one rotation segment come out of a claim before the ring is
       # sized, and Kura clamps its ring up to five segments. A claim too small to

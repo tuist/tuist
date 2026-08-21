@@ -693,25 +693,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  defp parse_storage_quantity(value) do
-    case Integer.parse(value) do
-      {quantity, suffix} when quantity > 0 ->
-        case storage_multiplier(String.trim(suffix)) do
-          nil -> :error
-          multiplier -> {:ok, quantity * multiplier}
-        end
-
-      _ ->
-        :error
-    end
-  end
-
-  defp storage_multiplier(""), do: 1
-  defp storage_multiplier("Ki"), do: 1024
-  defp storage_multiplier("Mi"), do: 1024 * 1024
-  defp storage_multiplier("Gi"), do: 1024 * 1024 * 1024
-  defp storage_multiplier("Ti"), do: 1024 * 1024 * 1024 * 1024
-  defp storage_multiplier(_), do: nil
+  defp parse_storage_quantity(value), do: Regions.parse_storage_quantity(value)
 
   # Managed pods of self-hosting-capable accounts fetch the account's
   # self-hosted peer list from the control plane at boot and on cadence, so a
@@ -788,6 +770,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp storage_claim(account, %Regions{} = region, %Server{}) do
     if Regions.storage_governed?(region) do
+      # The plan's claim, deliberately, and not the account's claim override
+      # (`Tuist.Kura.StorageClaims`). Reading an override means reading a table,
+      # and this renders on every reconcile tick from an account the caller
+      # already holds; the plan resolves from that account in memory. Nothing is
+      # lost by it: a governed region pins a claim on every path that creates
+      # volumes, and setting an override pins the rows that somehow carry none,
+      # so a row reaching here with an override to apply is not a state this
+      # reaches.
       Regions.storage_profile(AccountPolicies.sizing_plan(account)).claim_size
     else
       declared_storage_size(region)

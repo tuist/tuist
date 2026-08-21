@@ -437,6 +437,56 @@ defmodule Tuist.Kura.Regions do
   def storage_profile(_plan), do: %{claim_size: @air_storage_claim}
 
   @doc """
+  The smallest claim any instance may be built with, whatever sets it.
+
+  Air's claim, deliberately: the ladder's floor is already the smallest claim we
+  are willing to run an instance on, and an operator override
+  (`Tuist.Kura.StorageClaims`) is not a reason to go under it. Tying the two
+  together rather than repeating a number means the bound follows the ladder if
+  the ladder moves, which it has.
+
+  What stops the floor going lower is the reserve rather than the cache. Staging
+  and one rotation segment come out of a claim before the ring is sized, and
+  Kura clamps its ring up to five segments; a claim too small to clear that
+  leaves `cas_capacity_bytes/1` emitting no `KURA_CAS_CAPACITY_BYTES` at all and
+  the runtime sizes its ring from the whole box instead, which is the failure
+  that derivation exists to prevent. Now that staging scales with the claim
+  (`staging_bytes/1` in the Kubernetes controller provisioner) the cliff sits
+  below air rather than above it, so air clears it with margin; `regions_test`
+  asserts that against the derivation rather than against a number.
+  """
+  def minimum_storage_claim, do: @air_storage_claim
+
+  @doc """
+  Parses a Kubernetes storage quantity like `"24Gi"` into bytes.
+
+  Lives here, beside the claims it measures, because both the manifest that
+  derives a CAS budget from a claim and the validation that admits an operator's
+  override have to read the same quantity the same way.
+  """
+  def parse_storage_quantity(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {quantity, suffix} when quantity > 0 ->
+        case storage_multiplier(String.trim(suffix)) do
+          nil -> :error
+          multiplier -> {:ok, quantity * multiplier}
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  def parse_storage_quantity(_value), do: :error
+
+  defp storage_multiplier(""), do: 1
+  defp storage_multiplier("Ki"), do: 1024
+  defp storage_multiplier("Mi"), do: 1024 * 1024
+  defp storage_multiplier("Gi"), do: 1024 * 1024 * 1024
+  defp storage_multiplier("Ti"), do: 1024 * 1024 * 1024 * 1024
+  defp storage_multiplier(_suffix), do: nil
+
+  @doc """
   True iff the region sizes an instance's data volume from its account's plan
   rather than giving every instance the region's declared claim.
 

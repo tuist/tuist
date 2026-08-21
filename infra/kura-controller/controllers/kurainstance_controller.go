@@ -316,15 +316,26 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// A StatefulSet's volumeClaimTemplates are immutable, and a node-local data
-	// volume is pinned to the box it was carved on. Two states wedge an instance
-	// Pending forever with nothing to self-heal it: a storageClassName change on
-	// the CR that the live StatefulSet silently ignores (immutable template), and
-	// a bare-metal fleet node reprovisioned out from under a node-local PV. The
-	// cache is regenerable, so recreate the StatefulSet — dropping its PVCs via the
-	// Delete retention policy — and let it provision fresh volumes on the current
-	// storage class and node. Requeue while the cleanup is in flight so the
-	// recreated StatefulSet never re-adopts a stale PVC.
+	// volume is pinned to the box it was carved on. Two states leave an instance
+	// with a claim that can never bind, with nothing to self-heal it: a
+	// storageClassName change the live StatefulSet silently ignores (immutable
+	// template), and a bare-metal fleet node reprovisioned out from under a
+	// node-local PV. Both are already broken, so recreate the StatefulSet —
+	// dropping its PVCs via the Delete retention policy — and let it provision
+	// fresh volumes on the current class and node. Requeue while the cleanup is
+	// in flight so the recreated StatefulSet never re-adopts a stale PVC.
 	if inProgress, err := r.reconcileStaleDataStorage(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	} else if inProgress {
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	}
+
+	// A grown claim reaches the same immutability, but from a healthy instance
+	// that is still serving, so it does not get the same treatment: re-template
+	// the StatefulSet without disturbing what it runs, then replace the volumes
+	// one replica at a time behind the standby. Requeue between replicas so each
+	// rebuilt pod is serving again before the next is taken.
+	if inProgress, err := r.reconcileDataStorageResize(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	} else if inProgress {
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
@@ -2361,10 +2372,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		}
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return r.reconcileDataPersistentVolumeClaims(ctx, instance)
+	return err
 }
 
 // replaceUnreadyPodsForImageChange lets a new Kura image escape a rollout that
@@ -2424,33 +2432,173 @@ func podKuraImage(pod *corev1.Pod) string {
 	return ""
 }
 
-func (r *KuraInstanceReconciler) reconcileDataPersistentVolumeClaims(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	desiredStorage := storageQuantity(instance)
+// reconcileDataStorageResize grows an instance's data volumes to the claim it
+// declares, one replica at a time, so the account keeps serving throughout. It
+// reports true while a resize is in flight.
+//
+// Neither half of a StatefulSet's storage can be changed in place: the fleet's
+// storage class is allowVolumeExpansion: false, so patching a bound claim is
+// rejected outright, and volumeClaimTemplates are immutable on a live
+// StatefulSet. The way through is to re-template the StatefulSet without
+// disturbing what it runs, then replace the volumes ordinal by ordinal.
+//
+// The standby replica is what makes that safe, and it is what these pods are
+// co-located for in the first place (see instancePodAffinity: "the standby
+// exists for gapless rolling deploys"). While one ordinal is rebuilt the other
+// keeps the endpoint up, and the rebuilt pod refills its ring from that sibling
+// over the peer mesh rather than from cold. Dropping the whole StatefulSet
+// instead -- which is what the stale-storage path does for a wedged volume --
+// would take the account's cache offline and discard both copies of it at once,
+// and a customer sees that as failed requests rather than as cache misses.
+//
+// A single-replica instance has no sibling to serve or to refill from, so there
+// it is an interruption. Nothing short of the warm handoff avoids that.
+//
+// Only grows. A volume larger than the declared claim already holds the ring it
+// is told to budget and evicts down into it, so it is left alone.
+func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
+	desired := storageQuantity(instance)
+	if desired.IsZero() {
+		return false, nil
+	}
+
+	sts := &appsv1.StatefulSet{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		// No StatefulSet to re-template: reconcileStatefulSet builds one at the
+		// declared claim on this same pass.
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if sts.DeletionTimestamp != nil {
+		return true, nil
+	}
+
+	// Re-template by replacing the StatefulSet, orphaning its pods and PVCs.
+	// Orphan propagation strips owner references instead of collecting the
+	// dependents, so the instance goes on serving the volumes it already has
+	// while the object is replaced under it; the next pass recreates it from the
+	// current spec and adopts them back. The pod template is unchanged, so the
+	// adopted pods keep their revision and are not rolled for this.
+	if template := templateStorage(sts); !template.IsZero() && template.Cmp(desired) != 0 {
+		log.FromContext(ctx).Info(
+			"re-templating Kura StatefulSet for a changed claim",
+			"from", template.String(), "to", desired.String(),
+		)
+		if err := r.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationOrphan)); err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
+		return true, nil
+	}
+
 	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		pvcName := fmt.Sprintf("data-%s-%d", instance.Name, ordinal)
 		pvc := &corev1.PersistentVolumeClaim{}
-		name := fmt.Sprintf("data-%s-%d", instance.Name, ordinal)
-		if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: instance.Namespace}, pvc); err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: pvcName, Namespace: instance.Namespace}, pvc); err != nil {
+			// Absent: the StatefulSet creates it from the current template.
 			if apierrors.IsNotFound(err) {
 				continue
 			}
-			return err
+			return false, err
 		}
-
-		currentStorage := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-		if desiredStorage.Cmp(currentStorage) <= 0 {
+		if pvc.DeletionTimestamp != nil {
+			return true, nil
+		}
+		bound, ok := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+		if !ok || bound.Cmp(desired) >= 0 {
 			continue
 		}
 
-		before := pvc.DeepCopy()
-		if pvc.Spec.Resources.Requests == nil {
-			pvc.Spec.Resources.Requests = corev1.ResourceList{}
+		// Never take this one down while another is already down. Waiting here is
+		// what keeps the rebuild rolling rather than wholesale, and it is also
+		// what makes a rebuilt pod's backfill worth anything: it has a serving
+		// sibling to read from.
+		serving, err := r.siblingsServing(ctx, instance, ordinal)
+		if err != nil {
+			return false, err
 		}
-		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = desiredStorage.DeepCopy()
-		if err := r.Patch(ctx, pvc, client.MergeFrom(before)); err != nil {
-			return err
+		if !serving {
+			return true, nil
+		}
+
+		log.FromContext(ctx).Info(
+			"rebuilding one Kura data volume for a grown claim",
+			"pvc", pvcName, "from", bound.String(), "to", desired.String(),
+		)
+		if err := r.reclaimDataVolume(ctx, pvc); err != nil {
+			return false, err
+		}
+		// The claim first: it is held by the pod-protection finalizer until the
+		// pod using it goes away, so deleting the pod second is what releases it.
+		if err := r.Delete(ctx, pvc); err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
+		pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%d", instance.Name, ordinal),
+			Namespace: instance.Namespace,
+		}}
+		if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+// siblingsServing reports whether every replica other than `ordinal` is Ready,
+// so rebuilding that one leaves the instance serving. Vacuously true for a
+// single-replica instance, which has no standby to preserve.
+func (r *KuraInstanceReconciler) siblingsServing(ctx context.Context, instance *kurav1alpha1.KuraInstance, ordinal int32) (bool, error) {
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return false, err
+	}
+	rebuilding := fmt.Sprintf("%s-%d", instance.Name, ordinal)
+	ready := int32(0)
+	for i := range pods.Items {
+		if pods.Items[i].Name != rebuilding && podReady(&pods.Items[i]) {
+			ready++
 		}
 	}
-	return nil
+	return ready >= replicas(instance)-1, nil
+}
+
+// templateStorage is the claim size the StatefulSet's data volumeClaimTemplate
+// carries, which is what its next PVC would be created at.
+func templateStorage(sts *appsv1.StatefulSet) resource.Quantity {
+	for i := range sts.Spec.VolumeClaimTemplates {
+		if sts.Spec.VolumeClaimTemplates[i].Name != "data" {
+			continue
+		}
+		if quantity, ok := sts.Spec.VolumeClaimTemplates[i].Spec.Resources.Requests[corev1.ResourceStorage]; ok {
+			return quantity
+		}
+	}
+	return resource.Quantity{}
+}
+
+// reclaimDataVolume flips one PVC's bound PersistentVolume to reclaimPolicy
+// Delete, so the CSI driver reaps the underlying volume when the claim is
+// removed. Same reasoning as reclaimDataVolumes below, scoped to the single
+// claim a rolling resize is replacing.
+func (r *KuraInstanceReconciler) reclaimDataVolume(ctx context.Context, pvc *corev1.PersistentVolumeClaim) error {
+	if pvc.Spec.VolumeName == "" {
+		return nil
+	}
+	pv := &corev1.PersistentVolume{}
+	if err := r.Get(ctx, types.NamespacedName{Name: pvc.Spec.VolumeName}, pv); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	if pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
+		return nil
+	}
+	before := pv.DeepCopy()
+	pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimDelete
+	return r.Patch(ctx, pv, client.MergeFrom(before))
 }
 
 // reclaimDataVolumes flips the bound PersistentVolume of each of the instance's
@@ -2538,13 +2686,20 @@ func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, 
 }
 
 // staleDataStorageReason returns a non-empty reason when a data PVC can never
-// bind and the StatefulSet must be recreated: it is still terminating from an
-// earlier pass, its storage class no longer matches spec.StorageClassName
-// (StatefulSet volumeClaimTemplates are immutable, so a CR change is otherwise
-// silently dropped), or it is Bound to a volume pinned to a node that no longer
+// serve spec as written and the StatefulSet must be recreated: it is still
+// terminating from an earlier pass, its storage class no longer matches
+// spec.StorageClassName (StatefulSet volumeClaimTemplates are immutable, so a CR
+// change is otherwise silently dropped), or it is Bound to a volume pinned to a
+// node that no longer
 // exists (a bare-metal fleet node was reprovisioned). A still-present stale PVC
 // keeps returning a reason so the caller waits for deletion to finish before the
 // StatefulSet is recreated.
+//
+// A changed claim is deliberately not in that list. It is reached the same way
+// -- neither the bound claim nor the volumeClaimTemplate can be changed in
+// place -- but it does not need the instance taken down to get there, and
+// `reconcileDataStorageResize` replaces the volumes one replica at a time
+// instead.
 func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
 	desiredStorageClass := instance.Spec.StorageClassName
 	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
