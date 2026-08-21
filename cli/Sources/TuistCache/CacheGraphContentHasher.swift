@@ -81,14 +81,13 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
         } else {
             .debugVariantFallback
         }
-        let hashingConfiguration = CacheHashingConfiguration(
-            name: resolvedConfiguration,
-            resolution: resolution
+        await RunMetadataStorage.current.update(
+            cacheHashingConfiguration: CacheHashingConfiguration(
+                name: resolvedConfiguration,
+                resolution: resolution
+            )
         )
-        await RunMetadataStorage.current.update(cacheHashingConfiguration: hashingConfiguration)
-        Logger.current.debug(
-            "Hashing targets against the configuration \(hashingConfiguration.name), resolved from \(hashingConfiguration.resolution.description)"
-        )
+        Logger.current.debug("Hashing targets against the configuration \(resolvedConfiguration)")
 
         let hashingGraph = scopesSettingsToConfiguration
             ? graphByScopingSettings(in: graph, to: resolvedConfiguration)
