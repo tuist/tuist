@@ -99,3 +99,31 @@ kura-ca-east-ingress-nginx:
       type: ClusterIP
       externalTrafficPolicy: ""
       annotations: {}
+
+kura-ca-east-haproxy:
+  # HAProxy gateway pilot (tuist/tuist#12363): runs side by side with the nginx
+  # gateway above on the same host network, HTTPS on :8443 (nginx keeps :443),
+  # so it is reachable at https://<tenant-host>:8443 without touching customer
+  # traffic. It serves the kura-ca-east-haproxy IngressClass; instances join it
+  # when the server renders spec.haproxyIngressClassName (regions.ex gate).
+  # The bwlim-out tenant ceiling and the rest of the gateway config live in the
+  # shared values.yaml block.
+  enabled: true
+  controller:
+    kind: DaemonSet
+    daemonset:
+      useHostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-ca-east
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    # Per-account DNS comes from the kura-controller's DNSEndpoints; there is
+    # no LB and nothing to publish into Ingress status, and no Service is
+    # needed on a hostNetwork DaemonSet.
+    publishService:
+      enabled: false
+    service:
+      enabled: false

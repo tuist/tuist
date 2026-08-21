@@ -266,13 +266,18 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if service.Spec.ExternalTrafficPolicy != "" {
 		t.Fatalf("expected no external traffic policy on ClusterIP backend, got %q", service.Spec.ExternalTrafficPolicy)
 	}
-	if got := len(service.Spec.Ports); got != 2 {
-		t.Fatalf("expected backend service to expose the co-hosted cache and peer ports, got %d", got)
+	if got := len(service.Spec.Ports); got != 3 {
+		t.Fatalf("expected backend service to expose the co-hosted cache, grpc, and peer ports, got %d", got)
 	}
 	if got := service.Spec.Ports[0].TargetPort.StrVal; got != "http" {
 		t.Fatalf("expected public ingress backend service to target the co-hosted cache port, got %q", got)
 	}
-	if got := service.Spec.Ports[1].TargetPort.StrVal; got != "peer" {
+	// The grpc port targets the same co-hosted listener; it only exists to
+	// give the HAProxy gateway a distinct h2c backend (see grpcServicePort).
+	if got := service.Spec.Ports[1]; got.Name != "grpc" || got.TargetPort.StrVal != "http" {
+		t.Fatalf("expected backend service to expose grpc onto the co-hosted cache port, got %#v", got)
+	}
+	if got := service.Spec.Ports[2].TargetPort.StrVal; got != "peer" {
 		t.Fatalf("expected backend service to expose peer, got %q", got)
 	}
 	if len(service.Annotations) != 0 {

@@ -38,6 +38,34 @@ dependencies:
     version: 4.11.3
     repository: https://kubernetes.github.io/ingress-nginx
     condition: kura-us-west-ingress-nginx.enabled
+  # HAProxy regional Kura gateways (tuist/tuist#12363): run side by side with
+  # the ingress-nginx gateways above (HTTPS on :8443 vs nginx on :443) and
+  # enforce the per-tenant egress ceiling with a shared bwlim-out filter keyed
+  # by hostname — the ceiling the Cilium pod annotation cannot enforce on the
+  # host-network read path. Serve the `kura-<region>-haproxy` IngressClass; the
+  # kura-controller renders the HAProxy-flavored Ingress pair when the server
+  # sets spec.haproxyIngressClassName (rollout gate in
+  # server/lib/tuist/kura/regions.ex).
+  - name: kubernetes-ingress
+    alias: kura-eu-central-haproxy
+    version: 1.53.1
+    repository: https://haproxytech.github.io/helm-charts
+    condition: kura-eu-central-haproxy.enabled
+  - name: kubernetes-ingress
+    alias: kura-ca-east-haproxy
+    version: 1.53.1
+    repository: https://haproxytech.github.io/helm-charts
+    condition: kura-ca-east-haproxy.enabled
+  - name: kubernetes-ingress
+    alias: kura-us-east-haproxy
+    version: 1.53.1
+    repository: https://haproxytech.github.io/helm-charts
+    condition: kura-us-east-haproxy.enabled
+  - name: kubernetes-ingress
+    alias: kura-us-west-haproxy
+    version: 1.53.1
+    repository: https://haproxytech.github.io/helm-charts
+    condition: kura-us-west-haproxy.enabled
   - name: external-dns
     version: 1.15.0
     repository: https://kubernetes-sigs.github.io/external-dns

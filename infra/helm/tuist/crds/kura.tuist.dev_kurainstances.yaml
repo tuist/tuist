@@ -86,6 +86,12 @@ spec:
                   maxLength: 253
                 ingressClassName:
                   type: string
+                # When set, a second HAProxy-flavored public+gRPC Ingress pair
+                # is rendered against this class, side by side with the nginx
+                # pair, so the regional HAProxy gateway can enforce the
+                # per-tenant egress ceiling (tuist/tuist#12363).
+                haproxyIngressClassName:
+                  type: string
                 # Host-network customer gateway (bare-metal regions, no LB):
                 # publish the account's publicHost via a per-account DNSEndpoint
                 # targeting the box its pods run on, so each account resolves to

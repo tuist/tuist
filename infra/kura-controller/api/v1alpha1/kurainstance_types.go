@@ -19,6 +19,19 @@ type KuraInstanceSpec struct {
 	GRPCPublicHost   string `json:"grpcPublicHost,omitempty"`
 	IngressClassName string `json:"ingressClassName,omitempty"`
 
+	// HAProxyIngressClassName, when set, makes the controller render a second,
+	// HAProxy-flavored public+gRPC Ingress pair (`<name>-haproxy`,
+	// `<name>-grpc-haproxy`) targeting this class, alongside the nginx pair on
+	// IngressClassName. The pair carries haproxy.org annotations and
+	// begins-with (non-regex) REAPI path prefixes, and routes gRPC through the
+	// Service's dedicated `grpc` port so only REAPI traffic is forced to h2c
+	// (plain HTTP keeps HTTP/1.1 and Kura's sendfile fast path). It exists for
+	// the side-by-side HAProxy regional gateway that enforces the per-tenant
+	// egress ceiling at the gateway (shared bwlim-out keyed by hostname),
+	// which the Cilium pod annotation cannot do on host-network regions — see
+	// https://github.com/tuist/tuist/issues/12363.
+	HAProxyIngressClassName string `json:"haproxyIngressClassName,omitempty"`
+
 	// PublicHostNetwork marks a region whose customer gateway is a host-network
 	// DaemonSet (bare-metal regions, which have no cloud LoadBalancer) rather
 	// than an LB-fronted controller. When true the controller publishes the

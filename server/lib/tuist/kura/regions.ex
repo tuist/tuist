@@ -226,6 +226,16 @@ defmodule Tuist.Kura.Regions do
       # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
       egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 500,
+      # Pilot region for the HAProxy regional gateway (tuist/tuist#12363):
+      # instances additionally get spec.haproxyIngressClassName, so the
+      # kura-controller renders an HAProxy-flavored Ingress pair against the
+      # side-by-side haproxytech controller (:8443, nginx keeps :443). That
+      # gateway enforces egress_burst_mbps as a per-tenant aggregate
+      # (shared bwlim-out keyed by hostname) — the Cilium pod annotation
+      # above never governs the customer read path on host-network regions.
+      # Roll out region by region by setting this flag (the platform chart
+      # must enable the region's kura-<region>-haproxy controller first).
+      haproxy_gateway: true,
       # OVHcloud BHS, Beauharnois, Quebec.
       country: "CA",
       subdivision: "CA-QC"
@@ -562,6 +572,7 @@ defmodule Tuist.Kura.Regions do
         # the Hetzner cloud regions (no shared-NIC contention to govern).
         pod_annotations: managed_region_pod_annotations(spec),
         egress_guaranteed_mbps: Map.get(spec, :egress_guaranteed_mbps),
+        haproxy_ingress_class_name: managed_region_haproxy_ingress_class(spec),
         country: Map.get(spec, :country),
         subdivision: Map.get(spec, :subdivision),
         # Packing density is what constrains the shared bare-metal boxes, so
@@ -580,6 +591,16 @@ defmodule Tuist.Kura.Regions do
         mesh: true
       }
     }
+  end
+
+  # HAProxy gateway pilot (tuist/tuist#12363): a region that opts in via
+  # haproxy_gateway gets `<ingress class>-haproxy` rendered onto every
+  # instance as spec.haproxyIngressClassName. The kura-controller then emits
+  # the HAProxy-flavored Ingress pair for the region's side-by-side
+  # haproxytech gateway, which enforces egress_burst_mbps at the gateway as a
+  # per-tenant aggregate. This is the region-by-region rollout gate.
+  defp managed_region_haproxy_ingress_class(spec) do
+    if Map.get(spec, :haproxy_gateway), do: spec.ingress_class_name <> "-haproxy"
   end
 
   # Burst ceiling: a Cilium bandwidth-manager egress cap so one tenant pod
