@@ -9,6 +9,7 @@ import TuistConfig
 import TuistConstants
 import TuistCore
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistSupport
 import TuistTesting
 import XcodeGraph
@@ -422,5 +423,81 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
         #expect(baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] == nil)
         #expect(baseSettings["OTHER_SWIFT_FLAGS"] == nil)
+    }
+
+    /// The plugin path is baked into the generated pbxproj and feeds the target
+    /// content hash through the project's base settings, so a raw install path
+    /// (Homebrew locally, mise on CI) would give the same code different module
+    /// cache keys on different machines. `COMPILATION_CACHE_REMOTE_SERVICE_PATH`
+    /// already gets this treatment via `casProxySocketPathString()`.
+    @Test(.inTemporaryDirectory, .withMockedXcodeController, .withMockedEnvironment())
+    func map_whenPluginIsUnderHome_writesHomeRelativePluginPath() async throws {
+        // Given
+        try stubXcodeVersion(Version(26, 0, 0))
+        let casPluginPath = Environment.current.homeDirectory
+            .appending(components: [".local", "share", "mise", "libtuist_cas_plugin.dylib"])
+        try await FileSystem().makeDirectory(at: casPluginPath.parentDirectory)
+        try await FileSystem().touch(casPluginPath)
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: "test-org/test-project",
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            kuraEnabled: true,
+            casPluginCandidates: [casPluginPath]
+        )
+        let project = Project.test(name: "TestProject", settings: .test(base: [:]))
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then
+        #expect(
+            mappedProject.settings.base["COMPILATION_CACHE_PLUGIN_PATH"]
+                == .string("$HOME/.local/share/mise/libtuist_cas_plugin.dylib")
+        )
+    }
+
+    /// A plugin installed outside `$HOME` (a Homebrew prefix, say) has no `$HOME` to
+    /// factor out and must be written verbatim.
+    @Test(.inTemporaryDirectory, .withMockedXcodeController, .withMockedEnvironment())
+    func map_whenPluginIsOutsideHome_writesAbsolutePluginPath() async throws {
+        // Given
+        try stubXcodeVersion(Version(26, 0, 0))
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let casPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
+        try await FileSystem().touch(casPluginPath)
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: "test-org/test-project",
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            kuraEnabled: true,
+            casPluginCandidates: [casPluginPath]
+        )
+        let project = Project.test(name: "TestProject", settings: .test(base: [:]))
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then
+        #expect(
+            mappedProject.settings.base["COMPILATION_CACHE_PLUGIN_PATH"]
+                == .string(casPluginPath.pathString)
+        )
     }
 }

@@ -95,6 +95,16 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
         "$HOME/cas-proxy.sock"
     }
 
+    public func homeRelativePathString(_ path: AbsolutePath) -> String {
+        let pathString = path.pathString
+        let homeDirectoryPathString = homeDirectory.pathString
+        if pathString.hasPrefix(homeDirectoryPathString) {
+            return "$HOME" + pathString.dropFirst(homeDirectoryPathString.count)
+        } else {
+            return pathString
+        }
+    }
+
     public func casProxyLaunchAgentLabel() -> String {
         "tuist.cas-proxy"
     }

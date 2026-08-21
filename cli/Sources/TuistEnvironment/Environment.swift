@@ -88,6 +88,11 @@ public protocol Environmenting: Sendable {
     /// baked into a build setting.
     func casProxySocketPathString() -> String
 
+    /// A path with its `$HOME` prefix restored, so a value baked into a build setting
+    /// does not hard-code one machine's home directory. Paths outside `$HOME` are
+    /// returned unchanged.
+    func homeRelativePathString(_ path: AbsolutePath) -> String
+
     /// Returns the LaunchAgent label for the per-project Xcode cache daemon (the
     /// non-kura path) of the given full handle. Shared between `tuist setup cache`
     /// (which registers the LaunchAgent) and `tuist teardown cache` (which boots it out).
@@ -438,12 +443,10 @@ public struct Environment: Environmenting {
     }
 
     public func casProxySocketPathString() -> String {
-        homeRelative(casProxySocketPath())
+        homeRelativePathString(casProxySocketPath())
     }
 
-    /// A path with its `$HOME` prefix restored, so a value baked into a build
-    /// setting does not hard-code one machine's home directory.
-    private func homeRelative(_ path: AbsolutePath) -> String {
+    public func homeRelativePathString(_ path: AbsolutePath) -> String {
         let pathString = path.pathString
         let homeDirectoryPathString = homeDirectory.pathString
         if pathString.hasPrefix(homeDirectoryPathString) {
