@@ -463,16 +463,7 @@ jobs:
           # --binary-only builds just //:kura (opt via kura/.bazelrc); //... would pull in the test
           # target, which can't cross-compile. compile-args adds the cross --config on the macOS
           # x86_64 leg and is empty for the native legs.
-          BUILD_LOG="$RUNNER_TEMP/kura-bazel-${TARGET}.log"
-          mise run --skip-tools compile -- --binary-only ${{ matrix.compile-args }} 2>&1 | tee "$BUILD_LOG"
-
-          # .bazelrc makes the remote cache non-fatal, and Bazel degrades to local execution without
-          # printing anything, so a cache that is unreachable at startup is otherwise invisible here.
-          # Surface it: either Bazel logged a cache error, or the cache was configured and served
-          # nothing. Warning only: a cold build still ships a correct binary.
-          if [ -f .bazelrc.tuist ] && { grep -q "Remote Cache:" "$BUILD_LOG" || ! grep -q "remote cache hit" "$BUILD_LOG"; }; then
-            echo "::warning::Tuist remote cache degraded for ${TARGET}: Bazel fell back to local execution. The binary is unaffected; the build was cold."
-          fi
+          mise run --skip-tools compile -- --binary-only ${{ matrix.compile-args }}
 
           STAGE_DIR="$(mktemp -d)"
           cp bazel-bin/kura "$STAGE_DIR/kura"
