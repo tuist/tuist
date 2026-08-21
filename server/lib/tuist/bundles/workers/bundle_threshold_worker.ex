@@ -6,6 +6,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
   import Ecto.Query
 
   alias Tuist.Bundles
+  alias Tuist.Bundles.Bundle
   alias Tuist.Environment
   alias Tuist.GitHub.Client
   alias Tuist.Projects
@@ -15,9 +16,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
 
   @check_name "tuist/bundle-size"
 
-  # The bundle is written through `Tuist.IngestRepo` and read back here through
-  # `Tuist.ClickHouseRepo`. Those are separate connections, so a bundle enqueued
-  # on upload is not always visible by the time this job runs.
+  # Bounds the fallback in `resolve_bundle/1` that still reads the bundle back.
   @not_found_snooze_seconds 5
   @not_found_max_attempts 5
 
@@ -25,11 +24,11 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
   def perform(%Oban.Job{
         id: job_id,
         attempt: attempt,
-        args: %{"bundle_id" => bundle_id, "project_id" => project_id, "git_commit_sha" => git_commit_sha} = args
+        args: %{"project_id" => project_id, "git_commit_sha" => git_commit_sha} = args
       }) do
     cancel_competing_jobs(job_id, args)
 
-    with {:ok, bundle} <- Bundles.get_bundle(bundle_id),
+    with {:ok, bundle} <- resolve_bundle(args),
          true <- should_run?(bundle),
          project = Projects.get_project_by_id(project_id),
          true <- project != nil,
@@ -53,6 +52,33 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
         :ok
     end
   end
+
+  # The bundle is written through `Tuist.IngestRepo` and read back through
+  # `Tuist.ClickHouseRepo`, a separate connection that does not always see the
+  # row by the time this job runs. The upload already holds every field the
+  # check reads, so it carries them on the job rather than reading them back.
+  # Only those fields are populated here.
+  defp resolve_bundle(%{
+         "bundle_id" => id,
+         "bundle_name" => name,
+         "git_commit_sha" => git_commit_sha,
+         "git_ref" => git_ref,
+         "install_size" => install_size,
+         "download_size" => download_size
+       }) do
+    {:ok,
+     %Bundle{
+       id: id,
+       name: name,
+       git_commit_sha: git_commit_sha,
+       git_ref: git_ref,
+       install_size: install_size,
+       download_size: download_size
+     }}
+  end
+
+  # Jobs enqueued before the bundle fields were carried on the job.
+  defp resolve_bundle(%{"bundle_id" => id}), do: Bundles.get_bundle(id)
 
   defp should_run?(bundle) do
     bundle.git_commit_sha != nil &&
