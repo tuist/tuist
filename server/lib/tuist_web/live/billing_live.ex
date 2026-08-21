@@ -28,7 +28,8 @@ defmodule TuistWeb.BillingLive do
 
     current_month_remote_cache_hits_count = selected_account.current_month_remote_cache_hits_count
 
-    runner_usage = runner_usage(selected_account, subscription)
+    prepaid_runner_credit = Prepaid.balance(selected_account)
+    runner_usage = runner_usage(selected_account, subscription, prepaid_runner_credit)
 
     # Runner time is billed alongside remote cache hits, so the headline
     # figure has to carry both or it understates the bill for anyone
@@ -73,7 +74,7 @@ defmodule TuistWeb.BillingLive do
 
     socket =
       socket
-      |> assign(:prepaid_runner_credit, Prepaid.balance(selected_account))
+      |> assign(:prepaid_runner_credit, prepaid_runner_credit)
       |> assign(:runner_usage, runner_usage)
       |> assign(:estimated_next_payment, estimated_next_payment)
       |> assign(:plan, plan)
@@ -142,7 +143,7 @@ defmodule TuistWeb.BillingLive do
   # billed figure would present a trial as an unexplained absence of
   # charges; showing only the accrued one would read as a bill that is
   # not coming.
-  defp runner_usage(account, subscription) do
+  defp runner_usage(account, subscription, prepaid) do
     now = DateTime.utc_now()
     month_start = %{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}
 
@@ -170,10 +171,18 @@ defmodule TuistWeb.BillingLive do
         true -> {chargeable, nil}
       end
 
+    # Prepaid minutes are already paid for, so from the customer's side
+    # they cost nothing more to run. Counting them alongside the free
+    # allowance makes one bar answer "how much can I still run", which is
+    # the question the bar is there to answer.
+    prepaid_minutes = if prepaid, do: prepaid.granted_minutes, else: 0
+
     %{
       total_ms: total_ms,
       minutes: div(total_ms, 60_000),
       free_minutes: free_minutes,
+      prepaid_minutes: prepaid_minutes,
+      covered_minutes: free_minutes + prepaid_minutes,
       accrued: accrued,
       billed: billed,
       not_billed_because: not_billed_because
@@ -196,21 +205,16 @@ defmodule TuistWeb.BillingLive do
   end
 
   @doc """
-  What the prepaid purchase covers and when it lapses.
-
-  Reports what remains against what was bought, because the headline
-  figure is the purchase and does not move as it is spent. A balance
-  with no expiry reads as though it never has one, so the date is
-  always stated when there is one.
+  Says what the runner bar's ceiling is made of, so a limit larger than
+  the plan's allowance is not left unexplained.
   """
-  def prepaid_credit_description(%{available: available, expires_at: nil}),
-    do: dgettext("dashboard_account", "%{amount} left. Drawn down by runner usage.", amount: format_money(available))
+  def runner_minutes_composition(%{prepaid_minutes: 0}), do: dgettext("dashboard_account", "of your runner usage")
 
-  def prepaid_credit_description(%{available: available, expires_at: expires_at}),
+  def runner_minutes_composition(%{free_minutes: free, prepaid_minutes: prepaid}),
     do:
-      dgettext("dashboard_account", "%{amount} left. Drawn down by runner usage, expires %{date}.",
-        amount: format_money(available),
-        date: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")
+      dgettext("dashboard_account", "of your runner usage — %{free} free plus %{prepaid} prepaid",
+        free: free,
+        prepaid: prepaid
       )
 
   def runner_billed_explanation(:within_allowance),

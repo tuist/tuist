@@ -49,7 +49,7 @@
         <.progress_bar
           :if={@runner_usage.total_ms > 0}
           value={@runner_usage.minutes}
-          max={@runner_usage.free_minutes}
+          max={@runner_usage.covered_minutes}
           title={dgettext("dashboard_account", "Runner minutes:")}
         >
           <:description>
@@ -62,20 +62,11 @@
                 underline
               />
               <span data-part="label">
-                {dgettext("dashboard_account", "of your runner usage")}
+                {runner_minutes_composition(@runner_usage)}
               </span>
             </div>
           </:description>
         </.progress_bar>
-        <div :if={@prepaid_runner_credit} data-part="prepaid-credit">
-          <div data-part="amount">
-            <span data-part="label">{dgettext("dashboard_account", "Prepaid minutes:")}</span>
-            <span data-part="value">{@prepaid_runner_credit.granted_minutes}</span>
-          </div>
-          <span data-part="description">
-            {prepaid_credit_description(@prepaid_runner_credit)}
-          </span>
-        </div>
       </.card_section>
       <.card_section data-part="current-plan-card-section">
         <div data-part="header">

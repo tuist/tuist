@@ -224,15 +224,17 @@ defmodule TuistWeb.BillingLiveTest do
     test "is hidden for an account with no runner credit", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
-      refute render(lv) =~ "Prepaid credit:"
+      refute render(lv) =~ "prepaid"
     end
 
-    test "shows the purchased minutes, with what is left as detail", %{conn: conn, account: account} do
+    test "counts prepaid minutes toward the runner ceiling", %{conn: conn, account: account} do
+      runner_session_fixture(account, 40)
+
       stub(Prepaid, :balance, fn _account ->
         %{
           available: Money.new(300_000, :USD),
           granted: Money.new(750_000, :USD),
-          granted_minutes: 100_000,
+          granted_minutes: 10_000,
           expires_at: ~U[2026-09-01 00:00:00Z],
           grants: []
         }
@@ -241,12 +243,13 @@ defmodule TuistWeb.BillingLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       html = render(lv)
-      # The headline is what was bought, so it holds still as credit is
-      # spent; what is left is the detail beneath it.
-      assert html =~ "Prepaid minutes:"
-      assert html =~ "100000"
-      assert html =~ "3000.00"
-      assert html =~ "September 1, 2026"
+      # Prepaid minutes are already paid for, so they raise the ceiling
+      # rather than appearing as a balance of their own.
+      assert html =~ "10100"
+      assert html =~ "100 free plus 10000 prepaid"
+      # Nothing here may move as credit is spent.
+      refute html =~ "3000.00"
+      refute html =~ "left."
     end
   end
 
