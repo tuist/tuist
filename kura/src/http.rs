@@ -3252,6 +3252,7 @@ async fn serve_file(
                 manifest,
                 bytes_chunks(bytes.slice(start..end)),
                 true,
+                range.length,
             );
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = artifact_response_status(range);
@@ -3339,7 +3340,7 @@ async fn serve_file_reader(
     {
         Ok(Some((manifest, reader))) => {
             let stream = ReaderStream::with_capacity(reader, stream_chunk_bytes);
-            let stream = instrument_artifact_stream(state, &manifest, stream, true);
+            let stream = instrument_artifact_stream(state, &manifest, stream, true, range.length);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = artifact_response_status(range);
             apply_artifact_response_headers(&mut response, &manifest, range);
@@ -3374,6 +3375,7 @@ fn instrument_artifact_stream<S>(
     manifest: &ArtifactManifest,
     stream: S,
     hold_public_inflight: bool,
+    expected_bytes: u64,
 ) -> InstrumentedArtifactStream<S>
 where
     S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
@@ -3385,6 +3387,7 @@ where
         manifest.producer,
         stream,
         request_guard,
+        expected_bytes,
     )
 }
 
@@ -3395,6 +3398,11 @@ struct InstrumentedArtifactStream<S> {
     _request_guard: Option<InflightGuard>,
     started_at: Instant,
     yielded_bytes: u64,
+    // What the response promised in its `Content-Length`. A body is complete
+    // when it has yielded this much, whether or not anything polls it again:
+    // Hyper stops polling once the promised length is on the wire, so the
+    // terminal `None` that would otherwise mark completion never arrives.
+    expected_bytes: u64,
     recorded: bool,
 }
 
@@ -3404,6 +3412,7 @@ impl<S> InstrumentedArtifactStream<S> {
         producer: ArtifactProducer,
         stream: S,
         request_guard: Option<InflightGuard>,
+        expected_bytes: u64,
     ) -> Self {
         Self {
             inner: stream,
@@ -3412,8 +3421,14 @@ impl<S> InstrumentedArtifactStream<S> {
             _request_guard: request_guard,
             started_at: Instant::now(),
             yielded_bytes: 0,
+            expected_bytes,
             recorded: false,
         }
+    }
+
+    /// Whether every promised byte reached the response body.
+    fn delivered_in_full(&self) -> bool {
+        self.yielded_bytes >= self.expected_bytes
     }
 
     fn record_once(&mut self, result: &str) {
@@ -3480,7 +3495,17 @@ where
 
 impl<S> Drop for InstrumentedArtifactStream<S> {
     fn drop(&mut self) {
-        self.record_once("aborted");
+        // Reached without a terminal `None` in two very different situations:
+        // the body delivered everything and Hyper simply stopped polling, or
+        // the peer went away mid-transfer. Only the second is waste, and
+        // conflating them made `result="aborted"` a label for "served by the
+        // streaming path" rather than for a transfer nobody received.
+        let result = if self.delivered_in_full() {
+            "ok"
+        } else {
+            "aborted"
+        };
+        self.record_once(result);
     }
 }
 
@@ -6982,6 +7007,7 @@ mod tests {
             ArtifactProducer::Xcode,
             stream,
             Some(context.state.start_http_request(HttpTrafficClass::Public)),
+            1,
         );
 
         assert_eq!(context.state.runtime.public_http_inflight(), 1);
@@ -7036,6 +7062,75 @@ mod tests {
         });
 
         (format!("http://{address}"), handle)
+    }
+
+    /// A response body that hyper stops polling once `Content-Length` is
+    /// satisfied never yields the terminal `None`, so the only record comes
+    /// from `Drop`. It has still delivered every byte it promised, and calling
+    /// that an abort makes `result="aborted"` mean "served by the streaming
+    /// path" rather than "the client did not get its artifact".
+    #[tokio::test]
+    async fn a_body_dropped_after_delivering_every_byte_is_recorded_as_ok() {
+        let context = test_context(|_| {}).await;
+        let chunks = vec![
+            Ok(Bytes::from_static(b"0123")),
+            Ok(Bytes::from_static(b"456789")),
+        ];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            10,
+        );
+
+        // Drain exactly the promised bytes, then drop without polling again.
+        assert!(stream.next().await.is_some());
+        assert!(stream.next().await.is_some());
+        drop(stream);
+
+        let rendered = context.state.metrics.render();
+        assert!(
+            rendered.contains(r#"producer="module",result="ok""#),
+            "a fully delivered body must record ok, got:\n{rendered}"
+        );
+        assert!(
+            !rendered.contains(r#"producer="module",result="aborted""#),
+            "a fully delivered body must not record aborted, got:\n{rendered}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_body_dropped_before_delivering_every_byte_is_recorded_as_aborted() {
+        let context = test_context(|_| {}).await;
+        let chunks = vec![
+            Ok(Bytes::from_static(b"0123")),
+            Ok(Bytes::from_static(b"456789")),
+        ];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            10,
+        );
+
+        // The client goes away after the first chunk.
+        assert!(stream.next().await.is_some());
+        drop(stream);
+
+        let rendered = context.state.metrics.render();
+        assert!(
+            rendered.contains(r#"producer="module",result="aborted""#),
+            "a short body must record aborted, got:\n{rendered}"
+        );
+        // Only the bytes that were actually put on the wire count as waste.
+        assert!(
+            rendered.contains(
+                r#"kura_artifact_egress_bytes_total_total{producer="module",result="aborted"} 4"#
+            ),
+            "aborted egress must report the 4 bytes it yielded, got:\n{rendered}"
+        );
     }
 
     /// Puts an artifact and reads it back with `Range`. At this size the
