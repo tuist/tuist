@@ -64,7 +64,7 @@ struct CacheClientTests {
         )
 
         await #expect(throws: (any Error).self) {
-            _ = try await client.downloadCASArtifact(
+            _ = try await client.downloadXcodeArtifact(
                 .init(
                     path: .init(id: "artifact"),
                     query: .init(
