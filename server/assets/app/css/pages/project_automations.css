@@ -695,6 +695,7 @@
   & > [data-part="history-load-more"] {
     display: flex;
     justify-content: center;
+    width: 100%;
     padding-top: var(--noora-spacing-2);
   }
 
