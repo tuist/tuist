@@ -5,6 +5,7 @@ mod app;
 mod artifact;
 mod auth;
 mod backfill;
+mod backpressure;
 mod bandwidth;
 mod config;
 mod constants;

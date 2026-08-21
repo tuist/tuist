@@ -1393,6 +1393,7 @@ dependencies = [
  "opentelemetry_sdk",
  "prometheus-client",
  "prost",
+ "rand 0.9.4",
  "rcgen",
  "reqwest 0.12.28",
  "rocksdb",
