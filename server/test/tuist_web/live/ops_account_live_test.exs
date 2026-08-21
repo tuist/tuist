@@ -8,8 +8,6 @@ defmodule TuistWeb.OpsAccountLiveTest do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Kura
-  alias Tuist.Kura.Server
-  alias Tuist.Repo
   alias Tuist.Runners.Concurrency
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -83,25 +81,6 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert html =~ "0.5.2"
     refute html =~ "kura@0.5.2"
     assert html =~ ~p"/ops/accounts/#{user.account.id}/kura/deployments/#{deployment.id}"
-  end
-
-  test "shows the claim an instance's volumes were created at", %{conn: conn, user: user} do
-    # The claim an instance holds and the one its plan would give it today
-    # diverge for as long as it holds volumes built under different sizing, and
-    # nothing converges them on its own.
-    Repo.insert!(%Server{
-      account_id: user.account.id,
-      region: "local-controller",
-      status: :active,
-      url: "http://localhost:4100",
-      current_image_tag: "0.5.2",
-      provisioner_node_ref: "kura-#{user.account.id}-local-controller",
-      storage_claim_size: "50Gi"
-    })
-
-    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-
-    assert html =~ "50Gi"
   end
 
   test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do

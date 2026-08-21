@@ -216,18 +216,6 @@ defmodule Tuist.Kura do
     )
   end
 
-  @doc """
-  The claim each of an instance's replicas holds, or `nil` when the instance
-  pins none of its own and takes its region's.
-
-  Read from the claim pinned on the row, which is what the instance's volumes
-  were actually created at rather than what its account's plan would give it
-  today. The two diverge for as long as an instance holds volumes built under
-  different sizing, and nothing converges them on its own, so an operator
-  looking at a region's occupancy can see which instances account for it.
-  """
-  def storage_claim_label(%Server{storage_claim_size: claim}), do: claim
-
   ## Servers
 
   @doc """
