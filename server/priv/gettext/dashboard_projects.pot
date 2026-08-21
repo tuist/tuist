@@ -142,7 +142,7 @@ msgstr ""
 
 #: lib/tuist_web/live/project_automations_live.html.heex:898
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:190
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:349
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:350
 #: lib/tuist_web/live/project_notifications_live.html.heex:168
 #: lib/tuist_web/live/project_notifications_live.html.heex:495
 #: lib/tuist_web/live/project_notifications_live.html.heex:840
@@ -275,10 +275,8 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.html.heex:82
 #: lib/tuist_web/live/project_automations_live.html.heex:939
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:107
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:171
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:216
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:265
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:330
 #: lib/tuist_web/live/project_notifications_live.html.heex:278
 #: lib/tuist_web/live/project_notifications_live.html.heex:426
 #: lib/tuist_web/live/project_notifications_live.html.heex:520
@@ -556,7 +554,7 @@ msgid "Never"
 msgstr ""
 
 #: lib/tuist_web/live/project_automations_live.html.heex:908
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:358
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:359
 #: lib/tuist_web/live/project_notifications_live.html.heex:176
 #: lib/tuist_web/live/project_settings_live.html.heex:149
 #, elixir-autogen, elixir-format
@@ -885,6 +883,7 @@ msgid "Scheme"
 msgstr ""
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:178
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:337
 #: lib/tuist_web/live/project_notifications_live.html.heex:419
 #: lib/tuist_web/live/project_notifications_live.html.heex:433
 #: lib/tuist_web/live/project_notifications_live.html.heex:749
@@ -946,12 +945,14 @@ msgstr ""
 msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
 
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:171
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:228
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:330
 #, elixir-autogen, elixir-format
 msgid "Bundle name"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:386
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:387
 #, elixir-autogen, elixir-format
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
 msgstr ""
@@ -967,7 +968,7 @@ msgstr ""
 msgid "Deviation %"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:384
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:385
 #, elixir-autogen, elixir-format
 msgid "No size thresholds"
 msgstr ""

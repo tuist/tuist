@@ -252,8 +252,9 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_AUTH_TUIST_URL` | Tuist server the node authorizes against. Enables authorization on its own. | Required when authorization is enabled | No default | `auth.tuistUrl` |
 | `KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS` | Connect timeout for calls to that server. | No | `500` | `extraEnv` |
 | `KURA_AUTH_TUIST_REQUEST_TIMEOUT_MS` | Request timeout for calls to that server. | No | `1500` | `extraEnv` |
-| `KURA_AUTH_JWT_SECRET` | Verification key for tokens the node can read itself, skipping a round trip. Self-hosted nodes normally leave this unset. | No | Disabled | `extraEnv` or `extraEnvFrom` |
-| `KURA_AUTH_JWT_ALGORITHM` | Algorithm for that key (`HS256`, `HS384` or `HS512`). | No | `HS256` | `extraEnv` |
+| `KURA_AUTH_JWT_SECRET` | Shared secret for tokens the node can read itself, skipping a round trip. It signs as well as it verifies, so only use it where the node and the server are the same trust boundary. Self-hosted nodes normally leave this unset. | No | Disabled | `extraEnv` or `extraEnvFrom` |
+| `KURA_AUTH_JWT_PUBLIC_KEY` | Public half of the keypair the server signs cache tokens with, as one or more concatenated PEM blocks. Reads those tokens without being able to mint one, which is what a node reachable from the internet should hold. Mutually exclusive with `KURA_AUTH_JWT_SECRET`. | No | Disabled | `extraEnvFrom` |
+| `KURA_AUTH_JWT_ALGORITHM` | Algorithm for that key: `HS256`, `HS384` or `HS512` with a secret, `ES256` with a public key. | No | `HS256` with a secret, `ES256` with a public key | `extraEnv` |
 | `KURA_AUTH_JWT_ISSUER` | Issuer that tokens must carry. | No | Unchecked | `extraEnv` |
 | `KURA_AUTH_JWT_AUDIENCES` | Comma-separated audiences that tokens must carry. | No | Unchecked | `extraEnv` |
 | `KURA_AUTH_CACHE_MAX_ENTRIES` | Maximum entries kept in each of the authentication and authorization caches. | No | `100000` | `extraEnv` |

@@ -76,6 +76,8 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             defaultConfiguration: defaultConfiguration,
             graph: graph
         )
+        Logger.current.debug("Hashing targets against the configuration \(resolvedConfiguration)")
+
         let hashingGraph = graphByScopingSettings(in: graph, to: resolvedConfiguration)
 
         if let exportHashedGraphPath = Environment.current.variables["TUIST_EXPORT_HASHED_GRAPH_PATH"],

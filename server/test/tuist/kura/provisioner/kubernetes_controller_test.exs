@@ -67,12 +67,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       refute Map.has_key?(env, "KURA_PEERS")
 
-      # Tuist platform secrets (JWT verifier) live in the
-      # kura-shared-secrets Kubernetes Secret; the controller envFroms
-      # them into the pod. They must NEVER appear in the spec, since
-      # anyone with list/watch on KuraInstance would otherwise read the
-      # global JWT signing secret.
+      # The verifier material lives in the kura-shared-secrets Kubernetes
+      # Secret; the controller envFroms it into the pod. It must NEVER
+      # appear in the spec, which anyone with list/watch on KuraInstance
+      # can read. The signing secret must not reach a node at all — it
+      # would let one mint what it verifies — and even the public half
+      # belongs in the Secret rather than here.
       refute Map.has_key?(env, "KURA_AUTH_JWT_SECRET")
+      refute Map.has_key?(env, "KURA_AUTH_JWT_PUBLIC_KEY")
     end
 
     test "reserves the Egress floor for enterprise accounts" do
