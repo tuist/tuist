@@ -195,6 +195,13 @@ kuraController:
   # Deprecated alias for tlsClusterIssuer. Kept so existing overlays do
   # not break while the controller flag is still named grpc-cluster-issuer.
   grpcClusterIssuer: ""
+  # Image (pin by digest) of the init container that installs the per-pod
+  # egress ceiling qdisc inside each Kura pod's netns
+  # (infra/egress-qdisc-init/). Required on clusters whose regions set
+  # egress_burst_mbps (the kubernetes.io/egress-bandwidth pod annotation):
+  # the controller refuses to reconcile such instances without it rather
+  # than rendering their pods unshaped (tuist/tuist#12363).
+  egressQdiscInitImage: ""
   telemetry:
     # Default OTLP traces endpoint for controller-managed Kura pods.
     # Leave empty to disable controller-injected tracing, or override

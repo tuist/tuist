@@ -1893,7 +1893,7 @@ func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplateAnd
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(legacyInstance, "", "production", "", false),
+			Template:             podTemplate(legacyInstance, "", "production", "", false, ""),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(legacyInstance)},
 		},
 	}
@@ -1964,7 +1964,7 @@ func TestKuraInstanceReconcileDoesNotShrinkPVCs(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(stsInstance, "", "production", "", false),
+			Template:             podTemplate(stsInstance, "", "production", "", false, ""),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(stsInstance)},
 		},
 	}
@@ -2207,7 +2207,7 @@ func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(instance, "", "production", "", false),
+			Template:             podTemplate(instance, "", "production", "", false, ""),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)},
 		},
 	}
@@ -2265,7 +2265,7 @@ func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 		},
 	}
 
-	stsTemplate := podTemplate(instance, "", "production", "", false)
+	stsTemplate := podTemplate(instance, "", "production", "", false, "")
 	if got := stsTemplate.Spec.NodeSelector["kubernetes.io/os"]; got != "linux" {
 		t.Fatalf("expected local node selector, got %q", got)
 	}
@@ -2779,8 +2779,9 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 		pod,
 	).Build()
 	reconciler := &KuraInstanceReconciler{
-		Client: client,
-		Scheme: scheme,
+		Client:               client,
+		Scheme:               scheme,
+		EgressQdiscInitImage: "ghcr.io/tuist/egress-qdisc-init@sha256:test",
 		RuntimeStatusClient: fakeRuntimeStatusClient{
 			statuses: map[string]runtimeStatus{
 				instance.Name + "-0": {Ready: true, State: "serving", WriterLockOwned: true},
@@ -2871,6 +2872,9 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	}
 	if annotations["prometheus.io/scrape"] != "true" {
 		t.Fatalf("expected controller-owned annotations preserved, got %v", annotations)
+	}
+	if len(sts.Spec.Template.Spec.InitContainers) != 1 || sts.Spec.Template.Spec.InitContainers[0].Name != egressQdiscInitContainerName {
+		t.Fatalf("expected the egress-qdisc init container alongside the annotation, got %+v", sts.Spec.Template.Spec.InitContainers)
 	}
 
 	instance.Spec.ExposeNodePort = false
