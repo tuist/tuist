@@ -41,6 +41,19 @@ defmodule TuistWeb.ProjectAutomationLiveTest do
         source: "dashboard"
       )
 
+    automation =
+      Enum.reduce(1..4, automation, fn index, automation ->
+        {:ok, automation} =
+          Automations.update_alert(
+            automation,
+            %{name: "Auto-quarantine flaky tests #{index}"},
+            actor: user,
+            source: "dashboard"
+          )
+
+        automation
+      end)
+
     {:ok, live_view, html} = open(conn, organization, project, automation)
 
     assert has_element?(live_view, "#project-automation")
@@ -51,6 +64,13 @@ defmodule TuistWeb.ProjectAutomationLiveTest do
     assert html =~ "Recovery disabled"
     assert html =~ "Quarantine flaky tests"
     assert html =~ "the dashboard"
+    assert has_element?(live_view, "#show-more-history", "Show more")
+    refute html =~ "Automation created"
+
+    html = live_view |> element("#show-more-history") |> render_click()
+
+    assert html =~ "Automation created"
+    refute has_element?(live_view, "#show-more-history")
   end
 
   test "raises not found when the automation does not belong to the project", %{

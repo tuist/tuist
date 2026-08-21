@@ -18,6 +18,6 @@ defmodule Tuist.Repo.Migrations.CreateAutomationAlertRevisions do
     end
 
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
-    create index(:automation_alert_revisions, [:automation_alert_id, :inserted_at])
+    create index(:automation_alert_revisions, [:automation_alert_id, :inserted_at, :id])
   end
 end

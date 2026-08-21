@@ -692,6 +692,12 @@
     }
   }
 
+  & > [data-part="history-load-more"] {
+    display: flex;
+    justify-content: center;
+    padding-top: var(--noora-spacing-2);
+  }
+
   @media (max-width: 768px) {
     & > [data-part="history-list"] > [data-part="history-item"] > [data-part="revision-card"] {
       & > [data-part="revision-header"] {

@@ -102,7 +102,7 @@ initial_snapshot = %{
     "window_type" => "rolling",
     "rolling_window_size" => 100
   },
-  "cadence" => "5m",
+  "cadence" => "1h",
   "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}],
   "recovery_enabled" => true,
   "recovery_config" => %{"window_type" => "rolling", "rolling_window_size" => 50},
@@ -110,7 +110,8 @@ initial_snapshot = %{
 }
 
 renamed_snapshot = Map.put(initial_snapshot, "name", "Auto-quarantine flaky tests")
-condition_snapshot = Map.put(renamed_snapshot, "trigger_config", alert_attrs.trigger_config)
+cadence_snapshot = Map.put(renamed_snapshot, "cadence", "5m")
+condition_snapshot = Map.put(cadence_snapshot, "trigger_config", alert_attrs.trigger_config)
 actions_snapshot = Map.put(condition_snapshot, "trigger_actions", trigger_actions)
 current_snapshot = Map.put(actions_snapshot, "recovery_enabled", false)
 
@@ -144,6 +145,17 @@ revisions = [
     },
     snapshot: condition_snapshot,
     inserted_at: DateTime.add(now, -4, :day)
+  },
+  %{
+    event: "updated",
+    changes: %{
+      "cadence" => %{
+        "from" => initial_snapshot["cadence"],
+        "to" => cadence_snapshot["cadence"]
+      }
+    },
+    snapshot: cadence_snapshot,
+    inserted_at: DateTime.add(now, -6, :day)
   },
   %{
     event: "updated",

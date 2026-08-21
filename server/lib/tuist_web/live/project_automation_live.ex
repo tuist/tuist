@@ -11,6 +11,8 @@ defmodule TuistWeb.ProjectAutomationLive do
   alias Tuist.Automations
   alias TuistWeb.ProjectAutomationsLive
 
+  @history_page_size 5
+
   @impl true
   def mount(
         %{"automation_id" => automation_id},
@@ -24,10 +26,13 @@ defmodule TuistWeb.ProjectAutomationLive do
 
     with {:ok, automation} <- Automations.get_alert(automation_id),
          true <- automation.project_id == selected_project.id do
+      {revisions, has_more_revisions?} = fetch_revisions(automation.id)
+
       {:ok,
        socket
        |> assign(:automation, automation)
-       |> assign(:revisions, Automations.list_alert_revisions(automation.id))
+       |> assign(:revisions, revisions)
+       |> assign(:has_more_revisions?, has_more_revisions?)
        |> assign(
          :head_title,
          "#{automation.name} · #{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist"
@@ -37,6 +42,17 @@ defmodule TuistWeb.ProjectAutomationLive do
         raise TuistWeb.Errors.NotFoundError,
               dgettext("dashboard_projects", "Automation not found.")
     end
+  end
+
+  @impl true
+  def handle_event("show_more_revisions", _params, socket) do
+    {revisions, has_more_revisions?} =
+      fetch_revisions(socket.assigns.automation.id, List.last(socket.assigns.revisions))
+
+    {:noreply,
+     socket
+     |> update(:revisions, &(&1 ++ revisions))
+     |> assign(:has_more_revisions?, has_more_revisions?)}
   end
 
   def automation_summary(automation), do: ProjectAutomationsLive.automation_summary(automation)
@@ -288,4 +304,14 @@ defmodule TuistWeb.ProjectAutomationLive do
 
   defp window_summary(config) when is_map(config), do: config["window"] || "30d"
   defp window_summary(_config), do: "30d"
+
+  defp fetch_revisions(automation_id, before \\ nil) do
+    revisions =
+      Automations.list_alert_revisions(automation_id,
+        before: before,
+        limit: @history_page_size + 1
+      )
+
+    {Enum.take(revisions, @history_page_size), length(revisions) > @history_page_size}
+  end
 end

@@ -67,13 +67,32 @@ defmodule Tuist.Automations do
     end
   end
 
-  def list_alert_revisions(alert_id) do
+  def list_alert_revisions(alert_id, opts \\ []) do
     Revision
     |> where(automation_alert_id: ^alert_id)
+    |> before_alert_revision(Keyword.get(opts, :before))
     |> order_by(desc: :inserted_at, desc: :id)
+    |> limit_alert_revisions(Keyword.get(opts, :limit))
     |> preload(actor: :account)
     |> Repo.all()
   end
+
+  defp before_alert_revision(query, nil), do: query
+
+  defp before_alert_revision(query, %Revision{inserted_at: inserted_at, id: id}) do
+    where(
+      query,
+      [revision],
+      revision.inserted_at < ^inserted_at or
+        (revision.inserted_at == ^inserted_at and revision.id < ^id)
+    )
+  end
+
+  defp limit_alert_revisions(query, limit) when is_integer(limit) and limit > 0 do
+    limit(query, ^limit)
+  end
+
+  defp limit_alert_revisions(query, _limit), do: query
 
   def create_alert(attrs, opts \\ []) do
     Multi.new()

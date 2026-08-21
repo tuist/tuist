@@ -9,8 +9,8 @@ defmodule Tuist.AutomationsTest do
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.Repo
-  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Tests
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -148,6 +148,14 @@ defmodule Tuist.AutomationsTest do
 
       refute get_in(updated_revision.snapshot, ["trigger_actions", Access.at(1), "webhook_url_encrypted"])
       assert created_revision.event == "created"
+
+      assert [newest_revision] = Automations.list_alert_revisions(automation.id, limit: 1)
+      assert newest_revision.id == updated_revision.id
+
+      assert [oldest_revision] =
+               Automations.list_alert_revisions(automation.id, limit: 1, before: newest_revision)
+
+      assert oldest_revision.id == created_revision.id
     end
 
     test "does not record a revision when configuration is unchanged" do

@@ -125,6 +125,16 @@
             <span>{dgettext("dashboard_projects", "No configuration changes recorded yet")}</span>
           </div>
         </div>
+
+        <div :if={@has_more_revisions?} data-part="history-load-more">
+          <.button
+            id="show-more-history"
+            label={dgettext("dashboard_projects", "Show more")}
+            variant="secondary"
+            size="medium"
+            phx-click="show_more_revisions"
+          />
+        </div>
       </div>
     </.card_section>
   </.card>
