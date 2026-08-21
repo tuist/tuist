@@ -87,18 +87,24 @@ dictate this shape — do not regress them:
 - **Reconcile model:** event-driven with a slow backstop (the same split
   Cilium's bandwidth manager uses). Field-selected pod/node informers kick a
   debounced converge (only shaped-pod events and egress-capacity changes
-  trigger); `RECONCILE_INTERVAL` (default 2m) is the periodic sweep that
-  repairs what no event reports — stripped tcx links, deleted trampoline
-  devices, stale pins. A Running pod whose Cilium endpoint has not appeared
-  yet requeues a quick retry (endpoint creation emits no pod event), so
-  `skipped_pods` clears in seconds rather than flapping until the backstop.
+  trigger); a netlink link watch on the trampoline pair kicks the same
+  trigger, because a deleted/downed trampoline drops shaped traffic and the
+  informers cannot see it. `RECONCILE_INTERVAL` (default 2m) is the periodic
+  sweep that repairs what no event reports — stripped tcx links, stale pins.
+  A Running pod whose Cilium endpoint has not appeared yet, and a failed
+  return-program attach, requeue a quick retry, so `skipped_pods` clears in
+  seconds rather than flapping until the backstop.
 
 ## Fail-safe invariants (do not weaken)
 
 - The return program is confirmed attached before any pod program is
   attached or kept. Without a return program, packets surfacing on
   `kura-egress1` are dropped (IPv4 forwarding is disabled on both trampoline
-  ends), never forwarded around Cilium.
+  ends), never forwarded around Cilium. Because already-attached pod
+  programs keep redirecting into that drop, a failed return attach logs
+  every attempt (error level), retries fast, and after
+  `RETURN_ATTACH_MAX_FAILURES` consecutive failures (default 3) the agent
+  detaches every pod program — unshaped beats blackholed.
 - An unconfigured/partially configured pod program passes packets to Cilium
   unshaped rather than blackholing.
 - With the agent absent or failing, pods run unshaped on the node-local leg
@@ -126,6 +132,8 @@ replaced, re-run the policy bypass experiments first.
 
 `:9469/metrics`. Alert on: `kura_egress_tree_direct_packets` growth,
 `kura_egress_tree_return_dropped_packets` growth,
+`kura_egress_tree_return_attach_failures_total` growth (a failing return
+attach blackholes shaped pods until the detach threshold),
 `kura_egress_tree_link_reattach_total` churn after steady state,
 `kura_egress_tree_skipped_pods` > 0, and per-class floor violations under
 contention (`kura_egress_tree_class_sent_bytes` rate vs the floor).

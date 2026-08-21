@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -36,6 +37,12 @@ type Agent struct {
 	// the normal reconcile: newly matched pods attach, no-longer-matched
 	// pods detach via stale-pin cleanup within one cycle.
 	BetaPodPrefix string
+	// ReturnDetachAfter is the number of consecutive return-program attach
+	// failures after which every pod program is detached. Attached pod
+	// programs redirect into the trampoline, and without a return program
+	// those packets drop at the peer — past this threshold, unshaped beats
+	// blackholed.
+	ReturnDetachAfter int
 
 	// Pods and Nodes are informer-backed listers, field-selected to this
 	// node by main. Reconcile reads only the local cache; the watch events
@@ -55,6 +62,9 @@ type Agent struct {
 	appliedBudget  int64
 	appliedClasses map[uint16]TenantClass
 	appliedPods    map[string]appliedPod
+
+	// Consecutive EnsureReturn failures; reset on success.
+	returnFailures int
 }
 
 // appliedPod is the logged-state fingerprint of one attached pod.
@@ -65,9 +75,9 @@ type appliedPod struct {
 }
 
 // Reconcile runs one convergence cycle. requeue asks the caller for a quick
-// retry: a shaped pod is Running but its Cilium endpoint (the lxc* device)
-// does not exist yet, and endpoint creation emits no pod event, so only a
-// timer can pick it up.
+// retry, for the two conditions no watch event reports: a Running pod whose
+// Cilium endpoint (the lxc* device) does not exist yet, and a return program
+// that failed to attach.
 func (a *Agent) Reconcile(ctx context.Context) (requeue bool, err error) {
 	a.Metrics.ReconcileTotal.Inc()
 	requeue, err = a.reconcile(ctx)
@@ -124,9 +134,9 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 	a.logClassChanges(classes)
 	// Hard ordering: no pod program without a confirmed return path.
 	if err := a.Attacher.EnsureReturn(a.Tree.ReturnDev); err != nil {
-		a.Metrics.AttachedPods.Set(0)
-		return false, fmt.Errorf("return program not attachable, leaving pods unshaped: %w", err)
+		return a.handleReturnFailure(err)
 	}
+	a.returnFailures = 0
 
 	interfaces, err := a.Endpoints.Interfaces(ctx)
 	if err != nil {
@@ -187,6 +197,32 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 
 	a.exportStats(ctx, attachments, deviceOf)
 	return requeue, nil
+}
+
+// handleReturnFailure escalates a failed return-program attach. While pod
+// programs stay attached, their shaped packets drop at the trampoline peer
+// (fail-close); after ReturnDetachAfter consecutive failures the pod
+// programs are detached so pods run unshaped instead. Always requeues a fast
+// retry.
+func (a *Agent) handleReturnFailure(cause error) (bool, error) {
+	a.returnFailures++
+	a.Metrics.ReturnAttachFailures.Inc()
+	a.Log.Error("return program attach failed; shaped pods drop at the trampoline peer until it attaches",
+		"attempt", a.returnFailures, "detach_after", a.ReturnDetachAfter, "error", cause)
+	if a.returnFailures < a.ReturnDetachAfter {
+		return true, fmt.Errorf("return program not attachable: %w", cause)
+	}
+	a.Log.Warn("detaching all pod programs: the return program stayed unattachable; pods run unshaped",
+		"failures", a.returnFailures)
+	for key, old := range a.appliedPods {
+		a.Log.Info("removed pod shaping", "pod", key, "device", old.Device)
+		delete(a.appliedPods, key)
+	}
+	a.Metrics.AttachedPods.Set(0)
+	if err := a.Attacher.CleanupStale(map[string]bool{}); err != nil {
+		return true, fmt.Errorf("return program not attachable and pod detach failed: %w", errors.Join(cause, err))
+	}
+	return true, fmt.Errorf("return program not attachable, pod programs detached: %w", cause)
 }
 
 // logClassChanges logs tenant-class additions and parameter updates against

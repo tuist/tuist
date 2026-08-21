@@ -9,22 +9,23 @@ import (
 // they reset with the device or map, and rate() over a gauge of a
 // monotonically increasing kernel counter is the intended query shape.
 type Metrics struct {
-	ReconcileTotal    prometheus.Counter
-	ReconcileErrors   prometheus.Counter
-	AttachedPods      prometheus.Gauge
-	SkippedPods       prometheus.Gauge
-	BetaExcludedPods  prometheus.Gauge
-	LinkReattaches    prometheus.Counter
-	NodeBudgetMbps    prometheus.Gauge
-	ClassSentBytes    *prometheus.GaugeVec
-	ClassDrops        *prometheus.GaugeVec
-	ClassBacklogBytes *prometheus.GaugeVec
-	DirectPackets     prometheus.Gauge
-	PodRedirected     *prometheus.GaugeVec
-	PodGuardPass      *prometheus.GaugeVec
-	PodSiblingBypass  *prometheus.GaugeVec
-	Returned          prometheus.Gauge
-	ReturnDropped     prometheus.Gauge
+	ReconcileTotal       prometheus.Counter
+	ReconcileErrors      prometheus.Counter
+	AttachedPods         prometheus.Gauge
+	ReturnAttachFailures prometheus.Counter
+	SkippedPods          prometheus.Gauge
+	BetaExcludedPods     prometheus.Gauge
+	LinkReattaches       prometheus.Counter
+	NodeBudgetMbps       prometheus.Gauge
+	ClassSentBytes       *prometheus.GaugeVec
+	ClassDrops           *prometheus.GaugeVec
+	ClassBacklogBytes    *prometheus.GaugeVec
+	DirectPackets        prometheus.Gauge
+	PodRedirected        *prometheus.GaugeVec
+	PodGuardPass         *prometheus.GaugeVec
+	PodSiblingBypass     *prometheus.GaugeVec
+	Returned             prometheus.Gauge
+	ReturnDropped        prometheus.Gauge
 }
 
 func NewMetrics(registry prometheus.Registerer) *Metrics {
@@ -40,6 +41,10 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 		AttachedPods: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "kura_egress_tree_attached_pods",
 			Help: "Pod devices with the shaper program attached.",
+		}),
+		ReturnAttachFailures: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "kura_egress_tree_return_attach_failures_total",
+			Help: "Failed attempts to attach the return program.",
 		}),
 		SkippedPods: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "kura_egress_tree_skipped_pods",
@@ -95,7 +100,8 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 		}),
 	}
 	registry.MustRegister(
-		m.ReconcileTotal, m.ReconcileErrors, m.AttachedPods, m.SkippedPods, m.BetaExcludedPods,
+		m.ReconcileTotal, m.ReconcileErrors, m.AttachedPods, m.ReturnAttachFailures,
+		m.SkippedPods, m.BetaExcludedPods,
 		m.LinkReattaches, m.NodeBudgetMbps, m.ClassSentBytes, m.ClassDrops,
 		m.ClassBacklogBytes, m.DirectPackets, m.PodRedirected, m.PodGuardPass,
 		m.PodSiblingBypass, m.Returned, m.ReturnDropped,

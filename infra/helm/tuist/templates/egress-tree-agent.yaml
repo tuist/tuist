@@ -97,6 +97,8 @@ spec:
               value: {{ .Values.egressTreeAgent.reconcileInterval | quote }}
             - name: LOG_LEVEL
               value: {{ .Values.egressTreeAgent.logLevel | quote }}
+            - name: RETURN_ATTACH_MAX_FAILURES
+              value: {{ .Values.egressTreeAgent.returnAttachMaxFailures | quote }}
             - name: METRICS_ADDR
               value: ":{{ .Values.egressTreeAgent.metricsPort }}"
             - name: DEFAULT_NODE_EGRESS_MBPS

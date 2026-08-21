@@ -271,6 +271,10 @@ egressTreeAgent:
   metricsPort: 9469
   # Agent log level: debug, info, warn, or error.
   logLevel: info
+  # Consecutive return-program attach failures after which the agent
+  # detaches every pod program (shaped packets drop at the trampoline peer
+  # without a return program; unshaped beats blackholed).
+  returnAttachMaxFailures: 3
   # Beta-rollout gate: when set, the agent attaches its BPF programs only to
   # pods whose name starts with this prefix (e.g. "kura-<account>-"); every
   # other annotated pod stays on the unshaped Cilium-only path and is counted

@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/vishvananda/netlink"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -34,10 +36,12 @@ const (
 	// reconciling, so one converge covers a whole pod churn (and a pod's
 	// Running event has a moment for its Cilium endpoint to appear).
 	debounceWindow = time.Second
-	// endpointRetryDelay is the requeue delay for the one gap events cannot
-	// see: a Running pod whose Cilium endpoint (lxc* device) does not exist
-	// yet. Endpoint creation emits no pod event.
-	endpointRetryDelay = 2 * time.Second
+	// retryDelay is the requeue delay for the conditions no watch event
+	// reports: a Running pod whose Cilium endpoint (lxc* device) does not
+	// exist yet, and a return program that failed to attach.
+	retryDelay = 2 * time.Second
+	// resubscribeDelay paces netlink subscription retries.
+	resubscribeDelay = 5 * time.Second
 	// cycleTimeout bounds one reconcile (API cache reads, tc/ip shell-outs,
 	// BPF attach) independently of the backstop interval.
 	cycleTimeout = time.Minute
@@ -63,6 +67,11 @@ func main() {
 	ciliumSock := envOr("CILIUM_SOCK", "/var/run/cilium/cilium.sock")
 	pinRoot := envOr("BPF_PIN_ROOT", "/sys/fs/bpf/kura-egress-tree")
 	defaultNodeMbps := int64Env(logger, "DEFAULT_NODE_EGRESS_MBPS", 0)
+	returnDetachAfter := int64Env(logger, "RETURN_ATTACH_MAX_FAILURES", 3)
+	if returnDetachAfter < 1 {
+		logger.Error("RETURN_ATTACH_MAX_FAILURES must be at least 1", "value", returnDetachAfter)
+		os.Exit(1)
+	}
 
 	client, err := kubernetesClient()
 	if err != nil {
@@ -141,20 +150,27 @@ func main() {
 		return
 	}
 
+	// The informers cannot see the trampoline pair, and a deleted or downed
+	// trampoline drops shaped traffic until repaired — too important to wait
+	// out the backstop interval. A netlink link watch closes that gap.
+	go watchTrampolineLinks(ctx, logger,
+		map[string]bool{trampolineDev: true, returnDev: true}, kick)
+
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewGoCollector())
 
 	a := &agent.Agent{
-		NodeName:        nodeName,
-		DefaultNodeMbps: defaultNodeMbps,
-		BetaPodPrefix:   os.Getenv("BETA_POD_PREFIX"),
-		Pods:            podInformer.Lister(),
-		Nodes:           nodeInformer.Lister(),
-		Endpoints:       agent.NewEndpointResolver(ciliumSock),
-		Tree:            agent.Tree{TrampolineDev: trampolineDev, ReturnDev: returnDev, Log: logger},
-		Attacher:        agent.Attacher{PinRoot: pinRoot, Log: logger},
-		Metrics:         agent.NewMetrics(registry),
-		Log:             logger,
+		NodeName:          nodeName,
+		DefaultNodeMbps:   defaultNodeMbps,
+		BetaPodPrefix:     os.Getenv("BETA_POD_PREFIX"),
+		ReturnDetachAfter: int(returnDetachAfter),
+		Pods:              podInformer.Lister(),
+		Nodes:             nodeInformer.Lister(),
+		Endpoints:         agent.NewEndpointResolver(ciliumSock),
+		Tree:              agent.Tree{TrampolineDev: trampolineDev, ReturnDev: returnDev, Log: logger},
+		Attacher:          agent.Attacher{PinRoot: pinRoot, Log: logger},
+		Metrics:           agent.NewMetrics(registry),
+		Log:               logger,
 	}
 
 	mux := http.NewServeMux()
@@ -198,7 +214,47 @@ func main() {
 			logger.Error("reconcile", "error", err)
 		}
 		if requeue {
-			time.AfterFunc(endpointRetryDelay, kick)
+			time.AfterFunc(retryDelay, kick)
+		}
+	}
+}
+
+// watchTrampolineLinks kicks a reconcile on any link event for the
+// trampoline pair. Reconcile is idempotent and debounced, so over-triggering
+// is harmless; a no-op `ip link set up` on an unchanged device emits no
+// netlink event, so steady-state cycles do not self-trigger.
+func watchTrampolineLinks(ctx context.Context, logger *slog.Logger, devices map[string]bool, kick func()) {
+	for ctx.Err() == nil {
+		err := func() error {
+			updates := make(chan netlink.LinkUpdate)
+			done := make(chan struct{})
+			defer close(done)
+			if err := netlink.LinkSubscribe(updates, done); err != nil {
+				return err
+			}
+			for {
+				select {
+				case <-ctx.Done():
+					return nil
+				case update, ok := <-updates:
+					if !ok {
+						return errors.New("netlink update channel closed")
+					}
+					if devices[update.Link.Attrs().Name] {
+						kick()
+					}
+				}
+			}
+		}()
+		if ctx.Err() != nil {
+			return
+		}
+		logger.Error("trampoline link watch failed; repair falls back to the backstop interval until it resubscribes",
+			"error", err)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(resubscribeDelay):
 		}
 	}
 }
