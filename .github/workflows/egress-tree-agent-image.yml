@@ -15,6 +15,7 @@ on:
       - infra/egress-tree-agent/**
       - .github/workflows/egress-tree-agent-image.yml
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - infra/egress-tree-agent/**
       - .github/workflows/egress-tree-agent-image.yml
