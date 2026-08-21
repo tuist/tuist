@@ -705,39 +705,21 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Only a definitive 404 means "never published". Anything else
-          # (auth, rate limit, a blip) is treated as published, so a flaky
-          # check can never silently downgrade a component.
+          # Shared with the release path's tag gate so the two can never
+          # disagree about the same image. The checkout is pinned to
+          # DEPLOY_SHA, so a re-promote of a commit predating the script
+          # simply skips the check — those pins already deployed once.
+          probe=.github/scripts/ghcr-image-published.sh
           image_published() {
-            repository="$1"
-            tag="$2"
-            auth=()
-            if [ -n "${GITHUB_TOKEN:-}" ]; then
-              auth=(-u "x-access-token:${GITHUB_TOKEN}")
-            fi
-            token="$(
-              curl -sSL --max-time 30 "${auth[@]}" \
-                "https://ghcr.io/token?service=ghcr.io&scope=repository:${repository}:pull" \
-                | sed -n 's/.*"token":"\([^"]*\)".*/\1/p'
-            )" || return 0
-            [ -n "$token" ] || return 0
-            status="$(
-              curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -I \
-                -H "Authorization: Bearer ${token}" \
-                -H 'Accept: application/vnd.oci.image.index.v1+json' \
-                -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
-                -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
-                -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' \
-                "https://ghcr.io/v2/${repository}/manifests/${tag}"
-            )" || return 0
-            [ "$status" != "404" ]
+            [ -x "$probe" ] || return 0
+            "$probe" "$1" "$2"
           }
 
           # $1 tag prefix, $2 GHCR repository the version is pinned into.
           # An empty $2 skips the publication check: the macOS runner image
           # fans one semver out into a `macos-<xcode>-<semver>` tag per Xcode
-          # profile, so there is no single manifest to probe, and its tag is
-          # only cut when the whole build matrix succeeded.
+          # profile, so there is no single manifest to probe here. The
+          # release path checks every profile tag before cutting the semver.
           resolve() {
             prefix="$1"
             repository="${2:-}"
