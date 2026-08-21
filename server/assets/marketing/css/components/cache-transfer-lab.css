@@ -23,9 +23,9 @@
 }
 
 .cache-transfer-lab__range input {
-  width: 100%;
-  margin: var(--noora-spacing-1) 0 0;
   cursor: pointer;
+  margin: var(--noora-spacing-1) 0 0;
+  width: 100%;
   accent-color: var(--noora-button-primary-background);
 }
 
@@ -63,28 +63,28 @@
 
 .cache-transfer-lab__legend-swatch {
   display: inline-block;
+  border-radius: var(--noora-radius-small);
   width: var(--noora-spacing-3);
   height: var(--noora-spacing-3);
-  border-radius: var(--noora-radius-small);
 }
 
 .cache-transfer-lab__legend-swatch--latency,
 .cache-transfer-lab__latency {
-  background: var(--noora-button-primary-background);
   fill: var(--noora-button-primary-background);
+  background: var(--noora-button-primary-background);
 }
 
 .cache-transfer-lab__legend-swatch--transfer,
 .cache-transfer-lab__transfer {
-  background: var(--noora-neutral-light-700);
   fill: var(--noora-neutral-light-700);
+  background: var(--noora-neutral-light-700);
 }
 
 .cache-transfer-lab__chart {
   display: block;
+  margin-top: var(--noora-spacing-4);
   width: 100%;
   height: auto;
-  margin-top: var(--noora-spacing-4);
   overflow: visible;
 }
 
@@ -151,10 +151,10 @@
 
   .cache-transfer-lab__mobile-bar {
     display: flex;
-    height: var(--noora-spacing-3);
-    overflow: hidden;
     border-radius: var(--noora-radius-small);
     background: var(--noora-neutral-light-300);
+    height: var(--noora-spacing-3);
+    overflow: hidden;
   }
 
   .cache-transfer-lab__mobile-bar span {
