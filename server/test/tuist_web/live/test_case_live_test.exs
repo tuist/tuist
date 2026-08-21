@@ -217,10 +217,62 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       # Then - the empty days are gaps, not runs that took no time
       [average | _] = chart_option(lv, "test-case-duration-chart")["series"]
-      values = Enum.map(average["data"], &List.last/1)
+      values = Enum.map(average["data"], &point_value/1)
 
       assert Enum.any?(values, &is_nil/1)
       refute 0 in values
+    end
+
+    test "points a day that stands alone so the line has something to draw", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - runs today and three days ago, so neither day has a neighbour
+      test_case_id = seed_runs_across_time(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-selected-widget=duration"
+        )
+
+      render_async(lv)
+
+      # Then - a lone day carries a symbol, since a line alone would draw nothing
+      [average | _] = chart_option(lv, "test-case-duration-chart")["series"]
+
+      {measured, empty} = Enum.split_with(average["data"], &(not is_nil(point_value(&1))))
+
+      # A series that draws no symbol at all would make the sizes below inert
+      assert average["symbol"] == "circle"
+      assert Enum.any?(measured)
+      assert Enum.all?(measured, &(&1["symbolSize"] > 0))
+      assert Enum.all?(empty, &(&1["symbolSize"] == 0))
+    end
+
+    test "leaves a day that neighbours another bare, so a run of days reads as a line", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - runs on consecutive days
+      test_case_id = seed_consecutive_runs(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-selected-widget=duration"
+        )
+
+      render_async(lv)
+
+      # Then
+      [average | _] = chart_option(lv, "test-case-duration-chart")["series"]
+
+      assert Enum.all?(average["data"], &(&1["symbolSize"] == 0))
     end
 
     test "replaces the duration chart with an empty state when the period holds no runs", %{
@@ -582,7 +634,7 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       # Then - a day with no runs has no flakiness rate, and 0% would claim otherwise
       [flakiness] = chart_option(lv, "test-case-analytics-chart")["series"]
-      values = Enum.map(flakiness["data"], &List.last/1)
+      values = Enum.map(flakiness["data"], &point_value/1)
 
       assert Enum.any?(values, &is_nil/1)
     end
@@ -831,6 +883,23 @@ defmodule TuistWeb.TestCaseLiveTest do
     test_case_run.test_case_id
   end
 
+  defp seed_consecutive_runs(project) do
+    test_case_run = passing_test_case_run(project)
+
+    for days_ago <- [1, 2] do
+      ran_at = DateTime.utc_now() |> DateTime.add(-days_ago, :day) |> DateTime.to_naive()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_run.test_case_id,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      )
+    end
+
+    test_case_run.test_case_id
+  end
+
   defp seed_runs_of_every_outcome(project) do
     test_case_run = passing_test_case_run(project)
 
@@ -868,6 +937,9 @@ defmodule TuistWeb.TestCaseLiveTest do
   # caps its bar.
   defp segment_count(%{"value" => count}), do: count
   defp segment_count(count), do: count
+
+  # A line point is `[date, value]` wrapped in the symbol the bucket draws.
+  defp point_value(%{"value" => [_date, value]}), do: value
 
   defp chart_option(lv, chart_id) do
     lv
