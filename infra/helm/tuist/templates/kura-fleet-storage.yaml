@@ -417,6 +417,20 @@ data:
       # hostPID to address PID 1 at all, privileged for the CAP_SYS_ADMIN that
       # quotactl requires. The busybox image supplies only nsenter; every tool
       # the hooks actually run comes from the host.
+      #
+      # `--root` is deliberately NOT passed, and is not needed. Entering a mount
+      # namespace already moves the process root: setns(CLONE_NEWNS) dispatches
+      # to mntns_install() in fs/namespace.c, which ends with set_fs_pwd() and
+      # set_fs_root() onto the target namespace's root. So `findmnt` and
+      # `xfs_quota` resolve from the host, not from busybox, which has neither.
+      # This is the same mechanism `kubectl node-shell` relies on.
+      #
+      # It reads like a bug and has been raised as one twice, so it is settled
+      # empirically rather than by argument: the rendered hook has been run
+      # verbatim inside a busybox container with --pid=host against a real XFS
+      # filesystem, and applied a working ceiling. Reproduce by running the
+      # ConfigMap's `setup` under `docker run --privileged --pid=host busybox sh`
+      # on a host with an xfs /data mounted with prjquota.
       hostPID: true
       containers:
         - name: helper-pod
