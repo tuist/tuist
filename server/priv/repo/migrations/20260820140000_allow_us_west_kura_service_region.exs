@@ -1,19 +1,11 @@
-defmodule Tuist.Repo.Migrations.AllowUsWestAndEuAirKuraServiceRegions do
+defmodule Tuist.Repo.Migrations.AllowUsWestKuraServiceRegion do
   use Ecto.Migration
 
-  # Widens the column to the two region ids the original constraint predates.
-  #
   # `us-west` is a real service region that this table is the only route into:
   # `accounts.region` is `all | europe | usa`, and neither `usa` nor `all`
   # derives to it, so an account reaches us-west by explicit assignment or not
-  # at all. The constraint rejecting it made that placement impossible.
-  #
-  # `eu-air` is the European Air pool, added so the column's vocabulary stays
-  # aligned with the region catalog. The application-level assignable set
-  # (`Tuist.Kura.AccountRegionPolicy`) deliberately stays narrower and excludes
-  # it: that pool is a single best-effort box with no recovery machine behind
-  # it, sized for Air's memory profile, and pinning a paid account there would
-  # undo the tier separation the pool exists to keep.
+  # at all. The constraint predates the region and was rejecting it, which made
+  # that placement impossible to record.
   def up do
     drop constraint(
            :kura_account_region_policies,
@@ -24,7 +16,7 @@ defmodule Tuist.Repo.Migrations.AllowUsWestAndEuAirKuraServiceRegions do
     create constraint(
              :kura_account_region_policies,
              :kura_account_region_policies_service_region_valid,
-             check: "service_region IN ('us-east', 'eu-central', 'us-west', 'eu-air')"
+             check: "service_region IN ('us-east', 'eu-central', 'us-west')"
            )
   end
 

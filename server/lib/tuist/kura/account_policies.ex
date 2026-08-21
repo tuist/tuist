@@ -8,8 +8,9 @@ defmodule Tuist.Kura.AccountPolicies do
   region is served from it and never from another, whatever the plan.
 
   Air runs in United States East for an account that named no region, and in
-  Europe's own Air pool for an account that named Europe. Paid accounts with a
-  country group resolve deterministically to that group's pool. A paid account
+  whichever region the deployment serves Air from in Europe for an account that
+  named Europe. Paid accounts with a country group resolve deterministically to
+  that group's pool. A paid account
   that allows every region has stated no constraint, so it resolves in this
   order:
 
@@ -190,18 +191,19 @@ defmodule Tuist.Kura.AccountPolicies do
   defp effective_service_region(%Account{region: region}, :air, _lookups) when region in [:all, :usa],
     do: {:ok, Environment.kura_air_region(region)}
 
-  # Europe's Air pool is a separate box from the paid European one, so it
-  # resolves only where the deployment serves it. Until then these accounts are
-  # refused, as they are today, rather than placed in the United States: the
-  # storage region they chose names the module cache binaries a Kura instance
-  # holds.
+  # An Air account that chose Europe is refused rather than placed in the United
+  # States pool the rest of Air runs in: the storage region it chose names the
+  # module cache binaries a Kura instance holds. Which European region serves
+  # Air is a deployment decision, so this resolves only once one names a region
+  # and that region is actually served. Nothing names one today, so these
+  # accounts keep exactly the answer they get now.
   defp effective_service_region(%Account{region: :europe}, :air, _lookups) do
-    region = Environment.kura_air_region(:europe)
+    case Environment.kura_air_region(:europe) do
+      region when is_binary(region) ->
+        if Regions.available?(region), do: {:ok, region}, else: {:error, :service_region_unavailable}
 
-    if Regions.available?(region) do
-      {:ok, region}
-    else
-      {:error, :service_region_unavailable}
+      _ ->
+        {:error, :service_region_unavailable}
     end
   end
 

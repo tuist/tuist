@@ -174,7 +174,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
                {:ok, %{plan: :air, service_region: "us-east"}}
     end
 
-    test "refuses a Europe-restricted Air account until the European Air pool is deployed" do
+    test "refuses a Europe-restricted Air account until a deployment serves Air in Europe" do
       account = update_region!(organization_account(), :europe)
 
       assert AccountPolicies.resolve(account) == {:error, :service_region_unavailable}
@@ -271,16 +271,14 @@ defmodule Tuist.Kura.AccountPoliciesTest do
                {:ok, %{plan: :enterprise, service_region: "us-west"}}
     end
 
-    test "rejects the plan-scoped Air pool as an assignment target" do
-      # A single best-effort box with no recovery machine, sized for Air. A paid
-      # account pinned there would undo the tier separation it exists to keep.
+    test "rejects a region outside the assignable set" do
       account = organization_account()
       actor = AccountsFixtures.user_fixture()
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
 
       assert AccountPolicies.assign_service_region(
                account,
-               "eu-air",
+               "ca-east",
                actor,
                "Unsupported placement"
              ) == {:error, :service_region_unavailable}
@@ -363,8 +361,8 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       assert Environment.kura_air_region(:usa) == "us-east"
     end
 
-    test "is its own European pool for an account that chose Europe" do
-      assert Environment.kura_air_region(:europe) == "eu-air"
+    test "is unnamed for Europe until a deployment serves Air from there" do
+      assert Environment.kura_air_region(:europe) == nil
     end
 
     test "is where an Air account resolves" do
@@ -388,21 +386,31 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "eu-central"}}
     end
 
-    test "keeps a Europe-restricted Air account in Europe once the pool is deployed" do
+    test "keeps a Europe-restricted Air account in Europe once a deployment serves it" do
       account = update_region!(organization_account(), :europe)
 
-      deploy_regions(["us-east", "eu-central", "eu-air"])
+      stub(Environment, :kura_air_region, fn :europe -> "eu-central" end)
+      deploy_regions(["us-east", "eu-central"])
 
-      assert AccountPolicies.resolve(account) == {:ok, %{plan: :air, service_region: "eu-air"}}
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :air, service_region: "eu-central"}}
     end
 
-    test "never places a Europe-restricted Air account in the United States" do
+    test "refuses a Europe-restricted Air account while no deployment serves Air in Europe" do
       # "Storage region" names module cache binaries, which is what a Kura
       # instance holds, so an account that chose Europe is refused rather than
-      # served from the Air pool that happens to be running.
+      # served from the United States pool the rest of Air runs in.
       account = update_region!(organization_account(), :europe)
 
       deploy_regions(["us-east", "eu-central"])
+
+      assert AccountPolicies.resolve(account) == {:error, :service_region_unavailable}
+    end
+
+    test "refuses a Europe-restricted Air account when the named region is not served here" do
+      account = update_region!(organization_account(), :europe)
+
+      stub(Environment, :kura_air_region, fn :europe -> "eu-central" end)
+      deploy_regions(["us-east"])
 
       assert AccountPolicies.resolve(account) == {:error, :service_region_unavailable}
     end

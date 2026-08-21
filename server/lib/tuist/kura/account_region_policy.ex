@@ -21,10 +21,6 @@ defmodule Tuist.Kura.AccountRegionPolicy do
   # for latency rather than derived. Air can never land there either, because
   # Air resolves from the storage-region preference and never from an
   # assignment.
-  #
-  # Narrower than the region catalog and than the column's CHECK constraint:
-  # the Air pools serve one plan on hardware sized for it, so they are never an
-  # assignment target.
   @service_regions ["us-east", "eu-central", "us-west"]
 
   @primary_key {:id, UUIDv7, autogenerate: true}

@@ -255,11 +255,10 @@ defmodule Tuist.Kura.RegionsTest do
     test "gives every provisionable region the location of the datacenter it runs in" do
       locations = %{
         # OVH Vint Hill VA / Hillsboro OR, Scaleway Dedibox (Paris region),
-        # OVHcloud Roubaix and BHS in Quebec, Scaleway Elastic Metal fr-par.
+        # OVHcloud BHS in Quebec, Scaleway Elastic Metal fr-par.
         "us-east" => %{country: "US", subdivision: "US-VA"},
         "us-west" => %{country: "US", subdivision: "US-OR"},
         "eu-central" => %{country: "FR", subdivision: "FR-IDF"},
-        "eu-air" => %{country: "FR", subdivision: "FR-HDF"},
         "ca-east" => %{country: "CA", subdivision: "CA-QC"},
         "scw-fr-par-runners" => %{country: "FR", subdivision: "FR-IDF"}
       }
@@ -414,54 +413,6 @@ defmodule Tuist.Kura.RegionsTest do
       assert "scw-fr-par-runners" in available_ids
       refute "scw-fr-par-runners" in selectable_ids
       assert "eu-central" in selectable_ids
-    end
-
-    test "excludes the plan-scoped Air pool a customer must not put a paid server on" do
-      stub(Tuist.Environment, :dev?, fn -> false end)
-      stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-central", "eu-air"] end)
-
-      available_ids = Enum.map(Regions.available(), & &1.id)
-      selectable_ids = Enum.map(Regions.selectable(), & &1.id)
-
-      assert "eu-air" in available_ids
-      refute "eu-air" in selectable_ids
-      assert "eu-central" in selectable_ids
-    end
-  end
-
-  describe "the European Air region" do
-    test "runs on its own node pool rather than a share of the paid European one" do
-      assert %Regions{provisioner: KubernetesController, provisioner_config: air} =
-               Regions.get("eu-air")
-
-      paid = Regions.get("eu-central").provisioner_config
-      pool_label = "node.cluster.x-k8s.io/pool"
-
-      assert air.node_selector[pool_label] == "kura-eu-air"
-      assert air.node_selector[pool_label] != paid.node_selector[pool_label]
-      assert air.ingress_class_name != paid.ingress_class_name
-      assert air.cluster_id == "eu-air-1"
-    end
-
-    test "is inert until the deployment lists it" do
-      stub(Tuist.Environment, :dev?, fn -> false end)
-      stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-central", "us-east"] end)
-
-      refute Regions.available?("eu-air")
-    end
-
-    test "is plan-scoped, unlike the paid regions" do
-      assert Regions.plan_scoped?(Regions.get("eu-air"))
-      refute Regions.plan_scoped?(Regions.get("eu-central"))
-      refute Regions.plan_scoped?(Regions.get("us-east"))
-      refute Regions.plan_scoped?(nil)
-    end
-
-    test "carries a single replica, because a best-effort pool has no standby to fail over to" do
-      assert Regions.get("eu-air").provisioner_config.replicas == 1
-      assert Regions.get("eu-central").provisioner_config.replicas == 2
     end
   end
 
