@@ -96,13 +96,9 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
     }
 
     public func homeRelativePathString(_ path: AbsolutePath) -> String {
-        let pathString = path.pathString
-        let homeDirectoryPathString = homeDirectory.pathString
-        if pathString.hasPrefix(homeDirectoryPathString) {
-            return "$HOME" + pathString.dropFirst(homeDirectoryPathString.count)
-        } else {
-            return pathString
-        }
+        guard path.isDescendantOfOrEqual(to: homeDirectory) else { return path.pathString }
+        let relativePath = path.relative(to: homeDirectory).pathString
+        return relativePath == "." ? "$HOME" : "$HOME/\(relativePath)"
     }
 
     public func casProxyLaunchAgentLabel() -> String {

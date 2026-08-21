@@ -418,13 +418,7 @@ public struct Environment: Environmenting {
     }
 
     public func cacheSocketPathString(for fullHandle: String) -> String {
-        let socketPathString = cacheSocketPath(for: fullHandle).pathString
-        let homeDirectoryPathString = homeDirectory.pathString
-        if socketPathString.hasPrefix(homeDirectoryPathString) {
-            return "$HOME" + socketPathString.dropFirst(homeDirectoryPathString.count)
-        } else {
-            return socketPathString
-        }
+        homeRelativePathString(cacheSocketPath(for: fullHandle))
     }
 
     public func cacheLaunchAgentLabel(for fullHandle: String) -> String {
@@ -447,13 +441,9 @@ public struct Environment: Environmenting {
     }
 
     public func homeRelativePathString(_ path: AbsolutePath) -> String {
-        let pathString = path.pathString
-        let homeDirectoryPathString = homeDirectory.pathString
-        if pathString.hasPrefix(homeDirectoryPathString) {
-            return "$HOME" + pathString.dropFirst(homeDirectoryPathString.count)
-        } else {
-            return pathString
-        }
+        guard path.isDescendantOfOrEqual(to: homeDirectory) else { return path.pathString }
+        let relativePath = path.relative(to: homeDirectory).pathString
+        return relativePath == "." ? "$HOME" : "$HOME/\(relativePath)"
     }
 
     public func casProxyLaunchAgentLabel() -> String {
