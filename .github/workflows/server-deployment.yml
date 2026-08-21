@@ -690,21 +690,79 @@ jobs:
         # the deployed commit, so a release that cuts a new tag rolls forward
         # on the next deploy. `--merged` makes a re-promote of an older SHA
         # resolve the versions as they were at that commit.
+        #
+        # A tag records that the release job reported success, not that its
+        # image reached GHCR, and nothing enforces that the two agree. A
+        # version pinned with no image behind it is the most expensive
+        # failure this workflow has: neither a Tart Pod (retries the pull
+        # forever in TartCreateFailed) nor a Linux Pod (ImagePullBackOff)
+        # fails on its own, so helm burns the full `--timeout` before rolling
+        # the release back, and every later deploy resolves the same dead
+        # tag. Walk the tags newest-first and pin the newest version that is
+        # actually pullable.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          resolve() {
-            git tag --list "${1}*" --merged "$DEPLOY_SHA" \
-              | sed "s|^${1}||" \
-              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
-              | sort -V | tail -n1
+
+          # Only a definitive 404 means "never published". Anything else
+          # (auth, rate limit, a blip) is treated as published, so a flaky
+          # check can never silently downgrade a component.
+          image_published() {
+            repository="$1"
+            tag="$2"
+            auth=()
+            if [ -n "${GITHUB_TOKEN:-}" ]; then
+              auth=(-u "x-access-token:${GITHUB_TOKEN}")
+            fi
+            token="$(
+              curl -sSL --max-time 30 "${auth[@]}" \
+                "https://ghcr.io/token?service=ghcr.io&scope=repository:${repository}:pull" \
+                | sed -n 's/.*"token":"\([^"]*\)".*/\1/p'
+            )" || return 0
+            [ -n "$token" ] || return 0
+            status="$(
+              curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -I \
+                -H "Authorization: Bearer ${token}" \
+                -H 'Accept: application/vnd.oci.image.index.v1+json' \
+                -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+                -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+                -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' \
+                "https://ghcr.io/v2/${repository}/manifests/${tag}"
+            )" || return 0
+            [ "$status" != "404" ]
           }
+
+          # $1 tag prefix, $2 GHCR repository the version is pinned into.
+          # An empty $2 skips the publication check: the macOS runner image
+          # fans one semver out into a `macos-<xcode>-<semver>` tag per Xcode
+          # profile, so there is no single manifest to probe, and its tag is
+          # only cut when the whole build matrix succeeded.
+          resolve() {
+            prefix="$1"
+            repository="${2:-}"
+            versions="$(
+              git tag --list "${prefix}*" --merged "$DEPLOY_SHA" \
+                | sed "s|^${prefix}||" \
+                | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+                | sort -rV
+            )"
+            for version in $versions; do
+              if [ -z "$repository" ] || image_published "$repository" "$version"; then
+                echo "$version"
+                return 0
+              fi
+              echo "::warning::${prefix}${version} is tagged but ghcr.io/${repository}:${version} was never published; falling back to the previous version." >&2
+            done
+          }
+
           {
-            echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@')"
-            echo "KURA_RUNTIME_TAG=$(resolve 'kura@')"
+            echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@' 'tuist/tuist-xcresult-processor')"
+            echo "KURA_RUNTIME_TAG=$(resolve 'kura@' 'tuist/kura')"
             echo "RUNNER_IMAGE_SEMVER=$(resolve 'runner-image@')"
-            echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@')"
-            echo "CAPI_TAG=$(resolve 'capi-scaleway@')"
-            echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@')"
+            echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@' 'tuist/tuist-linux-runner')"
+            echo "CAPI_TAG=$(resolve 'capi-scaleway@' 'tuist/capi-provider-scaleway-applesilicon')"
+            echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@' 'tuist/tuist-runners-controller')"
           } >> "$GITHUB_ENV"
       - uses: jdx/mise-action@v3.2.0
         with:
@@ -892,6 +950,15 @@ jobs:
               sleep 30
               echo "::group::cluster snapshot $(date -u +%H:%M:%SZ)"
               kubectl -n "$NAMESPACE" get pods -o wide 2>&1 | tail -40 || true
+              # A Tart Pod carries its provisioning failure in
+              # `.status.message` and never emits a Warning event for it, so
+              # the STATUS column above reads `TartCreateFailed` with no
+              # reason attached and the events below stay silent. Print the
+              # messages too, or a stuck macOS Pod is undiagnosable from the
+              # action log alone.
+              echo "--- pod status messages ---"
+              kubectl -n "$NAMESPACE" get pods \
+                -o jsonpath='{range .items[?(@.status.message)]}{.metadata.name}{": "}{.status.reason}{" — "}{.status.message}{"\n"}{end}' 2>&1 | tail -10 || true
               echo "--- recent events ---"
               kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -20 || true
               echo "::endgroup::"
