@@ -17,7 +17,6 @@ defmodule TuistWeb.UsageLive do
   alias TuistWeb.CldrHelpers
   alias TuistWeb.Utilities.Query
 
-
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
     runner_breakdown = Allowance.period_breakdown(account)
@@ -229,6 +228,19 @@ defmodule TuistWeb.UsageLive do
         symbol: "none"
       }
     end)
+  end
+
+  @doc """
+  Every date the runner chart draws, spend and projection alike.
+
+  The axis labels only its first and last date, so it has to know about
+  the days still ahead; derived from spend alone it stopped at today.
+  """
+  def runner_chart_dates(breakdown) do
+    (breakdown.by_repository ++ breakdown.projected_days)
+    |> Enum.map(& &1.date)
+    |> Enum.uniq()
+    |> Enum.sort(Date)
   end
 
   @doc """

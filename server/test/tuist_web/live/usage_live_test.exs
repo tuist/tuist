@@ -10,6 +10,7 @@ defmodule TuistWeb.UsageLiveTest do
   alias Tuist.Kura.UsageEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.UsageLive
 
   @render_async_timeout 1_000
 
@@ -253,6 +254,57 @@ defmodule TuistWeb.UsageLiveTest do
       # 20 minutes past the allowance at the standard rate.
       assert html =~ "1.50"
       assert html =~ "On track for about"
+    end
+  end
+
+  describe "runner_chart_series/2" do
+    test "stacks the projected days onto the same bars as the spend" do
+      # The projection has to share the axis and the stack with the
+      # repositories, otherwise the days ahead land on their own bars
+      # and the period reads as though it restarted.
+      by_repository = [%{date: ~D[2026-08-21], repository: "tuist/tuist", total_ms: 600_000}]
+
+      projected = [
+        %{date: ~D[2026-08-22], total_ms: 600_000},
+        %{date: ~D[2026-08-23], total_ms: 600_000}
+      ]
+
+      assert [spent, projection] = UsageLive.runner_chart_series(by_repository, projected)
+
+      assert projection.name == "Projected"
+      assert projection.stack == spent.stack
+
+      dates = [~D[2026-08-21], ~D[2026-08-22], ~D[2026-08-23]]
+      assert Enum.map(spent.data, &hd/1) == dates
+      assert Enum.map(projection.data, &hd/1) == dates
+
+      # Spend only on the day that happened, projection only on the days
+      # that have not.
+      assert [[_, spend], [_, +0.0], [_, +0.0]] = spent.data
+      assert [[_, +0.0], [_, ahead], [_, ahead]] = projection.data
+      assert spend > 0
+      assert ahead > 0
+    end
+
+    test "labels the axis out to the end of the projection" do
+      # The axis only labels its first and last date. Derived from spend
+      # alone it stopped at today, so a period with days still ahead was
+      # labelled as though it ended this morning.
+      breakdown = %{
+        by_repository: [%{date: ~D[2026-08-21], repository: "tuist/tuist", total_ms: 600_000}],
+        projected_days: [%{date: ~D[2026-08-22], total_ms: 600_000}, %{date: ~D[2026-08-23], total_ms: 600_000}]
+      }
+
+      options = breakdown |> UsageLive.runner_chart_dates() |> UsageLive.runner_chart_options()
+
+      assert options.xAxis.axisLabel.customValues == [~D[2026-08-21], ~D[2026-08-23]]
+    end
+
+    test "has no projected series for a period that is over" do
+      by_repository = [%{date: ~D[2026-08-21], repository: "tuist/tuist", total_ms: 600_000}]
+
+      assert [only] = UsageLive.runner_chart_series(by_repository, [])
+      refute only.name == "Projected"
     end
   end
 end

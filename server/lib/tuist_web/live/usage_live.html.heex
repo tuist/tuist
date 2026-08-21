@@ -75,10 +75,7 @@
           type="bar"
           extra_options={
             TuistWeb.UsageLive.runner_chart_options(
-              @runner_breakdown.by_repository
-              |> Enum.map(& &1.date)
-              |> Enum.uniq()
-              |> Enum.sort(Date)
+              TuistWeb.UsageLive.runner_chart_dates(@runner_breakdown)
             )
           }
           series={

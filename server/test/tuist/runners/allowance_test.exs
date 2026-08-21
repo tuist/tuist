@@ -115,6 +115,25 @@ defmodule Tuist.Runners.AllowanceTest do
       :ok
     end
 
+    test "projects every remaining day of an open period from the rate so far", %{account: account} do
+      # Early in a period is exactly when the shape of the month ahead is
+      # worth seeing, so the days after today carry the daily rate so far
+      # rather than being left blank.
+      used_minutes(account, 60)
+
+      today = Date.utc_today()
+      period_start = DateTime.new!(Date.add(today, -1), ~T[00:00:00], "Etc/UTC")
+      period_end = DateTime.shift(period_start, month: 1)
+
+      breakdown = Allowance.period_breakdown(account, {period_start, period_end})
+
+      assert [first | _] = breakdown.projected_days
+      assert first.date == Date.add(today, 1)
+      assert List.last(breakdown.projected_days).date == period_end |> DateTime.to_date() |> Date.add(-1)
+      # Two days into the period, 60 minutes averages to 30 a day.
+      assert first.total_ms == 30 * 60_000
+    end
+
     test "spends the allowance in date order, so the day it runs out is split", %{account: account} do
       # Three days of 60 minutes against a 100 minute allowance: the
       # first is entirely free, the second straddles the boundary, the

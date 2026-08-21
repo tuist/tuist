@@ -220,14 +220,7 @@ defmodule Tuist.Runners.Allowance do
     first_remaining = usage_end |> DateTime.to_date() |> Date.add(1)
     last = period_end |> DateTime.to_date() |> Date.add(-1)
 
-    elapsed = max(DateTime.diff(usage_end, period_start, :second), 1)
-    total = max(DateTime.diff(period_end, period_start, :second), elapsed)
-    too_early = elapsed * 100 < total * @projection_minimum_elapsed_percent
-
-    # Same bar the textual projection sets: on the first day of a period
-    # the daily rate is one day's spend, and repeating it across the
-    # month draws a forecast out of a single data point.
-    if too_early or Date.after?(first_remaining, last) or total_ms == 0 do
+    if Date.after?(first_remaining, last) or total_ms == 0 do
       []
     else
       first_remaining
