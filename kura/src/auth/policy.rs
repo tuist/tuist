@@ -241,6 +241,15 @@ fn from_verified_claims(
         return Some(level);
     }
 
+    // Terminal, not inconclusive. The level is deliberately below `Read` so it
+    // grants nothing, which means the check above rejects it exactly as it
+    // rejects a credential the grants do not cover. Falling through would send
+    // the caller to introspection, and a cache token is not an API credential
+    // there, so the answer would come back 401 and the reason would be lost.
+    if level == Access::PaymentRequired {
+        return Some(level);
+    }
+
     // Tokens minted before grants existed carry bare project handles instead.
     // The `scopes` claim marks the newer format, whose handles are not
     // authorization. A handle carries no action, so it answers as both — which
@@ -281,6 +290,13 @@ async fn via_introspection(
         // may predate the project. The legacy route still answers for those,
         // and the level introspection did establish travels along so a route
         // that cannot widen it does not erase it either.
+        // Terminal here for the same reason it is terminal on locally verified
+        // claims: it sits below `Read`, so it would otherwise read as a level
+        // that simply did not reach far enough and send the caller on again.
+        if level == Access::PaymentRequired {
+            return Authentication::Access(level);
+        }
+
         if level < required && target.scope == Scope::Project {
             return via_cache_access(backend, authorization, target, level).await;
         }
@@ -331,6 +347,56 @@ async fn via_cache_access(
 
 #[cfg(test)]
 mod tests {
+
+    // An unscoped cache token carries no grant for the project, so the level
+    // check reads it as a level that did not reach far enough and would send the
+    // caller to introspection, where a cache token is not an API credential: the
+    // answer comes back 401 and the reason for the refusal is lost.
+    #[test]
+    fn an_exhausted_plan_on_a_cache_token_is_terminal_without_a_round_trip() {
+        let claims = serde_json::json!({
+            "cache_grants": {
+                "account": { "read": [], "write": [] },
+                "project": { "read": [], "write": [] }
+            },
+            "cache_payment_required": ["acme"]
+        });
+        let target = RequestTarget {
+            scope: Scope::Project,
+            account: "acme".into(),
+            namespace: Some("ios".into()),
+            identifier: "acme/ios".into(),
+        };
+
+        assert_eq!(
+            from_verified_claims(&claims, &target, Access::Read),
+            Some(Access::PaymentRequired)
+        );
+        assert_eq!(
+            from_verified_claims(&claims, &target, Access::ReadWrite),
+            Some(Access::PaymentRequired)
+        );
+    }
+
+    // A credential that simply does not reach the project must still fall
+    // through to the routes that can answer for it.
+    #[test]
+    fn a_token_that_simply_does_not_reach_stays_inconclusive() {
+        let claims = serde_json::json!({
+            "cache_grants": {
+                "account": { "read": [], "write": [] },
+                "project": { "read": [], "write": [] }
+            }
+        });
+        let target = RequestTarget {
+            scope: Scope::Project,
+            account: "acme".into(),
+            namespace: Some("ios".into()),
+            identifier: "acme/ios".into(),
+        };
+
+        assert_eq!(from_verified_claims(&claims, &target, Access::Read), None);
+    }
     use std::collections::BTreeMap;
 
     use serde_json::json;
