@@ -1651,7 +1651,68 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
 		return "", err
 	}
-	return choosePrimaryPod(current, instance.Name, pods.Items, r.primaryPodHealth(ctx, instance, pods.Items)), nil
+	health := r.primaryPodHealth(ctx, instance, pods.Items)
+
+	// A pod on a box being retired must not hold the primary role: evacuation
+	// deletes it, and a Service still pointing at it has no endpoint until the
+	// next reconcile repoints the selector. Demoting it here, BEFORE the
+	// Services are reconciled in this same pass, is what makes the handover
+	// ordered rather than a race.
+	//
+	// Only when something else can actually serve. If every pod is on the way
+	// out there is no better primary, and dropping the role would replace a
+	// short gap with no endpoint at all.
+	if err := r.demoteEvacuatingPods(ctx, pods.Items, health); err != nil {
+		return "", err
+	}
+	return choosePrimaryPod(current, instance.Name, pods.Items, health), nil
+}
+
+// demoteEvacuatingPods marks pods on nodes annotated for evacuation as
+// unroutable, so primary selection hands the role to a pod that is staying.
+// A no-op unless some pod outside the evacuating set is healthy enough to take
+// over.
+func (r *KuraInstanceReconciler) demoteEvacuatingPods(ctx context.Context, pods []corev1.Pod, health map[string]bool) error {
+	onEvacuating := map[string]bool{}
+	for i := range pods {
+		if health[pods[i].Name] && pods[i].Spec.NodeName != "" {
+			onEvacuating[pods[i].Spec.NodeName] = false
+		}
+	}
+	if len(onEvacuating) == 0 {
+		return nil
+	}
+
+	nodes := &corev1.NodeList{}
+	if err := r.List(ctx, nodes); err != nil {
+		return err
+	}
+	leaving := map[string]bool{}
+	for i := range nodes.Items {
+		if _, marked := nodes.Items[i].Annotations[EvacuateNodeAnnotation]; marked {
+			leaving[nodes.Items[i].Name] = true
+		}
+	}
+	if len(leaving) == 0 {
+		return nil
+	}
+
+	staying := false
+	for i := range pods {
+		if health[pods[i].Name] && !leaving[pods[i].Spec.NodeName] {
+			staying = true
+			break
+		}
+	}
+	if !staying {
+		return nil
+	}
+	for i := range pods {
+		if leaving[pods[i].Spec.NodeName] {
+			delete(health, pods[i].Name)
+		}
+	}
+	return nil
 }
 
 func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]bool {

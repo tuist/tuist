@@ -32,6 +32,20 @@ func (s stubRuntimeStatus) Status(_ context.Context, pod corev1.Pod) (runtimeSta
 	return status, nil
 }
 
+// routableStatus is what the runtime reports for a pod eligible to hold the
+// primary role: Ready alone is not enough, selection also needs serving state,
+// the writer lock and ring visibility. `cycle` is the catch-up report that
+// evacuation gates on separately.
+func routableStatus(cycle string) runtimeStatus {
+	return runtimeStatus{
+		Ready:                true,
+		State:                "serving",
+		WriterLockOwned:      true,
+		RingMembers:          2,
+		BackfillInitialCycle: cycle,
+	}
+}
+
 func evacInstance() *kurav1alpha1.KuraInstance {
 	return &kurav1alpha1.KuraInstance{
 		ObjectMeta: metav1.ObjectMeta{Name: "kura-acct-region", Namespace: "kura"},
@@ -90,6 +104,23 @@ func primaryService(pod string) *corev1.Service {
 	}
 }
 
+// servingEndpoints models the instance's public Service actually having a ready
+// address, which is what proves traffic has somewhere to land before the former
+// primary is deleted.
+func servingEndpoints(pods ...string) *corev1.Endpoints {
+	addresses := make([]corev1.EndpointAddress, 0, len(pods))
+	for _, pod := range pods {
+		addresses = append(addresses, corev1.EndpointAddress{
+			IP:        "10.0.0.1",
+			TargetRef: &corev1.ObjectReference{Kind: "Pod", Name: pod, Namespace: "kura"},
+		})
+	}
+	return &corev1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-acct-region", Namespace: "kura"},
+		Subsets:    []corev1.EndpointSubset{{Addresses: addresses}},
+	}
+}
+
 func evacScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 	s := runtime.NewScheme()
@@ -122,12 +153,13 @@ func podExists(t *testing.T, c client.Client, name string) bool {
 func TestEvacuateMovesTheStandbyBeforeThePrimary(t *testing.T) {
 	instance := evacInstance()
 	caughtUp := stubRuntimeStatus{byPod: map[string]runtimeStatus{
-		"kura-acct-region-0": {Ready: true, BackfillInitialCycle: backfillCycleComplete},
-		"kura-acct-region-1": {Ready: true, BackfillInitialCycle: backfillCycleComplete},
+		"kura-acct-region-0": routableStatus(backfillCycleComplete),
+		"kura-acct-region-1": routableStatus(backfillCycleComplete),
 	}}
 	r, c := evacReconciler(t, caughtUp,
 		instance,
 		primaryService("kura-acct-region-0"),
+		servingEndpoints("kura-acct-region-0"),
 		evacPod("kura-acct-region-0", "old-box", true),
 		evacPod("kura-acct-region-1", "old-box", true),
 		evacNode("old-box", true),
@@ -151,7 +183,7 @@ func TestEvacuateMovesOneReplicaAtATime(t *testing.T) {
 	instance := evacInstance()
 	// The standby has already moved to the new box but is still filling.
 	stillFilling := stubRuntimeStatus{byPod: map[string]runtimeStatus{
-		"kura-acct-region-1": {Ready: true, BackfillInitialCycle: "in_progress"},
+		"kura-acct-region-1": routableStatus("in_progress"),
 	}}
 	r, c := evacReconciler(t, stillFilling,
 		instance,
@@ -176,11 +208,12 @@ func TestEvacuateMovesOneReplicaAtATime(t *testing.T) {
 func TestEvacuateWaitsForTheCatchUpSignalNotReadiness(t *testing.T) {
 	instance := evacInstance()
 	caughtUp := stubRuntimeStatus{byPod: map[string]runtimeStatus{
-		"kura-acct-region-1": {Ready: true, BackfillInitialCycle: backfillCycleComplete},
+		"kura-acct-region-1": routableStatus(backfillCycleComplete),
 	}}
 	r, c := evacReconciler(t, caughtUp,
 		instance,
 		primaryService("kura-acct-region-0"),
+		servingEndpoints("kura-acct-region-1"),
 		evacPod("kura-acct-region-0", "old-box", true),
 		evacPod("kura-acct-region-1", "new-box", true),
 		evacNode("old-box", true),
@@ -222,8 +255,8 @@ func TestEvacuateHoldsWhenTheCatchUpSignalIsUnreadable(t *testing.T) {
 func TestEvacuateDoesNothingWithNowhereToLand(t *testing.T) {
 	instance := evacInstance()
 	caughtUp := stubRuntimeStatus{byPod: map[string]runtimeStatus{
-		"kura-acct-region-0": {Ready: true, BackfillInitialCycle: backfillCycleComplete},
-		"kura-acct-region-1": {Ready: true, BackfillInitialCycle: backfillCycleComplete},
+		"kura-acct-region-0": routableStatus(backfillCycleComplete),
+		"kura-acct-region-1": routableStatus(backfillCycleComplete),
 	}}
 	r, c := evacReconciler(t, caughtUp,
 		instance,
@@ -249,7 +282,7 @@ func TestEvacuateIgnoresNodesOutsideTheInstancesPool(t *testing.T) {
 	other.Labels["node.cluster.x-k8s.io/pool"] = "runners"
 
 	caughtUp := stubRuntimeStatus{byPod: map[string]runtimeStatus{
-		"kura-acct-region-0": {Ready: true, BackfillInitialCycle: backfillCycleComplete},
+		"kura-acct-region-0": routableStatus(backfillCycleComplete),
 	}}
 	r, c := evacReconciler(t, caughtUp,
 		instance,
@@ -308,5 +341,92 @@ func TestReleaseNodeLocalVolumeDeletesTheClaimAndThePod(t *testing.T) {
 	}
 	if podExists(t, c, pod.Name) {
 		t.Fatal("the pod survived")
+	}
+}
+
+// Deleting a pod the public Service still points at empties the endpoint until
+// the next reconcile repoints it, which turns every primary evacuation into a
+// gap. The delete waits for the role to move first.
+func TestEvacuateWillNotDeleteThePodTheServiceStillNames(t *testing.T) {
+	instance := evacInstance()
+	caughtUp := stubRuntimeStatus{byPod: map[string]runtimeStatus{
+		"kura-acct-region-0": routableStatus(backfillCycleComplete),
+	}}
+	// Only the primary is left on the outgoing box, and the Service still names it.
+	r, c := evacReconciler(t, caughtUp,
+		instance,
+		primaryService("kura-acct-region-0"),
+		servingEndpoints("kura-acct-region-0"),
+		evacPod("kura-acct-region-0", "old-box", true),
+		evacNode("old-box", true),
+		evacNode("new-box", false),
+	)
+
+	if err := r.evacuateMarkedNodes(context.Background(), instance); err != nil {
+		t.Fatalf("evacuateMarkedNodes: %v", err)
+	}
+	if !podExists(t, c, "kura-acct-region-0") {
+		t.Fatal("deleted the pod the Service still selects; the endpoint would be empty until the next reconcile")
+	}
+}
+
+// A moved selector is a write; a ready address elsewhere is a fact. Endpoints
+// propagate asynchronously, so the delete waits on the fact.
+func TestEvacuateWaitsForAnotherPodToActuallyServe(t *testing.T) {
+	instance := evacInstance()
+	caughtUp := stubRuntimeStatus{byPod: map[string]runtimeStatus{
+		"kura-acct-region-1": routableStatus(backfillCycleComplete),
+	}}
+	// Selector has moved to the standby, but only the outgoing pod is serving.
+	r, c := evacReconciler(t, caughtUp,
+		instance,
+		primaryService("kura-acct-region-1"),
+		servingEndpoints("kura-acct-region-0"),
+		evacPod("kura-acct-region-0", "old-box", true),
+		evacPod("kura-acct-region-1", "new-box", true),
+		evacNode("old-box", true),
+		evacNode("new-box", false),
+	)
+
+	if err := r.evacuateMarkedNodes(context.Background(), instance); err != nil {
+		t.Fatalf("evacuateMarkedNodes: %v", err)
+	}
+	if !podExists(t, c, "kura-acct-region-0") {
+		t.Fatal("deleted the only serving pod before another had a ready endpoint")
+	}
+}
+
+// The case where only the selector guard can help: the standby has caught up on
+// data but has not taken the writer lock, so it is in the Service's endpoints
+// yet is not eligible to hold the primary role. Selection therefore keeps the
+// outgoing pod as primary, and deleting it would empty the selector even though
+// another address is present.
+func TestEvacuateHoldsWhileTheOutgoingPodStillHoldsThePrimaryRole(t *testing.T) {
+	instance := evacInstance()
+	caughtUpButNotServing := runtimeStatus{
+		Ready:                true,
+		State:                "filling",
+		WriterLockOwned:      false,
+		RingMembers:          2,
+		BackfillInitialCycle: backfillCycleComplete,
+	}
+	r, c := evacReconciler(t, stubRuntimeStatus{byPod: map[string]runtimeStatus{
+		"kura-acct-region-0": routableStatus(backfillCycleComplete),
+		"kura-acct-region-1": caughtUpButNotServing,
+	}},
+		instance,
+		primaryService("kura-acct-region-0"),
+		servingEndpoints("kura-acct-region-0", "kura-acct-region-1"),
+		evacPod("kura-acct-region-0", "old-box", true),
+		evacPod("kura-acct-region-1", "new-box", true),
+		evacNode("old-box", true),
+		evacNode("new-box", false),
+	)
+
+	if err := r.evacuateMarkedNodes(context.Background(), instance); err != nil {
+		t.Fatalf("evacuateMarkedNodes: %v", err)
+	}
+	if !podExists(t, c, "kura-acct-region-0") {
+		t.Fatal("deleted the pod still holding the primary role; the Service selector would name nothing")
 	}
 }

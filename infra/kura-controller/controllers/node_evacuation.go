@@ -111,12 +111,62 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 		return nil
 	}
 
+	// Second phase of the handover. Primary selection demotes a pod on an
+	// evacuating node earlier in this same pass, so by now the Services should
+	// name something else; deleting a pod the Services still point at would
+	// leave the endpoint empty until the next reconcile repointed it.
+	if next.Name == primary {
+		logger.Info("holding evacuation until the primary role moves off this pod",
+			"instance", instance.Name, "pod", next.Name)
+		return nil
+	}
+	// And not merely repointed: a selector that names another pod proves
+	// nothing until that pod is actually serving. Endpoints propagate
+	// asynchronously, so the delete waits on a ready address that is not the
+	// pod about to go.
+	served, err := r.servedByAnotherPod(ctx, instance, next.Name)
+	if err != nil {
+		return err
+	}
+	if !served {
+		logger.Info("holding evacuation until another pod is serving the instance",
+			"instance", instance.Name, "pod", next.Name)
+		return nil
+	}
+
 	if err := r.releaseNodeLocalVolume(ctx, next); err != nil {
 		return err
 	}
 	logger.Info("evacuating a cache pod off a node marked for retirement",
 		"instance", instance.Name, "pod", next.Name, "node", next.Spec.NodeName, "wasPrimary", next.Name == primary)
 	return nil
+}
+
+// servedByAnotherPod reports whether the instance's public Service has a ready
+// endpoint belonging to some pod other than the one named.
+//
+// This is the observation the handover rests on. Moving the Service selector is
+// a write; having traffic land somewhere is a fact, and only the second one
+// makes deleting the former primary safe. Absent Endpoints are treated as not
+// served, so an instance whose endpoint cannot be read holds rather than
+// proceeds.
+func (r *KuraInstanceReconciler) servedByAnotherPod(ctx context.Context, instance *kurav1alpha1.KuraInstance, excluding string) (bool, error) {
+	endpoints := &corev1.Endpoints{}
+	switch err := r.Get(ctx, client.ObjectKey{Namespace: instance.Namespace, Name: instance.Name}, endpoints); {
+	case apierrors.IsNotFound(err):
+		return false, nil
+	case err != nil:
+		return false, err
+	}
+	for _, subset := range endpoints.Subsets {
+		for _, address := range subset.Addresses {
+			if address.TargetRef != nil && address.TargetRef.Name == excluding {
+				continue
+			}
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // podsOnNodes returns the pods sitting on any of the given nodes, ordered by

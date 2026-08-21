@@ -47,11 +47,54 @@ esac
 exec 9>/var/lock/tuist-kura-quota.lock
 flock 9
 
-# Stable and derived from the directory the provisioner carved, so a retried
-# assign lands on the same project and a clear can find it from the path alone
-# with nothing to persist between the two. Project 0 means "unset" to XFS, so
+# /etc/projects is the id -> path record, and it is also where a previously
+# assigned id is read back from. Looking it up rather than recomputing matters
+# because a colliding id is resolved by probing (below), so the id is NOT a pure
+# function of the path: recomputing during a clear could zero a DIFFERENT
+# tenant's ceiling.
+assigned_projid() {
+  [ -f /etc/projects ] || return 0
+  while IFS=: read -r id path || [ -n "$id" ]; do
+    if [ "$path" = "$dir" ]; then printf %s "$id"; return 0; fi
+  done < /etc/projects
+}
+
+# Whether an id is already spoken for by some OTHER directory.
+projid_taken() {
+  [ -f /etc/projects ] || return 1
+  while IFS=: read -r id path || [ -n "$id" ]; do
+    if [ "$id" = "$1" ] && [ "$path" != "$dir" ]; then return 0; fi
+  done < /etc/projects
+  return 1
+}
+
+# Derived from the directory so a retried assign lands on the same project
+# without anything persisted between the two. Project 0 means "unset" to XFS, so
 # the range starts above it.
-projid=$(( $(printf %s "${dir##*/}" | cksum | cut -d" " -f1) % 16000000 + 1000 ))
+#
+# A checksum can collide, and a shared project is worse than no project: two
+# tenants would share one ceiling, assigning either would move the other's, and
+# clearing either would zero the survivor's limits and leave it unbounded. That
+# is the exact failure this exists to prevent, so a taken id is stepped past.
+# The probe runs under the lock held above, so two concurrent setups cannot pick
+# the same free id. Reusing the id already recorded for this directory keeps a
+# retry idempotent even when the first attempt had to probe.
+projid="$(assigned_projid)"
+if [ -z "$projid" ]; then
+  projid=$(( $(printf %s "${dir##*/}" | cksum | cut -d" " -f1) % 16000000 + 1000 ))
+  probe=0
+  while projid_taken "$projid"; do
+    projid=$(( projid + 1 ))
+    probe=$(( probe + 1 ))
+    if [ "$probe" -gt 1000 ]; then
+      log "no free project id near the hash for $dir"
+      exit 1
+    fi
+  done
+  if [ "$probe" -gt 0 ]; then
+    log "project id collision for $dir; using $projid after $probe step(s)"
+  fi
+fi
 
 # /etc/projects is the id -> path record. It is what makes a bare project id in
 # an xfs_quota report traceable back to a volume, and dropping the entry is how
@@ -70,6 +113,14 @@ registry_drop() {
 }
 
 if [ "$action" = clear ]; then
+  # Only ever clear an id this directory actually owns. A directory with no
+  # record was never assigned (or was already cleared), and zeroing a
+  # recomputed id could strip the ceiling from whichever tenant currently holds
+  # it.
+  if [ -z "$projid" ] || ! [ "$projid" = "$(assigned_projid)" ]; then
+    log "$dir has no project recorded; nothing to clear"
+    exit 0
+  fi
   # Best-effort: a failure here must never wedge a PV delete. The directory is
   # removed by the caller either way, which drops the accounting to zero on its
   # own; what is left behind is at worst a limit on a project with no files.
