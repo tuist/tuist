@@ -231,6 +231,65 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
       assert :ok == BundleThresholdWorker.perform(job)
     end
 
+    test "reports the configured threshold and the deviation without losing sub-decimal precision" do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "org/repo",
+            provider: :github
+          ]
+        )
+
+      BundlesFixtures.bundle_threshold_fixture(
+        project: project,
+        name: "Download size PR check",
+        metric: :download_size,
+        deviation_percentage: 0.15
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        download_size: 100_000,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          download_size: 100_170,
+          git_branch: "feature",
+          git_commit_sha: "abc123",
+          git_ref: "refs/pull/1/merge",
+          inserted_at: ~U[2024-01-02 00:00:00Z]
+        )
+
+      stub(Environment, :github_app_configured?, fn -> true end)
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      expect(Client, :get_pull_request, fn _params ->
+        {:ok, %{"head" => %{"sha" => "real-head-sha"}}}
+      end)
+
+      expect(Client, :create_check_run, fn params ->
+        assert params.conclusion == "action_required"
+        assert params.output.summary =~ "**Threshold:** 0.15%"
+        assert params.output.summary =~ "+0.17%"
+        {:ok, %{"id" => 1}}
+      end)
+
+      job = %Oban.Job{
+        id: 1,
+        args: %{
+          "bundle_id" => bundle.id,
+          "project_id" => project.id,
+          "git_commit_sha" => "abc123"
+        }
+      }
+
+      assert :ok == BundleThresholdWorker.perform(job)
+    end
+
     test "reports violation when first threshold passes but second violates" do
       project =
         ProjectsFixtures.project_fixture(
