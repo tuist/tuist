@@ -291,11 +291,15 @@ struct SupportTests {
     }
 
     @Test
-    func netrcCredentialBeatsGitHubEnvToken() {
+    func netrcCredentialBeatsKeychainAndGitHubEnvToken() async {
         let credential = RegistryCredential(user: "x-access-token", password: "harbor-token")
-        let header = HTTPAuthorization.prioritizedHeader(
+        let header = await HTTPAuthorization.prioritizedHeader(
             isGitHub: true,
             netrcCredential: credential,
+            keychain: {
+                Issue.record("keychain consulted despite netrc credentials")
+                return RegistryCredential(user: "keychain", password: "credential")
+            },
             gitHubEnvToken: "ghs_repo_scoped_token"
         )
 
@@ -304,10 +308,25 @@ struct SupportTests {
     }
 
     @Test
-    func gitHubEnvTokenUsedWhenNoNetrcCredential() {
-        let header = HTTPAuthorization.prioritizedHeader(
+    func keychainCredentialBeatsGitHubEnvToken() async {
+        let credential = RegistryCredential(user: "keychain", password: "credential")
+        let header = await HTTPAuthorization.prioritizedHeader(
             isGitHub: true,
             netrcCredential: nil,
+            keychain: { credential },
+            gitHubEnvToken: "ghs_repo_scoped_token"
+        )
+
+        let expected = "Basic " + Data("keychain:credential".utf8).base64EncodedString()
+        #expect(header == expected)
+    }
+
+    @Test
+    func gitHubEnvTokenUsedWhenNoNetrcOrKeychainCredential() async {
+        let header = await HTTPAuthorization.prioritizedHeader(
+            isGitHub: true,
+            netrcCredential: nil,
+            keychain: { nil },
             gitHubEnvToken: "ghs_repo_scoped_token"
         )
 
@@ -315,14 +334,29 @@ struct SupportTests {
     }
 
     @Test
-    func gitHubEnvTokenIgnoredForNonGitHubHostWithoutNetrc() {
-        #expect(
-            HTTPAuthorization.prioritizedHeader(
-                isGitHub: false,
-                netrcCredential: nil,
-                gitHubEnvToken: "ghs_repo_scoped_token"
-            ) == nil
+    func keychainCredentialIsUsedForNonGitHubHost() async {
+        let credential = RegistryCredential(user: "keychain", password: "credential")
+        let header = await HTTPAuthorization.prioritizedHeader(
+            isGitHub: false,
+            netrcCredential: nil,
+            keychain: { credential },
+            gitHubEnvToken: "ghs_repo_scoped_token"
         )
+
+        let expected = "Basic " + Data("keychain:credential".utf8).base64EncodedString()
+        #expect(header == expected)
+    }
+
+    @Test
+    func gitHubEnvTokenIsIgnoredForNonGitHubHostWithoutOtherCredentials() async {
+        let header = await HTTPAuthorization.prioritizedHeader(
+            isGitHub: false,
+            netrcCredential: nil,
+            keychain: { nil },
+            gitHubEnvToken: "ghs_repo_scoped_token"
+        )
+
+        #expect(header == nil)
     }
 
     @Test

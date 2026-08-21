@@ -316,8 +316,16 @@ defmodule Tuist.Kura.Lifecycle do
     end
   end
 
+  # `account` carries its subscriptions from the batch query, and the claim the
+  # instance is built at is resolved from them, so it is handed over rather than
+  # left to be re-fetched per provision.
   defp cold_provision(account, plan, region_id, image_tag) do
-    case Kura.create_server(%{account_id: account.id, region: region_id, image_tag: image_tag}) do
+    case Kura.create_server(%{
+           account_id: account.id,
+           account: account,
+           region: region_id,
+           image_tag: image_tag
+         }) do
       {:ok, _server} ->
         Telemetry.provisioned(plan, region_id, false)
         Logger.info("[Kura.Lifecycle] provisioned instance for account #{account.id} in #{region_id}")
@@ -333,7 +341,7 @@ defmodule Tuist.Kura.Lifecycle do
   end
 
   defp return_from_archive(lifecycle, server, account, plan, image_tag) do
-    case Kura.return_from_archive(server, image_tag) do
+    case Kura.return_from_archive(server, image_tag, account) do
       {:ok, _server} ->
         mark_returned(lifecycle)
         Telemetry.provisioned(plan, server.region, true)
@@ -438,22 +446,26 @@ defmodule Tuist.Kura.Lifecycle do
   # the full 90-day window are unconditional and are not counted against that
   # budget; the 60-day ones are taken in least-recent-demand order until the
   # region is back under its pressure line.
+  #
+  # Each candidate frees its own reservation, not an average: instances in a
+  # region are sized from their accounts' plans, so archiving the same number of
+  # them frees different amounts depending on which ones they are.
   defp take_pressure_candidates(candidates, region_id) do
     {pressured, unconditional} = Enum.split_with(candidates, fn {_s, _l, _p, reason} -> reason == :capacity_pressure end)
 
     with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
          reserved when is_integer(reserved) <- Capacity.reserved_gib(region_id) do
       {:ok, region} = Regions.fetch(region_id)
-      per_instance = Capacity.resident_gib(region)
+      freed = fn {server, _lifecycle, _plan, _reason} -> Capacity.resident_gib(region, server) end
 
       # The unconditional archivals happen regardless, so the room they free
       # counts before deciding how many more the pressure rule has to take.
-      after_unconditional = reserved - length(unconditional) * per_instance
+      after_unconditional = reserved - Enum.sum(Enum.map(unconditional, freed))
 
       {_final, needed} =
         Enum.reduce(pressured, {after_unconditional, []}, fn candidate, {gib, taken} ->
           if gib > target do
-            {gib - per_instance, [candidate | taken]}
+            {gib - freed.(candidate), [candidate | taken]}
           else
             {gib, taken}
           end
@@ -675,7 +687,7 @@ defmodule Tuist.Kura.Lifecycle do
   # whole StatefulSet, so every replica's directory goes with it.
   defp complete_archival(%Server{} = server, %AccountRegionLifecycle{} = lifecycle, region) do
     plan = Billing.effective_plan(server.account)
-    reclaimed_bytes = Capacity.resident_bytes(region)
+    reclaimed_bytes = Capacity.resident_bytes(region, server)
     drain_duration_ms = drain_duration_ms(lifecycle)
 
     case Kura.archive_server(server) do

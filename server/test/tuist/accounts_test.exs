@@ -210,6 +210,36 @@ defmodule Tuist.AccountsTest do
       assert %{remote_cache_hits_count: 1} == got
     end
 
+    test "ignores events that ran before the free tier was reset" do
+      # Given
+      now = ~U[2025-05-18 15:27:00Z]
+      _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
+      _project = %{id: project_id} = ProjectsFixtures.project_fixture(account_id: account_id)
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project_id,
+        remote_cache_target_hits: ["Kit"],
+        ran_at: ~U[2025-05-10 00:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project_id,
+        remote_cache_target_hits: ["Kit"],
+        ran_at: ~U[2025-05-17 00:00:00Z]
+      )
+
+      Account
+      |> Repo.get!(account_id)
+      |> Ecto.Changeset.change(free_tier_reset_at: ~U[2025-05-15 00:00:00Z])
+      |> Repo.update!()
+
+      # When
+      got = Accounts.account_month_usage(account_id, now)
+
+      # Then
+      assert %{remote_cache_hits_count: 1} == got
+    end
+
     test "returns the right value when there are no remote cache hits" do
       # Given
       now = ~U[2025-05-18 15:27:00Z]

@@ -38,7 +38,11 @@ defmodule Tuist.Kura.RegionsTest do
         assert config.storage_class == "scw-local-nvme"
         assert config.gateway == :host_network
         assert config.replicas == 2
-        assert config.storage_size == "50Gi"
+        assert config.storage_governed == true
+
+        # No region-wide claim: every instance carries the one its volumes were
+        # created at, resolved from its account's plan.
+        assert config.storage_size == nil
       end
 
       assert Regions.get("us-east").provisioner_config.node_selector == %{
@@ -94,6 +98,45 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.memory_ceiling_bin_packed?(Regions.get("scw-fr-par-runners"))
     end
 
+    test "sizes the managed regions' storage per tier" do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+        assert Regions.storage_governed?(Regions.get(id))
+      end
+
+      # The private runner-cache pool holds one instance per account regardless
+      # of plan, on capacity ordered for the runner fleet.
+      refute Regions.storage_governed?(Regions.get("scw-fr-par-runners"))
+      refute Regions.storage_governed?(Regions.get("local-controller"))
+    end
+
+    test "descends the storage ladder and floors it at air" do
+      claims = Enum.map([:enterprise, :pro, :air], &Regions.storage_profile(&1).claim_size)
+      assert claims == ["50Gi", "30Gi", "8Gi"]
+
+      # Air is the floor, and unknown plans land on it.
+      assert Regions.storage_profile(:open_source) == Regions.storage_profile(:air)
+    end
+
+    test "keeps every claim clear of the budget cliff" do
+      # Staging and one rotation segment come out of a claim before the ring is
+      # sized, and Kura clamps its ring up to five segments. A claim too small to
+      # clear that leaves `cas_capacity_bytes/1` emitting nothing at all, and the
+      # runtime sizes its ring from the whole box instead — the failure the
+      # derivation exists to prevent. Asserted against the derivation rather than
+      # a claim number, so it still holds if the reserves move.
+      gib = 1024 * 1024 * 1024
+      kura_ring_floor = 5 * 512 * 1024 * 1024
+
+      for plan <- [:enterprise, :pro, :air, :open_source] do
+        {claim_gib, "Gi"} = Integer.parse(Regions.storage_profile(plan).claim_size)
+        staging = min(div(claim_gib * gib, 2), 8 * gib)
+        ring = div((claim_gib * gib - staging - 512 * 1024 * 1024) * 97, 100)
+
+        assert ring >= kura_ring_floor * 5 / 4,
+               "#{plan} leaves #{ring} bytes of ring, too close to Kura's #{kura_ring_floor} floor"
+      end
+    end
+
     test "keeps every memory ceiling above its floor" do
       # A limit below its request is rejected by the API, and a ceiling equal to
       # the floor would leave no burst headroom for Kura's admission pools.
@@ -124,7 +167,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert config.storage_class == "scw-local-nvme"
       assert config.gateway == :host_network
       assert config.replicas == 2
-      assert config.storage_size == "50Gi"
+      assert config.storage_size == nil
       assert config.hetzner_location == nil
 
       # Identity is unchanged so the cutover is invisible to the customer and CLI.

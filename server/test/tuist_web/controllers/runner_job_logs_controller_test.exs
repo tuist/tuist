@@ -4,6 +4,7 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
 
   import Mimic
 
+  alias Tuist.Accounts
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Storage
@@ -67,6 +68,27 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
     conn = get(conn, ~p"/#{account.name}/runners/runs/322010/jobs/32201/logs/download")
 
     assert redirected_to(conn) == "https://s3.example.com/signed-archive-url"
+  end
+
+  test "serves the archive to signed-out visitors when the account is public", %{account: account} do
+    {:ok, account} = Accounts.update_account_visibility(account, :public)
+    enqueue(account, 32_301, 323_010)
+    :ok = Jobs.set_log_archived_at(32_301, DateTime.utc_now())
+
+    stub(Storage, :generate_download_url, fn _key, _actor, _opts -> "https://s3.example.com/public-archive-url" end)
+
+    conn = get(build_conn(), ~p"/#{account.name}/runners/runs/323010/jobs/32301/logs/download")
+
+    assert redirected_to(conn) == "https://s3.example.com/public-archive-url"
+  end
+
+  test "redirects signed-out visitors to log in when the account is private", %{account: account} do
+    enqueue(account, 32_401, 324_010)
+    :ok = Jobs.set_log_archived_at(32_401, DateTime.utc_now())
+
+    conn = get(build_conn(), ~p"/#{account.name}/runners/runs/324010/jobs/32401/logs/download")
+
+    assert redirected_to(conn) == ~p"/users/log_in"
   end
 
   test "404s when the job belongs to another account", %{conn: conn, account: account} do

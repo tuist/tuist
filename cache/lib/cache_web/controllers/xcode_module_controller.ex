@@ -69,6 +69,7 @@ defmodule CacheWeb.XcodeModuleController do
       not_found: {"Artifact not found", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error}
     }
   )
@@ -164,6 +165,7 @@ defmodule CacheWeb.XcodeModuleController do
       not_found: {"Artifact not found", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error}
     }
   )
@@ -221,6 +223,7 @@ defmodule CacheWeb.XcodeModuleController do
       ok: {"Upload started", "application/json", StartMultipartUploadResponse},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error}
     }
   )
@@ -283,6 +286,7 @@ defmodule CacheWeb.XcodeModuleController do
       request_timeout: {"Request body read timed out", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error},
       bad_request: {"Bad request", "application/json", Error}
     }
   )
@@ -391,7 +395,8 @@ defmodule CacheWeb.XcodeModuleController do
       bad_request: {"Parts mismatch or missing parts", "application/json", Error},
       internal_server_error: {"Failed to assemble artifact", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error}
     }
   )
 

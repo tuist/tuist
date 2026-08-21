@@ -114,6 +114,19 @@ defmodule Tuist.Kura.AccountPolicies do
   end
 
   @doc """
+  The plan an account's Kura instance is sized from — its memory profile and
+  the claim its data volume is built at.
+
+  A self-hosted deployment has no subscriptions, so `Billing.effective_plan/1`
+  would resolve every account there to `:air`. Its Enterprise license is the
+  entitlement, matching how `Tuist.Billing.Entitlements.allowed_features/2`
+  grants everything off the hosted server.
+  """
+  def sizing_plan(%Account{} = account) do
+    if Environment.tuist_hosted?(), do: Billing.effective_plan(account), else: :enterprise
+  end
+
+  @doc """
   Assigns one service region to a paid account that currently allows every
   storage region.
 
