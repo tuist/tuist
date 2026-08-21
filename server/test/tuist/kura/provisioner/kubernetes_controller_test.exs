@@ -873,7 +873,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
             assert capacity >= floor, "#{region.id} budgets under Kura's ring floor, which the runtime raises"
 
             assert tmp >= 2 * 1024 * 1024 * 1024,
-                   "#{region.id} stages less than one replication body, which Kura rejects outright"
+                   "#{region.id} stages less than one max-size module upload, which Kura rejects outright"
 
             assert div(capacity, segment) * segment + tmp + segment <= envelope,
                    "#{region.id} overruns its declared envelope once staging and a rotation are reserved"

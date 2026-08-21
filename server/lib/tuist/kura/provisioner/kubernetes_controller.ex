@@ -28,10 +28,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # staging reaches inside the data volume when nothing narrows it. Keep in sync
   # if either constant moves.
   @kura_default_tmp_dir_max_bytes 8 * 1024 * 1024 * 1024
-  # Kura's MAX_REPLICATION_BODY_BYTES and MAX_MODULE_TOTAL_BYTES, both 2 GiB.
+  # Kura's MAX_MODULE_TOTAL_BYTES: the largest single thing that stages here. A
+  # multipart module upload reserves its whole assembled size in one call, and
   # `TmpBudget::try_reserve` rejects outright when one request exceeds the whole
-  # budget, so a staging budget under this cannot stage a full replication body
-  # or a max-size module upload at all — not slower, impossible.
+  # budget, so a staging budget under this cannot stage a max-size module upload
+  # at all — not slower, impossible. Peer catch-up is not in this number: it
+  # charges a separate `peer_staging_budget`, sized from memory, so the two
+  # cannot starve each other.
   @kura_max_staged_request_bytes 2 * 1024 * 1024 * 1024
   # Kura's MAX_SEGMENT_BYTES: the one extra segment a ring rotation appends
   # before evicting the oldest one.
@@ -655,16 +658,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  # Upload staging shares the data volume with the ring, so on a small claim
-  # Kura's flat 8 GiB default is most of the volume: it would leave an 8Gi claim
-  # no ring at all. Held to half the claim instead, so the reserve shrinks with
-  # the instance rather than swallowing it, and capped at the default so the
-  # paid tiers keep exactly the budget they have today.
+  # Upload staging is a ceiling on <data dir>/tmp, which shares the volume with
+  # the ring: an upload streams to disk there before it is committed into a
+  # segment, so every byte reserved for it is a byte the ring cannot hold. On a
+  # small claim Kura's flat 8 GiB default is most of the volume and would leave
+  # an 8Gi claim no ring at all. Held to half the claim instead, so the reserve
+  # shrinks with the instance rather than swallowing it, and capped at the
+  # default so the paid tiers keep exactly the budget they have today.
   #
-  # Not cut further than that. `TmpBudget::try_reserve` rejects a request larger
-  # than the whole budget outright, so a budget under a full replication body or
-  # a max-size module upload cannot stage one at all. Half of the smallest claim
-  # we hand out is 4 GiB, which is that request twice over.
+  # Not cut further than that. A max-size module upload reserves its whole
+  # assembled size in one call and is rejected outright if that exceeds the
+  # budget, so the floor is a correctness bound. Half of the smallest claim we
+  # hand out is 4 GiB, which is that request twice over.
   defp staging_bytes(storage_bytes) do
     storage_bytes
     |> div(2)
