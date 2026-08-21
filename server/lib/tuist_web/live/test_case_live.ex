@@ -128,10 +128,23 @@ defmodule TuistWeb.TestCaseLive do
   # nothing to draw, so the card offers an empty state instead of a flat line.
   defp charted?(%{run_counts: run_counts}), do: Enum.any?(run_counts, &(&1 > 0))
 
+  # A bucket whose neighbours are both empty has no segment to sit on, so a bare
+  # line draws nothing at all there and a test case that runs once a week charts
+  # as blank. Those buckets carry a symbol of their own. The rest stay bare, so a
+  # test case that runs every day still reads as a line rather than a row of dots.
   defp chart_points(dates, values) do
-    dates
-    |> Enum.zip(values)
-    |> Enum.map(&Tuple.to_list/1)
+    Enum.zip_with([dates, values, symbol_sizes(values)], fn [date, value, symbol_size] ->
+      %{value: [date, value], symbolSize: symbol_size}
+    end)
+  end
+
+  defp symbol_sizes(values) do
+    ([nil] ++ values ++ [nil])
+    |> Enum.chunk_every(3, 1, :discard)
+    |> Enum.map(fn
+      [nil, value, nil] when not is_nil(value) -> 6
+      _neighboured_or_empty -> 0
+    end)
   end
 
   # Rates are bounded, so their axis is pinned to 0-100 rather than scaled to the
