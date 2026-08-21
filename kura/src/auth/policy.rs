@@ -54,6 +54,18 @@ pub fn refusal(request: &ResolvedRequest) -> DenyDecision {
     }
 }
 
+/// The 402 an account whose free tier is exhausted answers with. Distinct from
+/// `refusal` because the caller can act on this one.
+pub fn payment_required(request: &ResolvedRequest) -> DenyDecision {
+    DenyDecision {
+        status: 402,
+        message: format!(
+            "The account '{}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'.",
+            request.target.account
+        ),
+    }
+}
+
 /// The 401 an invalid credential answers with.
 pub fn invalid_credential() -> DenyDecision {
     DenyDecision {
@@ -303,7 +315,13 @@ async fn via_cache_access(
                 .any(|project| project == &target.identifier);
             // A handle carries no action, so it answers as both, exactly what
             // it authorized on its own.
-            let level = if covered { Access::ReadWrite } else { floor };
+            let level = if covered {
+                Access::ReadWrite
+            } else if CacheGrants::from_body(&response.body).payment_required_for(target) {
+                Access::PaymentRequired
+            } else {
+                floor
+            };
             Authentication::Access(level)
         }
         401 => Authentication::Access(Access::Invalid),
