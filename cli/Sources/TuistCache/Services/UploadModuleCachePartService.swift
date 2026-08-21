@@ -23,7 +23,6 @@ public enum UploadModuleCachePartServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
-    case freeTierExhausted(String)
     case badRequest(String)
     case notFound(String)
     case partTooLarge(String)
@@ -36,7 +35,6 @@ public enum UploadModuleCachePartServiceError: LocalizedError {
             return "Failed to upload part due to an unknown response of \(statusCode)."
         case let .unauthorized(message),
              let .forbidden(message),
-             let .freeTierExhausted(message),
              let .badRequest(message),
              let .notFound(message),
              let .partTooLarge(message),
@@ -115,7 +113,7 @@ public struct UploadModuleCachePartService: UploadModuleCachePartServicing {
         case let .code402(paymentRequired):
             switch paymentRequired.body {
             case let .json(error):
-                throw UploadModuleCachePartServiceError.freeTierExhausted(error.message)
+                throw UploadModuleCachePartServiceError.badRequest(error.message)
             }
         case let .badRequest(badRequest):
             switch badRequest.body {

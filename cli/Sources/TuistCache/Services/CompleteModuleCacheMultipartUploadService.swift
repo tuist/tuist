@@ -22,7 +22,6 @@ public enum CompleteModuleCacheMultipartUploadServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
-    case freeTierExhausted(String)
     case badRequest(String)
     case notFound(String)
     case internalServerError(String)
@@ -33,7 +32,6 @@ public enum CompleteModuleCacheMultipartUploadServiceError: LocalizedError {
             return "Failed to complete multipart upload due to an unknown response of \(statusCode)."
         case let .unauthorized(message),
              let .forbidden(message),
-             let .freeTierExhausted(message),
              let .badRequest(message),
              let .notFound(message),
              let .internalServerError(message):
@@ -103,7 +101,7 @@ public struct CompleteModuleCacheMultipartUploadService: CompleteModuleCacheMult
         case let .code402(paymentRequired):
             switch paymentRequired.body {
             case let .json(error):
-                throw CompleteModuleCacheMultipartUploadServiceError.freeTierExhausted(error.message)
+                throw CompleteModuleCacheMultipartUploadServiceError.badRequest(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw CompleteModuleCacheMultipartUploadServiceError.unknownError(statusCode)

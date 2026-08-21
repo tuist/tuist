@@ -23,9 +23,7 @@ public enum StartModuleCacheMultipartUploadServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
-    case freeTierExhausted(String)
     case badRequest(String)
-    case unprocessableContent(String)
 
     public var errorDescription: String? {
         switch self {
@@ -33,9 +31,7 @@ public enum StartModuleCacheMultipartUploadServiceError: LocalizedError {
             return "Failed to start multipart upload due to an unknown response of \(statusCode)."
         case let .unauthorized(message),
              let .forbidden(message),
-             let .freeTierExhausted(message),
-             let .badRequest(message),
-             let .unprocessableContent(message):
+             let .badRequest(message):
             return message
         }
     }
@@ -92,12 +88,12 @@ public struct StartModuleCacheMultipartUploadService: StartModuleCacheMultipartU
         case let .code402(paymentRequired):
             switch paymentRequired.body {
             case let .json(error):
-                throw StartModuleCacheMultipartUploadServiceError.freeTierExhausted(error.message)
+                throw StartModuleCacheMultipartUploadServiceError.badRequest(error.message)
             }
         case let .unprocessableContent(unprocessableContent):
             switch unprocessableContent.body {
             case let .json(error):
-                throw StartModuleCacheMultipartUploadServiceError.unprocessableContent(error.message)
+                throw StartModuleCacheMultipartUploadServiceError.badRequest(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw StartModuleCacheMultipartUploadServiceError.unknownError(statusCode)
