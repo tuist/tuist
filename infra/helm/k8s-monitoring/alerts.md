@@ -524,11 +524,14 @@ sum by (cluster, pod, route) (
 ```
 
 - Pending period: 5 minutes
-- Severity: critical
-- Already created: rule `cftoutryd1jwge`, folder `Alerts`, originally scoped to
-  `/api/cache/module/{id}` alone. **The rule lives in Grafana, not in this
-  repo**, so the query above has to be pasted into the rule editor; nothing
-  provisions it from here.
+- Already created: rule `cftoutryd1jwge`, folder `Alerts`, group `Cache`,
+  receiver `Slack #notifications 2` (routed by notification settings, so it
+  carries no `severity` label), `no_data_state: OK`. It was originally
+  `sum by (pod) (increase(kura_http_requests_total_total{namespace="kura",
+  route="/api/cache/module/{id}", status=~"5.."}[5m])) > 0` — one route, and
+  fires on a single 5xx. **The rule lives in Grafana, not in this repo**, so the
+  query above has to be pasted into the rule editor; nothing provisions it from
+  here.
 - Summary: `Kura pod {{ $labels.pod }} is failing requests on
   {{ $labels.route }} ({{ $labels.cluster }})`
 
@@ -1106,16 +1109,26 @@ absent_over_time(
   clamp_min(
     sum by (cluster, pod) (
       rate(kura_http_requests_total_total{
-        route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched"
+        route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+        status=~"200|429"
       }[5m])
     ),
-    1
+    0.01
   )
 ) > 0.05
+and
+sum by (cluster, pod) (
+  rate(kura_http_requests_total_total{
+    route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+    status="429"
+  }[5m])
+) > 1
 ```
 
 - Pending period: 10 minutes
 - Severity: warning
+- Folder `Alerts`, group `Cache`, receiver `Slack #notifications 2`, alongside
+  the fault rule above
 - Summary: `Kura pod {{ $labels.pod }} is shedding
   {{ $value | humanizePercentage }} of cache reads ({{ $labels.cluster }}) — it
   is out of response-stream capacity, not broken`
@@ -1143,7 +1156,33 @@ sum by (pod, outcome) (
 
 Note the doubled suffix: the counter is registered as
 `kura_response_stream_admissions_total` and reaches Grafana Cloud as
-`..._total_total`, the same as `kura_http_requests_total_total`.
+`..._total_total`, the same as `kura_http_requests_total_total`. Do not build
+the alert itself on that counter. One request can record more than one outcome —
+a read that records `queue_full` on its full-size attempt and then succeeds on
+the degraded pool records `degraded` too — so it counts admission attempts, not
+shed requests. The HTTP status is one value per request and is the only
+unambiguous shed signal.
+
+**Two details in this query are load-bearing, both measured over the 7 days to
+2026-08-21 using the pre-change 503s as a proxy for the 429s.**
+
+The denominator is `200|429`, the reads that wanted bytes, not all public
+requests. The module cache runs a high miss rate and 404s were 12.3M of 21.9M
+public requests in that week, so including them reports 6.9% where the reads
+that mattered were shed at 17.2% — and it would drift down as the hit rate
+improves, which is exactly backwards.
+
+The absolute floor exists because a ratio alone fires on idle pods: a pod
+answering two requests, one of them shed, reads as 50%. Without the floor,
+`kura-tuist-scw-fr-par-0` spent 35 minutes of that week above 5% purely on low
+volume; with it, 15. That pod recorded **zero** response-stream admission
+failures over the same week, so its 503s were never sheds and will not appear as
+429s at all — worth remembering when reading a ratio on a quiet pod.
+
+For scale, the rule would have been quiet: 90 and 85 minutes above threshold in
+that week on the two busy pods, in bursts that peaked between 47% and 100%, with
+at least one burst per pod holding above 5% for a full 10 minutes. Nothing else
+in the fleet came close.
 
 ### Swift registry release work repeatedly deferred
 

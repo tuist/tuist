@@ -3959,7 +3959,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=\"429\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))\n/\nclamp_min(sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})), 0.01)",
+                        "expr": "sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=\"429\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))\n/\nclamp_min(sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=~\"200|429\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})), 0.01)",
                         "instant": true,
                         "legendFormat": "shed",
                         "range": false
@@ -3974,7 +3974,7 @@
               "transformations": []
             }
           },
-          "description": "Share of public cache requests shed as 429 because no response-stream permit was available. Capacity backpressure, not a fault: the node is healthy and the client retries after the Retry-After hint. Read it against Error Rate (5xx), which now only counts real server faults.",
+          "description": "Share of the reads that wanted bytes (200 + 429) shed as 429 because no response-stream permit was available. 404 misses are excluded on purpose: they cost no bandwidth, they are the majority of requests, and counting them would shrink the ratio as the hit rate improves. Capacity backpressure, not a fault: the node is healthy and the client retries after the Retry-After hint. Read it against Error Rate (5xx), which now only counts real server faults.",
           "id": 61,
           "links": [],
           "title": "Read Shed Ratio (429)",
