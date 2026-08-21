@@ -538,7 +538,7 @@ struct GenerateServiceTests {
                     "FeatureA": .miss,
                     "FeatureB": .miss,
                 ],
-                configuration: CacheHashingConfiguration(name: "Release", resolution: .flag)
+                configuration: "Release"
             )
 
             // When
@@ -568,7 +568,7 @@ struct GenerateServiceTests {
                     "FeatureA": .remote,
                     "FeatureB": .miss,
                 ],
-                configuration: CacheHashingConfiguration(name: "Release", resolution: .flag)
+                configuration: "Release"
             )
 
             // When
@@ -594,7 +594,7 @@ struct GenerateServiceTests {
                     "FeatureA": .miss,
                     "FeatureB": .miss,
                 ],
-                configuration: CacheHashingConfiguration(name: "Release", resolution: .flag)
+                configuration: "Release"
             )
 
             // When
@@ -614,7 +614,7 @@ struct GenerateServiceTests {
 
     private func givenAGenerationResolvingBinaryCacheItems(
         _ sources: [String: CacheItem.Source],
-        configuration: CacheHashingConfiguration
+        configuration: String
     ) async throws {
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
         let projectPath = try AbsolutePath(validating: "/Project")

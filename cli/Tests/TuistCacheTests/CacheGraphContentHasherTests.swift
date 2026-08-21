@@ -631,67 +631,11 @@ struct CacheGraphContentHasherTests {
     @Test(
         .withMockedDependencies(),
         .withMockedSwiftVersionProvider
-    ) func contentHashes_recordsTheConfigurationResolvedFromTheFlag() async throws {
+    ) func contentHashes_recordsTheResolvedConfiguration() async throws {
         // Given
-        try givenAGraphWhoseConfigurationResolvesTo("Debug-SharedCache")
-
-        // When
-        _ = try await subject.contentHashes(
-            for: graphWithSingleFramework(),
-            configuration: "Debug-SharedCache",
-            defaultConfiguration: nil,
-            excludedTargets: [],
-            destination: nil
-        )
-
-        // Then
-        let hashingConfiguration = try #require(await RunMetadataStorage.current.cacheHashingConfiguration)
-        #expect(hashingConfiguration == CacheHashingConfiguration(name: "Debug-SharedCache", resolution: .flag))
-    }
-
-    @Test(
-        .withMockedDependencies(),
-        .withMockedSwiftVersionProvider
-    ) func contentHashes_recordsTheConfigurationResolvedFromTheManifest() async throws {
-        // Given
-        try givenAGraphWhoseConfigurationResolvesTo("Debug-SharedCache")
-
-        // When
-        _ = try await subject.contentHashes(
-            for: graphWithSingleFramework(),
-            configuration: nil,
-            defaultConfiguration: "Debug-SharedCache",
-            excludedTargets: [],
-            destination: nil
-        )
-
-        // Then
-        let hashingConfiguration = try #require(await RunMetadataStorage.current.cacheHashingConfiguration)
-        #expect(hashingConfiguration == CacheHashingConfiguration(name: "Debug-SharedCache", resolution: .manifest))
-    }
-
-    @Test(
-        .withMockedDependencies(),
-        .withMockedSwiftVersionProvider
-    ) func contentHashes_recordsTheConfigurationResolvedFromTheDebugVariantFallback() async throws {
-        // Given
-        try givenAGraphWhoseConfigurationResolvesTo("Debug")
-
-        // When
-        _ = try await subject.contentHashes(
-            for: graphWithSingleFramework(),
-            configuration: nil,
-            defaultConfiguration: nil,
-            excludedTargets: [],
-            destination: nil
-        )
-
-        // Then
-        let hashingConfiguration = try #require(await RunMetadataStorage.current.cacheHashingConfiguration)
-        #expect(hashingConfiguration == CacheHashingConfiguration(name: "Debug", resolution: .debugVariantFallback))
-    }
-
-    private func givenAGraphWhoseConfigurationResolvesTo(_ configuration: String) throws {
+        let target = Target.test(name: "Framework", product: .framework)
+        let project = Project.test(path: "/Project/Path", targets: [target])
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
         given(graphContentHasher)
             .contentHashes(
                 for: .any,
@@ -702,14 +646,20 @@ struct CacheGraphContentHasherTests {
             .willReturn([:])
         given(defaultConfigurationFetcher)
             .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
-            .willReturn(configuration)
+            .willReturn("Debug-SharedCache")
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
-    }
 
-    private func graphWithSingleFramework() -> Graph {
-        let target = Target.test(name: "Framework", product: .framework)
-        let project = Project.test(path: "/Project/Path", targets: [target])
-        return Graph.test(path: project.path, projects: [project.path: project])
+        // When
+        _ = try await subject.contentHashes(
+            for: graph,
+            configuration: "Debug-SharedCache",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+
+        // Then
+        #expect(await RunMetadataStorage.current.cacheHashingConfiguration == "Debug-SharedCache")
     }
 }

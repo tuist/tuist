@@ -183,8 +183,8 @@ public struct GenerateService {
         else { return }
 
         AlertController.current.warning(.alert(
-            "None of the \(cacheItems.count) cacheable targets were resolved from the binary cache for the configuration \(configuration.name).",
-            takeaway: "The configuration was resolved from \(configuration.resolution.description). Binaries cached for a different configuration hash differently, so make sure the cache was warmed with \(.command("tuist cache --configuration \(configuration.name)"))."
+            "None of the \(cacheItems.count) cacheable targets were resolved from the binary cache for the configuration \(configuration).",
+            takeaway: "Binaries cached for a different configuration hash differently, so make sure the cache was warmed with \(.command("tuist cache --configuration \(configuration)"))."
         ))
     }
 
