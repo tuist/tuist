@@ -568,7 +568,11 @@ a trigger for the next stall, so restarts cluster.
 ### Kura cache telemetry missing
 
 ```promql
-absent_over_time(up{job="kura"}[15m])
+absent_over_time(up{cluster="tuist-production", job="kura"}[15m])
+or
+absent_over_time(up{cluster="tuist-staging", job="kura"}[15m])
+or
+absent_over_time(up{cluster="tuist-canary", job="kura"}[15m])
 ```
 
 - Pending period: 0 minutes
@@ -582,14 +586,32 @@ threshold rules with **No Data: Normal**, so they cannot distinguish a healthy
 fleet from a scrape configuration that stopped discovering the `kura` namespace
 altogether.
 
+**Enumerate the clusters; do not write the bare selector.** `absent_over_time`
+is absent-or-nothing across everything the selector matches, so
+`absent_over_time(up{job="kura"}[15m])` stays empty while *any* cluster still
+has one Kura target. It cannot see a single cluster's targets disappear, which
+is the case worth alerting on, and on the one occasion it did fire the result
+would carry no `cluster` label for the summary to interpolate. Only equality
+matchers survive into the output, so naming each cluster is also what puts
+`cluster` on the alert. Same shape as **Kubernetes control-plane scrape
+telemetry missing**.
+
+Kura runs in `tuist-production`, `tuist-staging` and `tuist-canary`, and
+deliberately not in `tuist-management`. Add a disjunct when a new cluster
+starts hosting Kura: a cluster that is absent from this list is not covered,
+and nothing will point that out.
+
 **Watch the polarity, which is the reverse of a threshold rule.**
 `absent_over_time` returns `1` when the series has been absent for the whole
 window and returns *nothing* when it is present, so the healthy state here is
 an empty result. **No Data** must therefore be **Normal**, not Alerting;
 setting it to Alerting makes the rule fire continuously while the fleet is
 healthy. Only **Error** goes to **Alerting**, because a failed evaluation does
-mean the safety net is not working. This corrects the general advice in step 8
-of **Create the rules in Grafana** for `absent_over_time` rules specifically.
+mean the safety net is not working. This corrects steps 8 and the Assistant
+prompt below, which said to make **No Data** Alerting for telemetry-missing
+rules; that reads as correct but inverts the semantics of every
+`absent_over_time` rule in this document, so check the deployed configuration
+of the older ones too.
 
 ### Runner host PN VLAN missing
 
@@ -2038,16 +2060,23 @@ min by (cluster, namespace, repo, database) (
 7. Use the explicit telemetry-missing rules in this document to detect absent
    series. They use `absent_over_time` and fire even though threshold rules use
    **No Data: Normal**.
-8. Set **Error** to **Alerting** for the critical availability and
+8. Set **No Data** to **Normal** on the telemetry-missing rules as well.
+   `absent_over_time` returns a series only when the metric is *gone*, so an
+   empty result is the healthy state exactly as it is for a threshold rule.
+   Setting **No Data** to **Alerting** on one of these inverts it and the rule
+   fires continuously while everything is healthy.
+9. Set **Error** to **Alerting** for the critical availability and
    telemetry-missing rules. Use **Keep Last State** for capacity and latency
    warnings so a data-source evaluation error does not fan out into unrelated
-   warnings.
-9. Add the suggested summary, a `severity` label, and the notification contact
+   warnings. Note that **Keep Last State** is reachable from the UI but not
+   from the provisioning API, which accepts only `OK`, `Alerting` and `Error`;
+   use `OK` there for the same intent.
+10. Add the suggested summary, a `severity` label, and the notification contact
    point used by the infrastructure team. Add `affected_service` to
    customer-visible rules as described in **Routing to Grafana IRM** above.
-10. Preview the raw metric selector and the final comparison separately against
+11. Preview the raw metric selector and the final comparison separately against
     recent data before saving it.
-11. For a rule whose healthy state is an empty result *and* whose unhealthy
+12. For a rule whose healthy state is an empty result *and* whose unhealthy
     state depends on the series existing (`Remote processing queue has no
     consumer`, `xcresult processor guest metrics unavailable fleet-wide`),
     confirm the paired telemetry-missing rule exists before relying on it.
@@ -2063,10 +2092,12 @@ infra/helm/k8s-monitoring/alerts.md. Use the Grafana Cloud metrics data source,
 preserve every query and pending period exactly, put the rules in a folder
 named Tuist infrastructure, add the suggested summary as the annotation, and
 route critical and warning severities through our existing infrastructure
-notification policy. Configure No Data and Error as Alerting for every
-explicit telemetry-missing rule. Configure No Data as Normal for every
-threshold rule. Configure Error as Alerting for critical availability and
-telemetry-missing rules, and Keep Last State for warning rules. Group
+notification policy. Configure No Data as Normal for EVERY rule, including the
+telemetry-missing ones: those use absent_over_time, which returns a series only
+when the metric is gone, so an empty result is the healthy state and No Data as
+Alerting would make them fire continuously while healthy. Configure Error as
+Alerting for critical availability and telemetry-missing rules, and Keep Last
+State for warning rules. Group
 notifications by cluster and alert name. Preview each raw metric selector and
 final comparison against the last seven days, report any selector with no
 matching series, and show me the resulting rules before saving.
