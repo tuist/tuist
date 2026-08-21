@@ -49,7 +49,7 @@
       <p data-part="kura-storage-claim-description">
         {dgettext(
           "dashboard",
-          "Each replica reserves this much disk. Leave it empty to size the account from its plan, which is the right default for most accounts and a poor fit at both ends of the range. Saving a different claim rebuilds the volumes of every running instance in a region that sizes per account, so those instances start with an empty cache."
+          "Each replica reserves this much disk. Leave it empty to size the account from its plan, which is the right default for most accounts and a poor fit at both ends of the range. Raising the claim rebuilds the volumes of a running instance that is smaller than it, so that instance starts with an empty cache. Lowering it is not destructive: the cache stays and evicts down to the new budget, and the disk is reclaimed the next time volumes are built."
         )}
       </p>
       <.form

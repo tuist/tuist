@@ -294,7 +294,7 @@ defmodule TuistWeb.OpsAccountLive do
   # and only one of them costs a cache. Say which happened rather than reporting
   # a successful save: an operator raising a claim to rescue a capped account is
   # the one most likely to assume it was free.
-  defp kura_storage_claim_message(%{claim_size: claim_size, rebuilt: [], tightened: []}) do
+  defp kura_storage_claim_message(%{claim_size: claim_size, raised: [], lowered: []}) do
     dgettext(
       "dashboard",
       "Kura disk claim set to %{claim}. No running instance changed; it applies the next time volumes are built.",
@@ -302,22 +302,25 @@ defmodule TuistWeb.OpsAccountLive do
     )
   end
 
-  defp kura_storage_claim_message(%{claim_size: claim_size, rebuilt: []} = result) do
+  defp kura_storage_claim_message(%{claim_size: claim_size, raised: []} = result) do
     dngettext(
       "dashboard",
-      "Kura disk claim set to %{claim}. %{count} running instance keeps its cache and evicts down to the new budget; its disk is reclaimed the next time volumes are built.",
-      "Kura disk claim set to %{claim}. %{count} running instances keep their caches and evict down to the new budget; their disk is reclaimed the next time volumes are built.",
-      length(result.tightened),
+      "Kura disk claim lowered to %{claim}. %{count} running instance keeps its cache and evicts down to the new budget; its disk is reclaimed the next time volumes are built.",
+      "Kura disk claim lowered to %{claim}. %{count} running instances keep their caches and evict down to the new budget; their disk is reclaimed the next time volumes are built.",
+      length(result.lowered),
       claim: claim_size
     )
   end
 
+  # "Up to", because an instance rebuilds only if its volumes are smaller than
+  # the new claim, and an earlier decrease can have left them larger. Stated as
+  # the bound it is rather than as a count of caches lost.
   defp kura_storage_claim_message(%{claim_size: claim_size} = result) do
     dngettext(
       "dashboard",
-      "Kura disk claim set to %{claim}. %{count} running instance rebuilds its volumes and starts with an empty cache.",
-      "Kura disk claim set to %{claim}. %{count} running instances rebuild their volumes and start with an empty cache.",
-      length(result.rebuilt),
+      "Kura disk claim raised to %{claim}. Up to %{count} running instance rebuilds its volumes and starts with an empty cache; one whose volumes are already larger keeps its cache.",
+      "Kura disk claim raised to %{claim}. Up to %{count} running instances rebuild their volumes and start with an empty cache; any whose volumes are already larger keep their caches.",
+      length(result.raised),
       claim: claim_size
     )
   end

@@ -308,23 +308,44 @@ defmodule Tuist.Kura do
   comes back when the volumes are next built. Nothing is thrown away to reclaim
   it sooner.
 
-  Returns `{:ok, %{claim_size: claim, rebuilt: servers, tightened: servers}}`.
-  `claim_size` is what the account's instances are now built at (its override,
-  or the claim its plan gives it back when the override is cleared), `:rebuilt`
-  names exactly the instances whose cache this drops, and `:tightened` the ones
-  that keep theirs. An operator raising a claim to rescue a capped account is
-  told which of the two they just did.
+  Returns `{:ok, %{claim_size: claim, raised: servers, lowered: servers}}`, where
+  `claim_size` is what the account's instances are now built at: its override,
+  or the claim its plan gives it back when the override is cleared.
+
+  The two lists say which way each instance's *claim* moved, which is not quite
+  the same question as which ones the cluster rebuilds, and the gap is worth
+  being precise about. The controller rebuilds a volume only when the claim
+  exceeds what that volume was actually built at, and this only knows what the
+  row was previously pinned to. A volume is never smaller than the row's pin
+  (lowering the pin leaves the volume alone), so the two agree except after an
+  earlier decrease left a volume oversized: `50Gi` down to `20Gi` and back up to
+  `40Gi` lands here as raised, while the volume is still the original `50Gi` and
+  the controller keeps the cache.
+
+  That makes `:raised` an upper bound rather than a list of casualties, and it
+  errs in the safe direction: nothing lands in `:lowered` that the cluster then
+  rebuilds. Reporting it the other way round would promise a cache that is about
+  to be thrown away. Naming the volumes exactly would mean recording what each
+  one was built at, which is state the control plane does not observe today.
   """
   def update_storage_claim_override(%Account{} = account, attrs) when is_map(attrs) do
     with {:ok, override} <- StorageClaims.cast_override(account, attrs),
          {:ok, result} <- write_storage_claim_override(account, override) do
-      Enum.each(result.rebuilt ++ result.tightened, &broadcast_server(&1, :updated))
+      Enum.each(result.raised ++ result.lowered, &broadcast_server(&1, :updated))
       {:ok, result}
     end
   end
 
   defp write_storage_claim_override(account, override) do
     Repo.transaction(fn ->
+      # Taken before anything is read, and paired with the shared lock every path
+      # that builds volumes takes. Without it the two interleave and never
+      # converge: a provision that resolved the claim before this committed
+      # inserts the old one, and the re-pin below cannot reach a row that did not
+      # exist when it ran. A pinned claim wins from then on, so the instance is
+      # left at a claim nobody asked for and nothing corrects it.
+      lock_account(account.id)
+
       # Read before the write. A governed region resolves an instance that pins
       # no claim of its own from its account rather than from a region-wide
       # constant, so this is what those instances are rendering right now, and
@@ -354,27 +375,28 @@ defmodule Tuist.Kura do
   # produce no manifest change, and reporting it as rebuilt would tell an
   # operator a cache was dropped that never was.
   defp repin_storage_claims(%Account{id: account_id}, previous, claim_size) do
-    {grown, tightened} =
+    {raised, lowered} =
       Server
       |> where([server], server.account_id == ^account_id)
       |> where([server], server.status not in ^@volumeless_statuses)
       |> Repo.all()
       |> Enum.filter(&storage_claim_moves?(&1, previous, claim_size))
       |> Enum.map(fn server ->
-        grows? = claim_grows?(instance_storage_claim(server, previous), claim_size)
+        raised? = claim_grows?(instance_storage_claim(server, previous), claim_size)
 
-        {server |> Server.lifecycle_changeset(%{storage_claim_size: claim_size}) |> Repo.update!(), grows?}
+        {server |> Server.lifecycle_changeset(%{storage_claim_size: claim_size}) |> Repo.update!(), raised?}
       end)
-      |> Enum.split_with(fn {_server, grows?} -> grows? end)
+      |> Enum.split_with(fn {_server, raised?} -> raised? end)
 
-    %{rebuilt: Enum.map(grown, &elem(&1, 0)), tightened: Enum.map(tightened, &elem(&1, 0))}
+    %{raised: Enum.map(raised, &elem(&1, 0)), lowered: Enum.map(lowered, &elem(&1, 0))}
   end
 
-  # Which of the two things the cluster will do with this row. A claim bigger
-  # than the volume holds is the one direction it cannot absorb, since the ring
-  # would be budgeted past the end of the disk, so the volumes are rebuilt and
-  # the cache goes with them. A smaller one fits what is already there and the
-  # ring evicts down into it.
+  # Which way this row's claim moved, which bounds what the cluster does with it.
+  # A claim above what the row previously carried may exceed what its volume was
+  # built at, in which case the ring would be budgeted past the end of the disk
+  # and the volumes are rebuilt. A claim below it cannot: the volume is never
+  # smaller than the pin, so a smaller claim always fits what is already there
+  # and the ring evicts down into it.
   #
   # An unreadable quantity is reported as the destructive reading: promising a
   # cache survives is the answer that costs something when it is wrong.
@@ -422,13 +444,10 @@ defmodule Tuist.Kura do
          {:ok, account} <- sizing_account(attrs),
          {:ok, ref} <- region.provisioner.provision(account, region, server_stub(attrs)),
          :ok <- validate_provisioner_node_ref(account, ref) do
-      attrs =
-        attrs
-        |> Map.delete(:account)
-        |> Map.put(:provisioner_node_ref, ref)
-        |> Map.merge(storage_claim(account, region))
-
-      insert_server(attrs, region)
+      attrs
+      |> Map.delete(:account)
+      |> Map.put(:provisioner_node_ref, ref)
+      |> insert_server(region, account)
     end
   end
 
@@ -484,8 +503,10 @@ defmodule Tuist.Kura do
     |> Ecto.Changeset.add_error(:account_handle, message)
   end
 
-  defp insert_server(attrs, region) do
+  defp insert_server(attrs, region, account) do
     case Repo.transaction(fn ->
+           attrs = Map.merge(attrs, locked_storage_claim(account, region))
+
            with {:ok, server} <- attrs |> Server.create_changeset() |> Repo.insert(),
                 {:ok, _deployment} <- insert_initial_deployment(server, region, attrs[:image_tag]) do
              Repo.preload(server, :deployments)
@@ -1302,9 +1323,9 @@ defmodule Tuist.Kura do
     do: Accounts.get_account_by_id(id, preload: [:subscriptions])
 
   defp return_from_archive_transaction(server, region, account, image_tag) do
-    claim = storage_claim(account, region)
-
     Repo.transaction(fn ->
+      claim = locked_storage_claim(account, region)
+
       locked_server =
         case lock_server(server.id, server.account_id) do
           %Server{status: :archived} = locked_server -> locked_server
@@ -1469,16 +1490,17 @@ defmodule Tuist.Kura do
   # path an instance whose plan changed while it was serving takes to the claim
   # that plan is worth.
   defp insert_move_target(%Server{} = source, region, account, ref, target_node) do
-    attrs =
-      Map.merge(storage_claim(account, region), %{
-        account_id: source.account_id,
-        region: source.region,
-        provisioner_node_ref: ref,
-        move_phase: :moving_in,
-        target_node: target_node
-      })
+    attrs = %{
+      account_id: source.account_id,
+      region: source.region,
+      provisioner_node_ref: ref,
+      move_phase: :moving_in,
+      target_node: target_node
+    }
 
     case Repo.transaction(fn ->
+           attrs = Map.merge(attrs, locked_storage_claim(account, region))
+
            with {:ok, target} <- attrs |> Server.create_changeset() |> Repo.insert(),
                 {:ok, _deployment} <- insert_initial_deployment(target, region, source.current_image_tag) do
              Repo.preload(target, :deployments)
@@ -1642,6 +1664,30 @@ defmodule Tuist.Kura do
   defp lock_server(id, account_id) do
     Server
     |> where([s], s.id == ^id and s.account_id == ^account_id)
+    |> lock("FOR UPDATE")
+    |> Repo.one()
+  end
+
+  # Resolving the claim and writing the row it goes on have to be one step
+  # against a concurrent override, so the resolution happens here, inside the
+  # caller's transaction, behind a lock on the account.
+  #
+  # Shared rather than exclusive because these paths do not contend with each
+  # other, only with the override write, which takes the exclusive side. Both
+  # take the account before touching `kura_servers`, so the order is the same in
+  # either direction and they queue rather than deadlock.
+  defp locked_storage_claim(account, region) do
+    Account
+    |> where([a], a.id == ^account.id)
+    |> lock("FOR SHARE")
+    |> Repo.one()
+
+    storage_claim(account, region)
+  end
+
+  defp lock_account(account_id) do
+    Account
+    |> where([a], a.id == ^account_id)
     |> lock("FOR UPDATE")
     |> Repo.one()
   end
