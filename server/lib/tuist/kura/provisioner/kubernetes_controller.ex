@@ -774,15 +774,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp storage_class(_), do: nil
 
-  # The claim this instance's volumes were created at wins over anything else. A
-  # claim cannot be expanded on the local-path class these regions run, so
-  # re-resolving a live instance would be rejected outright. `Tuist.Kura.Server`
-  # pins it when the volumes are created, and only then.
+  # The claim carried on the instance wins over anything else. A claim cannot be
+  # expanded on the local-path class these regions run, so an instance whose
+  # claim silently tracked its account would have that attempted under it every
+  # time the account moved; `Tuist.Kura.Server` writes it where the volumes are
+  # built instead.
   #
   # An instance carrying none has no volumes to contradict, so a region that
-  # sizes per plan resolves the claim provisioning would have created it with,
-  # and every other region renders its own. Neither is a re-derivation of a
-  # pinned value.
+  # sizes per plan resolves the claim provisioning would build it at, and every
+  # other region renders its own. Neither is a re-derivation of a carried value.
   defp storage_claim(_account, %Regions{}, %Server{storage_claim_size: size}) when is_binary(size) and size != "",
     do: size
 

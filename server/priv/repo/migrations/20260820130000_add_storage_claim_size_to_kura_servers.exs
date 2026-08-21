@@ -1,12 +1,12 @@
 defmodule Tuist.Repo.Migrations.AddStorageClaimSizeToKuraServers do
   use Ecto.Migration
 
-  # The claim one instance's data volumes were created at. It was a region-wide
-  # constant until now; it becomes a property of the instance so a region can
-  # size new instances from their account's plan without touching volumes that
-  # already exist. The local-path storage class cannot expand a claim, so this
-  # may not change under a live instance -- it changes when the storage is
-  # recreated (cold return or warm handoff), never in place.
+  # The claim one instance is built at. It was a region-wide constant until now;
+  # it becomes a property of the instance so a region can size new instances from
+  # their account's plan without touching volumes that already exist. The
+  # local-path storage class cannot expand a claim, so a value that changes takes
+  # effect where the storage is built again (cold return or warm handoff), never
+  # in place under a running one.
   #
   # Nothing is backfilled. An instance carrying no claim resolves one from its
   # account's plan, and every instance provisioned before this is enterprise,

@@ -601,9 +601,8 @@ defmodule Tuist.Kura.Regions do
         # (their public peer plane is a per-instance LoadBalancer instead).
         failover_ip: Tuist.Environment.kura_peer_failover_ip(spec.id),
         # These regions declare no claim of their own: every instance carries the
-        # one its volumes were created at, and an instance that somehow carries
-        # none is sized from its account's plan at render time rather than from a
-        # region-wide constant. nil replicas for the multi-box Hetzner regions
+        # one it is built at, and an instance carrying none is sized from its
+        # account's plan at render time rather than from a region-wide constant. nil replicas for the multi-box Hetzner regions
         # (controller default applies); bare-metal regions set 2 (a warm standby
         # for gapless rolling deploys).
         replicas: Map.get(spec, :replicas),
