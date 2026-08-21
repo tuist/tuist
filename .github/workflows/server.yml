@@ -10,6 +10,7 @@ on:
       - noora/**
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
+      - .trivyignore
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -19,6 +20,7 @@ on:
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
       - noora/aube-lock.yaml
+      - .trivyignore
   merge_group: {}
 
 permissions:

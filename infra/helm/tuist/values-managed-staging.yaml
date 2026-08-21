@@ -87,6 +87,32 @@ server:
       # the OVH bare-metal validation region — a geographic id; OVH is an
       # implementation detail behind it (ovhFleet below, replicas 1).
       value: eu-central,scw-fr-par-runners,ca-east
+    - name: TUIST_KURA_AIR_REGION
+      # Staging has no `us-east` pool, so every Air account would resolve to a
+      # region whose instances could never schedule, and the Air-only 60-day
+      # pressure rule could not be exercised at all. Run the free tier on the
+      # `ca-east` OVH validation box instead. Production omits this and serves
+      # us-east. Only Air moves: a paid account restricted to Europe or the
+      # USA chose that, and no deployment setting may relocate it.
+      value: ca-east
+    - name: TUIST_KURA_INACTIVE_DAYS
+      # Production reclaims after 90 days, which no environment can wait out,
+      # so the archival half of the lifecycle would first run for real against
+      # customer instances. Staging runs a one-day window and a zero-day
+      # tracking grace so a deploy, one build, and a day of quiet exercise the
+      # whole cycle: drain, teardown, archive, and cold return on the next
+      # request. The grace period guards against archiving on freshly
+      # backfilled demand, which is not a concern here.
+      value: "1"
+    - name: TUIST_KURA_PRESSURE_INACTIVE_DAYS
+      value: "1"
+    - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
+      value: "0"
+    - name: TUIST_KURA_ARCHIVAL_SWEEP_CRON
+      # Matches the one-day window above. The production default is @daily,
+      # which suits a 90-day window but would leave a staging instance
+      # eligible for up to another day before the sweep looked at it.
+      value: "*/5 * * * *"
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
@@ -239,41 +265,6 @@ cache:
     bucket: tuist-stag-storage
     xcodeCacheBucket: tuist-xcode-cache-staging
     registryBucket: ""
-
-# OCI registry. Reuses a staging object-storage bucket under an `oci`
-# prefix, alongside the Docker mirror below. Reachable at
-# tuist-oci-staging.<tailnet>.ts.net; nothing points at it yet, so it
-# is inert until the build workflows and fleet image pins move.
-ociRegistry:
-  enabled: true
-  s3:
-    # Not the default `tuist-stag-storage` bucket the Docker mirror uses:
-    # an object miss there resolves against a shadow-bucket configuration
-    # whose source no longer exists, so the store answers "NoSuchBucket"
-    # instead of a not-found. A registry turns that into a 500 on the
-    # "is this layer already present?" check every push starts with.
-    # Revisit once that bucket's shadow configuration is cleared.
-    bucket: tuist-xcode-cache-staging
-    rootDirectory: oci
-  auth:
-    enabled: true
-  externalSecret:
-    enabled: true
-  tailscale:
-    enabled: true
-    hostname: tuist-oci-staging
-    tags: tag:tuist-k8s-staging
-  # 443 so image references carry no port: `oci-staging.tuist.dev/<repo>`.
-  # The reference is embedded in every pushed tag and chart pin, so the
-  # port is expensive to change later.
-  service:
-    port: 443
-  tls:
-    enabled: true
-    host: oci-staging.tuist.dev
-    dns:
-      enabled: true
-      tailnet: taild6d7bb.ts.net
 
 # Docker Hub pull-through cache. Reuses the staging object-storage bucket
 # under a `docker-mirror` prefix.

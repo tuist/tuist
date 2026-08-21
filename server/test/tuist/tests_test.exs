@@ -3171,6 +3171,58 @@ defmodule Tuist.TestsTest do
       assert updated_test.scheme == "TuistAcceptanceTests"
     end
 
+    test "stamps the merged scheme on the test case runs of the shard that supplies it" do
+      # The first shard's controller upload creates the run with
+      # status=processing and no scheme; the scheme only appears once a
+      # worker has parsed an xcresult. The shard whose worker finishes
+      # first both supplies the scheme and writes test case runs, so those
+      # runs must carry it rather than the placeholder row's empty value.
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, _processing_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          scheme: nil,
+          git_branch: "main",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, parsed_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 800,
+          status: "success",
+          scheme: "TuistAcceptanceTests",
+          git_branch: "main",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1,
+          test_modules: [
+            %{
+              name: "ModuleA",
+              status: "success",
+              duration: 800,
+              test_cases: [%{name: "testA", status: "success", duration: 400}]
+            }
+          ]
+        })
+
+      assert parsed_test.scheme == "TuistAcceptanceTests"
+      assert Enum.map(parsed_test.test_case_runs, & &1.scheme) == ["TuistAcceptanceTests"]
+    end
+
     test "preserves scheme when a later shard reports without one" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account

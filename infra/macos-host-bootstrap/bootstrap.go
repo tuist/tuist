@@ -429,6 +429,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installTailnetResolver(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailnet resolver: %w", err)
 	}
+	if err := installLocalNetworkAllowlist(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install local network allowlist: %w", err)
+	}
 	// After installTailscale: the guard's unconditional allowance is the
 	// tailnet, so it must not narrow :22 before that path exists.
 	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
@@ -548,6 +551,13 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	// sets SkipTailscaleInstall.
 	if err := installTailnetResolver(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailnet resolver: %w", err)
+	}
+	// On the drift path as well as first bootstrap, because the fleet
+	// predates this setting and a converged hostConfigHash otherwise
+	// certifies hosts that cannot build an image. Same mistake the
+	// tailnet resolver made.
+	if err := installLocalNetworkAllowlist(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install local network allowlist: %w", err)
 	}
 	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh ssh ingress guard: %w", err)
@@ -690,6 +700,7 @@ func HostConfigHash(cfg Config) string {
 		{"tailscale", renderTailscaleScript(cfg)},
 		{"node-exporter", renderNodeExporterScript()},
 		{"tailnet-resolver", renderTailnetResolverScript()},
+		{"local-network-allowlist", renderLocalNetworkAllowlistScript()},
 		{"log-shipper", renderLogShipperScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
 		{"ssh-reachability", renderSSHReachabilityScript()},
@@ -2544,6 +2555,53 @@ sudo chmod 0644 /etc/resolver/ts.net
 # for as long as the cache holds them.
 sudo dscacheutil -flushcache || true
 sudo killall -HUP mDNSResponder 2>/dev/null || true
+`
+}
+
+// installLocalNetworkAllowlist exempts the private address ranges a Tart
+// guest can land on from macOS local network privacy.
+//
+// Since macOS Sequoia, a process must hold the "Local Network" permission
+// to open a connection to a LAN address. There is no way to grant it
+// without a user answering a dialog, and nothing on a builder runs in
+// front of a person: the Actions runner is a LaunchAgent in a headless
+// Aqua session. So Packer, which drives the build from the host and has
+// to reach the guest it just booted, is denied.
+//
+// The denial is invisible in every way that matters. The guest boots
+// normally, takes a DHCP lease, and listens on :22 — `nc` and `ping` from
+// a shell on the same host both succeed, because that shell is a
+// different process with a different permission verdict. Only Packer is
+// blocked, and the block presents as silence rather than a refusal, so
+// the build sits in "Waiting for SSH to become available..." until it
+// times out 15 minutes later. A healthy build connects in about 20
+// seconds. Nothing in the failure names the cause.
+//
+// This is why it hid for so long: a host that was already granted the
+// permission keeps working indefinitely, so the fleet looked fine while
+// every host rebuilt after the requirement arrived came back unable to
+// build images at all. Recycling a host through the pool is the
+// documented repair for a wedged builder, which means the repair itself
+// was breaking image builds.
+//
+// The allowlist is the workaround the packer-plugin-tart README
+// documents. It is written per host and only takes effect on the next
+// boot, so a host converged by the drift path carries the setting but
+// keeps failing until it restarts.
+func installLocalNetworkAllowlist(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderLocalNetworkAllowlistScript())
+}
+
+func renderLocalNetworkAllowlistScript() string {
+	// The whole of RFC1918 rather than just 192.168.64.0/24, because the
+	// range vmnet hands out is Tart's to choose and has moved before.
+	// Widening it costs nothing here: this exempts addresses from a
+	// privacy prompt on a single-tenant build host, it does not open a
+	// path that was closed.
+	return `set -euo pipefail
+for key in AllowedEthernetLocalNetworkAddresses AllowedWiFiLocalNetworkAddresses; do
+  sudo defaults write com.apple.network.local-network "$key" -array "10.0.0.0/8" "172.16.0.0/12" "192.168.0.0/16"
+done
 `
 }
 

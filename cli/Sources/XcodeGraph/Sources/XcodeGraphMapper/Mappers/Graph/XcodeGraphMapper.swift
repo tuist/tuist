@@ -319,7 +319,7 @@ public struct XcodeGraphMapper: XcodeGraphMapping {
                 if refPath.extension == "xcodeproj" {
                     paths.append(refPath)
                 }
-            case let .group(group):
+            case let .group(group), let .fileSystemSynchronizedGroup(group):
                 // Set a new src root to account for projects in nested directories
                 let recursiveRoot = srcPath.appending(component: group.location.path)
 

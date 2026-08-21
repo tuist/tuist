@@ -16,9 +16,12 @@ inputs:
     required: false
     default: "8"
   concurrency:
-    description: Number of concurrent registry uploads within Tart
+    description: >-
+      Number of disk layers Tart uploads at once. Chunks within a layer are
+      strictly sequential, so this is the only lever on upload throughput.
+      See the note on the push call below.
     required: false
-    default: "1"
+    default: "4"
   chunk-size:
     description: >-
       Upload chunk size in megabytes, or 0 for monolithic uploads. GHCR
@@ -120,25 +123,26 @@ runs:
           attempt_log="${RUNNER_TEMP:-/tmp}/tart-push-${GITHUB_RUN_ID:-local}-${attempt}.log"
           echo "Tart push attempt ${attempt}/${TART_PUSH_ATTEMPTS} at $(date -u +%H:%M:%SZ)" >&2
 
-          # Both upload modes were measured against this image on
-          # 2026-08-12, and 3 megabytes is the least bad of the two:
+          # Chunk size stays at 3 megabytes. GHCR rejects chunks of 4MB
+          # and up, so this is already the largest chunk it accepts, and
+          # monolithic does not work at this image size: every attempt
+          # died with "The request timed out" partway through the disk
+          # (best attempt reached 42%). That error is a URLError raised
+          # by Tart's own client, not a registry response, and because
+          # Tart retries a failed blob whole, a monolithic stall costs
+          # the entire 512 MiB layer instead of one chunk.
           #
-          #   chunked, 3MB   ~17,000 requests for a ~50 gigabyte disk,
-          #                  roughly 120 per minute, which trips GHCR's
-          #                  secondary rate limit under load. GHCR
-          #                  rejects chunks of 4MB and up, so this is
-          #                  already the largest chunk it accepts.
-          #   monolithic     one request per blob, no rate limiting seen,
-          #                  but every attempt died with "The request
-          #                  timed out" partway through the disk (best
-          #                  attempt reached 42%). That error is a
-          #                  URLError raised by Tart's own client, not a
-          #                  registry response.
-          #
-          # Do not "fix" a rate-limited push by reaching for a larger
-          # chunk or for monolithic. The levers that remain are the retry
-          # budget below, not pushing several large images concurrently,
-          # and the image size itself.
+          # Throughput therefore comes from concurrency, not chunk size.
+          # A single stream measured 6.1 MB/s on the 2026-08-21 release
+          # (18.6 gigabytes of new layers in 50.6 minutes), where the
+          # link itself connects to ghcr.io in 11ms: roughly 370ms of
+          # every 489ms request is GHCR-side per-chunk cost, paid one
+          # chunk at a time. Running layers in parallel does not change
+          # how many requests the push makes in total, only how long it
+          # takes to make them, and the retry loop below already makes a
+          # throttle cheap. If GHCR's secondary rate limit does start
+          # biting, lower `concurrency` rather than reaching for a larger
+          # chunk or for monolithic.
           #
           # Retrying is worth more than it looks: Tart splits the disk
           # into layers of at most 512 MiB, and skips any layer whose

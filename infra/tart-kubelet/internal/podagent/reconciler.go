@@ -290,6 +290,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// status share (and the guest's report in it) with it.
 			exitCode, exitReason := r.runnerTermination(entry, exitErr)
 			finishedAt := runnerFinishedAt(entry)
+			// Re-emit the guest's own log before deleteByKey takes the
+			// status share with it. This is tart-kubelet's durable stdout,
+			// which the host log shipper already tails, so the trail reaches
+			// Loki without the shipper needing to discover per-VM shares.
+			// Unconditional: exitCode does not discriminate here (a runner
+			// that halted without taking a job reports 0 exactly like a
+			// finished one), so gating on it would drop the cases worth
+			// keeping.
+			if tail := readRunnerLog(entry.VolumeStatusDir); tail != "" {
+				logger.Info("runner log", "vm", entry.VMName, "runnerLog", tail)
+			}
 			r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], exitErr == nil)
 			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
 
@@ -1239,6 +1250,12 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		// and the only exit time there will ever be.
 		exitCode, exitReason := r.runnerTermination(entry, nil)
 		finishedAt := runnerFinishedAt(entry)
+		// Same reason as the terminal path: publish the guest's log while
+		// the share still exists. This path has even less to go on — there
+		// is no `tart run` error at all — so the log is the whole story.
+		if tail := readRunnerLog(entry.VolumeStatusDir); tail != "" {
+			log.FromContext(ctx).Info("runner log", "vm", entry.VMName, "runnerLog", tail)
+		}
 		r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], true)
 		// Tear down the Tart clone + Store entry so the host state mirrors what
 		// the API server will see post-update, then mark the Pod Succeeded so

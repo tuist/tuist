@@ -58,6 +58,7 @@ defmodule Tuist.Kura.Reconciler do
   alias Tuist.Billing.Subscription
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
+  alias Tuist.Kura.Lifecycle
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
   alias Tuist.Kura.RunnerCache
@@ -84,6 +85,12 @@ defmodule Tuist.Kura.Reconciler do
     # of the loop so a freshly enabled account's node enters the normal
     # provisioning/observation path within the same tick.
     RunnerCache.reconcile()
+
+    # Converge account-region instances with cache demand next, for the same
+    # reason: an account that just asked for cache enters the provisioning
+    # path this tick, and an instance that just reached its inactivity window
+    # unpublishes its endpoint before anything else observes it.
+    Lifecycle.reconcile()
 
     schedule_runtime_image_deployments()
     reconcile_retired_region_servers()
@@ -122,12 +129,6 @@ defmodule Tuist.Kura.Reconciler do
     )
   end
 
-  # Drain window a promoted move's source keeps serving before teardown, so
-  # persistent gRPC channels / in-flight builds finish. The target is caught up
-  # (same cache), so this is a safety margin, not a correctness requirement;
-  # fail-open (miss -> origin) covers any straggler beyond it.
-  @move_drain_seconds 120
-
   # Tears down the source of a completed move once it has drained. `move_server`
   # promoted the target and re-rendered the source without the customer host, so
   # the box no longer receives new traffic; after the drain window the source's
@@ -135,7 +136,7 @@ defmodule Tuist.Kura.Reconciler do
   # Move rows are excluded from the observation projection, so a moving-out row's
   # updated_at stays at its promotion time and clocks the drain.
   defp reconcile_moving_out_servers do
-    cutoff = DateTime.add(DateTime.utc_now(), -@move_drain_seconds, :second)
+    cutoff = DateTime.add(DateTime.utc_now(), -Kura.drain_seconds(), :second)
 
     Server
     |> where([s], s.move_phase == :moving_out and s.status not in [:destroying, :destroyed])
@@ -264,8 +265,15 @@ defmodule Tuist.Kura.Reconciler do
     |> Enum.uniq_by(& &1.kura_server_id)
   end
 
+  # No rollout may act on a server that is being torn down. `:destroying` and
+  # `:destroyed` are operator teardown; `:drain_pending` and `:archived` are the
+  # demand-driven lifecycle's equivalents, and are just as unsafe to roll: an
+  # activation would drag a draining server back to `:active` outside the
+  # lifecycle's own transitions, and a re-apply would recreate the resource an
+  # archival has already reclaimed. A cold return is not affected, because it
+  # leaves the row `:provisioning` before scheduling its deployment.
   defp reconcile_deployment(%Deployment{kura_server: %Server{status: status} = server} = deployment)
-       when status in [:destroying, :destroyed] do
+       when status in [:destroying, :destroyed, :drain_pending, :archived] do
     cancel(deployment, "server #{server.id} is #{server.status}; skipping rollout")
   end
 
@@ -314,9 +322,10 @@ defmodule Tuist.Kura.Reconciler do
       case Kura.activate_server(server, deployment.image_tag) do
         {:ok, _server} ->
           {:ok, _deployment} = Kura.mark_succeeded(deployment)
+          Lifecycle.record_ready(server, deployment)
           :ok
 
-        {:error, status} when status in [:server_destroying, :server_destroyed] ->
+        {:error, status} when status in [:server_destroying, :server_destroyed, :server_reclaimed] ->
           cancel(deployment, "server #{server.id} became #{server_status(status)} during rollout; skipping activation")
 
         {:error, {:public_host_not_resolvable, host, reason}} ->
@@ -336,8 +345,18 @@ defmodule Tuist.Kura.Reconciler do
           # serving yet: the pod is typically still replicating from mesh peers
           # behind the /ready backfill gate, so it offers no healthy upstream to
           # the gateway. Surface :replicating so the dashboard shows progress
-          # instead of a stuck "Deploying" for the whole catch-up.
-          record(server, :replicating, deployment.image_tag, now())
+          # instead of a stuck "Deploying" for the whole catch-up — but only
+          # when there is actually a peer to catch up from. An account
+          # returning from archive in its only region has none, and neither
+          # does a first-ever deploy, so calling that state "replicating" would
+          # attribute the wait to a catch-up that can never complete and leave
+          # the instance sitting there. Those are cold starts and stay
+          # `:provisioning` until the endpoint answers.
+          if Kura.replication_source?(server) do
+            record(server, :replicating, deployment.image_tag, now())
+          else
+            :ok
+          end
 
         {:error, :node_port_endpoint_not_ready} ->
           # The controller has not yet observed the full node-port
@@ -604,7 +623,7 @@ defmodule Tuist.Kura.Reconciler do
         Logger.info("[Kura.Reconciler] converged server #{server.id} to #{desired}")
         :ok
 
-      {:error, status} when status in [:server_destroying, :server_destroyed] ->
+      {:error, status} when status in [:server_destroying, :server_destroyed, :server_reclaimed] ->
         :ok
 
       {:error, {:public_host_not_resolvable, host, reason}} ->
@@ -691,4 +710,5 @@ defmodule Tuist.Kura.Reconciler do
 
   defp server_status(:server_destroying), do: "destroying"
   defp server_status(:server_destroyed), do: "destroyed"
+  defp server_status(:server_reclaimed), do: "drain-pending or archived"
 end

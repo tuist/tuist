@@ -176,6 +176,39 @@ pub(crate) fn hex(bytes: &[u8]) -> String {
     s
 }
 
+/// kura marks a refusal the caller can act on, rather than one that is
+/// transient, with this metadata. gRPC has no payment-required code, so the
+/// status itself is an ordinary permission denial and the reason travels beside
+/// it.
+const REFUSAL_REASON_KEY: &str = "tuist-refusal-reason";
+const REFUSAL_REASON_PAYMENT_REQUIRED: &str = "payment_required";
+
+static PAYMENT_REQUIRED_REPORTED: std::sync::Once = std::sync::Once::new();
+
+fn is_payment_required(status: &tonic::Status) -> bool {
+    status
+        .metadata()
+        .get(REFUSAL_REASON_KEY)
+        .and_then(|reason| reason.to_str().ok())
+        == Some(REFUSAL_REASON_PAYMENT_REQUIRED)
+}
+
+/// Reported once for the life of the process, which is one build: the lookup it
+/// answers runs per compilation, so saying this per lookup would bury it. The
+/// caller still treats the refusal as a miss, so the build finishes uncached
+/// rather than failing.
+fn note_payment_required(status: &tonic::Status) {
+    if !is_payment_required(status) {
+        return;
+    }
+
+    PAYMENT_REQUIRED_REPORTED.call_once(|| {
+        let message = status.message().to_owned();
+        crate::log_line(&format!("cache refused: {message}"));
+        eprintln!("warning: {message} Builds continue without the remote cache.");
+    });
+}
+
 fn unhex(s: &str) -> Option<Vec<u8>> {
     if s.len() % 2 != 0 {
         return None;
@@ -596,7 +629,10 @@ impl Remote {
                     Ok(Some(manifest))
                 }
                 Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
-                Err(status) => Err(format!("get_action: {status}")),
+                Err(status) => {
+                    note_payment_required(&status);
+                    Err(format!("get_action: {status}"))
+                }
             }
         })();
         self.get_stats.record(started.elapsed());
@@ -642,7 +678,10 @@ impl Remote {
                 .map(|file| file.contents)
                 .filter(|contents| !contents.is_empty())),
             Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
-            Err(status) => Err(format!("get_snapshot: {status}")),
+            Err(status) => {
+                    note_payment_required(&status);
+                    Err(format!("get_snapshot: {status}"))
+                }
         }
     }
 
@@ -941,6 +980,25 @@ pub fn decompress_frame(blob: &[u8]) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn recognises_a_refusal_the_caller_can_act_on() {
+        let mut status = tonic::Status::permission_denied("upgrade to Tuist Pro");
+        status.metadata_mut().insert(
+            super::REFUSAL_REASON_KEY,
+            tonic::metadata::MetadataValue::from_static(super::REFUSAL_REASON_PAYMENT_REQUIRED),
+        );
+
+        assert!(super::is_payment_required(&status));
+    }
+
+    // A node that is merely unreachable, or a credential that genuinely lacks
+    // access, must not be reported as a billing problem.
+    #[test]
+    fn does_not_mistake_an_ordinary_refusal_for_an_exhausted_plan() {
+        assert!(!super::is_payment_required(&tonic::Status::permission_denied("nope")));
+        assert!(!super::is_payment_required(&tonic::Status::unavailable("node down")));
+    }
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use super::{reapi_instance, retryable, retryable_blob_status};

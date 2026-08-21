@@ -485,7 +485,12 @@ topk(10, sum by (source, destination) (
 An in-cluster source resolves to a pod name; a mis-sourced runner VM or a SNATed
 path resolves to a bare IP, which is the distinction that matters here. Those
 labels come from `drop:sourceContext=pod|ip;destinationContext=pod` in
-[`cilium-values.yaml`](../../k8s/mgmt/bootstrap/cilium-values.yaml). A cluster
+[`cilium-values.yaml`](../../k8s/mgmt/bootstrap/cilium-values.yaml), which
+reaches existing clusters through
+[`cilium-deployment.yml`](../../../.github/workflows/cilium-deployment.yml) —
+editing the values file alone does nothing until that workflow runs, and it was
+this gap that left production unattributable for two days after the value
+merged. A cluster
 that has not had that Cilium value applied still reports `hubble_drop_total`
 aggregated to `(protocol, reason)` only, and needs the job caught live
 (`kubectl get pod -o wide`) with `pfctl -a com.apple/tuist.vmnat -s nat` plus
@@ -1389,6 +1394,39 @@ sum by (cluster, namespace, method, route) (
 
 - Pending period: 2 minutes
 - Summary: `Bandit reported repeated request read timeouts for {{ $labels.route }} in {{ $labels.cluster }}`
+
+### Runner job replica divergence
+
+```promql
+max by (fleet) (
+  tuist_runners_replica_divergence_count{env="production"}
+) > 0
+```
+
+- Pending period: 15 minutes
+- Already created: rule `ffvr99w48mltsb`, folder `Alerts`, group `Runners`,
+  receiver `Slack #notifications 2`.
+- **Created paused.** The gauge counts against a 7-day `enqueued_at` floor, and
+  the divergence from the 2026-08-19 log-archiver bug sits inside that window,
+  so the rule would fire continuously until those rows age out. Unpause once
+  `max by (fleet) (tuist_runners_replica_divergence_count{env="production"})`
+  reads 0, or once the affected rows are repaired.
+- Counts jobs whose ClickHouse `runner_jobs` row is still
+  `queued`/`claimed`/`running` while the authoritative Postgres
+  `runner_workflow_jobs` row is terminal. The server-side poll already excludes
+  rows younger than a 5-minute settle window, so in-flight jobs and normal
+  outbox lag are not counted and steady state is 0.
+- Data-correctness, not availability: dispatch reads Postgres directly, so jobs
+  keep running while this fires. What breaks is analytics —
+  `Runners.Analytics.jobs_duration` filters on a terminal status with non-null
+  `started_at`/`completed_at`, so a diverged job drops out of customer-facing
+  duration percentiles and success counts.
+- Threshold is `> 0` rather than a tolerance band: the outbox makes divergence
+  transient by construction (the ClickHouse insert precedes the outbox delete in
+  one transaction), so anything surviving the settle window is a row that will
+  not converge on its own.
+- Summary: `Runner fleet {{ $labels.fleet }}: {{ $values.A.Value }} job(s) stuck
+  non-terminal in ClickHouse while Postgres says they finished`
 
 ### Tuist license expires within 30 days
 

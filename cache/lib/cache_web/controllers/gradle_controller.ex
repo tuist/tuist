@@ -57,7 +57,8 @@ defmodule CacheWeb.GradleController do
       not_found: {"Artifact not found", "application/json", Error},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error}
     }
   )
 
@@ -160,7 +161,8 @@ defmodule CacheWeb.GradleController do
       unprocessable_entity:
         {"Invalid or missing request parameters (e.g., missing Content-Length header)", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error}
     }
   )
 
