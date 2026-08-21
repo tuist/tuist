@@ -512,6 +512,96 @@ separate them because every host, healthy or not, has quiet stretches. Scope thi
 to the runner fleet: `macos-fleet` and `builders-fleet` hosts sit at a couple of
 hundred B/s legitimately, since they run no cache-using VMs.
 
+### Kura cache pod unresponsive
+
+```promql
+avg by (cluster, pod) (
+  avg_over_time(up{job="kura"}[30m])
+) < 0.9
+```
+
+- Pending period: 5 minutes
+- Severity: critical
+- Label: `affected_service` set to the cache component (customer-visible: a
+  node that stops answering fails every cache request routed to it, and the
+  client sees a hang rather than an error)
+- Summary: `Kura cache pod {{ $labels.pod }} is failing scrapes in
+  {{ $labels.cluster }}`
+
+Kura serves `/metrics`, `/up` and `/ready` from the same axum server on the
+same port, so an Alloy scrape timeout and a kubelet probe timeout are the same
+event observed by two collectors. That makes `up` the only signal that sees the
+stall *itself*, independently of whether the kubelet decides to act on it.
+
+The distinction matters because most stalls do not become restarts. On
+2026-08-21 a single production pod accumulated 55 readiness timeouts and 30
+liveness timeouts over 23 hours, of which only 10 crossed the
+three-consecutive-failure liveness threshold. The other stalls dropped
+in-flight requests and left no trace outside these scrape gaps.
+
+**Why a scrape-success ratio and not `up == 0`.** A stall lasts roughly 60
+seconds, which is what three liveness failures at `periodSeconds: 20` costs. A
+rule shaped like the control-plane ones (`min_over_time(up[2m]) == 0`) needs the
+target down continuously for longer than any rollout, so it would never fire on
+this fault. Ten percent of failed scrapes over 30 minutes is about three misses
+at the default interval, the same evidence the kubelet acts on, and one rolling
+restart does not reach it.
+
+Do not scope this to one account. Every tenant runs the same binary on the same
+node pools, and a customer's cache stalling is the more serious version of the
+same fault.
+
+### Kura cache pod restart loop
+
+```promql
+sum by (cluster, pod) (
+  increase(kube_pod_container_status_restarts_total{
+    namespace="kura",
+    container="kura"
+  }[1h])
+) >= 2
+```
+
+- Pending period: 5 minutes
+- Severity: critical
+- Label: `affected_service` set to the cache component
+- Summary: `Kura cache pod {{ $labels.pod }} restarted
+  {{ $value }} times in the last hour in {{ $labels.cluster }}`
+
+Counts in-place container restarts, so a rollout cannot trigger it: a
+replacement pod starts its counter at zero. Every restart observed on this
+fault reports `Error` with exit code 137 and never `OOMKilled`, because the
+container is killed by the kubelet after `Container kura failed liveness
+probe`, not by the cgroup out-of-memory killer. A rule keyed on `OOMKilled`
+would not have seen any of it.
+
+A restart is not a cheap recovery here. The node loses its place in the mesh,
+its peers log `membership changed: lost peers`, and when it returns every peer
+runs a catch-up backfill pass against it: passes applying 27,716 artifacts and
+545 MB were logged in the minutes after one restart. That write burst is itself
+a trigger for the next stall, so restarts cluster.
+
+For the chronic form, add the same expression over `[24h]` with a `>= 3`
+threshold at severity warning. Healthy tenants sit at exactly zero restarts for
+weeks, so a day with three is already an outlier; in the week to 2026-08-21 the
+three pods of the account carrying the heaviest remote-execution traffic
+recorded 34, 7 and 7 while every other pod recorded none.
+
+### Kura cache telemetry missing
+
+```promql
+absent_over_time(up{job="kura"}[15m])
+```
+
+- Pending period: 0 minutes
+- Severity: critical
+- Summary: `Kura cache scrape targets have disappeared in {{ $labels.cluster }}`
+
+The paired telemetry rule for **Kura cache pod unresponsive**. That rule is a
+threshold rule with **No Data: Normal**, so it cannot distinguish a healthy
+fleet from a scrape configuration that stopped discovering the `kura` namespace
+altogether. Set **No Data** and **Error** to **Alerting** on this one.
+
 ### Runner host PN VLAN missing
 
 ```promql
@@ -1085,6 +1175,52 @@ after a non-throttling failure, so the cursor has already rotated beyond
 them and they wait a full catalog rotation for another look. A steady
 rate here is upstream repositories going away or a scope problem on the
 mirror's credential, not a quota problem.
+
+### Kura metadata store write buffer saturated
+
+```promql
+max by (cluster, pod) (
+  kura_rocksdb_write_buffer_usage_bytes
+  /
+  kura_rocksdb_write_buffer_capacity_bytes
+) > 0.9
+```
+
+- Pending period: 10 minutes
+- Severity: warning
+- Summary: `Kura metadata store write buffer is {{ $value | humanizePercentage }}
+  full on {{ $labels.pod }} in {{ $labels.cluster }}`
+
+The mechanism behind **Kura cache pod unresponsive** and **Kura cache pod
+restart loop**, and the only one of the three visible *before* the pod stops
+answering.
+
+Kura builds its metadata store with a RocksDB `WriteBufferManager` whose stall
+flag is enabled (`kura/src/store.rs`). Once memtable memory reaches the pool
+size, RocksDB blocks every thread inside its write call until a flush drains
+it. Those write calls run directly on tokio worker threads rather than on the
+blocking pool, so a saturated write buffer parks the runtime itself: the probe
+handlers stop being scheduled even though `/up` reads nothing but process-local
+config and takes no lock. Managed instances pin the pool with
+`KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES`, set in
+`kura/ops/helm/kura/values-managed.yaml` and in the kura-controller, to a value
+below what the process would otherwise derive from its memory limit, and the
+same allocation is shared with the block cache, so memtable growth evicts the
+read cache that the eviction scan depends on.
+
+The largest batch the store writes is CAS segment eviction, which deletes every
+artifact in a 512 MiB segment plus every action-cache entry cascading off those
+blobs in a single batch, and scans that whole segment index synchronously to
+build it. Four restarts across three pods and two node pools on 2026-08-21 each
+followed an eviction by 49 to 63 seconds, which is what three liveness failures
+at `periodSeconds: 20` costs. The cascade size does not predict it: evictions
+cascading 47 and 305 entries stalled the pod exactly as ones cascading 4,555 and
+7,360 did, so treat the eviction itself as the trigger rather than its fanout.
+
+Use **Keep Last State** on **Error** here, as for the other capacity warnings.
+This is a gauge that only exists while the pod is scrapeable, which is
+precisely the window this rule is for: once the stall is underway the series
+stops arriving and the two critical rules above take over.
 
 ### Worker node pool stuck mid-rollout
 
