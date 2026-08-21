@@ -25,6 +25,7 @@ public enum StartModuleCacheMultipartUploadServiceError: LocalizedError {
     case forbidden(String)
     case freeTierExhausted(String)
     case badRequest(String)
+    case unprocessableContent(String)
 
     public var errorDescription: String? {
         switch self {
@@ -33,7 +34,8 @@ public enum StartModuleCacheMultipartUploadServiceError: LocalizedError {
         case let .unauthorized(message),
              let .forbidden(message),
              let .freeTierExhausted(message),
-             let .badRequest(message):
+             let .badRequest(message),
+             let .unprocessableContent(message):
             return message
         }
     }
@@ -92,10 +94,10 @@ public struct StartModuleCacheMultipartUploadService: StartModuleCacheMultipartU
             case let .json(error):
                 throw StartModuleCacheMultipartUploadServiceError.freeTierExhausted(error.message)
             }
-        case let .badRequest(badRequest):
-            switch badRequest.body {
+        case let .unprocessableContent(unprocessableContent):
+            switch unprocessableContent.body {
             case let .json(error):
-                throw StartModuleCacheMultipartUploadServiceError.badRequest(error.message)
+                throw StartModuleCacheMultipartUploadServiceError.unprocessableContent(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw StartModuleCacheMultipartUploadServiceError.unknownError(statusCode)

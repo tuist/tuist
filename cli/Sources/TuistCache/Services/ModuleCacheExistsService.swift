@@ -25,6 +25,7 @@ public enum ModuleCacheExistsServiceError: LocalizedError {
     case forbidden(String)
     case freeTierExhausted(String)
     case badRequest(String)
+    case unprocessableContent(String)
 
     public var errorDescription: String? {
         switch self {
@@ -33,7 +34,8 @@ public enum ModuleCacheExistsServiceError: LocalizedError {
         case let .unauthorized(message),
              let .forbidden(message),
              let .freeTierExhausted(message),
-             let .badRequest(message):
+             let .badRequest(message),
+             let .unprocessableContent(message):
             return message
         }
     }
@@ -92,10 +94,10 @@ public struct ModuleCacheExistsService: ModuleCacheExistsServicing {
             case let .json(error):
                 throw ModuleCacheExistsServiceError.freeTierExhausted(error.message)
             }
-        case let .badRequest(badRequest):
-            switch badRequest.body {
+        case let .unprocessableContent(unprocessableContent):
+            switch unprocessableContent.body {
             case let .json(error):
-                throw ModuleCacheExistsServiceError.badRequest(error.message)
+                throw ModuleCacheExistsServiceError.unprocessableContent(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw ModuleCacheExistsServiceError.unknownError(statusCode)

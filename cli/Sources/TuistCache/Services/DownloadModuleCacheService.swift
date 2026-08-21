@@ -26,6 +26,7 @@ public enum DownloadModuleCacheServiceError: LocalizedError {
     case freeTierExhausted(String)
     case notFound(String)
     case badRequest(String)
+    case unprocessableContent(String)
 
     public var errorDescription: String? {
         switch self {
@@ -35,7 +36,8 @@ public enum DownloadModuleCacheServiceError: LocalizedError {
              let .forbidden(message),
              let .freeTierExhausted(message),
              let .notFound(message),
-             let .badRequest(message):
+             let .badRequest(message),
+             let .unprocessableContent(message):
             return message
         }
     }
@@ -100,10 +102,10 @@ public struct DownloadModuleCacheService: DownloadModuleCacheServicing {
             case let .json(error):
                 throw DownloadModuleCacheServiceError.notFound(error.message)
             }
-        case let .badRequest(badRequest):
-            switch badRequest.body {
+        case let .unprocessableContent(unprocessableContent):
+            switch unprocessableContent.body {
             case let .json(error):
-                throw DownloadModuleCacheServiceError.badRequest(error.message)
+                throw DownloadModuleCacheServiceError.unprocessableContent(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw DownloadModuleCacheServiceError.unknownError(statusCode)

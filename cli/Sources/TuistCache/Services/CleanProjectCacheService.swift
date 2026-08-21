@@ -20,6 +20,7 @@ public enum CleanProjectCacheServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
+    case unprocessableContent(String)
     case freeTierExhausted(String)
     case internalServerError(String)
 
@@ -30,6 +31,7 @@ public enum CleanProjectCacheServiceError: LocalizedError {
         case let .unauthorized(message),
              let .forbidden(message),
              let .freeTierExhausted(message),
+             let .unprocessableContent(message),
              let .internalServerError(message):
             return message
         }
@@ -79,6 +81,11 @@ public struct CleanProjectCacheService: CleanProjectCacheServicing {
             switch paymentRequired.body {
             case let .json(error):
                 throw CleanProjectCacheServiceError.freeTierExhausted(error.message)
+            }
+        case let .unprocessableContent(unprocessableContent):
+            switch unprocessableContent.body {
+            case let .json(error):
+                throw CleanProjectCacheServiceError.unprocessableContent(error.message)
             }
         case let .internalServerError(internalServerError):
             switch internalServerError.body {

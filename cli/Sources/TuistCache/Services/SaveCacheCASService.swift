@@ -24,6 +24,7 @@ public enum SaveCacheCASServiceError: LocalizedError {
     case freeTierExhausted(String)
     case notFound(String)
     case badRequest(String)
+    case unprocessableContent(String)
     case requestTimeout(String)
     case contentTooLarge(String)
     case internalServerError(String)
@@ -37,6 +38,7 @@ public enum SaveCacheCASServiceError: LocalizedError {
              let .freeTierExhausted(message),
              let .notFound(message),
              let .badRequest(message),
+             let .unprocessableContent(message),
              let .requestTimeout(message),
              let .contentTooLarge(message),
              let .internalServerError(message):
@@ -76,7 +78,7 @@ public struct SaveCacheCASService: SaveCacheCASServicing {
             fullHandle: fullHandle
         )
         let handles = try fullHandleService.parse(fullHandle)
-        let response = try await client.saveCASArtifact(
+        let response = try await client.saveXcodeArtifact(
             .init(
                 path: .init(id: casId),
                 query: .init(
@@ -104,11 +106,6 @@ public struct SaveCacheCASService: SaveCacheCASServicing {
             case let .json(error):
                 throw SaveCacheCASServiceError.freeTierExhausted(error.message)
             }
-        case let .badRequest(badRequest):
-            switch badRequest.body {
-            case let .json(error):
-                throw SaveCacheCASServiceError.badRequest(error.message)
-            }
         case let .requestTimeout(timeout):
             switch timeout.body {
             case let .json(error):
@@ -123,6 +120,11 @@ public struct SaveCacheCASService: SaveCacheCASServicing {
             switch serverError.body {
             case let .json(error):
                 throw SaveCacheCASServiceError.internalServerError(error.message)
+            }
+        case let .unprocessableContent(unprocessableContent):
+            switch unprocessableContent.body {
+            case let .json(error):
+                throw SaveCacheCASServiceError.unprocessableContent(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw SaveCacheCASServiceError.unknownError(statusCode)
