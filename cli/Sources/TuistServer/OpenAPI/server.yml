@@ -4054,6 +4054,15 @@ components:
           type: array
           x-struct:
           x-validate:
+        payment_required:
+          description: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         projects:
           items:
             type: string
@@ -4065,6 +4074,7 @@ components:
       required:
         - accounts
         - projects
+        - payment_required
       title: CacheAccess
       type: object
       x-struct:
@@ -15988,6 +15998,15 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
+                  payment_required:
+                    description: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
                   projects:
                     items:
                       type: string
@@ -15999,6 +16018,7 @@ paths:
                 required:
                   - accounts
                   - projects
+                  - payment_required
                 title: CacheAccess
                 type: object
                 x-struct:

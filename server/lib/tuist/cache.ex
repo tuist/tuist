@@ -24,8 +24,29 @@ defmodule Tuist.Cache do
   def accessible_handles(resource, opts \\ []) do
     %{
       accounts: accessible_account_handles(resource),
-      projects: accessible_project_handles(resource, opts)
+      projects: accessible_project_handles(resource, opts),
+      payment_required: payment_required_handles(resource)
     }
+  end
+
+  @doc """
+  Account handles the subject reaches but whose free tier is exhausted.
+
+  Blocking is expressed as absence from the grants, which on its own is
+  indistinguishable from never having had access. A cache node reads this to
+  tell the two apart and answer the caller with something actionable.
+  """
+  def payment_required_handles(resource) do
+    accounts =
+      resource
+      |> with_resolved_membership()
+      |> resolve_accessible_accounts()
+
+    blocked = Billing.cache_blocked_account_ids(accounts)
+
+    accounts
+    |> Enum.filter(&MapSet.member?(blocked, &1.id))
+    |> account_handles()
   end
 
   def cache_grants(resource, opts \\ []) do
@@ -73,7 +94,10 @@ defmodule Tuist.Cache do
 
     Tuist.Guardian.encode_and_sign(
       subject,
-      %{"cache_grants" => grants},
+      %{
+        "cache_grants" => grants,
+        "cache_payment_required" => payment_required_handles(subject)
+      },
       token_type: @cache_token_type,
       ttl: {ttl, :second}
     )
@@ -137,7 +161,8 @@ defmodule Tuist.Cache do
     %{
       "accounts" => accessible_account_handles(resource),
       "projects" => project_handles(projects),
-      "cache_grants" => cache_grants_for(resource, accessible_accounts(resource), projects)
+      "cache_grants" => cache_grants_for(resource, accessible_accounts(resource), projects),
+      "cache_payment_required" => payment_required_handles(resource)
     }
   end
 
@@ -278,6 +303,7 @@ defmodule Tuist.Cache do
 
     %{
       "projects" => project_handles(projects),
+      "cache_payment_required" => payment_required_handles(resource),
       "cache_grants" => %{
         "account" => %{"read" => [], "write" => []},
         "project" => %{

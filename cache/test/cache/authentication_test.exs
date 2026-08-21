@@ -65,6 +65,30 @@ defmodule Cache.AuthenticationTest do
       assert {:error, 403, _} = result
     end
 
+    # Absence from the grants is how an exhausted plan reaches a cache node, and
+    # on its own it is indistinguishable from never having had access. Answering
+    # 403 sends the caller looking for a permissions problem they do not have.
+    test "answers payment required when the access endpoint names the account", %{cache_name: cache_name} do
+      conn = build_conn([{"authorization", @test_auth_header}])
+
+      stub_api_call(200, %{"accounts" => [], "projects" => [], "payment_required" => ["account"]})
+
+      result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+
+      assert {:error, 402, message} = result
+      assert message =~ "Tuist Air"
+    end
+
+    test "still answers forbidden when the account is simply out of reach", %{cache_name: cache_name} do
+      conn = build_conn([{"authorization", @test_auth_header}])
+
+      stub_api_call(200, %{"accounts" => [], "projects" => [], "payment_required" => []})
+
+      result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+
+      assert {:error, 403, _} = result
+    end
+
     test "handles case-insensitive project handles", %{cache_name: cache_name} do
       projects = ["Account/Project"]
       conn = build_conn([{"authorization", @test_auth_header}])

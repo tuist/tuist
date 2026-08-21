@@ -216,7 +216,47 @@ defmodule Tuist.CacheTest do
       got = Cache.accessible_handles(user)
 
       # Then
-      assert got == %{accounts: [], projects: []}
+      assert got == %{accounts: [], projects: [], payment_required: [user.account.name]}
+    end
+
+    # Absence from the grants alone cannot be told apart from never having had
+    # access, so a cache node would answer a blocked account with a permissions
+    # error. This is what lets it say something actionable instead.
+    test "names the blocked account so a node can explain the refusal" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold,
+          preload: [:account]
+        )
+
+      ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # When
+      handles = Cache.accessible_handles(user)
+      {:ok, _token, claims} = Cache.issue_cache_token(user)
+
+      # Then
+      assert handles.payment_required == [user.account.name]
+      assert claims["cache_payment_required"] == [user.account.name]
+    end
+
+    test "names no account while the subject is under the free tier" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold - 1,
+          preload: [:account]
+        )
+
+      ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # When / Then
+      assert Cache.accessible_handles(user).payment_required == []
     end
 
     test "mints a token carrying no grants for a blocked account" do

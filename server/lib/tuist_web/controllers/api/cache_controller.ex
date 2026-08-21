@@ -156,7 +156,7 @@ defmodule TuistWeb.API.CacheController do
            title: "CacheAccess",
            description: "Account-scoped and project-scoped cache access handles",
            type: :object,
-           required: [:accounts, :projects],
+           required: [:accounts, :projects, :payment_required],
            properties: %{
              accounts: %Schema{
                type: :array,
@@ -164,6 +164,12 @@ defmodule TuistWeb.API.CacheController do
              },
              projects: %Schema{
                type: :array,
+               items: %Schema{type: :string}
+             },
+             payment_required: %Schema{
+               type: :array,
+               description:
+                 "Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.",
                items: %Schema{type: :string}
              }
            }

@@ -610,6 +610,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       # Then
       assert json_response(conn, 200) == %{
+               "payment_required" => [],
                "accounts" => [],
                "projects" => ["#{organization.account.name}/#{project.name}"]
              }

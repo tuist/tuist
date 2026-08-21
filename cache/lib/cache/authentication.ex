@@ -93,7 +93,32 @@ defmodule Cache.Authentication do
       {:error, :not_granted} ->
         :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :forbidden})
         cache_result(cache, cache_key, {:error, 403, "You don't have access to this project"}, failure_ttl())
+
+      {:error, :payment_required, account_handle} ->
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :payment_required})
+        cache_result(cache, cache_key, payment_required_error(account_handle), failure_ttl())
     end
+  end
+
+  # An exhausted plan reaches a node as absence from the grants, which alone is
+  # indistinguishable from never having had access. The server names the
+  # accounts it withheld for payment so the caller is told what is actually
+  # wrong and what to do about it.
+  defp payment_required_error(account_handle) do
+    {:error, 402,
+     "The account '#{account_handle}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'."}
+  end
+
+  defp payment_required?(handles, account_handle) when is_list(handles) do
+    Enum.any?(handles, fn handle ->
+      is_binary(handle) and String.downcase(handle) == String.downcase(account_handle)
+    end)
+  end
+
+  defp payment_required?(_handles, _account_handle), do: false
+
+  defp account_handle_of(requested_handle) do
+    requested_handle |> String.split("/") |> List.first()
   end
 
   defp request_action(%Plug.Conn{method: method}) when method in ["GET", "HEAD"], do: :read
@@ -145,10 +170,17 @@ defmodule Cache.Authentication do
   # answer. Tuist's server mints these; the shape is agreed with the cache
   # nodes that read them back.
   defp verify_granted_project(grants, claims, requested_handle, action) do
-    if granted?(grants, requested_handle, action) do
-      {:ok, calculate_ttl(Map.get(claims, "exp"))}
-    else
-      {:error, :not_granted}
+    account_handle = account_handle_of(requested_handle)
+
+    cond do
+      granted?(grants, requested_handle, action) ->
+        {:ok, calculate_ttl(Map.get(claims, "exp"))}
+
+      payment_required?(Map.get(claims, "cache_payment_required", []), account_handle) ->
+        {:error, :payment_required, account_handle}
+
+      true ->
+        {:error, :not_granted}
     end
   end
 
@@ -223,8 +255,8 @@ defmodule Cache.Authentication do
     :telemetry.execute([:cache, :auth, :server, :response], %{duration: duration}, %{})
 
     case result do
-      {:ok, %{status: 200, body: %{"projects" => projects}}} ->
-        result = project_access_result(cache_key, projects)
+      {:ok, %{status: 200, body: %{"projects" => projects} = body}} ->
+        result = project_access_result(cache_key, projects, Map.get(body, "payment_required", []))
         ttl = if result == :ok, do: success_ttl(), else: failure_ttl()
         {:commit, result, expire: ttl}
 
@@ -301,7 +333,7 @@ defmodule Cache.Authentication do
     |> Base.encode16(case: :lower)
   end
 
-  defp project_access_result({_auth_key, requested_handle, _action}, projects) do
+  defp project_access_result({_auth_key, requested_handle, _action}, projects, payment_required) do
     project_handles =
       projects
       |> Enum.map(fn
@@ -311,11 +343,19 @@ defmodule Cache.Authentication do
       |> Enum.reject(&is_nil/1)
       |> MapSet.new()
 
-    if MapSet.member?(project_handles, requested_handle) do
-      :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :server})
-      :ok
-    else
-      {:error, 403, "You don't have access to this project"}
+    account_handle = account_handle_of(requested_handle)
+
+    cond do
+      MapSet.member?(project_handles, requested_handle) ->
+        :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :server})
+        :ok
+
+      payment_required?(payment_required, account_handle) ->
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :payment_required})
+        payment_required_error(account_handle)
+
+      true ->
+        {:error, 403, "You don't have access to this project"}
     end
   end
 

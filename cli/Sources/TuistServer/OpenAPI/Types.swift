@@ -8441,22 +8441,30 @@ public enum Components {
         public struct CacheAccess: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CacheAccess/accounts`.
             public var accounts: [Swift.String]
+            /// Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheAccess/payment_required`.
+            public var payment_required: [Swift.String]
             /// - Remark: Generated from `#/components/schemas/CacheAccess/projects`.
             public var projects: [Swift.String]
             /// Creates a new `CacheAccess`.
             ///
             /// - Parameters:
             ///   - accounts:
+            ///   - payment_required: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
             ///   - projects:
             public init(
                 accounts: [Swift.String],
+                payment_required: [Swift.String],
                 projects: [Swift.String]
             ) {
                 self.accounts = accounts
+                self.payment_required = payment_required
                 self.projects = projects
             }
             public enum CodingKeys: String, CodingKey {
                 case accounts
+                case payment_required
                 case projects
             }
         }
@@ -40923,22 +40931,30 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/cache/access/GET/responses/200/content/json/accounts`.
                         public var accounts: [Swift.String]
+                        /// Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/access/GET/responses/200/content/json/payment_required`.
+                        public var payment_required: [Swift.String]
                         /// - Remark: Generated from `#/paths/api/cache/access/GET/responses/200/content/json/projects`.
                         public var projects: [Swift.String]
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - accounts:
+                        ///   - payment_required: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
                         ///   - projects:
                         public init(
                             accounts: [Swift.String],
+                            payment_required: [Swift.String],
                             projects: [Swift.String]
                         ) {
                             self.accounts = accounts
+                            self.payment_required = payment_required
                             self.projects = projects
                         }
                         public enum CodingKeys: String, CodingKey {
                             case accounts
+                            case payment_required
                             case projects
                         }
                     }
