@@ -2,3 +2,5 @@
 # never committed.
 internal/agent/redirect_bpfel.go
 internal/agent/redirect_bpfel.o
+# local `go build ./...` drops the cmd/agent binary here
+/agent

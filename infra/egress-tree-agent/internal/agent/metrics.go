@@ -16,6 +16,7 @@ type Metrics struct {
 	SkippedPods          prometheus.Gauge
 	BetaExcludedPods     prometheus.Gauge
 	LinkReattaches       prometheus.Counter
+	SiblingOverflow      prometheus.Counter
 	NodeBudgetMbps       prometheus.Gauge
 	ClassSentBytes       *prometheus.GaugeVec
 	ClassDrops           *prometheus.GaugeVec
@@ -57,6 +58,10 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 		LinkReattaches: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "kura_egress_tree_link_reattach_total",
 			Help: "tcx link attach or reattach operations on pod devices.",
+		}),
+		SiblingOverflow: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "kura_egress_tree_sibling_overflow_total",
+			Help: "Sibling allowlist entries not installed because the map was full.",
 		}),
 		NodeBudgetMbps: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "kura_egress_tree_node_budget_mbps",
@@ -102,7 +107,7 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 	registry.MustRegister(
 		m.ReconcileTotal, m.ReconcileErrors, m.AttachedPods, m.ReturnAttachFailures,
 		m.SkippedPods, m.BetaExcludedPods,
-		m.LinkReattaches, m.NodeBudgetMbps, m.ClassSentBytes, m.ClassDrops,
+		m.LinkReattaches, m.SiblingOverflow, m.NodeBudgetMbps, m.ClassSentBytes, m.ClassDrops,
 		m.ClassBacklogBytes, m.DirectPackets, m.PodRedirected, m.PodGuardPass,
 		m.PodSiblingBypass, m.Returned, m.ReturnDropped,
 	)

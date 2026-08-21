@@ -158,6 +158,7 @@ func main() {
 
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewGoCollector())
+	metrics := agent.NewMetrics(registry)
 
 	a := &agent.Agent{
 		NodeName:          nodeName,
@@ -168,8 +169,8 @@ func main() {
 		Nodes:             nodeInformer.Lister(),
 		Endpoints:         agent.NewEndpointResolver(ciliumSock),
 		Tree:              agent.Tree{TrampolineDev: trampolineDev, ReturnDev: returnDev, Log: logger},
-		Attacher:          agent.Attacher{PinRoot: pinRoot, Log: logger},
-		Metrics:           agent.NewMetrics(registry),
+		Attacher:          agent.Attacher{PinRoot: pinRoot, Log: logger, Metrics: metrics},
+		Metrics:           metrics,
 		Log:               logger,
 	}
 

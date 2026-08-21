@@ -135,8 +135,15 @@ replaced, re-run the policy bypass experiments first.
 `kura_egress_tree_return_attach_failures_total` growth (a failing return
 attach blackholes shaped pods until the detach threshold),
 `kura_egress_tree_link_reattach_total` churn after steady state,
-`kura_egress_tree_skipped_pods` > 0, and per-class floor violations under
+`kura_egress_tree_skipped_pods` > 0,
+`kura_egress_tree_sibling_overflow_total` growth (an account outgrew the
+16-entry sibling map; extra siblings run shaped instead of bypassed, with no
+log — the counter is the only signal), and per-class floor violations under
 contention (`kura_egress_tree_class_sent_bytes` rate vs the floor).
+
+A pod-device convergence error keeps the last known-good program attached
+(the device stays out of the stale sweep) and requeues a fast retry; a
+transient sync hiccup never strips working enforcement.
 
 ## Development
 

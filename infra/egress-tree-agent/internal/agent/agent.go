@@ -168,6 +168,10 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 		reattached, err := a.Attacher.EnsurePod(device, trampoline.Index, attachment)
 		if err != nil {
 			skipped++
+			requeue = true
+			// Keep whatever is attached on this device: a transient sync
+			// error must not let CleanupStale strip a working program.
+			active[device] = true
 			a.Log.Error("attaching pod device failed",
 				"pod", attachment.Namespace+"/"+attachment.Name, "device", device, "error", err)
 			continue

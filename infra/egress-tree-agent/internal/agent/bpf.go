@@ -45,7 +45,8 @@ const (
 type Attacher struct {
 	PinRoot string
 
-	Log *slog.Logger
+	Log     *slog.Logger
+	Metrics *Metrics
 }
 
 func (a Attacher) returnDir() string { return filepath.Join(a.PinRoot, "return") }
@@ -196,9 +197,12 @@ func (a Attacher) syncPodMaps(dir string, trampolineIfindex int, attachment PodA
 	var stale []uint32
 	var key uint32
 	var value uint8
+	present := map[uint32]bool{}
 	iterator := siblings.Iterate()
 	for iterator.Next(&key, &value) {
-		if !desired[key] {
+		if desired[key] {
+			present[key] = true
+		} else {
 			stale = append(stale, key)
 		}
 	}
@@ -210,10 +214,22 @@ func (a Attacher) syncPodMaps(dir string, trampolineIfindex int, attachment PodA
 			return err
 		}
 	}
+	// A full map stops taking new entries instead of erroring: a sibling
+	// missing from the map is shaped, never wrongly unshaped, so overflow
+	// degrades gracefully. Surfaced as a counter, not a log — a stuck
+	// overflow would otherwise log every cycle.
+	capacity := int(siblings.MaxEntries())
 	for key := range desired {
+		if !present[key] && len(present) >= capacity {
+			if a.Metrics != nil {
+				a.Metrics.SiblingOverflow.Inc()
+			}
+			continue
+		}
 		if err := siblings.Put(key, uint8(1)); err != nil {
 			return err
 		}
+		present[key] = true
 	}
 	return nil
 }
