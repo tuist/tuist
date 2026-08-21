@@ -460,7 +460,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert expires_in == Tuist.Cache.cache_token_ttl_seconds()
 
       handle = "#{project.account.name}/#{project.name}"
-      {:ok, claims} = Tuist.Guardian.decode_and_verify(token)
+      {:ok, claims} = Tuist.CacheGuardian.decode_and_verify(token)
       assert claims["cache_grants"]["project"]["read"] == [handle]
       assert claims["cache_grants"]["project"]["write"] == [handle]
     end
@@ -485,7 +485,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       # Then
       assert %{"token" => token} = json_response(conn, 200)
-      {:ok, claims} = Tuist.Guardian.decode_and_verify(token)
+      {:ok, claims} = Tuist.CacheGuardian.decode_and_verify(token)
       assert claims["cache_grants"]["project"]["read"] == [handle]
       assert claims["cache_grants"]["project"]["write"] == [handle]
     end
