@@ -125,6 +125,13 @@ type Reconciler struct {
 	ConvergeHeadWaitInterval time.Duration
 	ConvergeHeadWaitAttempts int
 
+	// ConvergeDownloadAttempts / ConvergeDownloadBackoff bound the retry of a
+	// HEAD image fetch that object storage closed mid-transfer. Zero values use
+	// the package defaults; injectable for the same reason as the wait above —
+	// a test that exercises the retry must not sleep out the real backoff.
+	ConvergeDownloadAttempts int
+	ConvergeDownloadBackoff  time.Duration
+
 	// Recorder emits Pod Events (e.g. "CreatingVM") so the
 	// Scheduled→Running gap — previously a silent dead zone with no
 	// events between the scheduler placing the Pod and the VM getting
@@ -140,6 +147,14 @@ type Reconciler struct {
 	// that's ever raised, and costs nothing on the warm fast path.
 	goldenMu    sync.Mutex
 	goldenLocks map[string]*sync.Mutex
+
+	// convergeMu guards convergeLocks; convergeLocks serializes convergence per
+	// account+volume. Two VMs on this host can be dispatched to the same account
+	// and would otherwise download into the same content-addressed partial
+	// concurrently. Serializing also lets the second one re-read the generation
+	// gate and find the first's install already done.
+	convergeMu    sync.Mutex
+	convergeLocks map[string]*sync.Mutex
 }
 
 // MetricsScrapeAnnotation is the pod annotation that tells
@@ -729,6 +744,25 @@ func (r *Reconciler) lockGolden(name string) func() {
 		r.goldenLocks[name] = m
 	}
 	r.goldenMu.Unlock()
+
+	m.Lock()
+	return m.Unlock
+}
+
+// lockConverge returns the unlock func for the per-account+volume convergence
+// mutex, lazily creating the lock map like lockGolden.
+func (r *Reconciler) lockConverge(account, volume string) func() {
+	key := account + "/" + volume
+	r.convergeMu.Lock()
+	if r.convergeLocks == nil {
+		r.convergeLocks = map[string]*sync.Mutex{}
+	}
+	m, ok := r.convergeLocks[key]
+	if !ok {
+		m = &sync.Mutex{}
+		r.convergeLocks[key] = m
+	}
+	r.convergeMu.Unlock()
 
 	m.Lock()
 	return m.Unlock
