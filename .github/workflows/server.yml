@@ -323,6 +323,9 @@ jobs:
         run: mix format --check-formatted
       - name: Check asset format
         run: prettier --check assets
+      - name: Check CSS custom property references
+        working-directory: ${{ github.workspace }}
+        run: node mise/utilities/css_tokens_lint.mjs . server
   esbuild:
     name: esbuild
     runs-on: tuist-linux
