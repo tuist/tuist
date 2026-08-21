@@ -288,6 +288,81 @@ jobs:
         run: mise run --no-deps db:reset
       - name: Run tests
         run: mix test --warnings-as-errors
+  test-clickhouse-floor:
+    name: Test (oldest supported ClickHouse)
+    # The self-hosting requirements promise ClickHouse 25, but every ClickHouse
+    # we operate is newer: dev and the Test job pin 26.1, the Helm chart ships
+    # 26.1, and the bundled Compose file ships 26.5. Nothing exercised the
+    # documented floor, so a query setting or function introduced after it
+    # reached self-hosted deployments as a failed migration rather than as a
+    # failed build (#12515). Running the suite here replays every ClickHouse
+    # migration and every runtime query against the floor.
+    #
+    # The release under test comes from Tuist.ClickHouseVersions, which is also
+    # what the migration guard asserts and what the self-hosting requirements
+    # publish, so the three cannot drift apart.
+    runs-on: tuist-linux-large
+    timeout-minutes: 75
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    env:
+      # Matches the Test job. Several locale assertions live in tests that carry
+      # no `:locale` tag, so they run either way and fail against the "en"-only
+      # locale set that `mix test` compiles by default.
+      TUIST_DEV_ALL_LOCALES: "1"
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve the oldest supported ClickHouse release
+        run: |
+          file=lib/tuist/clickhouse_versions.ex
+          version="$(grep -E '^\s*@oldest_tested_release' "$file" | sed -E 's/.*"([^"]+)".*/\1/' | head -1)"
+          if [ -z "$version" ]; then
+            echo "Could not resolve @oldest_tested_release from $file" >&2
+            exit 1
+          fi
+          echo "CLICKHOUSE_FLOOR_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Testing against ClickHouse ${version}"
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          mise-version: ${{ env.MISE_VERSION }}
+          mix-cache-key: mix-test-v2
+          mix-cache-restore-key: mix-test-v2-
+          restore-mix-cache: "false"
+      # Not passed through mise-install-args: that path installs `--locked`, and
+      # mise.lock pins the version the rest of CI runs on.
+      - name: Pin ClickHouse to the oldest supported release
+        run: |
+          mise use "github:ClickHouse/ClickHouse@${CLICKHOUSE_FLOOR_VERSION}"
+          clickhouse --version
+      - name: Restore CLDR locale cache
+        uses: actions/cache@v4
+        with:
+          path: server/_build/cldr/locales
+          key: cldr-locales-v1-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            cldr-locales-v1-
+      - name: Prefetch CLDR locale data
+        run: mise/tasks/cldr/prefetch-locale-data.sh
+      - name: Compile
+        run: mix compile --warnings-as-errors
+      - name: Start ClickHouse
+        run: mise run --no-deps clickhouse:start
+      - name: Setup database
+        run: mise run --no-deps db:reset
+      - name: Run tests
+        run: mix test --warnings-as-errors
   credo:
     name: Credo
     runs-on: tuist-linux
