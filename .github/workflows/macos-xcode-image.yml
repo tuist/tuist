@@ -51,7 +51,7 @@ jobs:
     # A fresh Xcode major's `-downloadAllPlatforms` pulls brand-new
     # simulator runtimes from Apple that aren't cached yet, which can
     # push the build step alone past 50 min (26.6 took ~54 min) and
-    # leave little room for a deliberately low-concurrency image upload.
+    # leave little room for the image upload that follows.
     # Three hours covers both phases and the upload's retry budget.
     timeout-minutes: 180
     steps:
@@ -195,10 +195,6 @@ jobs:
           set -euo pipefail
           echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
-      # 64 MB chunks, where GHCR was pinned at 3 because it rejects
-      # anything from 4 up and rate-limited the resulting request
-      # volume. For a ~50 GB image that is roughly 1,000 requests
-      # instead of ~17,000, which is the reason for the move.
       - name: Push image to GHCR
         timeout-minutes: 90
         env:
