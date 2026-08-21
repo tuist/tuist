@@ -1007,6 +1007,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .cache:
                 [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
@@ -1852,6 +1853,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.threadSafe.targetName),
                     .external(name: "PathKit"),
                     .external(name: "XcodeProj"),
@@ -1970,6 +1972,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .cache:
                 [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.hasher.targetName),

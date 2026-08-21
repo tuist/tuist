@@ -6,6 +6,7 @@ defmodule Tuist.OAuth.Introspection do
   alias Tuist.Accounts.User
   alias Tuist.Authentication
   alias Tuist.Cache
+  alias Tuist.CacheGuardian
   alias Tuist.Projects.Project
 
   @cache_token_type "cache"
@@ -53,10 +54,11 @@ defmodule Tuist.OAuth.Introspection do
   # itself. Verifying it here keeps that refusal intact: nothing about this makes
   # a cache token resolvable anywhere else.
   #
-  # This is the only way a node can be told what one of these tokens may reach.
-  # A node holds no verification key of its own, and it should not: the key that
-  # signs these also signs API credentials, so a node that could verify locally
-  # would also be a node that could mint them. Without an answer here, a node
+  # How a node is told what one of these tokens may reach whenever it cannot
+  # read the token itself: it was given no key, or the key it holds is not the
+  # one this was signed with. A node is never given the key that signs API
+  # credentials, only the public half of the dedicated cache-token pair, so
+  # there is always a token shape that arrives here. Without an answer, a node
   # reports every exchanged token inactive and denies the request.
   defp cache_token_response(token) do
     case verified_cache_token(token) do
@@ -66,18 +68,54 @@ defmodule Tuist.OAuth.Introspection do
   end
 
   defp cache_token_response(token, %Account{} = account) do
-    with {:ok, claims, grants} <- verified_cache_token(token),
-         scoped when scoped != :empty <- scoped_or_empty(grants, account) do
-      cache_token_active(claims, scoped)
-    else
-      _ -> %{active: false}
+    case verified_cache_token(token) do
+      {:ok, claims, grants} ->
+        case scoped_or_empty(grants, account) do
+          :empty -> payment_required_or_inactive(claims, account)
+          scoped -> cache_token_active(claims, scoped)
+        end
+
+      :error ->
+        %{active: false}
     end
   end
 
+  # A token whose grants went empty because the account exhausted its plan still
+  # has something to say. Reporting it inactive would have the node answer 401,
+  # losing the only thing that tells the caller what to do about it.
+  defp payment_required_or_inactive(claims, %Account{name: name}) do
+    handles = Map.get(claims, "cache_payment_required", [])
+    handle = String.downcase(name)
+
+    if Enum.any?(handles, &(String.downcase(&1) == handle)) do
+      cache_token_active(claims, empty_grants())
+    else
+      %{active: false}
+    end
+  end
+
+  defp empty_grants do
+    %{"account" => %{"read" => [], "write" => []}, "project" => %{"read" => [], "write" => []}}
+  end
+
   defp verified_cache_token(token) do
-    case Tuist.Guardian.decode_and_verify(token, %{"typ" => @cache_token_type}) do
-      {:ok, %{"cache_grants" => grants} = claims} -> {:ok, claims, grants}
-      _ -> :error
+    Enum.find_value(cache_token_verifiers(), :error, fn verifier ->
+      case verifier.decode_and_verify(token, %{"typ" => @cache_token_type}) do
+        {:ok, %{"cache_grants" => grants} = claims} -> {:ok, claims, grants}
+        _ -> nil
+      end
+    end)
+  end
+
+  # Both keys answer while a deployment is moving between them. A cache token
+  # outlives the deploy that minted it, so the key it was signed with has to
+  # keep answering for its whole lifetime or every build holding one is cut off
+  # mid-flight.
+  defp cache_token_verifiers do
+    if CacheGuardian.configured?() do
+      [CacheGuardian, Tuist.Guardian]
+    else
+      [Tuist.Guardian]
     end
   end
 
@@ -88,7 +126,8 @@ defmodule Tuist.OAuth.Introspection do
       active: true,
       iss: issuer(),
       sub: claims["sub"],
-      cache_grants: grants
+      cache_grants: grants,
+      cache_payment_required: Map.get(claims, "cache_payment_required", [])
     }
   end
 
@@ -103,7 +142,8 @@ defmodule Tuist.OAuth.Introspection do
       iss: issuer(),
       sub: subject_id(subject),
       principal_kind: principal_kind(subject),
-      cache_grants: grants
+      cache_grants: grants,
+      cache_payment_required: Cache.payment_required_handles(subject)
     }
     |> maybe_put(:scope, scope_string(subject))
     |> maybe_put(:username, username(subject))

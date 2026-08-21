@@ -21,6 +21,9 @@ use jsonwebtoken::Algorithm;
 use serde_json::{Map, Value, json};
 
 use super::config::AuthConfig;
+use super::tuist::test_keys::{
+    PUBLIC_KEY as CACHE_TOKEN_PUBLIC_KEY, ROTATED_SIGNING_KEY, SIGNING_KEY,
+};
 use super::tuist::{IntrospectionCredentials, JwtVerifier};
 use super::{AccessDecision, AuthEngine, DenyDecision, RequestContext, SharedAuth};
 use crate::metrics::Metrics;
@@ -88,7 +91,7 @@ fn engine_pointing_at_with_timeout(
         request_timeout: Duration::from_millis(request_timeout_ms),
         verifier: Some(JwtVerifier {
             algorithm: Algorithm::HS512,
-            secret: GUARDIAN_SECRET.into(),
+            keys: JwtVerifier::secret_keys(GUARDIAN_SECRET),
             issuer: Some("tuist".into()),
             audiences: Vec::new(),
         }),
@@ -1207,7 +1210,7 @@ async fn counts_and_denies_when_the_backend_is_unavailable_and_nothing_is_known_
             request_timeout: Duration::from_millis(4000),
             verifier: Some(JwtVerifier {
                 algorithm: Algorithm::HS512,
-                secret: GUARDIAN_SECRET.into(),
+                keys: JwtVerifier::secret_keys(GUARDIAN_SECRET),
                 issuer: Some("tuist".into()),
                 audiences: Vec::new(),
             }),
@@ -1236,6 +1239,115 @@ async fn counts_and_denies_when_the_backend_is_unavailable_and_nothing_is_known_
                 && line.contains("result=\"unavailable\"")),
         "expected an unavailable authenticate decision, got:\n{rendered}"
     );
+}
+
+/// A node given the public half of the cache-token keypair: it reads the tokens
+/// the server signs and cannot mint one.
+fn engine_verifying_cache_tokens(base_url: &str) -> SharedAuth {
+    engine(AuthConfig {
+        base_url: base_url.to_owned(),
+        connect_timeout: Duration::from_millis(500),
+        request_timeout: Duration::from_millis(4000),
+        verifier: Some(JwtVerifier {
+            algorithm: Algorithm::ES256,
+            keys: JwtVerifier::public_keys(CACHE_TOKEN_PUBLIC_KEY)
+                .expect("a readable cache-token public key"),
+            issuer: Some("tuist".into()),
+            audiences: Vec::new(),
+        }),
+        introspection: Some(introspection_credentials()),
+        cache_max_entries: 1000,
+    })
+}
+
+fn cache_token(signing_key: &str) -> String {
+    jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(Algorithm::ES256),
+        &json!({
+            "sub": "1",
+            "iss": "tuist",
+            "typ": "cache",
+            "exp": 4_000_000_000u64,
+            "scopes": ["account_cache_read"],
+            "cache_grants": { "project": { "write": ["acme/ios"] } },
+        }),
+        &jsonwebtoken::EncodingKey::from_ec_pem(signing_key.as_bytes())
+            .expect("a readable cache-token signing key"),
+    )
+    .expect("a signed cache token")
+}
+
+fn project_request(authorization: &str) -> RequestContext {
+    let mut context = ctx();
+    context.tenant_id = Some("acme".into());
+    context.namespace_id = Some("ios".into());
+    context
+        .headers
+        .insert("authorization".into(), authorization.to_owned());
+    context
+}
+
+// The whole point of handing a node a key: a token it can read is answered
+// where it lands, and the control plane never enters the serving path.
+#[tokio::test]
+async fn a_cache_token_the_node_can_read_never_reaches_the_server() {
+    let asked = Arc::new(AtomicBool::new(false));
+    let asked_by_handler = asked.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            asked_by_handler.store(true, Ordering::SeqCst);
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &[], &[])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_verifying_cache_tokens(&base);
+
+    let decision = engine
+        .evaluate_access(&project_request(&format!(
+            "Bearer {}",
+            cache_token(SIGNING_KEY)
+        )))
+        .await;
+
+    assert!(matches!(decision, AccessDecision::Allow));
+    assert!(
+        !asked.load(Ordering::SeqCst),
+        "the server was asked about a token the node could read for itself"
+    );
+}
+
+// The rollout hazard this shape exists to avoid. A key that cannot read a token
+// is not a verdict on it: the node asks the server exactly as it did before it
+// held any key. A node handed the wrong material therefore loses the saving and
+// keeps the answers, rather than refusing every tenant on it at once — which
+// would then replay under the engine's refusal window.
+#[tokio::test]
+async fn a_token_the_configured_key_cannot_read_falls_back_to_the_server() {
+    let base = spawn_tuist_auth_mock(
+        |_headers, _payload| {
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &["acme/ios"], &["acme/ios"])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_verifying_cache_tokens(&base);
+
+    // Signed with another algorithm entirely, and signed with the right
+    // algorithm under a key this node was not given: a stale rotation.
+    for token in [guardian_jwt(json!({})), cache_token(ROTATED_SIGNING_KEY)] {
+        let decision = engine
+            .evaluate_access(&project_request(&format!("Bearer {token}")))
+            .await;
+
+        assert!(matches!(decision, AccessDecision::Allow));
+    }
 }
 
 fn expect_deny(decision: AccessDecision) -> DenyDecision {

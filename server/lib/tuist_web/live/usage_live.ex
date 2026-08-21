@@ -20,13 +20,20 @@ defmodule TuistWeb.UsageLive do
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
-    if Authorization.authorize(:projects_read, current_user, account) != :ok or
+    if Authorization.authorize(:account_dashboard_read, current_user, account) != :ok or
          not FeatureFlags.kura_enabled?(account) do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_usage", "The page you are looking for doesn't exist or has been moved.")
     end
 
-    accessible_projects = Projects.list_accessible_projects(account, preload: [])
+    project_opts =
+      if Authorization.authorize(:projects_read, current_user, account) == :ok do
+        [preload: []]
+      else
+        [preload: [], visibility: :public]
+      end
+
+    accessible_projects = Projects.list_accessible_projects(account, project_opts)
     projects_with_usage_ids = account.id |> Usage.project_ids_with_usage() |> MapSet.new()
 
     projects =

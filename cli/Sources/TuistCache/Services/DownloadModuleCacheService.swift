@@ -88,13 +88,18 @@ public struct DownloadModuleCacheService: DownloadModuleCacheServicing {
             case let .json(error):
                 throw DownloadModuleCacheServiceError.forbidden(error.message)
             }
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
+            case let .json(error):
+                throw DownloadModuleCacheServiceError.badRequest(error.message)
+            }
         case let .notFound(notFound):
             switch notFound.body {
             case let .json(error):
                 throw DownloadModuleCacheServiceError.notFound(error.message)
             }
-        case let .badRequest(badRequest):
-            switch badRequest.body {
+        case let .unprocessableContent(unprocessableContent):
+            switch unprocessableContent.body {
             case let .json(error):
                 throw DownloadModuleCacheServiceError.badRequest(error.message)
             }

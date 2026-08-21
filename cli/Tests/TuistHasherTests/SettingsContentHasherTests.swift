@@ -156,3 +156,98 @@ struct SettingsContentHasherBaseDebugTests {
         )
     }
 }
+
+struct SettingsContentHasherCompilationCacheTests {
+    private func makeSubject() -> SettingsContentHasher {
+        let contentHasher = MockContentHashing()
+        let xcconfigHasher = MockXCConfigContentHashing()
+        given(contentHasher)
+            .hash(Parameter<[String]>.any)
+            .willProduce { $0.joined(separator: ";") }
+        given(contentHasher)
+            .hash(Parameter<String>.any)
+            .willProduce { $0 + "-hash" }
+        return SettingsContentHasher(contentHasher: contentHasher, xcconfigHasher: xcconfigHasher)
+    }
+
+    private func settings(base: SettingsDictionary) -> Settings {
+        Settings(base: base, configurations: [BuildConfiguration.debug("Debug"): nil], defaultSettings: .none)
+    }
+
+    /// The compilation-cache settings select where a compilation caches, not what it
+    /// produces. `COMPILATION_CACHE_PLUGIN_PATH` in particular holds the dylib's
+    /// install path, which differs between a Homebrew install and a mise one, so
+    /// hashing it gives developer machines and CI disjoint keys for identical code.
+    @Test func hash_ignoresCompilationCacheSettings() async throws {
+        // Given
+        let subject = makeSubject()
+        let withoutCacheSettings = settings(base: ["SWIFT_VERSION": .string("5")])
+        let withCacheSettings = settings(base: [
+            "SWIFT_VERSION": .string("5"),
+            "COMPILATION_CACHE_ENABLE_CACHING": .string("YES"),
+            "COMPILATION_CACHE_ENABLE_PLUGIN": .string("YES"),
+            "COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS": .string("YES"),
+            "COMPILATION_CACHE_PLUGIN_PATH": .string("/opt/homebrew/lib/libtuist_cas_plugin.dylib"),
+            "COMPILATION_CACHE_REMOTE_SERVICE_PATH": .string("$HOME/.local/state/tuist/cas-proxy.sock"),
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: withCacheSettings) == subject.hash(settings: withoutCacheSettings))
+    }
+
+    /// Two machines that resolve the plugin to different install paths must agree.
+    @Test func hash_ignoresCompilationCachePluginPathDifferences() async throws {
+        // Given
+        let subject = makeSubject()
+        let homebrew = settings(base: [
+            "COMPILATION_CACHE_PLUGIN_PATH": .string("/opt/homebrew/lib/libtuist_cas_plugin.dylib"),
+        ])
+        let mise = settings(base: [
+            "COMPILATION_CACHE_PLUGIN_PATH": .string("/Users/ci/.local/share/mise/installs/tuist/lib/libtuist_cas_plugin.dylib"),
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: homebrew) == subject.hash(settings: mise))
+    }
+
+    /// `xcodeCache(upload:)` reaches the build as a `-cas-plugin-option` pair rather
+    /// than a `COMPILATION_CACHE_*` key, so filtering by key alone would still split
+    /// CI from local for the documented `upload: Environment.isCI` policy.
+    @Test func hash_ignoresCASPluginOptionsInOtherSwiftFlags() async throws {
+        // Given
+        let subject = makeSubject()
+        let uploading = settings(base: [
+            "OTHER_SWIFT_FLAGS": .array([
+                "$(inherited)",
+                "-cas-plugin-option", "tuist-instance=test-org/test-project",
+            ]),
+        ])
+        let readOnly = settings(base: [
+            "OTHER_SWIFT_FLAGS": .array([
+                "$(inherited)",
+                "-cas-plugin-option", "tuist-instance=test-org/test-project",
+                "-cas-plugin-option", "tuist-upload=false",
+            ]),
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: uploading) == subject.hash(settings: readOnly))
+    }
+
+    /// The filter must not swallow flags that do change the built product.
+    @Test func hash_keepsNonCASPluginOtherSwiftFlags() async throws {
+        // Given
+        let subject = makeSubject()
+        let plain = settings(base: [
+            "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-cas-plugin-option", "tuist-upload=false"]),
+        ])
+        let withRealFlag = settings(base: [
+            "OTHER_SWIFT_FLAGS": .array([
+                "$(inherited)", "-cas-plugin-option", "tuist-upload=false", "-DFEATURE_FLAG",
+            ]),
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: plain) != subject.hash(settings: withRealFlag))
+    }
+}

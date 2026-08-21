@@ -14,7 +14,7 @@ defmodule Tuist.Projects.Project do
 
   @derive {
     Flop.Schema,
-    filterable: [:account_id, :name], sortable: [:name, :created_at], default_limit: 20
+    filterable: [:account_id, :name, :visibility], sortable: [:name, :created_at], default_limit: 20
   }
 
   schema "projects" do

@@ -28,11 +28,11 @@ public protocol GetCacheEndpointsServicing: Sendable {
     ) async throws -> CacheEndpointsResolution
 }
 
-enum GetCacheEndpointsServiceError: LocalizedError {
+public enum GetCacheEndpointsServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case forbidden(String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "Failed to retrieve cache endpoints due to an unknown server response of \(statusCode)."

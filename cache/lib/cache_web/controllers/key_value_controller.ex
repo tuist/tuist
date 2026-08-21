@@ -39,6 +39,7 @@ defmodule CacheWeb.KeyValueController do
       ok: {"Key-value entry", "application/json", KeyValueResponse},
       not_found: {"Entry not found", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error},
       bad_request: {"Bad request", "application/json", Error}
     }
   )
@@ -101,6 +102,7 @@ defmodule CacheWeb.KeyValueController do
     responses: %{
       no_content: {"Success", nil, nil},
       unauthorized: {"Unauthorized", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error},
       bad_request: {"Bad request", "application/json", Error}
     }
   )

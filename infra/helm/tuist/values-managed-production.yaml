@@ -398,39 +398,6 @@ cache:
     xcodeCacheBucket: tuist-xcode-cache-production
     registryBucket: tuist-registry
 
-# OCI registry of record for the large Tart VM images. Uses the shared
-# production bucket under an `oci` prefix, alongside the Docker mirror
-# below — unlike staging, which is parked on a different bucket because
-# a miss in the shared one resolves against a stale shadow-bucket
-# configuration. This bucket answers misses correctly.
-#
-# Standing this up publishes nothing: the build workflows push here only
-# once their references move, and the fleet keeps pulling GHCR until the
-# image pins move after that.
-ociRegistry:
-  enabled: true
-  s3:
-    bucket: tuist-prod-storage
-    rootDirectory: oci
-  auth:
-    enabled: true
-  externalSecret:
-    enabled: true
-  tailscale:
-    enabled: true
-    hostname: tuist-oci-production
-    tags: tag:tuist-k8s-production
-  # 443 so image references carry no port: `oci.tuist.dev/<repo>`. The
-  # reference is embedded in every pushed tag and chart pin.
-  service:
-    port: 443
-  tls:
-    enabled: true
-    host: oci.tuist.dev
-    dns:
-      enabled: true
-      tailnet: taild6d7bb.ts.net
-
 # Docker Hub pull-through cache. Reuses the production object-storage
 # bucket under a `docker-mirror` prefix. Runner `docker pull`s route
 # through it (runnersController.features.registryMirror below).

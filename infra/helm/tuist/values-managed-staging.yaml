@@ -277,41 +277,6 @@ cache:
     xcodeCacheBucket: tuist-xcode-cache-staging
     registryBucket: ""
 
-# OCI registry. Reuses a staging object-storage bucket under an `oci`
-# prefix, alongside the Docker mirror below. Reachable at
-# tuist-oci-staging.<tailnet>.ts.net; nothing points at it yet, so it
-# is inert until the build workflows and fleet image pins move.
-ociRegistry:
-  enabled: true
-  s3:
-    # Not the default `tuist-stag-storage` bucket the Docker mirror uses:
-    # an object miss there resolves against a shadow-bucket configuration
-    # whose source no longer exists, so the store answers "NoSuchBucket"
-    # instead of a not-found. A registry turns that into a 500 on the
-    # "is this layer already present?" check every push starts with.
-    # Revisit once that bucket's shadow configuration is cleared.
-    bucket: tuist-xcode-cache-staging
-    rootDirectory: oci
-  auth:
-    enabled: true
-  externalSecret:
-    enabled: true
-  tailscale:
-    enabled: true
-    hostname: tuist-oci-staging
-    tags: tag:tuist-k8s-staging
-  # 443 so image references carry no port: `oci-staging.tuist.dev/<repo>`.
-  # The reference is embedded in every pushed tag and chart pin, so the
-  # port is expensive to change later.
-  service:
-    port: 443
-  tls:
-    enabled: true
-    host: oci-staging.tuist.dev
-    dns:
-      enabled: true
-      tailnet: taild6d7bb.ts.net
-
 # Docker Hub pull-through cache. Reuses the staging object-storage bucket
 # under a `docker-mirror` prefix.
 registryCache:
