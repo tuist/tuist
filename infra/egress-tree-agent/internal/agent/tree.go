@@ -62,23 +62,22 @@ func (t Tree) EnsureDevices(ctx context.Context) error {
 
 // EnsureTree converges the HTB tree: root qdisc (only created when absent —
 // replacing a live root qdisc would drop every class), the root class at the
-// node budget, one class per tenant with an fq_codel leaf, and removal of
-// stale tenant classes.
+// node budget, and one class per tenant with an fq_codel leaf. Upserts only:
+// stale classes are removed by PruneClasses after the programs stamping them
+// are detached, so a just-removed tenant's packets never hit a deleted class.
 //
 // default 0 sends unclassified packets to HTB's direct queue: they transmit
 // unshaped and the direct-packet counter feeds an alert, because every packet
 // entering this device was stamped by a pod program — a direct packet means a
 // foreign redirect or a broken stamp.
 func (t Tree) EnsureTree(ctx context.Context, nodeMbps int64, classes map[uint16]TenantClass) error {
-	existing, err := t.classes(ctx)
-	rootMissing := err != nil || !t.hasRootQdisc(ctx)
-	if rootMissing {
+	_, err := t.classes(ctx)
+	if err != nil || !t.hasRootQdisc(ctx) {
 		if _, err := run(ctx, "tc", "qdisc", "replace", "dev", t.TrampolineDev,
 			"root", "handle", "1:", "htb", "default", "0"); err != nil {
 			return fmt.Errorf("creating root qdisc: %w", err)
 		}
 		t.Log.Info("created htb root qdisc", "dev", t.TrampolineDev)
-		existing = nil
 	}
 
 	rootRate := fmt.Sprintf("%dmbit", nodeMbps)
@@ -110,6 +109,18 @@ func (t Tree) EnsureTree(ctx context.Context, nodeMbps int64, classes map[uint16
 		}
 	}
 
+	return nil
+}
+
+// PruneClasses deletes tenant classes no longer desired. It must run after
+// the stale pod programs are detached (CleanupStale): a program outliving
+// its class would stamp packets into HTB's direct queue and trip the
+// direct-packet alarm on a routine annotation removal.
+func (t Tree) PruneClasses(ctx context.Context, classes map[uint16]TenantClass) error {
+	existing, err := t.classes(ctx)
+	if err != nil {
+		return err
+	}
 	for _, class := range existing {
 		minor, ok := class.minor()
 		if !ok || minor == rootClassMinor {

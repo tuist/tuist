@@ -145,6 +145,14 @@ A pod-device convergence error keeps the last known-good program attached
 (the device stays out of the stale sweep) and requeues a fast retry; a
 transient sync hiccup never strips working enforcement.
 
+Ordering guarantee behind the direct-packet alarm: classes are upserted
+before programs attach, and stale classes are pruned only after the stale
+programs are detached — in neither direction does a program stamp a classid
+that has no class. A hand-cleared root qdisc is the one gap: egress runs
+fully unshaped until the backstop interval (default 2 m) rebuilds the tree
+(the netlink watch covers link events, not qdisc state); `direct_packets`
+growth is the signal.
+
 ## Development
 
 - `go test ./...`, `go vet ./...` (linux; the tcx attach path needs a Linux

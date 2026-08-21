@@ -191,6 +191,11 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 
 	if err := a.Attacher.CleanupStale(active); err != nil {
 		a.Log.Error("cleaning stale pins failed", "error", err)
+	} else if err := a.Tree.PruneClasses(ctx, classes); err != nil {
+		// Pruned only after the stale programs are gone; a class outliving
+		// its pod one cycle is harmless, the reverse trips the
+		// direct-packet alarm.
+		a.Log.Error("pruning stale classes failed", "error", err)
 	}
 	for key, old := range a.appliedPods {
 		if _, ok := deviceOf[key]; !ok {
