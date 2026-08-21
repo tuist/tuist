@@ -172,7 +172,7 @@
           left: 0;
           flex-shrink: 0;
           z-index: 2;
-          background: linear-gradient(to right, var(--noora-surface-background-primary, white), transparent);
+          background: linear-gradient(to right, var(--noora-surface-background-primary), transparent);
           width: 20px;
           min-height: 40px;
           pointer-events: none;
@@ -188,7 +188,7 @@
           flex-shrink: 0;
           z-index: 2;
           margin-left: auto;
-          background: linear-gradient(to left, var(--noora-surface-background-primary, white), transparent);
+          background: linear-gradient(to left, var(--noora-surface-background-primary), transparent);
           width: 40px;
           min-height: 40px;
           pointer-events: none;

@@ -508,7 +508,7 @@
             rgba(244, 66, 119, 0.04) 100%
           ),
           linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 100%),
-          var(--noora-purple-50, #f4f4ff);
+          var(--noora-purple-50);
         padding: var(--noora-spacing-2) var(--noora-spacing-4);
         text-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.25);
       }

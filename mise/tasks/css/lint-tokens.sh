@@ -4,4 +4,18 @@
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
-node mise/utilities/css_tokens_lint.mjs . ${usage_scope:-}
+
+case "${usage_scope:-}" in
+  noora) globs=("noora/css/**/*.css") ;;
+  server) globs=("server/assets/**/*.css") ;;
+  "") globs=("noora/css/**/*.css" "server/assets/**/*.css") ;;
+  *)
+    echo "Unknown scope \"${usage_scope}\". Expected one of: noora, server" >&2
+    exit 2
+    ;;
+esac
+
+[ -d node_modules/stylelint ] || npm ci --no-audit --no-fund
+
+npx --no-install stylelint "${globs[@]}"
+echo "No CSS references an undefined custom property (${usage_scope:-noora, server})"

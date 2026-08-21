@@ -83,7 +83,7 @@ jobs:
         run: aube exec prettier --check "js/**/*.js" "css/**/*.css"
       - name: Check CSS custom property references
         working-directory: ${{ github.workspace }}
-        run: node mise/utilities/css_tokens_lint.mjs . noora
+        run: mise run css:lint-tokens noora
 
   test:
     name: Test

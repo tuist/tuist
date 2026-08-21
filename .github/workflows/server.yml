@@ -325,7 +325,7 @@ jobs:
         run: prettier --check assets
       - name: Check CSS custom property references
         working-directory: ${{ github.workspace }}
-        run: node mise/utilities/css_tokens_lint.mjs . server
+        run: mise run css:lint-tokens server
   esbuild:
     name: esbuild
     runs-on: tuist-linux
