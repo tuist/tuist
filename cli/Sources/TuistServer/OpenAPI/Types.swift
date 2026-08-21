@@ -38,6 +38,11 @@ public protocol APIProtocol: Sendable {
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
     ///
+    /// The URL is signed from the request parameters alone, without a storage round trip, so
+    /// this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+    /// miss, or treat a failing download as the miss signal.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
     func downloadCacheArtifact(_ input: Operations.downloadCacheArtifact.Input) async throws -> Operations.downloadCacheArtifact.Output
@@ -239,9 +244,13 @@ public protocol APIProtocol: Sendable {
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
     ///
+    /// It is the only cache endpoint that reaches storage to answer, so it is what clients
+    /// should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+    /// checking storage and answers 200 either way.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
-    @available(*, deprecated)
     func cacheArtifactExists(_ input: Operations.cacheArtifactExists.Input) async throws -> Operations.cacheArtifactExists.Output
     /// List CAS outputs for a given build.
     ///
@@ -720,6 +729,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/automations/alerts`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/post(createAutomationAlert)`.
     func createAutomationAlert(_ input: Operations.createAutomationAlert.Input) async throws -> Operations.createAutomationAlert.Output
+    /// Exchange the current credential for a cache token.
+    ///
+    /// Returns a short-lived token that carries the authenticated subject's cache grants.
+    ///
+    /// Cache nodes verify it themselves and authorize from the grants it carries, so
+    /// clients holding a credential a cache node cannot verify locally (a CI project
+    /// token, for example) avoid a server round-trip per cache authorization. Exchange
+    /// it once and reuse it until it expires. It is only accepted by cache nodes; it is
+    /// not an API credential.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/cache/token`.
+    /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)`.
+    func getCacheToken(_ input: Operations.getCacheToken.Input) async throws -> Operations.getCacheToken.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -786,6 +809,11 @@ extension APIProtocol {
     /// Downloads an artifact from the cache.
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
+    ///
+    /// The URL is signed from the request parameters alone, without a storage round trip, so
+    /// this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+    /// miss, or treat a failing download as the miss signal.
+    ///
     ///
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
@@ -1280,9 +1308,13 @@ extension APIProtocol {
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
     ///
+    /// It is the only cache endpoint that reaches storage to answer, so it is what clients
+    /// should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+    /// checking storage and answers 200 either way.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
-    @available(*, deprecated)
     public func cacheArtifactExists(
         query: Operations.cacheArtifactExists.Input.Query,
         headers: Operations.cacheArtifactExists.Input.Headers = .init()
@@ -2489,6 +2521,28 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Exchange the current credential for a cache token.
+    ///
+    /// Returns a short-lived token that carries the authenticated subject's cache grants.
+    ///
+    /// Cache nodes verify it themselves and authorize from the grants it carries, so
+    /// clients holding a credential a cache node cannot verify locally (a CI project
+    /// token, for example) avoid a server round-trip per cache authorization. Exchange
+    /// it once and reuse it until it expires. It is only accepted by cache nodes; it is
+    /// not an API credential.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/cache/token`.
+    /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)`.
+    public func getCacheToken(
+        query: Operations.getCacheToken.Input.Query = .init(),
+        headers: Operations.getCacheToken.Input.Headers = .init()
+    ) async throws -> Operations.getCacheToken.Output {
+        try await getCacheToken(Operations.getCacheToken.Input(
+            query: query,
+            headers: headers
+        ))
+    }
 }
 
 /// Server URLs defined in the OpenAPI document.
@@ -2665,6 +2719,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/model_identifier`.
             public var model_identifier: Swift.String?
+            /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/only_test_identifiers`.
+            public var only_test_identifiers: [Swift.String]?
             /// The scheme used for the test run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/scheme`.
@@ -2677,6 +2735,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/shard_plan_id`.
             public var shard_plan_id: Swift.String?
+            /// The tests the caller asked this run to exclude.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/skip_test_identifiers`.
+            public var skip_test_identifiers: [Swift.String]?
             /// The status of the test run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/status`.
@@ -3198,9 +3260,11 @@ public enum Components {
             ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
             ///   - macos_version: The version of macOS used during the run.
             ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
+            ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
             ///   - scheme: The scheme used for the test run.
             ///   - shard_index: The zero-based shard index for this test result.
             ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
+            ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
             ///   - status: The status of the test run.
             ///   - test_modules: The test modules associated with the test run.
             ///   - xcode_version: The version of Xcode used during the run.
@@ -3221,9 +3285,11 @@ public enum Components {
                 is_ci: Swift.Bool,
                 macos_version: Swift.String? = nil,
                 model_identifier: Swift.String? = nil,
+                only_test_identifiers: [Swift.String]? = nil,
                 scheme: Swift.String? = nil,
                 shard_index: Swift.Int? = nil,
                 shard_plan_id: Swift.String? = nil,
+                skip_test_identifiers: [Swift.String]? = nil,
                 status: Components.Schemas.TestParams.statusPayload? = nil,
                 test_modules: Components.Schemas.TestParams.test_modulesPayload,
                 xcode_version: Swift.String? = nil
@@ -3244,9 +3310,11 @@ public enum Components {
                 self.is_ci = is_ci
                 self.macos_version = macos_version
                 self.model_identifier = model_identifier
+                self.only_test_identifiers = only_test_identifiers
                 self.scheme = scheme
                 self.shard_index = shard_index
                 self.shard_plan_id = shard_plan_id
+                self.skip_test_identifiers = skip_test_identifiers
                 self.status = status
                 self.test_modules = test_modules
                 self.xcode_version = xcode_version
@@ -3268,9 +3336,11 @@ public enum Components {
                 case is_ci
                 case macos_version
                 case model_identifier
+                case only_test_identifiers
                 case scheme
                 case shard_index
                 case shard_plan_id
+                case skip_test_identifiers
                 case status
                 case test_modules
                 case xcode_version
@@ -5111,6 +5181,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/build_run_id`.
             public var build_run_id: Swift.String?
+            /// The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/git_branch`.
+            public var git_branch: Swift.String?
             /// The UUID of the associated Gradle build.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/gradle_build_id`.
@@ -5130,6 +5204,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/modules`.
             public var modules: [Swift.String]?
+            /// Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/parallelizable_modules`.
+            public var parallelizable_modules: [Swift.String]?
             /// A unique shard plan reference, typically derived from CI environment.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/reference`.
@@ -5158,9 +5236,11 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - build_run_id: The UUID of the associated Xcode build run.
+            ///   - git_branch: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
             ///   - gradle_build_id: The UUID of the associated Gradle build.
             ///   - granularity: Sharding granularity level.
             ///   - modules: Test module names (for module-level granularity).
+            ///   - parallelizable_modules: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
             ///   - reference: A unique shard plan reference, typically derived from CI environment.
             ///   - shard_max: Maximum number of shards.
             ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
@@ -5169,9 +5249,11 @@ public enum Components {
             ///   - test_suites: Test suite names (for suite-level granularity).
             public init(
                 build_run_id: Swift.String? = nil,
+                git_branch: Swift.String? = nil,
                 gradle_build_id: Swift.String? = nil,
                 granularity: Components.Schemas.CreateShardPlanParams.granularityPayload? = nil,
                 modules: [Swift.String]? = nil,
+                parallelizable_modules: [Swift.String]? = nil,
                 reference: Swift.String,
                 shard_max: Swift.Int? = nil,
                 shard_max_duration: Swift.Int? = nil,
@@ -5180,9 +5262,11 @@ public enum Components {
                 test_suites: [Swift.String]? = nil
             ) {
                 self.build_run_id = build_run_id
+                self.git_branch = git_branch
                 self.gradle_build_id = gradle_build_id
                 self.granularity = granularity
                 self.modules = modules
+                self.parallelizable_modules = parallelizable_modules
                 self.reference = reference
                 self.shard_max = shard_max
                 self.shard_max_duration = shard_max_duration
@@ -5192,9 +5276,11 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case build_run_id
+                case git_branch
                 case gradle_build_id
                 case granularity
                 case modules
+                case parallelizable_modules
                 case reference
                 case shard_max
                 case shard_max_duration
@@ -8671,6 +8757,35 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/GenerationsIndexAfter`.
         public typealias GenerationsIndexAfter = Swift.String
+        /// A short-lived token that proves the subject's cache access
+        ///
+        /// - Remark: Generated from `#/components/schemas/CacheToken`.
+        public struct CacheToken: Codable, Hashable, Sendable {
+            /// Seconds until the token expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheToken/expires_in`.
+            public var expires_in: Swift.Int
+            /// The token to send to cache nodes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheToken/token`.
+            public var token: Swift.String
+            /// Creates a new `CacheToken`.
+            ///
+            /// - Parameters:
+            ///   - expires_in: Seconds until the token expires.
+            ///   - token: The token to send to cache nodes.
+            public init(
+                expires_in: Swift.Int,
+                token: Swift.String
+            ) {
+                self.expires_in = expires_in
+                self.token = token
+            }
+            public enum CodingKeys: String, CodingKey {
+                case expires_in
+                case token
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/CASOutputType`.
         @frozen public enum CASOutputType: String, Codable, Hashable, Sendable, CaseIterable {
             case swift = "swift"
@@ -9610,13 +9725,13 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact`.
         public struct AbsentCacheArtifact: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload`.
-            public struct errorPayloadPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload/code`.
+            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorsPayload`.
+            public struct errorsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorsPayload/code`.
                 public var code: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload/message`.
+                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorsPayload/message`.
                 public var message: Swift.String?
-                /// Creates a new `errorPayloadPayload`.
+                /// Creates a new `errorsPayloadPayload`.
                 ///
                 /// - Parameters:
                 ///   - code:
@@ -9633,19 +9748,19 @@ public enum Components {
                     case message
                 }
             }
-            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/error`.
-            public typealias errorPayload = [Components.Schemas.AbsentCacheArtifact.errorPayloadPayload]
-            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/error`.
-            public var error: Components.Schemas.AbsentCacheArtifact.errorPayload?
+            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errors`.
+            public typealias errorsPayload = [Components.Schemas.AbsentCacheArtifact.errorsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errors`.
+            public var errors: Components.Schemas.AbsentCacheArtifact.errorsPayload?
             /// Creates a new `AbsentCacheArtifact`.
             ///
             /// - Parameters:
-            ///   - error:
-            public init(error: Components.Schemas.AbsentCacheArtifact.errorPayload? = nil) {
-                self.error = error
+            ///   - errors:
+            public init(errors: Components.Schemas.AbsentCacheArtifact.errorsPayload? = nil) {
+                self.errors = errors
             }
             public enum CodingKeys: String, CodingKey {
-                case error
+                case errors
             }
         }
         /// The maximum number of issues to return in a single page.
@@ -12487,6 +12602,22 @@ public enum Operations {
         }
         @frozen public enum Output: Sendable, Hashable {
             public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/headers/cache-control`.
+                    public var cache_hyphen_control: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - cache_hyphen_control: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+                    public init(cache_hyphen_control: Swift.String? = nil) {
+                        self.cache_hyphen_control = cache_hyphen_control
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCacheEndpoints.Output.Ok.Headers
                 /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// List of available cache endpoints
@@ -12526,8 +12657,13 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getCacheEndpoints.Output.Ok.Body) {
+                public init(
+                    headers: Operations.getCacheEndpoints.Output.Ok.Headers = .init(),
+                    body: Operations.getCacheEndpoints.Output.Ok.Body
+                ) {
+                    self.headers = headers
                     self.body = body
                 }
             }
@@ -12640,6 +12776,11 @@ public enum Operations {
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
     ///
+    /// The URL is signed from the request parameters alone, without a storage round trip, so
+    /// this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+    /// miss, or treat a failing download as the miss signal.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
     public enum downloadCacheArtifact {
@@ -12737,7 +12878,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The artifact exists and is downloadable
+            /// A signed download URL was generated. The URL is returned without verifying that the artifact is stored, so this status does not imply a cache hit: a hash that was never uploaded is signed just the same, and the download then fails with a 404 at the storage provider.
             ///
             /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/200`.
             ///
@@ -12941,7 +13082,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The project or the cache artifact doesn't exist
+            /// The project doesn't exist
             ///
             /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/404`.
             ///
@@ -15827,6 +15968,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/model_identifier`.
                     public var model_identifier: Swift.String?
+                    /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/only_test_identifiers`.
+                    public var only_test_identifiers: [Swift.String]?
                     /// The scheme used for the test run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/scheme`.
@@ -15839,6 +15984,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_plan_id`.
                     public var shard_plan_id: Swift.String?
+                    /// The tests the caller asked this run to exclude.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/skip_test_identifiers`.
+                    public var skip_test_identifiers: [Swift.String]?
                     /// The status of the test run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/status`.
@@ -16360,9 +16509,11 @@ public enum Operations {
                     ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
                     ///   - macos_version: The version of macOS used during the run.
                     ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
+                    ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
                     ///   - scheme: The scheme used for the test run.
                     ///   - shard_index: The zero-based shard index for this test result.
                     ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
+                    ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
                     ///   - status: The status of the test run.
                     ///   - test_modules: The test modules associated with the test run.
                     ///   - xcode_version: The version of Xcode used during the run.
@@ -16383,9 +16534,11 @@ public enum Operations {
                         is_ci: Swift.Bool,
                         macos_version: Swift.String? = nil,
                         model_identifier: Swift.String? = nil,
+                        only_test_identifiers: [Swift.String]? = nil,
                         scheme: Swift.String? = nil,
                         shard_index: Swift.Int? = nil,
                         shard_plan_id: Swift.String? = nil,
+                        skip_test_identifiers: [Swift.String]? = nil,
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
                         test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload,
                         xcode_version: Swift.String? = nil
@@ -16406,9 +16559,11 @@ public enum Operations {
                         self.is_ci = is_ci
                         self.macos_version = macos_version
                         self.model_identifier = model_identifier
+                        self.only_test_identifiers = only_test_identifiers
                         self.scheme = scheme
                         self.shard_index = shard_index
                         self.shard_plan_id = shard_plan_id
+                        self.skip_test_identifiers = skip_test_identifiers
                         self.status = status
                         self.test_modules = test_modules
                         self.xcode_version = xcode_version
@@ -16430,9 +16585,11 @@ public enum Operations {
                         case is_ci
                         case macos_version
                         case model_identifier
+                        case only_test_identifiers
                         case scheme
                         case shard_index
                         case shard_plan_id
+                        case skip_test_identifiers
                         case status
                         case test_modules
                         case xcode_version
@@ -26405,6 +26562,11 @@ public enum Operations {
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
     ///
+    /// It is the only cache endpoint that reaches storage to answer, so it is what clients
+    /// should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+    /// checking storage and answers 200 either way.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
     public enum cacheArtifactExists {
@@ -26712,13 +26874,13 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload`.
-                        public struct errorPayloadPayload: Codable, Hashable, Sendable {
-                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload/code`.
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorsPayload`.
+                        public struct errorsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorsPayload/code`.
                             public var code: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload/message`.
+                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorsPayload/message`.
                             public var message: Swift.String?
-                            /// Creates a new `errorPayloadPayload`.
+                            /// Creates a new `errorsPayloadPayload`.
                             ///
                             /// - Parameters:
                             ///   - code:
@@ -26735,19 +26897,19 @@ public enum Operations {
                                 case message
                             }
                         }
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/error`.
-                        public typealias errorPayload = [Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayloadPayload]
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/error`.
-                        public var error: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayload?
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errors`.
+                        public typealias errorsPayload = [Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errors`.
+                        public var errors: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorsPayload?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - error:
-                        public init(error: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayload? = nil) {
-                            self.error = error
+                        ///   - errors:
+                        public init(errors: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorsPayload? = nil) {
+                            self.errors = errors
                         }
                         public enum CodingKeys: String, CodingKey {
-                            case error
+                            case errors
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/application\/json`.
@@ -42704,6 +42866,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/build_run_id`.
                     public var build_run_id: Swift.String?
+                    /// The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/git_branch`.
+                    public var git_branch: Swift.String?
                     /// The UUID of the associated Gradle build.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/gradle_build_id`.
@@ -42723,6 +42889,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/modules`.
                     public var modules: [Swift.String]?
+                    /// Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/parallelizable_modules`.
+                    public var parallelizable_modules: [Swift.String]?
                     /// A unique shard plan reference, typically derived from CI environment.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/reference`.
@@ -42751,9 +42921,11 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - build_run_id: The UUID of the associated Xcode build run.
+                    ///   - git_branch: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
                     ///   - gradle_build_id: The UUID of the associated Gradle build.
                     ///   - granularity: Sharding granularity level.
                     ///   - modules: Test module names (for module-level granularity).
+                    ///   - parallelizable_modules: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
                     ///   - reference: A unique shard plan reference, typically derived from CI environment.
                     ///   - shard_max: Maximum number of shards.
                     ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
@@ -42762,9 +42934,11 @@ public enum Operations {
                     ///   - test_suites: Test suite names (for suite-level granularity).
                     public init(
                         build_run_id: Swift.String? = nil,
+                        git_branch: Swift.String? = nil,
                         gradle_build_id: Swift.String? = nil,
                         granularity: Operations.createShardPlan.Input.Body.jsonPayload.granularityPayload? = nil,
                         modules: [Swift.String]? = nil,
+                        parallelizable_modules: [Swift.String]? = nil,
                         reference: Swift.String,
                         shard_max: Swift.Int? = nil,
                         shard_max_duration: Swift.Int? = nil,
@@ -42773,9 +42947,11 @@ public enum Operations {
                         test_suites: [Swift.String]? = nil
                     ) {
                         self.build_run_id = build_run_id
+                        self.git_branch = git_branch
                         self.gradle_build_id = gradle_build_id
                         self.granularity = granularity
                         self.modules = modules
+                        self.parallelizable_modules = parallelizable_modules
                         self.reference = reference
                         self.shard_max = shard_max
                         self.shard_max_duration = shard_max_duration
@@ -42785,9 +42961,11 @@ public enum Operations {
                     }
                     public enum CodingKeys: String, CodingKey {
                         case build_run_id
+                        case git_branch
                         case gradle_build_id
                         case granularity
                         case modules
+                        case parallelizable_modules
                         case reference
                         case shard_max
                         case shard_max_duration
@@ -57298,6 +57476,225 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Exchange the current credential for a cache token.
+    ///
+    /// Returns a short-lived token that carries the authenticated subject's cache grants.
+    ///
+    /// Cache nodes verify it themselves and authorize from the grants it carries, so
+    /// clients holding a credential a cache node cannot verify locally (a CI project
+    /// token, for example) avoid a server round-trip per cache authorization. Exchange
+    /// it once and reuse it until it expires. It is only accepted by cache nodes; it is
+    /// not an API credential.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/cache/token`.
+    /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)`.
+    public enum getCacheToken {
+        public static let id: Swift.String = "getCacheToken"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/token/POST/query`.
+            public struct Query: Sendable, Hashable {
+                /// Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/token/POST/query/full_handle`.
+                public var full_handle: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - full_handle: Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account.
+                public init(full_handle: Swift.String? = nil) {
+                    self.full_handle = full_handle
+                }
+            }
+            public var query: Operations.getCacheToken.Input.Query
+            /// - Remark: Generated from `#/paths/api/cache/token/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheToken.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheToken.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getCacheToken.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.getCacheToken.Input.Query = .init(),
+                headers: Operations.getCacheToken.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// A short-lived token that proves the subject's cache access
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Seconds until the token expires.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/json/expires_in`.
+                        public var expires_in: Swift.Int
+                        /// The token to send to cache nodes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/json/token`.
+                        public var token: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - expires_in: Seconds until the token expires.
+                        ///   - token: The token to send to cache nodes.
+                        public init(
+                            expires_in: Swift.Int,
+                            token: Swift.String
+                        ) {
+                            self.expires_in = expires_in
+                            self.token = token
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case expires_in
+                            case token
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/application\/json`.
+                    case json(Operations.getCacheToken.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getCacheToken.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheToken.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheToken.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// A cache token for the authenticated subject
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getCacheToken.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getCacheToken.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheToken.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getCacheToken.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getCacheToken.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
                             response: self
                         )
                     }

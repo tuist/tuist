@@ -105,10 +105,11 @@ public struct CacheURLStore: CacheURLStoring {
     {
         Logger.current.debug("Selecting best cache endpoint for \(serverURL.absoluteString)")
 
-        let endpoints = try await getCacheEndpointsService.getCacheEndpoints(
+        let resolution = try await getCacheEndpointsService.getCacheEndpoints(
             serverURL: serverURL,
             accountHandle: accountHandle
         )
+        let endpoints = resolution.endpoints
 
         guard !endpoints.isEmpty else {
             throw CacheURLStoreError.noEndpointsAvailable
@@ -116,8 +117,7 @@ public struct CacheURLStore: CacheURLStoring {
 
         if endpoints.count == 1 {
             Logger.current.debug("Only one endpoint available, using it directly: \(endpoints[0])")
-            let expirationDate = Calendar.current.date(byAdding: .hour, value: 1, to: Date())
-            return (value: endpoints[0], expiresAt: expirationDate)
+            return (value: endpoints[0], expiresAt: expiration(maxAge: resolution.maxAge))
         }
 
         let endpointLatencies: [(String, TimeInterval?)] = try await endpoints.concurrentMap { endpoint in
@@ -153,8 +153,22 @@ public struct CacheURLStore: CacheURLStoring {
                 "Selected endpoint \(bestEndpoint.0) with latency \(String(format: "%.3f", bestEndpoint.1))s"
             )
 
-        let expirationDate = Calendar.current.date(byAdding: .hour, value: 1, to: Date())
-        return (value: bestEndpoint.0, expiresAt: expirationDate)
+        return (value: bestEndpoint.0, expiresAt: expiration(maxAge: resolution.maxAge))
+    }
+
+    /// How long a resolved endpoint stays good for.
+    ///
+    /// The server says, through `Cache-Control`: a long interval while a
+    /// dedicated instance is serving, seconds while one is being provisioned
+    /// back, since that answer is a stand-in that stops being right the moment
+    /// the instance starts serving. Falling back to an hour covers a server
+    /// that sends no directive.
+    private func expiration(maxAge: TimeInterval?) -> Date? {
+        guard let maxAge else {
+            return Calendar.current.date(byAdding: .hour, value: 1, to: Date())
+        }
+
+        return Date().addingTimeInterval(maxAge)
     }
 
     private func currentCacheEndpointKeySuffix() -> String {
@@ -170,6 +184,28 @@ public enum CacheURLStoreError: LocalizedError, Equatable {
     case noEndpointsAvailable
     case noReachableEndpoints
     case invalidURL(String)
+
+    /// Whether the failure is an endpoint that is not serving *yet*, rather than
+    /// one that is wrong.
+    ///
+    /// An account whose cache instance was reclaimed for inactivity has no
+    /// endpoint until the server provisions one back, which the very act of
+    /// asking for endpoints triggers. The same is true of an instance that is
+    /// still rolling out. Both resolve on their own within minutes, and every
+    /// per-request caller already degrades to building locally and retries on a
+    /// later request, so a long-lived process should carry on rather than refuse
+    /// to start over a state that is about to fix itself.
+    ///
+    /// `invalidURL` is excluded: a malformed endpoint is a misconfiguration that
+    /// no amount of waiting corrects, so it stays fatal.
+    public var isTransientAbsence: Bool {
+        switch self {
+        case .noEndpointsAvailable, .noReachableEndpoints:
+            true
+        case .invalidURL:
+            false
+        }
+    }
 
     public var errorDescription: String? {
         switch self {

@@ -167,6 +167,67 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "object-stora
 {{- end -}}
 {{- end -}}
 
+{{/*
+S3 storage driver env for a CNCF `distribution` registry, shared by the
+Docker Hub pull-through cache (registryCache) and the VM image registry
+(ociRegistry). Both speak to the same object store and differ only in
+bucket + prefix, so the credential branching lives here rather than being
+duplicated per component.
+
+Call with the component's `s3` values:
+
+  {{- include "tuist.registryStorageEnv" (dict "root" . "s3" .Values.ociRegistry.s3) | nindent 12 }}
+*/}}
+{{- define "tuist.registryStorageEnv" -}}
+{{- $root := .root -}}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" $root -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" $root -}}
+- name: REGISTRY_STORAGE
+  value: s3
+- name: REGISTRY_STORAGE_S3_REGION
+  value: {{ include "tuist.objectStorageRegion" $root | quote }}
+- name: REGISTRY_STORAGE_S3_REGIONENDPOINT
+  value: {{ include "tuist.objectStorageEndpoint" $root | quote }}
+- name: REGISTRY_STORAGE_S3_FORCEPATHSTYLE
+  value: "true"
+# Embedded MinIO is plain http (:9000); external object stores
+# (Tigris) are https. Drive TLS off the storage mode so the S3
+# driver doesn't try to speak TLS to an http endpoint.
+- name: REGISTRY_STORAGE_S3_SECURE
+  value: {{ ternary "false" "true" (eq $root.Values.objectStorage.mode "embedded") | quote }}
+- name: REGISTRY_STORAGE_S3_BUCKET
+  value: {{ .s3.bucket | quote }}
+- name: REGISTRY_STORAGE_S3_ROOTDIRECTORY
+  value: {{ .s3.rootDirectory | quote }}
+{{- if and (eq $root.Values.objectStorage.mode "external") $root.Values.objectStorage.external.managedSecrets }}
+# Managed envs: the real S3 creds live in the ESO-synced
+# object-storage-external-secrets Secret. app-secrets carries
+# only the (empty) values-supplied key, so the registry must read
+# from here — same branch the server uses.
+- name: REGISTRY_STORAGE_S3_ACCESSKEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" $root "component" "object-storage-external-secrets") }}
+      key: object-storage-access-key
+- name: REGISTRY_STORAGE_S3_SECRETKEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" $root "component" "object-storage-external-secrets") }}
+      key: object-storage-secret-key
+{{- else if and $objectStorageAccessKey $objectStorageSecretKey }}
+- name: REGISTRY_STORAGE_S3_ACCESSKEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" $root "component" "app-secrets") }}
+      key: object-storage-access-key
+- name: REGISTRY_STORAGE_S3_SECRETKEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" $root "component" "app-secrets") }}
+      key: object-storage-secret-key
+{{- end }}
+{{- end -}}
+
 {{- define "tuist.objectStorageBucketDefault" -}}
 {{- if eq .Values.objectStorage.mode "embedded" -}}
 {{- .Values.objectStorage.embedded.buckets.default -}}
@@ -626,10 +687,10 @@ runtime secret bundle.
 {{/*
 Stripe price IDs. These are not secrets (just identifiers for the products in
 Stripe), so they live in chart values as a readable plan -> category -> [ids]
-map instead of the secret store. `Tuist.Environment.stripe_prices/1` reads
-TUIST_STRIPE_PRICES as a JSON string, so the chart just JSON-encodes the map.
-Emits nothing when server.stripe.prices is empty (self-hosted installs without
-Stripe).
+map plus a top-level runner meter event name -> price id map instead of the
+secret store. `Tuist.Environment.stripe_prices/1` reads TUIST_STRIPE_PRICES as
+a JSON string, so the chart just JSON-encodes the map. Emits nothing when
+server.stripe.prices is empty (self-hosted installs without Stripe).
 */}}
 {{- define "tuist.stripePricesEnv" -}}
 {{- with .Values.server.stripe.prices }}

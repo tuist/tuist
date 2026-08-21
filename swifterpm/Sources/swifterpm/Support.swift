@@ -265,18 +265,19 @@ enum HTTPClient {
 
 enum HTTPAuthorization {
     static func header(for url: URL) async -> String? {
-        let environment = ProcessInfo.processInfo.environment
+        let environment = Environment.current
 
         // Explicit, host-scoped credentials win over an ambient GitHub token. A
-        // `machine api.github.com` entry in ~/.netrc (or SWIFTPM_NETRC_DATA) is a
-        // deliberate per-host credential, so it must beat a generic GITHUB_TOKEN /
+        // `machine api.github.com` entry in a netrc file is a deliberate per-host
+        // credential, so it must beat a generic GITHUB_TOKEN /
         // GH_TOKEN that may be scoped to an unrelated repository — otherwise a
         // repo-scoped CI token shadows the netrc credential that can actually read
         // a private release asset. This mirrors SwiftPM, whose download
         // AuthorizationProvider resolves netrc and never consults GITHUB_TOKEN.
-        if let header = prioritizedHeader(
+        if let header = await prioritizedHeader(
             isGitHub: isGitHub(url),
-            netrcCredential: await netrcCredential(for: url, environment: environment),
+            netrcCredential: Environment.netrc.credential(for: url),
+            keychain: { await KeychainAuthorization.credential(for: url) },
             gitHubEnvToken: environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]
         ) {
             return header
@@ -292,37 +293,18 @@ enum HTTPAuthorization {
     static func prioritizedHeader(
         isGitHub: Bool,
         netrcCredential: RegistryCredential?,
+        keychain: () async -> RegistryCredential?,
         gitHubEnvToken: String?
-    ) -> String? {
+    ) async -> String? {
         if let credential = netrcCredential {
+            return basicHeader(credential)
+        }
+        if let credential = await keychain() {
             return basicHeader(credential)
         }
         if isGitHub, let token = nonEmpty(gitHubEnvToken) {
             return bearerHeader(token)
         }
-        return nil
-    }
-
-    private static func netrcCredential(
-        for url: URL,
-        environment: [String: String]
-    ) async -> RegistryCredential? {
-        if let netrcData = nonEmpty(environment["SWIFTPM_NETRC_DATA"]),
-           let credential = RegistryNetrc(content: netrcData).credential(for: url)
-        {
-            return credential
-        }
-
-        if let home = environment["HOME"] {
-            let netrcPath = URL(fileURLWithPath: home).appendingPathComponent(".netrc")
-            if let data = try? await fileSystem.readFile(at: netrcPath.absolutePath),
-               let content = String(data: data, encoding: .utf8),
-               let credential = RegistryNetrc(content: content).credential(for: url)
-            {
-                return credential
-            }
-        }
-
         return nil
     }
 
@@ -507,16 +489,24 @@ enum PathCanonicalizer {
         #if os(Windows)
             url.standardizedFileURL
         #else
+            // The pointer `realpath` returns is only guaranteed for as long as the buffer is
+            // borrowed, so the string has to be built inside the borrow rather than from the
+            // returned pointer afterwards.
             var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
-            #if canImport(Glibc)
-                let resolved = Glibc.realpath(url.path, &buffer)
-            #elseif canImport(Musl)
-                let resolved = Musl.realpath(url.path, &buffer)
-            #else
-                let resolved = Darwin.realpath(url.path, &buffer)
-            #endif
-            if let resolved, let path = String(validatingCString: resolved) {
-                return URL(fileURLWithPath: path)
+            let resolved = buffer.withUnsafeMutableBufferPointer { buffer -> String? in
+                guard let base = buffer.baseAddress else { return nil }
+                #if canImport(Glibc)
+                    let resolved = Glibc.realpath(url.path, base)
+                #elseif canImport(Musl)
+                    let resolved = Musl.realpath(url.path, base)
+                #else
+                    let resolved = Darwin.realpath(url.path, base)
+                #endif
+                guard let resolved else { return nil }
+                return String(validatingCString: resolved)
+            }
+            if let resolved {
+                return URL(fileURLWithPath: resolved)
             }
             return url.standardizedFileURL
         #endif

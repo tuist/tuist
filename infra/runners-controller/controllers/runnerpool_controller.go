@@ -19,12 +19,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
+	"github.com/tuist/tuist/infra/runners-controller/internal/sessions"
 )
 
 // runnerPoolFinalizer gates RunnerPool deletion on a graceful drain
@@ -53,6 +55,11 @@ const defaultRollMaxConcurrentPercent = 5
 type RunnerPoolReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	// SessionsClient closes a Pod's billing session immediately before
+	// the reap deletes it — see reapRunner for why the ordering matters.
+	// nil disables reporting; the reap itself still runs.
+	SessionsClient *sessions.Client
 
 	// DispatchURL is the customer-server's runner dispatch endpoint
 	// threaded into every Pod via env. Set from the manager's
@@ -110,6 +117,7 @@ func (r *RunnerPoolReconciler) now() time.Time {
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("pool", req.NamespacedName)
@@ -165,6 +173,20 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		client.MatchingLabels{"tuist.dev/runner-pool": pool.Name},
 	); err != nil {
 		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
+	}
+
+	// Graceful node drain. This runs before any accounting below so a
+	// Pod retired here is never counted as capacity the pool still has.
+	// See reapIdlePodsOnCordonedNodes for why the drain cannot converge
+	// without it.
+	survivors, cordonReaped, err := r.reapIdlePodsOnCordonedNodes(ctx, pods.Items)
+	if err != nil {
+		logger.Error(err, "retire idle pods on draining nodes; will retry")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+	pods.Items = survivors
+	if cordonReaped > 0 {
+		logger.Info("retired idle runner pods for node drain", "count", cordonReaped)
 	}
 
 	// Warm capacity is counted here, in the one pass with no early
@@ -237,6 +259,28 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			metrics.RecordPodStartTimeout(pool.Name, pollerNotStartedTimeoutReason)
 			if err := r.reapRunner(ctx, p); err != nil {
 				logger.Error(err, "reap runner pod after start timeout; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			phaseReplicas.remove(p)
+			reaped++
+			continue
+		}
+
+		if unschedulableTimedOut(p, pool, r.now()) {
+			rejectedAt, _ := unschedulableSince(p)
+			logger.Info("reap runner pod the scheduler could not place",
+				"pod", p.Name,
+				"bound", false,
+				"age", r.now().Sub(rejectedAt).String(),
+			)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeWarning, "RunnerPodUnschedulable",
+					"No node could accommodate this Pod for %d seconds; releasing its fleet provisioning slot",
+					pool.Spec.Provisioning.StartTimeoutSecondsOrDefault())
+			}
+			metrics.RecordPodStartTimeout(pool.Name, unschedulableTimeoutReason)
+			if err := r.reapRunner(ctx, p); err != nil {
+				logger.Error(err, "reap unschedulable runner pod; will retry", "pod", p.Name)
 				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
 			phaseReplicas.remove(p)
@@ -564,7 +608,26 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 // Called for both terminal Pods (Succeeded/Failed → natural
 // turnover) and stale Pending Pods (Pod-template rollout →
 // recycle on the current template). The cleanup contract is the same.
+//
+// The Pod's billing session is closed BEFORE the Delete, and that
+// ordering is the whole point. `PodLifecycleReconciler` also reports,
+// on the terminal-phase transition, but it runs in a separate workqueue
+// woken by the same watch event with no ordering against this one — so
+// under load the reap got there first and the Pod was gone before the
+// report was attempted. That race closed 22% of runner sessions never:
+// 264 of 1185 on 2026-08-14, holding on every fleet and every working
+// day back to at least 2026-07-07. A grace period does not help, since
+// a Pod already in a terminal phase has no live containers to wait for
+// and is removed in milliseconds.
+//
+// Doing it here removes the race rather than compensating for it: one
+// goroutine, report then delete. The other reconciler's report stays as
+// the faster path (it fires on the phase transition, ahead of the reap)
+// and the two are idempotent, MIN-biased on the server, so a double
+// report cannot extend a billed window.
 func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) error {
+	r.reportStopped(ctx, pod)
+
 	if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete pod %s: %w", pod.Name, err)
 	}
@@ -587,6 +650,34 @@ func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) 
 // once Pod.DeletionTimestamp is set.
 func (r *RunnerPoolReconciler) reapAlivePod(ctx context.Context, pod *corev1.Pod) error {
 	return r.reapRunner(ctx, pod)
+}
+
+// reportStopped closes the Pod's billing session before the Pod is
+// deleted. Best-effort by design: a Pod we cannot report must still be
+// reaped, or a Tuist-server outage would leave terminal Pods and their
+// ServiceAccounts accumulating in the namespace — which is what this
+// reap exists to prevent, and a worse failure than a late close.
+// `PodReconciliationWorker` is the level-triggered backstop for
+// whatever this drops, and it resolves a better `ended_at` than we
+// could here (the job's real completion) when it does.
+//
+// nil client disables reporting, matching how the pod-lifecycle
+// reconciler is only wired when the sessions URL is configured.
+func (r *RunnerPoolReconciler) reportStopped(ctx context.Context, pod *corev1.Pod) {
+	if r.SessionsClient == nil {
+		return
+	}
+
+	endedAt := podEndedAt(pod, r.now())
+	if err := r.SessionsClient.Stopped(ctx, pod.Name, endedAt); err != nil {
+		log.FromContext(ctx).Error(err, "close session before reap; backstop will retry", "pod", pod.Name)
+		return
+	}
+	// Logged for the same reason as the pod-lifecycle reconciler's
+	// report, and tagged so the two are distinguishable: the reconcilers
+	// race for the same Pod, and which one lands decides whether the
+	// report happens before or after the Pod is deleted.
+	log.FromContext(ctx).Info("reported pod stopped", "pod", pod.Name, "endedAt", endedAt, "source", "reap")
 }
 
 type podPhaseReplicaCounts struct {
@@ -848,6 +939,12 @@ func (r *RunnerPoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&tuistv1.RunnerPool{}).
 		Owns(&corev1.Pod{}, builder.WithPredicates(runnerLabelPredicate())).
 		Owns(&corev1.ServiceAccount{}).
+		// Cordoned nodes drive the graceful-drain reap. See
+		// reapIdlePodsOnCordonedNodes.
+		Watches(&corev1.Node{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueAllRunnerPools),
+			builder.WithPredicates(drainingNodePredicate()),
+		).
 		// The shared provisioning admission reads the fleet count and then
 		// creates Pods. Keep that decision serial within the elected manager;
 		// raising this requires an atomic cross-reconcile reservation step.

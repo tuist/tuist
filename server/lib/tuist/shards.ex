@@ -24,7 +24,10 @@ defmodule Tuist.Shards do
   @default_module_duration_ms 30_000
   @default_suite_duration_ms 5_000
   @timing_lookback_days 30
+  @suite_inventory_runs 5
   @timing_quantile 0.90
+  @min_parallelism_factor 0.5
+  @max_parallelism_factor 16.0
 
   def create_shard_plan(%Project{} = project, params) do
     granularity = Map.get(params, :granularity, "module")
@@ -32,7 +35,11 @@ defmodule Tuist.Shards do
 
     units = resolve_units(project, params, granularity)
     timing_data = fetch_timing_data(project, granularity, units)
-    units_with_durations = assign_durations(units, timing_data, granularity)
+
+    units_with_durations =
+      units
+      |> assign_durations(timing_data, granularity)
+      |> scale_by_module_parallelism(project, params, granularity)
 
     shard_count =
       BinPacker.determine_shard_count(
@@ -414,14 +421,16 @@ defmodule Tuist.Shards do
 
   defp resolve_units(_project, params, "module"), do: params_modules(params)
 
+  # A client whose products limit a module to specific suites knows exactly what will run for it, so
+  # those suites are used as given. Modules it selected nothing for are still resolved from history:
+  # a selection usually covers part of a plan, and dropping the rest would hand whole modules to the
+  # catch-all shard.
   defp resolve_units(project, params, "suite") do
-    case Map.get(params, :test_suites) do
-      [_ | _] = suites ->
-        suites
+    selected = Map.get(params, :test_suites) || []
+    selected_modules = MapSet.new(selected, &suite_module/1)
+    unselected_modules = Enum.reject(params_modules(params), &MapSet.member?(selected_modules, &1))
 
-      _ ->
-        latest_branch_suite_units(project, params, params_modules(params))
-    end
+    selected ++ latest_branch_suite_units(project, params, unselected_modules)
   end
 
   defp params_modules(params), do: Map.get(params, :modules) || []
@@ -445,29 +454,40 @@ defmodule Tuist.Shards do
   defp latest_branch_suite_units(project, params, modules) do
     modules = Enum.uniq(modules)
     branches = suite_inventory_branches(project, params)
-    suites_by_branch_module = latest_branch_module_suite_units(project, branches, modules)
+
+    {units, unresolved} = suite_units(project, branches, modules, :excluded)
+
+    # A run asked for a caller-supplied set of tests executed what it was given, not what the module
+    # holds, so it can't stand in for the module's inventory. A module whose only history is such
+    # runs still gets one: a partial inventory beats none, because what a plan misses lands on the
+    # catch-all shard.
+    {restricted_units, _} =
+      if unresolved == [], do: {[], []}, else: suite_units(project, branches, unresolved, :included)
+
+    Enum.uniq(units ++ restricted_units)
+  end
+
+  # Resolves each module against the preferred branches in order, then falls back to its most recent
+  # CI runs on any branch. The preferred branches can come up empty for reasons that have nothing to
+  # do with the module: a project that only runs tests on pull-request branches has no history on its
+  # default branch, and the build run the branch is read from is written through an async ingestion
+  # buffer, so it is usually still unflushed when the plan is created. Without the fallback every
+  # module resolves no suites, and a plan with nothing to pack collapses to a single catch-all shard
+  # that runs the whole suite serially. Returns the units it resolved and the modules it could not.
+  defp suite_units(project, branches, modules, restricted_runs) do
+    suites_by_branch_module = latest_branch_module_suite_units(project, branches, modules, restricted_runs)
 
     units_by_module =
       Map.new(modules, fn module ->
         {module, Enum.find_value(branches, fn branch -> Map.get(suites_by_branch_module, {branch, module}) end)}
       end)
 
-    # A module with no suite history on the preferred branches falls back to its most recent CI run
-    # on any branch. The preferred branches can come up empty for reasons that have nothing to do
-    # with the module: a project that only runs tests on pull-request branches has no history on its
-    # default branch, and the build run the branch is read from is written through an async
-    # ingestion buffer, so it is usually still unflushed when the plan is created. Without the
-    # fallback every module resolves no suites, and a plan with nothing to pack collapses to a
-    # single catch-all shard that runs the whole suite serially.
-    fallback_units =
-      units_by_module
-      |> Enum.filter(fn {_module, units} -> is_nil(units) end)
-      |> Enum.map(fn {module, _units} -> module end)
-      |> then(&latest_module_suite_units(project, &1))
-
+    without_branch_history = for {module, nil} <- units_by_module, do: module
+    any_branch_units = latest_module_suite_units(project, without_branch_history, restricted_runs)
+    resolved_by_fallback = MapSet.new(any_branch_units, &suite_module/1)
     branch_units = units_by_module |> Map.values() |> Enum.reject(&is_nil/1) |> List.flatten()
 
-    Enum.uniq(branch_units ++ fallback_units)
+    {branch_units ++ any_branch_units, Enum.reject(without_branch_history, &MapSet.member?(resolved_by_fallback, &1))}
   end
 
   defp suite_inventory_branches(project, params) do
@@ -489,87 +509,145 @@ defmodule Tuist.Shards do
     end
   end
 
-  defp latest_branch_module_suite_units(_project, [], _modules), do: %{}
-  defp latest_branch_module_suite_units(_project, _branches, []), do: %{}
+  defp latest_branch_module_suite_units(_project, [], _modules, _restricted_runs), do: %{}
+  defp latest_branch_module_suite_units(_project, _branches, [], _restricted_runs), do: %{}
 
-  defp latest_branch_module_suite_units(project, branches, modules) do
-    cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
-
-    latest_module_runs_query =
-      from(mr in TestModuleRun,
-        where: mr.project_id == ^project.id,
-        where: mr.is_ci == true,
-        where: mr.git_branch in ^branches,
-        where: mr.ran_at >= ^cutoff,
-        where: mr.name in ^modules,
-        where: mr.test_suite_count > 0,
-        group_by: [mr.git_branch, mr.name],
-        select: %{
-          branch: mr.git_branch,
-          module_name: mr.name,
-          test_run_id: fragment("argMax(?, ?)", mr.test_run_id, mr.ran_at)
-        }
-      )
-
-    from(sr in TestSuiteRun,
-      join: mr in TestModuleRun,
-      on: sr.test_module_run_id == mr.id,
-      join: latest in subquery(latest_module_runs_query),
-      on:
-        latest.test_run_id == sr.test_run_id and latest.module_name == mr.name and
-          latest.branch == sr.git_branch,
-      where: sr.project_id == ^project.id,
-      where: sr.is_ci == true,
-      where: sr.git_branch in ^branches,
-      where: sr.ran_at >= ^cutoff,
-      where: mr.name in ^modules,
-      group_by: [latest.branch, latest.module_name, sr.name],
-      select: %{
-        branch: latest.branch,
-        module: latest.module_name,
-        name: fragment("concat(?, '/', ?)", latest.module_name, sr.name)
-      }
+  defp latest_branch_module_suite_units(project, branches, modules, restricted_runs) do
+    query = """
+    SELECT branch, module_name, name
+    FROM (
+      SELECT
+        latest.branch AS branch,
+        latest.module_name AS module_name,
+        concat(mr.name, '/', sr.name) AS name
+      FROM test_suite_runs AS sr
+      INNER JOIN test_module_runs AS mr ON sr.test_module_run_id = mr.id
+      INNER JOIN (
+        #{recent_branch_module_runs_query(restricted_runs)}
+      ) AS latest
+        ON latest.test_run_id = sr.test_run_id
+        AND latest.module_name = mr.name
+        AND latest.branch = sr.git_branch
+      WHERE sr.project_id = {project_id:Int64}
+        AND sr.is_ci = true
+        AND sr.git_branch IN {branches:Array(String)}
+        AND sr.ran_at >= {cutoff:DateTime64(6)}
+        AND mr.name IN {modules:Array(String)}
     )
-    |> ClickHouseRepo.all()
-    |> Enum.group_by(fn row -> {row.branch, row.module} end, & &1.name)
+    GROUP BY branch, module_name, name
+    """
+
+    {:ok, %{rows: rows}} =
+      ClickHouseRepo.query(query, suite_inventory_params(project, modules, branches))
+
+    Enum.group_by(
+      rows,
+      fn [branch, module_name, _name] -> {branch, module_name} end,
+      fn [_branch, _module_name, name] -> name end
+    )
   end
 
   # Suite inventory for modules that have no history on any of the preferred branches, taken from
-  # each module's most recent CI run regardless of branch. Suites that exist only on the branch
+  # each module's most recent CI runs regardless of branch. Suites that exist only on the branch
   # being built still run: they are absent from the plan, and the catch-all shard picks them up.
-  defp latest_module_suite_units(_project, []), do: []
+  defp latest_module_suite_units(_project, [], _restricted_runs), do: []
 
-  defp latest_module_suite_units(project, modules) do
-    cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
-
-    latest_module_runs_query =
-      from(mr in TestModuleRun,
-        where: mr.project_id == ^project.id,
-        where: mr.is_ci == true,
-        where: mr.ran_at >= ^cutoff,
-        where: mr.name in ^modules,
-        where: mr.test_suite_count > 0,
-        group_by: mr.name,
-        select: %{
-          module_name: mr.name,
-          test_run_id: fragment("argMax(?, ?)", mr.test_run_id, mr.ran_at)
-        }
-      )
-
-    ClickHouseRepo.all(
-      from(sr in TestSuiteRun,
-        join: mr in TestModuleRun,
-        on: sr.test_module_run_id == mr.id,
-        join: latest in subquery(latest_module_runs_query),
-        on: latest.test_run_id == sr.test_run_id and latest.module_name == mr.name,
-        where: sr.project_id == ^project.id,
-        where: sr.is_ci == true,
-        where: sr.ran_at >= ^cutoff,
-        where: mr.name in ^modules,
-        group_by: [latest.module_name, sr.name],
-        select: fragment("concat(?, '/', ?)", latest.module_name, sr.name)
-      )
+  defp latest_module_suite_units(project, modules, restricted_runs) do
+    query = """
+    SELECT name
+    FROM (
+      SELECT concat(mr.name, '/', sr.name) AS name
+      FROM test_suite_runs AS sr
+      INNER JOIN test_module_runs AS mr ON sr.test_module_run_id = mr.id
+      INNER JOIN (
+        #{recent_module_runs_query(restricted_runs)}
+      ) AS latest
+        ON latest.test_run_id = sr.test_run_id
+        AND latest.module_name = mr.name
+      WHERE sr.project_id = {project_id:Int64}
+        AND sr.is_ci = true
+        AND sr.ran_at >= {cutoff:DateTime64(6)}
+        AND mr.name IN {modules:Array(String)}
     )
+    GROUP BY name
+    """
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, suite_inventory_params(project, modules))
+
+    Enum.map(rows, fn [name] -> name end)
+  end
+
+  # A module's suites are spread across the test runs of the shards that executed them, and those
+  # runs are uploaded as each shard finishes, and the catch-all shard, which carries every suite the
+  # previous plan didn't know about, finishes last. Reading a single run therefore sees whatever
+  # fraction of the module had been ingested when the plan was created, and the suites missing from
+  # it are exactly the ones that were already unplanned, so they stay unplanned run after run.
+  # Unioning the last few runs restores the module's full inventory, and also covers suites a
+  # selective-testing run skipped. The bound keeps a deleted suite from lingering for the whole
+  # timing lookback window.
+  defp recent_branch_module_runs_query(restricted_runs) do
+    """
+    SELECT branch, module_name, test_run_id
+    FROM (
+      #{module_runs_by_recency_query("AND module_runs.git_branch IN {branches:Array(String)}", restricted_runs)}
+      LIMIT {runs:UInt8} BY branch, module_name
+    )
+    """
+  end
+
+  defp recent_module_runs_query(restricted_runs) do
+    """
+    SELECT module_name, test_run_id
+    FROM (
+      #{module_runs_by_recency_query("", restricted_runs)}
+      LIMIT {runs:UInt8} BY module_name
+    )
+    """
+  end
+
+  defp module_runs_by_recency_query(branch_filter, restricted_runs) do
+    """
+    SELECT
+      module_runs.git_branch AS branch,
+      module_runs.name AS module_name,
+      module_runs.test_run_id AS test_run_id,
+      max(module_runs.ran_at) AS ran_at
+    FROM test_module_runs AS module_runs
+    #{unrestricted_runs_join(restricted_runs)}
+    WHERE module_runs.project_id = {project_id:Int64}
+      AND module_runs.is_ci = true
+      AND module_runs.ran_at >= {cutoff:DateTime64(6)}
+      AND module_runs.name IN {modules:Array(String)}
+      AND module_runs.test_suite_count > 0
+      #{branch_filter}
+    GROUP BY branch, module_name, test_run_id
+    ORDER BY ran_at DESC
+    """
+  end
+
+  defp unrestricted_runs_join(:included), do: ""
+
+  # A run the caller limited to specific tests executed what it was given, so its suites are not the
+  # module's inventory. One the caller only excluded tests from still ran everything else, and stays
+  # evidence: the union across runs covers what it skipped.
+  defp unrestricted_runs_join(:excluded) do
+    """
+    INNER JOIN test_runs AS runs
+      ON runs.id = module_runs.test_run_id
+      AND runs.project_id = {project_id:Int64}
+      AND empty(runs.only_test_identifiers)
+    """
+  end
+
+  defp suite_inventory_params(project, modules, branches \\ nil) do
+    params = %{
+      project_id: project.id,
+      cutoff: DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day),
+      modules: modules,
+      runs: @suite_inventory_runs
+    }
+
+    if is_nil(branches), do: params, else: Map.put(params, :branches, branches)
   end
 
   defp blank?(nil), do: true
@@ -638,6 +716,116 @@ defmodule Tuist.Shards do
 
   defp round_timing_duration(%Decimal{} = duration), do: duration |> Decimal.to_float() |> round()
   defp round_timing_duration(duration), do: round(duration)
+
+  # A suite plan prices a shard as the sum of its suites' durations, which equals the shard's wall
+  # clock only when a module runs its suites one after another. Xcode runs a parallelizable module's
+  # suites concurrently, so summing them overstates such a module by as much as an order of
+  # magnitude, and the bin packer hands a whole shard to work that finishes in a fraction of the
+  # budget. Dividing each suite by its module's measured concurrency puts every unit back on the same
+  # wall-clock scale before packing.
+  #
+  # Which modules those are is not inferable from run records: it is a property of the test plan and
+  # the `xcodebuild` invocation, and history lags a change to either by the whole lookback window. A
+  # module that just stopped running in parallel would keep being divided for a month. So the client
+  # declares the set, read from `ParallelizationEnabled` in the `.xctestrun` it is about to run, and
+  # history is left to answer only how much concurrency those modules actually achieve. A client that
+  # declares nothing gets no scaling.
+  defp scale_by_module_parallelism(units_with_durations, _project, _params, "module"), do: units_with_durations
+
+  defp scale_by_module_parallelism(units_with_durations, project, params, "suite") do
+    parallelizable = params |> Map.get(:parallelizable_modules) |> List.wrap() |> MapSet.new()
+
+    units_by_module =
+      units_with_durations
+      |> Enum.group_by(fn {name, _duration} -> suite_module(name) end)
+      |> Map.filter(fn {module, _units} -> MapSet.member?(parallelizable, module) end)
+
+    factors =
+      units_by_module
+      |> Map.keys()
+      |> then(&fetch_module_parallelism(project, &1))
+      |> Map.new(fn {module, factor} -> {module, cap_factor(factor, Map.fetch!(units_by_module, module))} end)
+
+    Enum.map(units_with_durations, fn {name, duration} ->
+      case Map.get(factors, suite_module(name)) do
+        nil -> {name, duration}
+        factor -> {name, max(round(duration / factor), 1)}
+      end
+    end)
+  end
+
+  # Concurrency is measured over a module's whole suite set, but a plan can hold only part of it,
+  # and the suites that are missing are no longer there to overlap with. One suite of a four-way
+  # parallel module still takes that suite in full, so a shard's cost for a module can never fall
+  # below its longest planned suite. Capping the divisor at the planned set's own spread enforces
+  # that bound while leaving a complete inventory on the measured factor.
+  defp cap_factor(factor, units) do
+    durations = Enum.map(units, fn {_name, duration} -> duration end)
+    longest = Enum.max(durations)
+
+    if longest > 0 do
+      min(factor, Enum.sum(durations) / longest)
+    else
+      factor
+    end
+  end
+
+  # Concurrency is measured per module run as its suites' total duration over its own wall clock,
+  # then taken as the median across runs so a single anomalous run cannot move it. A run with one
+  # suite carries no concurrency signal, and the ratio is clamped because a module row whose duration
+  # was recorded inconsistently with its suites' would otherwise scale that module to near zero.
+  #
+  # Both tables are `ReplacingMergeTree(inserted_at)` keyed on the row id, so a rewritten row (the
+  # `is_flaky` update path) leaves a second physical copy behind until the parts merge. Summing and
+  # counting physical rows would inflate a module's suite total, and a duplicate on the module side
+  # multiplies through the join into every one of its suites. The innermost grouping folds each row
+  # id back to one row first, so neither aggregate can see a duplicate.
+  defp fetch_module_parallelism(_project, []), do: %{}
+
+  defp fetch_module_parallelism(project, modules) do
+    cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
+
+    deduplicated =
+      from(sr in TestSuiteRun,
+        join: mr in TestModuleRun,
+        on: sr.test_module_run_id == mr.id,
+        where: sr.project_id == ^project.id,
+        where: sr.is_ci == true,
+        where: sr.ran_at >= ^cutoff,
+        where: mr.project_id == ^project.id,
+        where: mr.is_ci == true,
+        where: mr.ran_at >= ^cutoff,
+        where: mr.name in ^modules,
+        group_by: [mr.name, mr.id, sr.id],
+        select: %{
+          module_name: mr.name,
+          module_run_id: mr.id,
+          module_duration: fragment("argMax(?, ?)", mr.duration, mr.inserted_at),
+          suite_duration: fragment("argMax(?, ?)", sr.duration, sr.inserted_at)
+        }
+      )
+
+    per_module_run =
+      from(d in subquery(deduplicated),
+        group_by: [d.module_name, d.module_run_id],
+        having: fragment("any(?)", d.module_duration) > 0,
+        having: count(d.module_run_id) > 1,
+        select: %{
+          module_name: d.module_name,
+          module_duration: fragment("any(?)", d.module_duration),
+          suite_sum: sum(d.suite_duration)
+        }
+      )
+
+    from(r in subquery(per_module_run),
+      group_by: r.module_name,
+      select: {r.module_name, fragment("toFloat64(median(? / ?))", r.suite_sum, r.module_duration)}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new(fn {name, factor} ->
+      {name, factor |> max(@min_parallelism_factor) |> min(@max_parallelism_factor)}
+    end)
+  end
 
   defp assign_durations(unit_names, timing_data, granularity) do
     known_durations = Map.values(timing_data)

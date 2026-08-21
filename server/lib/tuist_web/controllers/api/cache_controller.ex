@@ -24,7 +24,7 @@ defmodule TuistWeb.API.CacheController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints]
+  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints, :token]
 
   plug TuistWeb.API.Authorization.AuthorizationPlug,
        [
@@ -32,9 +32,9 @@ defmodule TuistWeb.API.CacheController do
          caching: true,
          cache_ttl: to_timeout(minute: 1)
        ]
-       when action not in [:access, :endpoints]
+       when action not in [:access, :endpoints, :token]
 
-  plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints]
+  plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints, :token]
 
   plug :sign
 
@@ -54,32 +54,54 @@ defmodule TuistWeb.API.CacheController do
        ]}
     ],
     responses: %{
-      ok:
-        {"List of cache endpoints", "application/json",
-         %Schema{
-           title: "CacheEndpoints",
-           description: "List of available cache endpoints",
-           type: :object,
-           required: [:endpoints],
-           properties: %{
-             endpoints: %Schema{
-               type: :array,
-               items: %Schema{type: :string}
-             }
-           }
-         }},
+      ok: %OpenApiSpex.Response{
+        description: "List of cache endpoints",
+        headers: %{
+          "cache-control" => %OpenApiSpex.Header{
+            description:
+              "How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.",
+            schema: %Schema{type: :string}
+          }
+        },
+        content: %{
+          "application/json" => %OpenApiSpex.MediaType{
+            schema: %Schema{
+              title: "CacheEndpoints",
+              description: "List of available cache endpoints",
+              type: :object,
+              required: [:endpoints],
+              properties: %{
+                endpoints: %Schema{
+                  type: :array,
+                  items: %Schema{type: :string}
+                }
+              }
+            }
+          }
+        }
+      },
       forbidden: {"Not authorized to perform this action", "application/json", Error}
     }
   )
 
+  # Freshness rather than a body field: how long an endpoint answer stays good
+  # for is exactly what `Cache-Control` is for, and putting it on the server
+  # means the interval is set by the side that knows whether an instance is
+  # minutes away or already serving.
+  @serving_cache_max_age 3600
+  @provisioning_cache_max_age 30
+
   def endpoints(conn, params) do
-    endpoints =
+    %{endpoints: endpoints, provisioning: provisioning} =
       params[:account_handle]
       |> authorized_account_handle(conn)
-      |> Accounts.get_cache_endpoints_for_handle(technology(conn))
-      |> Enum.reject(&is_nil/1)
+      |> Accounts.get_cache_resolution_for_handle(technology(conn))
 
-    json(conn, %{endpoints: endpoints})
+    max_age = if provisioning, do: @provisioning_cache_max_age, else: @serving_cache_max_age
+
+    conn
+    |> put_resp_header("cache-control", "private, max-age=#{max_age}")
+    |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1)})
   end
 
   defp authorized_account_handle(nil, _conn), do: nil
@@ -133,6 +155,57 @@ defmodule TuistWeb.API.CacheController do
     |> Authentication.authenticated_subject()
     |> Cache.accessible_handles()
     |> then(&json(conn, &1))
+  end
+
+  operation(:token,
+    summary: "Exchange the current credential for a cache token.",
+    description: """
+    Returns a short-lived token that carries the authenticated subject's cache grants.
+
+    Cache nodes verify it themselves and authorize from the grants it carries, so
+    clients holding a credential a cache node cannot verify locally (a CI project
+    token, for example) avoid a server round-trip per cache authorization. Exchange
+    it once and reuse it until it expires. It is only accepted by cache nodes; it is
+    not an API credential.
+    """,
+    operation_id: "getCacheToken",
+    parameters: [
+      {:full_handle,
+       [
+         in: :query,
+         type: :string,
+         required: false,
+         description:
+           "Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account."
+       ]}
+    ],
+    responses: %{
+      ok:
+        {"A cache token for the authenticated subject", "application/json",
+         %Schema{
+           title: "CacheToken",
+           description: "A short-lived token that proves the subject's cache access",
+           type: :object,
+           required: [:token, :expires_in],
+           properties: %{
+             token: %Schema{type: :string, description: "The token to send to cache nodes."},
+             expires_in: %Schema{
+               type: :integer,
+               description: "Seconds until the token expires."
+             }
+           }
+         }},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error}
+    }
+  )
+
+  def token(conn, params) do
+    {:ok, token, _claims} =
+      conn
+      |> Authentication.authenticated_subject()
+      |> Cache.issue_cache_token(scope: params[:full_handle])
+
+    json(conn, %{token: token, expires_in: Cache.cache_token_ttl_seconds()})
   end
 
   operation(:get_cache_action_item,
@@ -205,7 +278,13 @@ defmodule TuistWeb.API.CacheController do
 
   operation(:download,
     summary: "Downloads an artifact from the cache.",
-    description: "This endpoint returns a signed URL that can be used to download an artifact from the cache.",
+    description: """
+    This endpoint returns a signed URL that can be used to download an artifact from the cache.
+
+    The URL is signed from the request parameters alone, without a storage round trip, so
+    this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+    miss, or treat a failing download as the miss signal.
+    """,
     operation_id: "downloadCacheArtifact",
     parameters: [
       cache_category: [
@@ -229,10 +308,12 @@ defmodule TuistWeb.API.CacheController do
       name: [in: :query, type: :string, required: true, description: "The name of the artifact."]
     ],
     responses: %{
-      ok: {"The artifact exists and is downloadable", "application/json", CacheArtifactDownloadURL},
+      ok:
+        {"A signed download URL was generated. The URL is returned without verifying that the artifact is stored, so this status does not imply a cache hit: a hash that was never uploaded is signed just the same, and the download then fails with a 404 at the storage provider.",
+         "application/json", CacheArtifactDownloadURL},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      not_found: {"The project or the cache artifact doesn't exist", "application/json", Error},
+      not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
@@ -275,10 +356,14 @@ defmodule TuistWeb.API.CacheController do
 
   operation(:exists,
     summary: "It checks if an artifact exists in the cache.",
-    description:
-      "This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.",
+    description: """
+    This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
+
+    It is the only cache endpoint that reaches storage to answer, so it is what clients
+    should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+    checking storage and answers 200 either way.
+    """,
     operation_id: "cacheArtifactExists",
-    deprecated: true,
     parameters: [
       cache_category: [
         in: :query,
@@ -323,7 +408,7 @@ defmodule TuistWeb.API.CacheController do
            title: "AbsentCacheArtifact",
            type: :object,
            properties: %{
-             error: %Schema{
+             errors: %Schema{
                type: :array,
                items: %Schema{
                  type: :object,

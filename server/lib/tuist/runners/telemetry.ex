@@ -21,6 +21,13 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_job_completed, do: [:tuist, :runners, :job, :completed]
   def event_name_job_requeued, do: [:tuist, :runners, :job, :requeued]
   def event_name_dispatch_request, do: [:tuist, :runners, :dispatch, :request]
+
+  # Which cache-volume residency outcome decided the candidate handed to a
+  # polling node. The host's warm/cold materialize counter is the ground truth
+  # for cache warmth, but it cannot say why a job landed cold; this can, and
+  # the two answers call for opposite fixes. Emitted on the macOS fleet only,
+  # where cache volumes exist.
+  def event_name_dispatch_affinity, do: [:tuist, :runners, :dispatch, :affinity]
   def event_name_recovery, do: [:tuist, :runners, :recovery]
   def event_name_webhook, do: [:tuist, :runners, :webhook]
 
@@ -35,4 +42,8 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_claims_count, do: [:tuist, :runners, :claims, :count]
   def event_name_pool_replicas, do: [:tuist, :runners, :pool, :replicas]
   def event_name_session_clamp, do: [:tuist, :runners, :session, :clamped]
+
+  # Jobs whose ClickHouse row is still non-terminal after the outbox
+  # flush has had time to settle, while Postgres holds a terminal state.
+  def event_name_replica_divergence, do: [:tuist, :runners, :replica, :divergence]
 end

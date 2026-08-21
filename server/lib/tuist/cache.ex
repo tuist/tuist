@@ -9,6 +9,7 @@ defmodule Tuist.Cache do
   alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Cache.CASEvent
+  alias Tuist.CacheGuardian
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.KeyValueStore
@@ -16,6 +17,9 @@ defmodule Tuist.Cache do
   alias Tuist.Projects.Project
 
   @short_cache_ttl to_timeout(second: 10)
+
+  @cache_token_type "cache"
+  @cache_token_ttl_seconds 1800
 
   def accessible_handles(resource, opts \\ []) do
     %{
@@ -25,31 +29,129 @@ defmodule Tuist.Cache do
   end
 
   def cache_grants(resource, opts \\ []) do
+    resource = with_resolved_membership(resource)
+    cache_grants_for(resource, accessible_accounts(resource), accessible_projects(resource, opts))
+  end
+
+  # The accessible account and project lists are resolved by the caller and
+  # shared across all four buckets. Resolving them per bucket used to run the
+  # project query (and, under `:recent`, the last-interaction lookup) once per
+  # bucket for the same answer.
+  defp cache_grants_for(resource, accounts, projects) do
     %{
       "account" => %{
-        "read" => account_cache_handles(resource, :read),
-        "write" => account_cache_handles(resource, :write)
+        "read" => account_cache_handles(resource, accounts, :read),
+        "write" => account_cache_handles(resource, accounts, :write)
       },
       "project" => %{
-        "read" => project_cache_handles(resource, :read, opts),
-        "write" => project_cache_handles(resource, :write, opts)
+        "read" => project_cache_handles(resource, projects, :read),
+        "write" => project_cache_handles(resource, projects, :write)
       }
     }
   end
 
+  @doc """
+  Mints a short-lived token that proves the subject's cache access on its own.
+
+  Cache nodes verify it locally and authorize from the grants it carries, with
+  no call back here. It exists for subjects holding an opaque credential, such
+  as a CI project token: a cache node cannot verify those itself, so every
+  authorization that misses its local cache costs a round-trip to introspection.
+  A node reads this one for itself only where a dedicated keypair is configured
+  and its public half has reached the node; otherwise it introspects this too.
+  A project token reaches exactly one project, so the grants stay small enough
+  to ride in a request header.
+
+  The lifetime is deliberately short. The grants are a snapshot taken at minting
+  time, so it bounds how long a revoked or narrowed credential keeps working.
+  """
+  def issue_cache_token(subject, opts \\ []) do
+    ttl = Keyword.get(opts, :ttl, @cache_token_ttl_seconds)
+
+    grants =
+      subject
+      |> cache_grants(opts)
+      |> scope_grants(Keyword.get(opts, :scope))
+
+    cache_token_signer().encode_and_sign(
+      subject,
+      %{"cache_grants" => grants},
+      token_type: @cache_token_type,
+      ttl: {ttl, :second}
+    )
+  end
+
+  # Signed with the dedicated keypair once issuance is switched on, because a
+  # cache node holds its public half and can then read the token where the
+  # request lands. Until then the API-token key signs it, which no node is
+  # given, so those tokens are answered through introspection instead.
+  #
+  # `signing?` rather than `configured?`: holding the key comes first and by
+  # itself changes nothing a client sees, which is what lets every replica
+  # learn to verify before any replica starts issuing.
+  defp cache_token_signer do
+    if CacheGuardian.signing?(), do: CacheGuardian, else: Tuist.Guardian
+  end
+
+  # Narrows the grants to the one project the caller is about to use. An
+  # account-wide credential reaches every project its account owns, so an
+  # unscoped token hands a cache node everything that credential can reach and
+  # grows with the account at roughly seventy bytes a project. Nearly every
+  # account has one or two, where none of this matters; the largest has enough
+  # for a claim in the thousands of bytes. This bounds both regardless.
+  defp scope_grants(grants, nil), do: grants
+
+  # A blank scope is no scope. `?full_handle=` — an unset shell variable
+  # interpolated into a URL — would otherwise reach the clause below and filter
+  # every handle away, minting a well-formed token that grants nothing and
+  # failing on the cache node instead of here.
+  defp scope_grants(grants, scope) when is_binary(scope) do
+    case String.trim(scope) do
+      "" -> grants
+      trimmed -> scope_grants_to_project(grants, trimmed)
+    end
+  end
+
+  defp scope_grants_to_project(grants, scope) do
+    project = String.downcase(scope)
+
+    # The account buckets go empty rather than being filtered to the project's
+    # own account. A cache node picks the bucket by what the request asks for
+    # and never falls back between them, so a request naming no project is
+    # authorized against the account bucket alone. Keeping it would leave a
+    # token minted for one project holding its account's cache too, which is
+    # the access scoping exists to drop.
+    %{
+      "account" => %{"read" => [], "write" => []},
+      "project" => %{
+        "read" => only(grants["project"]["read"], project),
+        "write" => only(grants["project"]["write"], project)
+      }
+    }
+  end
+
+  defp only(handles, wanted), do: Enum.filter(handles, &(String.downcase(&1) == wanted))
+
+  def cache_token_ttl_seconds, do: @cache_token_ttl_seconds
+
   def embedded_cache_claims(resource, opts \\ [])
 
-  def embedded_cache_claims(%User{} = user, opts), do: project_only_embedded_cache_claims(user, opts)
+  def embedded_cache_claims(%User{} = user, opts) do
+    project_only_embedded_cache_claims(with_resolved_membership(user), opts)
+  end
 
   def embedded_cache_claims(%AuthenticatedAccount{issued_by: %User{}} = subject, opts) do
-    project_only_embedded_cache_claims(subject, opts)
+    project_only_embedded_cache_claims(with_resolved_membership(subject), opts)
   end
 
   def embedded_cache_claims(resource, opts) do
+    resource = with_resolved_membership(resource)
+    projects = accessible_projects(resource, opts)
+
     %{
       "accounts" => accessible_account_handles(resource),
-      "projects" => accessible_project_handles(resource, opts),
-      "cache_grants" => cache_grants(resource, opts)
+      "projects" => project_handles(projects),
+      "cache_grants" => cache_grants_for(resource, accessible_accounts(resource), projects)
     }
   end
 
@@ -79,9 +181,7 @@ defmodule Tuist.Cache do
   def accessible_project_handles(resource, opts \\ []) do
     resource
     |> accessible_projects(opts)
-    |> Enum.map(&project_handle/1)
-    |> Enum.uniq()
-    |> Enum.sort()
+    |> project_handles()
   end
 
   @doc """
@@ -135,6 +235,17 @@ defmodule Tuist.Cache do
     end
   end
 
+  # Resolving grants checks the subject's membership once per accessible
+  # project, so the memberships are resolved up front and carried on the
+  # subject instead of being read back for each check.
+  defp with_resolved_membership(%User{} = user), do: Accounts.put_organization_roles(user)
+
+  defp with_resolved_membership(%AuthenticatedAccount{issued_by: %User{} = user} = subject) do
+    %{subject | issued_by: Accounts.put_organization_roles(user)}
+  end
+
+  defp with_resolved_membership(resource), do: resource
+
   defp accessible_accounts(%User{} = user) do
     personal_account = Accounts.get_account_from_user(user)
 
@@ -163,33 +274,42 @@ defmodule Tuist.Cache do
   end
 
   defp project_only_embedded_cache_claims(resource, opts) do
+    projects = accessible_projects(resource, opts)
+
     %{
-      "projects" => accessible_project_handles(resource, opts),
+      "projects" => project_handles(projects),
       "cache_grants" => %{
         "account" => %{"read" => [], "write" => []},
         "project" => %{
-          "read" => project_cache_handles(resource, :read, opts),
-          "write" => project_cache_handles(resource, :write, opts)
+          "read" => project_cache_handles(resource, projects, :read),
+          "write" => project_cache_handles(resource, projects, :write)
         }
       }
     }
   end
 
+  # The organization is preloaded alongside the account because the cache
+  # policies ask whether the subject belongs to (or administers) each project's
+  # account. Preloading it batches that into the project query instead of one
+  # account read per project.
   defp accessible_projects(resource, opts) do
-    Projects.list_accessible_projects(resource, Keyword.put_new(opts, :preload, [:account]))
+    Projects.list_accessible_projects(resource, Keyword.put_new(opts, :preload, account: :organization))
   end
 
-  defp account_cache_handles(resource, action) do
-    resource
-    |> accessible_accounts()
+  defp account_cache_handles(resource, accounts, action) do
+    accounts
     |> Enum.filter(&authorized?(:account, cache_action(action), resource, &1))
     |> account_handles()
   end
 
-  defp project_cache_handles(resource, action, opts) do
-    resource
-    |> accessible_projects(opts)
+  defp project_cache_handles(resource, projects, action) do
+    projects
     |> Enum.filter(&authorized?(:project, cache_action(action), resource, &1))
+    |> project_handles()
+  end
+
+  defp project_handles(projects) do
+    projects
     |> Enum.map(&project_handle/1)
     |> Enum.uniq()
     |> Enum.sort()

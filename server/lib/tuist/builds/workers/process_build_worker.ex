@@ -32,6 +32,15 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
   require Logger
 
+  # The CLI completes the multipart upload immediately before the request that
+  # enqueues this job, and object storage occasionally needs a few more seconds
+  # to make the completed object readable. Those first misses are expected and
+  # clear on their own, so snooze instead of failing: a snooze records no
+  # exception, keeping Sentry for artifacts that are genuinely gone. Oban bumps
+  # `max_attempts` per snooze, so the processing attempts below stay intact.
+  @not_visible_snoozes 2
+  @not_visible_snooze_seconds 15
+
   # Cap one job's wall time so a single huge xcactivitylog cannot hold a worker
   # slot indefinitely. The NIF's internal timeout is set lower so it returns
   # a structured error first; this is the outer guard for everything else.
@@ -58,6 +67,13 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
           params when params != %{} -> Tuist.VCS.enqueue_vcs_pull_request_comment(params)
           _ -> :ok
         end
+
+      {:error, :project_not_found} ->
+        Logger.warning("Build processing skipped: project #{project_id} not found for build #{build_id}")
+        {:discard, :project_not_found}
+
+      {:error, :object_not_found} when attempt <= @not_visible_snoozes ->
+        {:snooze, @not_visible_snooze_seconds}
 
       {:error, reason} ->
         if attempt >= max_attempts do
@@ -135,6 +151,13 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     Builds.create_build(attrs)
   end
 
+  # `inserted_at` is deliberately carried over from the placeholder: it is the
+  # build's own timestamp and the table's partition key, and moving it would
+  # both misreport when the build ran and risk landing the replacement in a
+  # different monthly partition, where it could never dedup. Ordering the two
+  # rows is `updated_at`'s job, and the version to beat is the one on the row
+  # this write replaces, not this pod's clock — the placeholder is written by a
+  # server pod and this runs on a processor pod.
   defp base_build_attrs(build_id, project_id, account_id, build_metadata) do
     case Builds.get_build(build_id, project_id: project_id) do
       {:error, :not_found} ->
@@ -158,6 +181,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
           :cacheable_task_local_hits_count,
           :cacheable_task_remote_hits_count
         ])
+        |> Map.put(:updated_at, NaiveDateTime.add(existing_build.updated_at, 1, :microsecond))
     end
   end
 

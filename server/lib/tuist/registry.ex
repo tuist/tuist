@@ -21,9 +21,12 @@ defmodule Tuist.Registry do
   decommissioned.
   """
 
+  alias Tuist.GitHub.App
   alias Tuist.Registry.Swift.Metadata
   alias Tuist.Registry.Swift.SwiftPackageIndex
   alias Tuist.Registry.Swift.SyncWorker
+
+  require Logger
 
   def registry_bucket, do: Application.get_env(:tuist, :registry)[:bucket]
   def registry_s3_config, do: Application.get_env(:tuist, :registry)[:s3_config] || []
@@ -42,14 +45,124 @@ defmodule Tuist.Registry do
     end
   end
 
-  def swift_registry_github_token do
+  @doc """
+  The static personal access token the mirror used before it moved to the
+  GitHub App. Kept as the fallback for deployments that have not configured an
+  App installation for registry synchronization.
+  """
+  def swift_registry_github_personal_access_token do
     case Application.get_env(:tuist, :registry)[:swift_github_token] do
       token when is_binary(token) and token != "" -> token
       _ -> nil
     end
   end
 
-  def swift_registry_enabled?, do: registry_bucket() != nil and swift_registry_github_token() != nil
+  @doc """
+  The GitHub App installation the mirror authenticates as, when one is
+  configured.
+
+  A personal access token spends one user-scoped hourly budget across the whole
+  catalog rotation and every release job, which is the budget the July 2026
+  incident exhausted. An installation token draws on the App installation's own
+  budget instead, and expires on its own rather than living in a secret store.
+
+  Accepts either the numeric installation id or the organization the App is
+  installed on, resolved through `Tuist.GitHub.App.get_installation_id_for_org/2`
+  and cached there. The organization form is what environments actually
+  configure: an installation id is an opaque number an operator has to go and
+  look up, and a value nobody can read is a value nobody sets, which is how this
+  path would have shipped switched off.
+  """
+  def swift_registry_github_app_installation_id do
+    case Application.get_env(:tuist, :registry)[:swift_github_app_installation] do
+      value when is_binary(value) and value != "" -> resolve_installation(value)
+      _ -> nil
+    end
+  end
+
+  defp resolve_installation(value) do
+    if numeric?(value) do
+      value
+    else
+      case App.get_installation_id_for_org(value) do
+        {:ok, installation_id} ->
+          to_string(installation_id)
+
+        {:error, reason} ->
+          Logger.error("Registry sync could not resolve the GitHub App installation for #{value}: #{inspect(reason)}")
+
+          nil
+      end
+    end
+  end
+
+  defp numeric?(value), do: match?({_integer, ""}, Integer.parse(value))
+
+  @doc """
+  Whether the mirror has some way to authenticate against GitHub.
+
+  Deliberately does not mint a token: this answers a configuration question on
+  every worker tick, and minting reaches the network. A misconfigured App is
+  reported by `swift_registry_github_token/0` at the point the token is
+  actually needed.
+  """
+  def swift_registry_github_credentials_configured? do
+    configured =
+      case Application.get_env(:tuist, :registry)[:swift_github_app_installation] do
+        value when is_binary(value) and value != "" -> value
+        _ -> nil
+      end
+
+    github_credentials_configured?(configured, swift_registry_github_personal_access_token())
+  end
+
+  @doc """
+  Whether the given pair of credentials amounts to a usable configuration.
+
+  Split from `swift_registry_github_credentials_configured?/0` so the rule can
+  be exercised without mutating application environment.
+  """
+  def github_credentials_configured?(installation_id, personal_access_token) do
+    not is_nil(installation_id) or not is_nil(personal_access_token)
+  end
+
+  @doc """
+  Resolves the token the Swift mirror calls GitHub with.
+
+  Prefers a short-lived installation token when an installation is configured,
+  and falls back to the personal access token when the App is unavailable, so a
+  credential problem degrades synchronization rather than stopping it. Returns
+  `nil` when neither is available, which callers treat as "not configured".
+  """
+  def swift_registry_github_token do
+    github_token(
+      swift_registry_github_app_installation_id(),
+      swift_registry_github_personal_access_token()
+    )
+  end
+
+  @doc """
+  Resolves a token from an explicit pair of credentials.
+
+  Split from `swift_registry_github_token/0` for the same reason as
+  `github_credentials_configured?/2`: the resolution rule is the part worth
+  testing, and reading it from application environment is not.
+  """
+  def github_token(nil, personal_access_token), do: personal_access_token
+
+  def github_token(installation_id, personal_access_token) do
+    case App.get_installation_token(installation_id) do
+      {:ok, %{token: token}} ->
+        token
+
+      {:error, reason} ->
+        Logger.error("Failed to mint a registry sync installation token: #{inspect(reason)}")
+
+        personal_access_token
+    end
+  end
+
+  def swift_registry_enabled?, do: registry_bucket() != nil and swift_registry_github_credentials_configured?()
 
   def swift_registry_sync_enabled? do
     Application.get_env(:tuist, :registry)[:swift_sync_enabled] == true
@@ -60,7 +173,7 @@ defmodule Tuist.Registry do
   end
 
   def swift_registry_sync_limit do
-    Application.get_env(:tuist, :registry)[:swift_sync_limit] || 1_000
+    Application.get_env(:tuist, :registry)[:swift_sync_limit] || 600
   end
 
   def list_swift_packages do
@@ -79,10 +192,24 @@ defmodule Tuist.Registry do
     end
   end
 
-  def force_resync_swift_package_version(repository_full_handle, version)
+  @doc """
+  Rebuilds a published version in place.
+
+  A rebuild that produces different bytes than the version already advertises
+  is refused, because it turns a working pin into a checksum mismatch for every
+  client that already resolved it. Pass `allow_checksum_change: true` to accept
+  that trade, which is the case for a version whose stored archive cannot be
+  extracted at all and so was never resolved successfully by anyone.
+  """
+  def force_resync_swift_package_version(repository_full_handle, version, opts \\ [])
       when is_binary(repository_full_handle) and is_binary(version) do
-    %{repository_full_handle: repository_full_handle, version: version, force: true}
-    |> SyncWorker.new(unique: [period: 60, keys: [:repository_full_handle, :version, :force]])
+    %{
+      repository_full_handle: repository_full_handle,
+      version: version,
+      force: true,
+      allow_checksum_change: Keyword.get(opts, :allow_checksum_change, false)
+    }
+    |> SyncWorker.new(unique: [period: 60, keys: [:repository_full_handle, :version, :force, :allow_checksum_change]])
     |> Oban.insert()
   end
 

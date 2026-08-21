@@ -33,6 +33,21 @@ env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
+  # Skip mise's SLSA provenance verification for github-backend tools only.
+  # The verification resolves the release through
+  # api.github.com/repos/<owner>/<repo>/releases/tags/<tag>, which mise.lock
+  # cannot replace: the lockfile only supplies the download URL, and mise
+  # already prefers that CDN URL over url_api. So this API call is the last
+  # one standing on the install path, and it 403s once the token's hourly
+  # budget is spent across concurrent runs - failing the install of
+  # `github:endevco/aube` and `github:pomerium/cli`. The jobs here install the
+  # full merged root toolset (the Xcode build phases and scheme post-actions
+  # need it, so the install cannot be scoped), so they always pull both.
+  # Aqua-backend SLSA stays ON: mise.lock records slsa provenance for aqua
+  # tools (e.g. getsops/sops) and this setting does not touch them. Same
+  # setting as server.yml, server-deployment.yml and
+  # server-production-deployment.yml.
+  MISE_GITHUB_SLSA: 0
 
 concurrency:
   group: app-${{ github.head_ref || github.run_id }}

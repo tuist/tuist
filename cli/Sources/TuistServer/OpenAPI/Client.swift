@@ -458,6 +458,11 @@ public struct Client: APIProtocol {
             deserializer: { response, responseBody in
                 switch response.status.code {
                 case 200:
+                    let headers: Operations.getCacheEndpoints.Output.Ok.Headers = .init(cache_hyphen_control: try converter.getOptionalHeaderFieldAsURI(
+                        in: response.headerFields,
+                        name: "cache-control",
+                        as: Swift.String.self
+                    ))
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.getCacheEndpoints.Output.Ok.Body
                     let chosenContentType = try converter.bestContentType(
@@ -478,7 +483,10 @@ public struct Client: APIProtocol {
                     default:
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
-                    return .ok(.init(body: body))
+                    return .ok(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 case 403:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.getCacheEndpoints.Output.Forbidden.Body
@@ -516,6 +524,11 @@ public struct Client: APIProtocol {
     /// Downloads an artifact from the cache.
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
+    ///
+    /// The URL is signed from the request parameters alone, without a storage round trip, so
+    /// this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+    /// miss, or treat a failing download as the miss signal.
+    ///
     ///
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
@@ -4883,9 +4896,13 @@ public struct Client: APIProtocol {
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
     ///
+    /// It is the only cache endpoint that reaches storage to answer, so it is what clients
+    /// should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+    /// checking storage and answers 200 either way.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
-    @available(*, deprecated)
     public func cacheArtifactExists(_ input: Operations.cacheArtifactExists.Input) async throws -> Operations.cacheArtifactExists.Output {
         try await client.send(
             input: input,
@@ -15870,6 +15887,104 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .unprocessableContent(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// Exchange the current credential for a cache token.
+    ///
+    /// Returns a short-lived token that carries the authenticated subject's cache grants.
+    ///
+    /// Cache nodes verify it themselves and authorize from the grants it carries, so
+    /// clients holding a credential a cache node cannot verify locally (a CI project
+    /// token, for example) avoid a server round-trip per cache authorization. Exchange
+    /// it once and reuse it until it expires. It is only accepted by cache nodes; it is
+    /// not an API credential.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/cache/token`.
+    /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)`.
+    public func getCacheToken(_ input: Operations.getCacheToken.Input) async throws -> Operations.getCacheToken.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.getCacheToken.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/cache/token",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .post
+                )
+                suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "full_handle",
+                    value: input.query.full_handle
+                )
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getCacheToken.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Operations.getCacheToken.Output.Ok.Body.jsonPayload.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getCacheToken.Output.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,

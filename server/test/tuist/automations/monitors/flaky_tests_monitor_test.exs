@@ -500,7 +500,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
             "threshold" => 1,
             "comparison" => "gte",
             "window_type" => "rolling",
-            "rolling_window_size" => 5
+            "rolling_window_size" => 1
           }
         )
 
@@ -601,6 +601,18 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
         )
       end
 
+      # The run from the fixture above plus these fills the five-run window, so
+      # the threshold is compared against the window the alert asked for.
+      for i <- 4..6 do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          is_flaky: false,
+          ran_at: NaiveDateTime.add(base, -i, :hour),
+          inserted_at: NaiveDateTime.add(base, -i, :hour)
+        )
+      end
+
       alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
@@ -640,7 +652,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
           trigger_config: %{
             "threshold" => 1,
             "window_type" => "rolling",
-            "rolling_window_size" => 5,
+            "rolling_window_size" => 1,
             "comparison" => "gte"
           }
         )
@@ -651,8 +663,10 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       refute excluded_id in triggered
     end
 
-    test "rejects rolling windows that require a retired aggregate" do
+    test "clamps a persisted window above the product cap instead of failing" do
       project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "over_cap")
 
       alert =
         AutomationsFixtures.automation_alert_fixture(
@@ -661,18 +675,18 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
           trigger_config: %{
             "threshold" => 1,
             "window_type" => "rolling",
-            "rolling_window_size" => 75,
+            "rolling_window_size" => 1000,
             "comparison" => "gte"
           }
         )
 
-      legacy_alert = put_in(alert.trigger_config["rolling_window_size"], 76)
+      legacy_alert = put_in(alert.trigger_config["rolling_window_size"], 1001)
 
-      assert_raise ArgumentError,
-                   "rolling trigger windows must be at most 75 while aggregate storage is being replaced",
-                   fn ->
-                     FlakyTestsMonitor.evaluate_by_run_count(legacy_alert)
-                   end
+      # The changeset rejects anything above the cap and the worker skips such
+      # alerts, so this only guards data persisted before the cap existed: it
+      # evaluates at the cap rather than raising against a bucket that cannot
+      # serve it.
+      assert %{triggered: []} = FlakyTestsMonitor.evaluate_by_run_count(legacy_alert)
     end
 
     test "ignores runs outside the rolling window" do
@@ -936,6 +950,260 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
   # original ingestion writes is_flaky=false, then later re-marks re-insert the
   # SAME run (same id + ran_at) with is_flaky=true. Preceded by four older
   # stable runs.
+  # Every rolling window is served by `test_case_runs_recent_window_per_case`,
+  # which encodes each run as a single Int64. These run against real ClickHouse
+  # so the packing, the bit-level flag reads, and the de-duplication of
+  # correction rows are exercised as ClickHouse actually evaluates them.
+  describe "rolling window measurement" do
+    test "flakiness_rate measures the packed aggregate" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "packed_flaky")
+
+      base = NaiveDateTime.utc_now()
+
+      # 100 runs, every tenth flaky → 10%.
+      for i <- 1..100 do
+        ran_at = NaiveDateTime.add(base, -i, :second)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          is_flaky: rem(i, 10) == 0,
+          status: if(rem(i, 10) == 0, do: "failure", else: "success"),
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      triggered = fn threshold ->
+        alert =
+          AutomationsFixtures.automation_alert_fixture(
+            project: project,
+            monitor_type: "flakiness_rate",
+            trigger_config: %{
+              "threshold" => threshold,
+              "window_type" => "rolling",
+              "rolling_window_size" => 100,
+              "comparison" => "gte"
+            }
+          )
+
+        test_case_id in FlakyTestsMonitor.evaluate(alert).triggered
+      end
+
+      assert triggered.(10)
+      refute triggered.(11)
+    end
+
+    test "reliability_rate reads the success bit of the same packed entry" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "packed_unreliable")
+
+      base = NaiveDateTime.utc_now()
+
+      # 80 of 100 runs succeed → 80% reliability.
+      for i <- 1..100 do
+        ran_at = NaiveDateTime.add(base, -i, :second)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: if(rem(i, 5) == 0, do: "failure", else: "success"),
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{
+            "threshold" => 85,
+            "window_type" => "rolling",
+            "rolling_window_size" => 100,
+            "comparison" => "lt"
+          }
+        )
+
+      assert test_case_id in FlakyTestsMonitor.evaluate_by_reliability_rate(alert).triggered
+    end
+
+    test "counts a re-inserted flaky run once" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "packed_corrected")
+
+      base = NaiveDateTime.utc_now()
+
+      for i <- 1..99 do
+        ran_at = NaiveDateTime.add(base, -i, :second)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          is_flaky: false,
+          status: "success",
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      # One logical run re-inserted as flaky, exactly as the correction path
+      # writes it. Both physical rows share `ran_at`, so they share a packed run
+      # key and differ only in the flag bits.
+      corrected_run_id = UUIDv7.generate()
+
+      for is_flaky <- [false, true] do
+        RunsFixtures.test_case_run_fixture(
+          id: corrected_run_id,
+          project_id: project.id,
+          test_case_id: test_case_id,
+          is_flaky: is_flaky,
+          status: "failure",
+          ran_at: base,
+          inserted_at: base
+        )
+      end
+
+      alert = fn threshold ->
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flaky_run_count",
+          trigger_config: %{
+            "threshold" => threshold,
+            "window_type" => "rolling",
+            "rolling_window_size" => 100,
+            "comparison" => "gte"
+          }
+        )
+      end
+
+      # The correction is kept, so the run counts as flaky exactly once.
+      assert test_case_id in FlakyTestsMonitor.evaluate_by_run_count(alert.(1)).triggered
+      refute test_case_id in FlakyTestsMonitor.evaluate_by_run_count(alert.(2)).triggered
+    end
+
+    test "does not evaluate a small window the aggregate has not filled yet" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "packed_partial_small")
+
+      base = NaiveDateTime.utc_now()
+
+      # Three flaky runs against a ten-run window. A partial window would report
+      # 100%; the alert asked about ten runs, and only three exist.
+      for i <- 1..3 do
+        ran_at = NaiveDateTime.add(base, -i, :second)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          is_flaky: true,
+          status: "failure",
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 50,
+            "window_type" => "rolling",
+            "rolling_window_size" => 10,
+            "comparison" => "gte"
+          }
+        )
+
+      refute test_case_id in FlakyTestsMonitor.evaluate(alert).triggered
+    end
+
+    test "does not evaluate a large window the aggregate has not filled yet" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "packed_partial")
+
+      base = NaiveDateTime.utc_now()
+
+      # Every run is flaky, so a partial window would report 100% and quarantine
+      # the test on the strength of 20 runs when the user asked about 300.
+      for i <- 1..20 do
+        ran_at = NaiveDateTime.add(base, -i, :second)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          is_flaky: true,
+          status: "failure",
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 50,
+            "window_type" => "rolling",
+            "rolling_window_size" => 300,
+            "comparison" => "gte"
+          }
+        )
+
+      refute test_case_id in FlakyTestsMonitor.evaluate(alert).triggered
+    end
+
+    test "evaluate_rolling_alerts/2 measures the packed aggregate for a shared window" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "packed_grouped")
+
+      base = NaiveDateTime.utc_now()
+
+      for i <- 1..100 do
+        ran_at = NaiveDateTime.add(base, -i, :second)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          is_flaky: rem(i, 4) == 0,
+          status: if(rem(i, 4) == 0, do: "failure", else: "success"),
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      alert_for = fn threshold ->
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => threshold,
+            "window_type" => "rolling",
+            "rolling_window_size" => 100,
+            "comparison" => "gte"
+          }
+        )
+      end
+
+      firing = alert_for.(25)
+      quiet = alert_for.(26)
+
+      triggered_by_alert_id =
+        FlakyTestsMonitor.evaluate_rolling_alerts([firing, quiet], [test_case_id])
+
+      assert Map.fetch!(triggered_by_alert_id, firing.id) == [test_case_id]
+      assert Map.fetch!(triggered_by_alert_id, quiet.id) == []
+    end
+  end
+
   defp insert_run_with_reinserted_flaky_tail(project_id, test_case_id) do
     base = NaiveDateTime.utc_now()
 

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -69,6 +70,140 @@ func ReattachVolumeForPod(volumes *VolumeManager, pod *corev1.Pod, vm string) (V
 // absence means the guest never completed (crashed job) and the branch is
 // discarded.
 const dirtyMarkerFile = "cache-dirty"
+
+// runnerExitFile is the file the guest writes into the writable status
+// share from its EXIT trap, carrying dispatch-poll.sh's exit code. It is
+// the only way that code reaches the host: the trap halts the VM on every
+// path, so `tart run` exits zero whether the job finished or the runner
+// died, and its status cannot distinguish the two.
+//
+// Absent for a guest killed without running its trap, and for any host
+// where the status share is not attached at all (it rides on the cache
+// volume feature). Absence therefore means "unknown", never "clean" —
+// see runnerTermination.
+const runnerExitFile = "runner-rc"
+
+// runnerLogFile is dispatch-poll.sh's own output, mirrored into the
+// writable status share by the guest so it outlives the VM. The copy
+// inside the guest (/var/log/tuist-runner/poll.log) dies with the VM at
+// teardown, and Tart cannot capture a macOS guest's console, so without
+// this the host has an exit code and nothing that explains it.
+//
+// That gap is not academic: the trap reports 0 both for a finished job
+// and for a runner that halted without ever taking one, so the exit code
+// alone cannot tell those apart. This file is what does.
+//
+// Absent for the same two reasons as runnerExitFile — a guest killed
+// before its trap ran, and hosts with no status share attached at all.
+const runnerLogFile = "runner.log"
+
+// runnerLogTailLines / runnerLogTailBytes bound what publishRunnerLog
+// re-emits. dispatch-poll.sh is quiet by design — the job's own output
+// goes to GitHub server-side, so this log is warm-standby ticks plus the
+// cache teardown trail — but the file is guest-writable, so it is bounded
+// rather than trusted.
+const (
+	runnerLogTailLines = 200
+	runnerLogTailBytes = 64 << 10
+)
+
+// readRunnerExit reads the guest-reported exit code from the status share.
+// The bool is false when the guest reported nothing usable.
+//
+// A wait status is a byte, and the shell reports 128+signal for a
+// signalled child, so anything outside 0-255 did not come from `$?` and
+// is a torn or truncated read of a file the guest was still writing.
+// Rejecting it matters more than it looks: the value decides clean
+// versus abnormal downstream, so a garbage read that happened to land on
+// 0 would report a dead runner as a successful job, which is the bug
+// this file exists to close. Out of range therefore reads as unreported,
+// the same as no file at all.
+func readRunnerExit(statusDir string) (int32, bool) {
+	if statusDir == "" {
+		return 0, false
+	}
+	b, err := os.ReadFile(filepath.Join(statusDir, runnerExitFile))
+	if err != nil {
+		return 0, false
+	}
+	// ParseInt over Atoi so an oversized value fails here rather than
+	// silently wrapping on the conversion to int32.
+	code, err := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 32)
+	if err != nil || code < 0 || code > 255 {
+		return 0, false
+	}
+	return int32(code), true
+}
+
+// readRunnerLog returns a bounded tail of the guest's mirrored log, or
+// "" when there is nothing usable. Callers re-emit it to tart-kubelet's
+// own stdout before teardown deletes the share.
+//
+// Tail rather than head: the interesting part of a runner that gave up
+// is what it said last. Bounded twice because the file is guest-written
+// — by bytes first so a single pathological line cannot blow up the log
+// record, then by lines.
+//
+// Opened O_NOFOLLOW and required to be a regular file, because the guest
+// writes this path and the guest runs untrusted customer CI. A job that
+// replaces runner.log with a symlink would otherwise have the host
+// resolve it and publish up to runnerLogTailBytes of a host-readable
+// file to Loki — the guest picks the target, the host does the reading.
+// O_NONBLOCK covers the same trick with a FIFO, where the open itself
+// would park this reconcile until something wrote to the other end.
+// Whatever the guest left is inspected but never trusted to be a file.
+func readRunnerLog(statusDir string) string {
+	if statusDir == "" {
+		return ""
+	}
+	f, err := os.OpenFile(
+		filepath.Join(statusDir, runnerLogFile),
+		os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK,
+		0,
+	)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil || !fi.Mode().IsRegular() {
+		return ""
+	}
+	offset := int64(0)
+	if fi.Size() > runnerLogTailBytes {
+		offset = fi.Size() - runnerLogTailBytes
+	}
+	b := make([]byte, fi.Size()-offset)
+	if _, err := f.ReadAt(b, offset); err != nil {
+		return ""
+	}
+
+	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
+	// A byte-bounded read almost certainly starts mid-line; drop that
+	// fragment so the tail begins on a real record.
+	if offset > 0 && len(lines) > 1 {
+		lines = lines[1:]
+	}
+	if len(lines) > runnerLogTailLines {
+		lines = lines[len(lines)-runnerLogTailLines:]
+	}
+	return strings.Join(lines, "\n")
+}
+
+// readRunnerExitTime returns when the guest wrote its exit report, which
+// is the moment it halted. Used to date a stop on the recovered path,
+// where no `tart run` handle survived to have observed the exit itself.
+func readRunnerExitTime(statusDir string) (time.Time, bool) {
+	if statusDir == "" {
+		return time.Time{}, false
+	}
+	fi, err := os.Stat(filepath.Join(statusDir, runnerExitFile))
+	if err != nil {
+		return time.Time{}, false
+	}
+	return fi.ModTime(), true
+}
 
 // cacheReadyFile is the marker the host writes into the writable status share
 // once it has materialized the dispatched account's cache into the VM's branch
@@ -318,6 +453,29 @@ func writeBaseGeneration(statusDir string, generation int) {
 	_ = os.WriteFile(filepath.Join(statusDir, baseGenerationFile), []byte(strconv.Itoa(generation)), 0o644)
 }
 
+// nodeNameFile carries this host's Kubernetes Node name into the writable status
+// share. The guest relays it with its promote report, which is how a HEAD row
+// records the host that published it — the only attribution the fleet has for a
+// generation once it stands. It is the Node name rather than the Pod name
+// deliberately: the Pod is gone minutes later, whereas the Node name is what the
+// `tuist.dev/cache-master-<account>` advertisements and the volume affinities are
+// keyed on, so a HEAD can be traced back to the host still holding its master.
+//
+// Staged at VM create alongside the branch budget, not at materialize: it is a
+// property of the host, constant for the VM's whole life, and known before
+// dispatch binds the VM to an account.
+const nodeNameFile = "node-name"
+
+// writeNodeName stages the host's Node name for the guest to relay at promote.
+// Best-effort, like every other host to guest signal here: an unstaged name
+// leaves the attribution field empty, which is exactly the status quo.
+func writeNodeName(statusDir, nodeName string) {
+	if statusDir == "" || nodeName == "" {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(statusDir, nodeNameFile), []byte(nodeName), 0o644)
+}
+
 // promoteResultFile carries the outcome of this job's HEAD fast-forward, written
 // by the guest after the bump. It distinguishes the three cases the host must not
 // conflate: "accepted <generation>" (200 — install the branch as the local master
@@ -411,8 +569,26 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	// so the file lands a beat later than this goroutine starts. Reading it once
 	// would usually miss it and permanently skip convergence; since this runs in
 	// the background, it can afford to wait for the file to appear.
-	head := awaitVolumeHead(statusDir)
-	if head == nil || head.Generation <= 0 || head.DownloadURL == "" {
+	logger := log.Log.WithName("volume")
+	head := awaitVolumeHead(statusDir, r.ConvergeHeadWaitInterval, r.ConvergeHeadWaitAttempts)
+	// Each of these three used to share one silent `return`, which made the most
+	// likely reason a convergence does not happen indistinguishable from the
+	// other two — and from convergence never having been attempted. They have
+	// nothing in common: the first is the guest or the wait, the second is an
+	// account that has published nothing yet, the third is the server
+	// deliberately withholding the HEAD from an untrusted job.
+	switch {
+	case head == nil:
+		logger.Info("converge: guest never staged the volume HEAD; skipping",
+			"vm", vmName, "account", account, "volume", volumeName)
+		return
+	case head.Generation <= 0:
+		logger.Info("converge: account has no published HEAD yet; skipping",
+			"vm", vmName, "account", account, "volume", volumeName)
+		return
+	case head.DownloadURL == "":
+		logger.Info("converge: HEAD carries no download URL (untrusted job?); skipping",
+			"vm", vmName, "account", account, "volume", volumeName, "generation", head.Generation)
 		return
 	}
 	// Skip if this host's master is already at or past the HEAD generation. The
@@ -420,10 +596,15 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	// generation >= the HEAD's means this host already holds that HEAD (or its own
 	// newer promote) and has nothing to adopt.
 	if local, err := r.Volumes.MasterGeneration(account, volumeName); err == nil && local >= head.Generation {
+		// The healthy no-op. Logged so it can be told apart from a convergence
+		// that failed or never ran, which is the distinction that matters when
+		// asking why a fleet is not converging.
+		logger.Info("converge: host already at or past the HEAD; nothing to adopt",
+			"vm", vmName, "account", account, "volume", volumeName,
+			"local_generation", local, "head_generation", head.Generation)
 		return
 	}
 
-	logger := log.Log.WithName("volume")
 	staging := r.Volumes.ConvergeStagingDir(vmName)
 	_ = os.RemoveAll(staging)
 	if err := os.MkdirAll(staging, 0o755); err != nil {
@@ -442,10 +623,25 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	// the one the HEAD advertised. On mismatch, stay on the local master (status
 	// quo). With content-addressed HEAD keys a mismatch is rare, but a stale
 	// presigned URL or a partial download can still surface one.
+	//
+	// Being unable to MEASURE the image and measuring a DIFFERENT image are kept
+	// apart. The first is a local fault (the read-only attach failed, the disk is
+	// unhappy) and says nothing about the object, so it declines quietly. The
+	// second is proof about the object itself, reproducible on every host that
+	// fetches it — and since the account cannot promote past a HEAD it cannot
+	// adopt, that proof is the only thing that can unwedge it, so it is staged for
+	// the guest to report (see stageUnverifiableHead).
 	if head.Digest != "" {
-		if got, err := r.Volumes.ImageDigest(image); err != nil || got != head.Digest {
+		got, err := r.Volumes.ImageDigest(image)
+		switch {
+		case err != nil:
+			logger.Error(err, "converge: cannot measure the downloaded image; keeping local master",
+				"vm", vmName, "account", account, "volume", volumeName, "want", head.Digest)
+			return
+		case got != head.Digest:
 			logger.Info("converge: image digest does not match HEAD; keeping local master",
 				"vm", vmName, "account", account, "want", head.Digest, "got", got)
+			stageUnverifiableHead(statusDir, head.Digest)
 			return
 		}
 	}
@@ -458,10 +654,34 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 		logger.Error(err, "converge: install master", "vm", vmName, "account", account)
 		return
 	}
-	if installed {
-		RecordVolumeConverged()
-		logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
+	if !installed {
+		// A promote or another convergence moved the master past this HEAD while
+		// the download was in flight, so the generation gate declined the swap.
+		logger.Info("converge: master moved past this HEAD mid-download; discarding",
+			"vm", vmName, "account", account, "volume", volumeName, "generation", head.Generation)
+		return
 	}
+	RecordVolumeConverged()
+	logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
+}
+
+// unverifiableHeadFile carries, into the writable status share, the HEAD digest
+// this host downloaded and found the object does not reproduce. The guest relays
+// it with its promote report, which is what lets the server retire a HEAD nothing
+// can adopt.
+//
+// The status share is the established host→guest direction (cache-ready, the
+// branch budget, the base generation all travel this way) and the host has no
+// server credentials of its own, so this is how host-observed evidence reaches
+// the control plane. Best-effort: an account that stays wedged one more job is
+// the status quo, whereas failing the convergence here would cost the job.
+const unverifiableHeadFile = "volume-head-unverifiable"
+
+func stageUnverifiableHead(statusDir, digest string) {
+	if statusDir == "" || digest == "" {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(statusDir, unverifiableHeadFile), []byte(digest), 0o644)
 }
 
 // convergeHeadWaitInterval / convergeHeadWaitAttempts bound how long the
@@ -473,13 +693,21 @@ const (
 )
 
 // awaitVolumeHead polls the status share for the guest-staged HEAD, returning
-// as soon as it appears or nil once the bound elapses.
-func awaitVolumeHead(statusDir string) *volumeHead {
-	for i := 0; i < convergeHeadWaitAttempts; i++ {
+// as soon as it appears or nil once the bound elapses. Interval and attempts are
+// parameters so tests do not wait real seconds, mirroring the manager's
+// mount-check wait.
+func awaitVolumeHead(statusDir string, interval time.Duration, attempts int) *volumeHead {
+	if interval <= 0 {
+		interval = convergeHeadWaitInterval
+	}
+	if attempts <= 0 {
+		attempts = convergeHeadWaitAttempts
+	}
+	for i := 0; i < attempts; i++ {
 		if h := readVolumeHead(statusDir); h != nil {
 			return h
 		}
-		time.Sleep(convergeHeadWaitInterval)
+		time.Sleep(interval)
 	}
 	return readVolumeHead(statusDir)
 }

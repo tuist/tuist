@@ -1,0 +1,40 @@
+# Backfill-suite overlay: pins the knobs the backfill e2e suites drive (batch
+# bound, bandwidth shaping) and collapses discovery onto DNS. The walker itself
+# needs no opt-in — it is the only peer catch-up path in the binary. Compose
+# merges `environment` key-by-key, so this layers on top of the base kura env.
+#
+# Suites that include this file must also include
+# test/e2e/docker-compose.discovery.yml (it defines kura-us-2, referenced
+# below). Every node's static KURA_PEERS collapses to itself so membership
+# comes from DNS discovery via the kura-ring alias alone — otherwise the base
+# file's static list drags the never-started kura-ap into the initial backfill
+# cycle, where its connection failures would exhaust a failure budget and
+# degrade the cycle mode for reasons unrelated to the scenario under test.
+#
+# Interpolated knobs (all optional, set per suite via suite_env):
+#   KURA_E2E_REPLICATION_BW_BYTES_PER_SECOND — serving-side bandwidth shaping
+#     shared by replication and backfill bodies streaming.
+#     The fault suites throttle it to hold a pass open long enough to restart
+#     or delete underneath it deterministically.
+#   KURA_E2E_BACKFILL_BATCH_BYTES — bodies batch bound (and oversized cutoff).
+#   KURA_E2E_COLD_CAS_CAPACITY_BYTES — segment-ring budget of the cold joiner
+#     (kura-us-2). The capacity suite sets 1 to clamp the ring to the legacy
+#     5-segment floor (the #12047 undersized-ring shape); the default is large
+#     enough to fall back to the disk-percent ceiling, i.e. today's behavior.
+services:
+  kura-us:
+    environment: &kura_backfill_env
+      KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: ${KURA_E2E_REPLICATION_BW_BYTES_PER_SECOND:-536870912}
+      KURA_BACKFILL_BATCH_BYTES: ${KURA_E2E_BACKFILL_BATCH_BYTES:-33554432}
+      KURA_PEERS: http://kura-us.kura.internal:7443
+
+  kura-eu:
+    environment:
+      <<: *kura_backfill_env
+      KURA_PEERS: http://kura-eu.kura.internal:7443
+
+  kura-us-2:
+    environment:
+      <<: *kura_backfill_env
+      KURA_PEERS: http://kura-us-2.kura.internal:7443
+      KURA_CAS_CAPACITY_BYTES: ${KURA_E2E_COLD_CAS_CAPACITY_BYTES:-109951162777600}

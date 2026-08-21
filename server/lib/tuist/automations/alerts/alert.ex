@@ -20,13 +20,13 @@ defmodule Tuist.Automations.Alerts.Alert do
   )
   @window_types ~w(last_days rolling)
 
-  # New or edited trigger windows are temporarily constrained to the largest
-  # value currently used in production. The 100-run aggregate then has room
-  # for the correction rows produced when flaky runs are re-inserted.
-  @max_rolling_trigger_window_size 75
+  # Trigger windows are served by `test_case_runs_recent_window_per_case`, whose
+  # 2000-slot state holds 1000 distinct runs even when every run in the window
+  # carries a flaky correction row. Triggers and recovery therefore share one
+  # ceiling.
+  @max_rolling_trigger_window_size 1000
 
-  # Recovery counts read raw runs rather than the rolling aggregate tables, so
-  # they retain the existing product cap.
+  # Recovery counts read raw runs rather than the rolling aggregate tables.
   @max_rolling_window_size 1000
 
   @doc """
@@ -37,8 +37,7 @@ defmodule Tuist.Automations.Alerts.Alert do
   def test_updated_events, do: @test_updated_events
 
   @doc """
-  Maximum rolling trigger window accepted while the aggregate storage is being
-  replaced.
+  Maximum rolling trigger window the active aggregate storage can serve.
   """
   def max_rolling_trigger_window_size, do: @max_rolling_trigger_window_size
 
@@ -259,6 +258,7 @@ defmodule Tuist.Automations.Alerts.Alert do
 
     changeset
     |> validate_comparison(trigger_config)
+    |> validate_state_filter(trigger_config, :trigger_config)
     |> validate_recovery_config()
   end
 
@@ -287,6 +287,25 @@ defmodule Tuist.Automations.Alerts.Alert do
       nil -> changeset
       value when value in @comparisons -> changeset
       _ -> add_error(changeset, :trigger_config, "comparison must be one of: #{Enum.join(@comparisons, ", ")}")
+    end
+  end
+
+  defp validate_state_filter(changeset, config, field) do
+    case Map.get(config, "states") do
+      nil ->
+        changeset
+
+      states when is_list(states) ->
+        invalid = Enum.reject(states, &(&1 in @valid_states))
+
+        if invalid == [] do
+          changeset
+        else
+          add_error(changeset, field, "states must be one of: #{Enum.join(@valid_states, ", ")}")
+        end
+
+      _ ->
+        add_error(changeset, field, "states must be a list of: #{Enum.join(@valid_states, ", ")}")
     end
   end
 
@@ -334,7 +353,7 @@ defmodule Tuist.Automations.Alerts.Alert do
       recovery_config = get_field(changeset, :recovery_config) || %{}
 
       case validate_window_shape(recovery_config, @max_rolling_window_size) do
-        :ok -> changeset
+        :ok -> validate_state_filter(changeset, recovery_config, :recovery_config)
         {:error, message} -> add_error(changeset, :recovery_config, message)
       end
     else

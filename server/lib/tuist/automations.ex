@@ -14,6 +14,7 @@ defmodule Tuist.Automations do
   alias Tuist.Environment
   alias Tuist.IngestRepo
   alias Tuist.Repo
+  alias Tuist.Tests
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseRun
 
@@ -878,10 +879,38 @@ defmodule Tuist.Automations do
   defp event_to_subscription_key(:unskipped), do: "state_changed_to_enabled"
   defp event_to_subscription_key(_), do: nil
 
-  defp subscribed_alerts(%{project_id: project_id}, subscription_key) do
-    project_id
-    |> test_updated_alerts()
-    |> Enum.filter(&subscribed?(&1, subscription_key))
+  defp subscribed_alerts(%{project_id: project_id, id: test_case_id}, subscription_key) do
+    alerts =
+      project_id
+      |> test_updated_alerts()
+      |> Enum.filter(&subscribed?(&1, subscription_key))
+
+    filter_by_trigger_state(alerts, project_id, test_case_id)
+  end
+
+  defp filter_by_trigger_state([], _project_id, _test_case_id), do: []
+
+  defp filter_by_trigger_state(alerts, project_id, test_case_id) do
+    if Enum.any?(alerts, &has_trigger_state_filter?/1) do
+      states = Tests.get_test_case_states(project_id, [test_case_id])
+      current_state = Map.get(states, test_case_id, %{state: "enabled"}).state
+
+      Enum.filter(alerts, fn alert ->
+        case Map.get(alert.trigger_config || %{}, "states") do
+          s when is_list(s) and s != [] -> current_state in s
+          _ -> true
+        end
+      end)
+    else
+      alerts
+    end
+  end
+
+  defp has_trigger_state_filter?(alert) do
+    case Map.get(alert.trigger_config || %{}, "states") do
+      s when is_list(s) and s != [] -> true
+      _ -> false
+    end
   end
 
   defp test_updated_alerts(project_id) do

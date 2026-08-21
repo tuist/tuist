@@ -15,15 +15,33 @@ defmodule Tuist.Registry.S3 do
   require Logger
 
   @doc false
-  def request(operation) do
+  def request(%Upload{} = operation) do
     ExAws.request(operation, Registry.registry_s3_config())
+  end
+
+  def request(operation) do
+    operation
+    |> with_tigris_consistency()
+    |> ExAws.request(Registry.registry_s3_config())
   end
 
   def get_object(key) when is_binary(key) do
     bucket = Registry.registry_bucket()
 
-    case bucket |> ExAws.S3.get_object(key) |> with_tigris_consistency() |> request() do
+    case bucket |> ExAws.S3.get_object(key) |> request() do
       {:ok, %{status_code: 200, body: body}} -> {:ok, body}
+      {:ok, %{status_code: 404}} -> {:error, :not_found}
+      {:ok, %{status_code: status}} -> {:error, {:s3_error, status}}
+      {:error, {:http_error, 404, _}} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def head_object(key) when is_binary(key) do
+    bucket = Registry.registry_bucket()
+
+    case bucket |> ExAws.S3.head_object(key) |> request() do
+      {:ok, %{status_code: 200, headers: headers}} -> {:ok, normalize_headers(headers)}
       {:ok, %{status_code: 404}} -> {:error, :not_found}
       {:ok, %{status_code: status}} -> {:error, {:s3_error, status}}
       {:error, {:http_error, 404, _}} -> {:error, :not_found}
@@ -33,12 +51,20 @@ defmodule Tuist.Registry.S3 do
 
   def upload_file(key, local_path, opts \\ []) when is_binary(key) and is_binary(local_path) do
     bucket = Registry.registry_bucket()
-    content_type_opt = Keyword.get(opts, :content_type)
 
+    # Forwards every option the caller set rather than only `:content_type`.
+    # `:meta` was previously dropped here, so the archive digest a caller asked
+    # to store never reached object storage and the read-back verification could
+    # only ever observe `nil` — failing every upload it was meant to protect.
+    #
+    # Rejecting nils is load-bearing rather than tidiness: `put_object_headers/1`
+    # reads `Map.get(opts, :meta, [])`, and a map default only applies to an
+    # absent key, so a literal `meta: nil` would reach `build_meta_headers/1`
+    # and raise.
     upload_opts =
-      if content_type_opt,
-        do: [content_type: content_type_opt, timeout: 120_000, max_concurrency: 8],
-        else: [timeout: 120_000, max_concurrency: 8]
+      [timeout: 120_000, max_concurrency: 8]
+      |> Keyword.merge(opts)
+      |> Keyword.reject(fn {_key, value} -> is_nil(value) end)
 
     {duration, result} =
       :timer.tc(fn ->
@@ -65,8 +91,9 @@ defmodule Tuist.Registry.S3 do
 
   def upload_content(key, content, opts \\ []) when is_binary(key) do
     bucket = Registry.registry_bucket()
-    content_type_opt = Keyword.get(opts, :content_type)
-    put_opts = if content_type_opt, do: [content_type: content_type_opt], else: []
+    # Same shape as `upload_file/3` above, for the same reason: an option a
+    # caller sets should be used or absent, never silently ignored.
+    put_opts = Keyword.reject(opts, fn {_key, value} -> is_nil(value) end)
 
     {duration, result} =
       :timer.tc(fn ->
@@ -88,6 +115,70 @@ defmodule Tuist.Registry.S3 do
         :telemetry.execute([:tuist_registry, :s3, :upload], %{duration: duration}, %{result: :error})
         {:error, reason}
     end
+  end
+
+  @doc """
+  Server-side copy of one object to another key in the registry bucket.
+
+  Copying in object storage rather than round-tripping the bytes through the
+  pod is what makes a pre-repair backup affordable: a source archive can be
+  hundreds of megabytes, and the repair path already holds a temporary
+  directory's worth of working files.
+  """
+  def copy_object(source_key, destination_key) when is_binary(source_key) and is_binary(destination_key) do
+    bucket = Registry.registry_bucket()
+
+    case bucket |> ExAws.S3.put_object_copy(destination_key, bucket, source_key) |> request() do
+      {:ok, %{status_code: 200, body: body}} -> copy_result(body, source_key, destination_key)
+      {:ok, %{status_code: 404}} -> {:error, :not_found}
+      {:ok, %{status_code: status}} -> {:error, {:s3_error, status}}
+      {:error, {:http_error, 404, _}} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  # S3 answers CopyObject with 200 even when the copy fails partway through,
+  # embedding the failure in the response body instead of the status. ExAws
+  # registers no parser for this operation (`ExAws.Operation.S3`'s parser
+  # defaults to identity), so the body arrives raw and a status check alone
+  # reports a copy that never happened as a success. For the repair path that
+  # body is the whole point: a backup believed to exist and absent is worse than
+  # never having taken one.
+  #
+  # Verified against the staging bucket on Tigris rather than assumed, because
+  # the shape is the whole basis for this function: a successful copy answers
+  # 200 with `<CopyObjectResult>` carrying LastModified and ETag, a missing
+  # source answers 404, and the `X-Tigris-Consistent` header the shared request
+  # helper adds is accepted on this operation. The same probe confirmed that
+  # user metadata survives the copy under the default COPY directive, so a
+  # backup keeps the `x-amz-meta-sha256` a restore later relies on. Do not add a
+  # `metadata_directive` here without re-checking that.
+  defp copy_result(body, source_key, destination_key) when is_binary(body) do
+    cond do
+      String.contains?(body, "<Error") -> {:error, {:copy_failed, source_key, destination_key, body}}
+      String.contains?(body, "CopyObjectResult") -> :ok
+      true -> {:error, {:copy_result_unrecognized, source_key, destination_key}}
+    end
+  end
+
+  defp copy_result(_body, source_key, destination_key) do
+    {:error, {:copy_result_unrecognized, source_key, destination_key}}
+  end
+
+  @doc """
+  Lists the keys stored under `prefix`.
+
+  Bang-named because `ExAws.stream!/2` raises on a listing failure rather than
+  returning it, the same way `delete_all_with_prefix/1` does. Callers get the
+  keys or an exception, never a misleading empty list.
+  """
+  def list_keys_with_prefix!(prefix) when is_binary(prefix) do
+    bucket = Registry.registry_bucket()
+
+    bucket
+    |> ExAws.S3.list_objects(prefix: prefix)
+    |> ExAws.stream!(Registry.registry_s3_config())
+    |> Enum.map(& &1.key)
   end
 
   @doc """
@@ -132,6 +223,26 @@ defmodule Tuist.Registry.S3 do
     |> Map.get("etag", Map.get(headers, "ETag"))
     |> normalize_etag()
   end
+
+  defp normalize_headers(headers) when is_list(headers) do
+    Map.new(headers, fn {key, value} -> {String.downcase(key), header_value(value)} end)
+  end
+
+  defp normalize_headers(headers) when is_map(headers) do
+    Map.new(headers, fn {key, value} -> {String.downcase(key), header_value(value)} end)
+  end
+
+  # Whether a value arrives as a binary or wrapped in a list depends on the
+  # configured HTTP client, not on the header, so callers cannot safely compare
+  # against either shape. Normalizing here keeps that detail out of business
+  # logic: a comparison against `["..."]` is never equal to the binary it looks
+  # identical to when inspected.
+  #
+  # Only a single-element list is unwrapped. A header that genuinely repeats
+  # keeps its list, so a caller sees the ambiguity rather than silently
+  # receiving the first value and assuming it was the only one.
+  defp header_value([value]), do: value
+  defp header_value(value), do: value
 
   defp normalize_etag(nil), do: nil
   defp normalize_etag([value | _]), do: normalize_etag(value)

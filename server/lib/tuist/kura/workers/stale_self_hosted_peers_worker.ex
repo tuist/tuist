@@ -24,7 +24,7 @@ defmodule Tuist.Kura.Workers.StaleSelfHostedPeersWorker do
       # After a control-plane outage or deploy, nodes need a heartbeat cycle
       # to refresh their markers before silence is meaningful; sweeping
       # earlier would mass-deactivate live peers and buy each a spurious
-      # full re-bootstrap on recovery.
+      # full backfill on recovery.
       :ok
     else
       sweep()

@@ -6,6 +6,16 @@ defmodule TuistCommon.GitHub do
   @api_base "https://api.github.com"
   @per_page 100
   @user_agent "tuist"
+  @rate_limit_event [:tuist_common, :github, :rate_limit]
+
+  @doc """
+  Telemetry event emitted with the rate-limit budget GitHub reports on API
+  responses. Measurements are `:limit`, `:used`, and `:reset` when GitHub
+  sends it, with the `:resource` metadata naming the budget the request was
+  accounted against.
+  """
+  @spec rate_limit_event_name() :: [atom()]
+  def rate_limit_event_name, do: @rate_limit_event
 
   @doc """
   Lists all tags for a repository.
@@ -175,8 +185,8 @@ defmodule TuistCommon.GitHub do
             end
         end
 
-      {:ok, %{status: status}} when status in [403, 429] ->
-        {:error, {:rate_limited, status}}
+      {:ok, %{status: status} = response} when status in [403, 429] ->
+        http_error(response)
 
       {:ok, %{status: status}} ->
         {:error, {:http_error, status}}
@@ -201,11 +211,13 @@ defmodule TuistCommon.GitHub do
     end
   end
 
-  defp http_error(%{status: 429}), do: {:error, {:rate_limited, 429}}
+  defp http_error(%{status: 429} = response) do
+    {:error, {:rate_limited, 429, retry_after_seconds(Map.get(response, :headers))}}
+  end
 
   defp http_error(%{status: 403, headers: headers}) do
     if rate_limited?(headers) do
-      {:error, {:rate_limited, 403}}
+      {:error, {:rate_limited, 403, retry_after_seconds(headers)}}
     else
       {:error, {:http_error, 403}}
     end
@@ -219,6 +231,29 @@ defmodule TuistCommon.GitHub do
       {"x-ratelimit-remaining", value} when value in ["0", ["0"]] -> true
       _header -> false
     end)
+  end
+
+  @doc """
+  Seconds a caller should wait before retrying a throttled request, read from
+  the headers GitHub sends with it.
+
+  `retry-after` is a relative delay and `x-ratelimit-reset` a Unix timestamp,
+  so the two are normalized to the same relative form here rather than at each
+  call site. Returns `nil` when GitHub sent neither, which is the caller's
+  signal to fall back to its own backoff instead of retrying immediately.
+  """
+  @spec retry_after_seconds(term()) :: non_neg_integer() | nil
+  def retry_after_seconds(headers) do
+    case header_integer(headers, "retry-after") do
+      seconds when is_integer(seconds) ->
+        max(seconds, 0)
+
+      nil ->
+        case header_integer(headers, "x-ratelimit-reset") do
+          reset when is_integer(reset) -> max(reset - DateTime.to_unix(DateTime.utc_now()), 0)
+          nil -> nil
+        end
+    end
   end
 
   defp request(method, url, token, opts) do
@@ -239,8 +274,67 @@ defmodule TuistCommon.GitHub do
       |> maybe_add_opt(:decode_body, decode_body)
       |> maybe_add_opt(:into, into)
 
-    Req.request(req_opts)
+    req_opts
+    |> Req.request()
+    |> tap(&emit_rate_limit_telemetry/1)
   end
+
+  # GitHub reports the budget on every API response, including the 403 that
+  # denies the request. Reading it here covers every call site and every
+  # resource bucket, which `/rate_limit` polling does not: a 403 can be raised
+  # against a bucket other than the one a poller looks at.
+  defp emit_rate_limit_telemetry({:ok, response}) when is_map(response) do
+    headers = Map.get(response, :headers)
+
+    with limit when is_integer(limit) <- header_integer(headers, "x-ratelimit-limit"),
+         used when is_integer(used) <- header_integer(headers, "x-ratelimit-used") do
+      measurements = %{limit: limit, used: used}
+
+      measurements =
+        case header_integer(headers, "x-ratelimit-reset") do
+          reset when is_integer(reset) -> Map.put(measurements, :reset, reset)
+          nil -> measurements
+        end
+
+      :telemetry.execute(@rate_limit_event, measurements, %{
+        resource: header_value(headers, "x-ratelimit-resource") || "unknown"
+      })
+    end
+
+    :ok
+  end
+
+  defp emit_rate_limit_telemetry(_result), do: :ok
+
+  defp header_integer(headers, name) do
+    case header_value(headers, name) do
+      nil ->
+        nil
+
+      value ->
+        case Integer.parse(value) do
+          {integer, _rest} -> integer
+          :error -> nil
+        end
+    end
+  end
+
+  defp header_value(headers, name) when is_map(headers) do
+    headers |> Map.get(name) |> first_header_value()
+  end
+
+  defp header_value(headers, name) when is_list(headers) do
+    Enum.find_value(headers, fn
+      {^name, value} -> first_header_value(value)
+      _header -> nil
+    end)
+  end
+
+  defp header_value(_headers, _name), do: nil
+
+  defp first_header_value([value | _rest]), do: first_header_value(value)
+  defp first_header_value(value) when is_binary(value), do: value
+  defp first_header_value(_value), do: nil
 
   defp maybe_add_opt(opts, _key, nil), do: opts
   defp maybe_add_opt(opts, :decode_body, true), do: opts

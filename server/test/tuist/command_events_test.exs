@@ -1045,8 +1045,8 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "get_yesterdays_remote_cache_hits_count_for_customer/1" do
-    test "counts only yesterday's events for the customer's projects" do
+  describe "remote_cache_hits_count_for_customer/3" do
+    test "counts only events in the supplied period for the customer's projects" do
       # Given
       %{account: %{id: account_id}, id: user_id} =
         AccountsFixtures.user_fixture(customer_id: "cust_" <> UUIDv7.generate())
@@ -1057,8 +1057,8 @@ defmodule Tuist.CommandEventsTest do
       project = ProjectsFixtures.project_fixture(account_id: account_id)
       other_project = ProjectsFixtures.project_fixture(account_id: other_account_id)
 
-      today = ~U[2025-01-02 12:00:00Z]
-      stub(DateTime, :utc_now, fn -> today end)
+      period_start = ~U[2025-01-01 00:00:00Z]
+      period_end = ~U[2025-01-02 00:00:00Z]
 
       CommandEventsFixtures.command_event_fixture(
         name: "generate",
@@ -1094,9 +1094,18 @@ defmodule Tuist.CommandEventsTest do
         ran_at: ~U[2024-12-31 23:59:59Z]
       )
 
+      # An event exactly at the next period boundary belongs to the next period.
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: project.id,
+        user_id: user_id,
+        remote_cache_target_hits: ["E"],
+        ran_at: period_end
+      )
+
       # When
       customer_id = Repo.get!(Tuist.Accounts.Account, account_id).customer_id
-      count = CommandEvents.get_yesterdays_remote_cache_hits_count_for_customer(customer_id)
+      count = CommandEvents.remote_cache_hits_count_for_customer(customer_id, period_start, period_end)
 
       # Then
       assert count == 2
@@ -1505,6 +1514,38 @@ defmodule Tuist.CommandEventsTest do
       assert {:ok, event} = got
       assert event.id == build_event.id
     end
+
+    test "prefers the build event when the sharded test events carry no test run id" do
+      # Given
+      build_run_id = UUIDv7.generate()
+
+      build_event =
+        CommandEventsFixtures.command_event_fixture(
+          build_run_id: build_run_id,
+          command_arguments: ["test", "--build-only", "--shard-granularity", "suite"],
+          ran_at: ~U[2024-01-01 10:00:00Z]
+        )
+
+      for shard_index <- 0..3 do
+        CommandEventsFixtures.command_event_fixture(
+          build_run_id: build_run_id,
+          command_arguments: [
+            "test",
+            "--without-building",
+            "--shard-index",
+            to_string(shard_index)
+          ],
+          ran_at: ~U[2024-01-01 10:05:00Z]
+        )
+      end
+
+      # When
+      got = CommandEvents.get_command_event_by_build_run_id(build_run_id)
+
+      # Then
+      assert {:ok, event} = got
+      assert event.id == build_event.id
+    end
   end
 
   describe "cache_hit_rate_period_percentile/4" do
@@ -1867,6 +1908,114 @@ defmodule Tuist.CommandEventsTest do
       got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 10)
 
       # Then - Should only include the 50% hit rate event
+      assert got == 0.5
+    end
+
+    test "only includes events on the given branch when git_branch is set" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # main: 50% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        git_branch: "main",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # feature branch: 0% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        git_branch: "feature",
+        cacheable_targets: ["C", "D"],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 10, git_branch: "main")
+
+      # Then
+      assert got == 0.5
+    end
+
+    test "only includes CI events when is_ci is true" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        is_ci: true,
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        is_ci: false,
+        cacheable_targets: ["C", "D"],
+        local_cache_target_hits: ["C"],
+        remote_cache_target_hits: ["D"],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 10, is_ci: true)
+
+      # Then
+      assert got == 0.5
+    end
+
+    test "returns nil when the window holds fewer events than min_sample_size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for hour <- 10..11 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: [],
+          ran_at: DateTime.new!(~D[2024-04-30], Time.new!(hour, 0, 0))
+        )
+      end
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 3, min_sample_size: 3)
+
+      # Then
+      assert got == nil
+    end
+
+    test "returns the metric when the window fills min_sample_size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for hour <- 10..12 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: [],
+          ran_at: DateTime.new!(~D[2024-04-30], Time.new!(hour, 0, 0))
+        )
+      end
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 3, min_sample_size: 3)
+
+      # Then
       assert got == 0.5
     end
   end

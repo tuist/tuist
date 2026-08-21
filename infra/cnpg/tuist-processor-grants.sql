@@ -40,8 +40,9 @@ REVOKE ALL ON ALL TABLES IN SCHEMA :"tuist_schema" FROM tuist_processor;
 GRANT CONNECT ON DATABASE tuist TO tuist_processor;
 GRANT USAGE ON SCHEMA :"tuist_schema" TO tuist_processor;
 
--- Oban coordination. DELETE is needed for Oban.Plugins.Pruner.
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers TO tuist_processor;
+-- Oban coordination. DELETE is needed for Oban.Plugins.Pruner. The flaky
+-- correction table is written while processing xcresult test runs.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers, :"tuist_schema".test_case_run_flaky_corrections TO tuist_processor;
 GRANT USAGE, SELECT ON SEQUENCE :"tuist_schema".oban_jobs_id_seq TO tuist_processor;
 
 -- Read-only lookups the workers perform. These rows are not written by the

@@ -6,20 +6,17 @@ defmodule Tuist.Authorization.Checks do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.Organization
   alias Tuist.Accounts.User
   alias Tuist.Projects
   alias Tuist.Projects.Project
 
   def user_role(%User{} = authenticated_user, %Project{} = project, role) when role == :user do
-    Accounts.owns_account_or_belongs_to_account_organization?(authenticated_user, %{
-      id: project.account_id
-    })
+    Accounts.owns_account_or_belongs_to_account_organization?(authenticated_user, project_account(project))
   end
 
   def user_role(%User{} = authenticated_user, %Project{} = project, role) when role == :admin do
-    Accounts.owns_account_or_is_admin_to_account_organization?(authenticated_user, %{
-      id: project.account_id
-    })
+    Accounts.owns_account_or_is_admin_to_account_organization?(authenticated_user, project_account(project))
   end
 
   def user_role(%User{} = authenticated_user, %Account{} = account, role) when role == :user do
@@ -37,6 +34,13 @@ defmodule Tuist.Authorization.Checks do
   def user_role(_, _, _) do
     false
   end
+
+  # Hands over the account itself when the caller preloaded it (with its
+  # organization), so the membership check does not have to read it back. Falls
+  # back to the id when either association is missing.
+  defp project_account(%Project{account: %Account{organization: %Organization{}} = account}), do: account
+  defp project_account(%Project{account: %Account{organization: nil} = account}), do: account
+  defp project_account(%Project{account_id: account_id}), do: %{id: account_id}
 
   def authenticated_as_user(%User{}, _) do
     true
@@ -208,6 +212,18 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
+  def public_account(_, %Account{visibility: :public}) do
+    true
+  end
+
+  def public_account(_, %Account{}) do
+    false
+  end
+
+  def public_account(_, _) do
+    false
+  end
+
   def billing_access(%User{} = user, %Account{} = account) do
     subscription = Tuist.Billing.get_current_active_subscription(account)
 
@@ -217,6 +233,10 @@ defmodule Tuist.Authorization.Checks do
     else
       Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
     end
+  end
+
+  def billing_access(_, _) do
+    false
   end
 
   @doc """

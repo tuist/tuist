@@ -6,11 +6,20 @@ defmodule Tuist.OAuth.Introspection do
   alias Tuist.Accounts.User
   alias Tuist.Authentication
   alias Tuist.Cache
+  alias Tuist.CacheGuardian
   alias Tuist.Projects.Project
 
+  @cache_token_type "cache"
+
+  @doc """
+  Unconstrained introspection for the Tuist-operated control-plane client.
+
+  Every managed cache node authenticates as that client, so the response is not
+  narrowed to one tenant: it serves them all.
+  """
   def token_response(token) do
     case Authentication.authenticated_subject(token) do
-      nil -> %{active: false}
+      nil -> cache_token_response(token)
       subject -> active_response(subject, Cache.cache_grants(subject))
     end
   end
@@ -26,7 +35,7 @@ defmodule Tuist.OAuth.Introspection do
   def token_response(token, %Account{} = account) do
     case Authentication.authenticated_subject(token) do
       nil ->
-        %{active: false}
+        cache_token_response(token, account)
 
       subject ->
         grants = scope_grants_to_account(Cache.cache_grants(subject), account)
@@ -37,6 +46,71 @@ defmodule Tuist.OAuth.Introspection do
           %{active: false}
         end
     end
+  end
+
+  # A cache token cannot resolve to a subject. Guardian refuses it on purpose, so
+  # that a token minted to reach the cache can never act as an API credential.
+  # It carries the grants it was minted with, though, so it can be answered from
+  # itself. Verifying it here keeps that refusal intact: nothing about this makes
+  # a cache token resolvable anywhere else.
+  #
+  # How a node is told what one of these tokens may reach whenever it cannot
+  # read the token itself: it was given no key, or the key it holds is not the
+  # one this was signed with. A node is never given the key that signs API
+  # credentials, only the public half of the dedicated cache-token pair, so
+  # there is always a token shape that arrives here. Without an answer, a node
+  # reports every exchanged token inactive and denies the request.
+  defp cache_token_response(token) do
+    case verified_cache_token(token) do
+      {:ok, claims, grants} -> cache_token_active(claims, grants)
+      :error -> %{active: false}
+    end
+  end
+
+  defp cache_token_response(token, %Account{} = account) do
+    with {:ok, claims, grants} <- verified_cache_token(token),
+         scoped when scoped != :empty <- scoped_or_empty(grants, account) do
+      cache_token_active(claims, scoped)
+    else
+      _ -> %{active: false}
+    end
+  end
+
+  defp verified_cache_token(token) do
+    Enum.find_value(cache_token_verifiers(), :error, fn verifier ->
+      case verifier.decode_and_verify(token, %{"typ" => @cache_token_type}) do
+        {:ok, %{"cache_grants" => grants} = claims} -> {:ok, claims, grants}
+        _ -> nil
+      end
+    end)
+  end
+
+  # Both keys answer while a deployment is moving between them. A cache token
+  # outlives the deploy that minted it, so the key it was signed with has to
+  # keep answering for its whole lifetime or every build holding one is cut off
+  # mid-flight.
+  defp cache_token_verifiers do
+    if CacheGuardian.configured?() do
+      [CacheGuardian, Tuist.Guardian]
+    else
+      [Tuist.Guardian]
+    end
+  end
+
+  # `principal_kind` is omitted: the claims do not record what the token was
+  # minted for, and a node treats its absence as an unnamed subject.
+  defp cache_token_active(claims, grants) do
+    %{
+      active: true,
+      iss: issuer(),
+      sub: claims["sub"],
+      cache_grants: grants
+    }
+  end
+
+  defp scoped_or_empty(grants, account) do
+    scoped = scope_grants_to_account(grants, account)
+    if grants_present?(scoped), do: scoped, else: :empty
   end
 
   defp active_response(subject, grants) do

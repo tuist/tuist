@@ -1,0 +1,31 @@
+Use the host macOS SDK instead of the hermetic @macos_sdk sysroot.
+
+rules_rs's rules_rust fork points every Rust target's `macos_sdkroot` attribute at
+@macos_sdk//sysroot, a sysroot the @llvm module unpacks from a Command Line Tools .pkg
+downloaded straight from Apple's software update CDN. Apple rotates those URLs out from
+under the pin (the currently pinned one 403s), and the archived fallback is best-effort,
+so the macOS release legs fail at analysis time whenever a runner's repository cache is
+cold. Kura's macOS builds compile and link their C/C++ with the host Xcode toolchain
+anyway, so pointing rustc at a differently-versioned minimal sysroot buys no hermeticity;
+leaving SDKROOT unset lets rustc's linker use the same SDK the cc toolchain already uses.
+
+This is how the Apple-facing rulesets already work: apple_support discovers the SDK through
+`xcrun`, and bazel-contrib/toolchains_llvm defaults its macOS sysroot to
+`xcrun --show-sdk-path`. Upstream tracks the retired URL in
+https://github.com/hermeticbuild/hermetic-llvm/issues/702 and host-discovered SDK support in
+https://github.com/hermeticbuild/hermetic-llvm/issues/68 — drop this patch once the @llvm
+module can resolve the SDK from the host.
+
+--- a/rust/private/BUILD.bazel
++++ b/rust/private/BUILD.bazel
+@@ -25,10 +25,7 @@ filegroup(
+
+ alias(
+     name = "default_macos_sdkroot",
+-    actual = select({
+-        "@platforms//os:osx": "@macos_sdk//sysroot",
+-        "//conditions:default": ":empty_macos_sdkroot",
+-    }),
++    actual = ":empty_macos_sdkroot",
+     visibility = ["//visibility:public"],
+ )

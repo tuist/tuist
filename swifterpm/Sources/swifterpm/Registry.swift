@@ -114,11 +114,11 @@ struct RegistryCredential: Sendable {
 
 enum RegistryAuthorization {
     static func header(for url: URL, registryConfig: RegistryConfig) async -> String? {
-        if let token = nonEmpty(ProcessInfo.processInfo.environment["SWIFTPM_REGISTRY_TOKEN"]) {
+        let environment = Environment.current
+        if let token = nonEmpty(environment["SWIFTPM_REGISTRY_TOKEN"]) {
             return bearerHeader(token)
         }
 
-        let environment = ProcessInfo.processInfo.environment
         if let login = nonEmpty(environment["SWIFTPM_REGISTRY_LOGIN"]),
            let password = nonEmpty(environment["SWIFTPM_REGISTRY_PASSWORD"])
         {
@@ -129,27 +129,38 @@ enum RegistryAuthorization {
             )
         }
 
-        if let netrcData = nonEmpty(environment["SWIFTPM_NETRC_DATA"]),
-           let credential = RegistryNetrc(content: netrcData).credential(for: url)
-        {
+        let netrc = Environment.netrc
+        if let credential = await prioritizedCredential(
+            environmentNetrc: netrc.credential(for: url, from: .environment),
+            fileNetrc: netrc.credential(for: url, from: .file),
+            forcesNetrc: netrc.forcesNetrc,
+            keychain: { await KeychainAuthorization.credential(for: url) }
+        ) {
             return header(for: credential, url: url, registryConfig: registryConfig)
-        }
-
-        if let credential = await RegistryKeychain.credential(for: url) {
-            return header(for: credential, url: url, registryConfig: registryConfig)
-        }
-
-        if let home = environment["HOME"] {
-            let netrcPath = URL(fileURLWithPath: home).appendingPathComponent(".netrc")
-            if let data = try? await fileSystem.readFile(at: netrcPath.absolutePath),
-               let content = String(data: data, encoding: .utf8),
-               let credential = RegistryNetrc(content: content).credential(for: url)
-            {
-                return header(for: credential, url: url, registryConfig: registryConfig)
-            }
         }
 
         return nil
+    }
+
+    /// Registry credentials in SwiftPM's order: inline netrc data, then the OS
+    /// credential store, then any netrc file. `makeRegistryAuthorizationProvider`
+    /// returns immediately on `SWIFTPM_NETRC_DATA` and otherwise takes
+    /// `providers.first` with the keychain appended ahead of netrc, so this is the
+    /// reverse of how its download provider is composed.
+    ///
+    /// Where it differs on purpose: upstream selects one provider and stops, so a
+    /// host missing from the chosen one gets no credentials, while a miss here falls
+    /// through to the next source. That fall-through is what lets `--netrc-file`
+    /// reach registry auth at all when a keychain item exists.
+    static func prioritizedCredential(
+        environmentNetrc: RegistryCredential?,
+        fileNetrc: RegistryCredential?,
+        forcesNetrc: Bool,
+        keychain: () async -> RegistryCredential?
+    ) async -> RegistryCredential? {
+        if let environmentNetrc { return environmentNetrc }
+        if !forcesNetrc, let credential = await keychain() { return credential }
+        return fileNetrc
     }
 
     static func header(
@@ -185,117 +196,7 @@ enum RegistryAuthorization {
     }
 }
 
-struct RegistryNetrc {
-    private let machines: [Machine]
-
-    init(content: String) {
-        machines = Self.parse(content: content)
-    }
-
-    func credential(for url: URL) -> RegistryCredential? {
-        guard let host = url.host?.lowercased() else { return nil }
-        let machine = machines.last(where: { $0.name == host }) ?? machines.first(where: \.isDefault)
-        return machine.map { RegistryCredential(user: $0.login, password: $0.password) }
-    }
-
-    private static func parse(content: String) -> [Machine] {
-        var tokens = tokenize(content)
-        var machines: [Machine] = []
-        while let token = tokens.first {
-            switch token {
-            case "machine":
-                tokens.removeFirst()
-                guard let name = tokens.popFirst() else { continue }
-                if let machine = parseMachine(name: name.lowercased(), tokens: &tokens) {
-                    machines.append(machine)
-                }
-            case "default":
-                tokens.removeFirst()
-                if let machine = parseMachine(name: "default", tokens: &tokens) {
-                    machines.append(machine)
-                }
-            default:
-                tokens.removeFirst()
-            }
-        }
-        return machines
-    }
-
-    private static func parseMachine(name: String, tokens: inout [String]) -> Machine? {
-        var login: String?
-        var password: String?
-        while let key = tokens.first {
-            if key == "machine" || key == "default" { break }
-            tokens.removeFirst()
-            switch key {
-            case "login":
-                login = tokens.popFirst()
-            case "password":
-                password = tokens.popFirst()
-            default:
-                _ = tokens.popFirst()
-            }
-            if login != nil, password != nil {
-                while let key = tokens.first, key != "machine", key != "default" {
-                    tokens.removeFirst()
-                }
-                break
-            }
-        }
-        guard let login, let password else { return nil }
-        return Machine(name: name, login: login, password: password)
-    }
-
-    private static func tokenize(_ content: String) -> [String] {
-        var tokens: [String] = []
-        var token = ""
-        var inQuote = false
-        var skippingComment = false
-
-        for character in content {
-            if skippingComment {
-                if character == "\n" {
-                    skippingComment = false
-                }
-                continue
-            }
-            if !inQuote, character == "#" {
-                if !token.isEmpty {
-                    tokens.append(token)
-                    token = ""
-                }
-                skippingComment = true
-                continue
-            }
-            if character == "\"" {
-                inQuote.toggle()
-                continue
-            }
-            if !inQuote, character.isWhitespace {
-                if !token.isEmpty {
-                    tokens.append(token)
-                    token = ""
-                }
-                continue
-            }
-            token.append(character)
-        }
-        if !token.isEmpty {
-            tokens.append(token)
-        }
-        return tokens
-    }
-
-    private struct Machine {
-        let name: String
-        let login: String
-        let password: String
-
-        var isDefault: Bool { name == "default" }
-    }
-}
-
-private enum RegistryKeychain {
+enum KeychainAuthorization {
     static func credential(for url: URL) async -> RegistryCredential? {
         #if canImport(Security)
             guard let searchQuery = query(for: url, includeData: false) else { return nil }
@@ -521,12 +422,6 @@ enum RegistryClient {
         return registryURL.appendingPathComponents(components)
     }
 
-}
-
-private extension Array where Element == String {
-    mutating func popFirst() -> String? {
-        isEmpty ? nil : removeFirst()
-    }
 }
 
 extension URL {

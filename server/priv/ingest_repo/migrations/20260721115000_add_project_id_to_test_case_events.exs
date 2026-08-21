@@ -16,6 +16,7 @@ defmodule Tuist.IngestRepo.Migrations.AddProjectIdToTestCaseEvents do
   """
   use Ecto.Migration
 
+  alias Tuist.ClickHouseDictionarySource
   alias Tuist.IngestRepo
   alias Tuist.Repo
 
@@ -72,16 +73,20 @@ defmodule Tuist.IngestRepo.Migrations.AddProjectIdToTestCaseEvents do
     # `test_cases` is a ReplacingMergeTree, so the source can hold several rows
     # per id. `project_id` never changes for a test case, so whichever row the
     # dictionary keeps carries the same answer.
-    IngestRepo.query!("""
-    CREATE DICTIONARY #{@dict_name} (
-      id UUID,
-      project_id Int64
+    IngestRepo.query!(
+      """
+      CREATE DICTIONARY #{@dict_name} (
+        id UUID,
+        project_id Int64
+      )
+      PRIMARY KEY id
+      SOURCE(#{ClickHouseDictionarySource.local_table(IngestRepo, "test_cases")})
+      LAYOUT(HASHED())
+      LIFETIME(0)
+      """,
+      [],
+      ClickHouseDictionarySource.query_opts()
     )
-    PRIMARY KEY id
-    SOURCE(CLICKHOUSE(TABLE 'test_cases'))
-    LAYOUT(HASHED())
-    LIFETIME(0)
-    """)
   end
 
   defp backfill_project_id do

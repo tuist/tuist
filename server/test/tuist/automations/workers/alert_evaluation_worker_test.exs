@@ -70,7 +70,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       trigger_config: %{
         "threshold" => 10,
         "window_type" => "rolling",
-        "rolling_window_size" => 76
+        "rolling_window_size" => 1001
       }
     )
     |> Repo.update!()
@@ -83,7 +83,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       end)
 
     assert log =~ "Skipping automation alert #{automation.id}"
-    assert log =~ "rolling trigger windows must be between 1 and 75"
+    assert log =~ "rolling trigger windows must be between 1 and 1000"
   end
 
   test "executes trigger actions for newly triggered test cases and creates alert" do
@@ -378,7 +378,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         "threshold" => 20,
         "comparison" => "gte",
         "window_type" => "rolling",
-        "rolling_window_size" => 76
+        "rolling_window_size" => 1001
       }
     )
     |> Repo.update!()
@@ -530,6 +530,45 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       assert id == automation.id
       :ok
     end)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "re-arms without running recovery actions when the state no longer matches the filter" do
+    # A test the automation skipped was manually moved to muted, so it no
+    # longer matches the recovery filter ("skipped"). Recovery must leave it
+    # alone, but the alert still re-arms once the dwell elapses — otherwise it
+    # latches and can never trigger again for that test.
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "last_days", "window" => "1d", "states" => ["skipped"]},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    recovered_id = Ecto.UUID.generate()
+
+    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+      %{triggered: [], all: [recovered_id]}
+    end)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [%{test_case_id: recovered_id, triggered_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)}]
+    end)
+
+    expect(Tests, :get_test_case_states, fn project_id, [^recovered_id] ->
+      assert project_id == automation.project_id
+      %{recovered_id => %{state: "muted", is_flaky: true}}
+    end)
+
+    # No recovery actions run (the test was manually moved out of the filter),
+    # but the alert re-arms so it can fire again later.
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^recovered_id} ->
+      assert actions == []
+      :ok
+    end)
+
+    expect(Automations, :create_alert_event, fn %{test_case_id: ^recovered_id, status: "recovered"} -> :ok end)
 
     assert :ok = run(automation.id)
   end
@@ -732,7 +771,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "rolling recovery above the trigger cap reads raw runs without clamping (real ClickHouse)" do
+  test "rolling recovery counts raw runs without clamping (real ClickHouse)" do
     project = ProjectsFixtures.project_fixture()
 
     automation =
@@ -837,7 +876,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     automation =
       AutomationsFixtures.automation_alert_fixture(
         recovery_enabled: false,
-        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 1000}
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 1000, "states" => ["skipped"]}
       )
 
     recovered_id = Ecto.UUID.generate()
@@ -851,8 +890,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     end)
 
     # No dwell evaluation at all on the disabled path → no runs-since-trigger
-    # query, proving the stale rolling config is ignored.
+    # query or state lookup, proving the stale recovery config is ignored.
     reject(&ClickHouseRepo.all/1)
+    reject(&Tests.get_test_case_states/2)
 
     expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^recovered_id} ->
       assert actions == []

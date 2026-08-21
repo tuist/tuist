@@ -1655,3 +1655,19 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "the dashboard"
 msgstr ""
+
+#: lib/tuist_web/live/project_automations_live.html.heex:323
+#: lib/tuist_web/live/project_automations_live.html.heex:723
+#, elixir-autogen, elixir-format
+msgid "Only apply to tests in these states"
+msgstr ""
+
+#: lib/tuist_web/live/project_notifications_live.ex:703
+#, elixir-autogen, elixir-format
+msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> on branch <strong>%{git_branch}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
+msgstr ""
+
+#: lib/tuist_web/live/project_notifications_live.ex:628
+#, elixir-autogen, elixir-format
+msgid "e.g. main (optional)"
+msgstr ""

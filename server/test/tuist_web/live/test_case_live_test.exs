@@ -61,6 +61,617 @@ defmodule TuistWeb.TestCaseLiveTest do
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
     end
 
+    test "scopes the summary widgets to the last 30 days by default", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - one run today, one three days ago, and one outside the default window
+      test_case_id = seed_runs_across_time(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - the run from 40 days ago is excluded
+      assert widget_value(lv, "widget-test-case-runs") == "2"
+    end
+
+    test "scopes the summary widgets to the selected period", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-date-range=last-24-hours"
+        )
+
+      render_async(lv)
+
+      # Then - only the run from today falls inside the period
+      assert widget_value(lv, "widget-test-case-runs") == "1"
+    end
+
+    test "renders the reliability widget as empty when no runs fall in the period", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      query =
+        URI.encode_query(%{
+          "analytics-date-range" => "custom",
+          "analytics-start-date" => "2020-01-01T00:00:00Z",
+          "analytics-end-date" => "2020-01-31T00:00:00Z"
+        })
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, "/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?#{query}")
+
+      render_async(lv)
+
+      # Then
+      assert has_element?(lv, "#widget-test-reliability[data-empty='true']")
+      assert has_element?(lv, "#widget-flakiness-rate[data-empty='true']")
+    end
+
+    test "keeps the flakiness widget in place when no runs were flaky", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - runs exist in the period, none of them flaky
+      test_case_id = seed_runs_across_time(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - 0% is an answer, so the tile stays rather than dropping out of the row
+      assert widget_value(lv, "widget-flakiness-rate") == "0.0%"
+      refute has_element?(lv, "#widget-flakiness-rate[data-empty='true']")
+    end
+
+    test "changing the period patches the date range into the query", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # When
+      render_hook(lv, "analytics_period_changed", %{
+        "value" => %{"start" => "2024-04-01", "end" => "2024-04-30"},
+        "preset" => "last-7-days"
+      })
+
+      render_async(lv)
+
+      # Then
+      assert_patched(
+        lv,
+        ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-date-range=last-7-days"
+      )
+
+      assert widget_value(lv, "widget-test-case-runs") == "2"
+    end
+
+    test "charts the duration of the test case over the selected period", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-selected-widget=duration"
+        )
+
+      render_async(lv)
+
+      # Then - the distribution is on the chart, not only in the widget above it
+      option = chart_option(lv, "test-case-duration-chart")
+
+      assert Enum.map(option["series"], & &1["name"]) == ["Average", "p99", "p90", "p50"]
+    end
+
+    test "breaks the chart line over a day the test case did not run", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - runs today and three days ago, nothing in between
+      test_case_id = seed_runs_across_time(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-selected-widget=duration"
+        )
+
+      render_async(lv)
+
+      # Then - the empty days are gaps, not runs that took no time
+      [average | _] = chart_option(lv, "test-case-duration-chart")["series"]
+      values = Enum.map(average["data"], &List.last/1)
+
+      assert Enum.any?(values, &is_nil/1)
+      refute 0 in values
+    end
+
+    test "replaces the duration chart with an empty state when the period holds no runs", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      query =
+        URI.encode_query(%{
+          "analytics-date-range" => "custom",
+          "analytics-start-date" => "2020-01-01T00:00:00Z",
+          "analytics-end-date" => "2020-01-31T00:00:00Z"
+        })
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, "/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?#{query}")
+
+      render_async(lv)
+
+      # Then
+      refute has_element?(lv, "#test-case-duration-chart")
+      refute has_element?(lv, "#test-case-runs-chart")
+      assert has_element?(lv, "[data-part='analytics'] [data-empty]")
+    end
+
+    test "counts failed or flaky runs when the widget's dropdown picks them", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - a window holding one run of every outcome
+      test_case_id = seed_runs_of_every_outcome(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - the widget opens on every run
+      assert widget_value(lv, "widget-test-case-runs") == "6"
+
+      # When
+      render_hook(lv, "select_runs_type", %{"type" => "failed"})
+
+      # Then
+      assert widget_value(lv, "widget-test-case-runs") == "1"
+      assert render(lv) =~ "Failed test case runs"
+
+      # When
+      render_hook(lv, "select_runs_type", %{"type" => "flaky"})
+
+      # Then
+      assert widget_value(lv, "widget-test-case-runs") == "1"
+      assert render(lv) =~ "Flaky test case runs"
+    end
+
+    test "counts the same runs the bar segment it names does", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - a run that is failed and flaky at once, which the bar files under
+      # Flaky, plus one plainly failed run
+      test_case_run = passing_test_case_run(project)
+      ran_at = DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_naive()
+
+      for {status, is_flaky} <- [{1, true}, {1, false}] do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_run.test_case_id,
+          status: status,
+          is_flaky: is_flaky,
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+
+      render_async(lv)
+
+      # When
+      render_hook(lv, "select_widget", %{"widget" => "test_case_runs"})
+      render_hook(lv, "select_runs_type", %{"type" => "failed"})
+
+      # Then - the widget cannot report runs the chart draws somewhere else
+      segments = chart_option(lv, "test-case-runs-chart")["series"]
+      failed = Enum.find(segments, &(&1["name"] == "Failed"))
+      drawn = failed["data"] |> Enum.map(&segment_count/1) |> Enum.sum()
+
+      assert widget_value(lv, "widget-test-case-runs") == "#{drawn}"
+      assert drawn == 1
+    end
+
+    test "counting a run type pulls the card back to the runs chart", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - another widget's chart is on screen
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-selected-widget=reliability"
+        )
+
+      render_async(lv)
+
+      # When
+      render_hook(lv, "select_runs_type", %{"type" => "failed"})
+
+      # Then
+      assert has_element?(lv, "#test-case-runs-chart")
+      refute has_element?(lv, "#test-case-analytics-chart")
+    end
+
+    test "compares each widget against the window before it", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - two runs in the last week, one in the week before it
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      test_case_run = Enum.find(test_run.test_case_runs, &(&1.name == "testExample"))
+
+      for days_ago <- [1, 2, 9] do
+        ran_at = DateTime.utc_now() |> DateTime.add(-days_ago, :day) |> DateTime.to_naive()
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_run.test_case_id,
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}?analytics-date-range=last-7-days"
+        )
+
+      render_async(lv)
+
+      # Then - three runs this week against one the week before
+      assert widget_trend(lv, "widget-test-case-runs") =~ "+200.0%"
+      assert widget_trend(lv, "widget-test-case-runs") =~ "since last week"
+    end
+
+    test "counts a run on the window boundary once, not in both windows", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - one run before the window, one exactly on its first instant, and
+      # one inside it
+      test_case_run = passing_test_case_run(project)
+
+      for ran_at <- [
+            ~N[2024-04-27 12:00:00.000000],
+            ~N[2024-04-28 00:00:00.000000],
+            ~N[2024-04-29 12:00:00.000000]
+          ] do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_run.test_case_id,
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      query =
+        URI.encode_query(%{
+          "analytics-date-range" => "custom",
+          "analytics-start-date" => "2024-04-28T00:00:00Z",
+          "analytics-end-date" => "2024-04-30T00:00:00Z"
+        })
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, "/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}?#{query}")
+
+      render_async(lv)
+
+      # Then - two runs this window against one before it. Counting the boundary
+      # run in both would read as two against two, and no change at all.
+      assert widget_value(lv, "widget-test-case-runs") == "2"
+      assert widget_trend(lv, "widget-test-case-runs") =~ "+100.0%"
+    end
+
+    test "leaves a widget without a trend when the window before it was empty", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - runs in this window only
+      test_case_id = seed_runs_across_time(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-date-range=last-24-hours"
+        )
+
+      render_async(lv)
+
+      # Then - a jump from nothing is not a percentage
+      refute has_element?(lv, "#widget-test-case-runs [data-part='trend'] .noora-badge")
+    end
+
+    test "charts the run outcomes until another widget is selected", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - the card opens on the runs, split by how they came out
+      assert [%{"name" => "Successful", "type" => "bar", "stack" => "total"}] =
+               chart_option(lv, "test-case-runs-chart")["series"]
+
+      # When
+      render_hook(lv, "select_widget", %{"widget" => "flakiness_rate"})
+
+      # Then - no refetch, the series was already loaded
+      assert [%{"name" => "Flakiness rate"}] =
+               chart_option(lv, "test-case-analytics-chart")["series"]
+    end
+
+    test "stacks each bar to the run count of its bucket", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - one run of every outcome on the same day
+      test_case_id = seed_runs_of_every_outcome(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - every segment is drawn and they add up to the day's runs
+      series = chart_option(lv, "test-case-runs-chart")["series"]
+
+      assert Enum.map(series, & &1["name"]) == [
+               "Successful",
+               "Failed",
+               "Flaky",
+               "Quarantined",
+               "Skipped"
+             ]
+
+      totals =
+        series
+        |> Enum.map(fn segment -> Enum.map(segment["data"], &segment_count/1) end)
+        |> Enum.zip_with(&Enum.sum/1)
+
+      assert Enum.max(totals) == 5
+    end
+
+    test "rounds the top of each bar rather than every segment in it", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - a bucket holding every outcome, so the stack is five segments deep
+      test_case_id = seed_runs_of_every_outcome(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # When
+      series = chart_option(lv, "test-case-runs-chart")["series"]
+      by_name = Map.new(series, &{&1["name"], &1["data"]})
+      bucket = Enum.find_index(by_name["Skipped"], &(segment_count(&1) > 0))
+
+      # Then - only the segment that caps the bar is rounded
+      assert %{"itemStyle" => %{"borderRadius" => [2, 2, 0, 0]}} = Enum.at(by_name["Skipped"], bucket)
+      assert Enum.at(by_name["Successful"], bucket) == 1
+      assert Enum.at(by_name["Failed"], bucket) == 1
+    end
+
+    test "drops an outcome the test case never had from the bar", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - runs that all passed
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - a legend entry for an outcome that never happened is noise
+      assert Enum.map(chart_option(lv, "test-case-runs-chart")["series"], & &1["name"]) == [
+               "Successful"
+             ]
+    end
+
+    test "charts a rate against a fixed axis so a steady test reads as steady", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-selected-widget=reliability"
+        )
+
+      render_async(lv)
+
+      # Then
+      option = chart_option(lv, "test-case-analytics-chart")
+
+      assert [%{"name" => "Test reliability"}] = option["series"]
+      assert option["yAxis"]["max"] == 100
+    end
+
+    test "leaves a bucket without runs off a rate chart", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - runs today and three days ago, nothing in between
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-selected-widget=flakiness_rate"
+        )
+
+      render_async(lv)
+
+      # Then - a day with no runs has no flakiness rate, and 0% would claim otherwise
+      [flakiness] = chart_option(lv, "test-case-analytics-chart")["series"]
+      values = Enum.map(flakiness["data"], &List.last/1)
+
+      assert Enum.any?(values, &is_nil/1)
+    end
+
+    test "counts a day without runs as zero rather than as a gap", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - no runs really is a count of zero, unlike a duration or a rate
+      [runs] = chart_option(lv, "test-case-runs-chart")["series"]
+
+      refute Enum.any?(runs["data"], &is_nil/1)
+      assert 0 in runs["data"]
+    end
+
+    test "picking a duration statistic switches the card to the duration chart", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - the run count is selected, so p90 would otherwise change a number off screen
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # When
+      render_hook(lv, "select_duration_type", %{"type" => "p90"})
+
+      # Then
+      assert has_element?(lv, "#test-case-duration-chart")
+      refute has_element?(lv, "#test-case-runs-chart")
+    end
+
+    test "runs the recent history beside the metrics it explains", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - a test case with something in its history
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_run.test_case_id,
+        event_type: "skipped"
+      )
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+
+      # Then - a state change and the chart it explains belong on one screen
+      assert has_element?(
+               lv,
+               "[data-part='analytics'] [data-part='analytics-history'] [data-part='timeline-item']"
+             )
+    end
+
+    test "opens the timeline on the run that introduced the test case", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - a test case nobody has quarantined, muted or marked
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      # When
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+
+      # Then - every test case has a first run, so the column is never an empty frame
+      assert html =~ "First run of this test"
+    end
+
     test "muting a test case via set-state", %{
       conn: conn,
       account: account,
@@ -198,5 +809,91 @@ defmodule TuistWeb.TestCaseLiveTest do
       assert history_html =~ "test-history-event-#{event.id}-time-tooltip"
       assert history_html =~ "Mon 15 Jan 2024 at 09:30"
     end
+  end
+
+  defp seed_runs_across_time(project) do
+    # `test_fixture/1` seeds one passing and one failing test case, and which
+    # comes back first is not fixed. The charts count outcomes, so the tests pin
+    # the passing one rather than asserting on whichever arrived.
+    test_case_run = passing_test_case_run(project)
+
+    for days_ago <- [3, 40] do
+      ran_at = DateTime.utc_now() |> DateTime.add(-days_ago, :day) |> DateTime.to_naive()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_run.test_case_id,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      )
+    end
+
+    test_case_run.test_case_id
+  end
+
+  defp seed_runs_of_every_outcome(project) do
+    test_case_run = passing_test_case_run(project)
+
+    ran_at = DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_naive()
+
+    for {status, is_flaky, is_quarantined} <- [
+          {0, false, false},
+          {1, false, false},
+          {2, false, false},
+          {0, true, false},
+          {0, false, true}
+        ] do
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_run.test_case_id,
+        status: status,
+        is_flaky: is_flaky,
+        is_quarantined: is_quarantined,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      )
+    end
+
+    test_case_run.test_case_id
+  end
+
+  defp passing_test_case_run(project) do
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+    test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+
+    Enum.find(test_run.test_case_runs, &(&1.name == "testExample"))
+  end
+
+  # A bar segment is a plain count, or a count carrying the corner radius that
+  # caps its bar.
+  defp segment_count(%{"value" => count}), do: count
+  defp segment_count(count), do: count
+
+  defp chart_option(lv, chart_id) do
+    lv
+    |> element("##{chart_id} [data-part='data']")
+    |> render()
+    |> Floki.parse_fragment!()
+    |> Floki.text()
+    |> JSON.decode!()
+  end
+
+  defp widget_trend(lv, widget_id) do
+    lv
+    |> element("##{widget_id} [data-part='trend']")
+    |> render()
+    |> Floki.parse_fragment!()
+    |> Floki.text()
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim()
+  end
+
+  defp widget_value(lv, widget_id) do
+    lv
+    |> element("##{widget_id} > [data-part='value']")
+    |> render()
+    |> Floki.parse_fragment!()
+    |> Floki.text()
+    |> String.trim()
   end
 end

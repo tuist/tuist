@@ -152,6 +152,15 @@ components:
           type: string
           x-struct:
           x-validate:
+        only_test_identifiers:
+          description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         scheme:
           description: The scheme used for the test run.
           type: string
@@ -166,6 +175,15 @@ components:
         shard_plan_id:
           description: The shard plan ID if this test run is part of a sharded execution.
           type: string
+          x-struct:
+          x-validate:
+        skip_test_identifiers:
+          description: The tests the caller asked this run to exclude.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         status:
@@ -1788,6 +1806,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        git_branch:
+          description: "The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch."
+          type: string
+          x-struct:
+          x-validate:
         gradle_build_id:
           description: The UUID of the associated Gradle build.
           format: uuid
@@ -1804,6 +1827,15 @@ components:
           x-validate:
         modules:
           description: Test module names (for module-level granularity).
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        parallelizable_modules:
+          description: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
           items:
             type: string
             x-struct:
@@ -4282,6 +4314,26 @@ components:
       type: string
       x-struct:
       x-validate:
+    CacheToken:
+      description: A short-lived token that proves the subject's cache access
+      properties:
+        expires_in:
+          description: Seconds until the token expires.
+          type: integer
+          x-struct:
+          x-validate:
+        token:
+          description: The token to send to cache nodes.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - token
+        - expires_in
+      title: CacheToken
+      type: object
+      x-struct:
+      x-validate:
     CASOutputType:
       enum:
         - swift
@@ -5097,7 +5149,7 @@ components:
       x-validate:
     AbsentCacheArtifact:
       properties:
-        error:
+        errors:
           items:
             properties:
               code:
@@ -6713,6 +6765,14 @@ paths:
                 x-struct:
                 x-validate:
           description: List of cache endpoints
+          headers:
+            cache-control:
+              description: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '403':
           content:
             application/json:
@@ -6725,7 +6785,12 @@ paths:
   /api/cache:
     get:
       callbacks: {}
-      description: This endpoint returns a signed URL that can be used to download an artifact from the cache.
+      description: |
+        This endpoint returns a signed URL that can be used to download an artifact from the cache.
+
+        The URL is signed from the request parameters alone, without a storage round trip, so
+        this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+        miss, or treat a failing download as the miss signal.
       operationId: downloadCacheArtifact
       parameters:
         - description: The category of the cache. It's used to differentiate between different types of caches.
@@ -6764,7 +6829,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CacheArtifactDownloadURL'
-          description: The artifact exists and is downloadable
+          description: 'A signed download URL was generated. The URL is returned without verifying that the artifact is stored, so this status does not imply a cache hit: a hash that was never uploaded is signed just the same, and the download then fails with a 404 at the storage provider.'
         '401':
           content:
             application/json:
@@ -6788,7 +6853,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The project or the cache artifact doesn't exist
+          description: The project doesn't exist
       summary: Downloads an artifact from the cache.
       tags:
         - Cache
@@ -7727,6 +7792,15 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                only_test_identifiers:
+                  description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
                 scheme:
                   description: The scheme used for the test run.
                   type: string
@@ -7741,6 +7815,15 @@ paths:
                 shard_plan_id:
                   description: The shard plan ID if this test run is part of a sharded execution.
                   type: string
+                  x-struct:
+                  x-validate:
+                skip_test_identifiers:
+                  description: The tests the caller asked this run to exclude.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
                   x-struct:
                   x-validate:
                 status:
@@ -11218,8 +11301,12 @@ paths:
   /api/cache/exists:
     get:
       callbacks: {}
-      deprecated: true
-      description: This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
+      description: |
+        This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
+
+        It is the only cache endpoint that reaches storage to answer, so it is what clients
+        should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+        checking storage and answers 200 either way.
       operationId: cacheArtifactExists
       parameters:
         - description: The category of the cache. It's used to differentiate between different types of caches.
@@ -11299,7 +11386,7 @@ paths:
             application/json:
               schema:
                 properties:
-                  error:
+                  errors:
                     items:
                       properties:
                         code:
@@ -16390,6 +16477,11 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                git_branch:
+                  description: "The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch."
+                  type: string
+                  x-struct:
+                  x-validate:
                 gradle_build_id:
                   description: The UUID of the associated Gradle build.
                   format: uuid
@@ -16406,6 +16498,15 @@ paths:
                   x-validate:
                 modules:
                   description: Test module names (for module-level granularity).
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                parallelizable_modules:
+                  description: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
                   items:
                     type: string
                     x-struct:
@@ -21287,6 +21388,61 @@ paths:
       summary: Create an automation alert.
       tags:
         - Automation Alerts
+  /api/cache/token:
+    post:
+      callbacks: {}
+      description: |
+        Returns a short-lived token that carries the authenticated subject's cache grants.
+
+        Cache nodes verify it themselves and authorize from the grants it carries, so
+        clients holding a credential a cache node cannot verify locally (a CI project
+        token, for example) avoid a server round-trip per cache authorization. Exchange
+        it once and reuse it until it expires. It is only accepted by cache nodes; it is
+        not an API credential.
+      operationId: getCacheToken
+      parameters:
+        - description: 'Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account.'
+          in: query
+          name: full_handle
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: A short-lived token that proves the subject's cache access
+                properties:
+                  expires_in:
+                    description: Seconds until the token expires.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  token:
+                    description: The token to send to cache nodes.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - token
+                  - expires_in
+                title: CacheToken
+                type: object
+                x-struct:
+                x-validate:
+          description: A cache token for the authenticated subject
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+      summary: Exchange the current credential for a cache token.
+      tags:
+        - Cache
 security:
   - authorization: []
   - cookie: []

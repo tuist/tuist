@@ -69,12 +69,12 @@ subjects:
 # omits cluster-scoped and custom resources, so a view-tier identity (every
 # member + their agents) can't observe the infra it routinely needs to:
 # nodes, CAPI machines, our Scaleway provider CRs, the Kura CRs, the
-# RunnerPool CRs, CRDs, and RBAC objects. This aggregates into `view` via
-# the label below (no extra binding; both tuist-admins and tuist-eng
-# inherit it), and is strictly
+# RunnerPool CRs, the CNPG Postgres clusters, CRDs, and RBAC objects. This
+# aggregates into `view` via the label below (no extra binding; both
+# tuist-admins and tuist-eng inherit it), and is strictly
 # `get`/`list`/`watch` with no `secrets` rule, so the view tier's deliberate
 # Secret exclusion is untouched. None of these resource kinds embed secret
-# data (CAPI/Kura reference Secrets by name, never inline).
+# data (CAPI/Kura/CNPG reference Secrets by name, never inline).
 #
 # RBAC read (clusterroles/rolebindings) is the one deliberate widening of the
 # upstream `view` shape: it exposes the authorization graph, which `view`
@@ -102,6 +102,8 @@ rules:
       - infrastructure.cluster.x-k8s.io
       - kura.tuist.dev
       - tuist.dev
+      - postgresql.cnpg.io
+      - barmancloud.cnpg.io
     resources: ["*"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["rbac.authorization.k8s.io"]
@@ -155,6 +157,111 @@ rules:
     resources: ["runnerpools"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
 ---
+# CNPG analog of `tuist-edit-kura-write`, and deliberately narrower. The
+# CloudNativePG clusters (`tuist-tuist-pg`, `tuist-ops-pg`, and their per-env
+# equivalents) were invisible to every tier until now: `postgresql.cnpg.io` was
+# absent from `tuist-view-infra-read` above, and `edit` covers no custom
+# resources at all. So an operator holding an active write elevation could not
+# read a Cluster's status, let alone patch one, during exactly the incident the
+# elevation exists for.
+#
+# Mutation is limited to verbs that change how a cluster runs, never whether it
+# exists:
+#   * clusters, poolers, scheduledbackups: update/patch. The real incident
+#     actions: bump `instances`, adjust resources, change a `primaryUpdate`
+#     strategy, annotate to force a reconcile, flip a pooler.
+#   * backups: create. Taking an ad-hoc base backup before a risky change is
+#     an incident-time action that cannot destroy anything. No delete: pruning
+#     the archive is barman's retention job, not an operator's.
+#
+# `delete` on `clusters` is withheld from THIS role, which is where it diverges
+# from `tuist-edit-kura-write`. A Kura CR is regenerable (the control plane
+# re-renders it and the mesh refills), so delete rides along with the other
+# verbs there. A CNPG `Cluster` is not: deleting it deletes the PVCs it owns.
+# Retiring a cluster is still a real operation, so the capability does exist,
+# but it lives in `tuist-cnpg-decommission` below on a direct binding to the
+# elevation group rather than in this aggregated role, so it cannot be
+# inherited by anything else that later binds `edit`. `create` is withheld
+# outright: standing up a datastore is a chart change, not an operator action.
+#
+# Scoped to named kinds rather than `*` so future kinds in the group (Database,
+# Publication, Subscription) do not silently inherit write access, following
+# `tuist-edit-runners-write`.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-edit-cnpg-write
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters", "poolers", "scheduledbackups"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["backups"]
+    verbs: ["get", "list", "watch", "create"]
+---
+# Decommission capability for RETIRING a CNPG cluster. Separated from
+# `tuist-edit-cnpg-write` above because `delete` on a datastore deserves a
+# tighter binding than the rest of the CNPG verbs, and modelled on
+# `tuist-fleet-unwedge` below rather than on the aggregated roles.
+#
+# Why it exists at all: there is no tier between the JIT write elevation and
+# the break-glass kubeconfig. Withholding cluster deletion from the elevation
+# does not make the operation safer, it makes the only route to it the
+# emergency path, so a planned decommission of a dead cluster would be done
+# with credentials reserved for incidents. That inverts the access policy.
+# Gating it behind an elevation that is requested with a stated intent,
+# TTL-bounded, and audited is the stronger control.
+#
+# Why the blast radius is acceptable: every managed cluster archives WAL
+# continuously and takes base backups to Tigris through the Barman Cloud
+# Plugin, and the `ObjectStore` CR holding that archive is a separate object
+# that a Cluster delete does not touch. The PVCs are `hcloud-volumes`, which
+# is `reclaimPolicy: Retain`, so they outlive the Cluster too. Deleting a
+# Cluster CR is therefore a severe outage and a restore, not data loss.
+#
+# Like `tuist-fleet-unwedge`, this is NOT aggregated into `edit`. It binds
+# straight to `tuist-<env>-write` below, so the capability is welded to an
+# active elevation and cannot be inherited by a service account or a team
+# namespace through some later RoleBinding onto the generic `edit` role.
+#
+# Deliberately narrow: `clusters` only, `delete` only. Poolers, backups and
+# scheduled backups keep the non-destructive verbs granted above. Namespaces
+# stay untouched, so retiring a cluster leaves an empty namespace behind for
+# an admin to sweep; that is inert, and granting namespace deletion here
+# would reach every namespace in the cluster, not just a retired one.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-cnpg-decommission
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters"]
+    verbs: ["delete"]
+---
+# Bind the decommission role straight to this env's write-elevation group, so
+# cluster deletion lives ONLY on an active `tuist-<env>-write` elevation and
+# never on the generic `edit` tier. Per-env like the bindings above, so a prod
+# elevation cannot retire a staging cluster or vice versa.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tuist-{{ .Values.tuistEnv }}-write-cnpg-decommission
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tuist-cnpg-decommission
+subjects:
+  - kind: Group
+    name: tuist-{{ .Values.tuistEnv }}-write
+    apiGroup: rbac.authorization.k8s.io
+---
 # Host-recovery capability for UN-WEDGING a single fleet host without the
 # break-glass kubeconfig. A tart-kubelet host whose drift roll can't reach it
 # (the runner-mini SSH accept-backlog wedge) exhausts its retry budget, its
@@ -178,9 +285,24 @@ rules:
 #     delete can only recreate a worker host, never a control-plane node.
 #     machinesets/machinedeployments are untouched — scaling or tearing down a
 #     fleet stays a break-glass action.
+#   * machines/status update/patch — the owning CAPI Machine keeps its own
+#     terminal failureReason/failureMessage, and clearing the infra machine's
+#     status does not clear the parent's. Without this the Machine reports
+#     Failed for a host that has been healthy and Running for weeks, which
+#     makes `get machines` useless for spotting the next real failure. Granted
+#     on the status subresource only: the spec stays immutable, so this cannot
+#     retarget a Machine, only correct what it reports.
 #   * scalewayapplesiliconmachines (+/status) update/patch — clear the terminal
 #     failure so the drift loop retries. No delete: the CAPI Machine delete
 #     cascades to the infra machine on its own.
+#   * scalewayapplesiliconmachinetemplates update/patch — heal spec drift on the
+#     template a MachineSet clones. Helm patches these CRs manifest-to-manifest,
+#     so a field the live object never received is never backfilled, and an
+#     invalid clone fails every scale-up. Without this verb the `machines` delete
+#     above is a one-way trapdoor: the operator can retire a host but the
+#     MachineSet cannot recreate it, and repairing the template needs
+#     break-glass. Update/patch only — create/delete would change which template
+#     a fleet renders from, which is fleet management.
 #   * nodes update/patch/delete + pods/eviction create — cordon and drain a
 #     live host before recreating it, or remove a confirmed orphaned Node after
 #     its Machine and infrastructure are already gone.
@@ -194,8 +316,14 @@ rules:
   - apiGroups: ["cluster.x-k8s.io"]
     resources: ["machines"]
     verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: ["machines/status"]
+    verbs: ["update", "patch"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["scalewayapplesiliconmachines", "scalewayapplesiliconmachines/status"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["scalewayapplesiliconmachinetemplates"]
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: [""]
     resources: ["nodes"]

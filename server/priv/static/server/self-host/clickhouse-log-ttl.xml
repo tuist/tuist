@@ -1,0 +1,45 @@
+<clickhouse>
+  <!--
+    `replace="1"` is required on every element that carries both a `from_env`
+    and an inline default. Without it ClickHouse refuses to preprocess the
+    config and the server fails to start.
+
+    These are the high-volume system log tables that exist in every ClickHouse
+    version the bundle supports. The list is deliberately an intersection of
+    25.x and 26.x, not a superset: `from_env` on a section the running version
+    does not know fails to preprocess and the server will not start, so a table
+    present in only one version cannot be declared here. The version-specific
+    ones are all negligible in size, so nothing meaningful is lost.
+
+    Tables that already carry a TTL (processors_profile_log, blob_storage_log,
+    asynchronous_insert_log) are omitted because they are already bounded, and
+    opentelemetry_span_log is omitted because the shipped config declares it
+    with an explicit <engine> spec that a separate <ttl> cannot coexist with.
+    Superseded generations of all of those are still handled by the retention
+    policy in docker-compose.yml, which does not depend on this list.
+  -->
+  <text_log>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL" replace="1">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </text_log>
+  <query_log>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL" replace="1">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </query_log>
+  <query_thread_log>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL" replace="1">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </query_thread_log>
+  <query_views_log>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL" replace="1">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </query_views_log>
+  <trace_log>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL" replace="1">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </trace_log>
+  <metric_log>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL" replace="1">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </metric_log>
+  <asynchronous_metric_log>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL" replace="1">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </asynchronous_metric_log>
+  <part_log>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL" replace="1">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </part_log>
+</clickhouse>

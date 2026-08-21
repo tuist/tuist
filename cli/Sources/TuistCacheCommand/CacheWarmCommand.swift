@@ -58,11 +58,15 @@
         var generateOnly: Bool = false
 
         @Flag(
-            name: .long,
+            name: .customLong("upload"),
+            inversion: .prefixedNo,
             help: "When passed, the generated artifacts are stored only in the local cache and not uploaded to the remote cache.",
-            envKey: .cacheNoUpload
+            envKey: .cacheNoUpload,
+            envValueInverted: true
         )
-        var noUpload: Bool = false
+        var upload: Bool = true
+
+        var noUpload: Bool { !upload }
 
         @Option(
             name: .long,

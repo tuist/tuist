@@ -37,16 +37,16 @@ use super::{admission::*, snapshot::*};
 
 use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
+    auth::{AccessDecision, RequestContext},
     constants::{
         MAX_INLINE_REPLICATION_BODY_BYTES, MAX_MODULE_TOTAL_BYTES,
         encoded_response_stream_chunk_bytes, response_stream_chunk_bytes,
     },
-    extension::{AccessDecision, ExtensionContext, Principal},
     file_cache::{FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy},
     io::is_fd_pool_exhausted_error,
     replication::replication_targets,
     state::SharedState,
-    store::{StagedArtifactPath, is_outbox_full_error},
+    store::{RefreshTrigger, StagedArtifactPath, is_outbox_full_error},
     utils::{
         TempFileCleanup, action_cache_key, blob_key, drop_staging_cache_range, temp_file_path,
     },
@@ -67,7 +67,7 @@ pub struct ReapiService {
 }
 
 #[derive(Clone)]
-struct GrpcExtensionSpec<'a> {
+struct GrpcRequestSpec<'a> {
     route: &'a str,
     operation: &'a str,
     namespace_id: Option<&'a str>,
@@ -166,8 +166,8 @@ impl ReapiService {
     async fn authorize_request<T>(
         &self,
         request: &Request<T>,
-        spec: GrpcExtensionSpec<'_>,
-    ) -> Result<Option<Principal>, Status> {
+        spec: GrpcRequestSpec<'_>,
+    ) -> Result<(), Status> {
         self.authorize_metadata(request.metadata(), spec).await
     }
 
@@ -178,47 +178,21 @@ impl ReapiService {
     async fn authorize_metadata(
         &self,
         metadata: &tonic::metadata::MetadataMap,
-        spec: GrpcExtensionSpec<'_>,
-    ) -> Result<Option<Principal>, Status> {
+        spec: GrpcRequestSpec<'_>,
+    ) -> Result<(), Status> {
         if self.state.runtime.is_draining() {
             return Err(Status::unavailable("server is draining"));
         }
-        let Some(extension) = self.state.extension.as_ref() else {
-            return Ok(None);
+        let Some(auth) = self.state.auth.as_ref() else {
+            return Ok(());
         };
-        let context = grpc_extension_context(&self.state.config.tenant_id, &spec, metadata, None);
-        match extension.evaluate_access(&context).await {
-            AccessDecision::Allow(principal) => Ok(principal),
+        let context = grpc_request_context(&self.state.config.tenant_id, &spec, metadata, None);
+        match auth.evaluate_access(&context).await {
+            AccessDecision::Allow => Ok(()),
             AccessDecision::Deny(deny) => {
                 Err(grpc_status_from_http_status(deny.status, &deny.message))
             }
         }
-    }
-
-    async fn apply_response_headers<T>(
-        &self,
-        response: &mut Response<T>,
-        spec: GrpcExtensionSpec<'_>,
-        principal: Option<&Principal>,
-    ) -> Result<(), Status> {
-        let Some(extension) = self.state.extension.as_ref() else {
-            return Ok(());
-        };
-        let context = grpc_extension_context(
-            &self.state.config.tenant_id,
-            &spec,
-            response.metadata(),
-            Some(200),
-        );
-        let headers = extension.response_headers(&context, principal).await;
-        for (name, value) in headers.headers {
-            let metadata_key = tonic::metadata::MetadataKey::from_bytes(name.as_bytes())
-                .map_err(|_| Status::internal("invalid extension response header name"))?;
-            let metadata_value = tonic::metadata::MetadataValue::try_from(value.as_str())
-                .map_err(|_| Status::internal("invalid extension response header value"))?;
-            response.metadata_mut().insert(metadata_key, metadata_value);
-        }
-        Ok(())
     }
 
     fn retain_unary_response_materialization<T: Message>(
@@ -317,7 +291,6 @@ impl ReapiService {
         let mut stream = request.into_inner();
         let mut resource_name = None::<String>;
         let mut resource = None::<BlobResource>;
-        let mut principal = None::<Principal>;
         let mut file_cache_policy = FileCachePolicy::Adaptive;
         let mut written = 0_u64;
         let mut advised_through = 0_u64;
@@ -360,7 +333,7 @@ impl ReapiService {
                 }
             } else {
                 let parsed_resource = parse_write_resource_name(&chunk_resource_name)?;
-                let write_extension = GrpcExtensionSpec {
+                let write_spec = GrpcRequestSpec {
                     route: "reapi.bytestream.write",
                     operation: "artifact.write",
                     namespace_id: Some(&parsed_resource.namespace_id),
@@ -368,7 +341,7 @@ impl ReapiService {
                     artifact_key: None,
                     artifact_hash: None,
                 };
-                principal = self.authorize_metadata(&metadata, write_extension).await?;
+                self.authorize_metadata(&metadata, write_spec).await?;
                 file_cache_policy =
                     memory_admission.try_configure_staging(parsed_resource.size_bytes)?;
                 let disk_reservation = self
@@ -506,22 +479,9 @@ impl ReapiService {
             persisted.manifest.size,
         );
 
-        let mut response = Response::new(bytestream::WriteResponse {
+        let response = Response::new(bytestream::WriteResponse {
             committed_size: written as i64,
         });
-        self.apply_response_headers(
-            &mut response,
-            GrpcExtensionSpec {
-                route: "reapi.bytestream.write",
-                operation: "artifact.write",
-                namespace_id: Some(&resource.namespace_id),
-                producer: Some("reapi"),
-                artifact_key: Some(resource.key),
-                artifact_hash: Some(resource.hash),
-            },
-            principal.as_ref(),
-        )
-        .await?;
         // Book usage only after the response is fully built (headers applied) and
         // only when the blob was newly stored, so a re-upload isn't billed twice.
         if !persisted.already_present {
@@ -1025,7 +985,7 @@ impl Capabilities for ReapiService {
         request: Request<reapi::GetCapabilitiesRequest>,
     ) -> Result<Response<reapi::ServerCapabilities>, Status> {
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
-        let extension = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.capabilities.get",
             operation: "capabilities.read",
             namespace_id: Some(namespace_id),
@@ -1033,8 +993,8 @@ impl Capabilities for ReapiService {
             artifact_key: None,
             artifact_hash: None,
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
-        let mut response = Response::new(reapi::ServerCapabilities {
+        self.authorize_request(&request, auth.clone()).await?;
+        let response = Response::new(reapi::ServerCapabilities {
             cache_capabilities: Some(reapi::CacheCapabilities {
                 digest_functions: vec![reapi::digest_function::Value::Sha256 as i32],
                 action_cache_update_capabilities: Some(reapi::ActionCacheUpdateCapabilities {
@@ -1066,8 +1026,6 @@ impl Capabilities for ReapiService {
                 prerelease: String::new(),
             }),
         });
-        self.apply_response_headers(&mut response, extension, principal.as_ref())
-            .await?;
         Ok(response)
     }
 }
@@ -1086,7 +1044,7 @@ impl ActionCache for ReapiService {
             .as_ref()
             .ok_or_else(|| Status::invalid_argument("missing action_digest"))?;
         let key = action_cache_key(&digest_key(digest)?);
-        let extension = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.action_cache.get",
             operation: "artifact.read",
             namespace_id: Some(namespace_id),
@@ -1094,7 +1052,7 @@ impl ActionCache for ReapiService {
             artifact_key: Some(key.clone()),
             artifact_hash: Some(digest.hash.clone()),
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
+        self.authorize_request(&request, auth.clone()).await?;
         // Instance-wide action-cache snapshot: a reserved action key whose
         // "result" is the namespace's complete key→value map (deduplicated
         // node table + per-key node lists), inlined into a single output
@@ -1139,8 +1097,6 @@ impl ActionCache for ReapiService {
                     ]),
                 );
             }
-            self.apply_response_headers(&mut response, extension, principal.as_ref())
-                .await?;
             self.state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Reapi, "ok", served);
@@ -1173,16 +1129,17 @@ impl ActionCache for ReapiService {
         // files, stdout/stderr, and each output directory's tree plus the files
         // it lists — not just output files, so an REAPI client with tree
         // artifacts is covered as well. Mostly existence-cache hits.
-        if let Some(missing) = first_evicted_output(
+        let presence = first_evicted_output(
             &self.state,
             namespace_id,
             &action_result,
+            self.state.store.segment_ring_is_aging(),
             materialization_budget
                 .get_mut()
                 .expect("action-cache materialization budget lock poisoned"),
         )
-        .await
-        {
+        .await;
+        if let Some(missing) = presence.evicted {
             // Delete the dead entry past the replication grace window (a
             // freshly replicated entry's blobs may still be in flight), so
             // the next publish recreates it instead of every reader paying
@@ -1210,6 +1167,20 @@ impl ActionCache for ReapiService {
                 "action result references evicted output blobs",
             ));
         }
+        // The gate passed, so this response vouches for every blob it
+        // references. REAPI asks that those blobs be available "at the time of
+        // returning the ActionResult and will be for some period of time
+        // afterwards", with their lifetimes increased where applicable. The
+        // gate above answers from metadata alone, so nothing on this path has
+        // kept them alive. Without this, eviction between here and the
+        // client's BatchReadBlobs hands it a missing object, which clang treats
+        // as a hard build failure rather than a recompile.
+        self.state.store.extend_artifact_lifetimes(
+            ArtifactProducer::Reapi,
+            namespace_id,
+            &presence.present,
+            RefreshTrigger::ActionCache,
+        );
         // Everything this RPC returns is egress: the stored action result plus
         // any stdout/stderr/output-file blobs inlined below, so all of it is
         // accumulated for the usage rollup.
@@ -1252,7 +1223,7 @@ impl ActionCache for ReapiService {
             action_result.stderr_raw = bytes;
         }
         if !request.get_ref().inline_output_files.is_empty() {
-            // `"*"` is a Kura extension to the REAPI `inline_output_files`
+            // `"*"` is a Kura auth to the REAPI `inline_output_files`
             // hint: inline the contents of every output file the response
             // budget affords. It exists for clients (the Xcode CAS plugin)
             // whose output-file paths are digests unknown before this
@@ -1335,8 +1306,6 @@ impl ActionCache for ReapiService {
         if let Some(response_memory) = response_memory {
             response.extensions_mut().insert(response_memory);
         }
-        self.apply_response_headers(&mut response, extension, principal.as_ref())
-            .await?;
         self.state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", size_bytes);
@@ -1368,7 +1337,7 @@ impl ActionCache for ReapiService {
             .clone()
             .ok_or_else(|| Status::invalid_argument("missing action_result"))?;
         let key = action_cache_key(&digest_key(digest)?);
-        let extension = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.action_cache.update",
             operation: "artifact.write",
             namespace_id: Some(namespace_id),
@@ -1376,7 +1345,7 @@ impl ActionCache for ReapiService {
             artifact_key: Some(key.clone()),
             artifact_hash: Some(digest.hash.clone()),
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
+        self.authorize_request(&request, auth.clone()).await?;
         let branch = ref_metadata(&request, "x-tuist-branch", "x-tuist-branch-bin");
         let trunk = ref_metadata(&request, "x-tuist-trunk-branch", "x-tuist-trunk-branch-bin");
         let bytes = action_result.encode_to_vec();
@@ -1422,8 +1391,6 @@ impl ActionCache for ReapiService {
             .metrics
             .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
         let mut response = Response::new(action_result);
-        self.apply_response_headers(&mut response, extension, principal.as_ref())
-            .await?;
         self.retain_unary_response_materialization(&mut response, "action result response")?;
         // Book usage only after the response is fully built. Every applied
         // update is billed: an action result is a mutable entry whose content
@@ -1449,7 +1416,7 @@ impl ContentAddressableStorage for ReapiService {
     ) -> Result<Response<reapi::FindMissingBlobsResponse>, Status> {
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
-        let extension = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.cas.find_missing",
             operation: "artifact.inspect",
             namespace_id: Some(namespace_id),
@@ -1457,8 +1424,19 @@ impl ContentAddressableStorage for ReapiService {
             artifact_key: None,
             artifact_hash: None,
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
+        self.authorize_request(&request, auth.clone()).await?;
         let mut missing = Vec::new();
+        // "Servers SHOULD increase the lifetimes of the referenced blobs if
+        // necessary and applicable": a client told a blob is present skips
+        // uploading it and relies on it staying present, so the answer has to
+        // keep it alive the same way a served action result does. The request's
+        // digest count is client-controlled up to the 64 MiB decode ceiling, so
+        // extension happens inside the presence lookup rather than over a
+        // collected key set: no per-digest allocation is retained, and a
+        // present blob costs one manifest lookup rather than two. When no
+        // segment has aged there is nothing to promote, so the plain existence
+        // check keeps its existence-cache short-circuit.
+        let aging = self.state.store.segment_ring_is_aging();
         for digest in &request.get_ref().blob_digests {
             // The empty blob is present by REAPI convention even when it was
             // never uploaded; reporting it missing would push clients to upload
@@ -1467,14 +1445,23 @@ impl ContentAddressableStorage for ReapiService {
                 continue;
             }
             let key = blob_key(&digest_key(digest)?);
-            let exists = self
-                .state
-                .store
-                .artifact_exists(ArtifactProducer::Reapi, namespace_id, &key)
-                .await
-                .map_err(|error| {
-                    Status::internal(format!("failed to inspect CAS blob: {error}"))
-                })?;
+            let exists = if aging {
+                self.state
+                    .store
+                    .artifact_exists_extending_lifetime(
+                        ArtifactProducer::Reapi,
+                        namespace_id,
+                        &key,
+                        RefreshTrigger::FindMissing,
+                    )
+                    .await
+            } else {
+                self.state
+                    .store
+                    .artifact_exists(ArtifactProducer::Reapi, namespace_id, &key)
+                    .await
+            }
+            .map_err(|error| Status::internal(format!("failed to inspect CAS blob: {error}")))?;
             if !exists {
                 missing.push(digest.clone());
             }
@@ -1483,8 +1470,6 @@ impl ContentAddressableStorage for ReapiService {
         let mut response = Response::new(reapi::FindMissingBlobsResponse {
             missing_blob_digests: missing,
         });
-        self.apply_response_headers(&mut response, extension, principal.as_ref())
-            .await?;
         self.retain_unary_response_materialization(&mut response, "missing blobs response")?;
         Ok(response)
     }
@@ -1500,7 +1485,7 @@ impl ContentAddressableStorage for ReapiService {
             .ok_or_else(|| Status::internal("write decode admission was not propagated"))?;
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
-        let extension = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.cas.batch_update",
             operation: "artifact.write",
             namespace_id: Some(namespace_id),
@@ -1508,7 +1493,7 @@ impl ContentAddressableStorage for ReapiService {
             artifact_key: None,
             artifact_hash: None,
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
+        self.authorize_request(&request, auth.clone()).await?;
         let mut responses = Vec::with_capacity(request.get_ref().requests.len());
         // Accumulate only the bytes this RPC actually stored so the whole batch
         // books a single usage request (matching how ByteStream/HTTP count one
@@ -1558,8 +1543,6 @@ impl ContentAddressableStorage for ReapiService {
         }
 
         let mut response = Response::new(reapi::BatchUpdateBlobsResponse { responses });
-        self.apply_response_headers(&mut response, extension, principal.as_ref())
-            .await?;
         self.retain_unary_response_materialization(&mut response, "batch update response")?;
         if stored_any {
             self.record_reapi_upload(request.metadata(), namespace_id, stored_bytes);
@@ -1573,7 +1556,7 @@ impl ContentAddressableStorage for ReapiService {
     ) -> Result<Response<reapi::BatchReadBlobsResponse>, Status> {
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
-        let extension = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.cas.batch_read",
             operation: "artifact.read",
             namespace_id: Some(namespace_id),
@@ -1581,7 +1564,7 @@ impl ContentAddressableStorage for ReapiService {
             artifact_key: None,
             artifact_hash: None,
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
+        self.authorize_request(&request, auth.clone()).await?;
         // Blobs are read concurrently: a sequential await per blob caps the
         // whole batch at per-read latency times batch size, which dominates
         // large read-heavy clients (measured ~4ms per blob serialized). The
@@ -1647,8 +1630,6 @@ impl ContentAddressableStorage for ReapiService {
         if let Some(response_memory) = response_memory {
             response.extensions_mut().insert(response_memory);
         }
-        self.apply_response_headers(&mut response, extension, principal.as_ref())
-            .await?;
         if served_any {
             self.record_reapi_download(request.metadata(), namespace_id, served_bytes);
         }
@@ -1687,7 +1668,7 @@ impl ByteStream for ReapiService {
         request: Request<bytestream::ReadRequest>,
     ) -> Result<Response<Self::ReadStream>, Status> {
         let resource = parse_read_resource_name(&request.get_ref().resource_name)?;
-        let extension = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.bytestream.read",
             operation: "artifact.read",
             namespace_id: Some(&resource.namespace_id),
@@ -1695,7 +1676,7 @@ impl ByteStream for ReapiService {
             artifact_key: Some(resource.key.clone()),
             artifact_hash: Some(resource.hash.clone()),
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
+        self.authorize_request(&request, auth.clone()).await?;
         if request.get_ref().read_offset < 0 {
             return Err(Status::invalid_argument("read_offset must be non-negative"));
         }
@@ -1801,8 +1782,6 @@ impl ByteStream for ReapiService {
             );
 
         let mut response = Response::new(Box::pin(stream) as Self::ReadStream);
-        self.apply_response_headers(&mut response, extension, principal.as_ref())
-            .await?;
         response
             .extensions_mut()
             .insert(permit.into_transport_guard());
@@ -1850,7 +1829,7 @@ impl ByteStream for ReapiService {
         request: Request<bytestream::QueryWriteStatusRequest>,
     ) -> Result<Response<bytestream::QueryWriteStatusResponse>, Status> {
         let resource = parse_write_resource_name(&request.get_ref().resource_name)?;
-        let extension = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.bytestream.query_write_status",
             operation: "artifact.inspect",
             namespace_id: Some(&resource.namespace_id),
@@ -1858,7 +1837,7 @@ impl ByteStream for ReapiService {
             artifact_key: Some(resource.key.clone()),
             artifact_hash: Some(resource.hash.clone()),
         };
-        let principal = self.authorize_request(&request, extension.clone()).await?;
+        self.authorize_request(&request, auth.clone()).await?;
         let manifest = self
             .state
             .store
@@ -1872,12 +1851,10 @@ impl ByteStream for ReapiService {
 
         match manifest {
             Some(manifest) => {
-                let mut response = Response::new(bytestream::QueryWriteStatusResponse {
+                let response = Response::new(bytestream::QueryWriteStatusResponse {
                     committed_size: manifest.size as i64,
                     complete: true,
                 });
-                self.apply_response_headers(&mut response, extension, principal.as_ref())
-                    .await?;
                 Ok(response)
             }
             None => Err(Status::not_found("blob not found")),
@@ -2030,8 +2007,10 @@ async fn maybe_read_cas_bytes(
     Ok(Some(bytes))
 }
 
-/// The hash of the first blob this action result references that is no longer
-/// present in the CAS, or `None` when every referenced blob is present.
+/// Whether every blob this action result references is still present, and, when
+/// `collecting`, the keys of the ones confirmed present so their lifetimes can
+/// be extended. Callers pass [`Store::segment_ring_is_aging`]: with nothing aged
+/// into the Old generation nothing is promotable, so the keys are not retained.
 ///
 /// The original per-key gate (PR #11793) checked `output_files` only; this
 /// covers the rest of what a client fetches when it replays a hit: `stdout` and
@@ -2055,39 +2034,29 @@ async fn first_evicted_output(
     state: &SharedState,
     namespace_id: &str,
     action_result: &reapi::ActionResult,
+    collecting: bool,
     materialization_budget: &mut MaterializationBudget<'_>,
-) -> Option<String> {
-    let missing = |digest: &reapi::Digest| {
-        !is_empty_blob(digest)
-            && digest_key(digest).is_ok_and(|key| {
-                !state
-                    .store
-                    .artifact_manifest_exists(
-                        ArtifactProducer::Reapi,
-                        namespace_id,
-                        &blob_key(&key),
-                    )
-                    .unwrap_or(true)
-            })
-    };
+) -> OutputPresence {
+    let mut present = Vec::new();
 
-    let stream_evicted = action_result
+    for digest in action_result
         .output_files
         .iter()
         .filter_map(|file| file.digest.as_ref())
         .chain(action_result.stdout_digest.as_ref())
         .chain(action_result.stderr_digest.as_ref())
-        .find(|&digest| missing(digest));
-    if let Some(digest) = stream_evicted {
-        return Some(digest.hash.clone());
+    {
+        if blob_evicted(state, namespace_id, digest, collecting, &mut present) {
+            return OutputPresence::evicted(&digest.hash);
+        }
     }
 
     for directory in &action_result.output_directories {
         let Some(tree_digest) = directory.tree_digest.as_ref() else {
             continue;
         };
-        if missing(tree_digest) {
-            return Some(tree_digest.hash.clone());
+        if blob_evicted(state, namespace_id, tree_digest, collecting, &mut present) {
+            return OutputPresence::evicted(&tree_digest.hash);
         }
         // The tree blob survives; a client next fetches every file it lists, so
         // an evicted leaf poisons the replay just as a missing tree would. This
@@ -2107,18 +2076,75 @@ async fn first_evicted_output(
         let Ok(tree) = reapi::Tree::decode(bytes.as_slice()) else {
             continue;
         };
-        let leaf_evicted = tree
+        for digest in tree
             .root
             .iter()
             .chain(&tree.children)
             .flat_map(|directory| &directory.files)
             .filter_map(|file| file.digest.as_ref())
-            .find(|&digest| missing(digest));
-        if let Some(digest) = leaf_evicted {
-            return Some(digest.hash.clone());
+        {
+            if blob_evicted(state, namespace_id, digest, collecting, &mut present) {
+                return OutputPresence::evicted(&digest.hash);
+            }
         }
     }
-    None
+
+    OutputPresence {
+        evicted: None,
+        present,
+    }
+}
+
+/// The presence gate's verdict for one action result.
+struct OutputPresence {
+    /// The hash of the first referenced blob found evicted, if any.
+    evicted: Option<String>,
+    /// Blob keys confirmed present while checking, collected so a served entry
+    /// can extend their lifetimes. Left empty when `evicted` is set: that entry
+    /// is not served and is usually deleted, so refreshing its surviving blobs
+    /// on its behalf would be pure write amplification.
+    present: Vec<String>,
+}
+
+impl OutputPresence {
+    fn evicted(hash: &str) -> Self {
+        Self {
+            evicted: Some(hash.to_owned()),
+            present: Vec::new(),
+        }
+    }
+}
+
+/// Whether one referenced blob has been evicted, recording its key when it is
+/// still present and `collecting` says a promotable segment exists. A digest
+/// with no stored artifact of its own (the canonical empty blob, or one whose
+/// key cannot be derived) is neither evicted nor worth refreshing, so it is
+/// skipped on both counts.
+fn blob_evicted(
+    state: &SharedState,
+    namespace_id: &str,
+    digest: &reapi::Digest,
+    collecting: bool,
+    present: &mut Vec<String>,
+) -> bool {
+    if is_empty_blob(digest) {
+        return false;
+    }
+    let Ok(key) = digest_key(digest) else {
+        return false;
+    };
+    let key = blob_key(&key);
+    let exists = state
+        .store
+        .artifact_manifest_exists(ArtifactProducer::Reapi, namespace_id, &key)
+        .unwrap_or(true);
+    if exists {
+        if collecting {
+            present.push(key);
+        }
+        return false;
+    }
+    true
 }
 
 // Persists a CAS blob and returns whether it was newly stored (`true`) or was
@@ -2340,7 +2366,7 @@ fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
     // uploaded bytes against it, but update_action_result stores the digest as a
     // key with no body to check against — so without this an authenticated client
     // could persist an arbitrarily long "hash", inflating the manifest key until a
-    // bootstrap page overflows the receiver's MAX_BOOTSTRAP_PAGE_BYTES ceiling and
+    // backfill index page overflows the receiver's MAX_PEER_PAGE_BYTES ceiling and
     // wedges a joining node. Pin it to the fixed width a conforming client sends.
     if digest.hash.len() != 64 || !digest.hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(Status::invalid_argument(
@@ -2389,7 +2415,7 @@ fn rpc_status_from_grpc_status(status: &Status) -> RpcStatus {
 
 // Metadata headers a gRPC client uses to declare the request account, mirroring
 // the HTTP `tenant_id`/`account_handle` query params. The first non-empty match
-// wins. This lets the extension enforce the same request-account-matches-server-
+// wins. This lets the auth enforce the same request-account-matches-server-
 // tenant guard the HTTP path already has; the namespace still comes from the
 // REAPI `instance_name`/`resource_name`, so it always matches what is stored.
 const TENANT_HEADER_KEYS: &[&str] = &["x-kura-tenant-id", "x-tuist-account-handle"];
@@ -2398,7 +2424,7 @@ const REAPI_USAGE_ARTIFACT_KIND: &str = "reapi";
 
 // The request-declared tenant, read straight from the metadata: the first
 // non-empty `TENANT_HEADER_KEYS` value, taking the first value of a repeated
-// key. Authorization (`grpc_extension_context`) and billing (`usage_tenant_id`)
+// key. Authorization (`grpc_request_context`) and billing (`usage_tenant_id`)
 // both resolve the tenant through this one function so a client that duplicates
 // the header can never be authorized as one account and billed to another.
 fn tenant_id_from_metadata(metadata: &tonic::metadata::MetadataMap) -> Option<String> {
@@ -2414,7 +2440,7 @@ fn tenant_id_from_metadata(metadata: &tonic::metadata::MetadataMap) -> Option<St
 
 // The account a gRPC request is billed to. Mirrors the HTTP path, which keys
 // usage off the per-request tenant; over gRPC that arrives as one of the
-// `TENANT_HEADER_KEYS` metadata headers (the same headers the extension
+// `TENANT_HEADER_KEYS` metadata headers (the same headers the auth
 // authorizes against, via the shared [`tenant_id_from_metadata`]). Falls back to
 // the node's configured tenant when the client omits it, so REAPI bandwidth is
 // always attributed rather than silently dropped.
@@ -2422,15 +2448,15 @@ fn usage_tenant_id(metadata: &tonic::metadata::MetadataMap, fallback_tenant_id: 
     tenant_id_from_metadata(metadata).unwrap_or_else(|| fallback_tenant_id.to_owned())
 }
 
-fn grpc_extension_context(
+fn grpc_request_context(
     server_tenant_id: &str,
-    spec: &GrpcExtensionSpec<'_>,
+    spec: &GrpcRequestSpec<'_>,
     metadata: &tonic::metadata::MetadataMap,
     status_code: Option<u16>,
-) -> ExtensionContext {
+) -> RequestContext {
     let headers = metadata_to_btree(metadata);
     let tenant_id = tenant_id_from_metadata(metadata);
-    ExtensionContext {
+    RequestContext {
         transport: "grpc".into(),
         route: spec.route.to_owned(),
         method: "RPC".into(),
@@ -3100,8 +3126,8 @@ mod tests {
             format!("{}/10", hex::encode([0xabu8; 32]))
         );
 
-        // An unbounded hash is what inflates the manifest key past the bootstrap
-        // page ceiling; update_action_result has no body to verify it against, so
+        // An unbounded hash is what inflates the manifest key past the backfill
+        // index page ceiling; update_action_result has no body to verify it against, so
         // the width check is the only thing keeping the key fixed-size.
         for bad in [
             String::new(),
@@ -3527,6 +3553,149 @@ mod tests {
         assert!(
             exists(&young_dead_key),
             "a young dead entry is kept — its blobs may still be mid-replication"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_served_entry_reports_every_blob_whose_lifetime_must_be_extended() {
+        let context = test_context(|_| {}).await;
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+
+        async fn write_artifact(
+            store: &crate::store::Store,
+            uploads: &std::path::Path,
+            key: &str,
+            bytes: &[u8],
+        ) {
+            let path = uploads.join(key.replace('/', "-"));
+            std::fs::write(&path, bytes).expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    &path,
+                    crate::utils::now_ms(),
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        fn digest(hash: [u8; 32], size_bytes: i64) -> reapi::Digest {
+            reapi::Digest {
+                hash: hex::encode(hash),
+                size_bytes,
+            }
+        }
+
+        let out_file = [0x11u8; 32];
+        let stdout = [0x12u8; 32];
+        let stderr = [0x13u8; 32];
+        let tree_hash = [0x14u8; 32];
+        let leaf = [0x15u8; 32];
+        let tree = reapi::Tree {
+            root: Some(reapi::Directory {
+                files: vec![reapi::FileNode {
+                    name: "out".into(),
+                    digest: Some(digest(leaf, 7)),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+        .encode_to_vec();
+
+        for hash in [out_file, stdout, stderr, leaf] {
+            write_artifact(
+                store,
+                &uploads,
+                &blob_key(&format!("{}/7", hex::encode(hash))),
+                b"payload",
+            )
+            .await;
+        }
+        write_artifact(
+            store,
+            &uploads,
+            &blob_key(&format!("{}/{}", hex::encode(tree_hash), tree.len())),
+            &tree,
+        )
+        .await;
+
+        let serveable = reapi::ActionResult {
+            output_files: vec![
+                reapi::OutputFile {
+                    path: "out".into(),
+                    digest: Some(digest(out_file, 7)),
+                    ..Default::default()
+                },
+                reapi::OutputFile {
+                    path: "empty".into(),
+                    digest: Some(reapi::Digest {
+                        hash: EMPTY_BLOB_SHA256.to_string(),
+                        size_bytes: 0,
+                    }),
+                    ..Default::default()
+                },
+            ],
+            stdout_digest: Some(digest(stdout, 7)),
+            stderr_digest: Some(digest(stderr, 7)),
+            output_directories: vec![reapi::OutputDirectory {
+                path: "outdir".into(),
+                tree_digest: Some(digest(tree_hash, tree.len() as i64)),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+
+        let mut budget = MaterializationBudget::new(&context.state);
+        let presence =
+            first_evicted_output(&context.state, "ios", &serveable, true, &mut budget).await;
+
+        assert!(
+            presence.evicted.is_none(),
+            "every referenced blob is present"
+        );
+        let mut extended = presence.present.clone();
+        extended.sort();
+        let mut expected = vec![
+            blob_key(&format!("{}/7", hex::encode(out_file))),
+            blob_key(&format!("{}/7", hex::encode(stdout))),
+            blob_key(&format!("{}/7", hex::encode(stderr))),
+            blob_key(&format!("{}/{}", hex::encode(tree_hash), tree.len())),
+            blob_key(&format!("{}/7", hex::encode(leaf))),
+        ];
+        expected.sort();
+        assert_eq!(
+            extended, expected,
+            "a replay fetches the streams and the tree's leaves too, so the whole set \
+             needs its lifetime extended, while the canonical empty blob, which is \
+             never stored, is not part of it"
+        );
+
+        // An entry that fails the gate is not served and is usually deleted, so
+        // its surviving blobs are not refreshed on its behalf.
+        let doomed = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: "out".into(),
+                digest: Some(digest(out_file, 7)),
+                ..Default::default()
+            }],
+            stderr_digest: Some(digest([0x99u8; 32], 7)),
+            ..Default::default()
+        };
+        let presence =
+            first_evicted_output(&context.state, "ios", &doomed, true, &mut budget).await;
+        assert_eq!(
+            presence.evicted.as_deref(),
+            Some(hex::encode([0x99u8; 32]).as_str())
+        );
+        assert!(
+            presence.present.is_empty(),
+            "nothing is refreshed for an entry that will not be served"
         );
     }
 
@@ -4553,7 +4722,7 @@ mod tests {
     use crate::{
         artifact::producer::ArtifactProducer,
         failpoints::{FailpointAction, FailpointName},
-        test_support::{TestContext, test_context, test_context_with_extension},
+        test_support::{TestContext, test_context, test_context_with_auth},
     };
 
     // Serves the REAPI routes over a plaintext h2c listener for the tests
@@ -5265,8 +5434,8 @@ mod tests {
         assert_eq!(error.code(), tonic::Code::InvalidArgument);
     }
 
-    fn grpc_spec() -> GrpcExtensionSpec<'static> {
-        GrpcExtensionSpec {
+    fn grpc_spec() -> GrpcRequestSpec<'static> {
+        GrpcRequestSpec {
             route: "reapi.capabilities.get",
             operation: "capabilities.read",
             namespace_id: Some("ios"),
@@ -5287,7 +5456,7 @@ mod tests {
     #[test]
     fn grpc_context_reads_tenant_from_kura_header() {
         let metadata = metadata_with(&[("x-kura-tenant-id", "acme")]);
-        let ctx = grpc_extension_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata, None);
         assert_eq!(ctx.tenant_id.as_deref(), Some("acme"));
         assert_eq!(ctx.namespace_id.as_deref(), Some("ios"));
     }
@@ -5295,80 +5464,112 @@ mod tests {
     #[test]
     fn grpc_context_reads_tenant_from_tuist_account_handle_alias() {
         let metadata = metadata_with(&[("x-tuist-account-handle", "acme")]);
-        let ctx = grpc_extension_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata, None);
         assert_eq!(ctx.tenant_id.as_deref(), Some("acme"));
     }
 
     #[test]
     fn grpc_context_without_tenant_header_leaves_tenant_unset() {
         let metadata = tonic::metadata::MetadataMap::new();
-        let ctx = grpc_extension_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata, None);
         assert_eq!(ctx.tenant_id, None);
         assert_eq!(ctx.namespace_id.as_deref(), Some("ios"));
     }
 
-    // Minimal policy: any token authenticates; only namespace "ios" is authorized.
-    // Used to prove that GetCapabilities and ByteStream Write reach the extension
-    // with the request's project namespace (instance_name / resource_name), not
-    // the account scope they previously fell back to.
-    const NAMESPACE_POLICY_SCRIPT: &str = r#"
-function authenticate(ctx)
-  return { principal = { id = "test", kind = "subject" }, ttl_seconds = 60 }
-end
+    // A token granting exactly one project. Both tests below use it to prove
+    // that GetCapabilities and ByteStream Write authorize the request's project
+    // namespace (instance_name / resource_name), not the account scope they
+    // previously fell back to.
+    const NAMESPACE_POLICY_SECRET: &str = "namespace-policy-secret";
 
-function authorize(ctx, principal)
-  if ctx.namespace_id == "ios" then
-    return { allow = true, ttl_seconds = 60 }
-  end
-  return { deny = { status = 403, message = "forbidden namespace" }, ttl_seconds = 1 }
-end
-"#;
-
-    async fn namespace_policy_extension() -> crate::extension::SharedExtension {
-        let dir = tempfile::tempdir().expect("create policy temp dir");
-        let script_path = dir.path().join("policy.lua");
-        tokio::fs::write(&script_path, NAMESPACE_POLICY_SCRIPT)
-            .await
-            .expect("write policy script");
-        crate::extension::ExtensionEngine::from_script_for_test(
-            script_path,
-            crate::metrics::Metrics::new("test".into(), "tenant".into()),
+    fn namespace_policy_token() -> String {
+        jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+            &serde_json::json!({
+                "sub": "test",
+                "type": "subject",
+                "scopes": ["project_cache_write"],
+                "cache_grants": { "project": { "write": ["test-tenant/ios"] } },
+                "exp": 4_102_444_800_u64,
+            }),
+            &jsonwebtoken::EncodingKey::from_secret(NAMESPACE_POLICY_SECRET.as_bytes()),
         )
-        .await
-        .expect("build policy extension")
+        .expect("mint a policy token")
+    }
+
+    // A server is configured, but its base URL refuses connections on purpose.
+    // A namespace the token's own grants name is answered from those grants and
+    // never reaches it; one they do not name has to, and cannot.
+    fn namespace_policy_auth() -> crate::auth::SharedAuth {
+        std::sync::Arc::new(
+            crate::auth::AuthEngine::new(
+                crate::auth::config::AuthConfig {
+                    base_url: "http://127.0.0.1:1".into(),
+                    connect_timeout: Duration::from_millis(50),
+                    request_timeout: Duration::from_millis(50),
+                    verifier: Some(crate::auth::tuist::JwtVerifier {
+                        algorithm: jsonwebtoken::Algorithm::HS256,
+                        keys: crate::auth::tuist::JwtVerifier::secret_keys(NAMESPACE_POLICY_SECRET),
+                        issuer: None,
+                        audiences: Vec::new(),
+                    }),
+                    introspection: None,
+                    cache_max_entries: 128,
+                },
+                crate::metrics::Metrics::new("test".into(), "tenant".into()),
+            )
+            .expect("build the policy engine"),
+        )
+    }
+
+    fn bearing_policy_token<T>(message: T) -> Request<T> {
+        let mut request = Request::new(message);
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", namespace_policy_token())
+                .parse()
+                .expect("bearer metadata"),
+        );
+        request
     }
 
     #[tokio::test]
     async fn get_capabilities_authorizes_against_instance_namespace() {
-        let extension = namespace_policy_extension().await;
-        let context = test_context_with_extension(|_| {}, Some(extension)).await;
+        let auth = namespace_policy_auth();
+        let context = test_context_with_auth(|_| {}, Some(auth)).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
 
         service
-            .get_capabilities(Request::new(reapi::GetCapabilitiesRequest {
+            .get_capabilities(bearing_policy_token(reapi::GetCapabilitiesRequest {
                 instance_name: "ios".into(),
             }))
             .await
             .expect("capabilities for a granted instance_name should be allowed");
 
+        // Grants that do not name the instance do not settle it: they are a
+        // snapshot from when the token was minted, and the server can still
+        // return wider ones. Only the server can say, and this one refuses
+        // connections, so the node reports that rather than deciding on its
+        // own. Authentication is resolved per target, so the answer for `ios`
+        // above is not reused here.
         let denied = service
-            .get_capabilities(Request::new(reapi::GetCapabilitiesRequest {
+            .get_capabilities(bearing_policy_token(reapi::GetCapabilitiesRequest {
                 instance_name: "forbidden".into(),
             }))
             .await
             .expect_err("capabilities for a non-granted instance_name should be denied");
-        assert_eq!(denied.code(), tonic::Code::PermissionDenied);
+        assert_eq!(denied.code(), tonic::Code::Unavailable);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn bytestream_write_authorizes_against_resource_namespace() {
         use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
 
-        let extension = namespace_policy_extension().await;
-        let context = test_context_with_extension(|_| {}, Some(extension)).await;
+        let auth = namespace_policy_auth();
+        let context = test_context_with_auth(|_| {}, Some(auth)).await;
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind test listener");
@@ -5405,29 +5606,37 @@ end
 
         // Granted namespace ("ios", from the resource_name prefix) authorizes and persists.
         let committed = ByteStreamClient::new(channel.clone())
-            .write(tokio_stream::iter(vec![bytestream::WriteRequest {
-                resource_name: format!("ios/uploads/write-1/blobs/{hash}/{len}"),
-                write_offset: 0,
-                finish_write: true,
-                data: blob.clone(),
-            }]))
+            .write(bearing_policy_token(tokio_stream::iter(vec![
+                bytestream::WriteRequest {
+                    resource_name: format!("ios/uploads/write-1/blobs/{hash}/{len}"),
+                    write_offset: 0,
+                    finish_write: true,
+                    data: blob.clone(),
+                },
+            ])))
             .await
             .expect("write to a granted namespace should be allowed")
             .into_inner()
             .committed_size;
         assert_eq!(committed as usize, len);
 
-        // Non-granted namespace ("forbidden") is rejected before the blob is persisted.
+        // Non-granted namespace ("forbidden") is rejected before the blob is
+        // persisted. Grants that do not name it do not settle it — they are a
+        // snapshot from minting time and the server can still return wider ones
+        // — and this server refuses connections, so the node reports that
+        // rather than deciding on its own.
         let denied = ByteStreamClient::new(channel.clone())
-            .write(tokio_stream::iter(vec![bytestream::WriteRequest {
-                resource_name: format!("forbidden/uploads/write-2/blobs/{hash}/{len}"),
-                write_offset: 0,
-                finish_write: true,
-                data: blob.clone(),
-            }]))
+            .write(bearing_policy_token(tokio_stream::iter(vec![
+                bytestream::WriteRequest {
+                    resource_name: format!("forbidden/uploads/write-2/blobs/{hash}/{len}"),
+                    write_offset: 0,
+                    finish_write: true,
+                    data: blob.clone(),
+                },
+            ])))
             .await
             .expect_err("write to a non-granted namespace should be denied");
-        assert_eq!(denied.code(), tonic::Code::PermissionDenied);
+        assert_eq!(denied.code(), tonic::Code::Unavailable);
 
         let _ = shutdown_tx.send(());
         let _ = server.await;
@@ -6058,12 +6267,12 @@ end
         metadata.append("x-tuist-account-handle", "acme".parse().unwrap());
         metadata.append("x-tuist-account-handle", "globex".parse().unwrap());
 
-        // The authorization path (grpc_extension_context) and the billing path
+        // The authorization path (grpc_request_context) and the billing path
         // (usage_tenant_id) read the same value.
         assert_eq!(tenant_id_from_metadata(&metadata).as_deref(), Some("acme"));
         assert_eq!(usage_tenant_id(&metadata, "node-tenant"), "acme");
 
-        let spec = GrpcExtensionSpec {
+        let spec = GrpcRequestSpec {
             route: "reapi.bytestream.read",
             operation: "artifact.read",
             namespace_id: Some("ios"),
@@ -6071,7 +6280,7 @@ end
             artifact_key: None,
             artifact_hash: None,
         };
-        let context = grpc_extension_context("acme", &spec, &metadata, None);
+        let context = grpc_request_context("acme", &spec, &metadata, None);
         assert_eq!(context.tenant_id.as_deref(), Some("acme"));
     }
 

@@ -144,7 +144,7 @@ defmodule Tuist.ReleaseTest do
                ~s(REVOKE ALL ON ALL TABLES IN SCHEMA "public" FROM "tuist_processor"),
                ~s(GRANT CONNECT ON DATABASE "tuist" TO "tuist_processor"),
                ~s(GRANT USAGE ON SCHEMA "public" TO "tuist_processor"),
-               ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public".oban_jobs, "public".oban_peers TO "tuist_processor"),
+               ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public".oban_jobs, "public".oban_peers, "public".test_case_run_flaky_corrections TO "tuist_processor"),
                ~s(GRANT USAGE, SELECT ON SEQUENCE "public".oban_jobs_id_seq TO "tuist_processor"),
                ~s(GRANT SELECT ON TABLE "public".accounts, "public".projects, "public".automation_alerts, "public".webhook_endpoints TO "tuist_processor")
              ]
@@ -163,7 +163,7 @@ defmodule Tuist.ReleaseTest do
       assert occurrences(sql, expected_read_grant) == 1
 
       assert sql =~
-               ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers TO tuist_processor;)
+               ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers, :"tuist_schema".test_case_run_flaky_corrections TO tuist_processor;)
 
       assert sql =~ ~s(REVOKE ALL ON ALL TABLES IN SCHEMA :"tuist_schema" FROM tuist_processor;)
     end

@@ -409,7 +409,18 @@ func main() {
 			}
 			return diskPressureFromGuests(ctx, tartClient, diskPressureThresholdPercent)
 		},
-		DynamicLabels: goldenLabelProvider,
+		DynamicLabels: []nodeagent.LabelAdvertisement{
+			{Name: "golden-images", Labels: goldenLabelProvider},
+			// Unlike goldens, a failed scan is NOT masked with the last good
+			// result. The scan reads the runner-cache root, so it typically
+			// fails because the volume is unmounted — in which case the masters
+			// really are unusable and advertising them would send warm-expecting
+			// work to a host that will materialize cold. Retiring the labels
+			// costs at most a heartbeat of oldest-queued dispatch.
+			{Name: "cache-masters", Labels: func(context.Context) (map[string]string, error) {
+				return volumes.CacheMasterNodeLabels()
+			}},
+		},
 	}); err != nil {
 		setupLog.Error(err, "add node maintainer")
 		os.Exit(1)
