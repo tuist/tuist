@@ -77,6 +77,29 @@ enum SystemProcess {
         }
     }
 
+    /// A finished process, whether it succeeded or not. Callers that want to inspect a
+    /// failure before deciding what to do with it use this instead of `run`, which turns
+    /// any non-zero exit into a thrown error.
+    struct Outcome {
+        let succeeded: Bool
+        let terminationStatusDescription: String
+        let stdout: Data
+        let stderr: Data
+
+        var stdoutString: String {
+            String(data: stdout, encoding: .utf8) ?? ""
+        }
+
+        var stderrString: String {
+            String(data: stderr, encoding: .utf8) ?? ""
+        }
+
+        var failureMessage: String {
+            let message = stderrString.isEmpty ? stdoutString : stderrString
+            return message.isEmpty ? terminationStatusDescription : message
+        }
+    }
+
     @discardableResult
     static func run(
         _ executable: String,
@@ -86,21 +109,62 @@ enum SystemProcess {
         forwardOutput: Bool = false,
         outputLimit: Int = 64 * 1024 * 1024
     ) async throws -> Result {
+        let outcome = try await outcome(
+            executable,
+            arguments,
+            workingDirectory: workingDirectory,
+            environment: environment,
+            forwardOutput: forwardOutput,
+            outputLimit: outputLimit
+        )
+
+        guard outcome.succeeded else {
+            // A forwarded run already printed its diagnostics to this process' stderr, so
+            // repeating them in the thrown error would duplicate them in the caller's output.
+            throw ToolError.message(
+                forwardOutput ? outcome.terminationStatusDescription : outcome.failureMessage
+            )
+        }
+
+        return Result(stdout: outcome.stdout, stderr: outcome.stderr)
+    }
+
+    static func outcome(
+        _ executable: String,
+        _ arguments: [String],
+        workingDirectory: URL? = nil,
+        environment: [String: String] = [:],
+        forwardOutput: Bool = false,
+        outputLimit: Int = 64 * 1024 * 1024
+    ) async throws -> Outcome {
         if forwardOutput {
+            // Standard error is teed rather than handed to the terminal directly: the child's
+            // diagnostics still stream out as they are produced, and the copy lets callers
+            // recognise a known-recoverable failure instead of only seeing an exit status.
             let result = try await Subprocess.run(
                 subprocessExecutable(executable),
                 arguments: Arguments(arguments),
                 environment: subprocessEnvironment(environment),
                 workingDirectory: workingDirectory.map { FilePath($0.path) },
-                output: .standardOutput,
-                error: .standardError
-            )
-
-            guard result.terminationStatus.isSuccess else {
-                throw ToolError.message(result.terminationStatus.description)
+                output: .standardOutput
+            ) { _, errorSequence in
+                var captured = Data()
+                for try await buffer in errorSequence {
+                    let chunk = buffer.withUnsafeBytes { Data($0) }
+                    FileHandle.standardError.write(chunk)
+                    if captured.count < outputLimit {
+                        captured.append(chunk.prefix(outputLimit - captured.count))
+                    }
+                }
+                return captured
             }
 
-            return Result(stdout: Data(), stderr: Data())
+            return Outcome(
+                succeeded: result.terminationStatus.isSuccess,
+                terminationStatusDescription: result.terminationStatus.description,
+                stdout: Data(),
+                stderr: result.value
+            )
         }
 
         let result = try await Subprocess.run(
@@ -112,16 +176,12 @@ enum SystemProcess {
             error: .bytes(limit: outputLimit)
         )
 
-        guard result.terminationStatus.isSuccess else {
-            let stderrText = String(data: Data(result.standardError), encoding: .utf8) ?? ""
-            let stdoutText = String(data: Data(result.standardOutput), encoding: .utf8) ?? ""
-            let message = stderrText.isEmpty ? stdoutText : stderrText
-            throw ToolError.message(
-                message.isEmpty ? result.terminationStatus.description : message
-            )
-        }
-
-        return Result(stdout: Data(result.standardOutput), stderr: Data(result.standardError))
+        return Outcome(
+            succeeded: result.terminationStatus.isSuccess,
+            terminationStatusDescription: result.terminationStatus.description,
+            stdout: Data(result.standardOutput),
+            stderr: Data(result.standardError)
+        )
     }
 
     static func output(
