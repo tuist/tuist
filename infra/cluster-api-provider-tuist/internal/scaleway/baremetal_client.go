@@ -188,22 +188,6 @@ func (c *BaremetalClient) PartitioningSchemaFor(ctx context.Context, zone scw.Zo
 	return planned, nil
 }
 
-// PlanAndValidateOfferSchema resolves an offer by name, plans its install layout
-// and has Scaleway validate it, all without a server. It is the pre-flight the
-// other two providers cannot offer: a partitioning payload is otherwise only
-// exercised by a real install, and a real install wipes a box.
-func (c *BaremetalClient) PlanAndValidateOfferSchema(ctx context.Context, zone scw.Zone, offerName, osLabel string) (*baremetal.Schema, error) {
-	offer, err := c.Baremetal.GetOfferByName(&baremetal.GetOfferByNameRequest{OfferName: offerName, Zone: zone})
-	if err != nil {
-		return nil, fmt.Errorf("resolve offer %q: %w", offerName, err)
-	}
-	osID, err := c.resolveOS(ctx, zone, offer.ID, osLabel)
-	if err != nil {
-		return nil, err
-	}
-	return c.PartitioningSchemaFor(ctx, zone, offer.ID, osID)
-}
-
 // ReinstallServer wipes a server back to a clean, claimable state by
 // reinstalling its OS — the Elastic Metal analog of the macOS ReleaseToPool.
 // Used on Machine delete to RETURN the pre-ordered box to the pool rather than

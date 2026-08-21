@@ -453,7 +453,7 @@ func (c *Client) StartInstall(ctx context.Context, p InstallParams) error {
 		SSHKeyIDs: p.SSHKeyIDs,
 	}
 	if p.OS.AllowCustomPartitioning {
-		partitions, err := c.PlanPartitions(ctx, p.Zone, p.ServerID, p.OS)
+		partitions, err := c.planPartitions(ctx, p.Zone, p.ServerID, p.OS)
 		if err != nil {
 			return err
 		}
@@ -494,10 +494,9 @@ func (c *Client) StartInstall(ctx context.Context, p InstallParams) error {
 	return nil
 }
 
-// PlanPartitions returns the install layout for a server + OS without starting
-// an install: the provider's own default with /data formatted as XFS. Exported
-// so the layout can be inspected before a wipe, since a wrong one costs a box.
-func (c *Client) PlanPartitions(ctx context.Context, zone string, serverID uint64, os OSChoice) ([]*scwdedibox.InstallPartition, error) {
+// planPartitions returns the install layout for a server + OS: the provider's
+// own default with /data formatted as XFS.
+func (c *Client) planPartitions(ctx context.Context, zone string, serverID uint64, os OSChoice) ([]*scwdedibox.InstallPartition, error) {
 	var part scwdedibox.ServerDefaultPartitioning
 	if err := c.t.get(ctx, fmt.Sprintf("/dedibox/v1/zones/%s/servers/%d/partitioning/%d", zone, serverID, os.ID), nil, &part); err != nil {
 		return nil, fmt.Errorf("default partitioning for server %d: %w", serverID, err)

@@ -552,11 +552,6 @@ posts, so a schema the provider would reject stops the install rather than
 wiping a box to discover it. `PlanSchema` takes /data out of root's partition
 and mirrors it exactly as the default mirrors root.
 
-**Inspect a layout before any wipe:** `go run ./cmd/prep --provider <p> --dry-run`
-prints what would be installed and posts nothing. OVH and Dedibox need a
-`--server`; Elastic Metal needs only `--offer` and `--zone`, because the layout
-is a property of the offer, and that path additionally proves the payload is
-acceptable to the provider rather than merely well-formed.
 
 **Already-adopted boxes need a reinstall.** Partitioning cannot change in place,
 so a box installed before this has either no separate `/data` or an ext4 one, and

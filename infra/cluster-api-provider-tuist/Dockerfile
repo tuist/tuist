@@ -70,8 +70,7 @@ ARG TARGETARCH
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     export GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 && \
-    go build -ldflags="-s -w" -o /out/manager ./cmd/manager && \
-    go build -ldflags="-s -w" -o /out/prep ./cmd/prep
+    go build -ldflags="-s -w" -o /out/manager ./cmd/manager
 
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS kubelet-builder
@@ -190,12 +189,6 @@ RUN curl -fsSL \
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=manager-builder /out/manager /usr/local/bin/manager
-# prep rides the same image so its dry-run can be executed as a one-off Job
-# against the credentials the operator already holds, rather than needing the
-# provider API keys on a laptop. Inspecting the layout an install would apply is
-# the only pre-flight there is before a payload wipes a box, so it should be
-# reachable by anyone with cluster access.
-COPY --from=manager-builder /out/prep /usr/local/bin/prep
 COPY --from=kubelet-builder /out/tart-kubelet-darwin-arm64 /opt/tart-kubelet/tart-kubelet-darwin-arm64
 COPY --from=tart-fetcher /out/tart.tar.gz /opt/tart/tart.tar.gz
 COPY --from=tailscale-builder /out/tailscale-darwin-arm64.tar.gz /opt/tailscale/tailscale-darwin-arm64.tar.gz
