@@ -525,11 +525,19 @@ sum by (cluster, pod) (
 
 - Pending period: 10 minutes
 - Severity: critical
-- Label: `affected_service` set to the cache component (customer-visible: a
-  restarting node drops every cache request in flight, and the client sees a
-  hang or a failed build rather than a clean error)
+- Already created: rule `efvvcl6qu3tvkc`, folder `Alerts`, group `Cache`,
+  receiver `Slack #notifications 2`, alongside the other Kura rules. The
+  deployed rule keeps the raw `increase(...)` in query A and puts the
+  comparison in threshold expression C as `gt 1.5`, matching the house pattern.
 - Summary: `Kura cache pod {{ $labels.pod }} restarted
   {{ $value }} times in the last 6 hours in {{ $labels.cluster }}`
+
+**Nothing covered the `kura` namespace before this.** Two generic restart rules
+already existed and neither could have fired: `Pod restarts (possible
+overload)` is scoped `namespace="tuist"`, and both it and `Pod CrashLoop /
+Frequent Restarts` use thresholds (more than 2 in 15 minutes, more than 5 in an
+hour) far above this fault's rate. Check the namespace scope of a generic rule
+before assuming it covers a new workload.
 
 **This is the primary rule for the fault.** Backtested over the 7 days to
 2026-08-21 across all 30 production Kura pods, sampled every 10 minutes: it
@@ -565,12 +573,23 @@ absent_over_time(up{job="kura"}[15m])
 
 - Pending period: 0 minutes
 - Severity: critical
+- Already created: rule `ffvvcpp359qm8d`, folder `Alerts`, group `Cache`,
+  receiver `Slack #notifications 2`
 - Summary: `Kura cache scrape targets have disappeared in {{ $labels.cluster }}`
 
-The paired telemetry rule for the two Kura rules that read `up`. Those are
+The paired telemetry rule for the Kura rules that read `up`. Those are
 threshold rules with **No Data: Normal**, so they cannot distinguish a healthy
 fleet from a scrape configuration that stopped discovering the `kura` namespace
-altogether. Set **No Data** and **Error** to **Alerting** on this one.
+altogether.
+
+**Watch the polarity, which is the reverse of a threshold rule.**
+`absent_over_time` returns `1` when the series has been absent for the whole
+window and returns *nothing* when it is present, so the healthy state here is
+an empty result. **No Data** must therefore be **Normal**, not Alerting;
+setting it to Alerting makes the rule fire continuously while the fleet is
+healthy. Only **Error** goes to **Alerting**, because a failed evaluation does
+mean the safety net is not working. This corrects the general advice in step 8
+of **Create the rules in Grafana** for `absent_over_time` rules specifically.
 
 ### Runner host PN VLAN missing
 
@@ -1156,6 +1175,8 @@ sum by (cluster, pod) (
 
 - Pending period: 5 minutes
 - Severity: warning
+- Already created: rule `cfvvcmpw0wqv4f`, folder `Alerts`, group `Cache`,
+  receiver `Slack #notifications 2`
 - Summary: `Kura cache pod {{ $labels.pod }} failed {{ $value }} scrapes in the
   last 6 hours in {{ $labels.cluster }}`
 
@@ -1193,6 +1214,8 @@ max by (cluster, pod) (
 
 - Pending period: 10 minutes
 - Severity: warning
+- Already created: rule `dfvvcp2lfgb9cd`, folder `Alerts`, group `Cache`,
+  receiver `Slack #notifications 2`
 - Summary: `Kura metadata store write buffer is {{ $value | humanizePercentage }}
   full on {{ $labels.pod }} in {{ $labels.cluster }}`
 
@@ -1230,7 +1253,12 @@ gauge is unproven as a leading indicator, and 0.95 was chosen to sit between the
 measured normal peak and the one measured excursion rather than from any
 property of RocksDB.
 
-Use **Keep Last State** on **Error** here, as for the other capacity warnings.
+The deployed rule sets **Error** to **OK**: the provisioning API accepts only
+`OK`, `Alerting` and `Error` for that field, so the **Keep Last State** the
+capacity warnings use is reachable from the UI but not from a provisioned
+create. `OK` keeps a data-source error from fanning out a warning, which is the
+same intent.
+
 This gauge only exists while the pod is scrapeable, which is precisely the
 window this rule is for: once the stall is underway the series stops arriving
 and the restart rule takes over.

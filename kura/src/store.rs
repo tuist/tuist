@@ -42,7 +42,7 @@ use crate::{
         ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
         ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
         ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
-        SEGMENT_FREE_SPACE_MARGIN,
+        SEGMENT_EVICTION_YIELD_ROWS, SEGMENT_FREE_SPACE_MARGIN,
     },
     failpoints::{FailpointName, FailpointSet},
     file_cache::{
@@ -2914,11 +2914,16 @@ impl Store {
             IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
         );
 
-        for item in iter {
+        for (scanned, item) in iter.enumerate() {
             let (index_key, _) =
                 item.map_err(|error| format!("failed to iterate segment index: {error}"))?;
             if !index_key.starts_with(prefix.as_bytes()) {
                 break;
+            }
+            // Everything below is synchronous RocksDB work, so without this the
+            // whole segment's scan runs in one poll and parks a runtime worker.
+            if scanned % SEGMENT_EVICTION_YIELD_ROWS == SEGMENT_EVICTION_YIELD_ROWS - 1 {
+                tokio::task::yield_now().await;
             }
             saw_entries = true;
             let artifact_id = std::str::from_utf8(&index_key[prefix.len()..])
@@ -2945,7 +2950,8 @@ impl Store {
                             &artifact_id,
                             &mut cascaded_entries,
                             &mut cascaded_namespaces,
-                        )?;
+                        )
+                        .await?;
                     }
                     *removed_artifacts.entry(manifest.producer).or_default() += 1;
                     removed_artifact_ids.push(artifact_id);
@@ -3019,7 +3025,7 @@ impl Store {
     /// orphaned reverse row is reclaimed when its blob is later evicted. This is
     /// the same read-then-delete-without-writer-lock race that
     /// `expire_stale_action_cache_entries` already accepts.
-    fn stage_action_cache_cascade_for_blob(
+    async fn stage_action_cache_cascade_for_blob(
         &self,
         batch: &mut WriteBatch,
         blob_artifact_id: &str,
@@ -3031,11 +3037,14 @@ impl Store {
             self.cf(ROCKSDB_CF_KEY_VALUE),
             IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
         );
-        for item in iter {
+        for (scanned, item) in iter.enumerate() {
             let (ref_key, _) =
                 item.map_err(|error| format!("failed to iterate blob refs: {error}"))?;
             if !ref_key.starts_with(prefix.as_bytes()) {
                 break;
+            }
+            if scanned % SEGMENT_EVICTION_YIELD_ROWS == SEGMENT_EVICTION_YIELD_ROWS - 1 {
+                tokio::task::yield_now().await;
             }
             let entry_id = std::str::from_utf8(&ref_key[prefix.len()..])
                 .map_err(|error| format!("invalid blob-ref key: {error}"))?
@@ -10683,6 +10692,91 @@ mod tests {
         );
         assert!(!segment_path.exists());
         assert_eq!(store.segment_handles.lock().await.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn evict_segment_yields_so_the_runtime_keeps_scheduling() {
+        // Production regression (2026-08-21): `evict_segment` scanned a whole
+        // 512 MiB segment's artifact index with no await anywhere in the loop,
+        // so one eviction parked a runtime worker for the entire scan and
+        // commit. On the production mesh every liveness-probe restart followed
+        // an eviction by 49 to 63 seconds, which is three failed `/up` probes
+        // at `periodSeconds: 20`. `up()` reads nothing but process-local config
+        // and takes no lock, so it can only have been starved of a scheduler
+        // slot. This runs on the single-threaded test runtime, where a task
+        // that never yields is the only way a concurrent task can starve.
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+
+        let mut artifact_ids = Vec::new();
+        for index in 0..(SEGMENT_EVICTION_YIELD_ROWS + 64) {
+            let manifest = store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "android",
+                    &format!("artifact-{index}"),
+                    "application/octet-stream",
+                    b"hello",
+                )
+                .await
+                .expect("failed to persist artifact");
+            artifact_ids.push(manifest.artifact_id);
+        }
+        let segment_id = store
+            .manifest(&artifact_ids[0])
+            .expect("failed to load manifest")
+            .expect("artifact should exist")
+            .segment_id
+            .expect("artifact should be segment-backed");
+
+        let eviction_started = Arc::new(AtomicBool::new(false));
+        let observed_mid_scan = Arc::new(AtomicBool::new(false));
+        let probe = tokio::spawn({
+            let store = Arc::clone(&store);
+            let artifact_id = artifact_ids[0].clone();
+            let eviction_started = Arc::clone(&eviction_started);
+            let observed_mid_scan = Arc::clone(&observed_mid_scan);
+            async move {
+                loop {
+                    // The eviction commits every deletion in one batch at the
+                    // very end, so seeing the manifest still present after the
+                    // eviction started means this task was scheduled while the
+                    // scan was still running.
+                    if eviction_started.load(Ordering::SeqCst)
+                        && store
+                            .manifest(&artifact_id)
+                            .expect("failed to load manifest")
+                            .is_some()
+                    {
+                        observed_mid_scan.store(true, Ordering::SeqCst);
+                    }
+                    tokio::task::yield_now().await;
+                }
+            }
+        });
+        // Let the probe reach its first yield so it is parked and runnable.
+        tokio::task::yield_now().await;
+
+        eviction_started.store(true, Ordering::SeqCst);
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("failed to evict segment");
+        probe.abort();
+
+        assert!(
+            observed_mid_scan.load(Ordering::SeqCst),
+            "evict_segment ran its entire scan without yielding, so nothing \
+             else on the runtime could be scheduled between the eviction \
+             starting and its batch being committed"
+        );
+        assert!(
+            store
+                .manifest(&artifact_ids[0])
+                .expect("failed to load manifest")
+                .is_none(),
+            "the eviction must still remove every artifact in the segment"
+        );
     }
 
     // ---- Action-cache blob-refs reverse index + eviction cascade ----

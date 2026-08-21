@@ -172,6 +172,14 @@ pub const BACKFILL_SEQ_STAMP_SLACK_SEQS: u64 = 8_000_000;
 // on multi-million-entry nodes), blocking compaction of everything written
 // since it opened.
 pub const BACKFILL_INDEX_BUILD_CHUNK_ROWS: usize = 4_096;
+// How many segment-index rows a CAS eviction scans between yields. The scan is
+// entirely synchronous RocksDB work (a manifest read per artifact, plus a
+// reverse-row prefix scan and an inline-bytes read per cascaded action-cache
+// entry), so without a yield one eviction parks a runtime worker for its whole
+// duration and the process stops answering probes it could otherwise serve
+// from process-local state. Smaller than the snapshot gate's stride because
+// each row here costs several reads rather than one cache hit.
+pub const SEGMENT_EVICTION_YIELD_ROWS: usize = 256;
 // Byte ceiling of one backfill bodies batch: the sum of body bytes one
 // `POST /_internal/backfill/bodies` response may carry, and the per-entry
 // oversized cutoff (entries larger than this route to the per-artifact
