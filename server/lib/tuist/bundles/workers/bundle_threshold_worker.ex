@@ -15,9 +15,16 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
 
   @check_name "tuist/bundle-size"
 
+  # The bundle is written through `Tuist.IngestRepo` and read back here through
+  # `Tuist.ClickHouseRepo`. Those are separate connections, so a bundle enqueued
+  # on upload is not always visible by the time this job runs.
+  @not_found_snooze_seconds 5
+  @not_found_max_attempts 5
+
   @impl Oban.Worker
   def perform(%Oban.Job{
         id: job_id,
+        attempt: attempt,
         args: %{"bundle_id" => bundle_id, "project_id" => project_id, "git_commit_sha" => git_commit_sha} = args
       }) do
     cancel_competing_jobs(job_id, args)
@@ -39,7 +46,11 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
         post_check_run(project, bundle, head_sha, result)
       end
     else
-      _ -> :ok
+      {:error, :not_found} when attempt < @not_found_max_attempts ->
+        {:snooze, @not_found_snooze_seconds}
+
+      _ ->
+        :ok
     end
   end
 

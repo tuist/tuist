@@ -69,6 +69,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
         )
 
       stub(Environment, :github_app_configured?, fn -> true end)
+      reject(&Client.create_check_run/1)
 
       job = %Oban.Job{
         id: 1,
@@ -99,6 +100,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
         )
 
       stub(Environment, :github_app_configured?, fn -> true end)
+      reject(&Client.create_check_run/1)
 
       job = %Oban.Job{
         id: 1,
@@ -286,6 +288,44 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
         id: 1,
         args: %{
           "bundle_id" => bundle.id,
+          "project_id" => project.id,
+          "git_commit_sha" => "abc123"
+        }
+      }
+
+      assert :ok == BundleThresholdWorker.perform(job)
+    end
+
+    test "snoozes when the bundle is not visible yet" do
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Environment, :github_app_configured?, fn -> true end)
+      reject(&Client.create_check_run/1)
+
+      job = %Oban.Job{
+        id: 1,
+        attempt: 1,
+        args: %{
+          "bundle_id" => UUIDv7.generate(),
+          "project_id" => project.id,
+          "git_commit_sha" => "abc123"
+        }
+      }
+
+      assert {:snooze, _} = BundleThresholdWorker.perform(job)
+    end
+
+    test "stops snoozing when the bundle is still not visible on the last attempt" do
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Environment, :github_app_configured?, fn -> true end)
+      reject(&Client.create_check_run/1)
+
+      job = %Oban.Job{
+        id: 1,
+        attempt: 5,
+        args: %{
+          "bundle_id" => UUIDv7.generate(),
           "project_id" => project.id,
           "git_commit_sha" => "abc123"
         }
