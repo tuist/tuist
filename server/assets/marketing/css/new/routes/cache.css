@@ -417,7 +417,6 @@
           --observability-local: light-dark(var(--noora-purple-100), var(--noora-alpha-purple));
           --observability-remote: light-dark(var(--noora-purple-200), var(--noora-purple-700));
           --observability-uploaded: light-dark(var(--noora-purple-400), var(--noora-purple-500));
-          --observability-failed: var(--noora-red-400);
           position: relative;
           flex-direction: column;
           justify-content: center;
@@ -478,11 +477,6 @@
                     flex: 12.5;
                     --segment-color: var(--observability-uploaded);
                   }
-
-                  &[data-segment="failed"] {
-                    flex: 9;
-                    --segment-color: var(--observability-failed);
-                  }
                 }
               }
 
@@ -519,10 +513,6 @@
 
                   &[data-segment="uploaded"]::before {
                     background: var(--observability-uploaded);
-                  }
-
-                  &[data-segment="failed"]::before {
-                    background: var(--observability-failed);
                   }
                 }
               }
@@ -645,11 +635,16 @@
           & > [data-part="panel"] {
             display: flex;
             position: absolute;
+            bottom: -16px;
             left: 50%;
-            transform: translateX(-50%);
+            /* The stack is expressed purely in transform (translate +
+               scale) so cycling runs on the compositor — animating
+               bottom/width forced a re-layout every frame and stuttered
+               whenever the main thread was busy. */
+            transform: translate(-50%, var(--stack-y, 0px)) scale(var(--stack-s, 1));
+            transform-origin: bottom center;
             transition:
-              bottom 0.45s var(--ease-out-cubic),
-              width 0.45s var(--ease-out-cubic),
+              transform 0.45s var(--ease-out-cubic),
               box-shadow 0.3s ease;
             flex-direction: column;
             box-sizing: border-box;
@@ -689,7 +684,6 @@
           }
 
           & > [data-part="panel"][data-pos="0"] {
-            bottom: -16px;
             z-index: var(--noora-z-index-1);
             /* Only the front card carries the purple ring; the back cards
                keep the default hairline. Hovering adds the purple glow —
@@ -705,15 +699,15 @@
           }
 
           & > [data-part="panel"][data-pos="1"] {
-            bottom: 20px;
+            --stack-y: -50px;
+            --stack-s: 0.92;
             z-index: 0;
-            width: 460px;
           }
 
           & > [data-part="panel"][data-pos="2"] {
-            bottom: 56px;
+            --stack-y: -101px;
+            --stack-s: 0.84;
             z-index: -1;
-            width: 420px;
           }
 
           @media (prefers-reduced-motion: reduce) {
