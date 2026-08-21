@@ -55,3 +55,55 @@ spec:
       namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: tuist-runners
+---
+# Cluster API drain behaviour for Kura cache Pods.
+#
+# Without this, replacing a cache box wedges forever. The sequence:
+#
+#   1. Cluster API cordons the Node and evicts a cache Pod.
+#   2. That Pod's PVC is bound to a local-path PV with a
+#      `kubernetes.io/hostname` affinity to the box being drained, so
+#      the replacement Pod has nowhere to schedule and stays Pending.
+#   3. Each `KuraInstance` has a `PodDisruptionBudget` of
+#      `minAvailable: 1`, so with the first replica down the eviction
+#      API refuses the second.
+#   4. The thing that would free the volume — `deleteNodeLocalPVCs` in
+#      the CAPI provider's `reconcileDelete` — runs AFTER drain. With no
+#      `nodeDrainTimeout` set on these fleets, drain has no deadline, so
+#      the Machine sits in Deleting indefinitely and the PVC is never
+#      reaped.
+#
+# `Skip` breaks the cycle by not evicting these Pods at all. The drain
+# completes, the provider deletes the Node and reaps the node-local
+# PVCs, and the StatefulSets reprovision on whatever box is left in the
+# pool. Eviction could not have helped regardless: a Pod that cannot
+# reschedule is not made safer by being evicted politely.
+#
+# Skipping is safe here in a way it would not be for a runner Pod. A
+# runner Pod is a customer's CI job and losing it is a visible failure,
+# which is why those get `WaitCompleted`. A cache Pod holds regenerable
+# content: a miss is a miss, and the client rebuilds and re-uploads.
+#
+# This is a safety net, not the migration procedure. It makes the naive
+# "delete the Machine" path terminate rather than hang, but it gives up
+# the cache: both replicas of an instance are co-located, so deleting
+# their box leaves no peer to backfill from. Preserving warmth needs the
+# staged per-replica move documented in
+# `infra/cluster-api-provider-tuist/AGENTS.md`, which moves the standby
+# to a second box and lets it catch up before the primary follows.
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: MachineDrainRule
+metadata:
+  name: kura-cache-skip
+  namespace: org-tuist
+spec:
+  drain:
+    behavior: Skip
+  pods:
+    - selector:
+        matchLabels:
+          app.kubernetes.io/name: kura
+          app.kubernetes.io/managed-by: kura-controller
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kura

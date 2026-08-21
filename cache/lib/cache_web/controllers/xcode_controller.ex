@@ -48,7 +48,8 @@ defmodule CacheWeb.XcodeController do
       not_found: {"Artifact not found", "application/json", Error},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error}
     }
   )
 
@@ -133,7 +134,8 @@ defmodule CacheWeb.XcodeController do
       internal_server_error: {"Failed to persist artifact", "application/json", Error},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error}
     }
   )
 

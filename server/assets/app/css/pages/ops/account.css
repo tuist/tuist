@@ -54,6 +54,23 @@
     max-width: 480px;
   }
 
+  /* Kura disk claim override: the same treatment as the runner
+     concurrency form below, so the two editable cards on this page read
+     alike. Capped at the trigger-deployment form's width because the
+     value is a short quantity and a full-bleed input reads as broken. */
+  & [data-part="kura-storage-claim-description"] {
+    margin: var(--noora-spacing-0);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & #kura-storage-claim-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    max-width: 480px;
+  }
+
   & [data-part="runner-concurrency-description"],
   & [data-part="runner-trial-description"],
   & [data-part="prepaid-description"],

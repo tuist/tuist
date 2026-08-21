@@ -493,6 +493,141 @@ the box back into the pool**. It stays a monthly contract (release is not a cont
 termination), but the reinstall wipes the OS to a clean, claimable state — any
 node-local volume is lost and the host key rotates, so the next claim re-TOFUs it.
 
+### Disk layout, and why it is an install-time decision
+
+Every install these kinds start lays down a mirrored root plus a **separate XFS
+`/data`**, and the self-join then mounts `/data` with `prjquota` and refuses to
+join a box where it cannot (`dataProjectQuotaScript` in
+`controllers/linux/linux_cloudinit.go`).
+
+The image store gets a reserved project of its own (`containerdQuotaScript`,
+project 100). It is the only consumer of `/data` that is not a tenant, and a
+per-volume quota is a ceiling rather than a reservation, so a tenant inside its
+own ceiling can still be denied space something else took first. Nothing else
+bounds it: the kubelet's image GC triggers on the FILESYSTEM being nearly full,
+so it only reclaims once the box is already squeezing tenants. The ceiling is
+deliberately generous, because containerd hitting it means failed pulls that
+image GC cannot resolve, and unlike the `/data` mount setup a failure to apply
+it does not fail the join.
+
+The chain it exists to close: a Kura cache PV is a local-path *directory* on
+`/data`, a directory has no size, so the pod's `ephemeral-storage` request is
+scheduler admission at placement time and nothing bounds what one account
+actually writes. An `ephemeral-storage` limit would not help: it is enforced
+against the pod's writable layer, logs and emptyDir, none of which is where the
+cache lives. XFS project quotas are the only real boundary, and the
+local-path-provisioner hooks in `infra/helm/tuist/templates/kura-fleet-storage.yaml`
+set one per volume from the PVC's requested size (which the kura-controller
+sizes from `KuraInstance.spec.storageSize`). Without it, one instance filling
+the box crosses kubelet's eviction line and takes down every tenant on it.
+
+The layout comes from the box's real disk groups (`ovh.PlanStorage`,
+`GET /dedicated/server/{name}/specifications/hardware`), so one code path covers
+every shape in the fleet: `/boot` + a capped `/` + `/data` filling the rest,
+mirrored, on the box's LARGEST disk group.
+
+It is deliberately ONE storage entry. OVH documents storage customization for a
+single disk group per install, so a box with a small OS mirror plus a larger data
+mirror gets its whole layout on the larger mirror and leaves the smaller one
+untouched, rather than the two-entry payload that shape invites. Two entries
+would be either rejected or silently reduced to the first, and the silent case
+installs a box with no `/data` at all. That is recoverable, since the self-join
+then refuses to bring it up, but only after a wipe and a ~30 minute install.
+Using the second group needs either a verified multi-group flow or post-install
+assembly of the untouched disks; neither exists today, and no cache capacity is
+lost by leaving it idle, since the cache lives on the larger group either way.
+
+`StartInstall` refuses to post a reinstall it cannot plan a layout for, rather
+than falling back to the provider's default single-root install. Dedibox takes
+the same shape by formatting the default layout's `/data` as XFS
+(`internal/dedibox`), since its API already carves small-root + large-`/data`.
+
+Elastic Metal goes through Scaleway's partitioning schema (`internal/scaleway/partitioning.go`),
+which is the best-instrumented of the three: `GetDefaultPartitioningSchema`
+returns the offer's own layout to transform, so the planner never guesses the
+disk count, device naming, or whether the OS is mirrored, and
+`ValidatePartitioningSchema` checks the result against the real offer WITHOUT
+touching a server. `PartitioningSchemaFor` runs both before either install path
+posts, so a schema the provider would reject stops the install rather than
+wiping a box to discover it. `PlanSchema` takes /data out of root's partition
+and mirrors it exactly as the default mirrors root.
+
+
+**Already-adopted boxes need a reinstall.** Partitioning cannot change in place,
+so a box installed before this has either no separate `/data` or an ext4 one, and
+its cache volumes stay unbounded. They keep working: the provisioner hooks no-op
+with a log rather than refusing, so an old box does not become unschedulable, and
+`kura_volume_quota_enforced` is `0` on exactly those nodes, which is the query for
+what is left to convert.
+
+### Converting a live cache box
+
+**Do not delete the Machine out from under running cache pods.** It deadlocks,
+and this is pre-existing rather than anything the quota work introduced:
+
+1. CAPI drains the Node before the infrastructure controller runs. Draining
+   evicts a cache pod.
+2. That pod's PVC is still bound to a local-path PV with a
+   `kubernetes.io/hostname` affinity to the box being drained, so the replacement
+   pod has nowhere to schedule and stays Pending.
+3. Each `KuraInstance` has a `PodDisruptionBudget` of `minAvailable: 1`, so with
+   the first replica down the eviction API refuses the second.
+4. `deleteNodeLocalPVCs` (below) is what would free the volume, and it runs
+   AFTER drain in `reconcileDelete`. With `nodeDrainTimeout` unset on these
+   fleets, drain has no deadline, so the Machine sits in Deleting indefinitely.
+
+**The controller does this for you.** Annotate the outgoing node
+`tuist.dev/kura-evacuate` and the kura-controller runs the sequence below
+itself, one replica at a time, gated on each moved pod reporting a completed
+catch-up (`infra/kura-controller/controllers/node_evacuation.go`). Bring up the
+replacement box first; with nowhere to land it deliberately does nothing. Once
+the box holds no cache pods, delete its Machine as normal.
+
+The manual sequence, for reference and for anything the controller does not
+cover. A region's instances run a primary plus a warm standby, and the public
+Service selects ONE of them by pod name, so the standby can be moved with
+nothing user-visible happening:
+
+1. Prep a second box into the region's pool and raise `replicas`. Before
+   touching anything live, confirm the new box can actually enforce: provision a
+   throwaway PVC on it and check `kura_volume_quota_enforced` is `1` there. The
+   provisioner hook is fail-closed, so a box that cannot enforce will hold the
+   migration at Pending rather than proceeding, and that is much better
+   discovered before the old box is cordoned.
+2. Cordon the old box. This is not optional and the controller enforces it: an
+   annotated box that is still schedulable is refused, because
+   `instancePodAffinity` PREFERS co-locating an instance's pods, so the
+   replacement would be pulled straight back onto the box being retired and the
+   move would loop, burning the volume's cache on every turn.
+3. Move the STANDBY replica: delete its PVC (it stays Terminating under
+   `pvc-protection`), then delete its pod. Deleting the pod first only rebinds it
+   to the same PV. Once both are gone the StatefulSet recreates them and
+   `WaitForFirstConsumer` binds the new claim on the second box.
+4. Wait for the moved replica to catch up from its peer before handing it
+   traffic. Kura backfills a fresh replica from the peer it joins (`kura/src/backfill/`),
+   so the cache content follows even though the volume does not; gate on that
+   pod's backfill metrics rather than a timer.
+5. Let the primary role hand over, then repeat 3-4 for the ex-primary.
+6. Delete the old Machine once it holds no cache pods. Drain is trivial now, and
+   release reinstalls it onto the split layout and returns it to the pool.
+
+Releasing an OVH box is not a contract termination, so a region left at two boxes
+keeps paying for both. Decide whether the second box is capacity you want or a
+contract to cancel out of band.
+
+The deadlock itself is now defused declaratively: the `kura-cache-skip`
+`MachineDrainRule` in `infra/k8s/clusters/machinedrainrules.yaml` tells Cluster
+API not to evict cache Pods, so drain completes, the PVC reap runs, and the
+StatefulSets reprovision on whatever box is left in the pool. That is a safety
+net rather than the procedure: it makes the naive path terminate instead of
+hang, but it gives up the cache, since both replicas are co-located and deleting
+their box leaves no peer to backfill from. Use the staged move above to keep a
+region warm.
+
+Setting `nodeDrainTimeout` on these fleets would additionally bound the failure
+if a future Pod shape reintroduces the same shape of stall. Worth doing
+independently of any conversion.
+
 ### Scale up
 ```bash
 kubectl scale machinedeployment <fleet-name> --replicas=4

@@ -13,6 +13,8 @@ defmodule Tuist.ClickHouseCapabilities do
 
   alias Tuist.Environment
 
+  @deduplicate_insert_select_since [26, 1]
+
   @doc """
   Whether `generateSerialID/1` is usable against `repo`, which requires a
   configured ClickHouse Keeper (or ZooKeeper); without one it raises
@@ -31,6 +33,46 @@ defmodule Tuist.ClickHouseCapabilities do
         # assume no Keeper and the managed instance quietly gets random legacy
         # IDs instead of serial ones.
         raise "Could not determine whether ClickHouse supports serial IDs: #{Exception.message(error)}"
+    end
+  end
+
+  @doc """
+  The version of the ClickHouse server behind `repo`, as a list of integers.
+
+  `version/0` is a plain function rather than a system table, so unlike the
+  `system.*` reads elsewhere in this module it also answers inside a ClickHouse
+  transaction, which is what the Ecto sandbox wraps every test in.
+  """
+  def server_version(repo) do
+    case repo.query("SELECT version()") do
+      {:ok, %{rows: [[version]]}} ->
+        version
+        |> String.split(".")
+        |> Enum.take_while(&numeric?/1)
+        |> Enum.map(&String.to_integer/1)
+
+      {:error, error} ->
+        raise "Could not determine the ClickHouse server version: #{Exception.message(error)}"
+    end
+  end
+
+  defp numeric?(version_component), do: match?({_integer, ""}, Integer.parse(version_component))
+
+  @doc """
+  Settings that make an `INSERT SELECT` deduplicate against its
+  `insert_deduplication_token`, so a retried insert cannot duplicate rows.
+
+  `deduplicate_insert_select` arrived in ClickHouse 26.1, where `force_enable`
+  raises instead of silently skipping deduplication when the server judges the
+  select unstable. Earlier releases in the supported range reject the name with
+  `UNKNOWN_SETTING`, and deduplicate `INSERT SELECT` whenever `insert_deduplicate`
+  is on, which is the behaviour `force_enable` asks for.
+  """
+  def insert_select_deduplication_settings(repo) do
+    if Enum.take(server_version(repo), 2) >= @deduplicate_insert_select_since do
+      [deduplicate_insert_select: "force_enable"]
+    else
+      []
     end
   end
 

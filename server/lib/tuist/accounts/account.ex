@@ -50,6 +50,7 @@ defmodule Tuist.Accounts.Account do
     field :customer_id, :string
     field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
+    field :free_tier_reset_at, :utc_datetime
     field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
     field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
 

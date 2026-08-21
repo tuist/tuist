@@ -38,18 +38,40 @@ defmodule Tuist.Kura.CapacityTest do
     })
   end
 
+  defp region, do: elem(Regions.fetch(@region), 1)
+
   defp installed(machines) do
     stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, machines)}])
   end
 
-  describe "resident_gib/1" do
-    test "counts every co-located replica of the region's claim" do
-      # us-east declares a 50Gi claim and two replicas, and the bare-metal
-      # regions co-locate an account's replicas, so both land on one box.
-      {:ok, region} = Regions.fetch(@region)
+  describe "resident_gib/2" do
+    test "counts the instance's own claim, not the region's" do
+      # us-east co-locates an account's two replicas on one box, so each claim
+      # is reserved twice on the same disk.
+      instance = %Server{storage_claim_size: "24Gi"}
 
-      assert Capacity.resident_gib(region) == 50 * 2
-      assert Capacity.resident_bytes(region) == 50 * 2 * @gib
+      assert Capacity.resident_gib(region(), instance) == 24 * 2
+      assert Capacity.resident_bytes(region(), instance) == 24 * 2 * @gib
+    end
+
+    test "reads an unpinned instance the way the manifest renders it" do
+      # us-east declares no claim of its own, so an instance carrying none is
+      # sized from its account's plan rather than read at the controller's
+      # 200Gi fallback, which would overstate it by an order of magnitude.
+      air = %Server{account: %Tuist.Accounts.Account{id: 1, name: "air", subscriptions: []}}
+
+      assert Capacity.resident_gib(region(), air) == 8 * 2
+    end
+
+    test "reads every unit a claim may be persisted in" do
+      # A claim is stored in whatever unit Kubernetes accepts and renders
+      # verbatim onto the manifest. A parser that only understood Gi would read
+      # the rest as unparseable and quietly substitute the region's claim, so an
+      # instance reserving a terabyte would be counted at 50Gi.
+      for {claim, gib} <- [{"1Ti", 1024}, {"40Gi", 40}, {"20480Mi", 20}, {"50G", 46}] do
+        assert Capacity.resident_gib(region(), %Server{storage_claim_size: claim}) == gib * 2,
+               "expected #{claim} to be read as #{gib} GiB per replica"
+      end
     end
   end
 

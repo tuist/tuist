@@ -73,6 +73,8 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorkerTest do
                  args: %{"workflow_job_id" => 9_900_001, "account_id" => account.id}
                })
 
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
+
       assert {:ok, %{log_archived_at: %DateTime{}}} = Jobs.get_for_account(account.id, 9_900_001)
     end
 

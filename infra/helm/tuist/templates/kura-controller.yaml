@@ -459,6 +459,38 @@ spec:
       remoteRef:
         key: "{{ required "kuraController.sentry.externalSecret.item is required when sentry externalSecret is enabled" .Values.kuraController.sentry.externalSecret.item }}/{{ .Values.kuraController.sentry.externalSecret.field | default "KURA_SENTRY_DSN" }}"
 {{- end }}
+{{- if .Values.kuraController.cacheTokenPublicKey.externalSecret.enabled }}
+---
+# The public half of the cache-token keypair. Merged into the same Secret the
+# controller already envFroms, so a node picks it up on its next roll with no
+# change to the pod spec. Only the public half ever reaches a node: it reads
+# the tokens the server signs and cannot mint one, which is what makes it safe
+# on a node that is reachable from the internet.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kura-cache-token-key
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+spec:
+  refreshInterval: {{ .Values.kuraController.cacheTokenPublicKey.externalSecret.refreshInterval | default "1h" | quote }}
+  secretStoreRef:
+    name: {{ .Values.kuraController.cacheTokenPublicKey.externalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.kuraController.cacheTokenPublicKey.externalSecret.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: kura-shared-secrets
+    creationPolicy: Merge
+    template:
+      engineVersion: v2
+      data:
+        KURA_AUTH_JWT_PUBLIC_KEY: "{{ `{{ .kura_cache_token_public_key | trim }}` }}"
+  data:
+    - secretKey: kura_cache_token_public_key
+      remoteRef:
+        key: "{{ required "kuraController.cacheTokenPublicKey.externalSecret.item is required when cacheTokenPublicKey externalSecret is enabled" .Values.kuraController.cacheTokenPublicKey.externalSecret.item }}/{{ .Values.kuraController.cacheTokenPublicKey.externalSecret.field | default "KURA_AUTH_JWT_PUBLIC_KEY" }}"
+{{- end }}
 {{- end }}
 
 {{- end }}

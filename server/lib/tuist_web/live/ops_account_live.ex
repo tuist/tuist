@@ -29,12 +29,13 @@ defmodule TuistWeb.OpsAccountLive do
          socket
          |> assign(:head_title, "#{account.name} · Tuist Ops")
          |> assign(:account, account)
-         |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
          |> assign(:prepaid_balance, Prepaid.balance(account))
          |> assign(:on_runner_trial, Trials.on_trial?(account))
          |> assign(:prepaid_quote, nil)
          |> assign(:has_subscription, not is_nil(Billing.get_current_active_subscription(account)))
+         |> assign(:kura_minimum_claim, Kura.minimum_storage_claim())
+         |> assign_kura_storage_claim(account)
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
 
@@ -179,6 +180,25 @@ defmodule TuistWeb.OpsAccountLive do
 
       :error ->
         {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes above zero."))}
+    end
+  end
+
+  @impl true
+  def handle_event("update_kura_storage_claim", %{"account" => params}, socket) do
+    account = socket.assigns.account
+
+    case Kura.update_storage_claim_override(account, params) do
+      {:ok, result} ->
+        {:noreply,
+         socket
+         |> assign_kura_storage_claim(account)
+         |> put_flash(:info, kura_storage_claim_message(result))}
+
+      {:error, changeset} ->
+        {:noreply,
+         socket
+         |> assign(:kura_storage_claim_form, to_form(changeset, as: "account"))
+         |> put_flash(:error, dgettext("dashboard", "Kura disk claim could not be updated."))}
     end
   end
 
@@ -373,6 +393,60 @@ defmodule TuistWeb.OpsAccountLive do
     account
     |> Concurrency.change_limits()
     |> to_form(as: "account")
+  end
+
+  # The rows, the form and the claim the rows resolve against move together: an
+  # override write re-pins instances, so a table left on the old assign would
+  # show claims that no longer exist.
+  defp assign_kura_storage_claim(socket, account) do
+    socket
+    |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
+    |> assign(:kura_account_claim, Kura.effective_storage_claim(account))
+    |> assign(:kura_plan_claim, Kura.plan_storage_claim(account))
+    |> assign(:kura_storage_claim_form, kura_storage_claim_form(account))
+  end
+
+  defp kura_storage_claim_form(account) do
+    account
+    |> Kura.change_storage_claim_override()
+    |> to_form(as: "account")
+  end
+
+  # Raising a claim and lowering one do different things to a running instance,
+  # and only one of them costs a cache. Say which happened rather than reporting
+  # a successful save: an operator raising a claim to rescue a capped account is
+  # the one most likely to assume it was free.
+  defp kura_storage_claim_message(%{claim_size: claim_size, raised: [], lowered: []}) do
+    dgettext(
+      "dashboard",
+      "Kura disk claim set to %{claim}. No running instance changed; it applies the next time volumes are built.",
+      claim: claim_size
+    )
+  end
+
+  defp kura_storage_claim_message(%{claim_size: claim_size, raised: []} = result) do
+    dngettext(
+      "dashboard",
+      "Kura disk claim lowered to %{claim}. %{count} running instance keeps its cache and evicts down to the new budget.",
+      "Kura disk claim lowered to %{claim}. %{count} running instances keep their caches and evict down to the new budget.",
+      length(result.lowered),
+      claim: claim_size
+    )
+  end
+
+  # "Up to", because an instance rebuilds only if its volumes are smaller than
+  # the new claim, and an earlier decrease can have left them larger. The rebuild
+  # rolls one replica at a time behind the standby, so it is a rollout rather
+  # than an outage and the cache survives it where there is a standby to refill
+  # from.
+  defp kura_storage_claim_message(%{claim_size: claim_size} = result) do
+    dngettext(
+      "dashboard",
+      "Kura disk claim raised to %{claim}. Up to %{count} running instance rebuilds its volumes, one replica at a time behind the standby that keeps serving.",
+      "Kura disk claim raised to %{claim}. Up to %{count} running instances rebuild their volumes, one replica at a time behind the standby that keeps serving.",
+      length(result.raised),
+      claim: claim_size
+    )
   end
 
   # ISO 3166-1 alpha-2 codes for the countries most likely to appear on
