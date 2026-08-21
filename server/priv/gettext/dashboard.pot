@@ -1991,11 +1991,6 @@ msgstr ""
 msgid "Save disk claim"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:50
-#, elixir-autogen, elixir-format
-msgid "Each replica reserves this much disk. Leave it empty to size the account from its plan, which is the right default for most accounts and a poor fit at both ends of the range. Raising the claim rebuilds the volumes of a running instance that is smaller than it, so that instance starts with an empty cache. Lowering it is not destructive: the cache stays and evicts down to the new budget, and the disk is reclaimed the next time volumes are built."
-msgstr ""
-
 #: lib/tuist_web/live/ops_account_live.ex:306
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim lowered to %{claim}. %{count} running instance keeps its cache and evicts down to the new budget; its disk is reclaimed the next time volumes are built."
@@ -2009,3 +2004,8 @@ msgid "Kura disk claim raised to %{claim}. Up to %{count} running instance rebui
 msgid_plural "Kura disk claim raised to %{claim}. Up to %{count} running instances rebuild their volumes and start with an empty cache; any whose volumes are already larger keep their caches."
 msgstr[0] ""
 msgstr[1] ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:50
+#, elixir-autogen, elixir-format
+msgid "Each replica reserves this much disk. Leave it empty to size the account from its plan. Raising it rebuilds the volumes of any smaller instance, which starts with an empty cache; lowering it keeps the cache."
+msgstr ""
