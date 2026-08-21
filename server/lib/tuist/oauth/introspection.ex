@@ -66,12 +66,15 @@ defmodule Tuist.OAuth.Introspection do
   end
 
   defp cache_token_response(token, %Account{} = account) do
-    with {:ok, claims, grants} <- verified_cache_token(token),
-         scoped when scoped != :empty <- scoped_or_empty(grants, account) do
-      cache_token_active(claims, scoped)
-    else
-      {:ok, claims, _grants} -> payment_required_or_inactive(claims, account)
-      _ -> %{active: false}
+    case verified_cache_token(token) do
+      {:ok, claims, grants} ->
+        case scoped_or_empty(grants, account) do
+          :empty -> payment_required_or_inactive(claims, account)
+          scoped -> cache_token_active(claims, scoped)
+        end
+
+      :error ->
+        %{active: false}
     end
   end
 
