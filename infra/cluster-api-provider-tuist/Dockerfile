@@ -69,7 +69,7 @@ ARG TARGETOS
 ARG TARGETARCH
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    export GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 && \
     go build -ldflags="-s -w" -o /out/manager ./cmd/manager
 
 
