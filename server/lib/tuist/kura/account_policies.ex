@@ -2,10 +2,37 @@ defmodule Tuist.Kura.AccountPolicies do
   @moduledoc """
   Resolves an account's effective Kura plan and service region.
 
-  Air accounts use United States East when their storage-region preference
-  permits it. Paid accounts with an explicit country group resolve
-  deterministically, while paid accounts that allow every region require a
-  versioned assignment before Kura can provision or route them.
+  `accounts.region` is the account's storage region, presented in account
+  settings as where its artifacts, module cache binaries among them, are
+  stored. A Kura instance holds exactly those, so an account that named a
+  region is served from it and never from another, whatever the plan.
+
+  Air runs in United States East for an account that named no region, and in
+  whichever region the deployment serves Air from in Europe for an account that
+  named Europe. Paid accounts with a country group resolve deterministically to
+  that group's pool. A paid account
+  that allows every region has stated no constraint, so it resolves in this
+  order:
+
+    1. its explicit versioned assignment, if an operator made one,
+    2. the region its live public instance is already in, so resolution never
+       relocates a running account, and
+    3. United States East, the deterministic default a dormant account
+       receives before its next provisioning demand.
+
+  An assignment is also the only route to a region no preference derives to.
+  `accounts.region` is `all | europe | usa`, so nothing resolves to United
+  States West on its own; an account is opted into it per account, for latency.
+
+  Step 2 counts only live instances in public regions, and picks one when there
+  are several; `live_service_regions/1` carries the reasoning for both, and for
+  why an archive does not hold an account to its region.
+
+  Step 2 is what keeps the default from being a migration. Without it an
+  account already serving from elsewhere would start recording demand against
+  the default region, cold-provision a second instance there, and leave the
+  original holding its allocation with no reclamation path on the plans that
+  are never archived.
   """
 
   import Ecto.Query
@@ -15,6 +42,9 @@ defmodule Tuist.Kura.AccountPolicies do
   alias Tuist.Billing
   alias Tuist.Environment
   alias Tuist.Kura.AccountRegionPolicy
+  alias Tuist.Kura.Regions
+  alias Tuist.Kura.Server
+  alias Tuist.Kura.Telemetry
   alias Tuist.Repo
   alias Tuist.Time
 
@@ -23,39 +53,63 @@ defmodule Tuist.Kura.AccountPolicies do
     usa: "us-east"
   }
 
+  # Where a paid account that has named no storage region is placed when it has
+  # neither an explicit assignment nor a live instance. "All regions" in account
+  # settings states no residency constraint, so a deterministic United States
+  # default breaks no promise, and it is what replaces a refusal that left these
+  # accounts unable to provision at all. `assign_service_region/4` remains the
+  # override for one that later needs Europe.
+  @default_paid_service_region "us-east"
+
   @doc """
   Returns the effective plan and service region for an account.
 
-  An unresolved or unsupported account receives an error instead of an
-  implicit region so callers can retain authoritative object-storage routing.
+  An account whose plan or storage region has no Kura pool behind it receives
+  an error rather than a region it cannot be served from. Every refusal is
+  counted (`Tuist.Kura.Telemetry.resolution_refused/2`): a refused account is
+  simply left on whatever lane it is already on and raises nothing, so without
+  the counter a whole class of accounts can sit unprovisioned indefinitely with
+  no signal that they are.
   """
   def resolve(%Account{} = account) do
-    resolve(account, &current_service_region_assignment/1)
+    resolve(account, %{
+      assignment: &current_service_region_assignment/1,
+      live_region: &current_live_service_region/1
+    })
   end
 
   @doc """
   Resolves many accounts at once, loading every explicit service-region
-  assignment in a single query.
+  assignment and every live instance region in one query each.
 
-  `resolve/1` costs one query per account that allows every storage region,
+  `resolve/1` costs two queries per account that allows every storage region,
   which is fine for a handful of accounts and not fine on the demand-flush
   hot path, where the batch is every account that used the cache in the last
   minute.
   """
   def resolve_all(accounts) when is_list(accounts) do
     assignments = current_service_region_assignments(accounts)
+    live_regions = live_service_regions(accounts)
 
     Map.new(accounts, fn %Account{id: id} = account ->
-      {id, resolve(account, fn _account -> Map.get(assignments, id) end)}
+      {id,
+       resolve(account, %{
+         assignment: fn _account -> Map.get(assignments, id) end,
+         live_region: fn _account -> Map.get(live_regions, id) end
+       })}
     end)
   end
 
-  defp resolve(%Account{} = account, assignment_fun) do
+  defp resolve(%Account{} = account, lookups) do
     plan = Billing.effective_plan(account)
 
-    case effective_service_region(account, plan, assignment_fun) do
-      {:ok, service_region} -> {:ok, %{plan: plan, service_region: service_region}}
-      {:error, reason} -> {:error, reason}
+    case effective_service_region(account, plan, lookups) do
+      {:ok, service_region} ->
+        {:ok, %{plan: plan, service_region: service_region}}
+
+      {:error, reason} ->
+        Telemetry.resolution_refused(plan, reason)
+        {:error, reason}
     end
   end
 
@@ -147,27 +201,104 @@ defmodule Tuist.Kura.AccountPolicies do
     )
   end
 
-  defp effective_service_region(%Account{region: region}, :air, _assignment_fun) when region in [:all, :usa],
-    do: {:ok, Environment.kura_air_region()}
+  defp effective_service_region(%Account{region: region}, :air, _lookups) when region in [:all, :usa],
+    do: {:ok, Environment.kura_air_region(region)}
 
-  defp effective_service_region(%Account{region: :europe}, :air, _assignment_fun),
-    do: {:error, :service_region_unavailable}
+  # An Air account that chose Europe is refused rather than placed in the United
+  # States pool the rest of Air runs in: the storage region it chose names the
+  # module cache binaries a Kura instance holds. Which European region serves
+  # Air is a deployment decision, so this resolves only once one names a region
+  # and that region is actually served. Nothing names one today, so these
+  # accounts keep exactly the answer they get now.
+  defp effective_service_region(%Account{region: :europe}, :air, _lookups) do
+    case Environment.kura_air_region(:europe) do
+      region when is_binary(region) ->
+        if Regions.available?(region), do: {:ok, region}, else: {:error, :service_region_unavailable}
 
-  defp effective_service_region(%Account{region: region}, plan, _assignment_fun)
-       when plan in [:pro, :enterprise] and region in [:europe, :usa],
-       do: {:ok, Map.fetch!(@paid_service_regions, region)}
-
-  defp effective_service_region(%Account{region: :all} = account, plan, assignment_fun)
-       when plan in [:pro, :enterprise] do
-    case assignment_fun.(account) do
-      %AccountRegionPolicy{service_region: service_region} -> {:ok, service_region}
-      nil -> {:error, :service_region_unassigned}
+      _ ->
+        {:error, :service_region_unavailable}
     end
   end
 
-  defp effective_service_region(%Account{}, :open_source, _assignment_fun), do: {:error, :plan_not_supported}
+  defp effective_service_region(%Account{region: region}, plan, _lookups)
+       when plan in [:pro, :enterprise] and region in [:europe, :usa],
+       do: {:ok, Map.fetch!(@paid_service_regions, region)}
 
-  defp effective_service_region(%Account{}, _plan, _assignment_fun), do: {:error, :service_region_unavailable}
+  defp effective_service_region(%Account{region: :all} = account, plan, lookups) when plan in [:pro, :enterprise] do
+    case lookups.assignment.(account) do
+      %AccountRegionPolicy{service_region: service_region} ->
+        {:ok, service_region}
+
+      nil ->
+        {:ok, lookups.live_region.(account) || @default_paid_service_region}
+    end
+  end
+
+  defp effective_service_region(%Account{}, :open_source, _lookups), do: {:error, :plan_not_supported}
+
+  defp effective_service_region(%Account{}, _plan, _lookups), do: {:error, :service_region_unavailable}
+
+  # The region an account is already being served from, or `nil` when it has no
+  # live instance.
+  #
+  # Private runner-cache regions do not count. They are provisioned by a
+  # separate identity rule (`Tuist.Kura.RunnerCache`, keyed on runner
+  # availability), they are never CLI-facing, and `Lifecycle.lifecycle_regions/0`
+  # rejects them, so resolving an account into one would record demand in a
+  # region nothing provisions against and leave it with no developer-facing
+  # cache at all. An account whose only live instance is a runner cache is, for
+  # this purpose, an account with none.
+  #
+  # `move_phase == :none` for the same reason `Tuist.Kura` uses it: a warm
+  # handoff's transient rows are internal rebalancing, not where the account
+  # is served from.
+  #
+  # Among what is left, oldest wins, ordered by `(inserted_at, id)`. That is a
+  # total order, so the answer is reproducible rather than dependent on which
+  # row the database happens to return first. It is deliberately not an attempt
+  # to solve multi-region: an account holding public instances in several
+  # regions keeps exactly one under this rule, and the choice between
+  # same-day instances comes down to sub-second ordering. Such an account wants
+  # an explicit assignment naming the region it should be resolved to, which is
+  # a decision rather than something to infer from timestamps.
+  #
+  # Archived rows are excluded, which is a decision rather than a detail: an
+  # account's region is deliberately not sticky across an archive. Archival
+  # discards that account's cache content in the region, so there is nothing
+  # left there to return to and a cold return is a cold return wherever it
+  # lands. Honouring an archived row instead would hold a claim on a region the
+  # account no longer occupies and send the return into it even when it is the
+  # region under pressure. The consequence is that accounts allowing every
+  # region drift toward the default across archive cycles, which is a sizing
+  # input for the other regions rather than a correctness problem.
+  defp current_live_service_region(%Account{id: account_id} = account) do
+    account
+    |> List.wrap()
+    |> live_service_regions()
+    |> Map.get(account_id)
+  end
+
+  defp live_service_regions(accounts) do
+    account_ids = Enum.map(accounts, & &1.id)
+    private_region_ids = private_region_ids()
+
+    Server
+    |> where([server], server.account_id in ^account_ids)
+    |> where([server], server.status not in [:destroyed, :archived] and server.move_phase == :none)
+    |> where([server], server.region not in ^private_region_ids)
+    |> order_by([server], asc: server.inserted_at, asc: server.id)
+    |> select([server], {server.account_id, server.region})
+    |> Repo.all()
+    |> Enum.reduce(%{}, fn {account_id, region}, regions -> Map.put_new(regions, account_id, region) end)
+  end
+
+  # Read from the catalog rather than listed, so a region added as private is
+  # excluded here without anyone remembering to update this.
+  defp private_region_ids do
+    Regions.all()
+    |> Enum.filter(&Regions.private?/1)
+    |> Enum.map(& &1.id)
+  end
 
   defp current_service_region_assignments(accounts) do
     account_ids = Enum.map(accounts, & &1.id)
