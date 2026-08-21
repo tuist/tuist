@@ -18,7 +18,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
-  @public_robots_txt [train_ai: true, search: true]
+  @public_robots_txt [train_ai: true, search: true, ai_input: true]
   @marketing_route_metadata %{type: :marketing, robots_txt: @public_robots_txt}
   @docs_route_metadata %{type: :docs, robots_txt: @public_robots_txt}
 
@@ -206,6 +206,11 @@ defmodule TuistWeb.Router do
     plug :put_request_kind, "mcp"
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
+    # Operators are not members of customer accounts, so without this an
+    # operator's MCP session sees only their own projects. Runs after
+    # authentication because the grant is honoured only for the operator it
+    # was minted for.
+    plug :accept_operator_grant_header
     plug TuistWeb.Plugs.MCPRateLimitPlug
   end
 
@@ -1047,6 +1052,45 @@ defmodule TuistWeb.Router do
 
   get "/download", TuistWeb.DownloadController, :download
 
+  # Dashboards a public account exposes to signed-out visitors. Each
+  # LiveView here re-checks `:account_dashboard_read`, which is what
+  # gates the LiveSocket connect — the pipeline below only covers the
+  # dead render.
+  scope "/:account_handle", TuistWeb do
+    pipe_through [
+      :open_api,
+      :browser_app,
+      :rate_limit,
+      :load_operator_grant,
+      :redirect_to_ops_if_operator,
+      :require_authenticated_user_for_private_accounts,
+      :require_sso_authentication,
+      :analytics
+    ]
+
+    get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs/download",
+        RunnerJobLogsController,
+        :download
+
+    live_session :public_account,
+      layout: {TuistWeb.Layouts, :account},
+      on_mount: [
+        {TuistWeb.Authentication, :mount_current_user},
+        {TuistWeb.OperatorGrant, :load},
+        {TuistWeb.Locale, :assign_locale},
+        {TuistWeb.LayoutLive, :account}
+      ] do
+      live "/", ProjectsLive
+      live "/projects", ProjectsLive
+      live "/runners", RunnersLive
+      live "/runners/workflows", RunnerWorkflowsLive
+      live "/runners/workflows/:repo_owner/:repo_name/:workflow_name", RunnerWorkflowLive
+      live "/runners/jobs", RunnerJobsLive
+      live "/runners/runs/:workflow_run_id/jobs/:workflow_job_id", RunnerJobLive
+      live "/usage", UsageLive
+    end
+  end
+
   scope "/:account_handle", TuistWeb do
     pipe_through [
       :open_api,
@@ -1069,10 +1113,6 @@ defmodule TuistWeb.Router do
         RunnerInteractiveShellController,
         :connect
 
-    get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs/download",
-        RunnerJobLogsController,
-        :download
-
     live_session :account,
       layout: {TuistWeb.Layouts, :account},
       on_mount: [
@@ -1081,13 +1121,6 @@ defmodule TuistWeb.Router do
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
-      live "/", ProjectsLive
-      live "/projects", ProjectsLive
-      live "/runners", RunnersLive
-      live "/runners/workflows", RunnerWorkflowsLive
-      live "/runners/workflows/:repo_owner/:repo_name/:workflow_name", RunnerWorkflowLive
-      live "/runners/jobs", RunnerJobsLive
-      live "/runners/runs/:workflow_run_id/jobs/:workflow_job_id", RunnerJobLive
       live "/runners/profiles", RunnerProfilesLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
@@ -1095,7 +1128,6 @@ defmodule TuistWeb.Router do
       live "/webhooks/:id/events/:attempt_id", WebhookEventLive
       live "/cache", CacheLive
       live "/billing", BillingLive
-      live "/usage", UsageLive
       live "/settings", AccountSettingsLive
       live "/settings/tokens", AccountTokensLive
       live "/settings/tokens/:token_id", AccountTokenLive

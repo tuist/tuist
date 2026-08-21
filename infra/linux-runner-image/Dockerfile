@@ -232,7 +232,7 @@ ARG KUBECTL_VERSION=1.36.1
 # renovate: datasource=github-releases depName=helm/helm
 ARG HELM_VERSION=4.2.0
 # renovate: datasource=github-releases depName=cli/cli
-ARG GH_VERSION=2.93.0
+ARG GH_VERSION=2.97.0
 RUN ARCH="$(dpkg --print-architecture)" \
     && curl -fSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" \
          -o /usr/local/bin/kubectl \

@@ -42,4 +42,8 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_claims_count, do: [:tuist, :runners, :claims, :count]
   def event_name_pool_replicas, do: [:tuist, :runners, :pool, :replicas]
   def event_name_session_clamp, do: [:tuist, :runners, :session, :clamped]
+
+  # Jobs whose ClickHouse row is still non-terminal after the outbox
+  # flush has had time to settle, while Postgres holds a terminal state.
+  def event_name_replica_divergence, do: [:tuist, :runners, :replica, :divergence]
 end

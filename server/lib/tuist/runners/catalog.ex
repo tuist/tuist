@@ -34,6 +34,73 @@ defmodule Tuist.Runners.Catalog do
   @platforms [:linux, :macos]
 
   @doc """
+  True when `platform` is a known runner platform and `vcpus`/`memory_gb`
+  are positive integers. Shared by the billing and session-tracking paths
+  so a machine spec accepted when a session opens is exactly the spec that
+  billing later meters.
+  """
+  defguard valid_machine_resources(platform, vcpus, memory_gb)
+           when platform in @platforms and is_integer(vcpus) and vcpus > 0 and
+                  is_integer(memory_gb) and memory_gb > 0
+
+  # Each platform is metered against its own baseline machine, and one
+  # compute unit is one minute on that baseline:
+  #
+  #   Linux  2 vCPU /  8 GB = one Linux compute unit
+  #   macOS  6 vCPU / 14 GB = one macOS compute unit
+  #
+  # Within a platform, shapes are weighted by resources. On a cloud bill
+  # roughly two thirds of a machine's cost is CPU and one third memory, so
+  #
+  #   resource units = 2/3 * (vcpus / baseline_vcpus)
+  #                  + 1/3 * (memory_gb / baseline_memory_gb)
+  #
+  # which reduces to `(8 * vcpus + memory_gb) / baseline_units`, exact at
+  # each platform's baseline and integral in basis points for shapes that
+  # double from it.
+  #
+  # Metering per platform rather than against one global unit keeps the
+  # platform premium in the Stripe Price, where the rest of the rate card
+  # already lives. A single global unit would force one Price to fix both
+  # platforms' rates at a hardcoded ratio, and would prevent scoping a
+  # credit grant, discount, or contract to one platform.
+  @compute_unit_bp 10_000
+  @vcpu_weight 8
+  @platform_baseline_units %{linux: 8 * 2 + 8, macos: 8 * 6 + 14}
+
+  @doc """
+  Billing multiplier for a machine, in basis points, relative to its own
+  platform's baseline (10_000 = one compute unit per elapsed millisecond).
+
+  Usage is metered as normalized compute units, one Stripe meter per
+  platform, rather than one meter per exact `(platform, vcpus, memory_gb)`
+  shape. A meter per shape would make every shape a permanent subscription
+  item against Stripe's 20-item classic limit, and adding a shape would
+  mean a new Meter, Price, config key, and a backfill across existing
+  subscriptions. Weighting elapsed time by an immutable machine factor is
+  still metering: Stripe keeps ownership of the currency amount, tiers,
+  discounts, taxes, and credits.
+
+  Because each platform is normalized to its own baseline, its Stripe
+  Price is quoted directly per baseline machine-minute, and the two
+  platforms' rates move independently. Adding a shape to an existing
+  platform still needs no Stripe work.
+
+  The value is persisted on the runner session when it opens (see
+  `Tuist.Runners.RunnerSessions.open/1`), so changing this function cannot
+  reprice usage that already happened.
+  """
+  def billing_multiplier(platform, vcpus, memory_gb) when valid_machine_resources(platform, vcpus, memory_gb) do
+    div(@compute_unit_bp * (@vcpu_weight * vcpus + memory_gb), Map.fetch!(@platform_baseline_units, platform))
+  end
+
+  @doc """
+  Basis points that make up one compute unit. Callers convert weighted
+  milliseconds into compute-unit milliseconds by dividing by this.
+  """
+  def compute_unit_basis_points, do: @compute_unit_bp
+
+  @doc """
   All shapes for `platform`, deduped and sorted by
   `(vcpus, memory_gb)`. Returns `[]` when the corresponding config
   key is unset (both keys ship with a default in `config/config.exs`).

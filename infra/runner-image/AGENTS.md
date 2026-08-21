@@ -101,6 +101,16 @@ added to catch that failed on `admin`'s unwritable cache instead.
   for the CLI's LRU self-prune, reads the host-staged base generation
   (`cache-base-generation`) — the HEAD generation the branch was clonefiled from,
   used as the fast-forward base at promote — and snapshots the pre-job inventory.
+  The host also stages its Kubernetes `node-name` there at VM create, which the
+  guest relays with its promote so the HEAD row records WHICH host published a
+  generation — the Node name rather than `TUIST_RUNNER_POD_NAME`, because the Pod
+  is gone minutes later while the Node name is what the
+  `tuist.dev/cache-master-<account_id>` advertisements and the volume affinities
+  are keyed on. Attribution only: nothing in the fast-forward reads it, and an
+  unstaged name reports empty rather than falling back to the Pod name, since a
+  column holding two kinds of name identifies neither. Every value the guest takes
+  off the share is sanitised to its own alphabet and length before it reaches a
+  request body.
   Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
   still gets an *empty* image — the guest can only attach what is there, and no
   image would kill the job rather than cost it warmth.
@@ -456,6 +466,22 @@ customer-facing profile selection.
    cache-volume feature), which the host reports as
    `TartRunExited` rather than laundering tart's zero into a clean
    runner exit.
+
+   The exit code alone is not enough, because it does not separate
+   the two cases that matter: a runner that finished its job and a
+   runner that halted without ever taking one both report 0. So the
+   trap also publishes `runner.log` — `dispatch-poll.sh`'s own
+   output — into the same share, and tart-kubelet re-emits a bounded
+   tail of it to its own stdout before teardown deletes the share.
+   That stdout is already tailed by the host log shipper, so the
+   trail reaches Loki without the shipper having to discover
+   per-VM shares. Copied from the trap rather than `tee`d as the
+   script runs, so a still-running tee cannot flush a duplicate tail
+   after the copy. Same `status`-share dependency as `runner-rc`:
+   pools with cache volumes off keep the old behaviour of logging
+   only inside the guest, and a guest killed before its trap runs
+   publishes nothing — that case already arrives distinguishably as
+   `TartRunExited`.
 
 For the customer-facing dispatch label and capacity model see
 `server/lib/tuist/runners.ex` and `infra/helm/tuist/values.yaml`

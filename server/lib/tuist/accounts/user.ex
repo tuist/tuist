@@ -24,6 +24,7 @@ defmodule Tuist.Accounts.User do
     field :last_sign_in_at, :naive_datetime
     field :preferred_locale, :string
     field :active, :boolean, default: true
+    field :disabled_at, :utc_datetime
     # Operator access grant claims (verified, from ops.tuist.dev),
     # attached per-request by TuistWeb.OperatorGrant. Never persisted
     # or cast; nil = no grant = fail closed.

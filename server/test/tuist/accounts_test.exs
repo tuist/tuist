@@ -22,6 +22,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Base64
   alias Tuist.Billing
   alias Tuist.Environment
+  alias Tuist.Kura.Demand
   alias Tuist.Kura.Registrations
   alias Tuist.Projects
   alias Tuist.Runners.Profiles, as: RunnerProfiles
@@ -67,6 +68,54 @@ defmodule Tuist.AccountsTest do
 
       # When
       assert Accounts.new_users_in_last_hour() == []
+    end
+  end
+
+  describe "touch_last_sign_in/1" do
+    test "records the first authentication" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      assert is_nil(user.last_sign_in_at)
+
+      # When
+      got = Accounts.touch_last_sign_in(user)
+
+      # Then
+      assert got.last_sign_in_at
+      assert Accounts.get_user_by_id(user.id).last_sign_in_at
+    end
+
+    test "does not write again within the throttle window" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      %{last_sign_in_at: first} = Accounts.touch_last_sign_in(user)
+      user = Accounts.get_user_by_id(user.id)
+
+      # When
+      got = Accounts.touch_last_sign_in(user)
+
+      # Then
+      assert got.last_sign_in_at == first
+    end
+
+    test "writes again once the throttle window has passed" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      stale = NaiveDateTime.add(NaiveDateTime.utc_now(:second), -13, :hour)
+
+      Tuist.Repo.update_all(
+        from(u in User, where: u.id == ^user.id),
+        set: [last_sign_in_at: stale]
+      )
+
+      user = Accounts.get_user_by_id(user.id)
+
+      # When
+      got = Accounts.touch_last_sign_in(user)
+
+      # Then
+      assert NaiveDateTime.after?(got.last_sign_in_at, stale)
+      assert NaiveDateTime.after?(Accounts.get_user_by_id(user.id).last_sign_in_at, stale)
     end
   end
 
@@ -4720,6 +4769,154 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert endpoints == ["https://custom-cache.example.com"]
+    end
+
+    test "serves authoritative object storage while a lifecycle-managed account has no Kura instance" do
+      # Given
+      # An archived account must not fall back to the legacy custom-endpoint
+      # path: that would make archiving accounts the thing that keeps the
+      # legacy path alive.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true, region: :usa})
+
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "reports provisioning while the account's instance is not serving yet" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      Repo.insert!(%Tuist.Kura.Server{
+        account_id: account.id,
+        region: "us-east",
+        status: :archived,
+        provisioner_node_ref: "kura-#{account.id}-us-east"
+      })
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution.endpoints == ["https://default.tuist.dev"]
+      assert resolution.provisioning
+    end
+
+    test "reports provisioning on the very first request, before any demand row exists" do
+      # Given
+      # The request asking the question is the one that records the demand a
+      # cold return is provisioned from, so a check that waited for the row
+      # would answer `false` on the request where it matters most and leave the
+      # client caching a stand-in lane for its full interval.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution.endpoints == ["https://default.tuist.dev"]
+      assert resolution.provisioning
+    end
+
+    test "does not report provisioning for an account with no resolvable service region" do
+      # Given
+      # A paid account allowing every region needs a versioned assignment
+      # before Kura can route it, so no instance is coming.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      {:ok, account} = Accounts.update_account(account, %{region: :all})
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      refute resolution.provisioning
+    end
+
+    test "does not report provisioning once an instance is serving" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://acme-us-east-1.kura.tuist.dev",
+          technology: :kura
+        })
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution.endpoints == ["https://acme-us-east-1.kura.tuist.dev"]
+      refute resolution.provisioning
+    end
+
+    test "does not report provisioning when the client is not routed to Kura" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+
+      # Then
+      refute resolution.provisioning
+    end
+
+    test "records cache demand for the account when a Kura client resolves endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      Demand.flush()
+
+      # Then
+      assert Demand.get(account.id, "us-east")
+    end
+
+    test "does not record cache demand when the client is not routed to Kura" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Accounts.get_cache_endpoints_for_handle(account.name)
+      Demand.flush()
+
+      # Then
+      refute Demand.get(account.id, "us-east")
     end
 
     test "returns custom endpoints when the client does not request Kura even if the account has Kura endpoints" do

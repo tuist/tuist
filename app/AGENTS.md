@@ -24,6 +24,7 @@ The app depends on several CLI modules:
 - `TuistSupport` - Shared utilities
 - `TuistCore` - Core domain models
 - `TuistHTTP` - HTTP client
+- `TuistLogging` - Shared logging, including persistent Apple application logs and support exports
 - `TuistAutomation` - Automation utilities
 - `TuistSimulator` - Simulator management
 

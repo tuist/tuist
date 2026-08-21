@@ -422,9 +422,10 @@ defmodule L10n.Translator do
   Resolves a model string into a req_llm-compatible model reference.
 
   Handles `"ollama:model_name"` by configuring a local OpenAI-compatible
-  endpoint at `localhost:11434`. All other model strings (e.g.,
-  `"anthropic:claude-sonnet-4-6"`, `"openai:gpt-4.1"`) are passed through
-  directly to req_llm.
+  endpoint at `localhost:11434`, and `"hive:profile_name"` by configuring
+  Hive's OpenAI-compatible chat-completions endpoint. All other model strings
+  (e.g., `"anthropic:claude-sonnet-4-6"`, `"openai:gpt-4.1"`) are passed
+  through directly to req_llm.
   """
   def resolve_model(model_string) do
     case String.split(model_string, ":", parts: 2) do
@@ -435,6 +436,17 @@ defmodule L10n.Translator do
           provider: :openai,
           id: model_id,
           base_url: "http://localhost:11434/v1"
+        })
+
+      ["hive", profile_name] ->
+        ReqLLM.put_key(:openai_api_key, System.fetch_env!("HIVE_INFERENCE_API_KEY"))
+
+        ReqLLM.model!(%{
+          provider: :openai,
+          id: profile_name,
+          base_url:
+            System.get_env("HIVE_INFERENCE_BASE_URL", "https://hive.tuist.dev/inference/v1"),
+          extra: %{wire: %{protocol: "openai_chat"}}
         })
 
       _ ->
@@ -495,7 +507,13 @@ defmodule L10n.Translator do
 
     resolved_model = resolve_model(model)
 
-    case generate_text_with_retries(resolved_model, messages, timeout, locale) do
+    case generate_text_with_retries(
+           resolved_model,
+           messages,
+           timeout,
+           locale,
+           String.starts_with?(model, "hive:")
+         ) do
       {:ok, response} ->
         text =
           response
@@ -512,22 +530,38 @@ defmodule L10n.Translator do
     end
   end
 
-  def generate_text_with_retries(resolved_model, messages, timeout, locale, attempt \\ 1) do
+  def generate_text_with_retries(
+        resolved_model,
+        messages,
+        timeout,
+        locale,
+        stream?,
+        attempt \\ 1
+      ) do
     opts =
       resolved_model
       |> token_limit_option()
       |> Keyword.put(:receive_timeout, timeout)
 
-    case ReqLLM.generate_text(resolved_model, messages, opts) do
+    result =
+      if stream? do
+        with {:ok, response} <- ReqLLM.stream_text(resolved_model, messages, opts) do
+          ReqLLM.StreamResponse.to_response(response)
+        end
+      else
+        ReqLLM.generate_text(resolved_model, messages, opts)
+      end
+
+    case result do
       {:ok, response} ->
         {:ok, response}
 
       {:error, error} ->
-        handle_retry(error, resolved_model, messages, timeout, locale, attempt)
+        handle_retry(error, resolved_model, messages, timeout, locale, stream?, attempt)
     end
   end
 
-  defp handle_retry(error, resolved_model, messages, timeout, locale, attempt) do
+  defp handle_retry(error, resolved_model, messages, timeout, locale, stream?, attempt) do
     case retry_delay_ms(error, attempt) do
       nil ->
         {:error, Exception.message(error)}
@@ -538,7 +572,14 @@ defmodule L10n.Translator do
         )
 
         Process.sleep(delay)
-        generate_text_with_retries(resolved_model, messages, timeout, locale, attempt + 1)
+        generate_text_with_retries(
+          resolved_model,
+          messages,
+          timeout,
+          locale,
+          stream?,
+          attempt + 1
+        )
     end
   end
 

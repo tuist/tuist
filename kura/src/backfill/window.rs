@@ -22,6 +22,23 @@ pub struct BackfillWindow {
 /// re-walks only the slack rather than history. Also exports the horizon
 /// age-span gauge, so window computation is the single call a pass driver
 /// needs.
+///
+/// The bound applies to EVERY listed kind, namespace tombstones included, even
+/// though a tombstone is not ring-resident and so is not the thing the ring
+/// rule was reasoned about. That is intentional: the index is one
+/// version-ordered stream per peer, so a kind-specific exemption would mean
+/// walking past the bound to the peer's oldest entry on every pass — the
+/// unbounded walk the legacy walker did and this design exists to remove.
+/// The residual is narrow. The bound is `max(horizon, watermark)`, so a delete
+/// newer than the node's last completed pass is always listed; only the
+/// horizon term can raise the bound above the watermark, and it does that
+/// solely when the node's own ring turned over while it was away — by which
+/// point it is a cold node under the design's stated drawback, and the
+/// artifacts a missed tombstone would have removed are older than the horizon
+/// and heading for eviction. `list_entries` pins this and
+/// `capacity_complete`'s kind check is the deliberate contrast: capacity is a
+/// segment fact, so it stops segmented fetches only, while the window is an
+/// age fact and stops the walk.
 pub fn compute_window(
     age_ordered_stats_ms: &[u64],
     ring_total_segments: usize,

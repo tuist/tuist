@@ -6,6 +6,7 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
 
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Workers.ArchiveLogsWorker
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Runners.Workers.PruneArchivedLogsWorker
   alias Tuist.Storage
 
@@ -25,11 +26,16 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
         head_sha: "deadbeef"
       })
 
-    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
-    :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
-    :ok = Jobs.record_running(workflow_job_id, "runner-x")
     {:ok, _} = Jobs.complete(workflow_job_id, "success")
+    :ok = perform_job(FlushJobTransitionEventsWorker, %{})
     :ok = Jobs.set_log_archived_at(workflow_job_id, archived_at)
+    flush!()
+  end
+
+  # The stamp reaches ClickHouse through the outbox, and these assertions
+  # read it from there.
+  defp flush! do
+    :ok = perform_job(FlushJobTransitionEventsWorker, %{})
   end
 
   describe "perform/1" do
@@ -46,6 +52,7 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
       end)
 
       assert :ok = PruneArchivedLogsWorker.perform(%Oban.Job{args: %{}})
+      flush!()
       assert {:ok, %{log_archived_at: nil}} = Jobs.get_for_account(account.id, 8_500_001)
     end
 
@@ -58,6 +65,7 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
       reject(&Storage.delete_object/2)
 
       assert :ok = PruneArchivedLogsWorker.perform(%Oban.Job{args: %{}})
+      flush!()
       assert {:ok, %{log_archived_at: ^recent}} = Jobs.get_for_account(account.id, 8_500_002)
     end
 
@@ -73,6 +81,7 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
       end)
 
       assert :ok = PruneArchivedLogsWorker.perform(%Oban.Job{args: %{}})
+      flush!()
       assert {:ok, %{log_archived_at: ^old}} = Jobs.get_for_account(account.id, 8_500_003)
     end
 
@@ -89,6 +98,7 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
       end)
 
       assert :ok = PruneArchivedLogsWorker.perform(%Oban.Job{args: %{}})
+      flush!()
 
       assert {:ok, %{log_archived_at: ^old}} = Jobs.get_for_account(account.id, 8_500_004)
       assert {:ok, %{log_archived_at: nil}} = Jobs.get_for_account(account.id, 8_500_005)

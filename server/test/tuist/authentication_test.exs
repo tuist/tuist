@@ -32,16 +32,26 @@ defmodule Tuist.AuthenticationTest do
 
     expect(Tuist.Guardian, :resource_from_token, fn ^user_token -> {:ok, user, %{}} end)
 
-    # When/Then
-    assert Authentication.authenticated_subject(user_token) == user
+    # When
+    subject = Authentication.authenticated_subject(user_token)
+
+    # Then
+    assert subject.id == user.id
+    # Authenticating is activity, so the subject comes back with its
+    # inactivity clock reset.
+    assert subject.last_sign_in_at
   end
 
   test "authenticated_subject returns the user associated to the token" do
     # Given
     user = AccountsFixtures.user_fixture()
 
-    # When/Then
-    assert Authentication.authenticated_subject(user.token) == user
+    # When
+    subject = Authentication.authenticated_subject(user.token)
+
+    # Then
+    assert subject.id == user.id
+    assert subject.last_sign_in_at
   end
 
   test "authenticated_subject returns the project associated to the legacy token" do
@@ -101,6 +111,28 @@ defmodule Tuist.AuthenticationTest do
     assert result.issued_by == nil
 
     assert Checks.scopes_permit(result, target_project, "project:cache:read") == false
+  end
+
+  test "authenticated_subject counts personal account token use as activity" do
+    # Given an operator who only ever reaches the API through a command line
+    # token. Without this the inactivity sweep sees no activity at all and
+    # eventually retires an account in daily use.
+    user = AccountsFixtures.user_fixture(preload: [:account])
+
+    Repo.update_all(
+      from(u in User, where: u.id == ^user.id),
+      set: [last_sign_in_at: NaiveDateTime.add(NaiveDateTime.utc_now(:second), -200, :day)]
+    )
+
+    {:ok, {_, token_value}} =
+      Accounts.create_account_token(%{account: user.account, scopes: ["project:cache:read"], name: "test-token"})
+
+    # When
+    assert %AuthenticatedAccount{} = Authentication.authenticated_subject(token_value)
+
+    # Then
+    refreshed = Accounts.get_user_by_id(user.id)
+    assert NaiveDateTime.diff(NaiveDateTime.utc_now(:second), refreshed.last_sign_in_at, :day) == 0
   end
 
   test "authenticated_subject returns nil for account tokens owned by inactive personal users" do

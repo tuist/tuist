@@ -286,9 +286,10 @@ enum HTTPAuthorization {
         // `GitHubAuth` resolves the ambient token from the environment or `gh` and drops
         // it when github.com rejects it, so a GitHub Enterprise token exported as
         // GITHUB_TOKEN does not shadow anonymous access to a public release asset.
-        return prioritizedHeader(
+        return await prioritizedHeader(
             isGitHub: isGitHub(url),
             netrcCredential: Environment.netrc.credential(for: url),
+            keychain: { await KeychainAuthorization.credential(for: url) },
             gitHubEnvToken: isGitHub(url) ? await GitHubAuth.token() : nil
         )
     }
@@ -296,9 +297,13 @@ enum HTTPAuthorization {
     static func prioritizedHeader(
         isGitHub: Bool,
         netrcCredential: RegistryCredential?,
+        keychain: () async -> RegistryCredential?,
         gitHubEnvToken: String?
-    ) -> String? {
+    ) async -> String? {
         if let credential = netrcCredential {
+            return basicHeader(credential)
+        }
+        if let credential = await keychain() {
             return basicHeader(credential)
         }
         if isGitHub, let token = nonEmpty(gitHubEnvToken) {

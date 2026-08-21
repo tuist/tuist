@@ -485,7 +485,12 @@ topk(10, sum by (source, destination) (
 An in-cluster source resolves to a pod name; a mis-sourced runner VM or a SNATed
 path resolves to a bare IP, which is the distinction that matters here. Those
 labels come from `drop:sourceContext=pod|ip;destinationContext=pod` in
-[`cilium-values.yaml`](../../k8s/mgmt/bootstrap/cilium-values.yaml). A cluster
+[`cilium-values.yaml`](../../k8s/mgmt/bootstrap/cilium-values.yaml), which
+reaches existing clusters through
+[`cilium-deployment.yml`](../../../.github/workflows/cilium-deployment.yml) —
+editing the values file alone does nothing until that workflow runs, and it was
+this gap that left production unattributable for two days after the value
+merged. A cluster
 that has not had that Cilium value applied still reports `hubble_drop_total`
 aggregated to `(protocol, reason)` only, and needs the job caught live
 (`kubectl get pod -o wide`) with `pfctl -a com.apple/tuist.vmnat -s nat` plus
@@ -802,6 +807,53 @@ plugin, the scrape, or the queue's registration went away, not that the
 queue is idle. Production only: staging and canary can legitimately run
 with no processor deployment at all.
 
+### Swift registry catalog coverage deferred
+
+Same shape as the queue rule above, for the writer rather than a
+consumer: the swift-registry-sync pod can be `1/1 Running` with zero
+restarts and still not be mirroring anything.
+
+That is not hypothetical. During the July 2026 registry incident the
+production pod logged 2,566 GitHub rate-limit failures and dropped nine
+consecutive scheduled catalog passes in a little over six hours, while
+every availability signal stayed green. Nothing paged, and the first
+detection of the resulting catalog drift was a customer issue.
+
+`Tuist.Registry.Swift.SyncWorker` now defers a throttled pass to the
+quota reset instead of discarding it, holds the rotation cursor at the
+package it stopped on, and counts the packages it gave up on. This rule
+reads that count.
+
+```promql
+sum by (cluster, env) (
+  increase(tuist_registry_swift_sync_coverage_deferred_total[30m])
+) >= 3
+```
+
+- Pending period: 0 minutes
+- Severity: critical
+- Label: `affected_service` set to the registry component
+- Summary: `The Swift registry mirror deferred {{ $value }} scheduled
+  catalog passes in the last 30 minutes in {{ $labels.cluster }}`
+
+Passes, not packages: a single deferred pass is ordinary (the mirror
+backs off, the next one catches up), and three inside half an hour means
+the deferral is not clearing on its own. The catalog rotates roughly
+every ten minutes, so three consecutive deferrals is the whole window.
+
+`reason` separates the causes without changing the threshold, and is
+worth reading before acting. `rate_limited` points at the request budget
+(check `tuist_github_rate_limit_used` against `tuist_github_rate_limit_limit`
+and, if it is genuinely exhausted, at `swiftRegistrySync.syncLimit`).
+`missing_credential` means the GitHub App could not issue an installation
+token at all. `unauthorized` means GitHub refused the token the mirror
+does hold. `all_packages_failed` means every package in a pass failed,
+which is the mirror being broken rather than several hundred unrelated
+repositories failing at once, and is the shape a credential problem takes
+because GitHub answers an invisible repository with 404 rather than 401.
+For either, reverting `swiftRegistrySync.githubAppInstallation` falls back
+to the personal access token. None of these three is fixed by waiting.
+
 ### xcresult processor guest metrics unavailable fleet-wide
 
 The direct detector for "the BEAM inside the Tart VM is not running".
@@ -997,6 +1049,43 @@ absent_over_time(
 
 ## Warning alerts
 
+### Swift registry release work repeatedly deferred
+
+```promql
+sum by (cluster, env) (
+  increase(tuist_registry_swift_release_deferred_total[1h])
+) > 50
+```
+
+- Pending period: 10 minutes
+- Summary: `{{ $value }} Swift registry release jobs were deferred in the
+  last hour in {{ $labels.cluster }}`
+
+Deferred release jobs keep their arguments and run once the throttling
+clears, so a handful is the mechanism working. A sustained rate means new
+versions are not reaching the catalog, which surfaces to customers as a
+version that never appears rather than as an error. Pairs with the
+critical coverage rule above: that one fires when whole passes stop,
+this one when individual releases pile up behind throttling.
+
+### Swift registry packages skipped without being read
+
+```promql
+sum by (cluster, env) (
+  increase(tuist_registry_swift_sync_package_skipped_total[1h])
+) > 100
+```
+
+- Pending period: 10 minutes
+- Summary: `The Swift registry mirror passed over {{ $value }} packages
+  without reading their tags in the last hour in {{ $labels.cluster }}`
+
+Distinct from the deferral rules: these are packages the pass moved past
+after a non-throttling failure, so the cursor has already rotated beyond
+them and they wait a full catalog rotation for another look. A steady
+rate here is upstream repositories going away or a scope problem on the
+mirror's credential, not a quota problem.
+
 ### Worker node pool stuck mid-rollout
 
 Catches a worker MachineDeployment that started replacing Machines and cannot
@@ -1006,12 +1095,15 @@ healthy while it silently stops receiving template changes. That is how
 `tuist-runners-linux` went two months — from 2026-06-17 — with two Ready
 Machines, one of them up to date, and no signal at all.
 
-Two distinct failures land here. A bare-metal pool whose hosts are all
-claimed cannot surge a replacement, so the roll never starts (fixed by
-`maxSurge: 0` / `maxUnavailable: 1` on the `bare-metal-worker` class). And a
-drain that cannot complete holds the roll open — expected briefly, since
-runner Pods are drained with `WaitCompleted` and a node waits for its
-in-flight CI jobs, but not for hours.
+This covers a roll that has not yet *produced* every Machine it needs, most
+importantly a bare-metal pool whose hosts are all claimed and so cannot surge
+a replacement, meaning the roll never starts (fixed by `maxSurge: 0` /
+`maxUnavailable: 1` on the `bare-metal-worker` class).
+
+It does **not** cover a drain that cannot finish. Once the last replacement is
+Ready, `up_to_date == spec` even though the old Machine is still stuck in
+`Deleting`, and this query goes quiet. "Worker pool has a Machine it cannot
+delete" below is the rule for that half.
 
 ```promql
 kube_customresource_machinedeployment_up_to_date_replicas{
@@ -1040,6 +1132,164 @@ than firing late — an alert that cries wolf on the expected path gets
 muted, and this is the only signal covering a class of failure that
 previously went unnoticed for two months. Twenty-four hours clears the
 worst case with margin and still catches a wedge the next day.
+
+### Worker pool has a Machine it cannot delete
+
+Catches a Machine whose drain never completes. Cluster API's ClusterClass sets
+`nodeDrainTimeoutSeconds: 0`, meaning wait forever, because runner Pods drain
+with `WaitCompleted` and any finite cap is a promise to kill a customer's CI job.
+The accepted cost is that a drain which can *never* finish holds the roll open
+indefinitely, and the whole arrangement is predicated on that being loud.
+
+Every other exported series is blind to it. The pool keeps producing its full
+complement of up-to-date, Ready Machines, so `up_to_date`, `ready`, and
+`available` all equal `spec` while the surplus Machine sits in `Deleting`.
+Only `status.replicas`, which counts Machines the MachineDeployment still owns
+including ones being deleted, rises above `spec`.
+
+That is how `tuist-md-processor` went 14 days from 2026-07-31 at
+`spec=2 replicas=3 up_to_date=2 ready=2`, blocked on two single-instance CNPG
+clusters (`tuist-ops/tuist-ops-pg`, `once-production/once-postgres`) whose
+`<cluster>-primary` PodDisruptionBudget selects the only pod they have and can
+therefore never allow a disruption.
+
+```promql
+kube_customresource_machinedeployment_replicas{
+  cluster="tuist-management"
+}
+>
+kube_customresource_machinedeployment_spec_replicas{
+  cluster="tuist-management"
+}
+```
+
+- Pending period: 8 hours
+- Summary: `Worker pool {{ $labels.machinedeployment }} ({{ $labels.workload_cluster }}) has a Machine it cannot delete`
+
+Two healthy paths put `replicas` above `spec`, and the pending period has to
+clear the slower of them.
+
+A **rollout** surges a replacement before deleting the old Machine, but only on
+the `hcloud-worker` class: `bare-metal-worker` runs `maxSurge: 0` and never
+surges. On an hcloud pool the slowest legitimate term is CNPG's
+`terminationGracePeriodSeconds: 1800`, so a three-node pool rolling
+sequentially holds a surplus Machine for close to two hours.
+
+A **scale-down** is the binding case, and it is the reason this is not a
+four-hour rule. `maxSurge` governs rollouts only. Lowering `spec.replicas`
+puts `replicas` above `spec` immediately, on every class including bare metal,
+and the gap stays open for the whole drain of the Machine being removed.
+Cluster API drains a scale-down exactly like a rollout, so on a runner pool
+that means `WaitCompleted` waiting on an in-flight CI job, legitimately up to
+six hours. Scaling `runners-linux` from two replicas to one would otherwise
+page at four hours every time. Eight clears the six-hour job ceiling with
+margin.
+
+Excluding the runner pools by name and keeping four hours was the alternative.
+Rejected: it hardcodes pool names that rot, and it would leave a wedged drain
+on exactly the pools where drains are slowest with no coverage at all. One
+rule that fires late on every pool beats a fast rule with a hole in it.
+
+Still far tighter than the 24 hours on "stuck mid-rollout", which additionally
+has to sit above a *whole* multi-node bare-metal roll rather than a single
+Machine's drain.
+
+### Pod cannot be scheduled
+
+Catches a Pod the scheduler has given up placing. Nothing else in this
+document covers it, because an unscheduled Pod produces none of the
+signals the other workload rules read: it has no container, so there is
+no waiting reason, no termination reason, and no restart count, and it
+never had a ready endpoint to lose. Its Services keep existing with zero
+endpoints, which reads as "no traffic" rather than "no backend".
+
+That is how `registry/registry-pg-1` — the sole instance of a
+CloudNativePG cluster — sat `Pending` in production from 2026-07-06 to
+2026-08-19 without anyone noticing. Its volume had been provisioned
+against a node that was later destroyed, and Hetzner Cloud Volumes are
+location-bound, so the replacement Pod could not satisfy the volume's
+node affinity anywhere in the cluster. All three of that cluster's
+Services served zero endpoints for six weeks.
+
+```promql
+max by (cluster, namespace, pod) (
+  kube_pod_status_unschedulable{
+    cluster="tuist-production",
+    namespace!="tuist-runners"
+  }
+) == 1
+```
+
+- Pending period: 30 minutes
+- Severity: warning
+- No-data state: OK, and the same for the execution-error state
+- Summary: `Pod {{ $labels.namespace }}/{{ $labels.pod }} has been unschedulable for 30 minutes in {{ $labels.cluster }}`
+
+The no-data state is not incidental. Production's healthy baseline for
+this query is *no series at all*, so the rule sits in no-data rather than
+at zero whenever nothing is wrong. Left at the `Alerting` default it
+would fire permanently from the moment it is created.
+
+The `cluster` scope is also load-bearing, and this rule was documented
+without it first. When it was written the unscoped query matched 15
+permanently unschedulable Pods in `tuist-staging`, so saving it would
+have fired 15 alerts on its first evaluation. That is the failure mode
+the *Worker node pool stuck mid-rollout* rule warns about in its own
+pending-period note: a rule that cries wolf on the expected path gets
+muted, and a muted rule is worth less than no rule.
+
+Those 15 turned out to be orphans rather than a reason to widen the rule,
+and were cleared on 2026-08-19:
+
+- 11 `kura-<account>-staging` instances stranded in the retired
+  `hetzner-staging-runners` region, whose `kura` node pool was deleted
+  with it. Their Postgres rows were already gone, and
+  `reconcile_retired_region_servers` drives teardown from those rows, so
+  the orphaned `KuraInstance` CRs were invisible to it permanently.
+- 3 belonging to `kgw-…-eu-central-controller`, left behind when the
+  per-account Kura gateway was removed in
+  [#11644](https://github.com/tuist/tuist/pull/11644). Helm does not prune
+  CRDs, so the CRD and its CR outlived the controller that reconciled
+  them, and the CR's finalizer had to be cleared by hand because nothing
+  was left to process it.
+- 1 `tailscale-operator` subnet-router Pod, which is churn rather than a
+  stuck Pod: the operator replaces it every few minutes, so no single
+  instance survives the pending period.
+
+Staging is clean enough to alert on today. The scope stays at production
+because that is what the deployed rule uses, and the two should not drift;
+widening it is a deliberate follow-up rather than an oversight. Before
+doing so, confirm the subnet-router churn still never persists past 30
+minutes, because one instance did sit unschedulable for 18 consecutive
+hours in the 48 hours before the cleanup.
+
+Validate any change to this query against live data before saving it. The
+staging noise above was invisible in review and only showed up by running
+the expression over a 48-hour window.
+
+No metric change is needed. The kube-state-metrics tuning in
+[`values.yaml`](./values.yaml) already keeps `kube_pod_status_unschedulable`
+cluster-wide while dropping the rest of `kube_pod_*` for the runner
+namespace, on the grounds that it is a cheap placement signal — so the
+series for this incident existed in Grafana Cloud the whole time and
+nothing read it.
+
+`tuist-runners` is excluded rather than alerted on. Unschedulable Pods
+are an expected steady state there: the autoscaler deliberately asks for
+more replicas than the fleet can bin-pack, and the surplus stays
+unschedulable until hosts free up. The real runner-side failure is
+already covered by *Runner queue not draining*, which measures queue age
+and does not confuse a capacity ceiling with a fault. Idle Linux runners
+would not have matched this rule in any case — they are `Pending` because
+their dispatch poller runs as an init container, not because the
+scheduler could not place them.
+
+Thirty minutes clears the ordinary path where a Pod waits on the cluster
+autoscaler to add a node, and is short enough that a volume-affinity or
+taint mistake surfaces the same morning instead of six weeks later. This
+is a warning rather than a page because it fires on any production
+workload in any namespace: the Pod that motivated it was critical, but
+most Pods that briefly cannot schedule are not.
 
 ### Kubernetes request latency
 
@@ -1144,6 +1394,39 @@ sum by (cluster, namespace, method, route) (
 
 - Pending period: 2 minutes
 - Summary: `Bandit reported repeated request read timeouts for {{ $labels.route }} in {{ $labels.cluster }}`
+
+### Runner job replica divergence
+
+```promql
+max by (fleet) (
+  tuist_runners_replica_divergence_count{env="production"}
+) > 0
+```
+
+- Pending period: 15 minutes
+- Already created: rule `ffvr99w48mltsb`, folder `Alerts`, group `Runners`,
+  receiver `Slack #notifications 2`.
+- **Created paused.** The gauge counts against a 7-day `enqueued_at` floor, and
+  the divergence from the 2026-08-19 log-archiver bug sits inside that window,
+  so the rule would fire continuously until those rows age out. Unpause once
+  `max by (fleet) (tuist_runners_replica_divergence_count{env="production"})`
+  reads 0, or once the affected rows are repaired.
+- Counts jobs whose ClickHouse `runner_jobs` row is still
+  `queued`/`claimed`/`running` while the authoritative Postgres
+  `runner_workflow_jobs` row is terminal. The server-side poll already excludes
+  rows younger than a 5-minute settle window, so in-flight jobs and normal
+  outbox lag are not counted and steady state is 0.
+- Data-correctness, not availability: dispatch reads Postgres directly, so jobs
+  keep running while this fires. What breaks is analytics —
+  `Runners.Analytics.jobs_duration` filters on a terminal status with non-null
+  `started_at`/`completed_at`, so a diverged job drops out of customer-facing
+  duration percentiles and success counts.
+- Threshold is `> 0` rather than a tolerance band: the outbox makes divergence
+  transient by construction (the ClickHouse insert precedes the outbox delete in
+  one transaction), so anything surviving the settle window is a row that will
+  not converge on its own.
+- Summary: `Runner fleet {{ $labels.fleet }}: {{ $values.A.Value }} job(s) stuck
+  non-terminal in ClickHouse while Postgres says they finished`
 
 ### Tuist license expires within 30 days
 

@@ -5,6 +5,8 @@ defmodule TuistWeb.UserSessionController do
   alias Tuist.Environment
   alias TuistWeb.Authentication
 
+  require Logger
+
   def create(conn, %{"_action" => "registered"} = params) do
     create(conn, params, "Account created successfully!")
   end
@@ -36,6 +38,8 @@ defmodule TuistWeb.UserSessionController do
         do_create(conn, params, info)
 
       {:deny, _limit} ->
+        log_authentication_outcome("rate_limited")
+
         conn
         |> put_flash(:error, dgettext("dashboard", "You've exceeded the rate limit. Try again later."))
         |> redirect(to: ~p"/users/log_in")
@@ -60,11 +64,15 @@ defmodule TuistWeb.UserSessionController do
 
     case Accounts.get_user_by_email_and_password(email, password) do
       {:ok, user} ->
+        log_authentication_outcome("success")
+
         conn
         |> put_flash(:info, info)
         |> Authentication.log_in_user(user, user_params)
 
       {:error, :invalid_email_or_password} ->
+        log_authentication_outcome("invalid_credentials")
+
         # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
         conn
         |> put_flash(:email, email)
@@ -73,6 +81,8 @@ defmodule TuistWeb.UserSessionController do
         |> halt()
 
       {:error, :not_confirmed} ->
+        log_authentication_outcome("unconfirmed")
+
         # Valid credentials but an unconfirmed email. The password already proved
         # ownership, so carry the email to the resend page for a one-click resend
         # instead of dead-ending on the login form.
@@ -81,6 +91,14 @@ defmodule TuistWeb.UserSessionController do
         |> redirect(to: ~p"/users/confirm")
         |> halt()
     end
+  end
+
+  # Every outcome of a sign-in attempt redirects, successes and failures alike,
+  # so the response status cannot tell them apart. Reviewing authentication
+  # needs an explicit outcome to count, which is what this emits. The acting
+  # address is already on the record from the observability context.
+  defp log_authentication_outcome(outcome) do
+    Logger.info("authentication attempt", auth_outcome: outcome)
   end
 
   def new(conn, %{"return_to" => "//" <> _}) do

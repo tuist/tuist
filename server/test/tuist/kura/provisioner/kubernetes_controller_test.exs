@@ -11,14 +11,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   setup :set_mimic_from_context
 
-  setup do
-    # FunWithFlags persists through Ecto, which this async non-DB case cannot
-    # touch; the flag defaults off, matching the fleet's flag-off baseline.
-    # Backfill-specific tests re-stub per test.
-    stub(Tuist.FeatureFlags, :kura_backfill_enabled?, fn _ -> false end)
-    :ok
-  end
-
   describe "manifest/6" do
     test "renders a KuraInstance without a per-account compute spec" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
@@ -42,7 +34,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert manifest["metadata"]["namespace"] == "kura"
 
       assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
-               KubernetesController.manifest_revision()
+               KubernetesController.manifest_revision() <> "+backfill"
 
       spec = manifest["spec"]
       assert spec["accountHandle"] == "tuist"
@@ -273,16 +265,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(non_entitled_env, "KURA_MESH_PEERS_SYNC")
     end
 
-    test "renders the backfill walker flag only for gated accounts, with a matching revision" do
+    test "renders the backfill walker flag for every account, with a matching revision" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
         "00000000-0000-0000-0000-000000000001"
       end)
 
-      stub(Tuist.FeatureFlags, :kura_backfill_enabled?, fn %Account{id: 1} -> true end)
-
-      gated =
+      manifest =
         KubernetesController.manifest(
           "kura-tuist-eu-central-1",
           "0.5.2",
@@ -291,31 +281,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           %Server{}
         )
 
-      gated_env = Map.new(gated["spec"]["extraEnv"], &{&1["name"], &1["value"]})
-      assert gated_env["KURA_BACKFILL_ENABLED"] == "true"
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_BACKFILL_ENABLED"] == "true"
 
-      # The env must move the revision or the reconciler would never apply it.
-      assert gated["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
+      # The env must move the revision or the reconciler would never apply it,
+      # and the marker is the same one already-gated accounts carry, so they
+      # stay byte-identical and are not rolled.
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
                KubernetesController.manifest_revision() <> "+backfill"
-
-      stub(Tuist.FeatureFlags, :kura_backfill_enabled?, fn _ -> false end)
-
-      ungated =
-        KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
-          "0.5.2",
-          %Account{id: 1, name: "tuist"},
-          eu_region(),
-          %Server{}
-        )
-
-      ungated_env = Map.new(ungated["spec"]["extraEnv"], &{&1["name"], &1["value"]})
-      refute Map.has_key?(ungated_env, "KURA_BACKFILL_ENABLED")
-
-      # Ungated accounts stay byte-identical to today's revision: shipping the
-      # flag rolls nothing until an account is gated on.
-      assert ungated["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
-               KubernetesController.manifest_revision()
     end
 
     test "renders the backfill walker flag for the private runner-cache (co-located) region" do
@@ -325,7 +298,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         "00000000-0000-0000-0000-000000000001"
       end)
 
-      stub(Tuist.FeatureFlags, :kura_backfill_enabled?, fn _ -> true end)
       stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
 
       {:ok, region} = Regions.fetch("scw-fr-par-runners")
@@ -1072,7 +1044,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
 
       assert KubernetesController.manifest_revision(%{name: "tuist"}, eu_region(%{mesh: true})) ==
-               KubernetesController.manifest_revision()
+               KubernetesController.manifest_revision() <> "+backfill"
     end
 
     test "changes when a peer is enrolled, matching the rendered manifest annotation" do
@@ -1118,21 +1090,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       reject(&Mesh.self_hosted_peer_urls/1)
 
       assert KubernetesController.manifest_revision(%{name: "tuist"}, eu_region()) ==
-               KubernetesController.manifest_revision()
-    end
-
-    test "crosses a revision boundary on the backfill flag so a flip re-applies" do
-      reject(&Mesh.self_hosted_peer_urls/1)
-      account = %Account{id: 1, name: "tuist"}
-
-      stub(Tuist.FeatureFlags, :kura_backfill_enabled?, fn _ -> false end)
-
-      assert KubernetesController.manifest_revision(account, eu_region()) ==
-               KubernetesController.manifest_revision()
-
-      stub(Tuist.FeatureFlags, :kura_backfill_enabled?, fn _ -> true end)
-
-      assert KubernetesController.manifest_revision(account, eu_region()) ==
                KubernetesController.manifest_revision() <> "+backfill"
     end
 
@@ -1212,9 +1169,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # The upgrade crosses a revision boundary, so the reconciler re-applies
       # and arms the peer-view gate instead of leaving the instance ungated.
       refute non_entitled == entitled
-      # The entitled revision stays byte-identical to the base, so instances
-      # already running with sync on are not rolled by this change.
-      assert entitled == KubernetesController.manifest_revision()
+      # The entitled revision stays byte-identical to the base plus the
+      # unconditional backfill marker, so instances already running with sync
+      # on are not rolled by this change.
+      assert entitled == KubernetesController.manifest_revision() <> "+backfill"
 
       # The rendered manifest stamps the same revision the reconciler computes,
       # so the two never disagree and loop.
@@ -1243,7 +1201,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           eu_region(%{mesh: true})
         )
 
-      assert revision == KubernetesController.manifest_revision() <> "+nosync"
+      assert revision == KubernetesController.manifest_revision() <> "+nosync+backfill"
     end
   end
 
