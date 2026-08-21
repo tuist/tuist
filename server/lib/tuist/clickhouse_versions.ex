@@ -10,7 +10,7 @@ defmodule Tuist.ClickHouseVersions do
   """
 
   @minimum_supported_version "25"
-  @oldest_tested_release "25.8.31.9-lts"
+  @oldest_tested_release "25.7.7.68-stable"
 
   @doc """
   The oldest ClickHouse major version the server supports. Migrations refuse to
@@ -21,9 +21,14 @@ defmodule Tuist.ClickHouseVersions do
   @doc """
   The release CI installs to exercise `minimum_supported_version/0`.
 
-  The oldest ClickHouse 25 still receiving upstream patches: 25.3 LTS stopped in
-  February 2026. It also predates `deduplicate_insert_select`, so the job covers
-  the version gate in `Tuist.ClickHouseCapabilities` rather than bypassing it.
+  Tracks the oldest release known to be running in a self-hosted deployment,
+  rather than the oldest release upstream still patches. Those diverge: this one
+  is not an LTS and upstream has moved on, but it is what the fleet runs, and it
+  is the release that surfaced the `deduplicate_insert_select` failure. Lower it
+  when a deployment is found below it.
+
+  It predates `deduplicate_insert_select`, so the job covers the version gate in
+  `Tuist.ClickHouseCapabilities` rather than bypassing it.
   """
   def oldest_tested_release, do: @oldest_tested_release
 end
