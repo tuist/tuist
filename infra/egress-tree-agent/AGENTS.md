@@ -145,6 +145,18 @@ A pod-device convergence error keeps the last known-good program attached
 (the device stays out of the stale sweep) and requeues a fast retry; a
 transient sync hiccup never strips working enforcement.
 
+One failure mode no `kura_egress_tree_*` counter can see: per-CPU softnet
+backlog overflow. Each shaped packet takes two extra `enqueue_to_backlog`
+trips (trampoline-peer receive, `BPF_F_INGRESS` re-inject), and overflow
+beyond `netdev_max_backlog` is a silent kernel drop. Watch
+`rate(node_softnet_dropped_total)` on shaped nodes (node-exporter's softnet
+collector, already deployed fleet-wide) alongside the tripwires above.
+Lab-measured headroom (k01, 24 cores, 1.4 KB UDP, 5-min sustained runs):
+zero softnet and zero qdisc drops at 1.4M pkt/s aggregate across 50 shaped
+pods and at 630k pkt/s from one pod; the single HTB root lock surfaced as
+sender backpressure (~22% single-flow PPS cost vs unshaped), not as drops —
+so `netdev_max_backlog` needs no tuning at these rates.
+
 Ordering guarantee behind the direct-packet alarm: classes are upserted
 before programs attach, and stale classes are pruned only after the stale
 programs are detached — in neither direction does a program stamp a classid
