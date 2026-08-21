@@ -94,7 +94,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
   def show(%{assigns: %{selected_project: project}, params: %{alert_id: alert_id}} = conn, _params) do
     case Automations.get_alert(alert_id) do
       {:ok, alert} ->
-        if alert.project_id == project.id do
+        if alert.project_id == project.id and alert.kind == "standard" do
           json(conn, AutomationAlert.from_model(alert))
         else
           conn |> put_status(:not_found) |> json(%{message: "Alert not found."})
@@ -213,7 +213,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
         _params
       ) do
     with {:ok, alert} <- Automations.get_alert(alert_id),
-         true <- alert.project_id == project.id do
+         true <- alert.project_id == project.id and alert.kind == "standard" do
       attrs = RequestParams.normalize(body_params)
 
       case Automations.update_alert(alert, attrs) do
@@ -266,7 +266,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
 
   def delete(%{assigns: %{selected_project: project}, params: %{alert_id: alert_id}} = conn, _params) do
     with {:ok, alert} <- Automations.get_alert(alert_id),
-         true <- alert.project_id == project.id,
+         true <- alert.project_id == project.id and alert.kind == "standard",
          {:ok, _} <- Automations.delete_alert(alert) do
       send_resp(conn, :no_content, "")
     else

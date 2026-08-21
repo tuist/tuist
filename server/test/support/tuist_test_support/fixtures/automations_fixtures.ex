@@ -43,4 +43,14 @@ defmodule TuistTestSupport.Fixtures.AutomationsFixtures do
     {:ok, alert} = Automations.create_alert(attrs)
     alert
   end
+
+  def manual_automation_alert_fixture(opts \\ []) do
+    project =
+      Keyword.get_lazy(opts, :project, fn ->
+        ProjectsFixtures.project_fixture()
+      end)
+
+    {:ok, alert} = Automations.get_or_create_manual_alert(Keyword.get(opts, :project_id, project.id))
+    alert
+  end
 end

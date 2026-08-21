@@ -39,6 +39,22 @@ defmodule Tuist.FeatureFlags do
     not Environment.tuist_hosted?() or FunWithFlags.enabled?(:kura, for: account)
   end
 
+  @doc """
+  Whether derived test-case state (the holds/claims ledger) is the write
+  path for the given project's automation and manual state transitions.
+  Off means dual-write: claims are recorded passively while state writes
+  keep the direct behavior.
+  """
+  def test_state_holds_enabled?(project_id) when is_integer(project_id) do
+    # The Project actor impl only reads `id`, so a stub struct avoids a
+    # per-evaluation project load on the worker hot path.
+    test_state_holds_enabled?(%Tuist.Projects.Project{id: project_id})
+  end
+
+  def test_state_holds_enabled?(project) do
+    FunWithFlags.enabled?(:test_state_holds, for: project)
+  end
+
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"

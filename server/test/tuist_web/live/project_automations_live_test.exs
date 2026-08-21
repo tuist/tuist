@@ -33,6 +33,29 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert html =~ automation.id
     end
 
+    test "does not render the Manual automation", %{conn: conn, organization: organization, project: project} do
+      manual = AutomationsFixtures.manual_automation_alert_fixture(project: project)
+      standard = AutomationsFixtures.automation_alert_fixture(project: project, name: "Visible automation")
+
+      {:ok, _lv, html} = open(conn, organization, project)
+
+      assert html =~ "Visible automation"
+      assert html =~ standard.id
+      refute html =~ manual.id
+    end
+
+    test "shows the empty state when only the Manual automation exists", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      _manual = AutomationsFixtures.manual_automation_alert_fixture(project: project)
+
+      {:ok, _lv, html} = open(conn, organization, project)
+
+      assert html =~ "No automations yet"
+    end
+
     test "does not let a regular project member forge automation mutations", %{
       organization: organization,
       project: project

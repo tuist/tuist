@@ -7,9 +7,11 @@ defmodule Tuist.Automations do
   alias Tuist.Automations.Alerts.BaselineAttempt
   alias Tuist.Automations.Alerts.BaselineResult
   alias Tuist.Automations.Alerts.Event, as: AlertEvent
+  alias Tuist.Automations.Holds
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Repo
   alias Tuist.Tests
@@ -34,15 +36,18 @@ defmodule Tuist.Automations do
   @max_scoped_evaluation_window_seconds [minute: 15] |> to_timeout() |> div(1000)
   @baseline_evaluation_batch_size 2000
   @baseline_event_batch_size 500
+  @claim_release_chunk_size 100
   @baseline_enumeration_settings [
     max_threads: 1,
     max_memory_usage: 128 * 1024 * 1024,
     optimize_aggregation_in_order: 1
   ]
 
+  # The per-project Manual automation is an internal hold owner, not a
+  # user-managed automation, so listings only return standard alerts.
   def list_alerts(project_id) do
     Alert
-    |> where(project_id: ^project_id)
+    |> where(project_id: ^project_id, kind: "standard")
     |> order_by(asc: :inserted_at)
     |> Repo.all()
   end
@@ -79,6 +84,34 @@ defmodule Tuist.Automations do
       recovery_actions: [%{"type" => "remove_label", "label" => "flaky"}]
     }
   end
+
+  @doc """
+  Returns the project's Manual automation, creating it on first use.
+
+  Race-safe: two concurrent first calls contend on the partial unique index
+  over `(project_id) WHERE kind = 'manual'`, so the insert uses
+  `on_conflict: :nothing` against it and the re-select returns the single
+  surviving row either way.
+  """
+  def get_or_create_manual_alert(project_id) do
+    case Repo.get_by(Alert, project_id: project_id, kind: "manual") do
+      %Alert{} = alert ->
+        {:ok, alert}
+
+      nil ->
+        with {:ok, _inserted} <-
+               %Alert{}
+               |> Alert.manual_changeset(%{project_id: project_id})
+               |> Repo.insert(
+                 on_conflict: :nothing,
+                 conflict_target: {:unsafe_fragment, "(project_id) WHERE kind = 'manual'"}
+               ) do
+          {:ok, Repo.get_by!(Alert, project_id: project_id, kind: "manual")}
+        end
+    end
+  end
+
+  def update_alert(%Alert{kind: "manual"}, _attrs), do: {:error, :manual_alert}
 
   def update_alert(%Alert{id: alert_id}, attrs) do
     {:ok, result} =
@@ -140,8 +173,53 @@ defmodule Tuist.Automations do
     end
   end
 
+  def delete_alert(%Alert{kind: "manual"}), do: {:error, :manual_alert}
+
+  @doc """
+  Deletes a standard alert, releasing its live claims first.
+
+  Tombstone-first: the alert is disabled before the release sweep so
+  evaluation stops picking it up and no new claims land mid-release. The
+  claims ledger has no FK to `automation_alerts`, so a crash mid-sweep
+  leaves orphaned claims that keep influencing derivation; the backstop that
+  treats orphans as withdrawn is deferred to the reconciliation work in a
+  later change.
+
+  Note this contrasts with merely disabling an alert, which leaves its
+  claims untouched (a paused rule must not un-quarantine its tests).
+  """
   def delete_alert(%Alert{} = alert) do
-    Repo.delete(alert)
+    with {:ok, alert} <- alert |> Ecto.Changeset.change(enabled: false) |> Repo.update() do
+      release_alert_claims(alert)
+      Repo.delete(alert)
+    end
+  end
+
+  # Withdrawing claims with the holds flag off is harmless ledger hygiene,
+  # but state writes must keep today's semantics, so re-derivation only runs
+  # when the flag is on for the project.
+  defp release_alert_claims(alert) do
+    holds_enabled? = FeatureFlags.test_state_holds_enabled?(alert.project_id)
+
+    alert
+    |> Holds.live_claims_for_alert()
+    |> Enum.map(& &1.test_case_id)
+    |> Enum.chunk_every(@claim_release_chunk_size)
+    |> Enum.each(fn test_case_ids ->
+      Enum.each(test_case_ids, fn test_case_id ->
+        case Holds.withdraw_claim(alert, test_case_id) do
+          {:ok, _} ->
+            :ok
+
+          {:error, reason} ->
+            Logger.warning("Alert #{alert.id} claim withdrawal failed for test_case #{test_case_id}: #{inspect(reason)}")
+        end
+      end)
+
+      if holds_enabled? do
+        {:ok, _} = Holds.derive_and_apply(alert.project_id, test_case_ids, alert_id: alert.id)
+      end
+    end)
   end
 
   @doc """
@@ -189,6 +267,7 @@ defmodule Tuist.Automations do
         Repo.all(
           from(a in Alert,
             where: a.project_id == ^project_id,
+            where: a.kind == "standard",
             where: a.enabled == true,
             where: a.monitor_type in ^@flaky_monitor_types
           )
@@ -828,6 +907,7 @@ defmodule Tuist.Automations do
     Repo.all(
       from(a in Alert,
         where: a.project_id == ^project_id,
+        where: a.kind == "standard",
         where: a.monitor_type == "test_updated",
         where: a.enabled == true
       )
