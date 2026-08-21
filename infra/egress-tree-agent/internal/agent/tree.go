@@ -41,7 +41,11 @@ func (t Tree) EnsureDevices(ctx context.Context) error {
 		return err
 	}
 	for _, dev := range []string{t.TrampolineDev, t.ReturnDev} {
-		writeSysctl(filepath.Join("/proc/sys/net/ipv6/conf", dev, "disable_ipv6"), "1")
+		// ENOENT means IPv6 is compiled out — nothing to autoconfigure, so
+		// nothing to disable. Any other failure is a real broken guardrail.
+		if err := writeSysctl(filepath.Join("/proc/sys/net/ipv6/conf", dev, "disable_ipv6"), "1"); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("disabling ipv6 on %s: %w", dev, err)
+		}
 		if err := writeSysctl(filepath.Join("/proc/sys/net/ipv4/conf", dev, "forwarding"), "0"); err != nil {
 			return fmt.Errorf("disabling forwarding on %s: %w", dev, err)
 		}

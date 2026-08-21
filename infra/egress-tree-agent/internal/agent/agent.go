@@ -70,6 +70,7 @@ func (a *Agent) reconcile(ctx context.Context) error {
 		// skipped-pod gauge carries the signal.
 		a.Metrics.NodeBudgetMbps.Set(0)
 		a.Metrics.AttachedPods.Set(0)
+		a.Metrics.BetaExcludedPods.Set(0)
 		a.Metrics.SkippedPods.Set(float64(len(pods) + skipped))
 		if len(pods) > 0 {
 			a.Log.Warn("node advertises no egress budget; pods stay unshaped",

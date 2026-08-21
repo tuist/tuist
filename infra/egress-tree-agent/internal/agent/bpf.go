@@ -60,11 +60,7 @@ func (a Attacher) EnsureReturn(returnDev string) error {
 		return fmt.Errorf("resolving %s: %w", returnDev, err)
 	}
 	dir := a.returnDir()
-	ok, err := a.linkAttached(dir, iface.Index)
-	if err != nil {
-		return err
-	}
-	if ok {
+	if a.linkAttached(dir, iface.Index) {
 		return nil
 	}
 	a.removePins(dir)
@@ -74,6 +70,17 @@ func (a Attacher) EnsureReturn(returnDev string) error {
 		return fmt.Errorf("loading return program: %w", err)
 	}
 	defer objects.Close()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	// The counters pin lands before the link pin, mirroring EnsurePod: a
+	// failure between the two then leaves no pinned link, so the next cycle
+	// sees the program as detached and rebuilds everything. The opposite
+	// order would strand an attached link without a readable counters map,
+	// silencing the return-drop metric until manual cleanup.
+	if err := objects.Counters.Pin(filepath.Join(dir, "counters")); err != nil {
+		return err
+	}
 	l, err := link.AttachTCX(link.TCXOptions{
 		Interface: iface.Index,
 		Program:   objects.KuraShaperRet,
@@ -84,13 +91,7 @@ func (a Attacher) EnsureReturn(returnDev string) error {
 		return fmt.Errorf("attaching return program to %s: %w", returnDev, err)
 	}
 	defer l.Close()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	if err := l.Pin(filepath.Join(dir, "link")); err != nil {
-		return err
-	}
-	return objects.Counters.Pin(filepath.Join(dir, "counters"))
+	return l.Pin(filepath.Join(dir, "link"))
 }
 
 // EnsurePod converges one pod device: program attached first in the tcx
@@ -104,11 +105,7 @@ func (a Attacher) EnsurePod(dev string, trampolineIfindex int, attachment PodAtt
 	}
 	dir := a.podDir(dev)
 
-	attached, err := a.linkAttached(dir, iface.Index)
-	if err != nil {
-		return false, err
-	}
-	if attached {
+	if a.linkAttached(dir, iface.Index) {
 		first, err := a.linkIsFirst(dir, iface.Index)
 		if err != nil {
 			return false, err
@@ -268,25 +265,23 @@ func (a Attacher) ReturnCounters() ([]uint64, error) {
 
 // linkAttached reports whether the pinned link exists and is still attached
 // to the given ifindex (a recreated device gets a new ifindex, orphaning the
-// old link).
-func (a Attacher) linkAttached(dir string, ifindex int) (bool, error) {
+// old link). Every failure — missing pin, unreadable pin, unreadable link
+// info — deliberately reads as "detached": the caller then removes the pins
+// and reattaches, which self-heals within one cycle, and persistent trouble
+// surfaces through the link_reattach_total churn alert plus the attach
+// error log rather than wedging the pod unshaped.
+func (a Attacher) linkAttached(dir string, ifindex int) bool {
 	l, err := link.LoadPinnedLink(filepath.Join(dir, "link"), nil)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, nil
+		return false
 	}
 	defer l.Close()
 	info, err := l.Info()
 	if err != nil {
-		return false, nil
+		return false
 	}
 	tcx := info.TCX()
-	if tcx == nil || int(tcx.Ifindex) != ifindex {
-		return false, nil
-	}
-	return true, nil
+	return tcx != nil && int(tcx.Ifindex) == ifindex
 }
 
 // linkIsFirst reports whether our program sits first in the device's
