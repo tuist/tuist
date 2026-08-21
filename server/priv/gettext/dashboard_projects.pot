@@ -234,7 +234,7 @@ msgstr ""
 msgid "General access"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:299
+#: lib/tuist_web/live/project_bundle_settings_live.ex:307
 #: lib/tuist_web/live/project_notifications_live.ex:781
 #: lib/tuist_web/live/xcode_overview_live.html.heex:701
 #, elixir-autogen, elixir-format
@@ -840,7 +840,7 @@ msgstr ""
 msgid "Bundle size"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:300
+#: lib/tuist_web/live/project_bundle_settings_live.ex:308
 #: lib/tuist_web/live/project_notifications_live.ex:782
 #, elixir-autogen, elixir-format
 msgid "Download size"
@@ -935,12 +935,12 @@ msgstr ""
 msgid "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:307
+#: lib/tuist_web/live/project_bundle_settings_live.ex:315
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:315
+#: lib/tuist_web/live/project_bundle_settings_live.ex:323
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
@@ -1502,12 +1502,12 @@ msgstr ""
 msgid "e.g. main (optional)"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:470
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:476
 #, elixir-autogen, elixir-format
 msgid "Add approver"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:254
+#: lib/tuist_web/live/project_bundle_settings_live.ex:255
 #, elixir-autogen, elixir-format
 msgid "Admins of this account. An admin has to have signed in to Tuist with GitHub, so that their GitHub account can be matched to their Tuist account."
 msgstr ""
@@ -1517,7 +1517,7 @@ msgstr ""
 msgid "Admins only"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:247
+#: lib/tuist_web/live/project_bundle_settings_live.ex:248
 #, elixir-autogen, elixir-format
 msgid "Anyone GitHub lets press the button on a check run, which is everyone with write access to the repository."
 msgstr ""
@@ -1532,7 +1532,7 @@ msgstr ""
 msgid "Approvals"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:456
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:462
 #, elixir-autogen, elixir-format
 msgid "Approvers"
 msgstr ""
@@ -1547,28 +1547,28 @@ msgstr ""
 msgid "Enter a valid GitHub username that isn't already on the list."
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:465
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:482
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:471
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:488
 #, elixir-autogen, elixir-format
 msgid "GitHub username"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:446
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "No admin of this account has signed in to Tuist with GitHub, so nobody can accept a size increase while this policy is active."
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:503
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:509
 #, elixir-autogen, elixir-format
 msgid "No approvers"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:505
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:511
 #, elixir-autogen, elixir-format
 msgid "Nobody can accept a size increase until a GitHub username is added"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:261
+#: lib/tuist_web/live/project_bundle_settings_live.ex:262
 #, elixir-autogen, elixir-format
 msgid "Only the GitHub users listed below. Admins are not included unless they are on the list."
 msgstr ""
@@ -1586,4 +1586,14 @@ msgstr ""
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:415
 #, elixir-autogen, elixir-format
 msgid "Who can accept"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:245
+#, elixir-autogen, elixir-format
+msgid "Nobody (report only)"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:269
+#, elixir-autogen, elixir-format
+msgid "Nobody. The check reports the size change without an Accept button and without failing, leaving the merge decision to your own checks. Use this to gate on bundle size from a job that applies your own rules, such as requiring a review from a specific team."
 msgstr ""

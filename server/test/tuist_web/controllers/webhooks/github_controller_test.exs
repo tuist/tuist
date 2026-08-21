@@ -457,6 +457,30 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
+    test "clears a stale button as neutral when the project only reports", %{conn: conn} do
+      # Given
+      %{project: project} = bundle_size_check_run_setup()
+      {:ok, project} = Projects.update_project(project, %{bundle_size_approval_policy: :report_only})
+      bundle = BundlesFixtures.bundle_fixture(project: project)
+      conn = put_req_header(conn, "x-github-event", "check_run")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn _ -> {:ok, %{installation_id: "12345"}} end)
+
+      expect(VCS, :update_check_run, fn params ->
+        assert params.conclusion == "neutral"
+        assert params.output.summary =~ "no longer gates on bundle size"
+        refute Map.has_key?(params, :actions)
+        {:ok, %{"id" => 42}}
+      end)
+
+      # When
+      result = GitHubController.handle(conn, check_run_params(bundle.id))
+
+      # Then
+      assert result.status == 200
+      assert is_nil(Bundles.get_bundle_size_approval(bundle.id))
+    end
+
     test "tells the sender their GitHub account is not linked when the policy is admins", %{conn: conn} do
       # Given
       %{project: project} = bundle_size_check_run_setup()

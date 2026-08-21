@@ -123,6 +123,16 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
       assert html =~ "nobody can accept a size increase"
     end
 
+    test "switches to report only", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      html = render_hook(lv, "select_approval_policy", %{"policy" => "report_only"})
+
+      assert Projects.get_project_by_id(project.id).bundle_size_approval_policy == :report_only
+      assert html =~ "without an Accept button"
+    end
+
     test "adds and removes an approver", %{conn: conn, organization: organization, project: project} do
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")

@@ -1803,6 +1803,16 @@ defmodule Tuist.BundlesTest do
                Bundles.authorize_bundle_size_approval(project, %{id: identity.id_in_provider, handle: "member"})
     end
 
+    test "denies a stale button left over from before the project switched to report only" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, project} = Projects.update_project(project, %{bundle_size_approval_policy: :report_only})
+
+      # When / Then
+      assert {:error, :report_only} ==
+               Bundles.authorize_bundle_size_approval(project, %{id: "999", handle: "octocat"})
+    end
+
     test "reports an unlinked GitHub account separately from a plain denial" do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account])

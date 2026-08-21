@@ -38,7 +38,7 @@ defmodule Tuist.Projects.Project do
     field :build_system, Ecto.Enum, values: [xcode: 0, gradle: 1], default: :xcode
 
     field :bundle_size_approval_policy, Ecto.Enum,
-      values: [everyone: 0, admins: 1, selected: 2],
+      values: [everyone: 0, admins: 1, selected: 2, report_only: 3],
       default: :everyone
 
     field :auto_quarantine_flaky_tests, :boolean, default: false
@@ -115,7 +115,7 @@ defmodule Tuist.Projects.Project do
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
     |> validate_inclusion(:build_system, [:xcode, :gradle])
-    |> validate_inclusion(:bundle_size_approval_policy, [:everyone, :admins, :selected])
+    |> validate_inclusion(:bundle_size_approval_policy, [:everyone, :admins, :selected, :report_only])
   end
 
   def xcode_project?(%__MODULE__{build_system: :xcode}), do: true

@@ -788,10 +788,17 @@ defmodule Tuist.Bundles do
   `:selected` matches the allowlist exactly. Admins are not implicitly
   included, so the list is the whole answer to who can accept, and an admin
   who wants the ability adds themselves to it.
+
+  `:report_only` never renders a button, so a request under it can only come
+  from a check run posted before the project switched to the policy. It is
+  denied so the stale button stops working.
   """
   def authorize_bundle_size_approval(project, sender)
 
   def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :everyone}, _sender), do: :ok
+
+  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :report_only}, _sender),
+    do: {:error, :report_only}
 
   def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :selected} = project, %{handle: handle}) do
     handle = normalize_github_handle(handle)

@@ -430,6 +430,21 @@ defmodule TuistWeb.Webhooks.GitHubController do
     )
   end
 
+  # The project stopped gating on bundle size after this check run was
+  # posted, so its button is stale. Drop it and settle the check run as
+  # neutral rather than re-sending an action the policy no longer offers.
+  defp reject_bundle_size(check_run_params, sender, project, :report_only) do
+    VCS.update_check_run(
+      Map.merge(check_run_params, %{
+        conclusion: "neutral",
+        output: %{
+          title: "Bundle size threshold exceeded",
+          summary: rejected_summary(sender, project, :report_only)
+        }
+      })
+    )
+  end
+
   # Leaves the check run failing and re-sends the action so whoever is
   # allowed to accept still has a button to press.
   defp reject_bundle_size(check_run_params, sender, project, reason) do
@@ -460,6 +475,10 @@ defmodule TuistWeb.Webhooks.GitHubController do
 
   defp rejected_summary(sender, _project, :not_an_approver) do
     "#{who(sender)} is not allowed to accept bundle size increases for this project. A project admin can change who is, under Settings > Bundles in Tuist."
+  end
+
+  defp rejected_summary(_sender, _project, :report_only) do
+    "This project no longer gates on bundle size, so this button no longer does anything. Accepting or blocking the change is up to the project's own checks."
   end
 
   defp rejected_summary(sender, _project, :github_account_not_linked) do

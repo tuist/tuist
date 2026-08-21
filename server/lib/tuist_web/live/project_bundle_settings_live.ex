@@ -8,7 +8,7 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
   alias Tuist.Projects
   alias Tuist.Repo
 
-  @approval_policies [:everyone, :admins, :selected]
+  @approval_policies [:everyone, :admins, :selected, :report_only]
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_project: selected_project, current_user: current_user}} = socket) do
@@ -242,6 +242,7 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
   defp approval_policy_label(:everyone), do: dgettext("dashboard_projects", "Anyone with write access")
   defp approval_policy_label(:admins), do: dgettext("dashboard_projects", "Admins only")
   defp approval_policy_label(:selected), do: dgettext("dashboard_projects", "Selected GitHub users")
+  defp approval_policy_label(:report_only), do: dgettext("dashboard_projects", "Nobody (report only)")
 
   defp approval_policy_description(:everyone) do
     dgettext(
@@ -261,6 +262,13 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     dgettext(
       "dashboard_projects",
       "Only the GitHub users listed below. Admins are not included unless they are on the list."
+    )
+  end
+
+  defp approval_policy_description(:report_only) do
+    dgettext(
+      "dashboard_projects",
+      "Nobody. The check reports the size change without an Accept button and without failing, leaving the merge decision to your own checks. Use this to gate on bundle size from a job that applies your own rules, such as requiring a review from a specific team."
     )
   end
 
