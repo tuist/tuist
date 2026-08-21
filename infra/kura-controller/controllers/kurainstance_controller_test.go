@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -1864,7 +1863,7 @@ func TestKuraInstanceReconcileConvertsLegacyGRPCIngressToSingleHost(t *testing.T
 	}
 }
 
-func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplate(t *testing.T) {
+func TestKuraInstanceReconcileLeavesStorageAloneOnImageChange(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
@@ -1888,7 +1887,6 @@ func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplate(t 
 	}
 	legacyInstance := instance.DeepCopy()
 	legacyInstance.Spec.Image = "ghcr.io/tuist/kura:0.5.2"
-	legacyInstance.Spec.StorageSize = "20Gi"
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace},
 		Spec: appsv1.StatefulSetSpec{
@@ -1921,13 +1919,12 @@ func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplate(t 
 	if got := updatedSts.Spec.Template.Spec.Containers[0].Image; got != "ghcr.io/tuist/kura:0.5.3" {
 		t.Fatalf("expected StatefulSet pod template to be updated, got %q", got)
 	}
-	if got := updatedSts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests.Storage().String(); got != "20Gi" {
+	if got := updatedSts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests.Storage().String(); got != "200Gi" {
 		t.Fatalf("expected existing StatefulSet PVC template to be preserved, got %q", got)
 	}
 
-	// The live claims already hold the declared size, so nothing is stale and the
-	// bound volumes are left exactly as they are: the controller has no in-place
-	// resize to offer and must not invent one.
+	// An image change touches nothing about storage: the claims already hold the
+	// declared size, so no re-template and no rebuild.
 	for _, name := range []string{pvc0.Name, pvc1.Name} {
 		pvc := &corev1.PersistentVolumeClaim{}
 		if err := reconciler.Get(ctx, types.NamespacedName{Name: name, Namespace: instance.Namespace}, pvc); err != nil {
@@ -1939,89 +1936,182 @@ func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplate(t 
 	}
 }
 
-// A claim that no longer matches spec.StorageSize is recreated rather than
-// resized, in both directions. The fleet's storage class is
-// allowVolumeExpansion: false and a live StatefulSet's volumeClaimTemplates are
-// immutable, so there is no in-place path: patching the bound claim would be
-// rejected by the API server and the instance would keep serving the old size
-// forever. Growing matters because Kura budgets its CAS ring from the declared
-// size and would otherwise run the ring past the end of the disk; shrinking
-// matters because the reservation is what packing density on a shared box is
-// spent on.
-func TestKuraInstanceReconcileRecreatesStatefulSetOnStorageSizeDrift(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		declared string
-		bound    string
-	}{
-		{name: "grows", declared: "200Gi", bound: "20Gi"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			scheme := runtime.NewScheme()
-			if err := clientgoscheme.AddToScheme(scheme); err != nil {
-				t.Fatal(err)
-			}
-			if err := kurav1alpha1.AddToScheme(scheme); err != nil {
-				t.Fatal(err)
-			}
-
-			replicas := int32(1)
-			instance := &kurav1alpha1.KuraInstance{
-				ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
-				Spec: kurav1alpha1.KuraInstanceSpec{
-					AccountHandle: "tuist",
-					TenantID:      "tuist",
-					Region:        "eu",
-					Image:         "ghcr.io/tuist/kura:0.5.3",
-					Replicas:      &replicas,
-					StorageSize:   tc.declared,
-				},
-			}
-			stsInstance := instance.DeepCopy()
-			stsInstance.Spec.StorageSize = tc.bound
-			sts := &appsv1.StatefulSet{
-				ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace},
-				Spec: appsv1.StatefulSetSpec{
-					Replicas:             &replicas,
-					Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-					Template:             podTemplate(stsInstance, "", "production", "", false),
-					VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(stsInstance)},
-				},
-			}
-			pvc := dataPersistentVolumeClaim(instance, 0, tc.bound)
-
-			reconciler := &KuraInstanceReconciler{
-				Client: fake.NewClientBuilder().
-					WithScheme(scheme).
-					WithObjects(instance, sts, pvc).
-					WithStatusSubresource(instance).
-					Build(),
-				Scheme: scheme,
-			}
-
-			result, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if result.RequeueAfter == 0 {
-				t.Fatal("expected the reconcile to requeue while the recreate is in flight")
-			}
-
-			// The claim is dropped, not patched: fresh volumes bind at the
-			// declared size when the StatefulSet is recreated on a later tick.
-			stalePVC := &corev1.PersistentVolumeClaim{}
-			err = reconciler.Get(ctx, types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, stalePVC)
-			if !apierrors.IsNotFound(err) {
-				t.Fatalf("expected the stale data PVC to be deleted, got %v (storage %q)", err, stalePVC.Spec.Resources.Requests.Storage().String())
-			}
-
-			staleSTS := &appsv1.StatefulSet{}
-			if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, staleSTS); !apierrors.IsNotFound(err) {
-				t.Fatalf("expected the StatefulSet to be deleted, got %v", err)
-			}
-		})
+func TestReconcileDataStorageResize(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
 	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	const (
+		instanceName = "kura-acme-scw-fr-par"
+		namespace    = "kura"
+	)
+
+	instance := func(storage string) *kurav1alpha1.KuraInstance {
+		return &kurav1alpha1.KuraInstance{
+			ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace},
+			Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(2)), StorageSize: storage},
+		}
+	}
+	sts := func(storage string) *appsv1.StatefulSet {
+		return &appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace},
+			Spec: appsv1.StatefulSetSpec{
+				VolumeClaimTemplates: []corev1.PersistentVolumeClaim{{
+					ObjectMeta: metav1.ObjectMeta{Name: "data"},
+					Spec: corev1.PersistentVolumeClaimSpec{Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse(storage)},
+					}},
+				}},
+			},
+		}
+	}
+	claim := func(ordinal int, storage string) *corev1.PersistentVolumeClaim {
+		return &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("data-%s-%d", instanceName, ordinal),
+				Namespace: namespace,
+				Labels:    selectorLabels(instance("40Gi")),
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse(storage)},
+			}},
+		}
+	}
+	pod := func(ordinal int, ready bool) *corev1.Pod {
+		status := corev1.ConditionFalse
+		if ready {
+			status = corev1.ConditionTrue
+		}
+		return &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-%d", instanceName, ordinal),
+				Namespace: namespace,
+				Labels:    selectorLabels(instance("40Gi")),
+			},
+			Status: corev1.PodStatus{Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: status}}},
+		}
+	}
+	exists := func(t *testing.T, c client.Client, obj client.Object) bool {
+		t.Helper()
+		err := c.Get(context.Background(), types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, obj)
+		if err == nil {
+			return true
+		}
+		if apierrors.IsNotFound(err) {
+			return false
+		}
+		t.Fatalf("unexpected get error: %v", err)
+		return false
+	}
+
+	// The template is what the next PVC is created from, and it cannot be edited
+	// on a live StatefulSet. Replacing the object with Orphan propagation is what
+	// lets the claim move without the pods that are serving from it going away.
+	t.Run("re-templates without disturbing the running pods", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), sts("20Gi"), claim(0, "20Gi"), claim(1, "20Gi"), pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to report in flight")
+		}
+		if exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
+			t.Fatal("expected the StatefulSet to be replaced")
+		}
+		// The point of the whole exercise: nothing serving was taken down.
+		for ordinal := 0; ordinal < 2; ordinal++ {
+			if !exists(t, c, pod(ordinal, true)) {
+				t.Fatalf("pod %d must keep serving through the re-template", ordinal)
+			}
+			if !exists(t, c, claim(ordinal, "20Gi")) {
+				t.Fatalf("claim %d must survive the re-template", ordinal)
+			}
+		}
+	})
+
+	// One ordinal at a time, lowest first, and only the one.
+	t.Run("rebuilds a single replica at a time", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "20Gi"), pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to report in flight")
+		}
+		if exists(t, c, claim(0, "20Gi")) || exists(t, c, pod(0, true)) {
+			t.Fatal("expected ordinal 0 to be taken for rebuild")
+		}
+		if !exists(t, c, claim(1, "20Gi")) || !exists(t, c, pod(1, true)) {
+			t.Fatal("ordinal 1 must keep serving while ordinal 0 rebuilds")
+		}
+	})
+
+	// The standby is the whole safety argument, so a rebuild waits for it rather
+	// than joining it in being down.
+	t.Run("waits while a sibling is not serving", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "20Gi"), pod(0, true), pod(1, false),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to keep requeuing while it waits")
+		}
+		if !exists(t, c, claim(0, "20Gi")) || !exists(t, c, pod(0, true)) {
+			t.Fatal("expected ordinal 0 to be left alone while its sibling is down")
+		}
+	})
+
+	t.Run("leaves a volume larger than the claim alone", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("20Gi"), sts("20Gi"), claim(0, "40Gi"), claim(1, "40Gi"), pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("20Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("a volume larger than the claim needs no resize")
+		}
+		if !exists(t, c, claim(0, "40Gi")) {
+			t.Fatal("an oversized volume must not be rebuilt")
+		}
+	})
+
+	t.Run("does nothing once every volume holds the claim", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), sts("40Gi"), claim(0, "40Gi"), claim(1, "40Gi"), pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("expected the resize to be finished")
+		}
+	})
 }
 
 func TestKuraInstanceReconcileDeletionReclaimsDataVolumes(t *testing.T) {
@@ -3097,71 +3187,6 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 		}
 		if exists(t, c, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace}}) {
 			t.Fatal("expected data PVC deleted")
-		}
-	})
-
-	t.Run("recreates on declared storage size drift", func(t *testing.T) {
-		sized := func(storage string) *corev1.PersistentVolumeClaim {
-			pvc := boundPVC("scw-local-nvme", "pv-1")
-			pvc.Spec.Resources = corev1.VolumeResourceRequirements{
-				Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse(storage)},
-			}
-			return pvc
-		}
-		declaring := func(storage string) *kurav1alpha1.KuraInstance {
-			instance := newInstance()
-			instance.Spec.StorageSize = storage
-			return instance
-		}
-
-		t.Run("grown", func(t *testing.T) {
-			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
-				declaring("30Gi"), newSTS(), sized("14Gi"), pvPinnedTo("pv-1", "live-node"), node("live-node"),
-			).Build()
-			r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
-			reason, err := r.staleDataStorageReason(context.Background(), declaring("30Gi"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !strings.Contains(reason, "14Gi") || !strings.Contains(reason, "30Gi") {
-				t.Fatalf("expected the reason to name both sizes, got %q", reason)
-			}
-		})
-
-		// A volume bigger than the claim declares holds the ring the instance is
-		// told to budget with room to spare, so it evicts down rather than being
-		// thrown away. This is the shape a plan downgrade takes on an instance
-		// carrying no claim of its own, and recreating there would spend the
-		// account's whole cache to reclaim disk the next rebuild reclaims anyway.
-		t.Run("shrunk is left alone", func(t *testing.T) {
-			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
-				declaring("14Gi"), newSTS(), sized("30Gi"), pvPinnedTo("pv-1", "live-node"), node("live-node"),
-			).Build()
-			r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
-			reason, err := r.staleDataStorageReason(context.Background(), declaring("14Gi"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if reason != "" {
-				t.Fatalf("expected no recreate for a volume larger than the declared claim, got %q", reason)
-			}
-		})
-	})
-
-	// A claim that declares no size at all cannot drift: there is nothing to
-	// compare, and treating it as a mismatch would recreate every such instance
-	// against the controller's own 200Gi default.
-	t.Run("ignores a claim that requests no storage", func(t *testing.T) {
-		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
-			newInstance(), newSTS(), boundPVC("scw-local-nvme", "pv-1"), pvPinnedTo("pv-1", "live-node"), node("live-node"),
-		).Build()
-		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
-		reason, err := r.staleDataStorageReason(context.Background(), newInstance())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if reason != "" {
-			t.Fatalf("expected no stale reason, got %q", reason)
 		}
 	})
 

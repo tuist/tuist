@@ -49,7 +49,7 @@
       <p data-part="kura-storage-claim-description">
         {dgettext(
           "dashboard",
-          "Each replica reserves this much disk. Leave it empty to size the account from its plan. Raising it rebuilds the volumes of any smaller instance, which starts with an empty cache; lowering it keeps the cache."
+          "Each replica reserves this much disk. Leave it empty to size the account from its plan. Raising it replaces volumes one replica at a time, so the standby keeps serving and the rebuilt replica refills from it; lowering it keeps the cache and evicts down."
         )}
       </p>
       <.form

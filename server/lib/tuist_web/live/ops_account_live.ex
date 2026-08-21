@@ -305,21 +305,23 @@ defmodule TuistWeb.OpsAccountLive do
   defp kura_storage_claim_message(%{claim_size: claim_size, raised: []} = result) do
     dngettext(
       "dashboard",
-      "Kura disk claim lowered to %{claim}. %{count} running instance keeps its cache and evicts down to the new budget; its disk is reclaimed the next time volumes are built.",
-      "Kura disk claim lowered to %{claim}. %{count} running instances keep their caches and evict down to the new budget; their disk is reclaimed the next time volumes are built.",
+      "Kura disk claim lowered to %{claim}. %{count} running instance keeps its cache and evicts down to the new budget.",
+      "Kura disk claim lowered to %{claim}. %{count} running instances keep their caches and evict down to the new budget.",
       length(result.lowered),
       claim: claim_size
     )
   end
 
   # "Up to", because an instance rebuilds only if its volumes are smaller than
-  # the new claim, and an earlier decrease can have left them larger. Stated as
-  # the bound it is rather than as a count of caches lost.
+  # the new claim, and an earlier decrease can have left them larger. The rebuild
+  # rolls one replica at a time behind the standby, so it is a rollout rather
+  # than an outage and the cache survives it where there is a standby to refill
+  # from.
   defp kura_storage_claim_message(%{claim_size: claim_size} = result) do
     dngettext(
       "dashboard",
-      "Kura disk claim raised to %{claim}. Up to %{count} running instance rebuilds its volumes and starts with an empty cache; one whose volumes are already larger keeps its cache.",
-      "Kura disk claim raised to %{claim}. Up to %{count} running instances rebuild their volumes and start with an empty cache; any whose volumes are already larger keep their caches.",
+      "Kura disk claim raised to %{claim}. Up to %{count} running instance rebuilds its volumes, one replica at a time behind the standby that keeps serving.",
+      "Kura disk claim raised to %{claim}. Up to %{count} running instances rebuild their volumes, one replica at a time behind the standby that keeps serving.",
       length(result.raised),
       claim: claim_size
     )

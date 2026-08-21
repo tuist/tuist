@@ -294,19 +294,21 @@ defmodule Tuist.Kura do
   What the cluster does with it there depends on which way the claim moved, and
   only one of the two costs anything.
 
-  Raising it is destructive, and deliberately so. The bare-metal regions run a
-  storage class that cannot expand a claim and a StatefulSet cannot re-template
-  one, so the controller has no in-place resize to offer for a volume too small
-  to hold the ring it is now told to budget: it recreates the StatefulSet and
-  lets fresh volumes bind at the new size. The instance comes back with an empty
-  cache and refills from real traffic or an account peer. That is acceptable
-  because Kura is terminal storage for a regenerable cache, where a miss is a
-  404 rather than an origin fetch, but it is not invisible.
+  Raising it replaces volumes. The bare-metal regions run a storage class that
+  cannot expand a claim and a StatefulSet cannot re-template one, so a volume too
+  small to hold the ring it is now told to budget has to be rebuilt rather than
+  grown. The controller does that one replica at a time behind the standby, so
+  the account's endpoint stays up and each rebuilt replica refills its ring from
+  the sibling that kept serving. What it costs is a rollout, not an outage, and
+  the cache survives it in the ordinary two-replica case. An instance running a
+  single replica has no standby to serve or to refill from, so there it is an
+  interruption and a cold start.
 
   Lowering it costs nothing. The volume already holds more than the new ring
-  budget, so it is left alone and the ring evicts down into it; the disk itself
-  comes back when the volumes are next built. Nothing is thrown away to reclaim
-  it sooner.
+  budget, so it is left alone and the ring evicts down into it. The claim is a
+  scheduling reservation rather than a filesystem quota on this storage class,
+  so the room comes back as the ring evicts rather than when the volume is next
+  rebuilt.
 
   Returns `{:ok, %{claim_size: claim, raised: servers, lowered: servers}}`, where
   `claim_size` is what the account's instances are now built at: its override,
