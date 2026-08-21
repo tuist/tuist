@@ -627,39 +627,4 @@ struct CacheGraphContentHasherTests {
             )
             .called(1)
     }
-
-    @Test(
-        .withMockedDependencies(),
-        .withMockedSwiftVersionProvider
-    ) func contentHashes_recordsTheResolvedConfiguration() async throws {
-        // Given
-        let target = Target.test(name: "Framework", product: .framework)
-        let project = Project.test(path: "/Project/Path", targets: [target])
-        let graph = Graph.test(path: project.path, projects: [project.path: project])
-        given(graphContentHasher)
-            .contentHashes(
-                for: .any,
-                include: .any,
-                destination: .any,
-                additionalStrings: .any
-            )
-            .willReturn([:])
-        given(defaultConfigurationFetcher)
-            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
-            .willReturn("Debug-SharedCache")
-        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
-        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
-
-        // When
-        _ = try await subject.contentHashes(
-            for: graph,
-            configuration: "Debug-SharedCache",
-            defaultConfiguration: nil,
-            excludedTargets: [],
-            destination: nil
-        )
-
-        // Then
-        #expect(await RunMetadataStorage.current.cacheHashingConfiguration == "Debug-SharedCache")
-    }
 }

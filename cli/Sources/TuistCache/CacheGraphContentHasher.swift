@@ -74,7 +74,6 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             defaultConfiguration: defaultConfiguration,
             graph: graph
         )
-        await RunMetadataStorage.current.update(cacheHashingConfiguration: resolvedConfiguration)
         Logger.current.debug("Hashing targets against the configuration \(resolvedConfiguration)")
 
         let hashingGraph = scopesSettingsToConfiguration
