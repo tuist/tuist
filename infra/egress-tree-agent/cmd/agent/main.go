@@ -67,7 +67,7 @@ func main() {
 	ciliumSock := envOr("CILIUM_SOCK", "/var/run/cilium/cilium.sock")
 	pinRoot := envOr("BPF_PIN_ROOT", "/sys/fs/bpf/kura-egress-tree")
 	defaultNodeMbps := int64Env(logger, "DEFAULT_NODE_EGRESS_MBPS", 0)
-	returnDetachAfter := int64Env(logger, "RETURN_ATTACH_MAX_FAILURES", 3)
+	returnDetachAfter := intEnv(logger, "RETURN_ATTACH_MAX_FAILURES", 3)
 	if returnDetachAfter < 1 || returnDetachAfter > 1000 {
 		logger.Error("RETURN_ATTACH_MAX_FAILURES must be between 1 and 1000", "value", returnDetachAfter)
 		os.Exit(1)
@@ -163,7 +163,7 @@ func main() {
 		NodeName:          nodeName,
 		DefaultNodeMbps:   defaultNodeMbps,
 		BetaPodPrefix:     os.Getenv("BETA_POD_PREFIX"),
-		ReturnDetachAfter: int(returnDetachAfter),
+		ReturnDetachAfter: returnDetachAfter,
 		Pods:              podInformer.Lister(),
 		Nodes:             nodeInformer.Lister(),
 		Endpoints:         agent.NewEndpointResolver(ciliumSock),
@@ -350,6 +350,19 @@ func int64Env(logger *slog.Logger, key string, fallback int64) int64 {
 		return fallback
 	}
 	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		logger.Error("invalid integer", "env", key, "value", value)
+		os.Exit(1)
+	}
+	return parsed
+}
+
+func intEnv(logger *slog.Logger, key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
 	if err != nil {
 		logger.Error("invalid integer", "env", key, "value", value)
 		os.Exit(1)
