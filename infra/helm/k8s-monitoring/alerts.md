@@ -517,23 +517,26 @@ hundred B/s legitimately, since they run no cache-using VMs.
 ```promql
 sum by (cluster, pod, route) (
   rate(kura_http_requests_total_total{
+    namespace="kura",
     route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
     status=~"5.."
   }[5m])
-) > 0.1
+)
 ```
 
+- Threshold: `> 0.1`, as a separate threshold expression on `A` rather than a
+  comparison inside the PromQL, so the alert value is the failure rate itself
 - Pending period: 5 minutes
-- **Not yet applied.** Rule `cftoutryd1jwge` still carries the original
-  single-route query; paste the one above over it.
-- Already created: rule `cftoutryd1jwge`, folder `Alerts`, group `Cache`,
-  receiver `Slack #notifications 2` (routed by notification settings, so it
-  carries no `severity` label), `no_data_state: OK`. It was originally
-  `sum by (pod) (increase(kura_http_requests_total_total{namespace="kura",
-  route="/api/cache/module/{id}", status=~"5.."}[5m])) > 0` — one route, and
-  fires on a single 5xx. **The rule lives in Grafana, not in this repo**, so the
-  query above has to be pasted into the rule editor; nothing provisions it from
-  here.
+- Live: rule `cftoutryd1jwge`, titled `Kura - 5xx errors on public cache
+  routes`, folder `Alerts`, group `Cache`, receiver `Slack #notifications 2`
+  (routed by notification settings, so it carries no `severity` label),
+  `no_data_state: OK`. It was originally titled for `/api/cache/module/{id}` and
+  ran `sum by (pod) (increase(kura_http_requests_total_total{namespace="kura",
+  route="/api/cache/module/{id}", status=~"5.."}[5m])) > 0` — one route, firing
+  on a single 5xx.
+- **The rule lives in Grafana, not in this repo.** Nothing provisions it from
+  here, so an edit means pasting into the rule editor and updating this section
+  to match.
 - Summary: `Kura pod {{ $labels.pod }} is failing requests on
   {{ $labels.route }} ({{ $labels.cluster }})`
 
@@ -1110,6 +1113,7 @@ absent_over_time(
 (
   sum by (cluster, pod) (
     rate(kura_http_requests_total_total{
+      namespace="kura",
       route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
       status="429"
     }[5m])
@@ -1118,27 +1122,32 @@ absent_over_time(
   clamp_min(
     sum by (cluster, pod) (
       rate(kura_http_requests_total_total{
+        namespace="kura",
         route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
         status=~"200|429"
       }[5m])
     ),
     0.01
   )
-) > 0.05
+)
 and
 sum by (cluster, pod) (
   rate(kura_http_requests_total_total{
+    namespace="kura",
     route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
     status="429"
   }[5m])
 ) > 1
 ```
 
+- Threshold: `> 0.05`, as a separate threshold expression on `A`. The volume
+  floor stays inside the PromQL, since `and` filters the series rather than
+  reducing it to a boolean, which keeps the shed ratio as the alert value
 - Pending period: 10 minutes
 - Severity: warning
-- Already created: rule `dfvv8qn09k1z4b`, folder `Alerts`, group `Cache`,
-  receiver `Slack #notifications 2`, `no_data_state: OK`. It reads Normal until
-  the 429 change is deployed, since no node emits the status yet.
+- Live: rule `dfvv8qn09k1z4b`, folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`, `no_data_state: OK`. It reads Normal until the 429
+  change is deployed, since no node emits the status yet.
 - Summary: `Kura pod {{ $labels.pod }} is shedding
   {{ $values.A.Value | humanizePercentage }} of cache reads in
   {{ $labels.cluster }} — it is out of response-stream capacity, not broken`
