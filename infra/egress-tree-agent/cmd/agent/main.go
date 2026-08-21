@@ -68,8 +68,8 @@ func main() {
 	pinRoot := envOr("BPF_PIN_ROOT", "/sys/fs/bpf/kura-egress-tree")
 	defaultNodeMbps := int64Env(logger, "DEFAULT_NODE_EGRESS_MBPS", 0)
 	returnDetachAfter := int64Env(logger, "RETURN_ATTACH_MAX_FAILURES", 3)
-	if returnDetachAfter < 1 {
-		logger.Error("RETURN_ATTACH_MAX_FAILURES must be at least 1", "value", returnDetachAfter)
+	if returnDetachAfter < 1 || returnDetachAfter > 1000 {
+		logger.Error("RETURN_ATTACH_MAX_FAILURES must be between 1 and 1000", "value", returnDetachAfter)
 		os.Exit(1)
 	}
 
