@@ -47,7 +47,12 @@ function resolveTokenColor(host, name) {
 export const CacheBuildDecks = {
   mounted() {
     this.panels = Array.from(this.el.querySelectorAll('[data-part="panel"]'));
-    this.panels.forEach((panel, index) => panel.setAttribute("data-pos", index));
+    // data-pos is server-rendered so the stack lays out correctly before
+    // this bundle loads (slow connections showed all panels piled in the
+    // front slot); the hook only rotates it from there.
+    this.panels.forEach((panel, index) => {
+      if (!panel.hasAttribute("data-pos")) panel.setAttribute("data-pos", index);
+    });
     this.raf = null;
     this.glow = 0;
     this.hovered = false;
