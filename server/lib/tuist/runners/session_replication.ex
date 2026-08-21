@@ -32,6 +32,13 @@ defmodule Tuist.Runners.SessionReplication do
   row. Re-reading costs nothing: the replayed row carries the same
   content under a newer `ingested_at`.
 
+  The resume point is resolved once per drain, in `start_cursor/0`, and
+  pages advance on `(updated_at, id)` from there. Re-deriving it per
+  batch instead would stall the tailer outright: a drain only continues
+  while batches come back full, and if the overlap window held a full
+  batch, every batch would re-select the same first rows and nothing
+  newer would ever replicate.
+
   ## What is resolved here rather than at read time
 
   The platform and machine shape, via `Catalog`, because sessions
@@ -49,6 +56,7 @@ defmodule Tuist.Runners.SessionReplication do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
@@ -62,15 +70,20 @@ defmodule Tuist.Runners.SessionReplication do
   @overlap_seconds 120
 
   @doc """
-  Copies one batch of sessions across. Returns `{:ok, count}`.
+  Where a drain starts: the resume point, paired with an id below every
+  row's so the first page covers the whole overlap window.
+  """
+  def start_cursor, do: {resume_point(), 0}
+
+  @doc """
+  Copies one batch of sessions across, returning `{:ok, count, cursor}`
+  for the caller to page from.
 
   A batch of `@batch_size` means there is more to do, so the caller
   loops rather than waiting for the next tick — that is what lets an
   empty replica catch up on history at more than one batch a minute.
   """
-  def replicate_batch do
-    since = resume_point()
-
+  def replicate_batch({%DateTime{} = since, after_id}) do
     sessions =
       Repo.all(
         from(session in RunnerSession,
@@ -79,7 +92,14 @@ defmodule Tuist.Runners.SessionReplication do
             is_nil(session.job_ended_at) and
               completion.workflow_job_id ==
                 coalesce(session.executed_workflow_job_id, session.workflow_job_id),
-          where: session.updated_at >= ^DateTime.truncate(since, :second),
+          where:
+            fragment(
+              "(?, ?) > (?, ?)",
+              session.updated_at,
+              session.id,
+              ^DateTime.truncate(since, :second),
+              ^after_id
+            ),
           order_by: [asc: session.updated_at, asc: session.id],
           limit: @batch_size,
           select: %{
@@ -110,7 +130,17 @@ defmodule Tuist.Runners.SessionReplication do
 
     if rows != [], do: IngestRepo.insert_all(ConcurrencySession, rows)
 
-    {:ok, length(sessions)}
+    {:ok, length(sessions), next_cursor(sessions, {since, after_id})}
+  end
+
+  # A page that resolved to no replica rows still has to advance the
+  # cursor, or a batch of sessions on retired fleets would be re-read
+  # forever.
+  defp next_cursor([], cursor), do: cursor
+
+  defp next_cursor(sessions, _cursor) do
+    last = List.last(sessions)
+    {last.updated_at, last.id}
   end
 
   @doc """
@@ -118,10 +148,15 @@ defmodule Tuist.Runners.SessionReplication do
   """
   def full_batch?(count), do: count >= @batch_size
 
+  @doc """
+  Rows copied per batch.
+  """
+  def batch_size, do: @batch_size
+
   # The replica's own high-water mark, walked back by the overlap so a
   # row that committed late is picked up rather than skipped.
   defp resume_point do
-    case IngestRepo.one(from(s in ConcurrencySession, select: max(s.source_updated_at))) do
+    case ClickHouseRepo.one(from(s in ConcurrencySession, select: max(s.source_updated_at))) do
       nil -> ~U[1970-01-01 00:00:00.000000Z]
       %NaiveDateTime{} = naive -> naive |> DateTime.from_naive!("Etc/UTC") |> walk_back()
       %DateTime{} = datetime -> walk_back(datetime)

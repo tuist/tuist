@@ -11,6 +11,7 @@ defmodule Tuist.Runners.SessionReplicationTest do
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.SessionReplication
+  alias Tuist.Runners.Workers.ReplicateRunnerSessionsWorker
 
   test "releases the slot when the runner's own job completed, not when the claimed job did" do
     account = account_fixture()
@@ -33,7 +34,7 @@ defmodule Tuist.Runners.SessionReplicationTest do
         started_at: datetime("2026-07-10T10:10:00Z")
       )
 
-    {:ok, _} = SessionReplication.replicate_batch()
+    {:ok, _, _} = SessionReplication.replicate_batch(SessionReplication.start_cursor())
 
     assert replicated(session).released_at == ~U[2026-07-10 10:40:00.000000Z]
   end
@@ -51,7 +52,7 @@ defmodule Tuist.Runners.SessionReplicationTest do
         ended_at: datetime("2026-07-10T11:30:00Z")
       )
 
-    {:ok, _} = SessionReplication.replicate_batch()
+    {:ok, _, _} = SessionReplication.replicate_batch(SessionReplication.start_cursor())
 
     replica = replicated(session)
     assert replica.released_at == ~U[2026-07-10 10:50:00.000000Z]
@@ -77,7 +78,7 @@ defmodule Tuist.Runners.SessionReplicationTest do
         ended_at: datetime("2026-07-10T10:40:00Z")
       )
 
-    {:ok, _} = SessionReplication.replicate_batch()
+    {:ok, _, _} = SessionReplication.replicate_batch(SessionReplication.start_cursor())
 
     assert replicated(session).released_at == ~U[2026-07-10 10:40:00.000000Z]
   end
@@ -93,7 +94,7 @@ defmodule Tuist.Runners.SessionReplicationTest do
         started_at: datetime("2026-07-10T10:10:00Z")
       )
 
-    {:ok, _} = SessionReplication.replicate_batch()
+    {:ok, _, _} = SessionReplication.replicate_batch(SessionReplication.start_cursor())
 
     assert replicated(session).released_at == ~U[2026-07-10 16:10:00.000000Z]
   end
@@ -109,7 +110,7 @@ defmodule Tuist.Runners.SessionReplicationTest do
         job_ended_at: datetime("2026-07-10T10:40:00Z")
       )
 
-    {:ok, _} = SessionReplication.replicate_batch()
+    {:ok, _, _} = SessionReplication.replicate_batch(SessionReplication.start_cursor())
 
     replica = replicated(session)
     assert replica.platform == "linux"
@@ -129,7 +130,7 @@ defmodule Tuist.Runners.SessionReplicationTest do
         job_ended_at: datetime("2026-07-10T10:40:00Z")
       )
 
-    {:ok, _} = SessionReplication.replicate_batch()
+    {:ok, _, _} = SessionReplication.replicate_batch(SessionReplication.start_cursor())
 
     replica = replicated(session)
     assert replica.vcpus == shape.vcpus
@@ -146,7 +147,7 @@ defmodule Tuist.Runners.SessionReplicationTest do
         job_ended_at: datetime("2026-07-10T10:40:00Z")
       )
 
-    {:ok, _} = SessionReplication.replicate_batch()
+    {:ok, _, _} = SessionReplication.replicate_batch(SessionReplication.start_cursor())
 
     assert replicated(session) == nil
   end
@@ -162,7 +163,7 @@ defmodule Tuist.Runners.SessionReplicationTest do
         started_at: datetime("2026-07-10T10:10:00Z")
       )
 
-    {:ok, _} = SessionReplication.replicate_batch()
+    {:ok, _, _} = SessionReplication.replicate_batch(SessionReplication.start_cursor())
     assert replicated(session).released_at == ~U[2026-07-10 16:10:00.000000Z]
 
     session
@@ -172,7 +173,7 @@ defmodule Tuist.Runners.SessionReplicationTest do
     })
     |> Repo.update!()
 
-    {:ok, _} = SessionReplication.replicate_batch()
+    {:ok, _, _} = SessionReplication.replicate_batch(SessionReplication.start_cursor())
 
     assert replicated(session).released_at == ~U[2026-07-10 10:40:00.000000Z]
   end
@@ -191,10 +192,47 @@ defmodule Tuist.Runners.SessionReplicationTest do
         job_ended_at: datetime("2024-01-01T10:40:00Z")
       )
 
-    {:ok, count} = SessionReplication.replicate_batch()
+    {:ok, count, _} = SessionReplication.replicate_batch(SessionReplication.start_cursor())
 
     assert count >= 1
     assert replicated(session).released_at == ~U[2024-01-01 10:40:00.000000Z]
+  end
+
+  # A drain only continues while batches come back full. Re-deriving the
+  # resume point per batch would re-select the same first rows every
+  # time once the overlap window held a full batch, and nothing newer
+  # would ever replicate.
+  @tag timeout: 120_000
+  test "drains past a full batch that fits inside the overlap window" do
+    account = account_fixture()
+    updated_at = DateTime.truncate(DateTime.utc_now(), :second)
+    started_at = datetime("2026-07-10T10:10:00Z")
+    count = SessionReplication.batch_size() + 1
+
+    rows =
+      Enum.map(1..count, fn index ->
+        %{
+          account_id: account.id,
+          workflow_job_id: System.unique_integer([:positive]),
+          fleet_name: "linux-pool",
+          pod_name: "pod-overlap-#{index}",
+          runner_name: "",
+          platform: :linux,
+          vcpus: 4,
+          memory_gb: 16,
+          started_at: started_at,
+          job_ended_at: datetime("2026-07-10T10:40:00Z"),
+          ended_at: nil,
+          inserted_at: updated_at,
+          updated_at: updated_at
+        }
+      end)
+
+    Enum.each(Enum.chunk_every(rows, 2_000), &Repo.insert_all(RunnerSession, &1))
+
+    :ok = perform_job(ReplicateRunnerSessionsWorker, %{})
+
+    assert replicated_count(account) == count
   end
 
   # The latest ingest read the fresher Postgres row, so it has to win
@@ -205,6 +243,15 @@ defmodule Tuist.Runners.SessionReplicationTest do
         where: s.id == ^id,
         order_by: [desc: s.ingested_at],
         limit: 1
+      )
+    )
+  end
+
+  defp replicated_count(account) do
+    IngestRepo.one(
+      from(s in ConcurrencySession,
+        where: s.account_id == ^account.id,
+        select: fragment("uniqExact(?)", s.id)
       )
     )
   end
