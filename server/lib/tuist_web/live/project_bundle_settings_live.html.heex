@@ -395,4 +395,129 @@
       </div>
     </div>
   </.card_section>
+
+  <.card_section data-part="bundle-approvals-card-section">
+    <div data-part="header">
+      <div data-part="title-group">
+        <span data-part="title">
+          {dgettext("dashboard_projects", "Approvals")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_projects",
+            "Choose who can accept a bundle size increase that exceeded a threshold"
+          )}
+        </span>
+      </div>
+    </div>
+    <div data-part="content">
+      <div data-part="policy-row">
+        <label data-part="policy-label">
+          {dgettext("dashboard_projects", "Who can accept")}
+        </label>
+        <.dropdown
+          id="bundle-approval-policy-dropdown"
+          label={approval_policy_label(@selected_project.bundle_size_approval_policy)}
+        >
+          <.dropdown_item
+            :for={policy <- @approval_policies}
+            value={Atom.to_string(policy)}
+            label={approval_policy_label(policy)}
+            phx-click="select_approval_policy"
+            phx-value-policy={policy}
+            data-selected={@selected_project.bundle_size_approval_policy == policy}
+          >
+            <:right_icon :if={@selected_project.bundle_size_approval_policy == policy}>
+              <.icon name="check" />
+            </:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+      </div>
+      <p data-part="policy-description">
+        {approval_policy_description(@selected_project.bundle_size_approval_policy)}
+      </p>
+
+      <.alert
+        :if={
+          @selected_project.bundle_size_approval_policy == :admins and
+            not @admin_with_linked_github
+        }
+        status="warning"
+        type="secondary"
+        size="medium"
+        data-part="unlinked-admin-alert"
+        title={
+          dgettext(
+            "dashboard_projects",
+            "No admin of this account has signed in to Tuist with GitHub, so nobody can accept a size increase while this policy is active."
+          )
+        }
+      />
+
+      <div
+        :if={@selected_project.bundle_size_approval_policy == :selected}
+        data-part="approvers-section"
+      >
+        <div data-part="subsection-header">
+          <h3 data-part="subsection-title">
+            {dgettext("dashboard_projects", "Approvers")}
+          </h3>
+        </div>
+        <div data-part="add-approver-row">
+          <.text_input
+            type="basic"
+            id="add-approver-handle"
+            name="github_handle"
+            value={@approver_handle}
+            placeholder={dgettext("dashboard_projects", "GitHub username")}
+            phx-keyup="update_approver_handle"
+            phx-debounce="300"
+          />
+          <.button
+            label={dgettext("dashboard_projects", "Add approver")}
+            variant="secondary"
+            size="medium"
+            phx-click="add_approver"
+          />
+        </div>
+        <.hint_text :if={@approver_error} label={@approver_error} variant="destructive" />
+        <.table
+          id="bundle-size-approvers-table"
+          rows={@approvers}
+          row_key={fn approver -> "approver-#{approver.id}" end}
+        >
+          <:col :let={approver} label={dgettext("dashboard_projects", "GitHub username")}>
+            <.text_cell label={"@#{approver.github_handle}"} />
+          </:col>
+          <:col :let={approver}>
+            <.button_cell>
+              <:button>
+                <.button
+                  icon_only
+                  size="small"
+                  variant="secondary"
+                  phx-click="delete_approver"
+                  phx-value-approver_id={approver.id}
+                >
+                  <.icon name="trash" />
+                </.button>
+              </:button>
+            </.button_cell>
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="users"
+              title={dgettext("dashboard_projects", "No approvers")}
+              subtitle={
+                dgettext(
+                  "dashboard_projects",
+                  "Nobody can accept a size increase until a GitHub username is added"
+                )
+              }
+            />
+          </:empty_state>
+        </.table>
+      </div>
+    </div>
+  </.card_section>
 </div>

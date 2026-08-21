@@ -2,9 +2,13 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.Bundles
+  alias Tuist.Projects
   alias Tuist.Runners.Workers.DispatchWorker
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BundlesFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.VCSFixtures
   alias TuistWeb.Webhooks.GitHubController
 
@@ -381,6 +385,121 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
           "repository" => %{"full_name" => "org/repo"}
         })
 
+      assert result.status == 200
+    end
+
+    test "accepts when the project's policy is everyone", %{conn: conn} do
+      # Given
+      %{project: project} = bundle_size_check_run_setup()
+      bundle = BundlesFixtures.bundle_fixture(project: project)
+      conn = put_req_header(conn, "x-github-event", "check_run")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn _ -> {:ok, %{installation_id: "12345"}} end)
+
+      expect(VCS, :update_check_run, fn params ->
+        assert params.conclusion == "success"
+        assert params.output.summary == "The bundle size increase was accepted by @octocat."
+        {:ok, %{"id" => 42}}
+      end)
+
+      # When
+      result = GitHubController.handle(conn, check_run_params(bundle.id))
+
+      # Then
+      assert result.status == 200
+      assert Bundles.get_bundle_size_approval(bundle.id).approved_by_handle == "octocat"
+    end
+
+    test "leaves the check run failing when the sender is not an approver", %{conn: conn} do
+      # Given
+      %{project: project} = bundle_size_check_run_setup()
+      {:ok, project} = Projects.update_project(project, %{bundle_size_approval_policy: :selected})
+      bundle = BundlesFixtures.bundle_fixture(project: project)
+      conn = put_req_header(conn, "x-github-event", "check_run")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn _ -> {:ok, %{installation_id: "12345"}} end)
+
+      expect(VCS, :update_check_run, fn params ->
+        assert params.conclusion == "action_required"
+        assert params.output.title == "Bundle size increase not accepted"
+        assert params.output.summary =~ "@octocat is not allowed to accept"
+        assert hd(params.actions).identifier == "accept_bundle_size"
+        {:ok, %{"id" => 42}}
+      end)
+
+      # When
+      result = GitHubController.handle(conn, check_run_params(bundle.id))
+
+      # Then
+      assert result.status == 200
+      assert is_nil(Bundles.get_bundle_size_approval(bundle.id))
+    end
+
+    test "accepts when the sender is on the allowlist", %{conn: conn} do
+      # Given
+      %{project: project} = bundle_size_check_run_setup()
+      {:ok, project} = Projects.update_project(project, %{bundle_size_approval_policy: :selected})
+      {:ok, _} = Bundles.create_bundle_size_approver(%{project_id: project.id, github_handle: "octocat"})
+      bundle = BundlesFixtures.bundle_fixture(project: project)
+      conn = put_req_header(conn, "x-github-event", "check_run")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn _ -> {:ok, %{installation_id: "12345"}} end)
+
+      expect(VCS, :update_check_run, fn params ->
+        assert params.conclusion == "success"
+        {:ok, %{"id" => 42}}
+      end)
+
+      # When
+      result = GitHubController.handle(conn, check_run_params(bundle.id))
+
+      # Then
+      assert result.status == 200
+    end
+
+    test "clears a stale button as neutral when the project only reports", %{conn: conn} do
+      # Given
+      %{project: project} = bundle_size_check_run_setup()
+      {:ok, project} = Projects.update_project(project, %{bundle_size_approval_policy: :report_only})
+      bundle = BundlesFixtures.bundle_fixture(project: project)
+      conn = put_req_header(conn, "x-github-event", "check_run")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn _ -> {:ok, %{installation_id: "12345"}} end)
+
+      expect(VCS, :update_check_run, fn params ->
+        assert params.conclusion == "neutral"
+        assert params.output.summary =~ "no longer gates on bundle size"
+        refute Map.has_key?(params, :actions)
+        {:ok, %{"id" => 42}}
+      end)
+
+      # When
+      result = GitHubController.handle(conn, check_run_params(bundle.id))
+
+      # Then
+      assert result.status == 200
+      assert is_nil(Bundles.get_bundle_size_approval(bundle.id))
+    end
+
+    test "tells the sender their GitHub account is not linked when the policy is admins", %{conn: conn} do
+      # Given
+      %{project: project} = bundle_size_check_run_setup()
+      {:ok, project} = Projects.update_project(project, %{bundle_size_approval_policy: :admins})
+      bundle = BundlesFixtures.bundle_fixture(project: project)
+      conn = put_req_header(conn, "x-github-event", "check_run")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn _ -> {:ok, %{installation_id: "12345"}} end)
+
+      expect(VCS, :update_check_run, fn params ->
+        assert params.conclusion == "action_required"
+        assert params.output.summary =~ "is not linked to a Tuist account"
+        {:ok, %{"id" => 42}}
+      end)
+
+      # When
+      result = GitHubController.handle(conn, check_run_params(bundle.id))
+
+      # Then
       assert result.status == 200
     end
 
@@ -791,5 +910,23 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         }
       )
     end
+  end
+
+  defp bundle_size_check_run_setup do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+    project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+    %{user: user, project: project}
+  end
+
+  defp check_run_params(bundle_id) do
+    %{
+      "action" => "requested_action",
+      "check_run" => %{"id" => 42, "name" => "tuist/bundle-size", "external_id" => bundle_id},
+      "requested_action" => %{"identifier" => "accept_bundle_size"},
+      "installation" => %{"id" => 12_345},
+      "repository" => %{"full_name" => "org/repo"},
+      "sender" => %{"id" => 999, "login" => "octocat"}
+    }
   end
 end

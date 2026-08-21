@@ -299,7 +299,7 @@ defmodule Tuist.GitHub.Client do
 
     json =
       params
-      |> Map.take([:name, :head_sha, :status, :conclusion, :output, :actions, :details_url])
+      |> Map.take([:name, :head_sha, :status, :conclusion, :output, :actions, :details_url, :external_id])
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
       |> Map.new()
 

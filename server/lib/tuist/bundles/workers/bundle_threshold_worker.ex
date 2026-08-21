@@ -106,7 +106,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
            vcs_connection: %{github_app_installation: installation, repository_full_handle: repo_handle},
            account: %{name: account_name},
            name: project_name
-         },
+         } = project,
          bundle,
          git_commit_sha,
          result
@@ -114,7 +114,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
     bundle_url =
       Environment.app_url(path: "/#{account_name}/#{project_name}/bundles/#{bundle.id}")
 
-    {conclusion, output} = build_check_run_output(result, bundle_url)
+    {conclusion, output} = build_check_run_output(result, bundle_url, project)
 
     params = %{
       repository_full_handle: repo_handle,
@@ -124,7 +124,11 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
       status: "completed",
       conclusion: conclusion,
       output: output,
-      details_url: bundle_url
+      details_url: bundle_url,
+      # Ties the check run back to its bundle so the `requested_action`
+      # webhook can resolve the project it belongs to. A repository can back
+      # several Tuist projects, so the repository handle alone is ambiguous.
+      external_id: bundle.id
     }
 
     params =
@@ -146,7 +150,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
     end
   end
 
-  defp build_check_run_output(:ok, _bundle_url) do
+  defp build_check_run_output(:ok, _bundle_url, _project) do
     {"success",
      %{
        title: "Bundle size check passed",
@@ -156,7 +160,8 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
 
   defp build_check_run_output(
          {:violated, threshold, %{current_size: current_size, baseline_size: baseline_size, deviation: deviation}},
-         bundle_url
+         bundle_url,
+         project
        ) do
     metric_label =
       case threshold.metric do
@@ -172,16 +177,46 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
     | #{metric_label} | #{ByteFormatter.format_bytes(baseline_size)} | #{ByteFormatter.format_bytes(current_size)} | +#{Float.round(deviation, 2)}% |
 
     **Threshold:** #{threshold.deviation_percentage}% on `#{threshold.baseline_branch}`#{if threshold.bundle_name, do: " (bundle: #{threshold.bundle_name})", else: ""}
-
+    #{approval_policy_note(project)}
     [View bundle details](#{bundle_url})
     """
 
-    {"action_required",
+    {violation_conclusion(project),
      %{
        title: "Bundle size threshold exceeded",
        summary: String.trim(summary)
      }}
   end
+
+  # `action_required` is a failing conclusion that only the Accept button can
+  # clear. Under `report_only` there is no button, so failing would leave the
+  # check red with no way out. `neutral` reports the same information without
+  # standing in as the gate, which is the point of the policy: the merge
+  # decision belongs to a check the project owns.
+  defp violation_conclusion(%{bundle_size_approval_policy: :report_only}), do: "neutral"
+  defp violation_conclusion(_project), do: "action_required"
+
+  defp approval_policy_note(%{bundle_size_approval_policy: :report_only}) do
+    "\nThis project reports bundle size without gating on it. Accepting or blocking the change is up to the project's own checks.\n"
+  end
+
+  defp approval_policy_note(%{bundle_size_approval_policy: :admins, account: %{name: account_name}}) do
+    "\n**Who can accept:** admins of the `#{account_name}` account.\n"
+  end
+
+  defp approval_policy_note(%{bundle_size_approval_policy: :selected} = project) do
+    handles =
+      project
+      |> Bundles.list_bundle_size_approvers()
+      |> Enum.map_join(", ", &"@#{&1.github_handle}")
+
+    case handles do
+      "" -> "\n**Who can accept:** nobody yet. A project admin can add approvers in Tuist under Settings > Bundles.\n"
+      handles -> "\n**Who can accept:** #{handles}\n"
+    end
+  end
+
+  defp approval_policy_note(_project), do: ""
 
   defp cancel_competing_jobs(current_job_id, args) do
     worker = inspect(__MODULE__, structs: false)

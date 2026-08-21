@@ -8,6 +8,8 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
   alias Tuist.Projects
   alias Tuist.Repo
 
+  @approval_policies [:everyone, :admins, :selected, :report_only]
+
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_project: selected_project, current_user: current_user}} = socket) do
     if Authorization.authorize(:project_update, current_user, selected_project) != :ok do
@@ -22,7 +24,10 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
       socket
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Bundles")} · #{selected_project.name} · Tuist")
       |> assign(:has_vcs_connection, has_vcs_connection)
+      |> assign(:approval_policies, @approval_policies)
+      |> assign(:admin_with_linked_github, Bundles.account_admin_with_linked_github?(selected_project))
       |> assign_threshold_defaults(selected_project)
+      |> assign_approval_defaults(selected_project)
 
     {:ok, socket}
   end
@@ -176,6 +181,95 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
       |> assign_threshold_defaults(selected_project)
 
     {:noreply, socket}
+  end
+
+  def handle_event("select_approval_policy", %{"policy" => policy}, %{assigns: assigns} = socket) do
+    policy = String.to_existing_atom(policy)
+
+    if policy in @approval_policies do
+      {:ok, project} = Projects.update_project(assigns.selected_project, %{bundle_size_approval_policy: policy})
+
+      {:noreply,
+       socket
+       |> assign(:selected_project, project)
+       |> assign_approval_defaults(project)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_approver_handle", %{"value" => handle}, socket) do
+    {:noreply, assign(socket, approver_handle: handle, approver_error: nil)}
+  end
+
+  def handle_event("add_approver", _params, %{assigns: assigns} = socket) do
+    attrs = %{project_id: assigns.selected_project.id, github_handle: assigns.approver_handle}
+
+    case Bundles.create_bundle_size_approver(attrs) do
+      {:ok, _approver} ->
+        {:noreply, assign_approval_defaults(socket, assigns.selected_project)}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, approver_error: approver_error_message(changeset))}
+    end
+  end
+
+  def handle_event("delete_approver", %{"approver_id" => approver_id}, %{assigns: assigns} = socket) do
+    with {:ok, approver} <- Bundles.get_bundle_size_approver(approver_id),
+         true <- approver.project_id == assigns.selected_project.id,
+         {:ok, _} <- Bundles.delete_bundle_size_approver(approver) do
+      {:noreply, assign_approval_defaults(socket, assigns.selected_project)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  defp assign_approval_defaults(socket, project) do
+    socket
+    |> assign(approvers: Bundles.list_bundle_size_approvers(project))
+    |> assign(approver_handle: "")
+    |> assign(approver_error: nil)
+  end
+
+  defp approver_error_message(changeset) do
+    if Keyword.has_key?(changeset.errors, :github_handle) do
+      dgettext("dashboard_projects", "Enter a valid GitHub username that isn't already on the list.")
+    else
+      dgettext("dashboard_projects", "The approver could not be added.")
+    end
+  end
+
+  defp approval_policy_label(:everyone), do: dgettext("dashboard_projects", "Anyone with write access")
+  defp approval_policy_label(:admins), do: dgettext("dashboard_projects", "Admins only")
+  defp approval_policy_label(:selected), do: dgettext("dashboard_projects", "Selected GitHub users")
+  defp approval_policy_label(:report_only), do: dgettext("dashboard_projects", "Nobody (report only)")
+
+  defp approval_policy_description(:everyone) do
+    dgettext(
+      "dashboard_projects",
+      "Anyone GitHub lets press the button on a check run, which is everyone with write access to the repository."
+    )
+  end
+
+  defp approval_policy_description(:admins) do
+    dgettext(
+      "dashboard_projects",
+      "Admins of this account. An admin has to have signed in to Tuist with GitHub, so that their GitHub account can be matched to their Tuist account."
+    )
+  end
+
+  defp approval_policy_description(:selected) do
+    dgettext(
+      "dashboard_projects",
+      "Only the GitHub users listed below. Admins are not included unless they are on the list."
+    )
+  end
+
+  defp approval_policy_description(:report_only) do
+    dgettext(
+      "dashboard_projects",
+      "Nobody. The check reports the size change without an Accept button and without failing, leaving the merge decision to your own checks. Use this to gate on bundle size from a job that applies your own rules, such as requiring a review from a specific team."
+    )
   end
 
   defp assign_threshold_defaults(socket, project) do
