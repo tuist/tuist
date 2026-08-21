@@ -4,6 +4,9 @@
 {{- if not .Values.egressTreeAgent.image }}
 {{- fail "egressTreeAgent.image is required (pin by digest)" }}
 {{- end }}
+{{- if and (not .Values.egressTreeAgent.nodePools) (not .Values.egressTreeAgent.nodeSelector) }}
+{{- fail "egressTreeAgent.nodePools (or nodeSelector) is required: restrict the privileged DaemonSet to the kura cache pools" }}
+{{- end }}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -76,9 +79,21 @@ spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       priorityClassName: system-node-critical
-      {{- with .Values.egressTreeAgent.nodeSelector }}
       nodeSelector:
+        kubernetes.io/os: linux
+        {{- with .Values.egressTreeAgent.nodeSelector }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.egressTreeAgent.nodePools }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.cluster.x-k8s.io/pool
+                    operator: In
+                    values:
+                      {{- toYaml . | nindent 22 }}
       {{- end }}
       {{- with .Values.egressTreeAgent.tolerations }}
       tolerations:

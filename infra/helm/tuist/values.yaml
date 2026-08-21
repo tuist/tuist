@@ -284,8 +284,16 @@ egressTreeAgent:
   # advertise tuist.dev/egress-mbps capacity. 0 = no fallback: such nodes get
   # no tree and their pods stay unshaped on the node-local leg.
   defaultNodeEgressMbps: 0
-  # Schedule only onto kura cache pools; same shape as the regional
-  # kura-*-ingress-nginx blocks in infra/helm/platform/values-tuist.yaml.
+  # Kura cache pools to schedule onto, matched as
+  # `node.cluster.x-k8s.io/pool In [<nodePools>]` required node affinity —
+  # the same pool names the region specs use (server/lib/tuist/kura/regions.ex)
+  # and the regional kura-*-ingress-nginx blocks in
+  # infra/helm/platform/values-tuist.yaml. The template refuses to render an
+  # enabled agent when both nodePools and nodeSelector are empty: this is a
+  # privileged host-network DaemonSet and must never run cluster-wide.
+  nodePools: []
+  # Optional extra equality constraints on top of nodePools
+  # (kubernetes.io/os: linux is always applied).
   nodeSelector: {}
   tolerations:
     - key: tuist.dev/kura-cache
