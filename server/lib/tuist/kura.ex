@@ -291,25 +291,34 @@ defmodule Tuist.Kura do
   the database describing nothing. Writing it onto the rows puts it in the
   manifest revision, which carries it to the next reconciler tick.
 
-  What the cluster does with it there is destructive, and deliberately so. The
-  bare-metal regions run a storage class that cannot expand a claim and a
-  StatefulSet cannot re-template one, so the controller has no in-place resize
-  to offer: it recreates the StatefulSet and lets fresh volumes bind at the new
-  size. The instance comes back with an empty cache and refills from real
-  traffic or an account peer. That is acceptable because Kura is terminal
-  storage for a regenerable cache, where a miss is a 404 rather than an origin
-  fetch, but it is not invisible: the returned `:rebuilt` list names exactly the
-  instances whose cache this drops. An operator raising a claim to rescue a
-  capped account is told what it cost.
+  What the cluster does with it there depends on which way the claim moved, and
+  only one of the two costs anything.
 
-  Returns `{:ok, %{claim_size: claim, rebuilt: servers}}`, where `claim_size` is
-  what the account's instances are now built at (its override, or the claim its
-  plan gives it back when the override is cleared).
+  Raising it is destructive, and deliberately so. The bare-metal regions run a
+  storage class that cannot expand a claim and a StatefulSet cannot re-template
+  one, so the controller has no in-place resize to offer for a volume too small
+  to hold the ring it is now told to budget: it recreates the StatefulSet and
+  lets fresh volumes bind at the new size. The instance comes back with an empty
+  cache and refills from real traffic or an account peer. That is acceptable
+  because Kura is terminal storage for a regenerable cache, where a miss is a
+  404 rather than an origin fetch, but it is not invisible.
+
+  Lowering it costs nothing. The volume already holds more than the new ring
+  budget, so it is left alone and the ring evicts down into it; the disk itself
+  comes back when the volumes are next built. Nothing is thrown away to reclaim
+  it sooner.
+
+  Returns `{:ok, %{claim_size: claim, rebuilt: servers, tightened: servers}}`.
+  `claim_size` is what the account's instances are now built at (its override,
+  or the claim its plan gives it back when the override is cleared), `:rebuilt`
+  names exactly the instances whose cache this drops, and `:tightened` the ones
+  that keep theirs. An operator raising a claim to rescue a capped account is
+  told which of the two they just did.
   """
   def update_storage_claim_override(%Account{} = account, attrs) when is_map(attrs) do
     with {:ok, override} <- StorageClaims.cast_override(account, attrs),
          {:ok, result} <- write_storage_claim_override(account, override) do
-      Enum.each(result.rebuilt, &broadcast_server(&1, :updated))
+      Enum.each(result.rebuilt ++ result.tightened, &broadcast_server(&1, :updated))
       {:ok, result}
     end
   end
@@ -326,7 +335,9 @@ defmodule Tuist.Kura do
         :ok ->
           claim_size = StorageClaims.effective_claim_size(account)
 
-          %{claim_size: claim_size, rebuilt: repin_storage_claims(account, previous, claim_size)}
+          account
+          |> repin_storage_claims(previous, claim_size)
+          |> Map.put(:claim_size, claim_size)
 
         {:error, changeset} ->
           Repo.rollback(changeset)
@@ -343,16 +354,37 @@ defmodule Tuist.Kura do
   # produce no manifest change, and reporting it as rebuilt would tell an
   # operator a cache was dropped that never was.
   defp repin_storage_claims(%Account{id: account_id}, previous, claim_size) do
-    Server
-    |> where([server], server.account_id == ^account_id)
-    |> where([server], server.status not in ^@volumeless_statuses)
-    |> Repo.all()
-    |> Enum.filter(&storage_claim_moves?(&1, previous, claim_size))
-    |> Enum.map(fn server ->
-      server
-      |> Server.lifecycle_changeset(%{storage_claim_size: claim_size})
-      |> Repo.update!()
-    end)
+    {grown, tightened} =
+      Server
+      |> where([server], server.account_id == ^account_id)
+      |> where([server], server.status not in ^@volumeless_statuses)
+      |> Repo.all()
+      |> Enum.filter(&storage_claim_moves?(&1, previous, claim_size))
+      |> Enum.map(fn server ->
+        grows? = claim_grows?(instance_storage_claim(server, previous), claim_size)
+
+        {server |> Server.lifecycle_changeset(%{storage_claim_size: claim_size}) |> Repo.update!(), grows?}
+      end)
+      |> Enum.split_with(fn {_server, grows?} -> grows? end)
+
+    %{rebuilt: Enum.map(grown, &elem(&1, 0)), tightened: Enum.map(tightened, &elem(&1, 0))}
+  end
+
+  # Which of the two things the cluster will do with this row. A claim bigger
+  # than the volume holds is the one direction it cannot absorb, since the ring
+  # would be budgeted past the end of the disk, so the volumes are rebuilt and
+  # the cache goes with them. A smaller one fits what is already there and the
+  # ring evicts down into it.
+  #
+  # An unreadable quantity is reported as the destructive reading: promising a
+  # cache survives is the answer that costs something when it is wrong.
+  defp claim_grows?(held, claim_size) do
+    with {:ok, held_bytes} <- Regions.parse_storage_quantity(held),
+         {:ok, claim_bytes} <- Regions.parse_storage_quantity(claim_size) do
+      claim_bytes > held_bytes
+    else
+      _ -> true
+    end
   end
 
   # Resolved exactly as the ops card resolves it, against the claim the account

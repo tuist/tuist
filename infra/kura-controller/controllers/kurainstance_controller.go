@@ -2432,10 +2432,15 @@ func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, 
 // resolved by resizing. The fleet's storage class is allowVolumeExpansion:
 // false, so patching a bound claim to a new size is rejected outright, and the
 // volumeClaimTemplate that would carry it is immutable on a live StatefulSet.
-// Recreating is the only path that actually lands a new size. Both directions
-// count: a claim smaller than declared lets Kura budget its CAS ring past the
-// end of the disk, and a claim larger than declared keeps disk reserved on a
-// box whose packing density is the thing the declared size was lowered to fix.
+// Recreating is the only path that actually lands a bigger volume.
+//
+// Only the growing direction. A claim smaller than declared cannot hold the
+// ring the instance is being told to budget, so the ring would run past the end
+// of the disk: that is a correctness violation and worth a cold cache to fix. A
+// claim larger than declared is not. The ring simply budgets less than the
+// volume can hold and evicts down to it, which is what a plan downgrade on an
+// instance carrying no claim of its own does, and recreating there would spend
+// an account's whole cache to reclaim disk the next rebuild reclaims anyway.
 func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
 	desiredStorageClass := instance.Spec.StorageClassName
 	desiredStorage := storageQuantity(instance)
@@ -2454,8 +2459,8 @@ func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, ins
 		if desiredStorageClass != "" && pvcStorageClassName(pvc) != desiredStorageClass {
 			return fmt.Sprintf("data PVC %s storage class %q no longer matches desired %q", name, pvcStorageClassName(pvc), desiredStorageClass), nil
 		}
-		if boundStorage, ok := pvc.Spec.Resources.Requests[corev1.ResourceStorage]; ok && boundStorage.Cmp(desiredStorage) != 0 {
-			return fmt.Sprintf("data PVC %s is %s and no longer matches desired %s", name, boundStorage.String(), desiredStorage.String()), nil
+		if boundStorage, ok := pvc.Spec.Resources.Requests[corev1.ResourceStorage]; ok && desiredStorage.Cmp(boundStorage) > 0 {
+			return fmt.Sprintf("data PVC %s is %s and cannot hold the declared %s", name, boundStorage.String(), desiredStorage.String()), nil
 		}
 		if pvc.Status.Phase == corev1.ClaimBound && pvc.Spec.VolumeName != "" {
 			node, err := r.pvMissingPinnedNode(ctx, pvc.Spec.VolumeName)

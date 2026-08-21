@@ -52,22 +52,25 @@ defmodule Tuist.Kura.Server do
   it back to the provisioner for `rollout/2` and `destroy/1`. For the
   Kubernetes controller provisioner it's the KuraInstance name.
 
-  `storage_claim_size` is the claim the instance's volumes were created at,
-  pinned at creation by the regions that size instances from their account's
-  plan (`Tuist.Kura.Regions.storage_governed?/1`). It is deliberately not
-  re-derived on every render: the bare-metal regions run a local-path storage
-  class that cannot expand a claim, so a claim that moved under a live instance
-  would be rejected outright. An instance therefore keeps the claim it was built
-  with for as long as it holds those volumes; it takes a new one when the volumes
-  are recreated — the cold return out of `:archived`, or a warm handoff onto a
-  second instance — and a plan change in between is not applied until then.
-  Null on the regions that size every instance alike, which render the region's
-  own claim.
+  `storage_claim_size` is the claim this instance is built at: desired state,
+  folded into the manifest revision, so a value that changes reaches the cluster
+  on the next reconciler tick. It is written by the regions that size instances
+  from their account's plan (`Tuist.Kura.Regions.storage_governed?/1`), and null
+  on the regions that size every instance alike, which render the region's own
+  claim.
 
-  Not re-derived is not the same as not desired state: it is folded into the
-  manifest revision, so a claim that does change reaches the cluster on the next
-  reconciler tick rather than waiting for an unrelated input to move the
-  revision.
+  What it is deliberately *not* is a value re-derived on every render. The
+  bare-metal regions run a local-path storage class that cannot expand a claim,
+  so the only way to change one is to build the volumes again, and an instance
+  whose claim silently tracked its account would have that attempted under it
+  every time the account moved. So the value is set where the volumes are built
+  — provisioning, the cold return out of `:archived`, a warm handoff onto a
+  second instance — and a plan change in between is not applied until one of
+  those happens.
+
+  That makes it desired state with a narrow set of writers rather than an
+  observation: at rest it is what the volumes hold, and between a write and the
+  storage being rebuilt it is what they are about to hold.
 
   Per-server install and update attempts live in `kura_deployments` via
   `kura_server_id`. These rows are the deployment records the
@@ -143,8 +146,8 @@ defmodule Tuist.Kura.Server do
     # steady-state rows, which the scheduler bin-packs across the region's boxes.
     field :target_node, :string
 
-    # The claim this instance's volumes were created at. Written once, when the
-    # storage is created, and never again — see the module doc.
+    # The claim this instance is built at. Written where the volumes are built,
+    # not re-derived per render — see the module doc.
     field :storage_claim_size, :string
 
     # Observed-state projection. Written only by the reconciler from the

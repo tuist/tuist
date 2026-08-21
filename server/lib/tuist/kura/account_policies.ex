@@ -61,7 +61,7 @@ defmodule Tuist.Kura.AccountPolicies do
 
   @doc """
   The plan an account's Kura instance is sized from — its memory profile and
-  the claim its data volume is created with.
+  the claim its data volume is built at.
 
   A self-hosted deployment has no subscriptions, so `Billing.effective_plan/1`
   would resolve every account there to `:air`. Its Enterprise license is the

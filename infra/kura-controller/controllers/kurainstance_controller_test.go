@@ -1955,7 +1955,6 @@ func TestKuraInstanceReconcileRecreatesStatefulSetOnStorageSizeDrift(t *testing.
 		bound    string
 	}{
 		{name: "grows", declared: "200Gi", bound: "20Gi"},
-		{name: "shrinks", declared: "20Gi", bound: "200Gi"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -3115,24 +3114,38 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 			return instance
 		}
 
-		for _, tc := range []struct{ name, declared, bound string }{
-			{name: "grown", declared: "30Gi", bound: "14Gi"},
-			{name: "shrunk", declared: "14Gi", bound: "30Gi"},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
-					declaring(tc.declared), newSTS(), sized(tc.bound), pvPinnedTo("pv-1", "live-node"), node("live-node"),
-				).Build()
-				r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
-				reason, err := r.staleDataStorageReason(context.Background(), declaring(tc.declared))
-				if err != nil {
-					t.Fatal(err)
-				}
-				if !strings.Contains(reason, tc.bound) || !strings.Contains(reason, tc.declared) {
-					t.Fatalf("expected the reason to name both sizes, got %q", reason)
-				}
-			})
-		}
+		t.Run("grown", func(t *testing.T) {
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+				declaring("30Gi"), newSTS(), sized("14Gi"), pvPinnedTo("pv-1", "live-node"), node("live-node"),
+			).Build()
+			r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+			reason, err := r.staleDataStorageReason(context.Background(), declaring("30Gi"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(reason, "14Gi") || !strings.Contains(reason, "30Gi") {
+				t.Fatalf("expected the reason to name both sizes, got %q", reason)
+			}
+		})
+
+		// A volume bigger than the claim declares holds the ring the instance is
+		// told to budget with room to spare, so it evicts down rather than being
+		// thrown away. This is the shape a plan downgrade takes on an instance
+		// carrying no claim of its own, and recreating there would spend the
+		// account's whole cache to reclaim disk the next rebuild reclaims anyway.
+		t.Run("shrunk is left alone", func(t *testing.T) {
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+				declaring("14Gi"), newSTS(), sized("30Gi"), pvPinnedTo("pv-1", "live-node"), node("live-node"),
+			).Build()
+			r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+			reason, err := r.staleDataStorageReason(context.Background(), declaring("14Gi"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if reason != "" {
+				t.Fatalf("expected no recreate for a volume larger than the declared claim, got %q", reason)
+			}
+		})
 	})
 
 	// A claim that declares no size at all cannot drift: there is nothing to

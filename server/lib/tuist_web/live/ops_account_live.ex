@@ -88,11 +88,11 @@ defmodule TuistWeb.OpsAccountLive do
     account = socket.assigns.account
 
     case Kura.update_storage_claim_override(account, params) do
-      {:ok, %{claim_size: claim_size, rebuilt: rebuilt}} ->
+      {:ok, result} ->
         {:noreply,
          socket
          |> assign_kura_storage_claim(account)
-         |> put_flash(:info, kura_storage_claim_message(claim_size, rebuilt))}
+         |> put_flash(:info, kura_storage_claim_message(result))}
 
       {:error, changeset} ->
         {:noreply,
@@ -290,11 +290,11 @@ defmodule TuistWeb.OpsAccountLive do
     |> to_form(as: "account")
   end
 
-  # Raising a claim and lowering one have the same consequence for a running
-  # instance: its volumes are rebuilt at the new size and it starts empty. Say
-  # so rather than reporting a successful save. An operator raising a claim to
-  # rescue a capped account is the one most likely to assume otherwise.
-  defp kura_storage_claim_message(claim_size, []) do
+  # Raising a claim and lowering one do different things to a running instance,
+  # and only one of them costs a cache. Say which happened rather than reporting
+  # a successful save: an operator raising a claim to rescue a capped account is
+  # the one most likely to assume it was free.
+  defp kura_storage_claim_message(%{claim_size: claim_size, rebuilt: [], tightened: []}) do
     dgettext(
       "dashboard",
       "Kura disk claim set to %{claim}. No running instance changed; it applies the next time volumes are built.",
@@ -302,12 +302,22 @@ defmodule TuistWeb.OpsAccountLive do
     )
   end
 
-  defp kura_storage_claim_message(claim_size, rebuilt) do
+  defp kura_storage_claim_message(%{claim_size: claim_size, rebuilt: []} = result) do
+    dngettext(
+      "dashboard",
+      "Kura disk claim set to %{claim}. %{count} running instance keeps its cache and evicts down to the new budget; its disk is reclaimed the next time volumes are built.",
+      "Kura disk claim set to %{claim}. %{count} running instances keep their caches and evict down to the new budget; their disk is reclaimed the next time volumes are built.",
+      length(result.tightened),
+      claim: claim_size
+    )
+  end
+
+  defp kura_storage_claim_message(%{claim_size: claim_size} = result) do
     dngettext(
       "dashboard",
       "Kura disk claim set to %{claim}. %{count} running instance rebuilds its volumes and starts with an empty cache.",
       "Kura disk claim set to %{claim}. %{count} running instances rebuild their volumes and start with an empty cache.",
-      length(rebuilt),
+      length(result.rebuilt),
       claim: claim_size
     )
   end
