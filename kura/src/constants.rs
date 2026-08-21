@@ -172,11 +172,15 @@ pub const BACKFILL_SEQ_STAMP_SLACK_SEQS: u64 = 8_000_000;
 // on multi-million-entry nodes), blocking compaction of everything written
 // since it opened.
 pub const BACKFILL_INDEX_BUILD_CHUNK_ROWS: usize = 4_096;
-// How many segment-index rows a CAS eviction scans between yields. The scan is
-// entirely synchronous RocksDB work (a manifest read per artifact, plus a
-// reverse-row prefix scan and an inline-bytes read per cascaded action-cache
-// entry), so without a yield one eviction parks a runtime worker for its whole
-// duration. Smaller than the snapshot gate's stride because each row here costs
+// How many rows a CAS eviction scans between yields, counting BOTH the
+// segment-index rows and the blob-ref rows of every cascade the scan starts
+// against one shared budget. Per-scan budgets were the first attempt and do not
+// bound anything: the cascade counter restarts on each blob, so 255 artifacts
+// each cascading 200 reverse rows walks ~51,000 rows without either scan
+// reaching the stride. The scan is entirely synchronous RocksDB work (a manifest
+// read per artifact, plus a reverse-row prefix scan and an inline-bytes read and
+// decode per cascaded action-cache entry), so without a yield one eviction parks
+// a runtime worker for its whole duration. Smaller than the snapshot gate's stride because each row here costs
 // several reads rather than one cache hit.
 //
 // Note the different shape from `BACKFILL_INDEX_BUILD_CHUNK_ROWS` above, which

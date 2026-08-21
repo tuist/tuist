@@ -530,7 +530,8 @@ sum by (cluster, pod) (
   deployed rule keeps the raw `increase(...)` in query A and puts the
   comparison in threshold expression C as `gt 1.5`, matching the house pattern.
 - Summary: `Kura cache pod {{ $labels.pod }} restarted
-  {{ $value }} times in the last 6 hours in {{ $labels.cluster }}`
+  {{ $values.A.Value | printf "%.0f" }} times in the last 6 hours in
+  {{ $labels.cluster }}`
 
 **Nothing covered the `kura` namespace before this.** Two generic restart rules
 already existed and neither could have fired: `Pod restarts (possible
@@ -1199,8 +1200,9 @@ sum by (cluster, pod) (
 - Severity: warning
 - Already created: rule `cfvvcmpw0wqv4f`, folder `Alerts`, group `Cache`,
   receiver `Slack #notifications 2`
-- Summary: `Kura cache pod {{ $labels.pod }} failed {{ $value }} scrapes in the
-  last 6 hours in {{ $labels.cluster }}`
+- Summary: `Kura cache pod {{ $labels.pod }} failed
+  {{ $values.A.Value | printf "%.0f" }} scrapes in the last 6 hours in
+  {{ $labels.cluster }}`
 
 Kura serves `/metrics`, `/up` and `/ready` from the same axum server on the
 same port, so an Alloy scrape timeout and a kubelet probe timeout are two
@@ -1238,8 +1240,9 @@ max by (cluster, pod) (
 - Severity: warning
 - Already created: rule `dfvvcp2lfgb9cd`, folder `Alerts`, group `Cache`,
   receiver `Slack #notifications 2`
-- Summary: `Kura metadata store write buffer is {{ $value | humanizePercentage }}
-  full on {{ $labels.pod }} in {{ $labels.cluster }}`
+- Summary: `Kura metadata store write buffer is
+  {{ $values.A.Value | humanizePercentage }} full on {{ $labels.pod }} in
+  {{ $labels.cluster }}`
 
 The mechanism behind the two rules above, and the only one of the three visible
 *before* the pod stops answering.
@@ -2071,12 +2074,18 @@ min by (cluster, namespace, repo, database) (
    warnings. Note that **Keep Last State** is reachable from the UI but not
    from the provisioning API, which accepts only `OK`, `Alerting` and `Error`;
    use `OK` there for the same intent.
-10. Add the suggested summary, a `severity` label, and the notification contact
+10. Write value interpolations as `{{ $values.A.Value }}`, not `{{ $value }}`.
+    Every rule here is a data query plus a separate threshold expression, and on
+    a multi-ref-id rule `$value` expands to a string listing each ref id and its
+    value (`[ var='C0' labels={...} value=1 ]`) rather than the number from A.
+    That also breaks any pipe into `humanizePercentage` or `printf`, which want
+    a number. `{{ $labels.x }}` is unaffected.
+11. Add the suggested summary, a `severity` label, and the notification contact
    point used by the infrastructure team. Add `affected_service` to
    customer-visible rules as described in **Routing to Grafana IRM** above.
-11. Preview the raw metric selector and the final comparison separately against
+12. Preview the raw metric selector and the final comparison separately against
     recent data before saving it.
-12. For a rule whose healthy state is an empty result *and* whose unhealthy
+13. For a rule whose healthy state is an empty result *and* whose unhealthy
     state depends on the series existing (`Remote processing queue has no
     consumer`, `xcresult processor guest metrics unavailable fleet-wide`),
     confirm the paired telemetry-missing rule exists before relying on it.
