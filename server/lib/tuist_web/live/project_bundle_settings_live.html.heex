@@ -179,6 +179,11 @@
                   phx-keyup="update_create_form_bundle_name"
                   phx-debounce="300"
                 />
+                <.hint_text
+                  :if={unknown_bundle_name?(@create_form_bundle_name, @bundle_names)}
+                  variant="destructive"
+                  label={unknown_bundle_name_warning(@create_form_bundle_name, @bundle_names)}
+                />
               </div>
             </div>
             <.line_divider />
@@ -338,6 +343,21 @@
                         phx-keyup="update_edit_form_bundle_name"
                         phx-value-id={threshold.id}
                         phx-debounce="300"
+                      />
+                      <.hint_text
+                        :if={
+                          unknown_bundle_name?(
+                            form[:bundle_name] || threshold.bundle_name,
+                            @bundle_names
+                          )
+                        }
+                        variant="destructive"
+                        label={
+                          unknown_bundle_name_warning(
+                            form[:bundle_name] || threshold.bundle_name,
+                            @bundle_names
+                          )
+                        }
                       />
                     </div>
                   </div>

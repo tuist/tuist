@@ -77,7 +77,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
     bundle_url =
       Environment.app_url(path: "/#{account_name}/#{project_name}/bundles/#{bundle.id}")
 
-    {conclusion, output} = build_check_run_output(result, bundle_url)
+    {conclusion, output} = build_check_run_output(result, bundle, bundle_url)
 
     params = %{
       repository_full_handle: repo_handle,
@@ -109,7 +109,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
     end
   end
 
-  defp build_check_run_output(:ok, _bundle_url) do
+  defp build_check_run_output(:ok, _bundle, _bundle_url) do
     {"success",
      %{
        title: "Bundle size check passed",
@@ -117,8 +117,36 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
      }}
   end
 
+  defp build_check_run_output({:no_matching_thresholds, skipped}, bundle, bundle_url) do
+    rows =
+      Enum.map_join(skipped, "\n", fn threshold ->
+        "| #{threshold.name} | `#{threshold.bundle_name}` |"
+      end)
+
+    summary = """
+    No size threshold applies to the bundle **#{bundle.name}**, so nothing was checked.
+
+    The thresholds below are scoped to a different bundle name:
+
+    | Threshold | Scoped to bundle name |
+    |-----------|-----------------------|
+    #{rows}
+
+    Update the bundle name on those thresholds so it matches the name the bundle is uploaded under, or clear it to apply them to every bundle.
+
+    [View bundle details](#{bundle_url})
+    """
+
+    {"neutral",
+     %{
+       title: "Bundle size check did not run",
+       summary: String.trim(summary)
+     }}
+  end
+
   defp build_check_run_output(
          {:violated, threshold, %{current_size: current_size, baseline_size: baseline_size, deviation: deviation}},
+         _bundle,
          bundle_url
        ) do
     metric_label =

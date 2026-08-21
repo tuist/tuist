@@ -703,30 +703,53 @@ defmodule Tuist.Bundles do
     Repo.delete(threshold)
   end
 
-  def evaluate_project_thresholds(%Project{} = project, %Bundle{} = bundle) do
-    thresholds = get_project_bundle_thresholds(project)
+  def project_bundle_names(%Project{} = project) do
+    ClickHouseRepo.all(
+      from(b in Bundle,
+        where: b.project_id == ^project.id,
+        distinct: true,
+        select: b.name,
+        order_by: [asc: b.name]
+      )
+    )
+  end
 
-    Enum.reduce_while(thresholds, :ok, fn threshold, :ok ->
-      case evaluate_single_threshold(project, bundle, threshold) do
-        :ok -> {:cont, :ok}
-        {:violated, _, _} = violation -> {:halt, violation}
-      end
-    end)
+  def evaluate_project_thresholds(%Project{} = project, %Bundle{} = bundle) do
+    {applicable, skipped} =
+      project
+      |> get_project_bundle_thresholds()
+      |> Enum.split_with(&applies_to_bundle?(&1, bundle))
+
+    cond do
+      applicable != [] ->
+        Enum.reduce_while(applicable, :ok, fn threshold, :ok ->
+          case evaluate_single_threshold(project, bundle, threshold) do
+            :ok -> {:cont, :ok}
+            {:violated, _, _} = violation -> {:halt, violation}
+          end
+        end)
+
+      skipped != [] ->
+        {:no_matching_thresholds, skipped}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp applies_to_bundle?(threshold, bundle) do
+    is_nil(threshold.bundle_name) || threshold.bundle_name == bundle.name
   end
 
   defp evaluate_single_threshold(project, bundle, threshold) do
-    if threshold.bundle_name && threshold.bundle_name != bundle.name do
-      :ok
-    else
-      baseline =
-        last_project_bundle(project,
-          git_branch: threshold.baseline_branch,
-          name: bundle.name,
-          fallback: false
-        )
+    baseline =
+      last_project_bundle(project,
+        git_branch: threshold.baseline_branch,
+        name: bundle.name,
+        fallback: false
+      )
 
-      check_threshold_deviation(threshold, bundle, baseline)
-    end
+    check_threshold_deviation(threshold, bundle, baseline)
   end
 
   defp check_threshold_deviation(_threshold, _bundle, nil), do: :ok

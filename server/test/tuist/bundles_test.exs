@@ -1496,6 +1496,33 @@ defmodule Tuist.BundlesTest do
     end
   end
 
+  describe "project_bundle_names/1" do
+    test "returns the distinct bundle names uploaded to the project, sorted" do
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(project: project, name: "Wallet")
+      BundlesFixtures.bundle_fixture(project: project, name: "App")
+      BundlesFixtures.bundle_fixture(project: project, name: "App")
+
+      assert ["App", "Wallet"] == Bundles.project_bundle_names(project)
+    end
+
+    test "returns an empty list when the project has no bundles" do
+      project = ProjectsFixtures.project_fixture()
+
+      assert [] == Bundles.project_bundle_names(project)
+    end
+
+    test "does not return bundle names from other projects" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(project: other_project, name: "OtherApp")
+
+      assert [] == Bundles.project_bundle_names(project)
+    end
+  end
+
   describe "evaluate_project_thresholds/2" do
     test "returns :ok when no thresholds exist" do
       project = ProjectsFixtures.project_fixture()
@@ -1564,11 +1591,12 @@ defmodule Tuist.BundlesTest do
       assert info.deviation == 20.0
     end
 
-    test "skips threshold when bundle_name doesn't match" do
+    test "returns no_matching_thresholds when every threshold targets another bundle name" do
       project = ProjectsFixtures.project_fixture()
 
       BundlesFixtures.bundle_threshold_fixture(
         project: project,
+        name: "Other app check",
         deviation_percentage: 1.0,
         bundle_name: "OtherApp"
       )
@@ -1590,7 +1618,47 @@ defmodule Tuist.BundlesTest do
           inserted_at: ~U[2024-01-02 00:00:00Z]
         )
 
-      assert :ok == Bundles.evaluate_project_thresholds(project, bundle)
+      assert {:no_matching_thresholds, [skipped]} = Bundles.evaluate_project_thresholds(project, bundle)
+      assert skipped.name == "Other app check"
+      assert skipped.bundle_name == "OtherApp"
+    end
+
+    test "evaluates matching thresholds and ignores ones scoped to another bundle name" do
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_threshold_fixture(
+        project: project,
+        name: "Other app check",
+        deviation_percentage: 1.0,
+        bundle_name: "OtherApp"
+      )
+
+      BundlesFixtures.bundle_threshold_fixture(
+        project: project,
+        name: "App check",
+        deviation_percentage: 5.0,
+        bundle_name: "App"
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        install_size: 1000,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "App",
+          install_size: 2000,
+          git_branch: "feature",
+          inserted_at: ~U[2024-01-02 00:00:00Z]
+        )
+
+      assert {:violated, threshold, _info} = Bundles.evaluate_project_thresholds(project, bundle)
+      assert threshold.name == "App check"
     end
 
     test "returns :ok when no baseline bundle exists" do

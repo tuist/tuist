@@ -180,6 +180,7 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
 
   defp assign_threshold_defaults(socket, project) do
     thresholds = Bundles.get_project_bundle_thresholds(project)
+    bundle_names = Bundles.project_bundle_names(project)
 
     edit_forms =
       Map.new(thresholds, fn t ->
@@ -195,6 +196,7 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
 
     socket
     |> assign(thresholds: thresholds)
+    |> assign(bundle_names: bundle_names)
     |> assign(edit_threshold_forms: edit_forms)
     |> assign(create_form_name: "")
     |> assign(create_form_metric: :install_size)
@@ -208,6 +210,28 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     form = Map.get(forms, id, %{})
     updated_form = Map.put(form, key, value)
     assign(socket, edit_threshold_forms: Map.put(forms, id, updated_form))
+  end
+
+  defp unknown_bundle_name?(bundle_name, bundle_names) do
+    name = String.trim(bundle_name || "")
+
+    name != "" and bundle_names != [] and name not in bundle_names
+  end
+
+  defp unknown_bundle_name_warning(bundle_name, bundle_names) do
+    known_names =
+      bundle_names
+      |> Enum.take(5)
+      |> Enum.join(", ")
+
+    suffix = if length(bundle_names) > 5, do: ", …", else: ""
+
+    dgettext(
+      "dashboard_projects",
+      "No bundle named %{bundle_name} has been uploaded to this project, so this threshold will never run. Bundles here are named: %{known_names}.",
+      bundle_name: String.trim(bundle_name),
+      known_names: known_names <> suffix
+    )
   end
 
   defp metric_label(:install_size), do: dgettext("dashboard_projects", "Install size")

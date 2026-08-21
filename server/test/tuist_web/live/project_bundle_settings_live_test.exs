@@ -31,6 +31,91 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
     end
   end
 
+  describe "unknown bundle name warning" do
+    test "warns when the typed bundle name has never been uploaded to the project", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      BundlesFixtures.bundle_fixture(project: project, name: "Monzo")
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      render_hook(lv, "open_create_threshold_modal")
+      html = render_hook(lv, "update_create_form_bundle_name", %{"value" => "Monzo iOS"})
+
+      assert html =~ "never run"
+      assert html =~ "Monzo"
+    end
+
+    test "does not warn when the typed bundle name matches an uploaded bundle", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      BundlesFixtures.bundle_fixture(project: project, name: "Monzo")
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      render_hook(lv, "open_create_threshold_modal")
+      html = render_hook(lv, "update_create_form_bundle_name", %{"value" => "Monzo"})
+
+      refute html =~ "never run"
+    end
+
+    test "does not warn when the bundle name is left empty", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      BundlesFixtures.bundle_fixture(project: project, name: "Monzo")
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      render_hook(lv, "open_create_threshold_modal")
+      html = render_hook(lv, "update_create_form_bundle_name", %{"value" => ""})
+
+      refute html =~ "never run"
+    end
+
+    test "does not warn when the project has no bundles yet", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      render_hook(lv, "open_create_threshold_modal")
+      html = render_hook(lv, "update_create_form_bundle_name", %{"value" => "Monzo iOS"})
+
+      refute html =~ "never run"
+    end
+
+    test "warns in the edit modal when the bundle name has never been uploaded", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      BundlesFixtures.bundle_fixture(project: project, name: "Monzo")
+      threshold = BundlesFixtures.bundle_threshold_fixture(project: project, bundle_name: "Monzo")
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      html =
+        render_hook(lv, "update_edit_form_bundle_name", %{
+          "id" => threshold.id,
+          "value" => "Monzo iOS"
+        })
+
+      assert html =~ "never run"
+    end
+  end
+
   describe "update threshold" do
     test "updates a threshold", %{
       conn: conn,

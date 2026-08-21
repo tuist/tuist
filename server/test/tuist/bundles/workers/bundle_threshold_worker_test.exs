@@ -170,6 +170,70 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
       assert :ok == BundleThresholdWorker.perform(job)
     end
 
+    test "creates neutral check run when no threshold matches the bundle name" do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "org/repo",
+            provider: :github
+          ]
+        )
+
+      BundlesFixtures.bundle_threshold_fixture(
+        project: project,
+        name: "Strict",
+        deviation_percentage: 1.0,
+        bundle_name: "OtherApp"
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        install_size: 1000,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "App",
+          install_size: 2000,
+          git_branch: "feature",
+          git_commit_sha: "abc123",
+          git_ref: "refs/pull/1/merge",
+          inserted_at: ~U[2024-01-02 00:00:00Z]
+        )
+
+      stub(Environment, :github_app_configured?, fn -> true end)
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Client, :get_pull_request, fn _params ->
+        {:ok, %{"head" => %{"sha" => "real-head-sha"}}}
+      end)
+
+      expect(Client, :create_check_run, fn params ->
+        assert params.conclusion == "neutral"
+        assert params.output.title == "Bundle size check did not run"
+        assert params.output.summary =~ "App"
+        assert params.output.summary =~ "Strict"
+        assert params.output.summary =~ "OtherApp"
+        refute Map.has_key?(params, :actions)
+        {:ok, %{"id" => 1}}
+      end)
+
+      job = %Oban.Job{
+        id: 1,
+        args: %{
+          "bundle_id" => bundle.id,
+          "project_id" => project.id,
+          "git_commit_sha" => "abc123"
+        }
+      }
+
+      assert :ok == BundleThresholdWorker.perform(job)
+    end
+
     test "creates action_required check run when threshold violated" do
       project =
         ProjectsFixtures.project_fixture(
