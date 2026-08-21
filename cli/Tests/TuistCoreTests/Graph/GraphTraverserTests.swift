@@ -46,6 +46,235 @@ struct GraphTraverserPackageProductTests {
     }
 }
 
+/// A non-default linking status describes the edge that points at a target, not the target itself. It must
+/// not change what is reachable behind that edge, nor the platform conditions along the way; the only thing
+/// it may change is whether, and how, the target it points at is linked.
+struct GraphTraverserLinkingStatusTests {
+    private func graph(
+        status: LinkingStatus,
+        intermediateProduct: Product = .framework
+    ) -> (Graph, Project) {
+        let app = Target.test(name: "App", product: .app)
+        let intermediate = Target.test(name: "MyFramework", product: intermediateProduct)
+        let deep = Target.test(name: "DeepFramework", product: .framework)
+        let project = Project.test(targets: [app, intermediate, deep])
+
+        return (
+            Graph.test(
+                projects: [project.path: project],
+                dependencies: [
+                    .target(name: app.name, path: project.path): [
+                        .target(name: intermediate.name, path: project.path, status: status),
+                    ],
+                    .target(name: intermediate.name, path: project.path): [
+                        .target(name: deep.name, path: project.path),
+                    ],
+                ]
+            ),
+            project
+        )
+    }
+
+    @Test(arguments: [LinkingStatus.required, .optional, .none])
+    func embeddableFrameworksIncludesFrameworksBehindADependencyWithLinkingStatus(
+        status: LinkingStatus
+    ) {
+        // Given
+        let (graph, project) = graph(status: status)
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: "App").sorted()
+
+        // Then
+        #expect(got == [
+            .product(target: "DeepFramework", productName: "DeepFramework.framework"),
+            .product(target: "MyFramework", productName: "MyFramework.framework", status: status),
+        ])
+    }
+
+    /// The same shape with the dependency in a separate project, which is the node a
+    /// `.project(target:path:status:)` declaration resolves to.
+    @Test(arguments: [LinkingStatus.required, .optional, .none])
+    func embeddableFrameworksIncludesFrameworksBehindACrossProjectDependencyWithLinkingStatus(
+        status: LinkingStatus
+    ) {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let intermediate = Target.test(name: "MyFramework", product: .framework)
+        let deep = Target.test(name: "DeepFramework", product: .framework)
+        let appProject = Project.test(path: "/App", targets: [app])
+        let frameworkProject = Project.test(path: "/Frameworks", targets: [intermediate, deep])
+        let graph = Graph.test(
+            projects: [appProject.path: appProject, frameworkProject.path: frameworkProject],
+            dependencies: [
+                .target(name: app.name, path: appProject.path): [
+                    .target(name: intermediate.name, path: frameworkProject.path, status: status),
+                ],
+                .target(name: intermediate.name, path: frameworkProject.path): [
+                    .target(name: deep.name, path: frameworkProject.path),
+                ],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: appProject.path, name: "App").sorted()
+
+        // Then
+        #expect(got == [
+            .product(target: "DeepFramework", productName: "DeepFramework.framework"),
+            .product(target: "MyFramework", productName: "MyFramework.framework", status: status),
+        ])
+    }
+
+    /// Platform conditions are stored per edge, keyed by the target the edge points at. A status further up
+    /// the chain must not lose them, for the edge carrying the condition or for anything beyond it.
+    @Test(arguments: [LinkingStatus.required, .optional, .none])
+    func embeddableFrameworksKeepsThePlatformConditionBehindADependencyWithLinkingStatus(
+        status: LinkingStatus
+    ) throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let intermediate = Target.test(name: "MyFramework", product: .framework)
+        let deep = Target.test(name: "DeepFramework", product: .framework)
+        let leaf = Target.test(name: "LeafFramework", product: .framework)
+        let project = Project.test(targets: [app, intermediate, deep, leaf])
+        let iOSOnly = try #require(PlatformCondition.when([.ios]))
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: intermediate.name, path: project.path, status: status),
+                ],
+                .target(name: intermediate.name, path: project.path): [
+                    .target(name: deep.name, path: project.path),
+                ],
+                .target(name: deep.name, path: project.path): [
+                    .target(name: leaf.name, path: project.path),
+                ],
+            ],
+            dependencyConditions: [
+                GraphEdge(
+                    from: .target(name: intermediate.name, path: project.path),
+                    to: .target(name: deep.name, path: project.path)
+                ): iOSOnly,
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: "App").sorted()
+
+        // Then
+        #expect(got == [
+            .product(target: "DeepFramework", productName: "DeepFramework.framework", condition: iOSOnly),
+            .product(target: "LeafFramework", productName: "LeafFramework.framework", condition: iOSOnly),
+            .product(target: "MyFramework", productName: "MyFramework.framework", status: status),
+        ])
+    }
+
+    /// When the status and the condition sit on the same edge, everything beyond that edge is only reachable
+    /// by walking through a node that carries the status.
+    @Test(arguments: [LinkingStatus.required, .optional, .none])
+    func embeddableFrameworksKeepsThePlatformConditionOfAnEdgeCarryingALinkingStatus(
+        status: LinkingStatus
+    ) throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let intermediate = Target.test(name: "MyFramework", product: .framework)
+        let deep = Target.test(name: "DeepFramework", product: .framework)
+        let leaf = Target.test(name: "LeafFramework", product: .framework)
+        let project = Project.test(targets: [app, intermediate, deep, leaf])
+        let iOSOnly = try #require(PlatformCondition.when([.ios]))
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: intermediate.name, path: project.path),
+                ],
+                .target(name: intermediate.name, path: project.path): [
+                    .target(name: deep.name, path: project.path, status: status),
+                ],
+                .target(name: deep.name, path: project.path): [
+                    .target(name: leaf.name, path: project.path),
+                ],
+            ],
+            dependencyConditions: [
+                GraphEdge(
+                    from: .target(name: intermediate.name, path: project.path),
+                    to: .target(name: deep.name, path: project.path, status: status)
+                ): iOSOnly,
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: "App").sorted()
+
+        // Then
+        #expect(got == [
+            .product(target: "DeepFramework", productName: "DeepFramework.framework", status: status, condition: iOSOnly),
+            .product(target: "LeafFramework", productName: "LeafFramework.framework", condition: iOSOnly),
+            .product(target: "MyFramework", productName: "MyFramework.framework"),
+        ])
+    }
+
+    /// `packageProductsLinkedThroughStaticTargets` walks the graph itself, so it needs the same treatment.
+    @Test(arguments: [LinkingStatus.required, .optional, .none])
+    func packageProductsLinkedThroughStaticTargetsIncludesProductsBehindADependencyWithLinkingStatus(
+        status: LinkingStatus
+    ) throws {
+        // Given
+        let feature = Target.test(name: "Feature", product: .staticFramework)
+        let featureCore = Target.test(name: "FeatureCore", product: .staticFramework)
+        let project = Project.test(targets: [feature, featureCore])
+        let packageProduct = GraphDependency.packageProduct(
+            path: "/path/package",
+            product: "SwiftProtobuf",
+            type: .runtime
+        )
+        let iOSOnly = try #require(PlatformCondition.when([.ios]))
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: feature.name, path: project.path): [
+                    .target(name: featureCore.name, path: project.path, status: status),
+                ],
+                .target(name: featureCore.name, path: project.path): [packageProduct],
+            ],
+            dependencyConditions: [
+                GraphEdge(
+                    from: .target(name: featureCore.name, path: project.path),
+                    to: packageProduct
+                ): iOSOnly,
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.packageProductsLinkedThroughStaticTargets(path: project.path, name: feature.name)
+
+        // Then
+        #expect(got == [.packageProduct(product: "SwiftProtobuf", condition: iOSOnly)])
+    }
+
+    @Test(arguments: [LinkingStatus.required, .optional, .none])
+    func linkableDependenciesIncludesFrameworksBehindAStaticDependencyWithLinkingStatus(
+        status: LinkingStatus
+    ) throws {
+        // Given
+        let (graph, project) = graph(status: status, intermediateProduct: .staticFramework)
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: "App")
+
+        // Then
+        #expect(got.contains(.product(target: "DeepFramework", productName: "DeepFramework.framework")))
+    }
+}
+
 final class GraphTraverserTests: TuistUnitTestCase {
     func test_dependsOnXCTest_when_is_framework() {
         // Given
