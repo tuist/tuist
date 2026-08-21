@@ -4054,6 +4054,15 @@ components:
           type: array
           x-struct:
           x-validate:
+        payment_required:
+          description: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         projects:
           items:
             type: string
@@ -4065,6 +4074,7 @@ components:
       required:
         - accounts
         - projects
+        - payment_required
       title: CacheAccess
       type: object
       x-struct:
@@ -8830,20 +8840,20 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the account.
@@ -15988,6 +15998,15 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
+                  payment_required:
+                    description: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
                   projects:
                     items:
                       type: string
@@ -15999,6 +16018,7 @@ paths:
                 required:
                   - accounts
                   - projects
+                  - payment_required
                 title: CacheAccess
                 type: object
                 x-struct:
@@ -21440,6 +21460,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
       summary: Exchange the current credential for a cache token.
       tags:
         - Cache

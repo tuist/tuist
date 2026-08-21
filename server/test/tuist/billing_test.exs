@@ -1412,6 +1412,97 @@ defmodule Tuist.BillingTest do
     end
   end
 
+  describe "cache_access_blocked?/1" do
+    test "returns false when the account is on Air and under the threshold" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      %{account: account} =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold - 1,
+          preload: [:account]
+        )
+
+      # When / Then
+      refute Billing.cache_access_blocked?(account)
+    end
+
+    test "returns true when the account is on Air and has reached the threshold" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      %{account: account} =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold,
+          preload: [:account]
+        )
+
+      # When / Then
+      assert Billing.cache_access_blocked?(account)
+    end
+
+    test "returns false when the account is on a paid plan and over the threshold" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      %{account: account} =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold * 10,
+          preload: [:account]
+        )
+
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+
+      # When / Then
+      refute Billing.cache_access_blocked?(account)
+    end
+
+    test "returns false when the paid subscription is still trialing" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      %{account: account} =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold * 10,
+          preload: [:account]
+        )
+
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "trialing")
+
+      # When / Then
+      refute Billing.cache_access_blocked?(account)
+    end
+
+    test "returns false when the account has no counter recorded yet" do
+      # Given
+      %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
+      account = %{account | current_month_remote_cache_hits_count: nil}
+
+      # When / Then
+      refute Billing.cache_access_blocked?(account)
+    end
+
+    test "returns true when the only subscription has lapsed and the account is over the threshold" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      %{account: account} =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold * 2,
+          preload: [:account]
+        )
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        plan: :enterprise,
+        status: "canceled"
+      )
+
+      # When / Then
+      assert Billing.cache_access_blocked?(account)
+    end
+  end
+
   describe "upgrade_to_enterprise/2" do
     test "creates an invoice-billed subscription and updates the customer when no sub exists" do
       # Given

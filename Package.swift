@@ -1595,6 +1595,7 @@ targets.append(contentsOf: [
     .target(
         name: "TuistCache",
         dependencies: [
+            "TuistAlert",
             "TuistCore",
             "TuistSupport",
             "TuistHTTP",

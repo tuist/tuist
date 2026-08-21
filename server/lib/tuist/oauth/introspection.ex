@@ -68,12 +68,34 @@ defmodule Tuist.OAuth.Introspection do
   end
 
   defp cache_token_response(token, %Account{} = account) do
-    with {:ok, claims, grants} <- verified_cache_token(token),
-         scoped when scoped != :empty <- scoped_or_empty(grants, account) do
-      cache_token_active(claims, scoped)
-    else
-      _ -> %{active: false}
+    case verified_cache_token(token) do
+      {:ok, claims, grants} ->
+        case scoped_or_empty(grants, account) do
+          :empty -> payment_required_or_inactive(claims, account)
+          scoped -> cache_token_active(claims, scoped)
+        end
+
+      :error ->
+        %{active: false}
     end
+  end
+
+  # A token whose grants went empty because the account exhausted its plan still
+  # has something to say. Reporting it inactive would have the node answer 401,
+  # losing the only thing that tells the caller what to do about it.
+  defp payment_required_or_inactive(claims, %Account{name: name}) do
+    handles = Map.get(claims, "cache_payment_required", [])
+    handle = String.downcase(name)
+
+    if Enum.any?(handles, &(String.downcase(&1) == handle)) do
+      cache_token_active(claims, empty_grants())
+    else
+      %{active: false}
+    end
+  end
+
+  defp empty_grants do
+    %{"account" => %{"read" => [], "write" => []}, "project" => %{"read" => [], "write" => []}}
   end
 
   defp verified_cache_token(token) do
@@ -104,7 +126,8 @@ defmodule Tuist.OAuth.Introspection do
       active: true,
       iss: issuer(),
       sub: claims["sub"],
-      cache_grants: grants
+      cache_grants: grants,
+      cache_payment_required: Map.get(claims, "cache_payment_required", [])
     }
   end
 
@@ -119,7 +142,8 @@ defmodule Tuist.OAuth.Introspection do
       iss: issuer(),
       sub: subject_id(subject),
       principal_kind: principal_kind(subject),
-      cache_grants: grants
+      cache_grants: grants,
+      cache_payment_required: Cache.payment_required_handles(subject)
     }
     |> maybe_put(:scope, scope_string(subject))
     |> maybe_put(:username, username(subject))

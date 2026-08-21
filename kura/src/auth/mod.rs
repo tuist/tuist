@@ -32,6 +32,10 @@ pub enum Access {
     Invalid,
     /// The credential is valid but does not reach this target.
     Refused,
+    /// The credential would reach this target, but the account's plan has
+    /// exhausted its free tier. Ordered above `Refused` so the introspection
+    /// floor still only ever rises, and below `Read` so it grants nothing.
+    PaymentRequired,
     Read,
     ReadWrite,
 }

@@ -2486,8 +2486,23 @@ fn metadata_to_btree(metadata: &tonic::metadata::MetadataMap) -> BTreeMap<String
         .collect()
 }
 
+/// gRPC has no code for payment required, so an exhausted plan would arrive as
+/// an ordinary permission denial. Clients that must keep working through a
+/// refusal, the Xcode cache plugin above all, need to tell the two apart
+/// without matching on message text, so the reason rides in metadata.
+pub const REFUSAL_REASON_KEY: &str = "tuist-refusal-reason";
+pub const REFUSAL_REASON_PAYMENT_REQUIRED: &str = "payment_required";
+
 fn grpc_status_from_http_status(status: u16, message: &str) -> Status {
     match status {
+        402 => {
+            let mut status = Status::permission_denied(message.to_owned());
+            status.metadata_mut().insert(
+                REFUSAL_REASON_KEY,
+                tonic::metadata::MetadataValue::from_static(REFUSAL_REASON_PAYMENT_REQUIRED),
+            );
+            status
+        }
         401 => Status::unauthenticated(message.to_owned()),
         403 => Status::permission_denied(message.to_owned()),
         404 => Status::not_found(message.to_owned()),
@@ -2570,6 +2585,32 @@ fn parse_blob_resource_name(
 
 #[cfg(test)]
 mod tests {
+
+    // gRPC has no payment-required code, so the refusal arrives as an ordinary
+    // permission denial. Clients that keep working through it need the reason
+    // without matching on message text.
+    #[test]
+    fn an_exhausted_plan_carries_a_machine_readable_reason() {
+        let status = grpc_status_from_http_status(402, "upgrade to Tuist Pro");
+
+        assert_eq!(status.code(), tonic::Code::PermissionDenied);
+        assert_eq!(status.message(), "upgrade to Tuist Pro");
+        assert_eq!(
+            status
+                .metadata()
+                .get(REFUSAL_REASON_KEY)
+                .and_then(|reason| reason.to_str().ok()),
+            Some(REFUSAL_REASON_PAYMENT_REQUIRED)
+        );
+    }
+
+    #[test]
+    fn an_ordinary_refusal_carries_no_reason() {
+        let status = grpc_status_from_http_status(403, "nope");
+
+        assert_eq!(status.code(), tonic::Code::PermissionDenied);
+        assert!(status.metadata().get(REFUSAL_REASON_KEY).is_none());
+    }
     use super::*;
     use bytes::Bytes;
     use http_body_util::BodyExt;
