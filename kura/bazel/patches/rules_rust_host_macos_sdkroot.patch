@@ -18,7 +18,7 @@ module can resolve the SDK from the host.
 
 --- a/rust/private/BUILD.bazel
 +++ b/rust/private/BUILD.bazel
-@@ -25,10 +25,7 @@ filegroup(
+@@ -25,9 +25,6 @@ filegroup(
 
  alias(
      name = "default_macos_sdkroot",
