@@ -14,8 +14,9 @@ metadata:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: egress-tree-agent
 ---
-# Cluster-scoped reads only: the agent needs its own Node's advertised egress
-# budget and the pods scheduled onto that node (fieldSelector spec.nodeName).
+# Cluster-scoped reads only: the agent watches its own Node (advertised
+# egress budget) and the pods scheduled onto that node (fieldSelector
+# spec.nodeName); both feed field-selected informers.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -29,7 +30,7 @@ rules:
     verbs: ["get", "list", "watch"]
   - apiGroups: [""]
     resources: ["nodes"]
-    verbs: ["get"]
+    verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -94,6 +95,8 @@ spec:
                   fieldPath: spec.nodeName
             - name: RECONCILE_INTERVAL
               value: {{ .Values.egressTreeAgent.reconcileInterval | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.egressTreeAgent.logLevel | quote }}
             - name: METRICS_ADDR
               value: ":{{ .Values.egressTreeAgent.metricsPort }}"
             - name: DEFAULT_NODE_EGRESS_MBPS

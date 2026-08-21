@@ -264,8 +264,13 @@ egressTreeAgent:
   image: ""
   # Deployed into the kura namespace (kuraController.namespace) by default.
   namespace: ""
-  reconcileInterval: 15s
+  # Backstop sweep only: pod/node watch events drive convergence, so this
+  # interval just repairs what no event reports (stripped tcx links, deleted
+  # trampoline devices, stale pins).
+  reconcileInterval: 2m
   metricsPort: 9469
+  # Agent log level: debug, info, warn, or error.
+  logLevel: info
   # Beta-rollout gate: when set, the agent attaches its BPF programs only to
   # pods whose name starts with this prefix (e.g. "kura-<account>-"); every
   # other annotated pod stays on the unshaped Cilium-only path and is counted

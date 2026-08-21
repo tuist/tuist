@@ -84,6 +84,14 @@ dictate this shape — do not regress them:
   invents a cap.
 - **Device resolution:** the local Cilium agent's endpoint API over
   `/var/run/cilium/cilium.sock` (authoritative pod → `lxc*` mapping).
+- **Reconcile model:** event-driven with a slow backstop (the same split
+  Cilium's bandwidth manager uses). Field-selected pod/node informers kick a
+  debounced converge (only shaped-pod events and egress-capacity changes
+  trigger); `RECONCILE_INTERVAL` (default 2m) is the periodic sweep that
+  repairs what no event reports — stripped tcx links, deleted trampoline
+  devices, stale pins. A Running pod whose Cilium endpoint has not appeared
+  yet requeues a quick retry (endpoint creation emits no pod event), so
+  `skipped_pods` clears in seconds rather than flapping until the backstop.
 
 ## Fail-safe invariants (do not weaken)
 

@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/apimachinery/pkg/labels"
+	listersv1 "k8s.io/client-go/listers/core/v1"
 )
 
 // Agent reconciles the shared per-node egress HTB tree: the trampoline
@@ -35,7 +35,11 @@ type Agent struct {
 	// pods detach via stale-pin cleanup within one cycle.
 	BetaPodPrefix string
 
-	Client    kubernetes.Interface
+	// Pods and Nodes are informer-backed listers, field-selected to this
+	// node by main. Reconcile reads only the local cache; the watch events
+	// behind it are what kick a cycle.
+	Pods      listersv1.PodLister
+	Nodes     listersv1.NodeLister
 	Endpoints *EndpointResolver
 	Tree      Tree
 	Attacher  Attacher
@@ -43,25 +47,25 @@ type Agent struct {
 	Log       *slog.Logger
 }
 
-// Reconcile runs one convergence cycle.
-func (a *Agent) Reconcile(ctx context.Context) error {
+// Reconcile runs one convergence cycle. requeue asks the caller for a quick
+// retry: a shaped pod is Running but its Cilium endpoint (the lxc* device)
+// does not exist yet, and endpoint creation emits no pod event, so only a
+// timer can pick it up.
+func (a *Agent) Reconcile(ctx context.Context) (requeue bool, err error) {
 	a.Metrics.ReconcileTotal.Inc()
-	if err := a.reconcile(ctx); err != nil {
+	requeue, err = a.reconcile(ctx)
+	if err != nil {
 		a.Metrics.ReconcileErrors.Inc()
-		return err
 	}
-	return nil
+	return requeue, err
 }
 
-func (a *Agent) reconcile(ctx context.Context) error {
-	nodeMbps, err := a.nodeBudget(ctx)
+func (a *Agent) reconcile(ctx context.Context) (bool, error) {
+	nodeMbps, err := a.nodeBudget()
 	if err != nil {
-		return err
+		return false, err
 	}
-	pods, skipped, err := a.shapedPods(ctx)
-	if err != nil {
-		return err
-	}
+	pods, skipped := a.shapedPods()
 
 	if nodeMbps <= 0 {
 		// No advertised budget and no fallback: never build a tree with a
@@ -76,33 +80,34 @@ func (a *Agent) reconcile(ctx context.Context) error {
 			a.Log.Warn("node advertises no egress budget; pods stay unshaped",
 				"pods", len(pods))
 		}
-		return a.Attacher.CleanupStale(map[string]bool{})
+		return false, a.Attacher.CleanupStale(map[string]bool{})
 	}
 	a.Metrics.NodeBudgetMbps.Set(float64(nodeMbps))
 
 	classes, attachments := Desired(pods)
 
 	if err := a.Tree.EnsureDevices(ctx); err != nil {
-		return err
+		return false, err
 	}
 	if err := a.Tree.EnsureTree(ctx, nodeMbps, classes); err != nil {
-		return err
+		return false, err
 	}
 	// Hard ordering: no pod program without a confirmed return path.
 	if err := a.Attacher.EnsureReturn(a.Tree.ReturnDev); err != nil {
 		a.Metrics.AttachedPods.Set(0)
-		return fmt.Errorf("return program not attachable, leaving pods unshaped: %w", err)
+		return false, fmt.Errorf("return program not attachable, leaving pods unshaped: %w", err)
 	}
 
 	interfaces, err := a.Endpoints.Interfaces(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	trampoline, err := net.InterfaceByName(a.Tree.TrampolineDev)
 	if err != nil {
-		return err
+		return false, err
 	}
 
+	requeue := false
 	attached := 0
 	betaExcluded := 0
 	active := map[string]bool{}
@@ -115,6 +120,7 @@ func (a *Agent) reconcile(ctx context.Context) error {
 		device, ok := interfaces[attachment.Namespace+"/"+attachment.Name]
 		if !ok {
 			skipped++
+			requeue = true
 			a.Log.Warn("no cilium endpoint for pod; leaving it unshaped",
 				"pod", attachment.Namespace+"/"+attachment.Name)
 			continue
@@ -142,7 +148,7 @@ func (a *Agent) reconcile(ctx context.Context) error {
 	}
 
 	a.exportStats(ctx, attachments, deviceOf)
-	return nil
+	return requeue, nil
 }
 
 func (a *Agent) exportStats(ctx context.Context, attachments []PodAttachment, deviceOf map[string]string) {
@@ -184,8 +190,8 @@ func (a *Agent) exportStats(ctx context.Context, attachments []PodAttachment, de
 	}
 }
 
-func (a *Agent) nodeBudget(ctx context.Context) (int64, error) {
-	node, err := a.Client.CoreV1().Nodes().Get(ctx, a.NodeName, metav1.GetOptions{})
+func (a *Agent) nodeBudget() (int64, error) {
+	node, err := a.Nodes.Get(a.NodeName)
 	if err != nil {
 		return 0, fmt.Errorf("getting node %s: %w", a.NodeName, err)
 	}
@@ -197,17 +203,20 @@ func (a *Agent) nodeBudget(ctx context.Context) (int64, error) {
 
 // shapedPods lists this node's pods carrying the egress-class annotation,
 // with the annotation parsed. Pods whose annotation does not parse are
-// counted, not attached.
-func (a *Agent) shapedPods(ctx context.Context) ([]PodShape, int, error) {
-	list, err := a.Client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
-		FieldSelector: "spec.nodeName=" + a.NodeName,
-	})
+// counted, not attached. The lister cache holds only this node's pods (the
+// informer watch is field-selected), so no further node filtering happens
+// here.
+func (a *Agent) shapedPods() ([]PodShape, int) {
+	list, err := a.Pods.List(labels.Everything())
 	if err != nil {
-		return nil, 0, fmt.Errorf("listing pods on %s: %w", a.NodeName, err)
+		// The in-memory lister cannot fail on labels.Everything; keep the
+		// branch honest anyway.
+		a.Log.Error("listing pods from cache", "error", err)
+		return nil, 0
 	}
 	var pods []PodShape
 	skipped := 0
-	for _, pod := range list.Items {
+	for _, pod := range list {
 		value, ok := pod.Annotations[EgressClassAnnotation]
 		if !ok {
 			continue
@@ -231,5 +240,5 @@ func (a *Agent) shapedPods(ctx context.Context) ([]PodShape, int, error) {
 			BurstMbps: burst,
 		})
 	}
-	return pods, skipped, nil
+	return pods, skipped
 }
