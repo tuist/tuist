@@ -122,7 +122,10 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 		return nil
 	}
 
-	primary, err := r.selectPrimaryPod(ctx, instance)
+	// Evacuation is a separate pass from the reconcile loop, so it takes its
+	// own sample of the pods it already listed rather than reusing the one the
+	// loop shares with the rollout-health aggregate.
+	primary, err := r.selectPrimaryPod(ctx, instance, pods.Items, r.sampleRuntimeStatuses(ctx, instance, pods.Items))
 	if err != nil {
 		return err
 	}

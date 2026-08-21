@@ -189,6 +189,7 @@ pub struct Metrics {
     mmap_partial_page_exemptions: Counter,
     promotion_queue_depth: Gauge,
     promotion_failures: Counter,
+    peer_connection_failures: Counter,
     promotion_drops: Family<RefreshTriggerLabels, Counter>,
 }
 
@@ -196,12 +197,14 @@ pub struct Metrics {
 struct RolloutSnapshot {
     outbox_messages: AtomicU64,
     fd_timeout_count: AtomicU64,
+    peer_connection_failure_count: AtomicU64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RolloutMetricsSnapshot {
     pub outbox_messages: u64,
     pub fd_timeout_count: u64,
+    pub peer_connection_failure_count: u64,
 }
 
 impl Metrics {
@@ -401,6 +404,7 @@ impl Metrics {
         let mmap_partial_page_exemptions = Counter::default();
         let promotion_queue_depth = Gauge::default();
         let promotion_failures = Counter::default();
+        let peer_connection_failures = Counter::default();
         let promotion_drops = Family::<RefreshTriggerLabels, Counter>::default();
         let process_start_time_seconds = Gauge::<i64>::default();
         process_start_time_seconds.set(
@@ -1161,6 +1165,11 @@ impl Metrics {
             promotion_failures.clone(),
         );
         registry.register(
+            "kura_peer_connection_failures_total",
+            "Peer-plane request failures: outbox replication deliveries and backfill passes that errored against a peer",
+            peer_connection_failures.clone(),
+        );
+        registry.register(
             "kura_promotion_drops_total",
             "Promotions dropped for lack of queue room, by the trigger that queued them",
             promotion_drops.clone(),
@@ -1333,6 +1342,7 @@ impl Metrics {
             mmap_partial_page_exemptions,
             promotion_queue_depth,
             promotion_failures,
+            peer_connection_failures,
             promotion_drops,
         };
 
@@ -1594,6 +1604,16 @@ impl Metrics {
                 operation: operation.to_owned(),
             })
             .observe(duration.as_secs_f64());
+        if result == "error" {
+            self.note_peer_connection_failure();
+        }
+    }
+
+    fn note_peer_connection_failure(&self) {
+        self.peer_connection_failures.inc();
+        self.rollout_snapshot
+            .peer_connection_failure_count
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn record_replication_apply(&self, source: &str, item_type: &str, outcome: &str) {
@@ -1867,6 +1887,11 @@ impl Metrics {
                 event: event.to_owned(),
             })
             .inc();
+        // A pass that failed is a request that errored against a peer, the
+        // successor to the bootstrap-run error the rollout gate used to read.
+        if event == "failed" {
+            self.note_peer_connection_failure();
+        }
     }
 
     pub fn update_backfill_cycle_peers(&self, backfilling: usize, budget_exhausted: usize) {
@@ -2306,6 +2331,10 @@ impl Metrics {
             fd_timeout_count: self
                 .rollout_snapshot
                 .fd_timeout_count
+                .load(Ordering::Relaxed),
+            peer_connection_failure_count: self
+                .rollout_snapshot
+                .peer_connection_failure_count
                 .load(Ordering::Relaxed),
         }
     }

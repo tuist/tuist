@@ -109,8 +109,12 @@ defmodule Tuist.Kura do
   def version_label(image_tag) when is_binary(image_tag), do: image_tag
 
   @doc """
-  Creates deployments for active Kura servers that are behind the
-  latest released Kura runtime image tag.
+  Creates deployments for active Kura servers that are behind the latest
+  released Kura runtime image tag, a bounded batch per tick. This is the
+  kill-switch fallback used when
+  `Tuist.FeatureFlags.kura_rollout_orchestration_enabled?/0` is off; the
+  health-gated wave machinery lives in `Tuist.Kura.Rollouts`, and it
+  replaces the at-most-once invariant below with rollout-scoped attempts.
 
   Each `(server, image_tag)` pair is scheduled at most once. A newer image
   supersedes an open deployment for an older image so a rollout that cannot
@@ -440,7 +444,10 @@ defmodule Tuist.Kura do
   `attrs` keys: `:account_id`, `:region`, `:image_tag`.
   """
   def create_server(attrs) do
-    attrs = normalize_attrs(attrs)
+    attrs =
+      attrs
+      |> normalize_attrs()
+      |> inherit_rollout_image_tag()
 
     with {:ok, region} <- fetch_region(attrs[:region]),
          {:ok, account} <- sizing_account(attrs),
@@ -474,6 +481,16 @@ defmodule Tuist.Kura do
       %{}
     end
   end
+
+  # Servers created mid-rollout inherit their account's wave state (the
+  # rollout's baseline tag until the wave completes, the target after)
+  # instead of jumping straight to whatever tag the caller resolved. See
+  # `Tuist.Kura.Rollouts.provisioning_image_tag/2`.
+  defp inherit_rollout_image_tag(%{account_id: account_id, image_tag: image_tag} = attrs) when is_binary(image_tag) do
+    %{attrs | image_tag: Tuist.Kura.Rollouts.provisioning_image_tag(account_id, image_tag)}
+  end
+
+  defp inherit_rollout_image_tag(attrs), do: attrs
 
   defp validate_provisioner_node_ref(account, ref) do
     cond do
@@ -1697,15 +1714,17 @@ defmodule Tuist.Kura do
   ## Deployments
 
   @doc """
-  Inserts a `Deployment` record for the reconciler to apply.
+  Inserts a `Deployment` record for the reconciler to apply. Pass
+  `rollout_id:` to attribute the deployment to the rollout that minted it
+  (see `Tuist.Kura.Rollouts`).
   """
-  def create_deployment(%Server{} = server, image_tag) when is_binary(image_tag) do
+  def create_deployment(%Server{} = server, image_tag, opts \\ []) when is_binary(image_tag) do
     with {:ok, region} <- Regions.fetch(server.region) do
       Repo.transaction(fn ->
         locked_server = lock_server_or_rollback(server)
 
         with :ok <- ensure_no_open_deployment(locked_server.id),
-             {:ok, deployment} <- insert_deployment(locked_server, region, image_tag) do
+             {:ok, deployment} <- insert_deployment(locked_server, region, image_tag, opts) do
           deployment
         else
           {:error, reason} -> Repo.rollback(reason)
@@ -1785,11 +1804,12 @@ defmodule Tuist.Kura do
     end)
   end
 
-  defp insert_deployment(%Server{} = server, region, image_tag) do
+  defp insert_deployment(%Server{} = server, region, image_tag, opts \\ []) do
     %{
       cluster_id: deployment_cluster_id(region),
       image_tag: image_tag,
-      kura_server_id: server.id
+      kura_server_id: server.id,
+      kura_rollout_id: opts[:rollout_id]
     }
     |> Deployment.create_changeset()
     |> Repo.insert()
