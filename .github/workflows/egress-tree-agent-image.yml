@@ -51,15 +51,18 @@ jobs:
         working-directory: infra/egress-tree-agent
         run: go vet ./...
 
+  # Builds on every run (a Dockerfile broken on a PR must not surface only
+  # after merge on main); pushes to ghcr only outside pull_request events,
+  # which also keeps fork PRs away from the registry.
   build:
     needs: test
-    if: github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -80,7 +83,7 @@ jobs:
           context: .
           file: infra/egress-tree-agent/Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha,scope=egress-tree-agent
           cache-to: type=gha,mode=max,scope=egress-tree-agent
