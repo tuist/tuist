@@ -19,6 +19,10 @@
 //!   at its ROOT but never at an interior node. The interior shape needs a
 //!   writer that stores a root over an absent child, which is what
 //!   `Proxy::fetch_object` does on a demand load.
+//! - Retaining a graph is not free, and most of the cost is not in the read. A
+//!   fault-in is written out when the handle is DISPOSED, so the post-rotation
+//!   figures report read and dispose separately and both count. Steady state has
+//!   nothing to fault in, and its dispose is measured to show that.
 //!
 //! These drive Apple's `libToolchainCASPlugin` DIRECTLY rather than this crate's
 //! exported surface, so every answer is the store's own: no read guard rewriting
@@ -94,42 +98,64 @@ fn what_a_read_carries_across_a_rotation() {
     println!();
 }
 
-/// What a probe answers versus what a load answers, for the same object, on the
-/// same store. A probe that says SUCCESS over a graph a load cannot walk is the
-/// production failure in one line.
+/// The disagreement that matters, asked of ONE handle on ONE store state: root
+/// depth says the value is here, closure depth says it is not.
+///
+/// The earlier version of this test compared a probe taken BEFORE a collection
+/// with a load taken after, which is two different states and no disagreement at
+/// all (after a collection both answer NOTFOUND, as
+/// `what_a_read_carries_across_a_rotation`'s `probe root` row shows). The real
+/// disagreement is not probe versus load. Both are root depth and both say
+/// SUCCESS here. It is root depth versus closure depth, which is why deepening
+/// the read guard from `contains(root)` to `load(root)` would not catch the
+/// production failure.
 #[test]
 #[ignore = "a measurement, not an assertion"]
-fn a_probe_and_a_load_can_disagree_after_a_rotation() {
+fn root_depth_and_closure_depth_disagree_on_the_same_store() {
     let Some(upstream) = upstream() else { return };
-    let dir = TempDir::new("probe-vs-load");
+    let dir = TempDir::new("depth-disagreement");
     let graph = seed(upstream, dir.path());
 
+    // Strand the interior: re-store the root on its own into the live generation,
+    // the way `Proxy::fetch_object` does when a demand load asks for a root the
+    // materializer withheld, then let the generation holding its children go.
     rotate(upstream, dir.path());
-
-    // The read guard's exact question, on a freshly rotated store.
     let store = Store::open(upstream, dir.path());
-    let root = store.objectid_for(&graph.root);
-    let probe = store.contains(root);
+    // Renews the association, exactly as a build's lookup does. Without it the
+    // association is collected too and the state under test is a plain miss
+    // rather than the production shape.
+    let _ = store.ac_get(&graph.key);
+    let output_ids: Vec<_> =
+        graph.outputs.iter().map(|digest| store.objectid_for(digest)).collect();
+    let restored = store.store_object(&graph.root_data, &output_ids);
+    assert_eq!(
+        store.digest_of(restored),
+        graph.root,
+        "re-storing the same bytes and refs must mint the same digest"
+    );
     store.close();
-
     rotate(upstream, dir.path());
     collect(upstream, dir.path());
 
-    // A fresh handle so nothing is answered out of this process's own mappings
-    // of the collected generation.
+    // Every question below is asked of the same handle on the same state.
     let store = Store::open(upstream, dir.path());
     let root = store.objectid_for(&graph.root);
     println!();
-    println!("after a rotation, with only a probe of the root beforehand:");
-    println!("  contains(root) before collection : {}", name(probe));
-    println!("  contains(root) after collection  : {}", name(store.contains(root)));
-    println!("  load(root)     after collection  : {}", name(store.load(root).0));
-    let outputs = graph
-        .outputs
-        .iter()
-        .filter(|digest| store.load(store.objectid_for(digest)).0 == LLCAS_LOOKUP_RESULT_SUCCESS)
-        .count();
-    println!("  outputs that load                : {outputs}/{FANOUT}");
+    println!("one store, one handle, an interior node stranded:");
+    println!("  ac_get(key)                      : {}", name(store.ac_get(&graph.key).0));
+    println!("  contains(root)  [guard today]    : {}", name(store.contains(root)));
+    println!("  load(root)      [root depth]     : {}", name(store.load(root).0));
+    println!(
+        "  outputs that load                : {}/{FANOUT}",
+        count_loadable(&store, &graph.outputs)
+    );
+    println!(
+        "  closure loads completely         : {}",
+        yes_no(store.load_closure(root))
+    );
+    println!();
+    println!("  root depth cannot distinguish this from a healthy entry;");
+    println!("  closure depth is the shallowest that can.");
     println!();
     store.close();
 }
@@ -165,8 +191,17 @@ fn what_each_depth_costs() {
     // is larger than the difference being measured.
     let probe = best_of(5, || time(ITERATIONS, || { let _ = store.contains(root); }));
     let load_root = best_of(5, || time(ITERATIONS, || { let _ = store.load(root); }));
-    let walk = best_of(5, || time(ITERATIONS / 100, || store.load_closure(root)));
+    let walk = best_of(5, || {
+        time(ITERATIONS / 100, || {
+            let _ = store.load_closure(root);
+        })
+    });
+    // The same blind spot the post-rotation figures below had: a fault-in is
+    // written out on dispose. Measured here to show there is nothing to fault in
+    // when no rotation happened, so these per-operation numbers stand alone.
+    let disposing = Instant::now();
     store.close();
+    let steady_dispose = disposing.elapsed();
 
     println!();
     println!("STEADY STATE (warm store, no rotation), per operation");
@@ -178,6 +213,8 @@ fn what_each_depth_costs() {
     println!("    contains(root)              {:>12?}", probe * 13_500);
     println!("    load(root)                  {:>12?}", load_root * 13_500);
     println!("    load closure                {:>12?}", walk * 13_500);
+    println!();
+    println!("  dispose after all of the above  {steady_dispose:>12?}  (nothing was faulted in)");
 
     // --- First build after a rotation ---
     // Many keys rather than one: the question is what a whole build pays, and a
@@ -194,15 +231,27 @@ fn what_each_depth_costs() {
         ("load every root", Depth::Root),
         ("walk every closure", Depth::Closure),
     ] {
-        let mut samples = Vec::new();
+        let mut reads = Vec::new();
+        let mut disposes = Vec::new();
+        let mut totals_combined = Vec::new();
         let mut intact = 0;
         for _ in 0..REPEATS {
-            let (elapsed, survived) = cold_pass(upstream, KEYS, COLD_CHUNK_BYTES, depth);
-            samples.push(elapsed);
+            let (read, dispose, survived) = cold_pass(upstream, KEYS, COLD_CHUNK_BYTES, depth);
+            reads.push(read);
+            disposes.push(dispose);
+            totals_combined.push(read + dispose);
             intact = survived;
         }
-        samples.sort();
-        totals.push((label, samples[REPEATS / 2], intact));
+        reads.sort();
+        disposes.sort();
+        totals_combined.sort();
+        totals.push((
+            label,
+            reads[REPEATS / 2],
+            disposes[REPEATS / 2],
+            totals_combined[REPEATS / 2],
+            intact,
+        ));
     }
 
     println!();
@@ -211,11 +260,17 @@ fn what_each_depth_costs() {
         1 + FANOUT + FANOUT * CHUNKS_PER_OUTPUT,
         COLD_CHUNK_BYTES / 1024
     );
-    for (label, elapsed, intact) in &totals {
+    println!(
+        "  {:<18} {:>12} {:>12} {:>12} {:>12}  {}",
+        "", "read", "dispose", "read+dispose", "per key", "graphs intact"
+    );
+    for (label, read, dispose, combined, intact) in &totals {
         println!(
-            "  {label:<18} {:>12?} total   {:>10?}/key   graphs intact afterwards: {intact}/{KEYS}",
-            elapsed,
-            *elapsed / KEYS as u32
+            "  {label:<18} {:>12?} {:>12?} {:>12?} {:>12?}  {intact}/{KEYS}",
+            read,
+            dispose,
+            combined,
+            *combined / KEYS as u32
         );
     }
     println!();
@@ -223,14 +278,20 @@ fn what_each_depth_costs() {
 
 /// One "first build after a rotation": seed `keys` graphs, rotate so they are all
 /// in the demoted generation, read every association at `depth`, then rotate and
-/// collect and count how many graphs are still whole. Returns the time the reads
-/// took and that count.
+/// collect and count how many graphs are still whole.
+///
+/// Returns the READ time and the DISPOSE time separately, and both are part of
+/// the cost. A fault-in is not finished when the load returns: the copied nodes
+/// are written out when the handle is disposed, so timing only the read loop
+/// attributes none of the retention work to the depth that caused it. Disposal
+/// is on the build's critical path in production too, since the build service
+/// disposes its CAS handle before the build is done.
 fn cold_pass(
     upstream: &'static Upstream,
     keys: usize,
     chunk_bytes: usize,
     depth: Depth,
-) -> (Duration, usize) {
+) -> (Duration, Duration, usize) {
     let dir = TempDir::new("cold-cost");
     let graphs = seed_many(upstream, dir.path(), keys, chunk_bytes);
     rotate(upstream, dir.path());
@@ -249,11 +310,15 @@ fn cold_pass(
             Depth::Root => {
                 let _ = store.load(value);
             }
-            Depth::Closure => store.load_closure(value),
+            Depth::Closure => {
+                    let _ = store.load_closure(value);
+                }
         }
     }
-    let elapsed = started.elapsed();
+    let read = started.elapsed();
+    let disposing = Instant::now();
     store.close();
+    let dispose = disposing.elapsed();
 
     rotate(upstream, dir.path());
     collect(upstream, dir.path());
@@ -268,7 +333,7 @@ fn cold_pass(
         })
         .count();
     store.close();
-    (elapsed, intact)
+    (read, dispose, intact)
 }
 
 /// How deep a served hit is verified.
@@ -368,7 +433,7 @@ fn measure_survival(upstream: &'static Upstream, arm: Arm) -> Survival {
         }
         Arm::LoadClosure => {
             let _ = store.ac_get(&graph.key);
-            store.load_closure(root);
+            let _ = store.load_closure(root);
         }
         Arm::RestoreRootStandalone => {
             let _ = store.ac_get(&graph.key);
@@ -658,16 +723,20 @@ impl Store {
 
     /// Loads every node reachable from `id`, which is what a materializing
     /// compiler does and the only depth at which "root present" implies
-    /// "closure present".
-    fn load_closure(&self, id: llcas_objectid_t) {
+    /// "closure present". Returns whether every reachable node loaded, which is
+    /// the verdict a closure-depth guard would act on.
+    fn load_closure(&self, id: llcas_objectid_t) -> bool {
         let mut pending = vec![id];
+        let mut complete = true;
         while let Some(next) = pending.pop() {
             let (result, loaded) = self.load(next);
             if result != LLCAS_LOOKUP_RESULT_SUCCESS {
+                complete = false;
                 continue;
             }
             pending.extend(self.refs_of(loaded));
         }
+        complete
     }
 
     fn ac_put(&self, key: &[u8], value: llcas_objectid_t) -> Result<(), String> {
