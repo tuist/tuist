@@ -19,8 +19,7 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 use crate::prefetch::Prefetcher;
 use crate::proxy_proto::{
     read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PUBLISH,
-    OP_RESOLVE,
-    STATUS_ERROR, STATUS_HIT, STATUS_MISS,
+    OP_RESOLVE, STATUS_ERROR, STATUS_HIT, STATUS_MISS,
 };
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
 use crate::token::TokenProvider;
@@ -833,8 +832,7 @@ impl PathState {
             // build). A wiped or pruned store answers NOTFOUND either way,
             // which is all the stale-hit guard needs.
             let mut contains_error: *mut std::ffi::c_char = std::ptr::null_mut();
-            let result =
-                (self.up.llcas_cas_contains_object)(*cas, id, false, &mut contains_error);
+            let result = (self.up.llcas_cas_contains_object)(*cas, id, false, &mut contains_error);
             if !contains_error.is_null() {
                 (self.up.llcas_string_dispose)(contains_error);
             }
@@ -1711,8 +1709,11 @@ impl Proxy {
             // present and serves the cached Hit. Latency, not a safety hole.
             let root_digest = manifest.first().map(|entry| entry.llcas_digest.clone());
             let is_root = |entry: &ManifestEntry| Some(&entry.llcas_digest) == root_digest.as_ref();
-            let mut ordered: Vec<&ManifestEntry> =
-                missing.iter().copied().filter(|entry| !is_root(entry)).collect();
+            let mut ordered: Vec<&ManifestEntry> = missing
+                .iter()
+                .copied()
+                .filter(|entry| !is_root(entry))
+                .collect();
             ordered.extend(missing.iter().copied().filter(|entry| is_root(entry)));
             // Whether the root is ours to publish at all. A root already present
             // locally is not in `missing`, and its absence from the loop is not a
@@ -1822,7 +1823,9 @@ impl Proxy {
             // this counter exists to trend.
             let root_already_local = !root_pending;
             if skipped > 0 || (root_pending && !root_stored) {
-                state.stats_incomplete_closures.fetch_add(1, Ordering::Relaxed);
+                state
+                    .stats_incomplete_closures
+                    .fetch_add(1, Ordering::Relaxed);
                 let root_hex = root_digest
                     .as_deref()
                     .map(crate::analytics::hex_upper)
@@ -3066,7 +3069,11 @@ impl Proxy {
                 upload,
             },
         );
-        SourceBranches { branch, trunk, upload }
+        SourceBranches {
+            branch,
+            trunk,
+            upload,
+        }
     }
 
     /// What setup registered for the instance, reloading the sources registry so
@@ -3087,10 +3094,19 @@ impl Proxy {
                 }
                 // Unreadable: keep what we last saw rather than forgetting every
                 // project's policy because one read lost a race with setup.
-                None => self.instance_sources.lock().unwrap().get(instance).map(clone),
+                None => self
+                    .instance_sources
+                    .lock()
+                    .unwrap()
+                    .get(instance)
+                    .map(clone),
             }
         } else {
-            self.instance_sources.lock().unwrap().get(instance).map(clone)
+            self.instance_sources
+                .lock()
+                .unwrap()
+                .get(instance)
+                .map(clone)
         }
     }
 
@@ -3142,13 +3158,12 @@ impl Proxy {
             // namespace. Unscoped, or not yet a real build, keep the node budget.
             // The mode is necessarily Full here, the other two having stopped
             // above.
-            let configured = if self.resolve_trunk(instance).is_some()
-                && self.instance_active(instance)
-            {
-                0
-            } else {
-                prematerialize_max_nodes()
-            };
+            let configured =
+                if self.resolve_trunk(instance).is_some() && self.instance_active(instance) {
+                    0
+                } else {
+                    prematerialize_max_nodes()
+                };
             let mut budget = configured;
             let mut enqueued = 0usize;
             for key_hash in &snapshot.key_order {
@@ -3355,7 +3370,13 @@ impl Proxy {
                     fresh
                 });
                 let outcome = self.path_state(&request.cas_path).and_then(|state| {
-                    self.resolve(&remote, &instance, state, &request.payload, snapshot.as_deref())
+                    self.resolve(
+                        &remote,
+                        &instance,
+                        state,
+                        &request.payload,
+                        snapshot.as_deref(),
+                    )
                 });
                 match outcome {
                     Ok(Some(value)) => write_response(&mut stream, STATUS_HIT, &value),
@@ -4017,10 +4038,18 @@ mod tests {
             None,
         );
         proxy.publisher.configure(1, move |item| {
-            let Some((_, rest)) = take_u16_field(&item) else { return };
-            let Some((_, rest)) = take_u16_field(rest) else { return };
-            let Some((_, rest)) = take_u16_field(rest) else { return };
-            let Some((_, record_path)) = take_u16_field(rest) else { return };
+            let Some((_, rest)) = take_u16_field(&item) else {
+                return;
+            };
+            let Some((_, rest)) = take_u16_field(rest) else {
+                return;
+            };
+            let Some((_, rest)) = take_u16_field(rest) else {
+                return;
+            };
+            let Some((_, record_path)) = take_u16_field(rest) else {
+                return;
+            };
             publish(&String::from_utf8_lossy(record_path));
         });
         proxy
@@ -4090,7 +4119,10 @@ mod tests {
             std::time::Duration::from_millis(2500),
         );
 
-        assert_eq!(remaining, 1, "the record that never landed is still counted");
+        assert_eq!(
+            remaining, 1,
+            "the record that never landed is still counted"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -4181,7 +4213,10 @@ mod tests {
     /// sidecar has to be found from the claimed name too.
     #[test]
     fn a_claimed_record_still_finds_its_tags() {
-        assert_eq!(tags_path("/spool/1234-0"), tags_path("/spool/1234-0.claim-9"));
+        assert_eq!(
+            tags_path("/spool/1234-0"),
+            tags_path("/spool/1234-0.claim-9")
+        );
         assert_eq!(
             tags_path("/spool/1234-0"),
             std::path::PathBuf::from("/spool/1234-0.tags")
@@ -4238,7 +4273,12 @@ mod tests {
         assert_eq!(no_trunk.trunk, None);
         assert_eq!(no_trunk.ci_branch.as_deref(), Some("feature/y"));
 
-        assert!(!sources.get("tuist/read-only").expect("read-only entry").upload);
+        assert!(
+            !sources
+                .get("tuist/read-only")
+                .expect("read-only entry")
+                .upload
+        );
 
         // A setup newer than this proxy: unknown fields are ignored rather than
         // failing the whole file, which would take every project's policy with it.
@@ -4923,7 +4963,11 @@ mod tests {
         // Same action, another project. Keys collide across instances.
         let two = proxy.remote_for("tuist/two");
         proxy.queue_view_refresh(&two, "tuist/two", b"shared-key", &manifest);
-        assert_eq!(queued(), 2, "another project's identical key is its own refresh");
+        assert_eq!(
+            queued(),
+            2,
+            "another project's identical key is its own refresh"
+        );
 
         // The trunk job now takes a hit on the key the feature job refreshed.
         record("main");
@@ -5073,7 +5117,10 @@ mod tests {
         let child = vec![0x32];
         let root_entry = ManifestEntry {
             llcas_digest: root.clone(),
-            blob: reapi::Digest { hash: "1a".repeat(32), size_bytes: 4 },
+            blob: reapi::Digest {
+                hash: "1a".repeat(32),
+                size_bytes: 4,
+            },
             contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"root"))),
         };
 
@@ -5081,14 +5128,20 @@ mod tests {
         proxy
             .materialize_manifest(&remote, state, &[root_entry.clone()], observed)
             .expect("materialize");
-        assert!(proxy.is_local(state, observed, &root), "the root is on disk now");
+        assert!(
+            proxy.is_local(state, observed, &root),
+            "the root is on disk now"
+        );
 
         // Second pass over the same key, now with a child that cannot decode.
         let manifest = vec![
             root_entry,
             ManifestEntry {
                 llcas_digest: child.clone(),
-                blob: reapi::Digest { hash: "1b".repeat(32), size_bytes: 5 },
+                blob: reapi::Digest {
+                    hash: "1b".repeat(32),
+                    size_bytes: 5,
+                },
                 contents: Some(b"not a frame".to_vec()),
             },
         ];
@@ -5096,7 +5149,10 @@ mod tests {
             .materialize_manifest(&remote, state, &manifest, observed)
             .expect("materialize");
 
-        assert!(!proxy.is_local(state, observed, &child), "the child still did not land");
+        assert!(
+            !proxy.is_local(state, observed, &child),
+            "the child still did not land"
+        );
         assert!(
             proxy.is_local(state, observed, &root),
             "and the root stays present, because this pass never had it to withhold"
@@ -5129,12 +5185,18 @@ mod tests {
         let manifest = vec![
             ManifestEntry {
                 llcas_digest: root.clone(),
-                blob: reapi::Digest { hash: "ee".repeat(32), size_bytes: 4 },
+                blob: reapi::Digest {
+                    hash: "ee".repeat(32),
+                    size_bytes: 4,
+                },
                 contents: Some(b"not a frame".to_vec()),
             },
             ManifestEntry {
                 llcas_digest: child.clone(),
-                blob: reapi::Digest { hash: "ff".repeat(32), size_bytes: 5 },
+                blob: reapi::Digest {
+                    hash: "ff".repeat(32),
+                    size_bytes: 5,
+                },
                 contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"child"))),
             },
         ];
@@ -5179,12 +5241,18 @@ mod tests {
         let manifest = vec![
             ManifestEntry {
                 llcas_digest: root.clone(),
-                blob: reapi::Digest { hash: "aa".repeat(32), size_bytes: 4 },
+                blob: reapi::Digest {
+                    hash: "aa".repeat(32),
+                    size_bytes: 4,
+                },
                 contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"root"))),
             },
             ManifestEntry {
                 llcas_digest: child.clone(),
-                blob: reapi::Digest { hash: "bb".repeat(32), size_bytes: 4 },
+                blob: reapi::Digest {
+                    hash: "bb".repeat(32),
+                    size_bytes: 4,
+                },
                 contents: Some(b"not a frame".to_vec()),
             },
         ];
@@ -5199,7 +5267,10 @@ mod tests {
              a later get probes only the root, so storing it here is what turns an \
              incomplete graph into a hit that fails at load on the child"
         );
-        assert!(!proxy.is_local(state, observed, &child), "and the child did not land");
+        assert!(
+            !proxy.is_local(state, observed, &child),
+            "and the child did not land"
+        );
         assert_eq!(
             state.stats_incomplete_closures.load(Ordering::Relaxed),
             1,
@@ -5223,12 +5294,18 @@ mod tests {
         let manifest = vec![
             ManifestEntry {
                 llcas_digest: root.clone(),
-                blob: reapi::Digest { hash: "cc".repeat(32), size_bytes: 4 },
+                blob: reapi::Digest {
+                    hash: "cc".repeat(32),
+                    size_bytes: 4,
+                },
                 contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"root"))),
             },
             ManifestEntry {
                 llcas_digest: child.clone(),
-                blob: reapi::Digest { hash: "dd".repeat(32), size_bytes: 5 },
+                blob: reapi::Digest {
+                    hash: "dd".repeat(32),
+                    size_bytes: 5,
+                },
                 contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"child"))),
             },
         ];

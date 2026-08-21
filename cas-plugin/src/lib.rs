@@ -14,9 +14,9 @@
 //! sets it and the Swift path does not, and both are ours to serve.
 
 pub mod analytics;
+pub mod prefetch;
 pub mod proxy;
 pub mod proxy_proto;
-pub mod prefetch;
 pub mod reapi;
 pub mod token;
 pub mod types;
@@ -399,7 +399,8 @@ fn ours_cancel_token(slot: *mut llcas_cancellable_t) -> Arc<AtomicBool> {
     let flag = Arc::new(AtomicBool::new(false));
     if !slot.is_null() {
         unsafe {
-            *slot = Box::into_raw(Box::new(CancelToken::Ours(Arc::clone(&flag)))) as llcas_cancellable_t;
+            *slot = Box::into_raw(Box::new(CancelToken::Ours(Arc::clone(&flag))))
+                as llcas_cancellable_t;
         }
     }
     flag
@@ -447,9 +448,10 @@ pub unsafe extern "C" fn llcas_cas_options_set_option(
     value: *const c_char,
     _error: *mut *mut c_char,
 ) -> bool {
-    (*(options as *mut OptionsState))
-        .options
-        .push((CStr::from_ptr(name).to_owned(), CStr::from_ptr(value).to_owned()));
+    (*(options as *mut OptionsState)).options.push((
+        CStr::from_ptr(name).to_owned(),
+        CStr::from_ptr(value).to_owned(),
+    ));
     false
 }
 
@@ -488,7 +490,12 @@ pub unsafe extern "C" fn llcas_cas_create(
             continue;
         }
         let mut option_error: *mut c_char = std::ptr::null_mut();
-        if (up.llcas_cas_options_set_option)(upstream_options, name.as_ptr(), value.as_ptr(), &mut option_error) {
+        if (up.llcas_cas_options_set_option)(
+            upstream_options,
+            name.as_ptr(),
+            value.as_ptr(),
+            &mut option_error,
+        ) {
             adopt_error(up, option_error, error);
             (up.llcas_cas_options_dispose)(upstream_options);
             return std::ptr::null_mut();
@@ -569,7 +576,6 @@ fn spool_dir(state: &CasState) -> Option<std::path::PathBuf> {
     state.cas_dir.as_ref().map(|dir| dir.join("tuist-spool"))
 }
 
-
 /// Writes the publication's write-ahead record. Returns the path the worker
 /// deletes after a successful publish.
 fn write_publish_record(state: &CasState, record: &PublishRecord) -> Option<std::path::PathBuf> {
@@ -642,16 +648,23 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
     drop(Box::from_raw(state_ptr));
 }
 
-
 pub fn log_line(message: &str) {
     if let Ok(path) = std::env::var("TUIST_CAS_LOG") {
         use std::io::Write;
-        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_millis())
                 .unwrap_or(0);
-            let _ = writeln!(file, "[tuist-cas-plugin t={now} pid={}] {message}", std::process::id());
+            let _ = writeln!(
+                file,
+                "[tuist-cas-plugin t={now} pid={}] {message}",
+                std::process::id()
+            );
         }
     }
 }
@@ -659,9 +672,14 @@ pub fn log_line(message: &str) {
 // --- Simple forwards -------------------------------------------------------------
 
 #[no_mangle]
-pub unsafe extern "C" fn llcas_cas_get_ondisk_size(cas: llcas_cas_t, error: *mut *mut c_char) -> i64 {
+pub unsafe extern "C" fn llcas_cas_get_ondisk_size(
+    cas: llcas_cas_t,
+    error: *mut *mut c_char,
+) -> i64 {
     let state = cas_state(cas);
-    let Some(get_size) = state.up.llcas_cas_get_ondisk_size else { return -1 };
+    let Some(get_size) = state.up.llcas_cas_get_ondisk_size else {
+        return -1;
+    };
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
     let result = get_size(state.cas, &mut upstream_error);
     adopt_error(state.up, upstream_error, error);
@@ -675,7 +693,9 @@ pub unsafe extern "C" fn llcas_cas_set_ondisk_size_limit(
     error: *mut *mut c_char,
 ) -> bool {
     let state = cas_state(cas);
-    let Some(set_limit) = state.up.llcas_cas_set_ondisk_size_limit else { return false };
+    let Some(set_limit) = state.up.llcas_cas_set_ondisk_size_limit else {
+        return false;
+    };
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
     let result = set_limit(state.cas, size_limit, &mut upstream_error);
     adopt_error(state.up, upstream_error, error);
@@ -683,9 +703,14 @@ pub unsafe extern "C" fn llcas_cas_set_ondisk_size_limit(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn llcas_cas_prune_ondisk_data(cas: llcas_cas_t, error: *mut *mut c_char) -> bool {
+pub unsafe extern "C" fn llcas_cas_prune_ondisk_data(
+    cas: llcas_cas_t,
+    error: *mut *mut c_char,
+) -> bool {
     let state = cas_state(cas);
-    let Some(prune) = state.up.llcas_cas_prune_ondisk_data else { return false };
+    let Some(prune) = state.up.llcas_cas_prune_ondisk_data else {
+        return false;
+    };
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
     let result = prune(state.cas, &mut upstream_error);
     adopt_error(state.up, upstream_error, error);
@@ -706,7 +731,10 @@ pub unsafe extern "C" fn llcas_cas_prune_ondisk_data(cas: llcas_cas_t, error: *m
 #[no_mangle]
 pub unsafe extern "C" fn llcas_cas_get_hash_schema_name(cas: llcas_cas_t) -> *mut c_char {
     let state = cas_state(cas);
-    adopt_upstream_string(state.up, (state.up.llcas_cas_get_hash_schema_name)(state.cas))
+    adopt_upstream_string(
+        state.up,
+        (state.up.llcas_cas_get_hash_schema_name)(state.cas),
+    )
 }
 
 #[no_mangle]
@@ -719,7 +747,13 @@ pub unsafe extern "C" fn llcas_digest_parse(
 ) -> u32 {
     let state = cas_state(cas);
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
-    let result = (state.up.llcas_digest_parse)(state.cas, printed_digest, bytes, bytes_size, &mut upstream_error);
+    let result = (state.up.llcas_digest_parse)(
+        state.cas,
+        printed_digest,
+        bytes,
+        bytes_size,
+        &mut upstream_error,
+    );
     adopt_error(state.up, upstream_error, error);
     result
 }
@@ -734,7 +768,12 @@ pub unsafe extern "C" fn llcas_digest_print(
     let state = cas_state(cas);
     let mut upstream_printed: *mut c_char = std::ptr::null_mut();
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
-    let failed = (state.up.llcas_digest_print)(state.cas, digest, &mut upstream_printed, &mut upstream_error);
+    let failed = (state.up.llcas_digest_print)(
+        state.cas,
+        digest,
+        &mut upstream_printed,
+        &mut upstream_error,
+    );
     if !printed_id.is_null() {
         *printed_id = adopt_upstream_string(state.up, upstream_printed);
     } else if !upstream_printed.is_null() {
@@ -759,7 +798,10 @@ pub unsafe extern "C" fn llcas_cas_get_objectid(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn llcas_objectid_get_digest(cas: llcas_cas_t, id: llcas_objectid_t) -> llcas_digest_t {
+pub unsafe extern "C" fn llcas_objectid_get_digest(
+    cas: llcas_cas_t,
+    id: llcas_objectid_t,
+) -> llcas_digest_t {
     let state = cas_state(cas);
     (state.up.llcas_objectid_get_digest)(state.cas, id)
 }
@@ -783,7 +825,10 @@ pub unsafe extern "C" fn llcas_loaded_object_get_refs(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn llcas_object_refs_get_count(cas: llcas_cas_t, refs: llcas_object_refs_t) -> usize {
+pub unsafe extern "C" fn llcas_object_refs_get_count(
+    cas: llcas_cas_t,
+    refs: llcas_object_refs_t,
+) -> usize {
     let state = cas_state(cas);
     (state.up.llcas_object_refs_get_count)(state.cas, refs)
 }
@@ -818,7 +863,10 @@ pub unsafe extern "C" fn llcas_loaded_object_export_data_to_filepath(
     match std::fs::write(&path, payload) {
         Ok(()) => false,
         Err(write_error) => {
-            set_error(error, &format!("tuist-cas-plugin: failed to write {path}: {write_error}"));
+            set_error(
+                error,
+                &format!("tuist-cas-plugin: failed to write {path}: {write_error}"),
+            );
             true
         }
     }
@@ -870,7 +918,6 @@ unsafe fn digest_bytes(state: &CasState, id: llcas_objectid_t) -> Vec<u8> {
     std::slice::from_raw_parts(digest.data, digest.size).to_vec()
 }
 
-
 unsafe fn load_object_impl(
     state: &CasState,
     id: llcas_objectid_t,
@@ -893,7 +940,10 @@ unsafe fn load_object_impl(
             .as_ref()
             .map(|dir| dir.to_string_lossy().into_owned())
             .unwrap_or_default();
-        match state.proxy.fetch_object(&cas_path, &state.proxy_instance, digest) {
+        match state
+            .proxy
+            .fetch_object(&cas_path, &state.proxy_instance, digest)
+        {
             Ok(true) => {
                 if !upstream_error.is_null() {
                     (state.up.llcas_string_dispose)(upstream_error);
@@ -934,9 +984,12 @@ pub unsafe extern "C" fn llcas_cas_load_object(
     error: *mut *mut c_char,
 ) -> llcas_lookup_result_t {
     let state = cas_state(cas);
-    ffi_guard(error, LLCAS_LOOKUP_RESULT_ERROR, "tuist-cas-plugin: panic during load", || {
-        load_object_impl(state, id, loaded, error)
-    })
+    ffi_guard(
+        error,
+        LLCAS_LOOKUP_RESULT_ERROR,
+        "tuist-cas-plugin: panic during load",
+        || load_object_impl(state, id, loaded, error),
+    )
 }
 
 #[no_mangle]
@@ -992,10 +1045,19 @@ pub unsafe extern "C" fn llcas_cas_store_object(
     let state = cas_state(cas);
     let started = std::time::Instant::now();
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
-    let failed = (state.up.llcas_cas_store_object)(state.cas, data, refs, refs_count, p_id, &mut upstream_error);
+    let failed = (state.up.llcas_cas_store_object)(
+        state.cas,
+        data,
+        refs,
+        refs_count,
+        p_id,
+        &mut upstream_error,
+    );
     adopt_error(state.up, upstream_error, error);
     state.stats_client_store.record(started.elapsed());
-    state.stats_client_store_bytes.fetch_add(data.size as u64, Ordering::Relaxed);
+    state
+        .stats_client_store_bytes
+        .fetch_add(data.size as u64, Ordering::Relaxed);
     failed
 }
 
@@ -1016,15 +1078,27 @@ pub unsafe extern "C" fn llcas_cas_store_from_filepath(
         let path = CStr::from_ptr(filepath).to_string_lossy().into_owned();
         match std::fs::read(&path) {
             Ok(contents) => {
-                let data = llcas_data_t { data: contents.as_ptr() as *const c_void, size: contents.len() };
+                let data = llcas_data_t {
+                    data: contents.as_ptr() as *const c_void,
+                    size: contents.len(),
+                };
                 let mut upstream_error: *mut c_char = std::ptr::null_mut();
-                let failed =
-                    (state.up.llcas_cas_store_object)(state.cas, data, std::ptr::null(), 0, p_id, &mut upstream_error);
+                let failed = (state.up.llcas_cas_store_object)(
+                    state.cas,
+                    data,
+                    std::ptr::null(),
+                    0,
+                    p_id,
+                    &mut upstream_error,
+                );
                 adopt_error(state.up, upstream_error, error);
                 failed
             }
             Err(read_error) => {
-                set_error(error, &format!("tuist-cas-plugin: failed to read {path}: {read_error}"));
+                set_error(
+                    error,
+                    &format!("tuist-cas-plugin: failed to read {path}: {read_error}"),
+                );
                 true
             }
         }
@@ -1041,13 +1115,19 @@ unsafe fn actioncache_get_impl(
     p_value: *mut llcas_objectid_t,
     error: *mut *mut c_char,
 ) -> llcas_lookup_result_t {
-    let key_digest = llcas_digest_t { data: key.as_ptr(), size: key.len() };
+    let key_digest = llcas_digest_t {
+        data: key.as_ptr(),
+        size: key.len(),
+    };
     let result = verified_local_get(state, key_digest, globally, p_value, error);
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
         return result;
     }
 
-    let _demand_guard = DemandWaitGuard { state, started: std::time::Instant::now() };
+    let _demand_guard = DemandWaitGuard {
+        state,
+        started: std::time::Instant::now(),
+    };
     let client = &state.proxy;
     let cas_path = state
         .cas_dir
@@ -1056,7 +1136,9 @@ unsafe fn actioncache_get_impl(
         .unwrap_or_default();
     match client.resolve(&cas_path, &state.proxy_instance, key) {
         Ok(Resolution::Hit(value_digest)) => {
-            state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
+            state
+                .stats_remote_entry_hits
+                .fetch_add(1, Ordering::Relaxed);
             // Remember the association: the client re-puts replayed results
             // at the end of its job, and re-publishing a (key, value) that
             // just came FROM the remote is pure churn — a spool write on
@@ -1068,11 +1150,18 @@ unsafe fn actioncache_get_impl(
                 .lock()
                 .unwrap()
                 .insert(key.to_vec(), value_digest.clone());
-            let value_digest_t =
-                llcas_digest_t { data: value_digest.as_ptr(), size: value_digest.len() };
+            let value_digest_t = llcas_digest_t {
+                data: value_digest.as_ptr(),
+                size: value_digest.len(),
+            };
             let mut value_id = llcas_objectid_t { opaque: 0 };
             let mut id_error: *mut c_char = std::ptr::null_mut();
-            if (state.up.llcas_cas_get_objectid)(state.cas, value_digest_t, &mut value_id, &mut id_error) {
+            if (state.up.llcas_cas_get_objectid)(
+                state.cas,
+                value_digest_t,
+                &mut value_id,
+                &mut id_error,
+            ) {
                 adopt_error(state.up, id_error, error);
                 return LLCAS_LOOKUP_RESULT_ERROR;
             }
@@ -1094,7 +1183,13 @@ unsafe fn actioncache_get_impl(
             // an interior node still needs the load path's FETCH_OBJECT.
             if value_graph_is_available(state, value_id) {
                 let mut put_error: *mut c_char = std::ptr::null_mut();
-                if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
+                if (state.up.llcas_actioncache_put_for_digest)(
+                    state.cas,
+                    key_digest,
+                    value_id,
+                    false,
+                    &mut put_error,
+                ) {
                     // Reachable BECAUSE of the verification: a stale association sends
                     // its key here and the remote may answer a different digest, which
                     // the store then refuses to cache. The resolve itself succeeded, so
@@ -1172,8 +1267,13 @@ unsafe fn verified_local_get(
     // an id to probe. Apple's plugin dereferences the pointer it is handed.
     let mut value = llcas_objectid_t { opaque: 0 };
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
-    let result =
-        (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, &mut value, globally, &mut upstream_error);
+    let result = (state.up.llcas_actioncache_get_for_digest)(
+        state.cas,
+        key_digest,
+        &mut value,
+        globally,
+        &mut upstream_error,
+    );
     if result == LLCAS_LOOKUP_RESULT_ERROR {
         adopt_error(state.up, upstream_error, error);
         return result;
@@ -1185,7 +1285,9 @@ unsafe fn verified_local_get(
         return result;
     }
     if !value_graph_is_available(state, value) {
-        state.stats_unbacked_local_hits.fetch_add(1, Ordering::Relaxed);
+        state
+            .stats_unbacked_local_hits
+            .fetch_add(1, Ordering::Relaxed);
         log_line(&format!(
             "unbacked local hit, falling through to the remote: value={}",
             printed_digest(state, value)
@@ -1242,9 +1344,12 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest(
 ) -> llcas_lookup_result_t {
     let state = cas_state(cas);
     let key = std::slice::from_raw_parts(key.data, key.size).to_vec();
-    ffi_guard(error, LLCAS_LOOKUP_RESULT_ERROR, "tuist-cas-plugin: panic during cache query", || {
-        actioncache_get_impl(state, &key, globally, p_value, error)
-    })
+    ffi_guard(
+        error,
+        LLCAS_LOOKUP_RESULT_ERROR,
+        "tuist-cas-plugin: panic during cache query",
+        || actioncache_get_impl(state, &key, globally, p_value, error),
+    )
 }
 
 #[no_mangle]
@@ -1293,7 +1398,11 @@ unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_obje
         {
             return;
         }
-        let record = PublishRecord { key: key.to_vec(), value_digest, spool_path: None };
+        let record = PublishRecord {
+            key: key.to_vec(),
+            value_digest,
+            spool_path: None,
+        };
         if let Some(path) = write_publish_record(state, &record) {
             let cas_path = state
                 .cas_dir
@@ -1301,14 +1410,13 @@ unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_obje
                 .map(|dir| dir.to_string_lossy().into_owned())
                 .unwrap_or_default();
             // Failure is fine: the record survives for the proxy sweep.
-            let _ =
-                state.proxy.publish(&cas_path, &state.proxy_instance, &path.to_string_lossy());
+            let _ = state
+                .proxy
+                .publish(&cas_path, &state.proxy_instance, &path.to_string_lossy());
         }
         return;
     }
 }
-
-
 
 #[no_mangle]
 pub unsafe extern "C" fn llcas_actioncache_put_for_digest(
@@ -1320,7 +1428,13 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest(
 ) -> bool {
     let state = cas_state(cas);
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
-    let rejected = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
+    let rejected = (state.up.llcas_actioncache_put_for_digest)(
+        state.cas,
+        key,
+        value,
+        globally,
+        &mut upstream_error,
+    );
     let failed = if rejected {
         let message = take_upstream_error(state.up, upstream_error);
         adopt_put_failure(state, &message, error)
@@ -1355,7 +1469,13 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest_async(
     let state = cas_state(cas);
     let _ = ours_cancel_token(cancel_tok);
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
-    let rejected = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
+    let rejected = (state.up.llcas_actioncache_put_for_digest)(
+        state.cas,
+        key,
+        value,
+        globally,
+        &mut upstream_error,
+    );
     let mut error: *mut c_char = std::ptr::null_mut();
     let failed = if rejected {
         let message = take_upstream_error(state.up, upstream_error);
