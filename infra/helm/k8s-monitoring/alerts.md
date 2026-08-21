@@ -512,45 +512,6 @@ separate them because every host, healthy or not, has quiet stretches. Scope thi
 to the runner fleet: `macos-fleet` and `builders-fleet` hosts sit at a couple of
 hundred B/s legitimately, since they run no cache-using VMs.
 
-### Kura cache pod unresponsive
-
-```promql
-avg by (cluster, pod) (
-  avg_over_time(up{job="kura"}[30m])
-) < 0.9
-```
-
-- Pending period: 5 minutes
-- Severity: critical
-- Label: `affected_service` set to the cache component (customer-visible: a
-  node that stops answering fails every cache request routed to it, and the
-  client sees a hang rather than an error)
-- Summary: `Kura cache pod {{ $labels.pod }} is failing scrapes in
-  {{ $labels.cluster }}`
-
-Kura serves `/metrics`, `/up` and `/ready` from the same axum server on the
-same port, so an Alloy scrape timeout and a kubelet probe timeout are the same
-event observed by two collectors. That makes `up` the only signal that sees the
-stall *itself*, independently of whether the kubelet decides to act on it.
-
-The distinction matters because most stalls do not become restarts. On
-2026-08-21 a single production pod accumulated 55 readiness timeouts and 30
-liveness timeouts over 23 hours, of which only 10 crossed the
-three-consecutive-failure liveness threshold. The other stalls dropped
-in-flight requests and left no trace outside these scrape gaps.
-
-**Why a scrape-success ratio and not `up == 0`.** A stall lasts roughly 60
-seconds, which is what three liveness failures at `periodSeconds: 20` costs. A
-rule shaped like the control-plane ones (`min_over_time(up[2m]) == 0`) needs the
-target down continuously for longer than any rollout, so it would never fire on
-this fault. Ten percent of failed scrapes over 30 minutes is about three misses
-at the default interval, the same evidence the kubelet acts on, and one rolling
-restart does not reach it.
-
-Do not scope this to one account. Every tenant runs the same binary on the same
-node pools, and a customer's cache stalling is the more serious version of the
-same fault.
-
 ### Kura cache pod restart loop
 
 ```promql
@@ -558,15 +519,23 @@ sum by (cluster, pod) (
   increase(kube_pod_container_status_restarts_total{
     namespace="kura",
     container="kura"
-  }[1h])
+  }[6h])
 ) >= 2
 ```
 
-- Pending period: 5 minutes
+- Pending period: 10 minutes
 - Severity: critical
-- Label: `affected_service` set to the cache component
+- Label: `affected_service` set to the cache component (customer-visible: a
+  restarting node drops every cache request in flight, and the client sees a
+  hang or a failed build rather than a clean error)
 - Summary: `Kura cache pod {{ $labels.pod }} restarted
-  {{ $value }} times in the last hour in {{ $labels.cluster }}`
+  {{ $value }} times in the last 6 hours in {{ $labels.cluster }}`
+
+**This is the primary rule for the fault.** Backtested over the 7 days to
+2026-08-21 across all 30 production Kura pods, sampled every 10 minutes: it
+held true at 304, 45 and 35 sample points for the three pods of the account
+carrying the heaviest remote-execution traffic, and was never true for any
+other pod. Perfect specificity, no tuning required.
 
 Counts in-place container restarts, so a rollout cannot trigger it: a
 replacement pod starts its counter at zero. Every restart observed on this
@@ -575,17 +544,18 @@ container is killed by the kubelet after `Container kura failed liveness
 probe`, not by the cgroup out-of-memory killer. A rule keyed on `OOMKilled`
 would not have seen any of it.
 
+**Use the 6-hour window, not 1 hour.** The same expression over `[1h]` is
+equally specific but much less sensitive: on the same backtest it held at only
+1 and 3 sample points for two of the three affected pods, which a 10-minute
+pending period may not survive. Restarts on this fault arrive in clusters
+separated by hours, so the shorter window keeps falling back below the
+threshold between clusters.
+
 A restart is not a cheap recovery here. The node loses its place in the mesh,
 its peers log `membership changed: lost peers`, and when it returns every peer
 runs a catch-up backfill pass against it: passes applying 27,716 artifacts and
 545 MB were logged in the minutes after one restart. That write burst is itself
 a trigger for the next stall, so restarts cluster.
-
-For the chronic form, add the same expression over `[24h]` with a `>= 3`
-threshold at severity warning. Healthy tenants sit at exactly zero restarts for
-weeks, so a day with three is already an outlier; in the week to 2026-08-21 the
-three pods of the account carrying the heaviest remote-execution traffic
-recorded 34, 7 and 7 while every other pod recorded none.
 
 ### Kura cache telemetry missing
 
@@ -597,8 +567,8 @@ absent_over_time(up{job="kura"}[15m])
 - Severity: critical
 - Summary: `Kura cache scrape targets have disappeared in {{ $labels.cluster }}`
 
-The paired telemetry rule for **Kura cache pod unresponsive**. That rule is a
-threshold rule with **No Data: Normal**, so it cannot distinguish a healthy
+The paired telemetry rule for the two Kura rules that read `up`. Those are
+threshold rules with **No Data: Normal**, so they cannot distinguish a healthy
 fleet from a scrape configuration that stopped discovering the `kura` namespace
 altogether. Set **No Data** and **Error** to **Alerting** on this one.
 
@@ -1176,6 +1146,41 @@ them and they wait a full catalog rotation for another look. A steady
 rate here is upstream repositories going away or a scope problem on the
 mirror's credential, not a quota problem.
 
+### Kura cache pod failing scrapes
+
+```promql
+sum by (cluster, pod) (
+  count_over_time((up{job="kura"} == 0)[6h:1m])
+) >= 2
+```
+
+- Pending period: 5 minutes
+- Severity: warning
+- Summary: `Kura cache pod {{ $labels.pod }} failed {{ $value }} scrapes in the
+  last 6 hours in {{ $labels.cluster }}`
+
+Kura serves `/metrics`, `/up` and `/ready` from the same axum server on the
+same port, so an Alloy scrape timeout and a kubelet probe timeout are two
+collectors observing the same event. That makes this the only rule that can see
+a stall the kubelet does *not* act on, which matters because most stalls never
+become restarts: one pod logged 55 readiness and 30 liveness timeouts over 23
+hours, of which only 10 crossed the three-consecutive-failure liveness
+threshold.
+
+**Its coverage is partial, and it is a warning for that reason.** Measured over
+the 24 hours to 2026-08-21, three pods restarted 15 times between them but the
+whole production fleet produced only 15 failed scrapes, 13 of them on one pod;
+a pod that restarted three times produced **zero**. A stall costs roughly one
+scrape at the default interval, and the container often comes back before the
+next one lands. Treat this rule as supplementary detail on top of **Kura cache
+pod restart loop**, never as the detector.
+
+Do not reach for a ratio here. An earlier version used
+`avg_over_time(up[30m]) < 0.9`, which the same measurement rules out: a single
+stall plus restart costs about 2 of 30 scrapes in the window, or 0.93, so it
+sits above any threshold loose enough to survive a rolling update. Counting
+absolute failures is what makes a one-scrape event visible.
+
 ### Kura metadata store write buffer saturated
 
 ```promql
@@ -1183,7 +1188,7 @@ max by (cluster, pod) (
   kura_rocksdb_write_buffer_usage_bytes
   /
   kura_rocksdb_write_buffer_capacity_bytes
-) > 0.9
+) > 0.95
 ```
 
 - Pending period: 10 minutes
@@ -1191,9 +1196,8 @@ max by (cluster, pod) (
 - Summary: `Kura metadata store write buffer is {{ $value | humanizePercentage }}
   full on {{ $labels.pod }} in {{ $labels.cluster }}`
 
-The mechanism behind **Kura cache pod unresponsive** and **Kura cache pod
-restart loop**, and the only one of the three visible *before* the pod stops
-answering.
+The mechanism behind the two rules above, and the only one of the three visible
+*before* the pod stops answering.
 
 Kura builds its metadata store with a RocksDB `WriteBufferManager` whose stall
 flag is enabled (`kura/src/store.rs`). Once memtable memory reaches the pool
@@ -1217,10 +1221,19 @@ at `periodSeconds: 20` costs. The cascade size does not predict it: evictions
 cascading 47 and 305 entries stalled the pod exactly as ones cascading 4,555 and
 7,360 did, so treat the eviction itself as the trigger rather than its fanout.
 
+**The threshold is 0.95 because busy is not the same as stalled.** Over the 24
+hours to 2026-08-21 the idle fleet baseline was 0.063, five healthy pods across
+three regions peaked at 0.844 under ordinary load, and exactly one pod exceeded
+the pool size at 1.125. A threshold at 0.9, and certainly one at 0.8, would
+page on the normal peak. Confirm this distribution before tightening it: the
+gauge is unproven as a leading indicator, and 0.95 was chosen to sit between the
+measured normal peak and the one measured excursion rather than from any
+property of RocksDB.
+
 Use **Keep Last State** on **Error** here, as for the other capacity warnings.
-This is a gauge that only exists while the pod is scrapeable, which is
-precisely the window this rule is for: once the stall is underway the series
-stops arriving and the two critical rules above take over.
+This gauge only exists while the pod is scrapeable, which is precisely the
+window this rule is for: once the stall is underway the series stops arriving
+and the restart rule takes over.
 
 ### Worker node pool stuck mid-rollout
 
