@@ -214,7 +214,7 @@
                 flex-shrink: 0;
                 justify-content: center;
                 align-items: center;
-                border-radius: var(--noora-radius-full);
+                border-radius: var(--noora-radius-99);
                 width: 24px;
                 height: 24px;
 
@@ -428,7 +428,7 @@
             display: flex;
             flex-direction: column;
             gap: var(--noora-spacing-6);
-            border-top: 1px solid var(--noora-surface-border-secondary);
+            border-top: 1px solid var(--noora-surface-border-primary);
             padding: var(--noora-spacing-6) var(--noora-spacing-5);
 
             & [data-part="run-header"] {
