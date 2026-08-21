@@ -2698,8 +2698,9 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 		pod,
 	).Build()
 	reconciler := &KuraInstanceReconciler{
-		Client: client,
-		Scheme: scheme,
+		Client:    client,
+		APIReader: client,
+		Scheme:    scheme,
 		RuntimeStatusClient: fakeRuntimeStatusClient{
 			statuses: map[string]runtimeStatus{
 				instance.Name + "-0": {Ready: true, State: "serving", WriterLockOwned: true},

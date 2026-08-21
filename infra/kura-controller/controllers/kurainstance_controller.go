@@ -122,7 +122,12 @@ const (
 
 type KuraInstanceReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	// APIReader reads straight from the apiserver, bypassing the informer
+	// cache. The egress classid allocation scan must see every claim already
+	// written — a cached List can lag a just-completed Update and hand two
+	// accounts the same minor.
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
 
 	// GRPCClusterIssuer, when non-empty, makes the controller request a
 	// cert-manager Certificate per instance with this ClusterIssuer for the
@@ -2828,10 +2833,16 @@ func allocateEgressClassID(account string, used map[uint16]bool) (uint16, error)
 // id. All instances of an account share one id (the id keys the tenant's
 // class on every node), so allocation looks across the namespace's
 // KuraInstances: adopt the account's existing claim if any, else probe from
-// the account-hash candidate. Reconciles run serially (MaxConcurrentReconciles
-// is the default 1), so two allocations never interleave; the deterministic
-// duplicate rule (smallest account handle keeps a doubly-claimed id, smallest
-// minor wins within an account) still makes any conceivable duplicate
+// the account-hash candidate.
+//
+// The scan reads through APIReader, not the cached client: reconciles run
+// serially (MaxConcurrentReconciles is the default 1), but the informer
+// cache updates asynchronously after Update, so a cached List during a
+// back-to-back allocation burst could miss the previous instance's fresh
+// claim and duplicate its minor. A quorum read always sees the completed
+// Update. The deterministic duplicate rule (smallest account handle keeps a
+// doubly-claimed id, smallest minor wins within an account) still makes any
+// duplicate from outside this loop — say a hand-edited annotation —
 // self-heal instead of flapping.
 func (r *KuraInstanceReconciler) reconcileEgressClassID(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	if !instanceNeedsEgressClass(instance) {
@@ -2839,7 +2850,7 @@ func (r *KuraInstanceReconciler) reconcileEgressClassID(ctx context.Context, ins
 	}
 
 	instances := &kurav1alpha1.KuraInstanceList{}
-	if err := r.List(ctx, instances, client.InNamespace(instance.Namespace)); err != nil {
+	if err := r.APIReader.List(ctx, instances, client.InNamespace(instance.Namespace)); err != nil {
 		return err
 	}
 	used := map[uint16]bool{}

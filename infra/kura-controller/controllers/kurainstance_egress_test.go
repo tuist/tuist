@@ -93,9 +93,11 @@ func TestReconcileEgressClassIDSharedPerAccount(t *testing.T) {
 	regionOne := shaped("kura-acme-eu", "acme")
 	regionTwo := shaped("kura-acme-us", "acme")
 	other := shaped("kura-other-eu", "other")
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(regionOne, regionTwo, other).Build()
 	r := &KuraInstanceReconciler{
-		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(regionOne, regionTwo, other).Build(),
-		Scheme: scheme,
+		Client:    fakeClient,
+		APIReader: fakeClient,
+		Scheme:    scheme,
 	}
 
 	for _, instance := range []*kurav1alpha1.KuraInstance{regionOne, regionTwo, other} {
@@ -142,9 +144,11 @@ func TestReconcileEgressClassIDSkipsUnshaped(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "kura-cloud", Namespace: "kura"},
 		Spec:       kurav1alpha1.KuraInstanceSpec{AccountHandle: "acme"},
 	}
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).Build()
 	r := &KuraInstanceReconciler{
-		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).Build(),
-		Scheme: scheme,
+		Client:    fakeClient,
+		APIReader: fakeClient,
+		Scheme:    scheme,
 	}
 	if err := r.reconcileEgressClassID(ctx, instance); err != nil {
 		t.Fatal(err)
