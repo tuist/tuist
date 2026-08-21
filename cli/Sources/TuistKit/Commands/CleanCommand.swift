@@ -16,7 +16,14 @@ public struct CleanCommand: AsyncParsableCommand {
         help: "The cache and artifact categories to be cleaned. If no category is specified, everything is cleaned.",
         envKey: .cleanCleanCategories
     )
-    var cleanCategories: [TuistCleanCategory] = TuistCleanCategory.allCases.map { $0 }
+    var cleanCategories: [TuistCleanCategory] = []
+
+    @Option(
+        name: [.customShort("e"), .customLong("exclude")],
+        parsing: .upToNextOption,
+        help: "The cache and artifact categories to exclude from cleaning. Cannot be combined with category arguments."
+    )
+    var excludedCategories: [TuistCleanCategory] = []
 
     @Flag(
         help: "Clean the remote cache",
@@ -32,9 +39,20 @@ public struct CleanCommand: AsyncParsableCommand {
     )
     var path: String?
 
+    var categoriesToClean: [TuistCleanCategory] {
+        let includedCategories = cleanCategories.isEmpty ? TuistCleanCategory.allCases : cleanCategories
+        return includedCategories.filter { !excludedCategories.contains($0) }
+    }
+
+    public func validate() throws {
+        if !cleanCategories.isEmpty, !excludedCategories.isEmpty {
+            throw ValidationError("Cannot use category arguments and --exclude at the same time.")
+        }
+    }
+
     public func run() async throws {
         try await CleanService().run(
-            categories: cleanCategories,
+            categories: categoriesToClean,
             remote: remote,
             path: path
         )
