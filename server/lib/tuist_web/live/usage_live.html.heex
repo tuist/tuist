@@ -134,51 +134,74 @@
         />
       </div>
     </.card_section>
-    <.card_section data-part="runner-usage-card-chart-section">
-      <.chart
-        id="runner-spend-chart"
-        type="line"
-        extra_options={
-          TuistWeb.UsageLive.runner_chart_options(Enum.map(@runner_breakdown.days, & &1.date))
-        }
-        series={
-          TuistWeb.UsageLive.runner_chart_series(
-            TuistWeb.UsageLive.runner_cost_series(@runner_breakdown)
-          )
-        }
-        y_axis_min={0}
-      />
-    </.card_section>
-    <.card_section
-      :for={row <- @runner_breakdown.platforms}
-      data-part="runner-usage-card-receipt-section"
-    >
-      <div data-part="receipt">
-        <div data-part="heading">
-          <span data-part="platform">{TuistWeb.UsageLive.platform_label(row.platform)}</span>
-          <span data-part="shape">{TuistWeb.UsageLive.platform_shape(row.platform)}</span>
+    <.card_section data-part="runner-usage-card-detail-section">
+      <div data-part="chart">
+        <.chart
+          id="runner-spend-chart"
+          type="line"
+          extra_options={
+            TuistWeb.UsageLive.runner_chart_options(Enum.map(@runner_breakdown.days, & &1.date))
+          }
+          series={
+            TuistWeb.UsageLive.runner_chart_series(
+              TuistWeb.UsageLive.runner_cost_series(@runner_breakdown)
+            )
+          }
+          y_axis_min={0}
+        />
+      </div>
+      <div data-part="receipts">
+        <div :for={row <- @runner_breakdown.platforms} data-part="receipt">
+          <div data-part="heading">
+            <span data-part="platform">{TuistWeb.UsageLive.platform_label(row.platform)}</span>
+            <span data-part="shape">{TuistWeb.UsageLive.platform_shape(row.platform)}</span>
+          </div>
+          <dl data-part="lines">
+            <div data-part="line">
+              <dt>{dgettext("dashboard_usage", "%{count} minutes run", count: row.minutes)}</dt>
+              <dd>{TuistWeb.UsageLive.money_label(row.gross)}</dd>
+            </div>
+            <div :if={row.included_minutes} data-part="line" data-kind="credit">
+              <dt>
+                {dgettext("dashboard_usage", "%{count} minutes included",
+                  count: row.included_minutes
+                )}
+              </dt>
+              <dd>{TuistWeb.UsageLive.included_credit_label(row)}</dd>
+            </div>
+            <div data-part="line" data-kind="total">
+              <dt>{dgettext("dashboard_usage", "Billed this period")}</dt>
+              <dd>{TuistWeb.UsageLive.money_label(row.billed)}</dd>
+            </div>
+          </dl>
+          <p data-part="footnote">{TuistWeb.UsageLive.pace_label(row)}</p>
         </div>
-        <dl data-part="lines">
-          <div data-part="line">
-            <dt>{dgettext("dashboard_usage", "%{count} minutes run", count: row.minutes)}</dt>
-            <dd>{TuistWeb.UsageLive.money_label(row.gross)}</dd>
+        <% coverage = TuistWeb.UsageLive.prepaid_coverage(@prepaid_balance, @runner_breakdown) %>
+        <div :if={coverage} data-part="receipt" data-kind="prepaid">
+          <div data-part="heading">
+            <span data-part="platform">{dgettext("dashboard_usage", "Prepaid credit")}</span>
           </div>
-          <div :if={row.included_minutes} data-part="line" data-kind="credit">
-            <dt>
-              {dgettext("dashboard_usage", "%{count} minutes included",
-                count: row.included_minutes
-              )}
-            </dt>
-            <dd>{TuistWeb.UsageLive.included_credit_label(row)}</dd>
-          </div>
-          <div data-part="line" data-kind="total">
-            <dt>{dgettext("dashboard_usage", "Billed this period")}</dt>
-            <dd>{TuistWeb.UsageLive.money_label(row.billed)}</dd>
-          </div>
-        </dl>
-        <p data-part="footnote">
-          {TuistWeb.UsageLive.pace_label(row)}
-        </p>
+          <dl data-part="lines">
+            <div data-part="line">
+              <dt>{dgettext("dashboard_usage", "Balance")}</dt>
+              <dd>{TuistWeb.UsageLive.money_label(coverage.available)}</dd>
+            </div>
+            <div data-part="line" data-kind="credit">
+              <dt>{dgettext("dashboard_usage", "Covers this period")}</dt>
+              <dd>−{TuistWeb.UsageLive.money_label(coverage.covered)}</dd>
+            </div>
+            <div data-part="line" data-kind="total">
+              <dt>{dgettext("dashboard_usage", "Left to pay")}</dt>
+              <dd>{TuistWeb.UsageLive.money_label(coverage.due)}</dd>
+            </div>
+          </dl>
+          <p data-part="footnote">
+            {dgettext(
+              "dashboard_usage",
+              "Drawn down when the period is invoiced, so this is what your balance would cover today."
+            )}
+          </p>
+        </div>
       </div>
     </.card_section>
   </.card>

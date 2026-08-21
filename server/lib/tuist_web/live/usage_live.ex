@@ -12,6 +12,7 @@ defmodule TuistWeb.UsageLive do
   alias Tuist.Kura.Usage
   alias Tuist.Projects
   alias Tuist.Runners.Allowance
+  alias Tuist.Runners.Prepaid
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.CldrHelpers
   alias TuistWeb.Helpers.DatePicker
@@ -52,6 +53,7 @@ defmodule TuistWeb.UsageLive do
      |> assign(:head_title, "#{dgettext("dashboard_usage", "Usage")} · #{account.name} · Tuist")
      |> assign(:projects, projects)
      |> assign(:runner_breakdown, runner_breakdown)
+     |> assign(:prepaid_balance, Prepaid.balance(account))
      |> assign(:kura_enabled, FeatureFlags.kura_enabled?(account))}
   end
 
@@ -253,7 +255,12 @@ defmodule TuistWeb.UsageLive do
   """
   def runner_chart_options(dates) do
     %{
-      grid: %{width: "97%", left: "0.4%", height: "78%", top: "8%"},
+      # One series, so a legend naming it adds nothing.
+      legend: %{show: false},
+      # `containLabel` lets the grid reserve whatever the axis labels
+      # need. Currency labels are wider than the byte labels the traffic
+      # chart uses, and a fixed left inset clipped the leading symbol.
+      grid: %{left: 4, right: 8, top: 12, bottom: 4, containLabel: true},
       xAxis: %{
         boundaryGap: false,
         type: "category",
@@ -267,8 +274,9 @@ defmodule TuistWeb.UsageLive do
       yAxis: %{
         splitNumber: 4,
         splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-        axisLabel: %{color: "var:noora-surface-label-secondary"}
-      }
+        axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "fn:formatCurrency"}
+      },
+      tooltip: %{valueFormat: "fn:formatCurrency"}
     }
   end
 
@@ -283,6 +291,30 @@ defmodule TuistWeb.UsageLive do
         symbol: "none"
       }
     ]
+  end
+
+  @doc """
+  How much of this period's runner charge the account's prepaid credit
+  would absorb, and what is left to pay.
+
+  Prepaid credit is held at account level rather than per platform, so
+  this is a whole-period figure rather than a line on any one receipt.
+  It is an estimate: Stripe draws the grant down when it invoices, so
+  what is shown here is what the current balance would cover if the
+  period closed now.
+  """
+  def prepaid_coverage(nil, _breakdown), do: nil
+
+  def prepaid_coverage(%{available: available}, %{platforms: platforms}) do
+    billed =
+      platforms
+      |> Enum.map(& &1.billed)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.reduce(Money.new(0, :USD), &Money.add(&2, &1))
+
+    covered = if Money.compare(available, billed) == -1, do: available, else: billed
+
+    %{available: available, covered: covered, due: Money.subtract(billed, covered)}
   end
 
   def platform_shape(:macos), do: "6 vCPU / 14 GB"

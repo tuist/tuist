@@ -53,19 +53,40 @@
     }
   }
 
-  & [data-part="kura-traffic-card-chart-section"],
-  & [data-part="runner-usage-card-chart-section"] {
+  & [data-part="kura-traffic-card-chart-section"] {
     & .noora-chart {
       height: 280px;
     }
   }
 
-  & [data-part="runner-usage-card-receipt-section"] {
+  & [data-part="runner-usage-card-detail-section"] {
+    display: grid;
+    /* Chart takes the room it needs to be readable; the receipts sit
+       beside it at a width that keeps the figures on one line. */
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: var(--noora-spacing-8);
+    align-items: start;
+
+    @media (max-width: 1024px) {
+      & {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    & > [data-part="chart"] .noora-chart {
+      height: 280px;
+    }
+
+    & > [data-part="receipts"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-7);
+    }
+
     & [data-part="receipt"] {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-4);
-      max-width: 520px;
     }
 
     & [data-part="heading"] {
