@@ -1563,7 +1563,7 @@ async fn get_keyvalue(
                     state
                         .metrics
                         .record_memory_action("keyvalue_response_materialization_rejected");
-                    return response_stream_unavailable();
+                    return response_stream_shed();
                 }
             };
             state
@@ -2258,7 +2258,7 @@ async fn internal_backfill_artifact(
         .try_acquire_background_response_stream_memory(requested_bytes, "backfill")
     {
         Ok(permit) => permit,
-        Err(_) => return response_stream_unavailable(),
+        Err(_) => return peer_response_stream_unavailable(),
     };
 
     match state
@@ -2466,7 +2466,7 @@ async fn internal_backfill_bodies(State(state): State<SharedState>, request: Req
             state
                 .metrics
                 .record_backfill_bodies_peer_request(&peer_label, "backpressure");
-            return response_stream_unavailable();
+            return peer_response_stream_unavailable();
         }
     };
     let file = match state.io.open_file(&spool.path).await {
@@ -3266,7 +3266,7 @@ async fn serve_file_reader(
                 .await
             {
                 Ok(permit) => (permit, RESPONSE_STREAM_MIN_CHUNK_BYTES),
-                Err(_) => return response_stream_unavailable(),
+                Err(_) => return response_stream_shed(),
             }
         }
     };
@@ -3300,7 +3300,31 @@ async fn serve_file_reader(
     }
 }
 
-fn response_stream_unavailable() -> Response {
+/// Sheds a public read that could not be admitted a response stream.
+///
+/// Backpressure rather than a fault: the node is healthy and the same request
+/// succeeds once a permit frees, so a 5xx here would be indistinguishable from
+/// an unreachable auth backend or a failed transfer. Both admission outcomes
+/// land here, including the queue-full one that gives up before waiting at
+/// all, which is another reason not to describe it as the service being
+/// unavailable.
+fn response_stream_shed() -> Response {
+    let mut response = error_response(
+        StatusCode::TOO_MANY_REQUESTS,
+        "The server is limiting concurrent artifact response streams; retry shortly".to_string(),
+    );
+    response.headers_mut().insert(
+        axum::http::header::RETRY_AFTER,
+        HeaderValue::from_static("1"),
+    );
+    response
+}
+
+/// The peer counterpart, on the background pool. It stays 503: internal routes
+/// are outside the public error signal this split exists to clean up, and the
+/// requester already treats a 503 carrying `Retry-After` as budget-exempt
+/// backpressure (`classify_backfill_response`).
+fn peer_response_stream_unavailable() -> Response {
     let mut response = error_response(
         StatusCode::SERVICE_UNAVAILABLE,
         "The server is limiting concurrent artifact response streams; retry shortly".to_string(),
@@ -5961,17 +5985,26 @@ mod tests {
             .await
             .expect("get request failed");
 
-        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(
             response.headers().get(axum::http::header::RETRY_AFTER),
             Some(&HeaderValue::from_static("1"))
         );
+        let metrics = context.state.metrics.render();
+        assert!(metrics.contains("outcome=\"degraded_memory_unavailable\""));
         assert!(
-            context
-                .state
-                .metrics
-                .render()
-                .contains("outcome=\"degraded_memory_unavailable\"")
+            metrics.lines().any(|line| {
+                line.starts_with("kura_http_requests_total")
+                    && line.contains("route=\"/api/cache/cas/{id}\"")
+                    && line.contains("status=\"429\"")
+            }),
+            "the shed must be counted as backpressure on the read route"
+        );
+        assert!(
+            !metrics.lines().any(|line| {
+                line.starts_with("kura_http_exceptions_total") && line.contains("server_error")
+            }),
+            "a capacity shed must not be counted as a server error"
         );
     }
 
@@ -6884,8 +6917,20 @@ mod tests {
     }
 
     #[test]
-    fn response_stream_admission_failure_is_retryable() {
-        let response = response_stream_unavailable();
+    fn public_response_stream_admission_failure_is_rate_limited() {
+        let response = response_stream_shed();
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(!response.status().is_server_error());
+        assert_eq!(
+            response.headers().get(axum::http::header::RETRY_AFTER),
+            Some(&HeaderValue::from_static("1"))
+        );
+    }
+
+    #[test]
+    fn peer_response_stream_admission_failure_is_retryable() {
+        let response = peer_response_stream_unavailable();
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(

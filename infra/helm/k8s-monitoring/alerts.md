@@ -512,6 +512,49 @@ separate them because every host, healthy or not, has quiet stretches. Scope thi
 to the runner fleet: `macos-fleet` and `builders-fleet` hosts sit at a couple of
 hundred B/s legitimately, since they run no cache-using VMs.
 
+### Kura cache read faults
+
+```promql
+sum by (cluster, pod, route) (
+  rate(kura_http_requests_total_total{
+    route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+    status=~"5.."
+  }[5m])
+) > 0.1
+```
+
+- Pending period: 5 minutes
+- Severity: critical
+- Already created: rule `cftoutryd1jwge`, folder `Alerts`, originally scoped to
+  `/api/cache/module/{id}` alone. **The rule lives in Grafana, not in this
+  repo**, so the query above has to be pasted into the rule editor; nothing
+  provisions it from here.
+- Summary: `Kura pod {{ $labels.pod }} is failing requests on
+  {{ $labels.route }} ({{ $labels.cluster }})`
+
+A 5xx on the public cache routes now means one thing: the node could not serve a
+request it should have served. The two survivors are an unreachable auth backend
+(`kura_auth_decisions_total{result="unavailable"}`) and a transfer that failed
+for a reason other than the client going away. Capacity shedding used to land
+here as a 503 and no longer does, which is what makes a fixed low threshold
+meaningful again — before the split, this rule fired on 25,882 sheds in a single
+ten-minute window while the node was healthy and serving 27,418 reads alongside
+them.
+
+One expected 5xx source remains: a draining pod answers public requests with
+`503 server is draining` until it leaves the Service endpoints, so a rolling
+deploy puts a short 5xx blip on this rule. The 5-minute pending period is what
+absorbs it; if a deploy ever trips the rule, lengthen the pending period rather
+than lowering the threshold, since the blip is bounded by the drain timeout
+(`KURA_DRAIN_COMPLETION_TIMEOUT_MS`) and a real fault is not.
+
+Match by exclusion rather than by naming one route: every public cache read
+shares the same serving path, so a fault on the CAS or Gradle route is the same
+event with a different label, and the exclusion form is the one the `tuist-kura`
+dashboard uses for public traffic. There is no `tenant_id` label on
+`kura_http_requests_total` — it comes from a join against `kura_node_info` — so
+group by `pod`, whose name carries the account (`kura-<account>-<region>-<n>`).
+
 ### Runner host PN VLAN missing
 
 ```promql
@@ -1048,6 +1091,59 @@ absent_over_time(
 - Summary: `The public endpoint check stopped producing telemetry`
 
 ## Warning alerts
+
+### Kura shedding cache reads under capacity pressure
+
+```promql
+(
+  sum by (cluster, pod) (
+    rate(kura_http_requests_total_total{
+      route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+      status="429"
+    }[5m])
+  )
+  /
+  clamp_min(
+    sum by (cluster, pod) (
+      rate(kura_http_requests_total_total{
+        route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched"
+      }[5m])
+    ),
+    1
+  )
+) > 0.05
+```
+
+- Pending period: 10 minutes
+- Severity: warning
+- Summary: `Kura pod {{ $labels.pod }} is shedding
+  {{ $value | humanizePercentage }} of cache reads ({{ $labels.cluster }}) — it
+  is out of response-stream capacity, not broken`
+
+Kura answers a read it cannot admit a response stream for with `429` and
+`Retry-After: 1`. Clients retry, so a shed is a slowdown rather than a failure,
+and a short burst is the admission control working. What matters is the share of
+reads being shed and for how long, which is why this is rate-relative: an
+absolute count fires on the busiest tenant first no matter how well they are
+being served, and the same count means very different things at 200 req/s and at
+20,000 req/s.
+
+The threshold is a ratio because the lever is capacity, and the decision it
+feeds is a capacity decision: sustained shedding means the tenant's peak demand
+is above what their node's uplink can deliver, so the fix is egress budget or
+placement, not a restart. Which admission stage refused breaks down as:
+
+```promql
+sum by (pod, outcome) (
+  rate(kura_response_stream_admissions_total_total{
+    outcome=~"timeout|queue_full|degraded_timeout|degraded_memory_unavailable"
+  }[5m])
+)
+```
+
+Note the doubled suffix: the counter is registered as
+`kura_response_stream_admissions_total` and reaches Grafana Cloud as
+`..._total_total`, the same as `kura_http_requests_total_total`.
 
 ### Swift registry release work repeatedly deferred
 
