@@ -35,6 +35,16 @@ kuraController:
   telemetry:
     deploymentEnvironment: staging
 
+# Shared per-node egress HTB tree on the kura bare-metal pools. Both staging
+# boxes advertise tuist.dev/egress-mbps (1000), and the staging regions set
+# egress_burst_mbps, so the controller renders the tuist.dev/egress-class pod
+# annotation the agent consumes. Image pinned by digest from the
+# egress-tree-agent-image workflow (sha-ceb66484ad2f).
+egressTreeAgent:
+  enabled: true
+  image: ghcr.io/tuist/egress-tree-agent@sha256:1228992544e9fd66f6843f07f8a383582df6c399d750a1913157873a0e4652ba
+  nodePools: [kura-dedibox, kura-ca-east]
+
 registry:
   publicHost: registry-staging.tuist.dev
   serverUrl: https://staging.tuist.dev
