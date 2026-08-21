@@ -5509,7 +5509,7 @@ mod tests {
                     request_timeout: Duration::from_millis(50),
                     verifier: Some(crate::auth::tuist::JwtVerifier {
                         algorithm: jsonwebtoken::Algorithm::HS256,
-                        secret: NAMESPACE_POLICY_SECRET.into(),
+                        keys: crate::auth::tuist::JwtVerifier::secret_keys(NAMESPACE_POLICY_SECRET),
                         issuer: None,
                         audiences: Vec::new(),
                     }),

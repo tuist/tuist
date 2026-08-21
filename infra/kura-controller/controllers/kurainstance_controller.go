@@ -2696,9 +2696,9 @@ func preStopLifecycle() *corev1.Lifecycle {
 }
 
 // sharedSecretsEnvFrom mounts the kura-shared-secrets Secret if it
-// exists. The Tuist control plane and operator drop credentials such as
-// KURA_AUTH_JWT_SECRET into this Secret so they
-// stay out of the KuraInstance spec (which is readable by anyone with
+// exists. The Tuist control plane and operator drop authorization material
+// such as KURA_AUTH_JWT_PUBLIC_KEY into this Secret so it
+// stays out of the KuraInstance spec (which is readable by anyone with
 // list/watch on the CR).
 func sharedSecretsEnvFrom() []corev1.EnvFromSource {
 	return []corev1.EnvFromSource{{

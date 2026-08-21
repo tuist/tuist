@@ -538,8 +538,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  # Tuist-platform-wide secrets (JWT verifier, control-plane client
-  # secret) are
+  # Tuist-platform-wide authorization material (cache-token public key,
+  # control-plane client secret) is
   # mounted into the Kura pod from the shared kura-shared-secrets
   # Secret in the kura namespace, not embedded in the KuraInstance
   # spec. Anyone with list/watch on kurainstances can read its spec, so
