@@ -166,6 +166,7 @@ defmodule Tuist.Runners.Allowance do
         ),
       days: Enum.reject(days, &(&1.minutes == 0 and &1.gross == Money.new(0, :USD))),
       by_repository: RunnerBilling.compute_milliseconds_per_repository(account_id, period_start, usage_end),
+      projected_days: projected_days(total_ms, period_start, period_end, usage_end),
       on_trial: on_trial,
       platforms:
         account_id
@@ -205,6 +206,34 @@ defmodule Tuist.Runners.Allowance do
         billed: platform_cost(platform, billable_milliseconds(platform, ms, total_ms))
       }
     end)
+  end
+
+  # What each remaining day of an open period would cost if it ran at
+  # the rate of the days already in it. Averaged per elapsed day rather
+  # than extrapolated from elapsed seconds: on the first day of a period
+  # the second-based rate is dominated by the hour that has passed, which
+  # produces a figure nobody would recognise.
+  defp projected_days(total_ms, period_start, period_end, usage_end) do
+    days_elapsed = max(Date.diff(DateTime.to_date(usage_end), DateTime.to_date(period_start)) + 1, 1)
+    daily_ms = div(total_ms, days_elapsed)
+
+    first_remaining = usage_end |> DateTime.to_date() |> Date.add(1)
+    last = period_end |> DateTime.to_date() |> Date.add(-1)
+
+    elapsed = max(DateTime.diff(usage_end, period_start, :second), 1)
+    total = max(DateTime.diff(period_end, period_start, :second), elapsed)
+    too_early = elapsed * 100 < total * @projection_minimum_elapsed_percent
+
+    # Same bar the textual projection sets: on the first day of a period
+    # the daily rate is one day's spend, and repeating it across the
+    # month draws a forecast out of a single data point.
+    if too_early or Date.after?(first_remaining, last) or total_ms == 0 do
+      []
+    else
+      first_remaining
+      |> Date.range(last)
+      |> Enum.map(&%{date: &1, total_ms: daily_ms})
+    end
   end
 
   defp zero_billed_on_trial(rows, false), do: rows

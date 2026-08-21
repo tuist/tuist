@@ -81,7 +81,12 @@
               |> Enum.sort(Date)
             )
           }
-          series={TuistWeb.UsageLive.runner_chart_series(@runner_breakdown.by_repository)}
+          series={
+            TuistWeb.UsageLive.runner_chart_series(
+              @runner_breakdown.by_repository,
+              @runner_breakdown.projected_days
+            )
+          }
           y_axis_min={0}
         />
       </div>

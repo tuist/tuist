@@ -17,7 +17,6 @@ defmodule TuistWeb.UsageLive do
   alias TuistWeb.CldrHelpers
   alias TuistWeb.Utilities.Query
 
-  @hourly_bucket_max_hours 36
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
@@ -238,10 +237,17 @@ defmodule TuistWeb.UsageLive do
   """
   def runner_chart_options(dates) do
     %{
+      # Repositories are named in the tooltip; a legend repeats them and
+      # steals height from a chart that is only 280px tall.
+      legend: %{show: false},
       # `containLabel` lets the grid reserve whatever the axis labels
       # need. Currency labels are wider than the byte labels the traffic
       # chart uses, and a fixed left inset clipped the leading symbol.
-      grid: %{left: 4, right: 8, top: 12, bottom: 4, containLabel: true},
+      # `containLabel` reserves room for the labels themselves; the
+      # insets are the breathing space around them, without which the
+      # leading currency symbol and the outermost dates sit flush
+      # against the edge and get clipped.
+      grid: %{left: 12, right: 16, top: 16, bottom: 12, containLabel: true},
       xAxis: %{
         boundaryGap: false,
         type: "category",
@@ -249,7 +255,7 @@ defmodule TuistWeb.UsageLive do
           color: "var:noora-surface-label-secondary",
           formatter: "fn:toLocaleDate",
           customValues: [List.first(dates), List.last(dates)],
-          padding: [10, 0, 0, 0]
+          padding: [6, 0, 0, 0]
         }
       },
       yAxis: %{
@@ -261,7 +267,7 @@ defmodule TuistWeb.UsageLive do
     }
   end
 
-  @repository_colors ["primary", "secondary", "tertiary", "quaternary", "p50", "p90", "p99", "warning"]
+  @repository_colors ["primary", "secondary", "tertiary", "quaternary", "p50", "p90", "p99"]
 
   @doc """
   One stacked bar series per repository, valued in dollars.
@@ -271,8 +277,12 @@ defmodule TuistWeb.UsageLive do
   and each segment has to be comparable against the others in the same
   day.
   """
-  def runner_chart_series(by_repository) do
-    dates = by_repository |> Enum.map(& &1.date) |> Enum.uniq() |> Enum.sort(Date)
+  def runner_chart_series(by_repository, projected_days \\ []) do
+    dates =
+      (by_repository ++ projected_days)
+      |> Enum.map(& &1.date)
+      |> Enum.uniq()
+      |> Enum.sort(Date)
 
     by_repository
     |> Enum.group_by(& &1.repository)
@@ -289,6 +299,26 @@ defmodule TuistWeb.UsageLive do
         stack: "spend"
       }
     end)
+    |> Kernel.++(projected_series(projected_days, dates))
+  end
+
+  # Days the period has not reached yet, at the rate it has run so far.
+  # Its own muted series rather than another repository, because it is a
+  # forecast and should not read as spend that happened.
+  defp projected_series([], _dates), do: []
+
+  defp projected_series(projected_days, dates) do
+    per_day = Map.new(projected_days, &{&1.date, &1.total_ms})
+
+    [
+      %{
+        color: "var:noora-chart-lines",
+        data: Enum.map(dates, fn date -> [date, dollars(Map.get(per_day, date, 0))] end),
+        name: dgettext("dashboard_usage", "Projected"),
+        type: "bar",
+        stack: "spend"
+      }
+    ]
   end
 
   def repository_label(nil), do: dgettext("dashboard_usage", "Unknown")
