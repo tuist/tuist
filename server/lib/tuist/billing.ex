@@ -541,10 +541,9 @@ defmodule Tuist.Billing do
   account with no active subscription — that account picks the items up
   from `get_subscription_items/2` whenever it next gets one.
 
-  Ending a trial mid-period may make that period's earlier usage
-  billable, depending on how Stripe attributes meter events recorded
-  before the item existed. Until that is confirmed, prefer ending a
-  trial at a period boundary.
+  Whether ending a trial mid-period makes that period's earlier usage
+  billable depends on the subscription's `billing_mode`. See
+  `Tuist.Runners.Trials`, and prefer a period boundary.
   """
   def sync_runner_subscription_items(%Account{} = account) do
     case get_current_active_subscription(account) do

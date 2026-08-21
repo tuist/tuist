@@ -26,10 +26,20 @@ defmodule Tuist.Runners.Trials do
   An account with no subscription simply has the trial cleared; it will
   pick the items up whenever it next gets one.
 
-  Whether Stripe bills meter events recorded *before* the item was added
-  is not something we have confirmed. Until it is, treat ending a trial
-  mid-period as capable of billing that period's earlier usage, and
-  prefer ending one at a period boundary.
+  What happens to usage already metered earlier in the period depends on
+  the subscription's `billing_mode`, which we never set, so it is
+  whatever each subscription was created with and can differ per
+  account. On `classic`, adding a meter-priced item mid-cycle bills only
+  the usage recorded from the date the item was added, so the backlog is
+  not charged. On `flexible`, Stripe prices usage at whatever price was
+  in effect when the usage happened, and the documentation covers
+  changing an item's price rather than adding an item that did not exist,
+  so it does not say what happens when no price was in effect at all.
+
+  Read the account's `billing_mode` before ending a trial mid-period.
+  Ending one at a period boundary avoids the question entirely.
+
+  https://docs.stripe.com/billing/subscriptions/usage-based/manage-billing-setup
   """
 
   import Ecto.Query
