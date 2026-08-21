@@ -39,10 +39,10 @@ kuraController:
 # boxes advertise tuist.dev/egress-mbps (1000), and the staging regions set
 # egress_burst_mbps, so the controller renders the tuist.dev/egress-class pod
 # annotation the agent consumes. Image pinned by digest from the
-# egress-tree-agent-image workflow (sha-ceb66484ad2f).
+# egress-tree-agent-image workflow (sha-886e9191ccc8).
 egressTreeAgent:
   enabled: true
-  image: ghcr.io/tuist/egress-tree-agent@sha256:1228992544e9fd66f6843f07f8a383582df6c399d750a1913157873a0e4652ba
+  image: ghcr.io/tuist/egress-tree-agent@sha256:0af37e3c10d6135f1c55c2f53b06af9f8ca2bb0cb3d9f2dea15b3705b974d525
   nodePools: [kura-dedibox, kura-ca-east]
 
 registry:
