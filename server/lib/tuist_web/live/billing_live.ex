@@ -196,14 +196,20 @@ defmodule TuistWeb.BillingLive do
   end
 
   @doc """
-  What the prepaid balance is for and when it lapses, since a balance
-  with no expiry reads as though it never does.
-  """
-  def prepaid_credit_description(%{expires_at: nil}), do: dgettext("dashboard_account", "Drawn down by runner usage.")
+  What the prepaid purchase covers and when it lapses.
 
-  def prepaid_credit_description(%{expires_at: expires_at}),
+  Reports what remains against what was bought, because the headline
+  figure is the purchase and does not move as it is spent. A balance
+  with no expiry reads as though it never has one, so the date is
+  always stated when there is one.
+  """
+  def prepaid_credit_description(%{available: available, expires_at: nil}),
+    do: dgettext("dashboard_account", "%{amount} left. Drawn down by runner usage.", amount: format_money(available))
+
+  def prepaid_credit_description(%{available: available, expires_at: expires_at}),
     do:
-      dgettext("dashboard_account", "Drawn down by runner usage. Expires %{date}.",
+      dgettext("dashboard_account", "%{amount} left. Drawn down by runner usage, expires %{date}.",
+        amount: format_money(available),
         date: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")
       )
 

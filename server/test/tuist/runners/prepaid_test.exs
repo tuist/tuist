@@ -430,4 +430,35 @@ defmodule Tuist.Runners.PrepaidTest do
       assert Prepaid.balance(%Account{customer_id: nil}) == nil
     end
   end
+
+  describe "balance/2 purchased total" do
+    test "reports what was bought as well as what is left" do
+      # Unique per run: the balance is cached by customer id, so a fixed
+      # one would be answered from a previous test's entry.
+      customer_id = "cus_granted_#{System.unique_integer([:positive])}"
+      account = %Account{customer_id: customer_id}
+
+      stub(CreditGrants, :list_for_customer, fn ^customer_id ->
+        {:ok,
+         [
+           %{
+             id: "credgr_1",
+             metadata: %{"tuist_runner_credit" => "prepaid"},
+             amount: %{monetary: %{currency: "usd", value: 75_000}},
+             expires_at: nil
+           }
+         ]}
+      end)
+
+      # Half spent: the balance moves, the purchase does not.
+      stub(CreditGrants, :available_balance_cents, fn ^customer_id, "credgr_1" -> {:ok, 37_500} end)
+
+      balance = Prepaid.balance(account)
+
+      assert balance.available == Money.new(37_500, :USD)
+      assert balance.granted == Money.new(75_000, :USD)
+      # $750 of credit buys 10,000 minutes at the $0.075 standard rate.
+      assert balance.granted_minutes == 10_000
+    end
+  end
 end

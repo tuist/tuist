@@ -69,8 +69,8 @@
         </.progress_bar>
         <div :if={@prepaid_runner_credit} data-part="prepaid-credit">
           <div data-part="amount">
-            <span data-part="label">{dgettext("dashboard_account", "Prepaid credit:")}</span>
-            <span data-part="value">{format_money(@prepaid_runner_credit.available)}</span>
+            <span data-part="label">{dgettext("dashboard_account", "Prepaid minutes:")}</span>
+            <span data-part="value">{@prepaid_runner_credit.granted_minutes}</span>
           </div>
           <span data-part="description">
             {prepaid_credit_description(@prepaid_runner_credit)}

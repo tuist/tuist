@@ -372,7 +372,10 @@ defmodule Tuist.Runners.Prepaid do
   def balance(account, opts \\ [])
 
   def balance(%Account{customer_id: customer_id}, opts) when is_binary(customer_id) do
-    cache_key = [:runner_prepaid_balance, customer_id]
+    # Versioned: the cached value is a map this module shapes, so a
+    # deploy that changes that shape would otherwise serve stale entries
+    # to new code until the TTL lapsed. Bump on any shape change.
+    cache_key = [:runner_prepaid_balance, :v2, customer_id]
 
     case KeyValueStore.get(cache_key, opts) do
       nil ->
@@ -433,11 +436,30 @@ defmodule Tuist.Runners.Prepaid do
       end)
       |> Enum.sort_by(&expiry_sort_key(&1.expires_at))
 
+    granted = funded |> Enum.map(fn {grant, _cents} -> grant_amount_cents(grant) end) |> Enum.sum()
+
     %{
       available: Money.new(total, currency),
+      # What was bought, which does not move as it is spent. The balance
+      # answers "what is left"; this answers "what was purchased", and a
+      # reader checking their entitlement wants the second.
+      granted: Money.new(granted, currency),
+      granted_minutes: minutes_for(granted),
       expires_at: grants |> Enum.map(& &1.expires_at) |> Enum.reject(&is_nil/1) |> Enum.min(DateTime, fn -> nil end),
       grants: grants
     }
+  end
+
+  # Credit is spent at the gross on-demand rate, so that rate is what
+  # turns an amount of money into the minutes it buys on the baseline
+  # machine.
+  defp minutes_for(cents), do: div(cents * 10, @macos_on_demand_rate)
+
+  defp grant_amount_cents(grant) do
+    grant
+    |> Map.get(:amount, %{})
+    |> Map.get(:monetary, %{})
+    |> Map.get(:value, 0)
   end
 
   # Only grants this module created, and only ones that can still pay

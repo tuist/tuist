@@ -227,10 +227,12 @@ defmodule TuistWeb.BillingLiveTest do
       refute render(lv) =~ "Prepaid credit:"
     end
 
-    test "shows the balance and when it lapses, in the usage details", %{conn: conn, account: account} do
+    test "shows the purchased minutes, with what is left as detail", %{conn: conn, account: account} do
       stub(Prepaid, :balance, fn _account ->
         %{
-          available: Money.new(650_000, :USD),
+          available: Money.new(300_000, :USD),
+          granted: Money.new(750_000, :USD),
+          granted_minutes: 100_000,
           expires_at: ~U[2026-09-01 00:00:00Z],
           grants: []
         }
@@ -239,10 +241,11 @@ defmodule TuistWeb.BillingLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       html = render(lv)
-      # The balance sits beside the metered resources it pays for rather
-      # than in a card of its own.
-      assert html =~ "Prepaid credit:"
-      assert html =~ "6500.00"
+      # The headline is what was bought, so it holds still as credit is
+      # spent; what is left is the detail beneath it.
+      assert html =~ "Prepaid minutes:"
+      assert html =~ "100000"
+      assert html =~ "3000.00"
       assert html =~ "September 1, 2026"
     end
   end
