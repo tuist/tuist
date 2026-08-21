@@ -17,6 +17,10 @@ name: TEMP Kura quota hook validation
 # the bytes that actually ship.
 
 on:
+  # Branch-scoped push, because workflow_dispatch only resolves workflows that
+  # already exist on the default branch. Goes away with the rest of this file.
+  push:
+    branches: [claude/kura-per-account-storage-quotas]
   workflow_dispatch: {}
 
 jobs:
