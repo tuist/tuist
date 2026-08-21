@@ -287,9 +287,16 @@ func (a *Agent) logPodChange(key, device string, attachment PodAttachment, reatt
 			"classid", ClassIDString(attachment.Minor), "siblings", attachment.SiblingIPs)
 	case old.Minor != current.Minor || !slices.Equal(old.Siblings, current.Siblings):
 		added, removed := diffStrings(old.Siblings, current.Siblings)
-		a.Log.Info("updated pod shaping", "pod", key, "device", device,
-			"old_classid", ClassIDString(old.Minor), "classid", ClassIDString(attachment.Minor),
-			"siblings_added", added, "siblings_removed", removed)
+		attrs := []any{"pod", key, "device", device,
+			"classid", ClassIDString(attachment.Minor),
+			"siblings_added", added, "siblings_removed", removed}
+		// old_classid appears only on an actual renumbering, so its
+		// presence in the stream is itself the alarming signal; a routine
+		// sibling update stays free of it.
+		if old.Minor != current.Minor {
+			attrs = append(attrs, "old_classid", ClassIDString(old.Minor))
+		}
+		a.Log.Info("updated pod shaping", attrs...)
 	default:
 		return
 	}
