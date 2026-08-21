@@ -189,7 +189,8 @@ mod tests {
     use super::*;
 
     fn make_jwt(payload_json: &str) -> String {
-        let header = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b"{\"alg\":\"none\"}");
+        let header =
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b"{\"alg\":\"none\"}");
         let payload =
             base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload_json.as_bytes());
         format!("{header}.{payload}.")

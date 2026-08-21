@@ -176,10 +176,10 @@ pub(crate) fn hex(bytes: &[u8]) -> String {
     s
 }
 
-/// kura marks a refusal that the caller can act on, rather than one that is
+/// kura marks a refusal the caller can act on, rather than one that is
 /// transient, with this metadata. gRPC has no payment-required code, so the
-/// status itself is an ordinary permission denial and the reason has to travel
-/// beside it.
+/// status itself is an ordinary permission denial and the reason travels beside
+/// it.
 const REFUSAL_REASON_KEY: &str = "tuist-refusal-reason";
 const REFUSAL_REASON_PAYMENT_REQUIRED: &str = "payment_required";
 
@@ -196,8 +196,7 @@ fn is_payment_required(status: &tonic::Status) -> bool {
 /// Reported once for the life of the process, which is one build: the lookup it
 /// answers runs per compilation, so saying this per lookup would bury it. The
 /// caller still treats the refusal as a miss, so the build finishes uncached
-/// rather than failing, which is why this is the only place the reason is
-/// visible at all.
+/// rather than failing.
 fn note_payment_required(status: &tonic::Status) {
     if !is_payment_required(status) {
         return;
@@ -680,9 +679,9 @@ impl Remote {
                 .filter(|contents| !contents.is_empty())),
             Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
             Err(status) => {
-                note_payment_required(&status);
-                Err(format!("get_snapshot: {status}"))
-            }
+                    note_payment_required(&status);
+                    Err(format!("get_snapshot: {status}"))
+                }
         }
     }
 
@@ -699,10 +698,12 @@ impl Remote {
         blobs: &[reapi::Digest],
     ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
         let started = Instant::now();
-        let result =
-            batch_read_retrying(&self.pressure_backoff_until_ms, blobs, false, |pending| {
-                self.batch_read_once(pending)
-            });
+        let result = batch_read_retrying(
+            &self.pressure_backoff_until_ms,
+            blobs,
+            false,
+            |pending| self.batch_read_once(pending),
+        );
         self.get_stats.record(started.elapsed());
         result
     }
@@ -716,9 +717,12 @@ impl Remote {
         blobs: &[reapi::Digest],
     ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
         let started = Instant::now();
-        let result = batch_read_retrying(&self.pressure_backoff_until_ms, blobs, true, |pending| {
-            self.batch_read_once(pending)
-        });
+        let result = batch_read_retrying(
+            &self.pressure_backoff_until_ms,
+            blobs,
+            true,
+            |pending| self.batch_read_once(pending),
+        );
         self.get_stats.record(started.elapsed());
         result
     }
@@ -776,11 +780,7 @@ impl Remote {
                 // The loop owns each response; move the bytes out rather than
                 // deep-copying every fetched blob (batches run to 32MB while
                 // the requesting compiler blocks on the resolve).
-                let code = response
-                    .status
-                    .as_ref()
-                    .map(|status| status.code)
-                    .unwrap_or(-1);
+                let code = response.status.as_ref().map(|status| status.code).unwrap_or(-1);
                 (response.digest, code, response.data)
             })
             .collect())
@@ -996,12 +996,8 @@ mod tests {
     // access, must not be reported as a billing problem.
     #[test]
     fn does_not_mistake_an_ordinary_refusal_for_an_exhausted_plan() {
-        assert!(!super::is_payment_required(
-            &tonic::Status::permission_denied("nope")
-        ));
-        assert!(!super::is_payment_required(&tonic::Status::unavailable(
-            "node down"
-        )));
+        assert!(!super::is_payment_required(&tonic::Status::permission_denied("nope")));
+        assert!(!super::is_payment_required(&tonic::Status::unavailable("node down")));
     }
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -1088,10 +1084,7 @@ mod tests {
         // Before this fix that first decline was dropped as a miss and the
         // build failed on the (present) object.
         let breaker = AtomicU64::new(0);
-        let digest = super::Digest {
-            hash: "aa".into(),
-            size_bytes: 3,
-        };
+        let digest = super::Digest { hash: "aa".into(), size_bytes: 3 };
         let mut round = 0;
         let served =
             super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), false, |pending| {
@@ -1103,26 +1096,15 @@ mod tests {
                 }
             })
             .unwrap();
-        assert_eq!(
-            served.get("aa"),
-            Some(&vec![1, 2, 3]),
-            "the retry delivered the byte"
-        );
+        assert_eq!(served.get("aa"), Some(&vec![1, 2, 3]), "the retry delivered the byte");
         assert_eq!(round, 2, "it took exactly one retry");
-        assert_eq!(
-            breaker.load(Ordering::Relaxed),
-            0,
-            "a recovery does not arm the backoff"
-        );
+        assert_eq!(breaker.load(Ordering::Relaxed), 0, "a recovery does not arm the backoff");
     }
 
     #[test]
     fn persistent_backpressure_arms_the_backoff_then_fails_fast() {
         let breaker = AtomicU64::new(0);
-        let digest = super::Digest {
-            hash: "bb".into(),
-            size_bytes: 1,
-        };
+        let digest = super::Digest { hash: "bb".into(), size_bytes: 1 };
 
         let mut first_calls = 0;
         let served =
@@ -1132,67 +1114,45 @@ mod tests {
             })
             .unwrap();
         assert!(served.is_empty(), "a declined blob is never served");
-        assert_eq!(
-            first_calls,
-            super::BLOB_STATUS_ATTEMPTS,
-            "the first read exhausts its retries"
-        );
-        assert!(
-            breaker.load(Ordering::Relaxed) > 0,
-            "a sustained decline arms the backoff"
-        );
+        assert_eq!(first_calls, super::BLOB_STATUS_ATTEMPTS, "the first read exhausts its retries");
+        assert!(breaker.load(Ordering::Relaxed) > 0, "a sustained decline arms the backoff");
 
         let mut second_calls = 0;
-        let _ =
-            super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), false, |pending| {
-                second_calls += 1;
-                exhausted(pending)
-            })
-            .unwrap();
-        assert_eq!(
-            second_calls, 1,
-            "within the backoff window the next read makes one fail-fast pass"
-        );
+        let _ = super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), false, |pending| {
+            second_calls += 1;
+            exhausted(pending)
+        })
+        .unwrap();
+        assert_eq!(second_calls, 1, "within the backoff window the next read makes one fail-fast pass");
     }
 
     #[test]
     fn not_found_is_skipped_without_retry_or_backoff() {
         let breaker = AtomicU64::new(0);
-        let digest = super::Digest {
-            hash: "cc".into(),
-            size_bytes: 1,
-        };
+        let digest = super::Digest { hash: "cc".into(), size_bytes: 1 };
         let mut calls = 0;
         let served =
             super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), false, |pending| {
                 calls += 1;
-                Ok(vec![(
-                    Some(pending[0].clone()),
-                    tonic::Code::NotFound as i32,
-                    Vec::new(),
-                )])
+                Ok(vec![(Some(pending[0].clone()), tonic::Code::NotFound as i32, Vec::new())])
             })
             .unwrap();
         assert!(served.is_empty(), "an evicted blob is not served");
         assert_eq!(calls, 1, "a genuine miss is not retried");
-        assert_eq!(
-            breaker.load(Ordering::Relaxed),
-            0,
-            "a miss does not arm the backoff"
-        );
+        assert_eq!(breaker.load(Ordering::Relaxed), 0, "a miss does not arm the backoff");
     }
 
     #[test]
     fn action_result_materialization_retries_a_transient_not_found_without_backoff() {
         let breaker = AtomicU64::new(0);
-        let digest = super::Digest {
-            hash: "dd".into(),
-            size_bytes: 1,
-        };
+        let digest = super::Digest { hash: "dd".into(), size_bytes: 1 };
         let mut calls = 0;
 
-        let served =
-            super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), true, |pending| {
+        let served = super::batch_read_retrying(
+            &breaker,
+            std::slice::from_ref(&digest),
+            true,
+            |pending| {
                 calls += 1;
                 if calls == 1 {
                     Ok(vec![(
@@ -1203,8 +1163,9 @@ mod tests {
                 } else {
                     Ok(vec![(Some(pending[0].clone()), 0, vec![1])])
                 }
-            })
-            .unwrap();
+            },
+        )
+        .unwrap();
 
         assert_eq!(served.get("dd"), Some(&vec![1]));
         assert_eq!(calls, 2);
@@ -1220,14 +1181,8 @@ mod tests {
         // only a decline of the *whole* set (nothing served) counts as pressure.
         let breaker = AtomicU64::new(0);
         let pending = [
-            super::Digest {
-                hash: "aa".into(),
-                size_bytes: 3,
-            },
-            super::Digest {
-                hash: "bb".into(),
-                size_bytes: 1,
-            },
+            super::Digest { hash: "aa".into(), size_bytes: 3 },
+            super::Digest { hash: "bb".into(), size_bytes: 1 },
         ];
         let mut calls = 0;
         let served = super::batch_read_retrying(&breaker, &pending, false, |pending| {
@@ -1238,30 +1193,15 @@ mod tests {
                     if digest.hash == "aa" {
                         (Some(digest.clone()), 0, vec![1, 2, 3])
                     } else {
-                        (
-                            Some(digest.clone()),
-                            tonic::Code::ResourceExhausted as i32,
-                            Vec::new(),
-                        )
+                        (Some(digest.clone()), tonic::Code::ResourceExhausted as i32, Vec::new())
                     }
                 })
                 .collect())
         })
         .unwrap();
-        assert_eq!(
-            served.get("aa"),
-            Some(&vec![1, 2, 3]),
-            "the served blob is delivered"
-        );
-        assert!(
-            !served.contains_key("bb"),
-            "the declined blob falls through to recompile"
-        );
-        assert_eq!(
-            calls,
-            super::BLOB_STATUS_ATTEMPTS,
-            "the declined subset is still retried"
-        );
+        assert_eq!(served.get("aa"), Some(&vec![1, 2, 3]), "the served blob is delivered");
+        assert!(!served.contains_key("bb"), "the declined blob falls through to recompile");
+        assert_eq!(calls, super::BLOB_STATUS_ATTEMPTS, "the declined subset is still retried");
         assert_eq!(
             breaker.load(Ordering::Relaxed),
             0,

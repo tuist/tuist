@@ -39,9 +39,7 @@ use tuist_cas_plugin::upstream_path;
 /// only place that can notice before the compiler does.
 #[test]
 fn an_unbacked_local_hit_is_not_served_to_the_caller() {
-    let Some(env) = Fixture::new("unbacked-sync") else {
-        return;
-    };
+    let Some(env) = Fixture::new("unbacked-sync") else { return };
     let (key, absent_value) = env.seed_unbacked_association();
 
     // Precondition: this is genuinely a local hit over an absent root.
@@ -74,9 +72,7 @@ fn an_unbacked_local_hit_is_not_served_to_the_caller() {
 /// that the value really is unloadable, and that the caller is never given it.
 #[test]
 fn the_caller_never_receives_an_id_that_cannot_be_loaded() {
-    let Some(env) = Fixture::new("end-to-end") else {
-        return;
-    };
+    let Some(env) = Fixture::new("end-to-end") else { return };
     let (key, absent_value) = env.seed_unbacked_association();
     env.proxy.answer_resolve_with_miss();
 
@@ -102,14 +98,10 @@ fn the_caller_never_receives_an_id_that_cannot_be_loaded() {
 /// and still fails at load time, on the child.
 #[test]
 fn a_present_root_with_a_missing_child_still_passes_the_guard() {
-    let Some(env) = Fixture::new("deep-node") else {
-        return;
-    };
+    let Some(env) = Fixture::new("deep-node") else { return };
     let absent_child = env.absent_value_digest();
     let child_id = env.cas.objectid_for(&absent_child);
-    let root = env
-        .cas
-        .store_object_with_refs(b"a root whose child was never stored", &[child_id]);
+    let root = env.cas.store_object_with_refs(b"a root whose child was never stored", &[child_id]);
     let key = env.cas.key_digest(b"deep-node");
     env.cas.actioncache_put(&key, root).expect("seeding put");
     env.proxy.answer_resolve_with_miss();
@@ -121,11 +113,7 @@ fn a_present_root_with_a_missing_child_still_passes_the_guard() {
         "the root is present, so the guard passes it -- verifying the whole graph \
          would put a walk on the serial task-setup path"
     );
-    assert_eq!(
-        env.cas.load(served),
-        LLCAS_LOOKUP_RESULT_SUCCESS,
-        "and the root loads"
-    );
+    assert_eq!(env.cas.load(served), LLCAS_LOOKUP_RESULT_SUCCESS, "and the root loads");
     assert_eq!(
         env.cas.load(child_id),
         LLCAS_LOOKUP_RESULT_NOTFOUND,
@@ -140,9 +128,7 @@ fn a_present_root_with_a_missing_child_still_passes_the_guard() {
 /// promise is broken and the load fails. The guard does not cover this.
 #[test]
 fn a_remote_hit_whose_blobs_are_gone_is_served_and_fails_at_load() {
-    let Some(env) = Fixture::new("remote-no-blobs") else {
-        return;
-    };
+    let Some(env) = Fixture::new("remote-no-blobs") else { return };
     let key = env.cas.key_digest(b"remote-no-blobs");
     let never_stored = env.absent_value_digest();
     env.proxy.answer_resolve_with_hit(&never_stored);
@@ -171,24 +157,19 @@ fn a_remote_hit_whose_blobs_are_gone_is_served_and_fails_at_load() {
 /// So the association is recorded only once the root is actually present.
 #[test]
 fn a_resolve_hit_whose_graph_never_arrived_records_no_association() {
-    let Some(env) = Fixture::new("write-through-ordering") else {
-        return;
-    };
+    let Some(env) = Fixture::new("write-through-ordering") else { return };
     let key = env.cas.key_digest(b"write-through-ordering");
     let never_materialized = env.absent_value_digest();
     env.proxy.answer_resolve_with_hit(&never_materialized);
 
     let (first, _) = env.cas.actioncache_get(&key);
     assert_eq!(
-        first, LLCAS_LOOKUP_RESULT_SUCCESS,
+        first,
+        LLCAS_LOOKUP_RESULT_SUCCESS,
         "the resolved value is still served -- a remote hit arrives with fetch \
          instructions for its whole graph, so the load path can produce it"
     );
-    assert_eq!(
-        env.proxy.resolves_for(&key),
-        1,
-        "the first get reaches the remote"
-    );
+    assert_eq!(env.proxy.resolves_for(&key), 1, "the first get reaches the remote");
 
     // This proxy materialises nothing, so the graph never arrived.
     let value_id = env.cas.objectid_for(&never_materialized);
@@ -212,7 +193,8 @@ fn a_resolve_hit_whose_graph_never_arrived_records_no_association() {
 
     let (second, _) = env.cas.actioncache_get(&key);
     assert_eq!(
-        second, LLCAS_LOOKUP_RESULT_NOTFOUND,
+        second,
+        LLCAS_LOOKUP_RESULT_NOTFOUND,
         "no association was written, so the key falls through to the remote"
     );
     assert_eq!(
@@ -228,28 +210,22 @@ fn a_resolve_hit_whose_graph_never_arrived_records_no_association() {
 /// the association is recorded and answers later gets with no round trip.
 #[test]
 fn a_resolve_hit_whose_graph_is_present_is_recorded() {
-    let Some(env) = Fixture::new("write-through-present") else {
-        return;
-    };
+    let Some(env) = Fixture::new("write-through-present") else { return };
     let key = env.cas.key_digest(b"write-through-present");
     // Already materialised locally, which is what the probe checks for.
-    let materialized = env
-        .cas
-        .digest_of(env.cas.store_object(b"a graph that landed"));
+    let materialized = env.cas.digest_of(env.cas.store_object(b"a graph that landed"));
     env.proxy.answer_resolve_with_hit(&materialized);
 
     let (first, _) = env.cas.actioncache_get(&key);
-    assert_eq!(
-        first, LLCAS_LOOKUP_RESULT_SUCCESS,
-        "the remote hit is served"
-    );
+    assert_eq!(first, LLCAS_LOOKUP_RESULT_SUCCESS, "the remote hit is served");
     assert_eq!(env.proxy.resolves_for(&key), 1);
 
     env.proxy.answer_resolve_with_miss();
     let (second, served) = env.cas.actioncache_get(&key);
 
     assert_eq!(
-        second, LLCAS_LOOKUP_RESULT_SUCCESS,
+        second,
+        LLCAS_LOOKUP_RESULT_SUCCESS,
         "the association recorded during the first get answers this one"
     );
     assert_eq!(
@@ -266,9 +242,7 @@ fn a_resolve_hit_whose_graph_is_present_is_recorded() {
 /// the build system actually drives still broken.
 #[test]
 fn an_unbacked_local_hit_is_not_served_to_the_caller_asynchronously() {
-    let Some(env) = Fixture::new("unbacked-async") else {
-        return;
-    };
+    let Some(env) = Fixture::new("unbacked-async") else { return };
     let (key, _) = env.seed_unbacked_association();
 
     env.proxy.answer_resolve_with_miss();
@@ -279,11 +253,7 @@ fn an_unbacked_local_hit_is_not_served_to_the_caller_asynchronously() {
         "the async get must apply the same verification as the sync get"
     );
     assert_eq!(calls, 1, "the callback must fire exactly once");
-    assert_eq!(
-        env.proxy.resolves_for(&key),
-        1,
-        "and fall through to the remote"
-    );
+    assert_eq!(env.proxy.resolves_for(&key), 1, "and fall through to the remote");
 }
 
 /// The async lane verifies the hit in its own fast path and then falls through to
@@ -292,9 +262,7 @@ fn an_unbacked_local_hit_is_not_served_to_the_caller_asynchronously() {
 /// system drives, which would make the operational signal read 2x high.
 #[test]
 fn an_unbacked_local_hit_is_detected_once_per_get() {
-    let Some(env) = Fixture::new("detected-once") else {
-        return;
-    };
+    let Some(env) = Fixture::new("detected-once") else { return };
     let (key, _) = env.seed_unbacked_association();
     env.proxy.answer_resolve_with_miss();
 
@@ -303,24 +271,15 @@ fn an_unbacked_local_hit_is_detected_once_per_get() {
     let lines = log.lines_containing("unbacked local hit");
 
     assert_eq!(result, LLCAS_LOOKUP_RESULT_NOTFOUND);
-    assert_eq!(
-        lines, 1,
-        "the condition must be reported once per get, not once per layer"
-    );
-    assert_eq!(
-        env.proxy.resolves_for(&key),
-        1,
-        "and cost one resolve, not two"
-    );
+    assert_eq!(lines, 1, "the condition must be reported once per get, not once per layer");
+    assert_eq!(env.proxy.resolves_for(&key), 1, "and cost one resolve, not two");
 }
 
 /// The regression that would cost the most: the guard must not turn ordinary
 /// warm hits into misses.
 #[test]
 fn a_backed_local_hit_is_still_served_without_consulting_the_remote() {
-    let Some(env) = Fixture::new("backed-sync") else {
-        return;
-    };
+    let Some(env) = Fixture::new("backed-sync") else { return };
     let key = env.cas.key_digest(b"backed-key");
     let value = env.cas.store_object(b"a value that is really here");
     env.cas.actioncache_put(&key, value).expect("seeding put");
@@ -342,9 +301,7 @@ fn a_backed_local_hit_is_still_served_without_consulting_the_remote() {
 
 #[test]
 fn a_backed_local_hit_is_still_served_asynchronously() {
-    let Some(env) = Fixture::new("backed-async") else {
-        return;
-    };
+    let Some(env) = Fixture::new("backed-async") else { return };
     let key = env.cas.key_digest(b"backed-key-async");
     let value = env.cas.store_object(b"a value that is really here, twice");
     env.cas.actioncache_put(&key, value).expect("seeding put");
@@ -360,15 +317,11 @@ fn a_backed_local_hit_is_still_served_asynchronously() {
 /// probe -- so the guard must not depend on the caller supplying the slot.
 #[test]
 fn a_null_out_parameter_is_handled_on_both_verdicts() {
-    let Some(env) = Fixture::new("null-out") else {
-        return;
-    };
+    let Some(env) = Fixture::new("null-out") else { return };
 
     let backed_key = env.cas.key_digest(b"null-out-backed");
     let value = env.cas.store_object(b"present value");
-    env.cas
-        .actioncache_put(&backed_key, value)
-        .expect("seeding put");
+    env.cas.actioncache_put(&backed_key, value).expect("seeding put");
     assert_eq!(
         env.cas.actioncache_get_without_out_param(&backed_key),
         LLCAS_LOOKUP_RESULT_SUCCESS
@@ -386,9 +339,7 @@ fn a_null_out_parameter_is_handled_on_both_verdicts() {
 /// LOCAL graph is gone, and a healthy remote answers yes to a global probe.
 #[test]
 fn a_global_lookup_still_verifies_locally() {
-    let Some(env) = Fixture::new("globally") else {
-        return;
-    };
+    let Some(env) = Fixture::new("globally") else { return };
     let (key, _) = env.seed_unbacked_association();
 
     env.proxy.answer_resolve_with_miss();
@@ -402,9 +353,7 @@ fn a_global_lookup_still_verifies_locally() {
 /// every test above.
 #[test]
 fn a_put_for_a_never_stored_value_succeeds_and_leaves_the_root_absent() {
-    let Some(env) = Fixture::new("preconditions") else {
-        return;
-    };
+    let Some(env) = Fixture::new("preconditions") else { return };
     let absent = env.absent_value_digest();
 
     let id = env.cas.objectid_for(&absent);
@@ -428,17 +377,11 @@ fn a_put_for_a_never_stored_value_succeeds_and_leaves_the_root_absent() {
 /// one, which is no better.
 #[test]
 fn re_putting_a_key_with_a_different_value_is_not_a_failure() {
-    let Some(env) = Fixture::new("poisoned-put") else {
-        return;
-    };
+    let Some(env) = Fixture::new("poisoned-put") else { return };
     let key = env.cas.key_digest(b"poisoned-put");
     let original = env.cas.store_object(b"the value the store already has");
-    let recompiled = env
-        .cas
-        .store_object(b"what a non-reproducible recompile made");
-    env.cas
-        .actioncache_put(&key, original)
-        .expect("seeding put");
+    let recompiled = env.cas.store_object(b"what a non-reproducible recompile made");
+    env.cas.actioncache_put(&key, original).expect("seeding put");
 
     env.cas
         .actioncache_put(&key, recompiled)
@@ -457,17 +400,11 @@ fn re_putting_a_key_with_a_different_value_is_not_a_failure() {
 
 #[test]
 fn re_putting_a_key_with_a_different_value_is_not_a_failure_asynchronously() {
-    let Some(env) = Fixture::new("poisoned-put-async") else {
-        return;
-    };
+    let Some(env) = Fixture::new("poisoned-put-async") else { return };
     let key = env.cas.key_digest(b"poisoned-put-async");
     let original = env.cas.store_object(b"the value the store already has");
-    let recompiled = env
-        .cas
-        .store_object(b"what a non-reproducible recompile made");
-    env.cas
-        .actioncache_put(&key, original)
-        .expect("seeding put");
+    let recompiled = env.cas.store_object(b"what a non-reproducible recompile made");
+    env.cas.actioncache_put(&key, original).expect("seeding put");
 
     let (failed, calls, error) = env.cas.actioncache_put_async(&key, recompiled);
 
@@ -482,13 +419,9 @@ fn re_putting_a_key_with_a_different_value_is_not_a_failure_asynchronously() {
 /// get there would be strictly worse than the bug being fixed.
 #[test]
 fn a_remote_value_that_contradicts_a_stale_association_is_still_served() {
-    let Some(env) = Fixture::new("contradicting-remote") else {
-        return;
-    };
+    let Some(env) = Fixture::new("contradicting-remote") else { return };
     let (key, _) = env.seed_unbacked_association();
-    let remote_value = env
-        .cas
-        .digest_of(env.cas.store_object(b"what the remote actually holds"));
+    let remote_value = env.cas.digest_of(env.cas.store_object(b"what the remote actually holds"));
     env.proxy.answer_resolve_with_hit(&remote_value);
 
     let (result, served) = env.cas.actioncache_get(&key);
@@ -519,9 +452,7 @@ fn a_remote_value_that_contradicts_a_stale_association_is_still_served() {
 #[test]
 #[ignore = "a measurement, not an assertion"]
 fn probe_cost() {
-    let Some(env) = Fixture::new("probe-cost") else {
-        return;
-    };
+    let Some(env) = Fixture::new("probe-cost") else { return };
     let key = env.cas.key_digest(b"probe-cost");
     let value = env.cas.store_object(b"a value that is really here");
     env.cas.actioncache_put(&key, value).expect("seeding put");
@@ -660,9 +591,7 @@ impl Drop for CapturedLog {
 /// test has already failed and must not cascade into the rest.
 fn serialize_tests() -> MutexGuard<'static, ()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
+    LOCK.get_or_init(|| Mutex::new(())).lock().unwrap_or_else(|e| e.into_inner())
 }
 
 struct PluginCas {
@@ -718,16 +647,17 @@ impl PluginCas {
         self.store_object_with_refs(data, &[])
     }
 
-    fn store_object_with_refs(&self, data: &[u8], refs: &[llcas_objectid_t]) -> llcas_objectid_t {
+    fn store_object_with_refs(
+        &self,
+        data: &[u8],
+        refs: &[llcas_objectid_t],
+    ) -> llcas_objectid_t {
         unsafe {
             let mut id = llcas_objectid_t { opaque: 0 };
             let mut error: *mut c_char = ptr::null_mut();
             let failed = tuist_cas_plugin::llcas_cas_store_object(
                 self.raw,
-                llcas_data_t {
-                    data: data.as_ptr() as *const c_void,
-                    size: data.len(),
-                },
+                llcas_data_t { data: data.as_ptr() as *const c_void, size: data.len() },
                 refs.as_ptr(),
                 refs.len(),
                 &mut id,
@@ -752,10 +682,7 @@ impl PluginCas {
             let mut error: *mut c_char = ptr::null_mut();
             let failed = tuist_cas_plugin::llcas_cas_get_objectid(
                 self.raw,
-                llcas_digest_t {
-                    data: digest.as_ptr(),
-                    size: digest.len(),
-                },
+                llcas_digest_t { data: digest.as_ptr(), size: digest.len() },
                 &mut id,
                 &mut error,
             );
@@ -784,10 +711,7 @@ impl PluginCas {
             let mut error: *mut c_char = ptr::null_mut();
             let failed = tuist_cas_plugin::llcas_actioncache_put_for_digest(
                 self.raw,
-                llcas_digest_t {
-                    data: key.as_ptr(),
-                    size: key.len(),
-                },
+                llcas_digest_t { data: key.as_ptr(), size: key.len() },
                 value,
                 false,
                 &mut error,
@@ -796,10 +720,7 @@ impl PluginCas {
             if failed {
                 Err(message)
             } else {
-                assert!(
-                    message.is_empty(),
-                    "a successful put must not report an error"
-                );
+                assert!(message.is_empty(), "a successful put must not report an error");
                 Ok(())
             }
         }
@@ -819,10 +740,7 @@ impl PluginCas {
             let mut error: *mut c_char = ptr::null_mut();
             let result = tuist_cas_plugin::llcas_actioncache_get_for_digest(
                 self.raw,
-                llcas_digest_t {
-                    data: key.as_ptr(),
-                    size: key.len(),
-                },
+                llcas_digest_t { data: key.as_ptr(), size: key.len() },
                 &mut value,
                 globally,
                 &mut error,
@@ -842,10 +760,7 @@ impl PluginCas {
             let mut error: *mut c_char = ptr::null_mut();
             let result = tuist_cas_plugin::llcas_actioncache_get_for_digest(
                 self.raw,
-                llcas_digest_t {
-                    data: key.as_ptr(),
-                    size: key.len(),
-                },
+                llcas_digest_t { data: key.as_ptr(), size: key.len() },
                 ptr::null_mut(),
                 false,
                 &mut error,
@@ -877,17 +792,11 @@ impl PluginCas {
             }
         }
 
-        let mut slot = AsyncGet {
-            result: LLCAS_LOOKUP_RESULT_ERROR,
-            calls: 0,
-        };
+        let mut slot = AsyncGet { result: LLCAS_LOOKUP_RESULT_ERROR, calls: 0 };
         unsafe {
             tuist_cas_plugin::llcas_actioncache_get_for_digest_async(
                 self.raw,
-                llcas_digest_t {
-                    data: key.as_ptr(),
-                    size: key.len(),
-                },
+                llcas_digest_t { data: key.as_ptr(), size: key.len() },
                 false,
                 &mut slot as *mut AsyncGet as *mut c_void,
                 callback,
@@ -907,18 +816,11 @@ impl PluginCas {
             slot.error = take_error(error);
         }
 
-        let mut slot = AsyncPut {
-            failed: true,
-            calls: 0,
-            error: String::new(),
-        };
+        let mut slot = AsyncPut { failed: true, calls: 0, error: String::new() };
         unsafe {
             tuist_cas_plugin::llcas_actioncache_put_for_digest_async(
                 self.raw,
-                llcas_digest_t {
-                    data: key.as_ptr(),
-                    size: key.len(),
-                },
+                llcas_digest_t { data: key.as_ptr(), size: key.len() },
                 value,
                 false,
                 &mut slot as *mut AsyncPut as *mut c_void,
@@ -986,12 +888,8 @@ impl FakeProxy {
                     return;
                 }
                 let Ok(mut stream) = stream else { return };
-                let Ok(request) = read_request(&mut stream) else {
-                    continue;
-                };
-                seen.lock()
-                    .unwrap()
-                    .push((request.op, request.payload.clone()));
+                let Ok(request) = read_request(&mut stream) else { continue };
+                seen.lock().unwrap().push((request.op, request.payload.clone()));
                 let (status, body) = match request.op {
                     OP_RESOLVE => match resolve_answer.lock().unwrap().clone() {
                         Some(value) => (STATUS_HIT, value),
@@ -1008,12 +906,7 @@ impl FakeProxy {
             }
         });
 
-        Self {
-            socket: socket.to_path_buf(),
-            seen,
-            resolve_answer,
-            stopping,
-        }
+        Self { socket: socket.to_path_buf(), seen, resolve_answer, stopping }
     }
 
     fn socket(&self) -> &Path {
