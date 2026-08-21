@@ -96,8 +96,8 @@ msgstr ""
 msgid "Ingress"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:367
-#: lib/tuist_web/live/usage_live.ex:368
+#: lib/tuist_web/live/usage_live.ex:373
+#: lib/tuist_web/live/usage_live.ex:374
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
@@ -117,7 +117,7 @@ msgstr ""
 msgid "Cache traffic"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:375
+#: lib/tuist_web/live/usage_live.ex:381
 #, elixir-autogen, elixir-format
 msgid "No cache traffic in this window yet"
 msgstr ""
@@ -167,7 +167,7 @@ msgstr ""
 msgid "At the standard rate, before the free tier"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:282
+#: lib/tuist_web/live/usage_live.ex:288
 #: lib/tuist_web/live/usage_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Billed"
@@ -203,17 +203,17 @@ msgstr ""
 msgid "What lands on your invoice"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:355
+#: lib/tuist_web/live/usage_live.ex:361
 #, elixir-autogen, elixir-format
 msgid "Current period %{from} — %{to}"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:347
+#: lib/tuist_web/live/usage_live.ex:353
 #, elixir-autogen, elixir-format
 msgid "Linux"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:346
+#: lib/tuist_web/live/usage_live.ex:352
 #, elixir-autogen, elixir-format
 msgid "macOS"
 msgstr ""
@@ -233,17 +233,17 @@ msgstr ""
 msgid "Billed this period"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:342
+#: lib/tuist_web/live/usage_live.ex:348
 #, elixir-autogen, elixir-format
 msgid "Last month came to %{count}."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:340
+#: lib/tuist_web/live/usage_live.ex:346
 #, elixir-autogen, elixir-format
 msgid "Nothing ran last month."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:337
+#: lib/tuist_web/live/usage_live.ex:343
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} minutes this month."
 msgstr ""

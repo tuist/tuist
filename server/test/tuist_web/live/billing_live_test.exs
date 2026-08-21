@@ -224,67 +224,26 @@ defmodule TuistWeb.BillingLiveTest do
     test "is hidden for an account with no runner credit", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
-      refute has_element?(lv, "[data-part='prepaid-credit-card']")
+      refute render(lv) =~ "Prepaid credit:"
     end
 
-    test "shows what is left, and when each grant runs out", %{conn: conn, account: account} do
+    test "shows the balance and when it lapses, in the usage details", %{conn: conn, account: account} do
       stub(Prepaid, :balance, fn _account ->
         %{
           available: Money.new(650_000, :USD),
           expires_at: ~U[2026-09-01 00:00:00Z],
-          grants: [
-            %{
-              id: "credgr_trial",
-              kind: "trial",
-              available: Money.new(250_000, :USD),
-              expires_at: ~U[2026-09-01 00:00:00Z]
-            },
-            %{
-              id: "credgr_prepaid",
-              kind: "prepaid",
-              available: Money.new(400_000, :USD),
-              expires_at: ~U[2027-01-01 00:00:00Z]
-            }
-          ]
+          grants: []
         }
       end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
-      assert has_element?(lv, "[data-part='prepaid-credit-card']", "Prepaid runner credit")
-      assert has_element?(lv, "#prepaid-runner-credit-table", "Trial credit")
-      assert has_element?(lv, "#prepaid-runner-credit-table", "Prepaid credit")
-      assert has_element?(lv, "#prepaid-runner-credit-table", "September 1, 2026")
-      assert has_element?(lv, "#prepaid-runner-credit-table", "January 1, 2027")
-    end
-  end
-
-  describe "runner trial" do
-    test "is not mentioned for an account that is not on one", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
-
-      refute has_element?(lv, "#runner-trial-banner")
-    end
-
-    test "explains why runner usage is not being billed", %{conn: conn, account: account} do
-      {:ok, _account} = Trials.start(account)
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
-
-      # Asserts the body, not just the banner: the alert component only
-      # renders its description at one size, so a banner can be present
-      # and say nothing at all.
-      assert has_element?(lv, "#runner-trial-banner")
-      assert render(lv) =~ "isn&#39;t billed while your trial is running"
-    end
-
-    test "is gone once the trial is cancelled", %{conn: conn, account: account} do
-      {:ok, account} = Trials.start(account)
-      {:ok, _account} = Trials.cancel(account)
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
-
-      refute has_element?(lv, "#runner-trial-banner")
+      html = render(lv)
+      # The balance sits beside the metered resources it pays for rather
+      # than in a card of its own.
+      assert html =~ "Prepaid credit:"
+      assert html =~ "6500.00"
+      assert html =~ "September 1, 2026"
     end
   end
 
@@ -356,7 +315,6 @@ defmodule TuistWeb.BillingLiveTest do
       html = render(lv)
       assert html =~ "Runner minutes:"
       assert html =~ "100"
-      assert has_element?(lv, "#runner-trial-banner")
     end
 
     test "links to the breakdown rather than repeating it", %{conn: conn, account: account} do

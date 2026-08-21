@@ -2,19 +2,6 @@
   <div data-part="header">
     <h1 data-part="title">{dgettext("dashboard_account", "Billing")}</h1>
   </div>
-  <.alert
-    :if={@on_runner_trial}
-    id="runner-trial-banner"
-    size="large"
-    status="information"
-    title={dgettext("dashboard_account", "Runner trial")}
-    description={
-      dgettext(
-        "dashboard_account",
-        "Runner usage isn't billed while your trial is running. Everything else on your plan is billed as usual."
-      )
-    }
-  />
   <.card
     data-part="current-plan-card"
     icon="package"
@@ -80,6 +67,15 @@
             </div>
           </:description>
         </.progress_bar>
+        <div :if={@prepaid_runner_credit} data-part="prepaid-credit">
+          <div data-part="amount">
+            <span data-part="label">{dgettext("dashboard_account", "Prepaid credit:")}</span>
+            <span data-part="value">{format_money(@prepaid_runner_credit.available)}</span>
+          </div>
+          <span data-part="description">
+            {prepaid_credit_description(@prepaid_runner_credit)}
+          </span>
+        </div>
       </.card_section>
       <.card_section data-part="current-plan-card-section">
         <div data-part="header">
@@ -226,33 +222,6 @@
         </.modal>
       </.card_section>
     </div>
-  </.card>
-  <.card
-    :if={@prepaid_runner_credit}
-    data-part="prepaid-credit-card"
-    icon="credit_card"
-    title={dgettext("dashboard_account", "Prepaid runner credit")}
-  >
-    <.card_section data-part="prepaid-credit-card-section">
-      <span data-part="info-label">
-        {dgettext(
-          "dashboard_account",
-          "%{amount} of prepaid runner credit remaining. Runner usage is billed at the standard rate and drawn from this balance until it runs out or expires.",
-          amount: format_money(@prepaid_runner_credit.available)
-        )}
-      </span>
-      <.table id="prepaid-runner-credit-table" rows={@prepaid_runner_credit.grants}>
-        <:col :let={grant} label={dgettext("dashboard_account", "Credit")}>
-          <.text_cell label={prepaid_credit_kind_label(grant.kind)} />
-        </:col>
-        <:col :let={grant} label={dgettext("dashboard_account", "Remaining")}>
-          <.text_cell label={format_money(grant.available)} />
-        </:col>
-        <:col :let={grant} label={dgettext("dashboard_account", "Expires")}>
-          <.text_cell label={prepaid_credit_expiry_label(grant.expires_at)} />
-        </:col>
-      </.table>
-    </.card_section>
   </.card>
   <div :if={@plan == :air} data-part="plans">
     <.pricing_cards id="billing-pricing-plans" plan={@plan} />

@@ -74,7 +74,6 @@ defmodule TuistWeb.BillingLive do
     socket =
       socket
       |> assign(:prepaid_runner_credit, Prepaid.balance(selected_account))
-      |> assign(:on_runner_trial, Trials.on_trial?(selected_account))
       |> assign(:runner_usage, runner_usage)
       |> assign(:estimated_next_payment, estimated_next_payment)
       |> assign(:plan, plan)
@@ -195,6 +194,18 @@ defmodule TuistWeb.BillingLive do
   def runner_duration_label(total_ms) do
     dngettext("dashboard_account", "%{count} minute", "%{count} minutes", div(total_ms, 60_000))
   end
+
+  @doc """
+  What the prepaid balance is for and when it lapses, since a balance
+  with no expiry reads as though it never does.
+  """
+  def prepaid_credit_description(%{expires_at: nil}), do: dgettext("dashboard_account", "Drawn down by runner usage.")
+
+  def prepaid_credit_description(%{expires_at: expires_at}),
+    do:
+      dgettext("dashboard_account", "Drawn down by runner usage. Expires %{date}.",
+        date: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")
+      )
 
   def runner_billed_explanation(:within_allowance),
     do: dgettext("dashboard_account", "within your %{count} free minutes", count: Allowance.free_monthly_minutes())
