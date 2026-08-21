@@ -235,6 +235,34 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert %Server{status: :active, url: "http://172.16.0.5:32000"} = Repo.get!(Server, server.id)
   end
 
+  test "re-applies the manifest when only the instance's claim moved" do
+    {account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    # The revision this instance's live CR carries, computed rather than written
+    # out so it tracks whatever else the revision folds in.
+    server = server |> Ecto.Changeset.change(storage_claim_size: "50Gi") |> Repo.update!()
+    {:ok, live_revision} = Provisioner.manifest_revision(%{server | account: account})
+
+    # A claim that moves has to reach the cluster on the next tick; before it
+    # was folded into the revision, the manifest rendered the new value while
+    # the desired revision stayed put, so the reconciler compared equal and
+    # never re-applied.
+    server = server |> Ecto.Changeset.change(storage_claim_size: "24Gi") |> Repo.update!()
+
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, deployment.image_tag} end)
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, live_revision} end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id, storage_claim_size: claim}, _inputs ->
+      assert id == server.id
+      assert claim == "24Gi"
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+  end
+
   test "preloads active subscriptions for manifest reconciliation" do
     {account, server, deployment} = create_server()
     BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)

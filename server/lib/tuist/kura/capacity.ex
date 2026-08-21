@@ -28,8 +28,10 @@ defmodule Tuist.Kura.Capacity do
 
   import Ecto.Query
 
+  alias Tuist.Accounts.Account
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
@@ -59,23 +61,57 @@ defmodule Tuist.Kura.Capacity do
   @doc """
   Bytes of the region's disk one instance reserves, across every replica.
   """
-  def resident_bytes(region), do: resident_gib(region) * @gib
+  def resident_bytes(region, server), do: resident_gib(region, server) * @gib
 
   @doc """
   Gibibytes of the region's disk one instance reserves.
 
-  Every replica requests the region's claim size, and the bare-metal regions
+  Every replica requests the instance's claim size, and the bare-metal regions
   co-locate an account's replicas on one box, so two replicas reserve two
-  claims on the same disk. Plan does not enter into it: the claim is a
-  property of the region, so an Air instance reserves exactly what a paid one
-  does. The per-plan warm quota in the spec is not enforced anywhere today --
-  giving Air a smaller cache would mean sizing the claim per instance, which
-  is its own change.
+  claims on the same disk. The claim is a property of the instance, sized from
+  its account's plan where the region asks for that, so an Air instance
+  reserves less than an Enterprise one and the two cannot be counted with a
+  single per-region figure. The replica count stays a property of the region.
+  An instance that carries no claim of its own falls back to what its region
+  declares.
   """
-  def resident_gib(%Regions{} = region), do: claim_gib(region) * replicas(region)
+  def resident_gib(%Regions{} = region, %Server{} = server), do: claim_gib(region, server) * replicas(region)
+
+  # Through the same quantity parser the node and pod readings use, not a
+  # Gi-only one. A claim is persisted in any unit Kubernetes accepts, and one
+  # written as `1Ti` renders correctly on the manifest while a narrower parser
+  # reads it as unparseable and silently substitutes the region's claim — an
+  # instance counted at a fraction of what it reserves, in the direction that
+  # overcommits.
+  defp claim_gib(%Regions{} = region, %Server{storage_claim_size: size}) when is_binary(size) do
+    case parse_quantity(size) do
+      bytes when is_integer(bytes) and bytes > 0 -> div(bytes, @gib)
+      _ -> claim_gib(region)
+    end
+  end
+
+  # A region that sizes per plan declares no claim of its own, so an instance
+  # carrying none is read the way the manifest renders it rather than at the
+  # controller's 200Gi fallback, which would overstate it by an order of
+  # magnitude. The archival loop preloads the account this reads.
+  defp claim_gib(%Regions{} = region, %Server{account: %Account{} = account}) do
+    if Regions.storage_governed?(region) do
+      case parse_quantity(Regions.storage_profile(AccountPolicies.sizing_plan(account)).claim_size) do
+        bytes when is_integer(bytes) and bytes > 0 -> div(bytes, @gib)
+        _ -> claim_gib(region)
+      end
+    else
+      claim_gib(region)
+    end
+  end
+
+  defp claim_gib(%Regions{} = region, %Server{}), do: claim_gib(region)
 
   defp claim_gib(%Regions{provisioner_config: %{storage_size: size}}) when is_binary(size) do
-    parse_gib(size) || @default_claim_gib
+    case parse_quantity(size) do
+      bytes when is_integer(bytes) and bytes > 0 -> div(bytes, @gib)
+      _ -> @default_claim_gib
+    end
   end
 
   defp claim_gib(%Regions{}), do: @default_claim_gib
@@ -267,13 +303,5 @@ defmodule Tuist.Kura.Capacity do
       ),
       :count
     )
-  end
-
-  defp parse_gib(size) do
-    case Integer.parse(size) do
-      {value, "Gi"} -> value
-      {value, "G"} -> value
-      _ -> nil
-    end
   end
 end
