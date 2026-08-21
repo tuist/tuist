@@ -86,7 +86,6 @@
 
         & > [data-part="title"] {
           color: var(--noora-surface-label-primary);
-          font-family: var(--noora-font-display);
           font: var(--noora-font-weight-medium) var(--noora-font-display-small);
         }
 
