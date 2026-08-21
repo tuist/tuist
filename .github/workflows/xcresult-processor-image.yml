@@ -12,7 +12,7 @@ name: Xcresult Processor Image
 # workflow's `:<git-sha>` tag is dispatch-only and not consumed by
 # the chart.
 #
-# Builds on top of `<oci-registry>/macos-tahoe-xcode:<xcode-version-dashes>`
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
 # (built by `infra/macos-xcode-image`). Xcode lives in the base —
 # the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
 # ships in full Xcode (not the Command Line Tools). This build just
