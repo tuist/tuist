@@ -88,14 +88,21 @@ defmodule Tuist.Runners.Trials do
   end
 
   @doc """
-  Puts every account that has already run a runner job onto a trial,
-  and reports how many it started.
+  Puts every account that can use runners onto a trial, and reports how
+  many it started.
+
+  "Can use" is the `:runners` flag, not past usage. An account holding
+  the flag that has not run a job yet is exactly the one a usage-only
+  backfill misses, and it would be billed for its very first job the
+  moment a Price is wired up. Accounts that have already run something
+  are included too, since the flag is only required in canary and
+  production and an environment that does not require it has no gates to
+  read.
 
   A migration does this once when runner trials ship, but the runner
-  Price is wired up later and separately. Any account that starts using
-  runners in between would otherwise miss the trial and be billed the
-  moment the Price lands, so this is re-runnable: run it immediately
-  before wiring a Price in an environment.
+  Price is wired up later and separately. Any account that gains access
+  in between would otherwise miss the trial, so this is re-runnable: run
+  it immediately before wiring a Price in an environment.
 
   Idempotent. It only touches accounts with no trial recorded at all,
   so it can never restart one that was deliberately cancelled.
@@ -104,17 +111,47 @@ defmodule Tuist.Runners.Trials do
   runner item to remove: it is on trial precisely because nothing has
   made its usage billable yet.
   """
-  def backfill_current_runner_users do
+  def backfill_runner_trials do
+    ran_a_job = from(s in RunnerSession, select: s.account_id, distinct: true)
+
     {count, _} =
       Repo.update_all(
         from(a in Account,
           where: is_nil(a.runner_trial_started_at) and is_nil(a.runner_trial_ended_at),
-          where: a.id in subquery(from(s in RunnerSession, select: s.account_id, distinct: true))
+          where: a.id in subquery(ran_a_job) or a.id in ^accounts_with_runner_access()
         ),
         set: [runner_trial_started_at: DateTime.utc_now()]
       )
 
     count
+  end
+
+  # Accounts the `:runners` flag is switched on for, read from its actor
+  # gates. A gate that is explicitly off is not access, and group and
+  # boolean gates are deliberately ignored: neither names an account, so
+  # neither can be turned into a list of accounts to put on trial.
+  defp accounts_with_runner_access do
+    case FunWithFlags.get_flag(:runners) do
+      %FunWithFlags.Flag{gates: gates} ->
+        gates
+        |> Enum.filter(&(&1.type == :actor and &1.enabled))
+        |> Enum.flat_map(fn gate ->
+          case gate.for do
+            "account:" <> id -> List.wrap(parse_id(id))
+            _ -> []
+          end
+        end)
+
+      _ ->
+        []
+    end
+  end
+
+  defp parse_id(id) do
+    case Integer.parse(id) do
+      {id, ""} -> id
+      _ -> nil
+    end
   end
 
   @doc """

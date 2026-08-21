@@ -18,10 +18,11 @@ defmodule Tuist.Repo.Migrations.BackfillRunnerTrialsForCurrentUsers do
   re-running it cannot restart a trial that was deliberately cancelled.
 
   Queries the tables by name rather than through the Ecto schemas, and
-  does not call `Tuist.Runners.Trials.backfill_current_runner_users/0`,
-  so this keeps doing what it did the day it was written even after
-  those change. Use that function, not this, to catch accounts that
-  start using runners between now and a Price being wired up.
+  does not call `Tuist.Runners.Trials.backfill_runner_trials/0`, so this
+  keeps doing what it did the day it was written even after those
+  change. That function is the one to run before a Price is wired up:
+  it also covers accounts that hold the `:runners` flag without having
+  run a job yet, which this migration does not.
   """
   use Ecto.Migration
   # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
