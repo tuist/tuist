@@ -133,10 +133,41 @@ defmodule Tuist.CacheTest do
       {:ok, token, _claims} = Cache.issue_cache_token(project)
 
       # Then
-      {:ok, claims} = Tuist.Guardian.decode_and_verify(token)
+      {:ok, claims} = Tuist.CacheGuardian.decode_and_verify(token)
       assert claims["cache_grants"]["project"]["read"] == [handle]
       assert claims["cache_grants"]["project"]["write"] == [handle]
       assert claims["cache_grants"]["account"] == %{"read" => [], "write" => []}
+    end
+
+    # Installing the key is the first of two rollout steps and must be inert on
+    # its own. If it also switched issuance on, a replica that had picked up the
+    # key would mint tokens the replicas behind it cannot verify.
+    test "is signed with the API-credential key until issuance is switched on" do
+      # Given
+      stub(Tuist.Environment, :cache_token_signing_enabled?, fn -> false end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      {:ok, token, _claims} = Cache.issue_cache_token(project)
+
+      # Then
+      assert Tuist.CacheGuardian.configured?()
+      assert {:ok, _} = Tuist.Guardian.decode_and_verify(token)
+    end
+
+    # Cache nodes hold the public half of the cache-token pair, so whatever
+    # signs a cache token is readable by every node. It must therefore not be
+    # the key that signs API credentials, or a node could mint those too.
+    test "is not signed with the key that signs API credentials" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      {:ok, token, _claims} = Cache.issue_cache_token(project)
+
+      # Then
+      assert {:error, :invalid_token} = Tuist.Guardian.decode_and_verify(token)
+      assert {:ok, _} = Tuist.CacheGuardian.decode_and_verify(token)
     end
 
     # A cache token is handed to cache nodes, which are a different trust
@@ -247,7 +278,7 @@ defmodule Tuist.CacheTest do
 
       # Then
       assert claims["exp"] - claims["iat"] == Cache.cache_token_ttl_seconds()
-      assert {:ok, _} = Tuist.Guardian.decode_and_verify(token)
+      assert {:ok, _} = Tuist.CacheGuardian.decode_and_verify(token)
     end
   end
 

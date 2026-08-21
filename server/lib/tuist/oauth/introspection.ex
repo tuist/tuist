@@ -6,6 +6,7 @@ defmodule Tuist.OAuth.Introspection do
   alias Tuist.Accounts.User
   alias Tuist.Authentication
   alias Tuist.Cache
+  alias Tuist.CacheGuardian
   alias Tuist.Projects.Project
 
   @cache_token_type "cache"
@@ -53,10 +54,11 @@ defmodule Tuist.OAuth.Introspection do
   # itself. Verifying it here keeps that refusal intact: nothing about this makes
   # a cache token resolvable anywhere else.
   #
-  # This is the only way a node can be told what one of these tokens may reach.
-  # A node holds no verification key of its own, and it should not: the key that
-  # signs these also signs API credentials, so a node that could verify locally
-  # would also be a node that could mint them. Without an answer here, a node
+  # How a node is told what one of these tokens may reach whenever it cannot
+  # read the token itself: it was given no key, or the key it holds is not the
+  # one this was signed with. A node is never given the key that signs API
+  # credentials, only the public half of the dedicated cache-token pair, so
+  # there is always a token shape that arrives here. Without an answer, a node
   # reports every exchanged token inactive and denies the request.
   defp cache_token_response(token) do
     case verified_cache_token(token) do
@@ -75,9 +77,23 @@ defmodule Tuist.OAuth.Introspection do
   end
 
   defp verified_cache_token(token) do
-    case Tuist.Guardian.decode_and_verify(token, %{"typ" => @cache_token_type}) do
-      {:ok, %{"cache_grants" => grants} = claims} -> {:ok, claims, grants}
-      _ -> :error
+    Enum.find_value(cache_token_verifiers(), :error, fn verifier ->
+      case verifier.decode_and_verify(token, %{"typ" => @cache_token_type}) do
+        {:ok, %{"cache_grants" => grants} = claims} -> {:ok, claims, grants}
+        _ -> nil
+      end
+    end)
+  end
+
+  # Both keys answer while a deployment is moving between them. A cache token
+  # outlives the deploy that minted it, so the key it was signed with has to
+  # keep answering for its whole lifetime or every build holding one is cut off
+  # mid-flight.
+  defp cache_token_verifiers do
+    if CacheGuardian.configured?() do
+      [CacheGuardian, Tuist.Guardian]
+    else
+      [Tuist.Guardian]
     end
   end
 
