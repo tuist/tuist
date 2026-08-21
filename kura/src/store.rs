@@ -10234,6 +10234,57 @@ mod tests {
         assert_eq!(drain_reader(reader).await, b"hello");
     }
 
+    /// A resume reads from partway into a segment that already holds other
+    /// artifacts, so the read has to add the request's offset to the segment
+    /// offset. Getting that wrong yields a plausible-looking body from the
+    /// wrong place, which a resuming client would silently append.
+    #[tokio::test]
+    async fn a_ranged_read_starts_at_the_offset_within_the_artifact_not_the_segment() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-before",
+                "application/octet-stream",
+                b"padding-that-shifts-the-next-artifact",
+            )
+            .await
+            .expect("failed to persist leading artifact");
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-ranged",
+                "application/octet-stream",
+                b"0123456789",
+            )
+            .await
+            .expect("failed to persist artifact");
+
+        let (_, tail) = store
+            .open_artifact_reader_range_tolerating_promotion(&manifest, 6, None)
+            .await
+            .expect("ranged open should succeed")
+            .expect("artifact should be readable");
+        assert_eq!(drain_reader(tail).await, b"6789");
+
+        let (_, window) = store
+            .open_artifact_reader_range_tolerating_promotion(&manifest, 2, Some(3))
+            .await
+            .expect("ranged open should succeed")
+            .expect("artifact should be readable");
+        assert_eq!(drain_reader(window).await, b"234");
+
+        let (_, last) = store
+            .open_artifact_reader_range_tolerating_promotion(&manifest, 9, Some(1))
+            .await
+            .expect("ranged open should succeed")
+            .expect("artifact should be readable");
+        assert_eq!(drain_reader(last).await, b"9");
+    }
+
     #[tokio::test]
     async fn tolerant_reader_reports_a_miss_when_the_artifact_was_actually_evicted() {
         let (_temp_dir, _config, store) = temp_store();
