@@ -1,0 +1,164 @@
+.cache-transfer-lab {
+  margin: var(--noora-spacing-7) 0;
+}
+
+.cache-transfer-lab__controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--noora-spacing-5);
+}
+
+.cache-transfer-lab__range {
+  display: grid;
+  gap: var(--noora-spacing-2);
+  color: var(--noora-surface-label-primary);
+}
+
+.cache-transfer-lab__range-label {
+  font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+}
+
+.cache-transfer-lab__range-value {
+  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+}
+
+.cache-transfer-lab__range input {
+  width: 100%;
+  margin: var(--noora-spacing-1) 0 0;
+  cursor: pointer;
+  accent-color: var(--noora-button-primary-background);
+}
+
+.cache-transfer-lab__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--noora-spacing-2);
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+}
+
+.cache-transfer-lab__summary strong {
+  font: var(--noora-font-weight-semibold) var(--noora-font-body-small);
+}
+
+.cache-transfer-lab__summary span:last-child {
+  color: var(--noora-surface-label-secondary);
+}
+
+.cache-transfer-lab__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--noora-spacing-4);
+  margin-top: var(--noora-spacing-5);
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+}
+
+.cache-transfer-lab__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--noora-spacing-2);
+}
+
+.cache-transfer-lab__legend-swatch {
+  display: inline-block;
+  width: var(--noora-spacing-3);
+  height: var(--noora-spacing-3);
+  border-radius: var(--noora-radius-small);
+}
+
+.cache-transfer-lab__legend-swatch--latency,
+.cache-transfer-lab__latency {
+  background: var(--noora-button-primary-background);
+  fill: var(--noora-button-primary-background);
+}
+
+.cache-transfer-lab__legend-swatch--transfer,
+.cache-transfer-lab__transfer {
+  background: var(--noora-neutral-light-700);
+  fill: var(--noora-neutral-light-700);
+}
+
+.cache-transfer-lab__chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: var(--noora-spacing-4);
+  overflow: visible;
+}
+
+.cache-transfer-lab__mobile-samples {
+  display: none;
+}
+
+.cache-transfer-lab__track {
+  fill: var(--noora-neutral-light-300);
+}
+
+.cache-transfer-lab__sample-label,
+.cache-transfer-lab__duration {
+  fill: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+}
+
+.cache-transfer-lab__sample--selected .cache-transfer-lab__sample-label,
+.cache-transfer-lab__sample--selected .cache-transfer-lab__duration {
+  fill: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-semibold) var(--noora-font-body-small);
+}
+
+.cache-transfer-lab__explanation {
+  margin-top: var(--noora-spacing-4);
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+}
+
+@media (width >= 48rem) {
+  .cache-transfer-lab__controls {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (width < 48rem) {
+  .cache-transfer-lab__chart {
+    display: none;
+  }
+
+  .cache-transfer-lab__mobile-samples {
+    display: grid;
+    gap: var(--noora-spacing-3);
+    margin-top: var(--noora-spacing-5);
+  }
+
+  .cache-transfer-lab__mobile-sample {
+    display: grid;
+    gap: var(--noora-spacing-2);
+  }
+
+  .cache-transfer-lab__mobile-sample-header {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--noora-spacing-3);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  .cache-transfer-lab__mobile-sample-header strong {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-semibold) var(--noora-font-body-small);
+  }
+
+  .cache-transfer-lab__mobile-bar {
+    display: flex;
+    height: var(--noora-spacing-3);
+    overflow: hidden;
+    border-radius: var(--noora-radius-small);
+    background: var(--noora-neutral-light-300);
+  }
+
+  .cache-transfer-lab__mobile-bar span {
+    display: block;
+    height: 100%;
+  }
+}

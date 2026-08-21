@@ -21,6 +21,7 @@ defmodule Tuist.Marketing.MDExConverter do
       table: true,
       autolink: true,
       tasklist: true,
+      math_dollars: true,
       header_id_prefix: "",
       phoenix_heex: true,
       alerts: true
@@ -55,7 +56,20 @@ defmodule Tuist.Marketing.MDExConverter do
     [markdown: markdown]
     |> Keyword.merge(@mdex_options)
     |> MDEx.new()
+    |> MDExKatex.attach(
+      katex_init: "",
+      katex_block_attrs: &katex_block_attrs/1,
+      katex_inline_attrs: &katex_inline_attrs/1
+    )
     |> MDEx.Document.append_steps(wrap_code_blocks: &wrap_code_blocks/1)
+  end
+
+  defp katex_block_attrs(sequence) do
+    ~s(id="katex-#{sequence}" class="katex-block" phx-hook="KaTeX" phx-update="ignore")
+  end
+
+  defp katex_inline_attrs(sequence) do
+    ~s(id="katex-inline-#{sequence}" class="katex-inline" phx-hook="KaTeX" phx-update="ignore")
   end
 
   defp compile_heex_template(html, path) do
