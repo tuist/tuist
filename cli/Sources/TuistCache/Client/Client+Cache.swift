@@ -38,6 +38,18 @@ extension Client {
                     retryableRequestMethods: ["GET"],
                     retriesTransportErrors: retriesTransportErrors
                 ),
+                // Inside the retry middleware: a request that never produced a
+                // body is that middleware's to replay, while a body that died
+                // partway through is resumed from where it stopped. Its resume
+                // requests still pass through the request-ID and authentication
+                // middlewares below, so each carries its own trace identifier
+                // and a fresh token.
+                ArtifactResumeMiddleware(
+                    resumableOperationIDs: [
+                        Operations.downloadXcodeArtifact.id,
+                        Operations.downloadModuleCacheArtifact.id,
+                    ]
+                ),
                 RequestIdMiddleware(),
                 CacheClientAuthenticationMiddleware(
                     authenticationURL: authenticationURL,
