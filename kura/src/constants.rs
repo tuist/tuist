@@ -176,9 +176,21 @@ pub const BACKFILL_INDEX_BUILD_CHUNK_ROWS: usize = 4_096;
 // entirely synchronous RocksDB work (a manifest read per artifact, plus a
 // reverse-row prefix scan and an inline-bytes read per cascaded action-cache
 // entry), so without a yield one eviction parks a runtime worker for its whole
-// duration and the process stops answering probes it could otherwise serve
-// from process-local state. Smaller than the snapshot gate's stride because
-// each row here costs several reads rather than one cache hit.
+// duration. Smaller than the snapshot gate's stride because each row here costs
+// several reads rather than one cache hit.
+//
+// Note the different shape from `BACKFILL_INDEX_BUILD_CHUNK_ROWS` above, which
+// answers an overlapping problem the other way. That build chunks and reopens
+// so no iterator outlives a chunk; an eviction yields inside one long-lived
+// `iterator_cf` instead, which pins its implicit snapshot across every yield
+// and so holds it marginally longer than before. That is deliberate, for two
+// reasons. The cascade has to stage every delete into one atomic batch or an
+// entry is left pointing at a blob that is already gone, so resuming from a key
+// cursor is not available here. And the exposure is bounded by one segment's
+// artifact index, tens of thousands of rows, rather than the millions the
+// backfill build walks, so pinning a snapshot for it does not reach the
+// compaction-blocking scale that shaped the constant above. Revisit if segments
+// ever grow far past `MAX_SEGMENT_BYTES` worth of small artifacts.
 pub const SEGMENT_EVICTION_YIELD_ROWS: usize = 256;
 // Byte ceiling of one backfill bodies batch: the sum of body bytes one
 // `POST /_internal/backfill/bodies` response may carry, and the per-entry
