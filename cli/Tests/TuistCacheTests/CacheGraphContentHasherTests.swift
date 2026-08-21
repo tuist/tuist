@@ -163,7 +163,7 @@ struct CacheGraphContentHasherTests {
 
     @Test(
         .withMockedSwiftVersionProvider
-    ) func contentHashes_preservesAllSettingsWhenConfigurationIsImplicit() async throws {
+    ) func contentHashes_scopesSettingsWhenConfigurationIsImplicit() async throws {
         // Given
         let selectedConfiguration = BuildConfiguration.debug("Debug-SharedCache")
         let unrelatedConfiguration = BuildConfiguration.debug("Debug-AppVariant-B")
@@ -204,19 +204,13 @@ struct CacheGraphContentHasherTests {
         verify(graphContentHasher)
             .contentHashes(
                 for: .matching { graph in
-                    guard let unscopedProject = graph.projects[projectPath],
-                          let targetSettings = unscopedProject.targets[target.name]?.settings
+                    guard let scopedProject = graph.projects[projectPath],
+                          let targetSettings = scopedProject.targets[target.name]?.settings
                     else {
                         return false
                     }
-                    return Set(unscopedProject.settings.configurations.keys) == [
-                        selectedConfiguration,
-                        unrelatedConfiguration,
-                    ]
-                        && Set(targetSettings.configurations.keys) == [
-                            selectedConfiguration,
-                            unrelatedConfiguration,
-                        ]
+                    return Set(scopedProject.settings.configurations.keys) == [selectedConfiguration]
+                        && Set(targetSettings.configurations.keys) == [selectedConfiguration]
                 },
                 include: .any,
                 destination: .any,

@@ -12,7 +12,7 @@ name: Runner Image
 # `:macos-<dashes>-<git-sha>` tag is dispatch-only and not consumed
 # by the chart.
 #
-# Builds on top of `<oci-registry>/macos-tahoe-xcode:<xcode-version-dashes>`
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
 # (built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs
 # live in the base; this build just adds the GitHub Actions runner
 # agent and dispatch loop on top, so a rebuild is ~2 min instead of
@@ -55,12 +55,10 @@ jobs:
       # macos-tahoe-xcode base authenticates. The registry is
       # tailnet-only and every image on it needs a credential, for
       # reads as well as writes.
-      - name: Log in to the Tuist OCI registry
-        uses: ./.github/actions/oci-registry-login
-        with:
-          host: ${{ vars.OCI_REGISTRY_HOST }}
-          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
-          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
       - name: Initialize Packer
         working-directory: infra/runner-image
@@ -81,13 +79,12 @@ jobs:
         env:
           XCODE: ${{ inputs.xcode_version }}
           RUNNER_VERSION_OVERRIDE: ${{ inputs.runner_version }}
-          OCI_REGISTRY_HOST: ${{ vars.OCI_REGISTRY_HOST }}
         run: |
           set -euo pipefail
           # Single-profile dispatch. The multi-profile rebuild loop
           # is in server-production-deployment.yml's runner-image-build matrix.
           BASE_TAG="${XCODE//./-}"
-          BASE_IMAGE="${OCI_REGISTRY_HOST}/macos-tahoe-xcode:${BASE_TAG}"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
           PROFILE="macos-${BASE_TAG}"
           echo "Xcode:      ${XCODE}"
           echo "Base image: ${BASE_IMAGE}"
@@ -106,7 +103,6 @@ jobs:
       - name: Restore nvram.bin if missing
         env:
           XCODE: ${{ inputs.xcode_version }}
-          OCI_REGISTRY_HOST: ${{ vars.OCI_REGISTRY_HOST }}
         # packer-plugin-tart v1.20.0 builds leave the VM bundle
         # without `nvram.bin`, so the very next `tart push` uploads
         # config + disk successfully then fails with
@@ -121,7 +117,7 @@ jobs:
           ls -la "$BUNDLE"
           if [ ! -f "$BUNDLE/nvram.bin" ]; then
             BASE_TAG="${XCODE//./-}"
-            BASE_IMAGE="${OCI_REGISTRY_HOST}/macos-tahoe-xcode:${BASE_TAG}"
+            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
             echo "nvram.bin missing — restoring from ${BASE_IMAGE}"
             tart delete nvram-restore 2>/dev/null || true
             tart clone "$BASE_IMAGE" nvram-restore
@@ -136,9 +132,12 @@ jobs:
           set -euo pipefail
           echo "value=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
 
-      - name: Push image to the Tuist OCI registry
+      - name: Push image to GHCR
         timeout-minutes: 90
         env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           # Tart's OCI-cache prune fires opportunistically during
           # `tart push`'s internal staging step and races the push
           # of the source VM bundle — when it loses, nvram.bin is
@@ -151,9 +150,7 @@ jobs:
         uses: ./.github/actions/tart-push
         with:
           local-name: tuist-runner
-          remote-names: ${{ vars.OCI_REGISTRY_HOST }}/tuist-runner:${{ steps.build.outputs.profile }}-${{ steps.image-tag.outputs.value }}
-          chunk-size: "64"
-          concurrency: "4"
+          remote-names: ghcr.io/tuist/tuist-runner:${{ steps.build.outputs.profile }}-${{ steps.image-tag.outputs.value }}
 
       - name: Cleanup
         if: always()

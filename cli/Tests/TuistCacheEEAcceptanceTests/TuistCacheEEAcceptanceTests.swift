@@ -455,6 +455,44 @@ struct TuistCacheEEAcceptanceTests {
         try TuistAcceptanceTest.expectXCFrameworkLinked("Library", by: "Tool", xcodeprojPath: xcodeprojPath)
     }
 
+    /// Cache hashes must depend on the *resolved* configuration, never on how it was resolved. A CI job
+    /// that fills the cache with an explicit `--configuration` and a developer who generates without one
+    /// resolve to the same configuration, so they must agree on hashes. Regression test for #12012, which
+    /// scoped settings only when the configuration was named explicitly and left an unflagged `generate`
+    /// hashing every configuration, missing 100% of the cache the flagged fill had just stored.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_nested_header_xcframework")
+    ) func generate_reuses_framework_warmed_with_an_explicit_configuration() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "NestedHeaderXCFramework.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            [
+                "Library",
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+                "--configuration", "Debug",
+            ]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            [
+                "--no-open",
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+            ]
+        )
+
+        TuistTest.expectLogs("Using cache binaries for the following targets: Library", at: .info, <=)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Library", by: "Tool", xcodeprojPath: xcodeprojPath)
+    }
+
     @Test(
         .disabled("Requires SPM install"),
         .inTemporaryDirectory,
