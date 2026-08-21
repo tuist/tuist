@@ -9,8 +9,8 @@
 [data-part="kura-network-lab"] [data-part="network-header"] {
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
   justify-content: space-between;
+  align-items: end;
   gap: var(--noora-spacing-4);
 }
 
@@ -21,8 +21,8 @@
 }
 
 [data-part="kura-network-lab"] [data-part="title"] {
-  max-width: calc(var(--noora-spacing-10) * 11);
   margin: var(--noora-spacing-1) 0 0;
+  max-width: calc(var(--noora-spacing-10) * 11);
   color: var(--noora-surface-label-primary);
   font: var(--noora-font-weight-semibold) var(--noora-font-body-medium);
 }
@@ -38,18 +38,18 @@
 }
 
 [data-part="kura-network-lab"] [data-part="globe-surface"] {
-  position: relative;
   display: grid;
+  position: relative;
   place-items: center;
   overflow: hidden;
 }
 
 [data-part="kura-network-lab"] [data-part="globe"] {
   display: block;
+  cursor: grab;
+  aspect-ratio: 1;
   width: 100%;
   max-width: calc(var(--noora-spacing-10) * 11);
-  aspect-ratio: 1;
-  cursor: grab;
   touch-action: none;
 }
 
@@ -62,28 +62,30 @@
 }
 
 [data-part="kura-network-lab"] [data-part="globe-labels"] > span {
-  position: absolute;
-  z-index: 1;
   display: inline-flex;
+  position: absolute;
   align-items: center;
   gap: var(--noora-spacing-1);
+  opacity: 0;
+  z-index: 1;
+  filter: blur(var(--noora-spacing-2));
+  transition:
+    opacity 150ms var(--ease-out-cubic),
+    filter 150ms var(--ease-out-cubic);
   border: 1px solid var(--noora-surface-border-primary);
   border-radius: var(--noora-radius-medium);
   background: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-1) var(--noora-spacing-2);
-  white-space: nowrap;
   color: var(--noora-surface-label-primary);
   font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
-  opacity: 0;
-  filter: blur(var(--noora-spacing-2));
-  transition: opacity 150ms var(--ease-out-cubic), filter 150ms var(--ease-out-cubic);
+  white-space: nowrap;
 }
 
 [data-part="kura-network-lab"] [data-part="globe-labels"] i {
   display: inline-block;
+  border-radius: var(--noora-radius-99);
   width: var(--noora-spacing-2);
   height: var(--noora-spacing-2);
-  border-radius: var(--noora-radius-99);
 }
 
 [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="us-east-cache"] {
@@ -96,8 +98,8 @@
 
 [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="us-east-cache"],
 [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="us-east-kura"] {
-  left: anchor(center);
   bottom: anchor(top);
+  left: anchor(center);
   transform: translate(-50%, calc(-1 * var(--noora-spacing-2)));
 }
 
@@ -111,8 +113,8 @@
 
 [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="germany-developer"],
 [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="eu-central-kura"] {
-  right: anchor(left);
   top: anchor(center);
+  right: anchor(left);
   transform: translate(calc(-1 * var(--noora-spacing-2)), -50%);
 }
 
@@ -126,8 +128,8 @@
 
 [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="japan-developer"],
 [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="ap-northeast-kura"] {
-  left: anchor(right);
   top: anchor(center);
+  left: anchor(right);
   transform: translate(var(--noora-spacing-2), -50%);
 }
 
@@ -224,9 +226,9 @@
 
 [data-part="kura-network-lab"] [data-part="network-key"] i {
   display: inline-block;
+  border-radius: var(--noora-radius-99);
   width: var(--noora-spacing-2);
   height: var(--noora-spacing-2);
-  border-radius: var(--noora-radius-99);
 }
 
 [data-part="kura-network-lab"] [data-part="cache-marker"] {

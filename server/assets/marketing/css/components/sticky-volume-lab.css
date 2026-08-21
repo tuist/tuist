@@ -52,16 +52,16 @@
 
 [data-part="sticky-volume-lab"] [data-part="lane-guide"],
 [data-part="sticky-volume-lab"] [data-part="time-axis"] {
-  color: var(--noora-surface-border-primary);
   stroke: currentColor;
   stroke-width: 1;
+  color: var(--noora-surface-border-primary);
 }
 
 [data-part="sticky-volume-lab"] [data-part="branch-line"] {
-  color: var(--noora-surface-label-secondary);
   stroke: currentColor;
   stroke-dasharray: var(--noora-spacing-1) var(--noora-spacing-1);
   stroke-width: 1.5;
+  color: var(--noora-surface-label-secondary);
 }
 
 [data-part="sticky-volume-lab"] [data-part="commit"],
@@ -83,14 +83,14 @@
 }
 
 [data-part="sticky-volume-lab"] [data-part="result-line"] {
-  color: var(--noora-surface-label-secondary);
   stroke: currentColor;
   stroke-width: 2;
+  color: var(--noora-surface-label-secondary);
 }
 
 [data-part="sticky-volume-lab"] [data-part="volume"][data-variant="feature"] {
-  fill: var(--noora-purple-100);
   opacity: 0;
+  fill: var(--noora-purple-100);
   stroke: var(--noora-button-primary-background);
   stroke-width: 2;
 }
@@ -102,30 +102,30 @@
 }
 
 [data-part="sticky-volume-lab"] [data-part="volume-delta"] {
-  fill: var(--noora-button-primary-background);
-  opacity: 0;
   transform-box: fill-box;
   transform-origin: left center;
+  opacity: 0;
+  fill: var(--noora-button-primary-background);
 }
 
 [data-part="sticky-volume-lab"] [data-part="delta-label"] {
-  fill: var(--noora-button-primary-label);
   opacity: 0;
   transition: opacity 200ms var(--ease-out-cubic);
+  fill: var(--noora-button-primary-label);
 }
 
 [data-part="sticky-volume-lab"] [data-part="fork-line"] {
-  color: var(--noora-button-primary-background);
-  fill: none;
   opacity: 0;
+  transition: opacity 200ms var(--ease-out-cubic);
+  fill: none;
   stroke: currentColor;
   stroke-width: 2;
-  transition: opacity 200ms var(--ease-out-cubic);
+  color: var(--noora-button-primary-background);
 }
 
 [data-part="sticky-volume-lab"] [data-part="fork-label-surface"] {
-  fill: var(--noora-purple-100);
   opacity: 0;
+  fill: var(--noora-purple-100);
   stroke: var(--noora-button-primary-background);
   stroke-width: 1;
 }
@@ -136,8 +136,8 @@
 }
 
 [data-part="sticky-volume-lab"] [data-part="flow"] {
-  fill: var(--noora-button-primary-background);
   opacity: 0;
+  fill: var(--noora-button-primary-background);
 }
 
 [data-part="sticky-volume-lab"] [data-stage="branch"] [data-part="event-label"] {
@@ -199,15 +199,15 @@
 [data-part="sticky-volume-lab"][data-step="0"] [data-part="mobile-step"][data-stage="main"],
 [data-part="sticky-volume-lab"][data-step="1"] [data-part="mobile-step"][data-stage="fork"],
 [data-part="sticky-volume-lab"][data-step="2"] [data-part="mobile-step"][data-stage="branch"] {
+  transform: translateY(calc(0px - var(--noora-spacing-1)));
   border-color: var(--noora-button-primary-background);
   background: var(--noora-purple-100);
-  transform: translateY(calc(0px - var(--noora-spacing-1)));
 }
 
 @keyframes sticky-volume-lab-main-flow {
   0% {
-    opacity: 0;
     transform: translate(0, 0);
+    opacity: 0;
   }
 
   10%,
@@ -216,15 +216,15 @@
   }
 
   100% {
-    opacity: 0;
     transform: translate(42px, 0);
+    opacity: 0;
   }
 }
 
 @keyframes sticky-volume-lab-fork-flow {
   0% {
-    opacity: 0;
     transform: translate(0, 0);
+    opacity: 0;
   }
 
   10%,
@@ -233,15 +233,15 @@
   }
 
   100% {
-    opacity: 0;
     transform: translate(20px, 59px);
+    opacity: 0;
   }
 }
 
 @keyframes sticky-volume-lab-delta-flow {
   0% {
-    opacity: 0;
     transform: scaleX(0);
+    opacity: 0;
   }
 
   10%,
@@ -250,8 +250,8 @@
   }
 
   100% {
-    opacity: 1;
     transform: scaleX(1);
+    opacity: 1;
   }
 }
 
@@ -286,16 +286,16 @@
   [data-part="sticky-volume-lab"] [data-part="mobile-step"] {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--noora-spacing-3);
     align-items: start;
-    border: 1px solid var(--noora-surface-border-primary);
-    border-radius: var(--noora-radius-medium);
-    background: var(--noora-surface-background-secondary);
-    padding: var(--noora-spacing-3);
+    gap: var(--noora-spacing-3);
     transition:
       border-color 200ms var(--ease-out-cubic),
       background 200ms var(--ease-out-cubic),
       transform 200ms var(--ease-out-cubic);
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-medium);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-3);
   }
 
   [data-part="sticky-volume-lab"] [data-part="mobile-step-number"] {

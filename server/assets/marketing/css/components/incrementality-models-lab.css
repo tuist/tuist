@@ -37,9 +37,9 @@
 }
 
 .incrementality-models-lab__edge {
-  color: var(--noora-surface-label-secondary);
   stroke: currentColor;
   stroke-width: 2;
+  color: var(--noora-surface-label-secondary);
 }
 
 .incrementality-models-lab__edge--lookup {
@@ -47,8 +47,8 @@
 }
 
 .incrementality-models-lab__flow {
-  fill: var(--noora-button-primary-background);
   opacity: 0;
+  fill: var(--noora-button-primary-background);
 }
 
 .incrementality-models-lab__node {
@@ -119,8 +119,8 @@
 
 @keyframes incrementality-models-lab-location-flow {
   0% {
-    opacity: 0;
     transform: translate(0, 0);
+    opacity: 0;
   }
 
   5% {
@@ -128,21 +128,21 @@
   }
 
   25% {
-    opacity: 1;
     transform: translate(78px, 0);
+    opacity: 1;
   }
 
   30%,
   100% {
-    opacity: 0;
     transform: translate(78px, 0);
+    opacity: 0;
   }
 }
 
 @keyframes incrementality-models-lab-identity-produce {
   0% {
-    opacity: 0;
     transform: translate(0, 0);
+    opacity: 0;
   }
 
   5% {
@@ -150,21 +150,21 @@
   }
 
   25% {
-    opacity: 1;
     transform: translate(78px, 27px);
+    opacity: 1;
   }
 
   30%,
   100% {
-    opacity: 0;
     transform: translate(78px, 27px);
+    opacity: 0;
   }
 }
 
 @keyframes incrementality-models-lab-identity-reuse {
   0% {
-    opacity: 0;
     transform: translate(0, 0);
+    opacity: 0;
   }
 
   5% {
@@ -172,14 +172,14 @@
   }
 
   25% {
-    opacity: 1;
     transform: translate(78px, -32px);
+    opacity: 1;
   }
 
   30%,
   100% {
-    opacity: 0;
     transform: translate(78px, -32px);
+    opacity: 0;
   }
 }
 
