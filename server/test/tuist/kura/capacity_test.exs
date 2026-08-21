@@ -54,8 +54,13 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.resident_bytes(region(), instance) == 24 * 2 * @gib
     end
 
-    test "falls back to the region's declared claim for an unpinned instance" do
-      assert Capacity.resident_gib(region(), %Server{}) == 50 * 2
+    test "reads an unpinned instance the way the manifest renders it" do
+      # us-east declares no claim of its own, so an instance carrying none is
+      # sized from its account's plan rather than read at the controller's
+      # 200Gi fallback, which would overstate it by an order of magnitude.
+      air = %Server{account: %Tuist.Accounts.Account{id: 1, name: "air", subscriptions: []}}
+
+      assert Capacity.resident_gib(region(), air) == 8 * 2
     end
 
     test "reads every unit a claim may be persisted in" do

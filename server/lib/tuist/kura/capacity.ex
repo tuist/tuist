@@ -28,8 +28,10 @@ defmodule Tuist.Kura.Capacity do
 
   import Ecto.Query
 
+  alias Tuist.Accounts.Account
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
@@ -85,6 +87,21 @@ defmodule Tuist.Kura.Capacity do
     case parse_quantity(size) do
       bytes when is_integer(bytes) and bytes > 0 -> div(bytes, @gib)
       _ -> claim_gib(region)
+    end
+  end
+
+  # A region that sizes per plan declares no claim of its own, so an instance
+  # carrying none is read the way the manifest renders it rather than at the
+  # controller's 200Gi fallback, which would overstate it by an order of
+  # magnitude. The archival loop preloads the account this reads.
+  defp claim_gib(%Regions{} = region, %Server{account: %Account{} = account}) do
+    if Regions.storage_governed?(region) do
+      case parse_quantity(Regions.storage_profile(AccountPolicies.sizing_plan(account)).claim_size) do
+        bytes when is_integer(bytes) and bytes > 0 -> div(bytes, @gib)
+        _ -> claim_gib(region)
+      end
+    else
+      claim_gib(region)
     end
   end
 
