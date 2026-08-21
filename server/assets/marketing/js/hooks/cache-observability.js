@@ -118,7 +118,7 @@ export const CacheObservability = {
     // The purple segments are too dark for the particles to read against
     // either surface, so the cloud uses the chart's punchiest purple —
     // the "uploaded" fill (brightest of the ramp in dark mode, darkest in
-    // light). Only the failed segment keeps its own red.
+    // light).
     const uploaded = segments.find((seg) => seg.name === "uploaded");
     const particlePurple = (uploaded || segments[segments.length - 1]).color;
 
@@ -161,15 +161,7 @@ export const CacheObservability = {
           c.el.textContent = `${Math.round(p * c.target)}${c.suffix}`;
         }
       }
-      // The particle cloud is the fixed bright purple except while the
-      // frontier sweeps the failed segment, where it goes red.
-      let activeColor = particlePurple;
-      for (let i = segments.length - 1; i >= 0; i--) {
-        if (frontier >= segments[i].x) {
-          if (segments[i].name === "failed") activeColor = segments[i].color;
-          break;
-        }
-      }
+      const activeColor = particlePurple;
 
       ctx.clearRect(0, 0, w, h);
 

@@ -152,6 +152,53 @@
             >
             </canvas>
             <span data-part="fade"></span>
+            <%!-- Instant first paint: a tiny inline dot-sphere drawn while
+            the HTML streams in, so the card never sits empty waiting for
+            the marketing bundle on slow connections. The DitherGlobe hook
+            repaints the full globe over it as soon as it mounts. (HEEx
+            does not interpolate braces inside script tags.) The CSP nonce
+            is required — without it the browser blocks the inline script
+            and the card sits empty until the hook mounts. --%>
+            <script nonce={@csp_nonce}>
+              (() => {
+                var c = document.getElementById("cache-low-latency-globe");
+                if (!c || c.getAttribute("width")) return;
+                var host = c.parentElement;
+                var r = host.getBoundingClientRect();
+                var w = Math.round(r.width);
+                var h = Math.round(r.height);
+                if (!w || !h) return;
+                var dpr = Math.min(devicePixelRatio || 1, 2);
+                c.width = w * dpr;
+                c.height = h * dpr;
+                var x = c.getContext("2d");
+                x.setTransform(dpr, 0, 0, dpr, 0, 0);
+                var d = c.dataset;
+                var rad = (Math.min(w, h) / 2) * (+d.size || 1);
+                var cx = w / 2 + (+d.offsetX || 0);
+                var cy = h / 2 + (+d.offsetY || 0);
+                var probe = document.createElement("span");
+                probe.style.color = "var(--marketing-cache-globe-dither-mid)";
+                host.appendChild(probe);
+                x.fillStyle = getComputedStyle(probe).color;
+                probe.remove();
+                var ga = Math.PI * (3 - Math.sqrt(5));
+                var seed = 7;
+                for (var i = 0; i < 6000; i++) {
+                  var y = 1 - ((i + 0.5) * 2) / 6000;
+                  var rr = Math.sqrt(1 - y * y);
+                  var t = ga * i;
+                  var px = Math.cos(t) * rr;
+                  var pz = Math.sin(t) * rr;
+                  if (pz < 0.05) continue;
+                  seed = (seed * 1103515245 + 12345) & 2147483647;
+                  if (seed / 2147483647 > 0.4) continue;
+                  var gx = Math.round((cx + px * rad) / 2) * 2;
+                  var gy = Math.round((cy - y * rad) / 2) * 2;
+                  x.fillRect(gx, gy, 2, 2);
+                }
+              })();
+            </script>
           </figure>
           <div data-part="text">
             <h3 data-part="title">{dgettext("marketing", "Low latency, everywhere")}</h3>
@@ -186,13 +233,11 @@
                   <span data-part="segment" data-segment="local"></span>
                   <span data-part="segment" data-segment="remote"></span>
                   <span data-part="segment" data-segment="uploaded"></span>
-                  <span data-part="segment" data-segment="failed"></span>
                 </div>
                 <ul data-part="legend">
                   <li data-segment="local">Local</li>
                   <li data-segment="remote">Remote</li>
                   <li data-segment="uploaded">Uploaded</li>
-                  <li data-segment="failed">Failed to upload</li>
                 </ul>
               </div>
               <div data-part="stats">
@@ -243,21 +288,21 @@
             sits. Each system carries its own drafting pattern — a square
             grid for Xcode, a diamond lattice for Bazel, an arc-stencil
             tessellation for Gradle. --%>
-            <div data-part="panel" data-system="xcode">
+            <div data-part="panel" data-system="xcode" data-pos="0">
               <header data-part="header">
                 <span data-part="system">XCODE</span>
                 <span data-part="platform">APPLE&nbsp;ECOSYSTEM</span>
               </header>
               <div data-part="grid"></div>
             </div>
-            <div data-part="panel" data-system="bazel">
+            <div data-part="panel" data-system="bazel" data-pos="1">
               <header data-part="header">
                 <span data-part="system">BAZEL</span>
                 <span data-part="platform">GOOGLE&nbsp;OPEN&nbsp;SOURCE</span>
               </header>
               <div data-part="grid"></div>
             </div>
-            <div data-part="panel" data-system="gradle">
+            <div data-part="panel" data-system="gradle" data-pos="2">
               <header data-part="header">
                 <span data-part="system">GRADLE</span>
                 <span data-part="platform">GRADLE&nbsp;PROJECT</span>

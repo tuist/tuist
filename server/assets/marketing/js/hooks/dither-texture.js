@@ -353,25 +353,12 @@ export const DitherTexture = {
       });
     }
 
-    const gl = this.canvas.getContext("webgl", {
-      alpha: true,
-      antialias: false,
-      depth: false,
-      stencil: false,
-      powerPreference: "low-power",
-      // The loop draws on quantized 16Hz ticks and skips the rAF frames in
-      // between. With the default (false) the buffer is invalidated after
-      // each composite, and Firefox can composite that cleared buffer on
-      // scroll/invalidation frames between draws — streaks and flicker.
-      // Chrome re-composites from its retained texture either way.
-      preserveDrawingBuffer: true,
-    });
-    if (gl && this.setupGL(gl)) {
-      this.mode = "gl";
-    } else {
-      this.mode = "2d";
-      this.ctx2d = this.canvas.getContext("2d");
-    }
+    // Renderer creation is deferred until the canvas first approaches the
+    // viewport (see the view observer below): pages mount many of these
+    // canvases at once, and creating a WebGL context plus compiling the
+    // shader for each at mount time — most of them below the fold —
+    // measurably delays first paint.
+    this.mode = null;
 
     this.resize = () => {
       const rect = host.getBoundingClientRect();
@@ -421,7 +408,10 @@ export const DitherTexture = {
     this.viewObserver = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) this.inView = entry.isIntersecting;
-        if (this.inView) this.render(performance.now());
+        if (this.inView) {
+          this.initRenderer();
+          this.render(performance.now());
+        }
       },
       { rootMargin: "160px" },
     );
@@ -523,6 +513,33 @@ export const DitherTexture = {
     return true;
   },
 
+  // Create the WebGL context (or the 2D fallback) on demand — deferred
+  // from mount, see mounted().
+  initRenderer() {
+    if (this.mode) return;
+    const gl = this.canvas.getContext("webgl", {
+      alpha: true,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      powerPreference: "low-power",
+      // The loop draws on quantized 16Hz ticks and skips the rAF frames in
+      // between. With the default (false) the buffer is invalidated after
+      // each composite, and Firefox can composite that cleared buffer on
+      // scroll/invalidation frames between draws — streaks and flicker.
+      // Chrome re-composites from its retained texture either way.
+      preserveDrawingBuffer: true,
+    });
+    if (gl && this.setupGL(gl)) {
+      this.mode = "gl";
+    } else {
+      this.mode = "2d";
+      this.ctx2d = this.canvas.getContext("2d");
+    }
+    // Apply the size recorded while dormant to the fresh context.
+    this.resize();
+  },
+
   uploadRamp() {
     const { gl, uniforms } = this;
     const last = this.ramp[this.ramp.length - 1];
@@ -575,6 +592,9 @@ export const DitherTexture = {
   },
 
   render(now) {
+    // Dormant until the deferred renderer initializes on first approach
+    // into the viewport.
+    if (!this.mode) return;
     const t = (now / 1000 + this.phase) * 0.35 * this.speed;
     if (this.mode === "gl") {
       const { gl, uniforms, dpr } = this;
