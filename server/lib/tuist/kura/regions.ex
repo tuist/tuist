@@ -342,7 +342,7 @@ defmodule Tuist.Kura.Regions do
   `available/0` minus regions the control plane manages on the
   customer's behalf (the private runner-cache regions, which are
   provisioned automatically when an account turns on runners and are
-  reachable only over the cluster's internal DNS - there is no public
+  reachable only over the cluster's internal DNS — there is no public
   endpoint for a developer to point the CLI at). `create_server/1`
   still accepts these regions through `available/0`; they're only
   hidden from the picker.
