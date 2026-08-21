@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -43,6 +44,8 @@ const (
 // (pod gone) leaves an orphaned pin that CleanupStale removes.
 type Attacher struct {
 	PinRoot string
+
+	Log *slog.Logger
 }
 
 func (a Attacher) returnDir() string { return filepath.Join(a.PinRoot, "return") }
@@ -91,7 +94,11 @@ func (a Attacher) EnsureReturn(returnDev string) error {
 		return fmt.Errorf("attaching return program to %s: %w", returnDev, err)
 	}
 	defer l.Close()
-	return l.Pin(filepath.Join(dir, "link"))
+	if err := l.Pin(filepath.Join(dir, "link")); err != nil {
+		return err
+	}
+	a.Log.Info("attached return program", "dev", returnDev)
+	return nil
 }
 
 // EnsurePod converges one pod device: program attached first in the tcx
@@ -226,9 +233,13 @@ func (a Attacher) CleanupStale(active map[string]bool) error {
 		if active[entry.Name()] {
 			continue
 		}
-		if err := a.removePins(a.podDir(entry.Name())); err != nil && firstErr == nil {
-			firstErr = err
+		if err := a.removePins(a.podDir(entry.Name())); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
 		}
+		a.Log.Info("removed stale pod pins", "device", entry.Name())
 	}
 	return firstErr
 }

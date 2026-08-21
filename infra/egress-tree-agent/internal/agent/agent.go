@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
+	"slices"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -45,6 +47,21 @@ type Agent struct {
 	Attacher  Attacher
 	Metrics   *Metrics
 	Log       *slog.Logger
+
+	// Converged desired state from previous cycles, kept only to log
+	// added/updated/removed transitions at info level without logging the
+	// idempotent replays. Empty after a restart, so the first cycle logs
+	// the full converged state once.
+	appliedBudget  int64
+	appliedClasses map[uint16]TenantClass
+	appliedPods    map[string]appliedPod
+}
+
+// appliedPod is the logged-state fingerprint of one attached pod.
+type appliedPod struct {
+	Device   string
+	Minor    uint16
+	Siblings []string // sorted, as produced by Desired
 }
 
 // Reconcile runs one convergence cycle. requeue asks the caller for a quick
@@ -61,9 +78,17 @@ func (a *Agent) Reconcile(ctx context.Context) (requeue bool, err error) {
 }
 
 func (a *Agent) reconcile(ctx context.Context) (bool, error) {
+	if a.appliedPods == nil {
+		a.appliedPods = map[string]appliedPod{}
+	}
 	nodeMbps, err := a.nodeBudget()
 	if err != nil {
 		return false, err
+	}
+	if nodeMbps != a.appliedBudget {
+		a.Log.Info("node egress budget changed",
+			"old_mbps", a.appliedBudget, "mbps", nodeMbps)
+		a.appliedBudget = nodeMbps
 	}
 	pods, skipped := a.shapedPods()
 
@@ -80,6 +105,10 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 			a.Log.Warn("node advertises no egress budget; pods stay unshaped",
 				"pods", len(pods))
 		}
+		for key, old := range a.appliedPods {
+			a.Log.Info("removed pod shaping", "pod", key, "device", old.Device)
+			delete(a.appliedPods, key)
+		}
 		return false, a.Attacher.CleanupStale(map[string]bool{})
 	}
 	a.Metrics.NodeBudgetMbps.Set(float64(nodeMbps))
@@ -92,6 +121,7 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 	if err := a.Tree.EnsureTree(ctx, nodeMbps, classes); err != nil {
 		return false, err
 	}
+	a.logClassChanges(classes)
 	// Hard ordering: no pod program without a confirmed return path.
 	if err := a.Attacher.EnsureReturn(a.Tree.ReturnDev); err != nil {
 		a.Metrics.AttachedPods.Set(0)
@@ -135,8 +165,10 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 		if reattached {
 			a.Metrics.LinkReattaches.Inc()
 		}
+		key := attachment.Namespace + "/" + attachment.Name
+		a.logPodChange(key, device, attachment, reattached)
 		active[device] = true
-		deviceOf[attachment.Namespace+"/"+attachment.Name] = device
+		deviceOf[key] = device
 		attached++
 	}
 	a.Metrics.AttachedPods.Set(float64(attached))
@@ -146,9 +178,75 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 	if err := a.Attacher.CleanupStale(active); err != nil {
 		a.Log.Error("cleaning stale pins failed", "error", err)
 	}
+	for key, old := range a.appliedPods {
+		if _, ok := deviceOf[key]; !ok {
+			a.Log.Info("removed pod shaping", "pod", key, "device", old.Device)
+			delete(a.appliedPods, key)
+		}
+	}
 
 	a.exportStats(ctx, attachments, deviceOf)
 	return requeue, nil
+}
+
+// logClassChanges logs tenant-class additions and parameter updates against
+// the previously converged set. Removals are logged by EnsureTree at the
+// point of the kernel deletion, which also covers foreign stale classes.
+func (a *Agent) logClassChanges(classes map[uint16]TenantClass) {
+	for minor, class := range classes {
+		old, ok := a.appliedClasses[minor]
+		switch {
+		case !ok:
+			a.Log.Info("added tenant class", "classid", ClassIDString(minor),
+				"floor_mbps", class.FloorMbps, "burst_mbps", class.BurstMbps)
+		case old != class:
+			a.Log.Info("updated tenant class", "classid", ClassIDString(minor),
+				"old_floor_mbps", old.FloorMbps, "old_burst_mbps", old.BurstMbps,
+				"floor_mbps", class.FloorMbps, "burst_mbps", class.BurstMbps)
+		}
+	}
+	a.appliedClasses = maps.Clone(classes)
+}
+
+// logPodChange logs one pod's attach or config transition and records the
+// new fingerprint. A quiet cycle (attached, first, same config) logs nothing.
+func (a *Agent) logPodChange(key, device string, attachment PodAttachment, reattached bool) {
+	old, existed := a.appliedPods[key]
+	current := appliedPod{Device: device, Minor: attachment.Minor, Siblings: attachment.SiblingIPs}
+	switch {
+	case reattached:
+		a.Log.Info("attached pod program", "pod", key, "device", device,
+			"classid", ClassIDString(attachment.Minor), "siblings", attachment.SiblingIPs)
+	case !existed:
+		// Restart with the pinned link intact: report the standing state
+		// once rather than a fake update against an empty fingerprint.
+		a.Log.Info("pod shaping in effect", "pod", key, "device", device,
+			"classid", ClassIDString(attachment.Minor), "siblings", attachment.SiblingIPs)
+	case old.Minor != current.Minor || !slices.Equal(old.Siblings, current.Siblings):
+		added, removed := diffStrings(old.Siblings, current.Siblings)
+		a.Log.Info("updated pod shaping", "pod", key, "device", device,
+			"old_classid", ClassIDString(old.Minor), "classid", ClassIDString(attachment.Minor),
+			"siblings_added", added, "siblings_removed", removed)
+	default:
+		return
+	}
+	a.appliedPods[key] = current
+}
+
+// diffStrings compares two sorted slices and returns the elements only in
+// current and only in old.
+func diffStrings(old, current []string) (added, removed []string) {
+	for _, s := range current {
+		if !slices.Contains(old, s) {
+			added = append(added, s)
+		}
+	}
+	for _, s := range old {
+		if !slices.Contains(current, s) {
+			removed = append(removed, s)
+		}
+	}
+	return added, removed
 }
 
 func (a *Agent) exportStats(ctx context.Context, attachments []PodAttachment, deviceOf map[string]string) {

@@ -94,3 +94,17 @@ func TestDesiredRolloutTakesLargerRates(t *testing.T) {
 		t.Fatalf("class = %+v, want floor 900 burst 1500", classes[0x102])
 	}
 }
+
+func TestDiffStrings(t *testing.T) {
+	added, removed := diffStrings([]string{"10.0.0.1", "10.0.0.2"}, []string{"10.0.0.2", "10.0.0.3"})
+	if !reflect.DeepEqual(added, []string{"10.0.0.3"}) {
+		t.Fatalf("added = %v", added)
+	}
+	if !reflect.DeepEqual(removed, []string{"10.0.0.1"}) {
+		t.Fatalf("removed = %v", removed)
+	}
+	added, removed = diffStrings(nil, nil)
+	if added != nil || removed != nil {
+		t.Fatalf("empty diff = %v / %v", added, removed)
+	}
+}

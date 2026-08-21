@@ -151,8 +151,8 @@ func main() {
 		Pods:            podInformer.Lister(),
 		Nodes:           nodeInformer.Lister(),
 		Endpoints:       agent.NewEndpointResolver(ciliumSock),
-		Tree:            agent.Tree{TrampolineDev: trampolineDev, ReturnDev: returnDev},
-		Attacher:        agent.Attacher{PinRoot: pinRoot},
+		Tree:            agent.Tree{TrampolineDev: trampolineDev, ReturnDev: returnDev, Log: logger},
+		Attacher:        agent.Attacher{PinRoot: pinRoot, Log: logger},
 		Metrics:         agent.NewMetrics(registry),
 		Log:             logger,
 	}

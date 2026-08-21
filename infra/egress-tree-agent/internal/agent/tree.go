@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,6 +24,8 @@ type Tree struct {
 	// ReturnDev is the peer; the return program hands packets back to
 	// Cilium from its ingress hook.
 	ReturnDev string
+
+	Log *slog.Logger
 }
 
 // EnsureDevices creates the veth pair if missing and applies its guardrails:
@@ -36,6 +39,7 @@ func (t Tree) EnsureDevices(ctx context.Context) error {
 			"type", "veth", "peer", "name", t.ReturnDev); err != nil {
 			return fmt.Errorf("creating trampoline pair: %w", err)
 		}
+		t.Log.Info("created trampoline veth pair", "dev", t.TrampolineDev, "peer", t.ReturnDev)
 	}
 	if _, err := run(ctx, "ip", "link", "set", t.ReturnDev, "mtu", "65535"); err != nil {
 		return err
@@ -73,6 +77,7 @@ func (t Tree) EnsureTree(ctx context.Context, nodeMbps int64, classes map[uint16
 			"root", "handle", "1:", "htb", "default", "0"); err != nil {
 			return fmt.Errorf("creating root qdisc: %w", err)
 		}
+		t.Log.Info("created htb root qdisc", "dev", t.TrampolineDev)
 		existing = nil
 	}
 
@@ -115,6 +120,7 @@ func (t Tree) EnsureTree(ctx context.Context, nodeMbps int64, classes map[uint16
 				"classid", ClassIDString(minor)); err != nil {
 				return fmt.Errorf("deleting stale class %s: %w", ClassIDString(minor), err)
 			}
+			t.Log.Info("removed tenant class", "classid", ClassIDString(minor))
 		}
 	}
 	return nil
