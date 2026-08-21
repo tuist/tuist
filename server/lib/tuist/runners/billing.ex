@@ -318,6 +318,73 @@ defmodule Tuist.Runners.Billing do
     |> Map.new()
   end
 
+  @doc """
+  Billable milliseconds per day, split by the repository whose workflow
+  ran them.
+
+  Repository rather than project: a runner session records the
+  repository that triggered the job and nothing else, so that is the
+  finest attribution the data supports without inventing a mapping.
+  """
+  def compute_milliseconds_per_repository(account_id, %DateTime{} = period_start, %DateTime{} = period_end)
+      when is_integer(account_id) do
+    overlapping =
+      account_id
+      |> sessions_overlapping(period_start, period_end)
+      |> select([s], %{
+        started_at: s.job_started_at,
+        effective_end: s.job_ended_at,
+        repository: s.repository
+      })
+
+    from(b in subquery(repository_buckets_query(overlapping, period_start, period_end)),
+      group_by: [b.day, b.repository],
+      order_by: [b.day, b.repository],
+      select: {b.day, b.repository, fragment("SUM(?)::bigint", b.intersection_ms)}
+    )
+    |> Repo.all()
+    |> Enum.map(fn {day, repository, ms} -> %{date: day, repository: repository, total_ms: ms} end)
+  end
+
+  defp repository_buckets_query(overlapping, period_start, period_end) do
+    from(o in subquery(overlapping),
+      inner_lateral_join:
+        bucket in fragment(
+          """
+          (SELECT generate_series(
+            (GREATEST(?, ?::timestamptz) AT TIME ZONE 'UTC')::date,
+            (LEAST(?, ?::timestamptz) AT TIME ZONE 'UTC')::date,
+            '1 day'::interval
+          )::date AS day)
+          """,
+          o.started_at,
+          ^period_start,
+          o.effective_end,
+          ^period_end
+        ),
+      on: true,
+      select: %{
+        day: bucket.day,
+        repository: o.repository,
+        intersection_ms:
+          fragment(
+            """
+            GREATEST(0, (EXTRACT(EPOCH FROM (
+              LEAST(?, (?::date + INTERVAL '1 day') AT TIME ZONE 'UTC', ?) -
+              GREATEST(?, ?::date::timestamp AT TIME ZONE 'UTC', ?)
+            )) * 1000)::bigint)
+            """,
+            o.effective_end,
+            bucket.day,
+            ^period_end,
+            o.started_at,
+            bucket.day,
+            ^period_start
+          )
+      }
+    )
+  end
+
   defp buckets_query(overlapping, period_start, period_end, :day) do
     from(o in subquery(overlapping),
       inner_lateral_join:

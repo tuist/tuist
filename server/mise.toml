@@ -3,8 +3,10 @@ _.source = "{{config_root}}/../mise/utilities/dev_instance_env.sh"
 TUIST_SECRET_KEY_BASE = "rpux4+W/oBey0drSFOctyIbppOG2A9VUUuTMC1WaM8xZgYxA6gg4yryG/LkOoqkj"
 # Stripe price IDs for local dev (test-mode identifiers, not secrets — the keys
 # come from fnox/1Password). Environment.stripe_prices/1 reads TUIST_STRIPE_PRICES
+# The `runners` map mirrors the managed envs: a macOS Price whose first tier
+# covers the free allowance, and Linux left empty because it has no agreed rate.
 # as a JSON string; dev has no chart to render it, so it's inlined here.
-TUIST_STRIPE_PRICES = '{"air":{"usage":["price_1PVY2kLWue9IBlPSHCmPX1jp"],"flat_monthly":["price_1PVY21LWue9IBlPSLksRxRos"]},"pro":{"usage":["price_1QMtp7LWue9IBlPSImRePMKa"],"flat_monthly":["price_1QMtzQLWue9IBlPSoRg6kBhr"]},"enterprise":{"flat_monthly":["price_1PWfxuLWue9IBlPSDbc3osiV"],"flat_yearly":[]}}'
+TUIST_STRIPE_PRICES = '{"air":{"usage":["price_1PVY2kLWue9IBlPSHCmPX1jp"],"flat_monthly":["price_1PVY21LWue9IBlPSLksRxRos"]},"pro":{"usage":["price_1QMtp7LWue9IBlPSImRePMKa"],"flat_monthly":["price_1QMtzQLWue9IBlPSoRg6kBhr"]},"enterprise":{"flat_monthly":["price_1PWfxuLWue9IBlPSDbc3osiV"],"flat_yearly":[]},"runners":{"runner_linux_compute_unit_milliseconds":"","runner_macos_compute_unit_milliseconds":"price_1U6aJjLWue9IBlPSyDe2GHqs"}}'
 
 [hooks]
   postinstall = "{{config_root}}/mise/tasks/install.sh"

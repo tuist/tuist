@@ -53,6 +53,13 @@ function formatBytes(bytes) {
   }
 }
 
+function formatCurrency(amount, currency = "USD") {
+  return Number(amount).toLocaleString(navigator.language, {
+    style: "currency",
+    currency,
+  });
+}
+
 function formatMbps(bytesPerSecond) {
   const mbps = (bytesPerSecond * 8) / 1_000_000;
   return `${mbps.toFixed(1)} Mbps`;
@@ -87,6 +94,9 @@ const formatters = {
   formatBytes: (el) => (value, _) => {
     return formatBytes(value);
   },
+  formatCurrency: (el) => (value, _) => {
+    return formatCurrency(value);
+  },
   formatMbps: (el) => (value, _) => {
     return formatMbps(value);
   },
@@ -103,6 +113,7 @@ const formatters = {
 
 const tooltipFormatters = {
   formatBytes,
+  formatCurrency,
   formatMbps,
   formatMilliseconds,
   formatSeconds,
