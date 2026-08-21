@@ -83,8 +83,9 @@ func TestDesiredSharedClassAndSiblings(t *testing.T) {
 	}
 }
 
-// During a rollout the replicas can disagree on rates; the larger value wins
-// so a tenant is never under-provisioned by a stale sibling annotation.
+// During a rollout the replicas can disagree on rates; the more permissive
+// value wins so a tenant is never under-provisioned by a stale sibling
+// annotation.
 func TestDesiredRolloutTakesLargerRates(t *testing.T) {
 	classes, _ := Desired([]PodShape{
 		{Namespace: "kura", Name: "a-0", IP: "10.0.0.10", Minor: 0x102, FloorMbps: 700, BurstMbps: 1500},
@@ -92,6 +93,27 @@ func TestDesiredRolloutTakesLargerRates(t *testing.T) {
 	})
 	if classes[0x102].FloorMbps != 900 || classes[0x102].BurstMbps != 1500 {
 		t.Fatalf("class = %+v, want floor 900 burst 1500", classes[0x102])
+	}
+}
+
+// Burst 0 means "no per-tenant ceiling", so it is the most permissive value:
+// removing a ceiling mid-rollout must take effect even while a stale replica
+// still carries the old number, in either arrival order.
+func TestDesiredRolloutUncappedBurstWins(t *testing.T) {
+	for _, pods := range [][]PodShape{
+		{
+			{Namespace: "kura", Name: "a-0", IP: "10.0.0.10", Minor: 0x102, FloorMbps: 700, BurstMbps: 0},
+			{Namespace: "kura", Name: "a-1", IP: "10.0.0.11", Minor: 0x102, FloorMbps: 700, BurstMbps: 1500},
+		},
+		{
+			{Namespace: "kura", Name: "a-1", IP: "10.0.0.11", Minor: 0x102, FloorMbps: 700, BurstMbps: 1500},
+			{Namespace: "kura", Name: "a-0", IP: "10.0.0.10", Minor: 0x102, FloorMbps: 700, BurstMbps: 0},
+		},
+	} {
+		classes, _ := Desired(pods)
+		if classes[0x102].BurstMbps != 0 {
+			t.Fatalf("class = %+v, want burst 0 (uncapped)", classes[0x102])
+		}
 	}
 }
 

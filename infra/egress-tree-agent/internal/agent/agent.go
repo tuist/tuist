@@ -128,8 +128,14 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 	if err := a.Tree.EnsureDevices(ctx); err != nil {
 		return false, err
 	}
+	requeue := false
 	if err := a.Tree.EnsureTree(ctx, nodeMbps, classes); err != nil {
-		return false, err
+		// Degrade to a requeue, not a cycle abort: one tenant's failing
+		// class must not block the other tenants' updates or any pod
+		// attach/detach, and packets to a missing class run unshaped
+		// through the direct queue — the fail-open direction.
+		a.Log.Error("tree convergence incomplete", "error", err)
+		requeue = true
 	}
 	a.logClassChanges(classes)
 	// Hard ordering: no pod program without a confirmed return path.
@@ -147,22 +153,34 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	requeue := false
 	attached := 0
 	betaExcluded := 0
 	active := map[string]bool{}
 	deviceOf := map[string]string{}
+	// Pods still desired but unconverged this cycle: their last known-good
+	// device stays out of the stale sweep and their appliedPods entry
+	// survives, so a transient failure neither strips a working program nor
+	// logs a phantom "removed pod shaping" transition.
+	retained := map[string]bool{}
 	for _, attachment := range attachments {
+		key := attachment.Namespace + "/" + attachment.Name
 		if a.BetaPodPrefix != "" && !strings.HasPrefix(attachment.Name, a.BetaPodPrefix) {
 			betaExcluded++
 			continue
 		}
-		device, ok := interfaces[attachment.Namespace+"/"+attachment.Name]
+		device, ok := interfaces[key]
 		if !ok {
 			skipped++
 			requeue = true
+			// A missing endpoint can be a lookup failure (a Cilium restart,
+			// a partial endpoint list), not a gone pod: spare the last
+			// known device.
+			if old, exists := a.appliedPods[key]; exists {
+				active[old.Device] = true
+				retained[key] = true
+			}
 			a.Log.Warn("no cilium endpoint for pod; leaving it unshaped",
-				"pod", attachment.Namespace+"/"+attachment.Name)
+				"pod", key)
 			continue
 		}
 		reattached, err := a.Attacher.EnsurePod(device, trampoline.Index, attachment)
@@ -172,14 +190,14 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 			// Keep whatever is attached on this device: a transient sync
 			// error must not let CleanupStale strip a working program.
 			active[device] = true
+			retained[key] = true
 			a.Log.Error("attaching pod device failed",
-				"pod", attachment.Namespace+"/"+attachment.Name, "device", device, "error", err)
+				"pod", key, "device", device, "error", err)
 			continue
 		}
 		if reattached {
 			a.Metrics.LinkReattaches.Inc()
 		}
-		key := attachment.Namespace + "/" + attachment.Name
 		a.logPodChange(key, device, attachment, reattached)
 		active[device] = true
 		deviceOf[key] = device
@@ -198,7 +216,7 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 		a.Log.Error("pruning stale classes failed", "error", err)
 	}
 	for key, old := range a.appliedPods {
-		if _, ok := deviceOf[key]; !ok {
+		if _, ok := deviceOf[key]; !ok && !retained[key] {
 			a.Log.Info("removed pod shaping", "pod", key, "device", old.Device)
 			delete(a.appliedPods, key)
 		}
@@ -295,10 +313,13 @@ func diffStrings(old, current []string) (added, removed []string) {
 }
 
 func (a *Agent) exportStats(ctx context.Context, attachments []PodAttachment, deviceOf map[string]string) {
+	// Stats returns the class stats it collected even when the
+	// direct-packet read fails; export whatever arrived so the per-class
+	// gauges never freeze on their last good values — a frozen counter
+	// rates as zero traffic, which the floor-violation alert would read as
+	// healthy.
 	stats, direct, err := a.Tree.Stats(ctx)
-	if err != nil {
-		a.Log.Error("reading tree stats failed", "error", err)
-	} else {
+	if stats != nil {
 		a.Metrics.ClassSentBytes.Reset()
 		a.Metrics.ClassDrops.Reset()
 		a.Metrics.ClassBacklogBytes.Reset()
@@ -308,6 +329,10 @@ func (a *Agent) exportStats(ctx context.Context, attachments []PodAttachment, de
 			a.Metrics.ClassDrops.WithLabelValues(id).Set(float64(class.Drops))
 			a.Metrics.ClassBacklogBytes.WithLabelValues(id).Set(float64(class.BacklogBytes))
 		}
+	}
+	if err != nil {
+		a.Log.Error("reading tree stats failed", "error", err)
+	} else {
 		a.Metrics.DirectPackets.Set(float64(direct))
 	}
 

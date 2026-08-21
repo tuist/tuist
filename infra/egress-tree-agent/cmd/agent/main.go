@@ -61,6 +61,10 @@ func main() {
 		os.Exit(1)
 	}
 	interval := durationEnv(logger, "RECONCILE_INTERVAL", 2*time.Minute)
+	if interval < time.Second || interval > 24*time.Hour {
+		logger.Error("RECONCILE_INTERVAL must be between 1s and 24h", "value", interval)
+		os.Exit(1)
+	}
 	metricsAddr := envOr("METRICS_ADDR", ":9469")
 	trampolineDev := envOr("TRAMPOLINE_DEV", "kura-egress0")
 	returnDev := envOr("RETURN_DEV", "kura-egress1")

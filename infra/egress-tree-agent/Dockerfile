@@ -3,7 +3,9 @@
 #
 # alpine (not distroless): the agent shells out to `ip` and `tc` for device
 # and qdisc management. Root user: it attaches tcx BPF programs and writes
-# sysctls (the pod grants NET_ADMIN/BPF, not full privilege).
+# sysctls. The DaemonSet runs it privileged — see the Helm manifest's
+# securityContext comment: the container runtime's read-only /proc/sys mask
+# breaks the sysctl writes under a capabilities-only NET_ADMIN/BPF grant.
 ARG GO_VERSION=1.25
 ARG ALPINE_VERSION=3.22
 

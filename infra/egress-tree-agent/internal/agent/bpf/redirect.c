@@ -75,8 +75,10 @@ struct {
 
 // Co-located same-account pod IPs (IPv4, network byte order). Traffic to a
 // sibling is node-local replication sync at memory speed; it must not consume
-// the tenant bucket nor serialize through the trampoline. Fail-safe polarity:
-// a stale entry briefly shapes sibling traffic, never unshapes tenant traffic.
+// the tenant bucket nor serialize through the trampoline. Sync-lag polarity:
+// a missing entry briefly shapes sibling traffic (harmless); a stale entry
+// briefly lets traffic to one node-local IP skip shaping — never policy —
+// until the next sync removes it.
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, 16);

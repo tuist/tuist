@@ -116,12 +116,19 @@ func Desired(pods []PodShape) (map[uint16]TenantClass, []PodAttachment) {
 		byMinor[pod.Minor] = append(byMinor[pod.Minor], pod)
 		class, ok := classes[pod.Minor]
 		if !ok {
-			class = TenantClass{Minor: pod.Minor}
+			class = TenantClass{Minor: pod.Minor, FloorMbps: pod.FloorMbps, BurstMbps: pod.BurstMbps}
+		} else {
+			// Replicas normally agree; during a spec rollout the more
+			// permissive value wins so a tenant is never under-provisioned
+			// by a stale sibling. For the ceiling, 0 means uncapped, so it
+			// beats any number.
+			class.FloorMbps = max(class.FloorMbps, pod.FloorMbps)
+			if class.BurstMbps == 0 || pod.BurstMbps == 0 {
+				class.BurstMbps = 0
+			} else {
+				class.BurstMbps = max(class.BurstMbps, pod.BurstMbps)
+			}
 		}
-		// Replicas normally agree; during a spec rollout the larger value
-		// wins so a tenant is never under-provisioned by a stale sibling.
-		class.FloorMbps = max(class.FloorMbps, pod.FloorMbps)
-		class.BurstMbps = max(class.BurstMbps, pod.BurstMbps)
 		classes[pod.Minor] = class
 	}
 

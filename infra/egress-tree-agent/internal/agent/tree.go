@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -29,10 +30,11 @@ type Tree struct {
 }
 
 // EnsureDevices creates the veth pair if missing and applies its guardrails:
-// large MTU (GSO passthrough headroom), IPv6 off (an addressless pair must
-// not autoconfigure), and IPv4 forwarding off on both ends — if the return
-// program is ever missing, packets surfacing at ReturnDev must be dropped by
-// the stack, not forwarded around Cilium.
+// large MTU (GSO passthrough headroom) and IPv6 off (an addressless pair
+// must not autoconfigure). If the return program is ever missing, packets
+// surfacing at ReturnDev are dropped by the stack because their destination
+// MAC is not the device's (PACKET_OTHERHOST); IPv4 forwarding is switched
+// off on both ends as defense in depth for the rare frame that does match.
 func (t Tree) EnsureDevices(ctx context.Context) error {
 	if _, err := run(ctx, "ip", "link", "show", "dev", t.TrampolineDev); err != nil {
 		if _, err := run(ctx, "ip", "link", "add", t.TrampolineDev, "mtu", "65535",
@@ -71,8 +73,13 @@ func (t Tree) EnsureDevices(ctx context.Context) error {
 // entering this device was stamped by a pod program — a direct packet means a
 // foreign redirect or a broken stamp.
 func (t Tree) EnsureTree(ctx context.Context, nodeMbps int64, classes map[uint16]TenantClass) error {
-	_, err := t.classes(ctx)
-	if err != nil || !t.hasRootQdisc(ctx) {
+	present, err := t.hasRootQdisc(ctx)
+	if err != nil {
+		// Cannot tell whether the root exists. Never rebuild on
+		// uncertainty: a qdisc replace would drop every tenant class.
+		return fmt.Errorf("probing root qdisc: %w", err)
+	}
+	if !present {
 		if _, err := run(ctx, "tc", "qdisc", "replace", "dev", t.TrampolineDev,
 			"root", "handle", "1:", "htb", "default", "0"); err != nil {
 			return fmt.Errorf("creating root qdisc: %w", err)
@@ -87,6 +94,10 @@ func (t Tree) EnsureTree(ctx context.Context, nodeMbps int64, classes map[uint16
 		return fmt.Errorf("root class: %w", err)
 	}
 
+	// Per-class failures accumulate instead of aborting: one tenant's
+	// failing class must not block the other tenants' updates, and the
+	// caller degrades the joined error to a requeue.
+	var classErrs []error
 	for minor, class := range classes {
 		// HTB rejects rate 0; a tenant without a floor still needs a class
 		// to be countable and cappable, so it gets a 1 Mbit token trickle
@@ -101,15 +112,16 @@ func (t Tree) EnsureTree(ctx context.Context, nodeMbps int64, classes map[uint16
 			"parent", fmt.Sprintf("1:%x", rootClassMinor), "classid", ClassIDString(minor),
 			"htb", "rate", fmt.Sprintf("%dmbit", floor), "ceil", fmt.Sprintf("%dmbit", ceil),
 			"quantum", "60000"); err != nil {
-			return fmt.Errorf("class %s: %w", ClassIDString(minor), err)
+			classErrs = append(classErrs, fmt.Errorf("class %s: %w", ClassIDString(minor), err))
+			continue
 		}
 		if _, err := run(ctx, "tc", "qdisc", "replace", "dev", t.TrampolineDev,
 			"parent", ClassIDString(minor), "fq_codel"); err != nil {
-			return fmt.Errorf("leaf qdisc for %s: %w", ClassIDString(minor), err)
+			classErrs = append(classErrs, fmt.Errorf("leaf qdisc for %s: %w", ClassIDString(minor), err))
 		}
 	}
 
-	return nil
+	return errors.Join(classErrs...)
 }
 
 // PruneClasses deletes tenant classes no longer desired. It must run after
@@ -210,10 +222,10 @@ func (t Tree) classes(ctx context.Context) ([]tcClass, error) {
 	return classes, nil
 }
 
-func (t Tree) hasRootQdisc(ctx context.Context) bool {
+func (t Tree) hasRootQdisc(ctx context.Context) (bool, error) {
 	out, err := run(ctx, "tc", "-j", "qdisc", "show", "dev", t.TrampolineDev)
 	if err != nil {
-		return false
+		return false, err
 	}
 	var qdiscs []struct {
 		Kind   string `json:"kind"`
@@ -221,14 +233,14 @@ func (t Tree) hasRootQdisc(ctx context.Context) bool {
 		Root   bool   `json:"root"`
 	}
 	if err := json.Unmarshal(out, &qdiscs); err != nil {
-		return false
+		return false, err
 	}
 	for _, qdisc := range qdiscs {
 		if qdisc.Root && qdisc.Kind == "htb" && qdisc.Handle == "1:" {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 func (t Tree) directPackets(ctx context.Context) (uint64, error) {
