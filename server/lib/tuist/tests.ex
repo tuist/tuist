@@ -23,6 +23,7 @@ defmodule Tuist.Tests do
 
   alias Tuist.Accounts.Account
   alias Tuist.Automations
+  alias Tuist.ClickHouseCapabilities
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.IngestRepo
@@ -3756,11 +3757,11 @@ defmodule Tuist.Tests do
         git_commit_sha: git_commit_sha,
         test_case_run_ids: test_case_run_ids
       },
-      settings: [
-        insert_deduplication_token: "test-case-run-flaky-correction:#{flaky_correction_batch_id(test_case_run_ids)}",
-        deduplicate_insert_select: "force_enable",
-        deduplicate_blocks_in_dependent_materialized_views: 1
-      ]
+      settings:
+        [
+          insert_deduplication_token: "test-case-run-flaky-correction:#{flaky_correction_batch_id(test_case_run_ids)}",
+          deduplicate_blocks_in_dependent_materialized_views: 1
+        ] ++ ClickHouseCapabilities.insert_select_deduplication_settings(IngestRepo)
     )
   end
 

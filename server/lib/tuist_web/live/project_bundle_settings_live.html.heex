@@ -168,7 +168,7 @@
               </div>
               <div data-part="schedule-row">
                 <label data-part="schedule-label">
-                  {dgettext("dashboard_projects", "Name")}
+                  {dgettext("dashboard_projects", "Bundle name")}
                 </label>
                 <.text_input
                   type="basic"
@@ -327,13 +327,14 @@
                     </div>
                     <div data-part="schedule-row">
                       <label data-part="schedule-label">
-                        {dgettext("dashboard_projects", "Name")}
+                        {dgettext("dashboard_projects", "Bundle name")}
                       </label>
                       <.text_input
                         type="basic"
                         id={"edit-threshold-bundle-name-#{threshold.id}"}
                         name="bundle_name"
                         value={form[:bundle_name] || threshold.bundle_name || ""}
+                        placeholder={dgettext("dashboard_projects", "e.g. MyApp (optional)")}
                         phx-keyup="update_edit_form_bundle_name"
                         phx-value-id={threshold.id}
                         phx-debounce="300"
