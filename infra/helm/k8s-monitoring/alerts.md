@@ -524,6 +524,8 @@ sum by (cluster, pod, route) (
 ```
 
 - Pending period: 5 minutes
+- **Not yet applied.** Rule `cftoutryd1jwge` still carries the original
+  single-route query; paste the one above over it.
 - Already created: rule `cftoutryd1jwge`, folder `Alerts`, group `Cache`,
   receiver `Slack #notifications 2` (routed by notification settings, so it
   carries no `severity` label), `no_data_state: OK`. It was originally
@@ -557,6 +559,13 @@ event with a different label, and the exclusion form is the one the `tuist-kura`
 dashboard uses for public traffic. There is no `tenant_id` label on
 `kura_http_requests_total` — it comes from a join against `kura_node_info` — so
 group by `pod`, whose name carries the account (`kura-<account>-<region>-<n>`).
+
+Widening the routes does not make it noisier, because the threshold moves at the
+same time. Over the 7 days to 2026-08-21 the original form (one route, fires on
+a single 5xx) held its condition for 390 pod-minutes; the form above, across
+every public route, holds for 250. It also surfaces something the original could
+not see: 20 minutes of 5xx on `/api/cache/module/start`, a write route, on a pod
+the old rule never looked at.
 
 ### Runner host PN VLAN missing
 
@@ -1127,11 +1136,17 @@ sum by (cluster, pod) (
 
 - Pending period: 10 minutes
 - Severity: warning
-- Folder `Alerts`, group `Cache`, receiver `Slack #notifications 2`, alongside
-  the fault rule above
+- Already created: rule `dfvv8qn09k1z4b`, folder `Alerts`, group `Cache`,
+  receiver `Slack #notifications 2`, `no_data_state: OK`. It reads Normal until
+  the 429 change is deployed, since no node emits the status yet.
 - Summary: `Kura pod {{ $labels.pod }} is shedding
-  {{ $value | humanizePercentage }} of cache reads ({{ $labels.cluster }}) — it
-  is out of response-stream capacity, not broken`
+  {{ $values.A.Value | humanizePercentage }} of cache reads in
+  {{ $labels.cluster }} — it is out of response-stream capacity, not broken`
+
+`$values.A.Value`, not `$value`: the ratio is query `A` and the threshold is a
+separate expression, so `$value` renders both refIds rather than the percentage.
+`no_data_state: OK` is load-bearing too — the `and` returns an empty vector
+whenever the volume floor is not met, which is most of the time.
 
 Kura answers a read it cannot admit a response stream for with `429` and
 `Retry-After: 1`. Clients retry, so a shed is a slowdown rather than a failure,
