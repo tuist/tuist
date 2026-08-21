@@ -567,6 +567,11 @@ async fn serve_accelerated(
         .await
     {
         Ok(permit) => permit,
+        // Shedding for want of a response-stream permit is capacity
+        // backpressure, not a fault: the node is healthy and the same request
+        // succeeds once a permit frees. It is 429 so a 5xx on an artifact read
+        // keeps meaning a real server fault (an unreachable auth backend, or a
+        // transfer that failed for a reason other than the client going away).
         Err(_) => {
             let mut stream = stream;
             let headers = BTreeMap::from([("retry-after".to_owned(), "1".to_owned())]);
@@ -574,8 +579,8 @@ async fn serve_accelerated(
                 b"The server is limiting concurrent artifact response streams; retry shortly";
             write_response(
                 &mut stream,
-                503,
-                "Service Unavailable",
+                429,
+                "Too Many Requests",
                 "text/plain",
                 &headers,
                 body,
@@ -583,7 +588,7 @@ async fn serve_accelerated(
             .await?;
             state.metrics.record_http(
                 route,
-                StatusCode::SERVICE_UNAVAILABLE,
+                StatusCode::TOO_MANY_REQUESTS,
                 transfer_started_at.elapsed(),
             );
             return Ok(None);
@@ -1642,7 +1647,7 @@ mod tests {
             .await
             .expect("read accelerated response");
         let response = String::from_utf8(response).expect("response should be valid UTF-8");
-        assert!(response.starts_with("HTTP/1.1 503 Service Unavailable\r\n"));
+        assert!(response.starts_with("HTTP/1.1 429 Too Many Requests\r\n"));
         assert!(response.contains("retry-after: 1\r\n"));
         assert!(!response.contains("200 OK"));
 
