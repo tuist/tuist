@@ -13,6 +13,15 @@ const liveSocketFallbackMs = 10000;
 
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: liveSocketFallbackMs,
+  // Join/push timeout (default 10s). In dev every dynamic request pays a
+  // multi-second code-reloader pass under a global lock, so the first
+  // join of a page load can queue 10-25s behind the page's own requests;
+  // at the default timeout the client gives up, error-loops, and
+  // force-reloads the page, leaving every canvas hook unmounted. 30s lets
+  // the join ride out the queue (production joins reply in milliseconds,
+  // so the longer ceiling only matters under load, where waiting beats a
+  // reload storm anyway).
+  timeout: 30000,
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
   hooks: { ...Noora.Hooks, ...Hooks },
 });

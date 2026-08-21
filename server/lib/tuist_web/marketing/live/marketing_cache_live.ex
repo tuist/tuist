@@ -3,6 +3,8 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.CSP, only: [get_csp_nonce: 0]
+
   alias Tuist.Marketing.Stats
   alias TuistWeb.Marketing.Design
 
@@ -27,6 +29,10 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
       end)
       |> TuistWeb.Authentication.mount_current_user(session)
       |> assign(:last_24h_artifacts_count, stats.cache_artifacts_last_24h)
+      # The globe's first-paint placeholder is an inline script, so it needs
+      # the request's CSP nonce (only the dead render matters — CSP is
+      # enforced against the initial response's header).
+      |> assign(:csp_nonce, get_csp_nonce())
 
     socket = assign(socket, :new_design, Design.new?(socket.assigns[:current_user], :cache))
 
