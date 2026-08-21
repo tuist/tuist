@@ -3,9 +3,13 @@ defmodule Tuist.CacheTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Billing
   alias Tuist.Cache
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "last_24h_artifacts_count/0" do
@@ -95,6 +99,184 @@ defmodule Tuist.CacheTest do
       # Then
       assert Enum.sort(grants["project"]["read"]) == Enum.sort(handles)
       assert Enum.sort(grants["project"]["write"]) == Enum.sort(handles)
+    end
+  end
+
+  describe "free tier enforcement" do
+    test "grants nothing once an Air account is over the free tier" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold,
+          preload: [:account]
+        )
+
+      ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # When
+      grants = Cache.cache_grants(user)
+
+      # Then
+      assert grants["project"]["read"] == []
+      assert grants["project"]["write"] == []
+      assert grants["account"]["read"] == []
+      assert grants["account"]["write"] == []
+    end
+
+    # Resolving the plan per account put one subscription query behind every
+    # account the subject could reach, on the same paths a cache node falls back
+    # to for credentials it cannot verify itself.
+    test "issues the same number of queries regardless of how many accounts are over the free tier" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      queries_for = fn organization_count ->
+        user = AccountsFixtures.user_fixture(preload: [:account])
+
+        for _ <- 1..organization_count do
+          organization = AccountsFixtures.organization_fixture(creator: user)
+          Accounts.add_user_to_organization(user, organization, role: :admin)
+          ProjectsFixtures.project_fixture(account: organization.account)
+
+          Account
+          |> Repo.get!(organization.account.id)
+          |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold)
+          |> Repo.update!()
+        end
+
+        count_queries(fn -> Cache.cache_grants(user) end)
+      end
+
+      # When
+      few = queries_for.(2)
+      many = queries_for.(8)
+
+      # Then
+      assert few == many
+    end
+
+    test "keeps granting while the account is under the free tier" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold - 1,
+          preload: [:account]
+        )
+
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # When
+      grants = Cache.cache_grants(user)
+
+      # Then
+      assert grants["project"]["read"] == ["#{user.account.name}/#{project.name}"]
+      assert grants["account"]["read"] == [user.account.name]
+    end
+
+    test "keeps granting a paid account that is over the free tier" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold * 10,
+          preload: [:account]
+        )
+
+      BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # When
+      grants = Cache.cache_grants(user)
+
+      # Then
+      assert grants["project"]["read"] == ["#{user.account.name}/#{project.name}"]
+      assert grants["account"]["read"] == [user.account.name]
+    end
+
+    # Kura falls back to this endpoint for credentials it cannot verify itself,
+    # so a blocked account has to disappear from it as well as from the token.
+    test "drops a blocked account from the accessible handles" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold,
+          preload: [:account]
+        )
+
+      ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # When
+      got = Cache.accessible_handles(user)
+
+      # Then
+      assert got == %{accounts: [], projects: [], payment_required: [user.account.name]}
+    end
+
+    # Absence from the grants alone cannot be told apart from never having had
+    # access, so a cache node would answer a blocked account with a permissions
+    # error. This is what lets it say something actionable instead.
+    test "names the blocked account so a node can explain the refusal" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold,
+          preload: [:account]
+        )
+
+      ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # When
+      handles = Cache.accessible_handles(user)
+      {:ok, _token, claims} = Cache.issue_cache_token(user)
+
+      # Then
+      assert handles.payment_required == [user.account.name]
+      assert claims["cache_payment_required"] == [user.account.name]
+    end
+
+    test "names no account while the subject is under the free tier" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold - 1,
+          preload: [:account]
+        )
+
+      ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # When / Then
+      assert Cache.accessible_handles(user).payment_required == []
+    end
+
+    test "mints a token carrying no grants for a blocked account" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold,
+          preload: [:account]
+        )
+
+      ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # When
+      {:ok, _token, claims} = Cache.issue_cache_token(user)
+
+      # Then
+      assert claims["cache_grants"]["project"]["read"] == []
+      assert claims["cache_grants"]["account"]["read"] == []
     end
   end
 

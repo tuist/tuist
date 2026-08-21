@@ -188,6 +188,14 @@ type runtimeStatus struct {
 	State           string `json:"state"`
 	RingMembers     int    `json:"ring_members"`
 	WriterLockOwned bool   `json:"writer_lock_owned"`
+	// BackfillInitialCycle reports whether a pod's initial peer catch-up has
+	// settled. Primary selection deliberately does NOT consume it (see
+	// primaryPodHealth): a rolling deploy has to promote a caught-up standby
+	// immediately to stay gapless, and readiness plus ring membership is the
+	// right gate there. Node evacuation does consume it, because moving a
+	// replica destroys the peer the next one would refill from, so "ready" is
+	// not enough to justify the next move.
+	BackfillInitialCycle string `json:"backfill_initial_cycle"`
 }
 
 type httpRuntimeStatusClient struct {
@@ -392,6 +400,12 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.replaceUnreadyPodsForImageChange(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	// Retiring a cache box means abandoning node-local volumes and refilling
+	// them from a peer, so the moves are sequenced rather than done at once.
+	// Paced by this reconciler's requeue below.
+	if err := r.evacuateMarkedNodes(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -1648,10 +1662,75 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
 		return "", err
 	}
-	return choosePrimaryPod(current, instance.Name, pods.Items, r.primaryPodHealth(ctx, instance, pods.Items)), nil
+	health, caughtUp := r.primaryPodHealth(ctx, instance, pods.Items)
+
+	// A pod on a box being retired must not hold the primary role: evacuation
+	// deletes it, and a Service still pointing at it has no endpoint until the
+	// next reconcile repoints the selector. Demoting it here, BEFORE the
+	// Services are reconciled in this same pass, is what makes the handover
+	// ordered rather than a race.
+	//
+	// Only when something else can actually serve. If every pod is on the way
+	// out there is no better primary, and dropping the role would replace a
+	// short gap with no endpoint at all.
+	if err := r.demoteEvacuatingPods(ctx, pods.Items, health, caughtUp); err != nil {
+		return "", err
+	}
+	return choosePrimaryPod(current, instance.Name, pods.Items, health), nil
 }
 
-func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]bool {
+// demoteEvacuatingPods marks pods on nodes annotated for evacuation as
+// unroutable, so primary selection hands the role to a pod that is staying.
+// A no-op unless some pod outside the evacuating set is healthy enough to take
+// over.
+func (r *KuraInstanceReconciler) demoteEvacuatingPods(ctx context.Context, pods []corev1.Pod, health, caughtUp map[string]bool) error {
+	onEvacuating := map[string]bool{}
+	for i := range pods {
+		if health[pods[i].Name] && pods[i].Spec.NodeName != "" {
+			onEvacuating[pods[i].Spec.NodeName] = false
+		}
+	}
+	if len(onEvacuating) == 0 {
+		return nil
+	}
+
+	nodes := &corev1.NodeList{}
+	if err := r.List(ctx, nodes); err != nil {
+		return err
+	}
+	leaving := map[string]bool{}
+	for i := range nodes.Items {
+		if _, marked := nodes.Items[i].Annotations[EvacuateNodeAnnotation]; marked {
+			leaving[nodes.Items[i].Name] = true
+		}
+	}
+	if len(leaving) == 0 {
+		return nil
+	}
+
+	// A successor has to be able to serve AND have the content to serve. Moving
+	// the role to a pod that is still filling gives the account a cold cache
+	// with none of the outage a bad handover would cause, which is the failure
+	// that looks like success and so is worth gating on explicitly.
+	staying := false
+	for i := range pods {
+		if health[pods[i].Name] && caughtUp[pods[i].Name] && !leaving[pods[i].Spec.NodeName] {
+			staying = true
+			break
+		}
+	}
+	if !staying {
+		return nil
+	}
+	for i := range pods {
+		if leaving[pods[i].Spec.NodeName] {
+			delete(health, pods[i].Name)
+		}
+	}
+	return nil
+}
+
+func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) (map[string]bool, map[string]bool) {
 	now := time.Now()
 
 	statusClient := r.RuntimeStatusClient
@@ -1680,6 +1759,13 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 	// consumed here (see the region-move note in kura/README.md).
 	fallbackReady := map[string]bool{}
 	runtimeHealthy := map[string]bool{}
+	// caughtUp is reported separately from routability because they answer
+	// different questions. Routable means a pod can serve; caught up means it
+	// has the content to serve WELL. Primary selection rightly moves on the
+	// first, since a rolling deploy has to promote quickly; handing traffic to a
+	// pod during an evacuation additionally wants the second, or the handover is
+	// warm in name only.
+	caughtUp := map[string]bool{}
 	runtimeStatuses := 0
 	for i := range pods {
 		if !podReady(&pods[i]) {
@@ -1695,12 +1781,15 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 		}
 		runtimeStatuses++
 		runtimeHealthy[pods[i].Name] = runtimeStatusRoutable(status, replicas(instance))
+		caughtUp[pods[i].Name] = status.BackfillInitialCycle == backfillCycleComplete
 	}
 
 	if runtimeStatuses == 0 {
-		return fallbackReady
+		// No runtime status anywhere means no catch-up evidence either, and a
+		// guess is not evidence: leave caughtUp empty so demotion holds.
+		return fallbackReady, map[string]bool{}
 	}
-	return runtimeHealthy
+	return runtimeHealthy, caughtUp
 }
 
 func defaultRuntimeStatusClient() RuntimeStatusClient {
@@ -3444,6 +3533,14 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&corev1.Pod{},
 			handler.EnqueueRequestsFromMapFunc(r.kuraInstanceForPod),
 			builder.WithPredicates(predicate.And(kuraPodPredicate(), podRoutabilityChangedPredicate())),
+		).
+		Watches(
+			&corev1.Node{},
+			handler.EnqueueRequestsFromMapFunc(r.kuraInstancesForNode),
+			builder.WithPredicates(predicate.NewPredicateFuncs(func(object client.Object) bool {
+				_, marked := object.GetAnnotations()[EvacuateNodeAnnotation]
+				return marked
+			})),
 		).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
