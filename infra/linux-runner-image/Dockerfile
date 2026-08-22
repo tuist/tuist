@@ -228,7 +228,7 @@ RUN apt-get update \
 # land as `fix(linux-runner-image): …` and route through the
 # release flow same as `RUNNER_VERSION`.
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
-ARG KUBECTL_VERSION=1.36.1
+ARG KUBECTL_VERSION=1.36.4
 # renovate: datasource=github-releases depName=helm/helm
 ARG HELM_VERSION=4.2.0
 # renovate: datasource=github-releases depName=cli/cli
