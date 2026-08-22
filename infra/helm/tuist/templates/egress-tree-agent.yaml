@@ -178,10 +178,14 @@ metadata:
     app.kubernetes.io/component: egress-tree-agent
 spec:
   nodeSelector:
-    {{- with .Values.egressTreeAgent.nodeSelector }}
+    # Mirror the DaemonSet scope (kubernetes.io/os: linux + the same
+    # nodeSelector/nodePools): the policy must select exactly the nodes the
+    # agent runs on, never a non-linux node in a shared pool.
     matchLabels:
+      kubernetes.io/os: linux
+      {{- with .Values.egressTreeAgent.nodeSelector }}
       {{- toYaml . | nindent 6 }}
-    {{- end }}
+      {{- end }}
     {{- with .Values.egressTreeAgent.nodePools }}
     matchExpressions:
       - key: node.cluster.x-k8s.io/pool

@@ -259,6 +259,14 @@ kuraController:
 # Inert unless the kura-controller also renders the tuist.dev/egress-class
 # pod annotation (it does so for every instance with a floor or ceiling).
 egressTreeAgent:
+  # When enabled, the chart also renders a CiliumClusterwideNetworkPolicy that
+  # drops the metrics port from `world` on the selected nodes. That policy is a
+  # no-op unless the cluster runs Cilium with `enable-host-firewall: true` — the
+  # policy object applies but the host endpoint is never enforced, leaving the
+  # port world-readable with no signal. Confirm host-firewall is on before
+  # relying on it. If a host endpoint is ever locked out, recover by setting
+  # `enabled: false` and redeploying, or delete the policy object directly
+  # (see infra/egress-tree-agent/AGENTS.md).
   enabled: false
   # Full image reference, pinned (e.g. ghcr.io/tuist/egress-tree-agent@sha256:...).
   image: ""
