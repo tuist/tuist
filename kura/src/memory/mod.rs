@@ -190,6 +190,7 @@ impl MemoryController {
             pools.foreground_response_streaming_bytes(),
             pools.degraded_response_stream_slots(),
         );
+        metrics.update_transient_memory_capacity(pools.transient_capacity_bytes() as u64);
         Self {
             inner: Arc::new(MemoryControllerInner {
                 runtime_limit_bytes,
