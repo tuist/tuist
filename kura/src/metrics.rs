@@ -160,6 +160,7 @@ pub struct Metrics {
     memory_protection_min_bytes: Gauge,
     memory_protection_low_bytes: Gauge,
     memory_transient_reserved_bytes: Gauge,
+    memory_transient_capacity_bytes: Gauge,
     foreground_memory_waiters: Gauge,
     response_stream_pool_capacity_bytes: Gauge,
     response_stream_foreground_pool_capacity_bytes: Gauge,
@@ -401,6 +402,7 @@ impl Metrics {
         let memory_protection_min_bytes = Gauge::default();
         let memory_protection_low_bytes = Gauge::default();
         let memory_transient_reserved_bytes = Gauge::default();
+        let memory_transient_capacity_bytes = Gauge::default();
         let foreground_memory_waiters = Gauge::default();
         let response_stream_pool_capacity_bytes = Gauge::default();
         let response_stream_foreground_pool_capacity_bytes = Gauge::default();
@@ -1057,6 +1059,11 @@ impl Metrics {
             memory_transient_reserved_bytes.clone(),
         );
         registry.register(
+            "kura_memory_transient_capacity_bytes",
+            "Transient admission capacity: the anonymous-memory budget every upload, response stream and REAPI materialization is admitted against",
+            memory_transient_capacity_bytes.clone(),
+        );
+        registry.register(
             "kura_foreground_memory_waiters",
             "Foreground requests currently waiting for memory admission",
             foreground_memory_waiters.clone(),
@@ -1345,6 +1352,7 @@ impl Metrics {
             memory_protection_min_bytes,
             memory_protection_low_bytes,
             memory_transient_reserved_bytes,
+            memory_transient_capacity_bytes,
             foreground_memory_waiters,
             response_stream_pool_capacity_bytes,
             response_stream_foreground_pool_capacity_bytes,
@@ -2131,6 +2139,11 @@ impl Metrics {
     pub fn update_transient_memory_reserved(&self, reserved_bytes: u64) {
         self.memory_transient_reserved_bytes
             .set(reserved_bytes as i64);
+    }
+
+    pub fn update_transient_memory_capacity(&self, capacity_bytes: u64) {
+        self.memory_transient_capacity_bytes
+            .set(capacity_bytes as i64);
     }
 
     pub fn update_foreground_memory_waiters(&self, waiters: u64) {
