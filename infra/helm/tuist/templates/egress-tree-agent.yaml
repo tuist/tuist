@@ -155,4 +155,38 @@ spec:
           hostPath:
             path: /var/run/cilium
             type: Directory
+---
+# Host-firewall hardening for the metrics listener. The agent is hostNetwork
+# on boxes whose primary IP is public and which carry no host firewall, so
+# without this rule /metrics — per-tenant classids and traffic volumes — is
+# world-readable. ingressDeny is the safe half of the Cilium host firewall:
+# unlike an allow policy it does not flip the host endpoint into
+# default-deny, so the blast radius is exactly this port from `world`.
+# In-cluster scrapes arrive as cluster identities and pass.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: {{ $name }}-metrics-no-world
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: egress-tree-agent
+spec:
+  nodeSelector:
+    {{- with .Values.egressTreeAgent.nodeSelector }}
+    matchLabels:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.egressTreeAgent.nodePools }}
+    matchExpressions:
+      - key: node.cluster.x-k8s.io/pool
+        operator: In
+        values:
+          {{- toYaml . | nindent 10 }}
+    {{- end }}
+  ingressDeny:
+    - fromEntities: [world]
+      toPorts:
+        - ports:
+            - port: {{ .Values.egressTreeAgent.metricsPort | quote }}
+              protocol: TCP
 {{- end }}

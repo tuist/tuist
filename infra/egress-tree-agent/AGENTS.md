@@ -185,7 +185,12 @@ growth is the signal.
   `.github/workflows/egress-tree-agent-image.yml` →
   `ghcr.io/tuist/egress-tree-agent`. Pin deployments by digest.
 - Helm: `infra/helm/tuist/templates/egress-tree-agent.yaml`
-  (`egressTreeAgent.*` values; privileged DaemonSet on the kura pools).
+  (`egressTreeAgent.*` values; privileged DaemonSet on the kura pools). Ships
+  with a CiliumClusterwideNetworkPolicy `ingressDeny` rule dropping TCP
+  `metricsPort` from `world` on those nodes: the listener binds the box's
+  public IP (hostNetwork, no host firewall on the adopted bare metal), and
+  the deny shape — unlike a host allow policy — cannot default-deny the
+  node. In-cluster scrapes arrive as cluster identities and pass.
 
 ## Rollout state
 
