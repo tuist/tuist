@@ -151,7 +151,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
       |> RequestParams.normalize()
       |> Map.put("project_id", project.id)
 
-    case Automations.create_alert(attrs) do
+    case Automations.create_alert(attrs, actor: conn.assigns[:current_user], source: "integration") do
       {:ok, alert} ->
         conn |> put_status(:created) |> json(AutomationAlert.from_model(alert))
 
@@ -216,7 +216,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
          true <- alert.project_id == project.id do
       attrs = RequestParams.normalize(body_params)
 
-      case Automations.update_alert(alert, attrs) do
+      case Automations.update_alert(alert, attrs, actor: conn.assigns[:current_user], source: "integration") do
         {:ok, updated} ->
           json(conn, AutomationAlert.from_model(updated))
 

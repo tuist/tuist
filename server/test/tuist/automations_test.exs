@@ -10,6 +10,7 @@ defmodule Tuist.AutomationsTest do
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.Repo
   alias Tuist.Tests
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -97,6 +98,73 @@ defmodule Tuist.AutomationsTest do
 
       assert updated.baseline_established_at == automation.baseline_established_at
       assert updated.baseline_generation == automation.baseline_generation
+    end
+  end
+
+  describe "alert revisions" do
+    test "records creation and configuration edits with the actor and source" do
+      project = ProjectsFixtures.project_fixture()
+      actor = AccountsFixtures.user_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        name: "Quarantine flaky tests",
+        monitor_type: "flakiness_rate",
+        trigger_config: %{"threshold" => 10, "window_type" => "rolling", "rolling_window_size" => 50},
+        trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
+      }
+
+      assert {:ok, automation} =
+               Automations.create_alert(attrs, actor: actor, source: "dashboard")
+
+      assert {:ok, _updated} =
+               Automations.update_alert(
+                 automation,
+                 %{
+                   name: "Auto-quarantine flaky tests",
+                   trigger_actions: [
+                     %{"type" => "change_state", "state" => "muted"},
+                     %{
+                       "type" => "send_slack",
+                       "channel" => "test-infra",
+                       "message" => "A test was quarantined",
+                       "webhook_url_encrypted" => "secret"
+                     }
+                   ]
+                 },
+                 actor: actor,
+                 source: "dashboard"
+               )
+
+      assert [updated_revision, created_revision] = Automations.list_alert_revisions(automation.id)
+      assert updated_revision.event == "updated"
+      assert updated_revision.actor.id == actor.id
+      assert updated_revision.source == "dashboard"
+
+      assert updated_revision.changes["name"] == %{
+               "from" => "Quarantine flaky tests",
+               "to" => "Auto-quarantine flaky tests"
+             }
+
+      refute get_in(updated_revision.snapshot, ["trigger_actions", Access.at(1), "webhook_url_encrypted"])
+      assert created_revision.event == "created"
+
+      assert [newest_revision] = Automations.list_alert_revisions(automation.id, limit: 1)
+      assert newest_revision.id == updated_revision.id
+
+      assert [oldest_revision] =
+               Automations.list_alert_revisions(automation.id, limit: 1, before: newest_revision)
+
+      assert oldest_revision.id == created_revision.id
+    end
+
+    test "does not record a revision when configuration is unchanged" do
+      automation = AutomationsFixtures.automation_alert_fixture()
+      revisions_before = Automations.list_alert_revisions(automation.id)
+
+      assert {:ok, _automation} = Automations.update_alert(automation, %{name: automation.name})
+
+      assert Automations.list_alert_revisions(automation.id) == revisions_before
     end
   end
 
