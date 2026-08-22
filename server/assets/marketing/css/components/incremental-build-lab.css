@@ -1,0 +1,26 @@
+.incremental-build-lab {
+  margin: var(--noora-spacing-7) 0;
+}
+
+.incremental-build-lab__graph {
+  width: 100%;
+  height: 240px;
+}
+
+.incremental-build-lab__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--noora-spacing-3);
+  margin-top: var(--noora-spacing-5);
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+}
+
+.incremental-build-lab__summary strong {
+  font: var(--noora-font-weight-semibold) var(--noora-font-body-medium);
+}
+
+.incremental-build-lab__summary span {
+  color: var(--noora-surface-label-secondary);
+}

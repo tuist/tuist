@@ -1,0 +1,196 @@
+.incrementality-models-lab {
+  margin: var(--noora-spacing-7) 0;
+}
+
+.incrementality-models-lab__models {
+  display: grid;
+  gap: var(--noora-spacing-7);
+}
+
+.incrementality-models-lab__model {
+  display: grid;
+  gap: var(--noora-spacing-5);
+  margin: 0;
+  min-width: 0;
+}
+
+.incrementality-models-lab__caption {
+  display: grid;
+  gap: var(--noora-spacing-1);
+}
+
+.incrementality-models-lab__caption strong {
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-semibold) var(--noora-font-body-small);
+}
+
+.incrementality-models-lab__caption span {
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+}
+
+.incrementality-models-lab__model svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.incrementality-models-lab__edge {
+  stroke: currentColor;
+  stroke-width: 2;
+  color: var(--noora-surface-label-secondary);
+}
+
+.incrementality-models-lab__edge--lookup {
+  stroke-dasharray: var(--noora-spacing-1) var(--noora-spacing-1);
+}
+
+.incrementality-models-lab__flow {
+  opacity: 0;
+  fill: var(--noora-button-primary-background);
+}
+
+.incrementality-models-lab__node {
+  fill: var(--noora-surface-background-primary);
+  stroke: var(--noora-surface-border-primary);
+  stroke-width: 2;
+}
+
+.incrementality-models-lab__node--reused {
+  fill: var(--noora-purple-100);
+  stroke: var(--noora-button-primary-background);
+}
+
+.incrementality-models-lab__state {
+  fill: var(--noora-surface-background-secondary);
+  stroke: var(--noora-surface-border-primary);
+  stroke-width: 2;
+}
+
+.incrementality-models-lab__result {
+  fill: var(--noora-button-primary-background);
+  stroke: var(--noora-button-primary-background);
+  stroke-width: 2;
+}
+
+.incrementality-models-lab__node-label,
+.incrementality-models-lab__result-label,
+.incrementality-models-lab__worktree-label {
+  font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+}
+
+.incrementality-models-lab__node-label,
+.incrementality-models-lab__worktree-label {
+  fill: var(--noora-surface-label-primary);
+}
+
+.incrementality-models-lab__node-secondary-label,
+.incrementality-models-lab__annotation,
+.incrementality-models-lab__result-secondary-label {
+  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+}
+
+.incrementality-models-lab__node-secondary-label,
+.incrementality-models-lab__annotation {
+  fill: var(--noora-surface-label-secondary);
+}
+
+.incrementality-models-lab__result-label,
+.incrementality-models-lab__result-secondary-label {
+  fill: var(--noora-button-primary-label);
+}
+
+.incrementality-models-lab.is-visible .incrementality-models-lab__flow--location-a {
+  animation: incrementality-models-lab-location-flow 1.8s ease-out infinite;
+}
+
+.incrementality-models-lab.is-visible .incrementality-models-lab__flow--location-b {
+  animation: incrementality-models-lab-location-flow 1.8s ease-out 600ms infinite;
+}
+
+.incrementality-models-lab.is-visible .incrementality-models-lab__flow--identity-produce {
+  animation: incrementality-models-lab-identity-produce 1.8s ease-out infinite;
+}
+
+.incrementality-models-lab.is-visible .incrementality-models-lab__flow--identity-reuse {
+  animation: incrementality-models-lab-identity-reuse 1.8s ease-out 600ms infinite;
+}
+
+@keyframes incrementality-models-lab-location-flow {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+
+  5% {
+    opacity: 1;
+  }
+
+  25% {
+    transform: translate(78px, 0);
+    opacity: 1;
+  }
+
+  30%,
+  100% {
+    transform: translate(78px, 0);
+    opacity: 0;
+  }
+}
+
+@keyframes incrementality-models-lab-identity-produce {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+
+  5% {
+    opacity: 1;
+  }
+
+  25% {
+    transform: translate(78px, 27px);
+    opacity: 1;
+  }
+
+  30%,
+  100% {
+    transform: translate(78px, 27px);
+    opacity: 0;
+  }
+}
+
+@keyframes incrementality-models-lab-identity-reuse {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+
+  5% {
+    opacity: 1;
+  }
+
+  25% {
+    transform: translate(78px, -32px);
+    opacity: 1;
+  }
+
+  30%,
+  100% {
+    transform: translate(78px, -32px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .incrementality-models-lab__flow {
+    display: none;
+  }
+}
+
+@media (width >= 48rem) {
+  .incrementality-models-lab__models {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

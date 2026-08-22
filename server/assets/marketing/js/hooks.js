@@ -8,6 +8,9 @@ import { AgentPrompt } from "./hooks/agent-prompt.js";
 import InfiniteScrollLogos from "./hooks/infinite-scroll-logos.js";
 import { LogoTransition } from "./hooks/logo-transition.js";
 import { CounterAnimation } from "./hooks/counter-animation.js";
+import { KaTeX } from "./hooks/katex.js";
+import { IncrementalBuildGraph } from "./hooks/incremental-build-graph.js";
+import { IncrementalityModelsDiagram } from "./hooks/incrementality-models-diagram.js";
 
 const Hooks = {
   NavbarDropdown,
@@ -20,6 +23,9 @@ const Hooks = {
   InfiniteScrollLogos,
   LogoTransition,
   CounterAnimation,
+  KaTeX,
+  IncrementalBuildGraph,
+  IncrementalityModelsDiagram,
 };
 
 export { Hooks };

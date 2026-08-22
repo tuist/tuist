@@ -24,6 +24,12 @@
 @import "css/routes/newsletter.css";
 @import "css/routes/newsletter-verify.css";
 @import "css/components/header-background.css";
+@import "css/components/build-graph-lab.css";
+@import "css/components/cache-transfer-lab.css";
+@import "css/components/incremental-build-lab.css";
+@import "css/components/incrementality-models-lab.css";
+@import "css/components/kura-network-lab.css";
+@import "css/components/sticky-volume-lab.css";
 @import "css/layouts/components/navbar.css";
 @import "css/layouts/components/footer.css";
 @import "css/layouts/components/banner.css";
