@@ -34,7 +34,7 @@ extension XcodeGraph.TestPlan {
                     fileSystem: fileSystem,
                     into: &resolved
                 )
-            case let .generated(name, testTargets, path):
+            case let .generated(name, testTargets, path, defaultOptions, options):
                 let resolvedPath: AbsolutePath = if let explicitPath = path {
                     try generatorPaths.resolve(path: explicitPath)
                 } else {
@@ -48,13 +48,113 @@ extension XcodeGraph.TestPlan {
                         path: resolvedPath,
                         testTargets: targets,
                         isDefault: resolved.isEmpty,
-                        kind: .generated
+                        kind: .generated(
+                            defaultOptions: try mappedOptions(
+                                defaultOptions,
+                                generatorPaths: generatorPaths
+                            ),
+                            options: try options.mapValues {
+                                try mappedOptions($0, generatorPaths: generatorPaths)
+                            }
+                        )
                     )
                 )
             }
         }
 
         return resolved
+    }
+
+    private static func mappedOptions(
+        _ options: ProjectDescription.TestPlanOptions,
+        generatorPaths: GeneratorPaths
+    ) throws -> XcodeGraph.TestPlanOptions {
+        return try XcodeGraph.TestPlanOptions(
+            arguments: options.arguments.map { Arguments.from(manifest: $0) },
+            codeCoverage: try options.codeCoverage.map { codeCoverage in
+                switch codeCoverage {
+                case .disabled:
+                    .disabled
+                case .allTargets:
+                    .allTargets
+                case let .specificTargets(targets):
+                    .specificTargets(try targets.map { target in
+                        try TargetReference(
+                            projectPath: try generatorPaths.resolveSchemeActionProjectPath(target.projectPath),
+                            name: target.targetName
+                        )
+                    })
+                }
+            },
+            expandVariableFromTarget: try options.expandVariableFromTarget.map { try TargetReference(
+                projectPath: generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
+                name: $0.targetName
+            ) },
+            language: options.language?.identifier,
+            region: options.region,
+            preferredScreenCaptureFormat: options.preferredScreenCaptureFormat.map { .from(manifest: $0) },
+            testExecutionOrdering: options.testExecutionOrdering?.rawValue,
+            parallelizationMode: options.parallelizationMode?.rawValue,
+            testRepetitionMode: options.testRepetitionMode?.rawValue,
+            maximumTestRepetitions: options.maximumTestRepetitions,
+            repeatInNewRunnerProcess: options.repeatInNewRunnerProcess,
+            testTimeoutsEnabled: options.testTimeoutsEnabled,
+            defaultTestExecutionTimeAllowance: options.defaultTestExecutionTimeAllowance,
+            maximumTestExecutionTimeAllowance: options.maximumTestExecutionTimeAllowance,
+            userAttachmentLifetime: options.userAttachmentLifetime?.rawValue,
+            uiTestingScreenshotsLifetime: options.uiTestingScreenshotsLifetime?.rawValue,
+            areLocalizationScreenshotsEnabled: options.areLocalizationScreenshotsEnabled,
+            diagnosticCollectionPolicy: options.diagnosticCollectionPolicy?.rawValue,
+            distributor: options.distributor?.rawValue,
+            locationScenarioIdentifier: options.locationScenario?.identifier,
+            locationScenarioReferenceType: options.locationScenario?.referenceType.rawValue,
+            testInteropMode: options.testInteropMode?.rawValue,
+            applicationCrashDetectionSeverity: options.applicationCrashDetectionSeverity?.rawValue,
+            addressSanitizer: options.addressSanitizer.map { addressSanitizer in
+                switch addressSanitizer {
+                case .disabled:
+                    .disabled
+                case let .enabled(detectStackUseAfterReturn):
+                    .enabled(detectStackUseAfterReturn: detectStackUseAfterReturn)
+                }
+            },
+            threadSanitizerEnabled: options.threadSanitizerEnabled,
+            mainThreadCheckerEnabled: options.mainThreadCheckerEnabled,
+            performanceAntipatternCheckerEnabled: options.performanceAntipatternCheckerEnabled,
+            undefinedBehaviorSanitizerEnabled: options.undefinedBehaviorSanitizerEnabled,
+            zombieObjectsEnabled: options.zombieObjectsEnabled,
+            guardMallocEnabled: options.guardMallocEnabled,
+            mallocScribbleEnabled: options.mallocScribbleEnabled,
+            mallocGuardEdgesEnabled: options.mallocGuardEdgesEnabled,
+            mallocStackLogging: options.mallocStackLogging?.rawValue,
+            checkedAllocations: options.checkedAllocations.map { checkedAllocations in
+                switch checkedAllocations {
+                case .disabled:
+                    .disabled
+                case .always:
+                    .always
+                case .mteOnly:
+                    .mteOnly
+                }
+            },
+            runtimeIssueDetection: options.runtimeIssueDetection.map(runtimeIssueDetectionPolicy),
+            mainThreadCheckerDetectionPolicy: options.mainThreadCheckerDetectionPolicy.map(runtimeIssueDetectionPolicy),
+            threadPerformanceCheckerRuntimeIssueDetection: options.threadPerformanceCheckerRuntimeIssueDetection.map(
+                runtimeIssueDetectionPolicy
+            ),
+            memoryTaggingAddressSanitizerEnabled: options.memoryTaggingAddressSanitizerEnabled
+        )
+    }
+
+    private static func runtimeIssueDetectionPolicy(
+        _ policy: ProjectDescription.TestPlanRuntimeIssueDetectionPolicy
+    ) -> XcodeGraph.TestPlanRuntimeIssueDetectionPolicy {
+        switch policy {
+        case .disabled:
+            .disabled
+        case let .enabled(severity):
+            .enabled(severity.rawValue)
+        }
     }
 
     /// Reads an existing `.xctestplan` file and maps it into the graph model.

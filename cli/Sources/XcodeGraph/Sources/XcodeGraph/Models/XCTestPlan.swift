@@ -45,15 +45,25 @@ public struct XCTestPlan: Codable, Equatable, Sendable {
         /// Whether the target runs in parallel with other targets.
         public let parallelizable: Bool?
 
+        /// Test identifiers excluded from this target.
+        public let skippedTests: [String]?
+
+        /// Test identifiers selected to run for this target.
+        public let selectedTests: [String]?
+
         public let target: TestTargetReference
 
         public init(
             target: TestTargetReference,
             enabled: Bool? = nil,
-            parallelizable: Bool? = nil
+            parallelizable: Bool? = nil,
+            skippedTests: [String]? = nil,
+            selectedTests: [String]? = nil
         ) {
             self.enabled = enabled
             self.parallelizable = parallelizable
+            self.skippedTests = skippedTests
+            self.selectedTests = selectedTests
             self.target = target
         }
     }

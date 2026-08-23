@@ -303,6 +303,68 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_map_preserves_generated_test_plan_options() throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let prunedTarget = Target.test(name: "PrunedTests", metadata: .metadata(tags: ["tuist:prunable"]))
+        let keptTarget = Target.test(name: "KeptTests")
+        let appTarget = Target.test(name: "App")
+        let keptTargetReference = TargetReference(projectPath: path, name: keptTarget.name)
+        let appTargetReference = TargetReference(projectPath: path, name: appTarget.name)
+        let testPlan = TestPlan(
+            path: "/Test.xctestplan",
+            testTargets: [TestableTarget(
+                target: keptTargetReference,
+                parallelization: .swiftTestingOnly,
+                selectedTests: ["KeptTests/testSelected()"],
+                skippedTests: ["KeptTests/testSkipped()"]
+            )],
+            isDefault: true,
+            kind: .generated(defaultOptions: TestPlanOptions(
+                arguments: Arguments(
+                    environmentVariables: ["FEATURE": EnvironmentVariable(value: "enabled", isEnabled: true)],
+                    launchArguments: [LaunchArgument(name: "-feature", isEnabled: true)]
+                ),
+                codeCoverage: .specificTargets([appTargetReference]),
+                expandVariableFromTarget: appTargetReference,
+                language: "en",
+                region: "US",
+                preferredScreenCaptureFormat: .screenRecording,
+                testExecutionOrdering: "random",
+                parallelizationMode: "enabled",
+                testRepetitionMode: "untilFailure",
+                maximumTestRepetitions: 2,
+                repeatInNewRunnerProcess: true,
+                testTimeoutsEnabled: false,
+                defaultTestExecutionTimeAllowance: 60,
+                maximumTestExecutionTimeAllowance: 120,
+                userAttachmentLifetime: "keepAlways",
+                uiTestingScreenshotsLifetime: "keepNever",
+                areLocalizationScreenshotsEnabled: true,
+                diagnosticCollectionPolicy: "OnFailure",
+                distributor: "com.apple.TestFlight",
+                locationScenarioIdentifier: "Berlin, Germany",
+                locationScenarioReferenceType: "built-in",
+                testInteropMode: "complete",
+                applicationCrashDetectionSeverity: "fatalFailure",
+                addressSanitizer: .enabled(detectStackUseAfterReturn: false)
+            ))
+        )
+        let project = Project.test(
+            path: path,
+            targets: [prunedTarget, keptTarget, appTarget],
+            schemes: [.test(testAction: .test(testPlans: [testPlan]))]
+        )
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [:])
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let gotTestPlan = try XCTUnwrap(gotGraph.projects[path]?.schemes.first?.testAction?.testPlans?.first)
+        XCTAssertEqual(gotTestPlan, testPlan)
+    }
+
     func test_map_keeps_workspace_aggregate_scheme_when_expand_variable_target_is_pruned() throws {
         // Given: an aggregate workspace scheme (e.g. "AllModules") that references test targets
         // from multiple projects and also sets testAction.expandVariableFromTarget to the

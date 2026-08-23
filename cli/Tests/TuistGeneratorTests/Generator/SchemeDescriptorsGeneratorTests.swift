@@ -941,13 +941,29 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let target = Target.test(name: "App", product: .app)
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
         let planPath = projectPath.appending(component: "UnitTests.xctestplan")
+        let appReference = TargetReference(projectPath: projectPath, name: "App")
         let plan = TestPlan(
             path: planPath,
             testTargets: [
-                TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests")),
+                TestableTarget(
+                    target: TargetReference(projectPath: projectPath, name: "AppTests"),
+                    skippedTests: ["AppTests/testExample()"]
+                ),
             ],
             isDefault: true,
-            kind: .generated
+            kind: .generated(defaultOptions: TestPlanOptions(
+                arguments: .init(
+                    environmentVariables: ["FEATURE": .init(value: "enabled", isEnabled: true)],
+                    launchArguments: [.init(name: "-feature", isEnabled: true)]
+                ),
+                codeCoverage: .specificTargets([appReference]),
+                expandVariableFromTarget: appReference,
+                language: "en",
+                region: "US",
+                preferredScreenCaptureFormat: .screenRecording,
+                testExecutionOrdering: "random",
+                addressSanitizer: .enabled(detectStackUseAfterReturn: false)
+            ))
         )
         let existingPlanPath = projectPath.appending(component: "Existing.xctestplan")
         let existingPlan = TestPlan(
@@ -984,6 +1000,23 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             testPlanDescriptors.first?.testTargets.map(\.pbxTarget.name),
             ["AppTests"]
         )
+        guard case let .generated(planDefaultOptions, _) = plan.kind else {
+            XCTFail("Expected a generated test plan")
+            return
+        }
+        XCTAssertEqual(testPlanDescriptors.first?.defaultOptions.values.testExecutionOrdering, "random")
+        XCTAssertEqual(testPlanDescriptors.first?.defaultOptions.values.arguments, planDefaultOptions.arguments)
+        XCTAssertEqual(testPlanDescriptors.first?.defaultOptions.values.codeCoverage, .specificTargets([appReference]))
+        XCTAssertEqual(testPlanDescriptors.first?.defaultOptions.codeCoverageTargets?.map(\.pbxTarget.name), ["App"])
+        XCTAssertEqual(testPlanDescriptors.first?.defaultOptions.expandVariableFromTarget?.pbxTarget.name, "App")
+        XCTAssertEqual(
+            testPlanDescriptors.first?.defaultOptions.values.addressSanitizer,
+            .enabled(detectStackUseAfterReturn: false)
+        )
+        XCTAssertEqual(testPlanDescriptors.first?.defaultOptions.values.language, "en")
+        XCTAssertEqual(testPlanDescriptors.first?.defaultOptions.values.region, "US")
+        XCTAssertEqual(testPlanDescriptors.first?.defaultOptions.values.preferredScreenCaptureFormat, .screenRecording)
+        XCTAssertEqual(testPlanDescriptors.first?.testTargets.first?.skippedTests, ["AppTests/testExample()"])
     }
 
     func test_generateProjectSchemes_rejects_duplicate_generated_test_plan_paths() throws {
@@ -998,7 +1031,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
                 TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests")),
             ],
             isDefault: true,
-            kind: .generated
+            kind: .generated()
         )
         let schemeA = Scheme.test(name: "A", testAction: TestAction.test(testPlans: [plan]))
         let schemeB = Scheme.test(name: "B", testAction: TestAction.test(testPlans: [plan]))

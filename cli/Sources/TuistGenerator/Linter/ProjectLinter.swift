@@ -13,6 +13,7 @@ struct ProjectLinter: ProjectLinting {
     let targetLinter: TargetLinting
     let settingsLinter: SettingsLinting
     let schemeLinter: SchemeLinting
+    let testPlanLinter: TestPlanLinting
     let packageLinter: PackageLinting
 
     // MARK: - Init
@@ -21,11 +22,13 @@ struct ProjectLinter: ProjectLinting {
         targetLinter: TargetLinting = TargetLinter(),
         settingsLinter: SettingsLinting = SettingsLinter(),
         schemeLinter: SchemeLinting = SchemeLinter(),
+        testPlanLinter: TestPlanLinting = TestPlanLinter(),
         packageLinter: PackageLinting = PackageLinter()
     ) {
         self.targetLinter = targetLinter
         self.settingsLinter = settingsLinter
         self.schemeLinter = schemeLinter
+        self.testPlanLinter = testPlanLinter
         self.packageLinter = packageLinter
     }
 
@@ -36,6 +39,7 @@ struct ProjectLinter: ProjectLinting {
         try await issues.append(contentsOf: lintTargets(project: project))
         try await issues.append(contentsOf: settingsLinter.lint(project: project))
         try await issues.append(contentsOf: schemeLinter.lint(project: project))
+        try await issues.append(contentsOf: testPlanLinter.lint(project: project))
         try await issues.append(contentsOf: lintPackages(project: project))
         return issues
     }
