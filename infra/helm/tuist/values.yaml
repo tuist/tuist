@@ -267,6 +267,69 @@ kuraController:
     #   KURA_AUTH_JWT_PUBLIC_KEY: "<PEM public key>"
     #   KURA_CONTROL_PLANE_CLIENT_SECRET: "<Kura OAuth introspection secret>"
 
+# Per-node shared egress HTB tree for kura pods (infra/egress-tree-agent/):
+# enforces the per-tenant floors (egress_guaranteed_mbps), ceilings
+# (egress_burst_mbps) and the node's advertised egress budget
+# (tuist.dev/egress-mbps) via a tcx/HTB trampoline that keeps Cilium's
+# datapath (policy, identity, masquerade) fully applied to shaped traffic.
+# Inert unless the kura-controller also renders the tuist.dev/egress-class
+# pod annotation (it does so for every instance with a floor or ceiling).
+egressTreeAgent:
+  # When enabled, the chart also renders a CiliumClusterwideNetworkPolicy that
+  # drops the metrics port from `world` on the selected nodes. That policy is a
+  # no-op unless the cluster runs Cilium with `enable-host-firewall: true` — the
+  # policy object applies but the host endpoint is never enforced, leaving the
+  # port world-readable with no signal. Confirm host-firewall is on before
+  # relying on it. If a host endpoint is ever locked out, recover by setting
+  # `enabled: false` and redeploying, or delete the policy object directly
+  # (see infra/egress-tree-agent/AGENTS.md).
+  enabled: false
+  # Full image reference, pinned (e.g. ghcr.io/tuist/egress-tree-agent@sha256:...).
+  image: ""
+  # Deployed into the kura namespace (kuraController.namespace) by default.
+  namespace: ""
+  # Backstop sweep only: pod/node watch events drive convergence, so this
+  # interval just repairs what no event reports (stripped tcx links, deleted
+  # trampoline devices, stale pins).
+  reconcileInterval: 2m
+  metricsPort: 9469
+  # Agent log level: debug, info, warn, or error.
+  logLevel: info
+  # Consecutive return-program attach failures after which the agent
+  # detaches every pod program (shaped packets drop at the trampoline peer
+  # without a return program; unshaped beats blackholed).
+  returnAttachMaxFailures: 3
+  # Beta-rollout gate: when set, the agent attaches its BPF programs only to
+  # pods whose name starts with this prefix (e.g. "kura-<account>-"); every
+  # other annotated pod stays on the unshaped Cilium-only path and is counted
+  # in kura_egress_tree_beta_excluded_pods. Empty = shape all annotated pods.
+  betaPodPrefix: ""
+  # Observe-mode fallback for the tree's root ceiling on nodes that do not
+  # advertise tuist.dev/egress-mbps capacity. 0 = no fallback: such nodes get
+  # no tree and their pods stay unshaped on the node-local leg.
+  defaultNodeEgressMbps: 0
+  # Kura cache pools to schedule onto, matched as
+  # `node.cluster.x-k8s.io/pool In [<nodePools>]` required node affinity —
+  # the same pool names the region specs use (server/lib/tuist/kura/regions.ex)
+  # and the regional kura-*-ingress-nginx blocks in
+  # infra/helm/platform/values-tuist.yaml. The template refuses to render an
+  # enabled agent when both nodePools and nodeSelector are empty: this is a
+  # privileged host-network DaemonSet and must never run cluster-wide.
+  nodePools: []
+  # Optional extra equality constraints on top of nodePools
+  # (kubernetes.io/os: linux is always applied).
+  nodeSelector: {}
+  tolerations:
+    - key: tuist.dev/kura-cache
+      operator: Exists
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
 kuraRuntime:
   image:
     repository: ghcr.io/tuist/kura
