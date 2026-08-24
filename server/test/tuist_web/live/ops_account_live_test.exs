@@ -392,18 +392,34 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert html =~ ~s(value="10000")
     end
 
-    test "refuses a minute count that is not a positive whole number", %{conn: conn, user: user} do
+    test "refuses a minute count that is not a whole number at or above zero", %{conn: conn, user: user} do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-      reject(&Prepaid.set_minutes/3)
+      # Arity 2, which is what the page calls. Rejecting /3 rejected a
+      # head nothing invokes, so this asserted nothing at all.
+      reject(&Prepaid.set_minutes/2)
 
-      # `reject` is the assertion: nothing may reach Stripe for any of
-      # these, so no charge is created from a malformed minute count.
-      for value <- ["0", "-5", "abc", "1.5", ""] do
+      for value <- ["-5", "abc", "1.5", ""] do
         lv
         |> form("#prepaid-minutes-form", %{"minutes" => value})
         |> render_submit()
       end
+    end
+
+    test "clears the balance when set to zero", %{conn: conn, user: user} do
+      # Zero is a figure to set, not a malformed one: it is how an
+      # account's minutes are taken away.
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      expect(Prepaid, :set_minutes, fn account, minutes ->
+        assert account.id == user.account.id
+        assert minutes == 0
+        {:ok, :cleared}
+      end)
+
+      lv
+      |> form("#prepaid-minutes-form", %{"minutes" => "0"})
+      |> render_submit()
     end
 
     test "warns when the account has no subscription to bill against", %{conn: conn, user: user} do

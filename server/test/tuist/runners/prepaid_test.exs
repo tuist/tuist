@@ -8,6 +8,7 @@ defmodule Tuist.Runners.PrepaidTest do
   alias Tuist.Billing.CreditGrants
   alias Tuist.Billing.Invoices
   alias Tuist.Environment
+  alias Tuist.KeyValueStore
   alias Tuist.Runners.Prepaid
 
   @macos_price "price_runner_macos"
@@ -572,6 +573,23 @@ defmodule Tuist.Runners.PrepaidTest do
       reject(&CreditGrants.create/1)
 
       assert {:ok, _} = Prepaid.set_minutes(%Account{customer_id: "cus_set"}, 0)
+    end
+  end
+
+  describe "refresh_balance/1" do
+    test "writes the cache even when nothing is left" do
+      # summarize/1 answers nil for an account holding nothing, and the
+      # refresh used to skip writing nil. The stale entry survived, the
+      # page went on serving the figure from before the clear, and
+      # setting zero looked impossible.
+      stub(CreditGrants, :list_for_customer, fn _customer_id -> {:ok, []} end)
+
+      expect(KeyValueStore, :put, fn _key, value, _opts ->
+        assert is_nil(value)
+        value
+      end)
+
+      assert is_nil(Prepaid.refresh_balance("cus_empty"))
     end
   end
 

@@ -440,9 +440,12 @@ defmodule Tuist.Runners.Prepaid do
   def refresh_balance(customer_id) when is_binary(customer_id) do
     balance = fetch_balance(customer_id)
 
-    if balance do
-      KeyValueStore.put(balance_cache_key(customer_id), balance, ttl: @balance_cache_ttl)
-    end
+    # Written even when there is nothing left. `summarize/1` answers nil
+    # for an account holding none, and skipping the write would leave the
+    # entry from before the change to be served for the rest of its life
+    # — which is what made a balance impossible to clear. A cached nil
+    # reads as a miss, so the next call fetches rather than serving it.
+    KeyValueStore.put(balance_cache_key(customer_id), balance, ttl: @balance_cache_ttl)
 
     balance
   end
