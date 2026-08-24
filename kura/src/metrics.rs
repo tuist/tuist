@@ -66,6 +66,7 @@ pub struct Metrics {
     replication_bandwidth_effective_limit_bytes_per_second: Gauge,
     replication_bandwidth_public_latency_target_ms: Gauge,
     multipart_parts: Family<MultipartLabels, Counter>,
+    capacity_sheds: Family<CapacityShedLabels, Counter>,
     node_info: Family<NodeInfoLabels, Gauge>,
     node_geo: Family<NodeGeoLabels, Gauge>,
     file_descriptor_wait: Family<FileDescriptorWaitLabels, Histogram>,
@@ -255,6 +256,7 @@ impl Metrics {
         let replication_bandwidth_effective_limit_bytes_per_second = Gauge::default();
         let replication_bandwidth_public_latency_target_ms = Gauge::default();
         let multipart_parts = Family::<MultipartLabels, Counter>::default();
+        let capacity_sheds = Family::<CapacityShedLabels, Counter>::default();
         let node_info = Family::<NodeInfoLabels, Gauge>::default();
         let node_geo = Family::<NodeGeoLabels, Gauge>::default();
         let file_descriptor_wait =
@@ -549,6 +551,11 @@ impl Metrics {
             "kura_multipart_parts_total",
             "Multipart part uploads by result",
             multipart_parts.clone(),
+        );
+        registry.register(
+            "kura_capacity_sheds_total",
+            "Public requests shed for capacity, by which limit refused them",
+            capacity_sheds.clone(),
         );
         registry.register(
             "kura_node_info",
@@ -1210,6 +1217,7 @@ impl Metrics {
             replication_bandwidth_effective_limit_bytes_per_second,
             replication_bandwidth_public_latency_target_ms,
             multipart_parts,
+            capacity_sheds,
             node_info,
             node_geo,
             file_descriptor_wait,
@@ -1618,6 +1626,21 @@ impl Metrics {
             .set(effective_bytes_per_second as i64);
         self.replication_bandwidth_public_latency_target_ms
             .set(public_latency_target_ms as i64);
+    }
+
+    /// One shed request, labelled by which limit refused it.
+    ///
+    /// The HTTP status cannot carry this: 429 is shared by every shed, and
+    /// `kura_http_requests_total` has no method label, so the read routes that
+    /// also accept writes cannot be split by route either. Alert rules that
+    /// mean "response-stream pressure" specifically have to select on `kind`
+    /// rather than on a bare 429.
+    pub fn record_capacity_shed(&self, kind: &str) {
+        self.capacity_sheds
+            .get_or_create(&CapacityShedLabels {
+                kind: kind.to_owned(),
+            })
+            .inc();
     }
 
     pub fn record_multipart_part(&self, result: &str) {
@@ -2447,6 +2470,13 @@ struct ReplicationApplyLabels {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct MultipartLabels {
     result: String,
+}
+
+/// Bounded by the call sites in `http.rs`: every value is a literal, so this
+/// label cannot grow with traffic.
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct CapacityShedLabels {
+    kind: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]

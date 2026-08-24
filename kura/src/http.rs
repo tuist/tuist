@@ -1036,6 +1036,17 @@ async fn reject_draining_public_requests(
     response
 }
 
+/// Turns away public writes at the door when the node is already known to be
+/// out of room, so a saturated pod spends nothing on a body it will not keep.
+///
+/// This is a fast path, **not** an admission guarantee. The outbox arm compares
+/// the current depth against the cap as a single slot, while each store write
+/// then reserves one slot per replication target atomically
+/// (`Store::reserve_outbox_slots`). A write admitted here still loses when the
+/// remaining room is smaller than the target count, or when another write wins
+/// the race. Every persistence path therefore has to map `is_outbox_full_error`
+/// to a shed of its own; leaving one on 503 puts a healthy saturated node back
+/// on the 5xx alert.
 async fn reject_overloaded_public_writes(
     State(state): State<SharedState>,
     req: Request,
@@ -1049,11 +1060,17 @@ async fn reject_overloaded_public_writes(
             state
                 .metrics
                 .record_memory_action("write_rejected_critical");
-            return capacity_shed_response("server is shedding writes due to memory pressure");
+            return capacity_shed_response(
+                &state.metrics,
+                "memory_pressure_write",
+                "server is shedding writes due to memory pressure",
+            );
         }
         if state.store.outbox_depth() >= state.config.outbox_max_depth {
             state.metrics.record_memory_action("write_rejected_outbox");
             return capacity_shed_response(
+                &state.metrics,
+                "outbox",
                 "server is shedding writes while replication catches up",
             );
         }
@@ -1106,7 +1123,8 @@ fn is_write_method(method: &axum::http::Method) -> bool {
 /// life on `kura-tuist-scw-fr-par-0` answered 568 module-route requests with
 /// the multipart shed and 218 with a success, and the shed was read as a
 /// broken store.
-fn capacity_shed_response(message: &str) -> Response {
+fn capacity_shed_response(metrics: &Metrics, kind: &str, message: &str) -> Response {
+    metrics.record_capacity_shed(kind);
     let mut response = error_response(StatusCode::TOO_MANY_REQUESTS, message);
     retry_after(
         &mut response,
@@ -1598,7 +1616,7 @@ async fn get_keyvalue(
                     state
                         .metrics
                         .record_memory_action("keyvalue_response_materialization_rejected");
-                    return response_stream_shed(&state.memory);
+                    return response_stream_shed(&state.metrics, &state.memory);
                 }
             };
             state
@@ -1813,6 +1831,16 @@ async fn put_keyvalue(
             );
             StatusCode::NO_CONTENT.into_response()
         }
+        Err(error) if is_outbox_full_error(&error) => {
+            state
+                .metrics
+                .record_artifact_write(ArtifactProducer::Xcode, "error", 0);
+            capacity_shed_response(
+                &state.metrics,
+                "outbox",
+                "server is shedding writes while replication catches up",
+            )
+        }
         Err(error) => {
             state
                 .metrics
@@ -2017,9 +2045,11 @@ async fn start_module_upload(
             &query.name,
         ) {
             Ok(upload_id) => Json(serde_json::json!({ "upload_id": upload_id })).into_response(),
-            Err(error) if is_multipart_capacity_error(&error) => {
-                capacity_shed_response("server is limiting active multipart uploads")
-            }
+            Err(error) if is_multipart_capacity_error(&error) => capacity_shed_response(
+                &state.metrics,
+                "multipart_uploads",
+                "server is limiting active multipart uploads",
+            ),
             Err(error) => error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to start upload: {error}"),
@@ -2060,10 +2090,18 @@ async fn upload_module_part(
             return error_response(StatusCode::PAYLOAD_TOO_LARGE, "Part exceeds 10MB limit");
         }
         Err(BodyReadError::TmpDirFull(error)) => {
-            return capacity_shed_response(&format!("Temporary storage budget exhausted: {error}"));
+            return capacity_shed_response(
+                &state.metrics,
+                "tmp_staging",
+                &format!("Temporary storage budget exhausted: {error}"),
+            );
         }
         Err(BodyReadError::MemoryPressure) => {
-            return capacity_shed_response("server is applying upload memory backpressure");
+            return capacity_shed_response(
+                &state.metrics,
+                "upload_memory",
+                "server is applying upload memory backpressure",
+            );
         }
         Err(BodyReadError::Io(error)) => {
             return io_error_response(
@@ -2095,7 +2133,11 @@ async fn upload_module_part(
         }
         Err(MultipartError::CapacityExceeded) => {
             state.metrics.record_multipart_part("capacity_exceeded");
-            capacity_shed_response("server is limiting incomplete multipart storage")
+            capacity_shed_response(
+                &state.metrics,
+                "multipart_storage",
+                "server is limiting incomplete multipart storage",
+            )
         }
         Err(MultipartError::Other(error)) => {
             state.metrics.record_multipart_part("error");
@@ -2108,9 +2150,11 @@ async fn upload_module_part(
             state.metrics.record_multipart_part("parts_mismatch");
             error_response(StatusCode::BAD_REQUEST, "Parts mismatch")
         }
-        Err(MultipartError::MemoryPressure) => {
-            capacity_shed_response("server is applying upload memory backpressure")
-        }
+        Err(MultipartError::MemoryPressure) => capacity_shed_response(
+            &state.metrics,
+            "upload_memory",
+            "server is applying upload memory backpressure",
+        ),
     };
     temp.remove_and_disarm(&state.io).await;
     response
@@ -2163,14 +2207,22 @@ async fn complete_module_upload(
             StatusCode::UNPROCESSABLE_ENTITY,
             "Total upload size exceeds 2GB limit",
         ),
-        Err(MultipartError::CapacityExceeded) => {
-            capacity_shed_response("server is limiting incomplete multipart storage")
-        }
-        Err(MultipartError::MemoryPressure) => {
-            capacity_shed_response("server is applying upload memory backpressure")
-        }
+        Err(MultipartError::CapacityExceeded) => capacity_shed_response(
+            &state.metrics,
+            "multipart_storage",
+            "server is limiting incomplete multipart storage",
+        ),
+        Err(MultipartError::MemoryPressure) => capacity_shed_response(
+            &state.metrics,
+            "upload_memory",
+            "server is applying upload memory backpressure",
+        ),
         Err(MultipartError::Other(error)) if is_outbox_full_error(&error) => {
-            capacity_shed_response("server is shedding writes while replication catches up")
+            capacity_shed_response(
+                &state.metrics,
+                "outbox",
+                "server is shedding writes while replication catches up",
+            )
         }
         Err(MultipartError::Other(error)) => io_error_response(
             format!("Failed to complete multipart upload: {error}"),
@@ -2198,9 +2250,11 @@ async fn clean_namespace(
             state.notify.notify_one();
             StatusCode::NO_CONTENT.into_response()
         }
-        Err(error) if is_outbox_full_error(&error) => {
-            capacity_shed_response("server is shedding writes while replication catches up")
-        }
+        Err(error) if is_outbox_full_error(&error) => capacity_shed_response(
+            &state.metrics,
+            "outbox",
+            "server is shedding writes while replication catches up",
+        ),
         Err(error) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Failed to clean cache: {error}"),
@@ -3069,10 +3123,18 @@ async fn put_blob_artifact(
             );
         }
         Err(BodyReadError::TmpDirFull(error)) => {
-            return capacity_shed_response(&format!("Temporary storage budget exhausted: {error}"));
+            return capacity_shed_response(
+                &state.metrics,
+                "tmp_staging",
+                &format!("Temporary storage budget exhausted: {error}"),
+            );
         }
         Err(BodyReadError::MemoryPressure) => {
-            return capacity_shed_response("server is applying upload memory backpressure");
+            return capacity_shed_response(
+                &state.metrics,
+                "upload_memory",
+                "server is applying upload memory backpressure",
+            );
         }
         Err(BodyReadError::Io(error)) => {
             return io_error_response(
@@ -3124,6 +3186,14 @@ async fn put_blob_artifact(
                 persisted.manifest.size,
             );
             spec.success_status.into_response()
+        }
+        Err(error) if is_outbox_full_error(&error) => {
+            state.metrics.record_artifact_write(producer, "error", 0);
+            capacity_shed_response(
+                &state.metrics,
+                "outbox",
+                "server is shedding writes while replication catches up",
+            )
         }
         Err(error) => {
             state.metrics.record_artifact_write(producer, "error", 0);
@@ -3299,7 +3369,7 @@ async fn serve_file_reader(
                 .await
             {
                 Ok(permit) => (permit, RESPONSE_STREAM_MIN_CHUNK_BYTES),
-                Err(_) => return response_stream_shed(&state.memory),
+                Err(_) => return response_stream_shed(&state.metrics, &state.memory),
             }
         }
     };
@@ -3333,6 +3403,11 @@ async fn serve_file_reader(
     }
 }
 
+/// The one shed kind an alert rule can attribute to egress capacity. Kept as a
+/// constant because the live warning rule selects on it and the accelerated
+/// serving path records it from a second call site.
+pub(crate) const RESPONSE_STREAM_SHED_KIND: &str = "response_stream";
+
 /// Sheds a public read that could not be admitted a response stream.
 ///
 /// Backpressure rather than a fault: the node is healthy and the same request
@@ -3341,7 +3416,8 @@ async fn serve_file_reader(
 /// land here, including the queue-full one that gives up before waiting at
 /// all, which is another reason not to describe it as the service being
 /// unavailable.
-fn response_stream_shed(memory: &MemoryController) -> Response {
+fn response_stream_shed(metrics: &Metrics, memory: &MemoryController) -> Response {
+    metrics.record_capacity_shed(RESPONSE_STREAM_SHED_KIND);
     let mut response = error_response(
         StatusCode::TOO_MANY_REQUESTS,
         "The server is limiting concurrent artifact response streams; retry shortly".to_string(),
@@ -6681,6 +6757,78 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn an_outbox_that_cannot_seat_every_target_sheds_rather_than_faulting() {
+        // The public-write middleware only checks that the outbox is not
+        // already at its cap. Each store write then atomically reserves one
+        // slot *per replication target*, so a write admitted by the pre-check
+        // still loses when the remaining room is smaller than the target
+        // count. Two targets against a cap of one reproduces that gap
+        // deterministically; concurrency reaches the same branch by racing.
+        let context = test_context(|config| {
+            config.outbox_max_depth = 1;
+            config.peers = vec![
+                "http://127.0.0.1:7101".into(),
+                "http://127.0.0.1:7102".into(),
+            ];
+        })
+        .await;
+        let app = router(context.state.clone());
+
+        assert!(
+            context.state.store.outbox_depth() < context.state.config.outbox_max_depth,
+            "the pre-check must admit this write, or the test is not exercising the gap"
+        );
+
+        let keyvalue = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/api/cache/keyvalue?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"cas_id":"cas-outbox","entries":[{"value":"hello"}]}"#,
+                    ))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("keyvalue put failed");
+
+        assert_eq!(keyvalue.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_retryable_hint(&keyvalue, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
+
+        let blob = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/outbox-blob?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from("payload"))
+                    .expect("failed to build post request"),
+            )
+            .await
+            .expect("blob post failed");
+
+        assert_eq!(blob.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_retryable_hint(&blob, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
+
+        let metrics = context.state.metrics.render();
+        assert!(
+            metrics
+                .lines()
+                .any(|line| line.starts_with("kura_capacity_sheds_total")
+                    && line.contains("kind=\"outbox\"")),
+            "the shed must be attributable to the outbox, not to egress pressure: {metrics}"
+        );
+        assert!(
+            !metrics.lines().any(|line| {
+                line.starts_with("kura_http_exceptions_total") && line.contains("server_error")
+            }),
+            "a full outbox is not a server fault: {metrics}"
+        );
+    }
+
+    #[tokio::test]
     async fn public_writes_shed_with_backpressure_under_critical_memory_pressure() {
         let context = test_context(|_| {}).await;
         context
@@ -7030,10 +7178,10 @@ mod tests {
 
     #[test]
     fn response_stream_admission_failure_spreads_retry_after() {
-        let memory =
-            MemoryController::new(Metrics::new("eu-west".into(), "tenant".into()), 100, 200);
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let memory = MemoryController::new(metrics.clone(), 100, 200);
         let values: std::collections::HashSet<u64> = (0..64)
-            .map(|_| retry_after_hint(&response_stream_shed(&memory)))
+            .map(|_| retry_after_hint(&response_stream_shed(&metrics, &memory)))
             .collect();
 
         assert!(
@@ -7052,9 +7200,9 @@ mod tests {
 
     #[test]
     fn public_response_stream_admission_failure_is_rate_limited() {
-        let memory =
-            MemoryController::new(Metrics::new("eu-west".into(), "tenant".into()), 100, 200);
-        let response = response_stream_shed(&memory);
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let memory = MemoryController::new(metrics.clone(), 100, 200);
+        let response = response_stream_shed(&metrics, &memory);
 
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
         assert!(!response.status().is_server_error());
