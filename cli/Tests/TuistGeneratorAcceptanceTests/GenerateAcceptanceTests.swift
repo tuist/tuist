@@ -588,7 +588,7 @@ struct GenerateAcceptanceTestCommandLineToolWithPackageAccessAndModuleMap {
 
 struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
     @Test(.withFixture("generated_ios_app_with_objc_static_framework_package"), .inTemporaryDirectory)
-    func ios_app_with_objc_static_framework_package() async throws {
+    func ios_app_with_objc_and_c_static_framework_package() async throws {
         let fixturePath = try fixtureDirectory()
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
