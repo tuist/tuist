@@ -289,7 +289,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     render_hook(lv, "cancel_plan", %{})
   end
 
-  describe "prepaid runner credit" do
+  describe "prepaid runner minutes" do
     test "quotes the money as minutes are typed, before anything is charged", %{conn: conn, user: user} do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
@@ -343,7 +343,10 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert render(lv) =~ "would sit unbilled"
     end
 
-    test "lists the credit the account already holds", %{conn: conn, user: user} do
+    test "lists what the account holds in minutes rather than money", %{conn: conn, user: user} do
+      # Ops reads this to answer "how much runner time is left", and the
+      # account bought minutes, not a sum of money. The money is an
+      # implementation detail of how Stripe carries them.
       stub(Prepaid, :balance, fn _account ->
         %{
           available: Money.new(75_000, :USD),
@@ -353,6 +356,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
               id: "credgr_1",
               kind: "prepaid",
               available: Money.new(75_000, :USD),
+              available_minutes: 10_000,
               expires_at: ~U[2027-01-01 00:00:00Z]
             }
           ]
@@ -361,8 +365,9 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-      assert has_element?(lv, "#prepaid-balance-table", "Prepaid credit")
+      assert has_element?(lv, "#prepaid-balance-table", "10,000")
       assert has_element?(lv, "#prepaid-balance-table", "January 1, 2027")
+      refute render(lv) =~ "750.00$"
     end
   end
 

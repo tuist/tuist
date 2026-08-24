@@ -163,7 +163,7 @@ defmodule TuistWeb.OpsAccountLive do
                :info,
                dgettext(
                  "dashboard",
-                 "Added %{amount} of prepaid runner minutes to %{account}'s next invoice. The credit is granted when that invoice is paid.",
+                 "Added %{amount} of prepaid runner minutes to %{account}'s next invoice. They are granted when that invoice is paid.",
                  amount: format_money(quoted.invoiced),
                  account: account.name
                )
@@ -383,8 +383,8 @@ defmodule TuistWeb.OpsAccountLive do
 
   defp parse_minutes(_raw), do: :error
 
-  def prepaid_grant_kind_label("trial"), do: dgettext("dashboard", "Trial credit")
-  def prepaid_grant_kind_label(_kind), do: dgettext("dashboard", "Prepaid credit")
+  def prepaid_grant_kind_label("trial"), do: dgettext("dashboard", "Trial")
+  def prepaid_grant_kind_label(_kind), do: dgettext("dashboard", "Prepaid")
 
   def prepaid_expiry_label(nil), do: dgettext("dashboard", "No expiry")
   def prepaid_expiry_label(%DateTime{} = expires_at), do: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")

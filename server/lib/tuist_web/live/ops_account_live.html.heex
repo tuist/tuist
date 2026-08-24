@@ -196,12 +196,12 @@
     </.card_section>
   </.card>
 
-  <.card title={dgettext("dashboard", "Prepaid runner credit")} icon="asset">
+  <.card title={dgettext("dashboard", "Prepaid runner minutes")} icon="asset">
     <.card_section>
       <p data-part="prepaid-description">
         {dgettext(
           "dashboard",
-          "Prepaid minutes are added to the account's next invoice alongside the rest of the bill. The credit is granted once that invoice is paid, and is spent as money: the minutes below are what it buys on the macOS 6 vCPU / 14 GB baseline, and a larger machine draws it down faster."
+          "Prepaid minutes are added to the account's next invoice alongside the rest of the bill, and are granted once that invoice is paid. The figures below are minutes on the macOS 6 vCPU / 14 GB baseline; a larger machine draws them down faster than one minute per minute it runs."
         )}
       </p>
       <.alert
@@ -222,18 +222,18 @@
         id="prepaid-balance-table"
         rows={@prepaid_balance.grants}
       >
-        <:col :let={grant} label={dgettext("dashboard", "Credit")}>
+        <:col :let={grant} label={dgettext("dashboard", "Source")}>
           <.text_cell label={prepaid_grant_kind_label(grant.kind)} />
         </:col>
-        <:col :let={grant} label={dgettext("dashboard", "Remaining")}>
-          <.text_cell label={format_money(grant.available)} />
+        <:col :let={grant} label={dgettext("dashboard", "Minutes remaining")}>
+          <.text_cell label={format_number(grant.available_minutes)} />
         </:col>
         <:col :let={grant} label={dgettext("dashboard", "Expires")}>
           <.text_cell label={prepaid_expiry_label(grant.expires_at)} />
         </:col>
       </.table>
       <p :if={is_nil(@prepaid_balance)} data-part="prepaid-empty">
-        {dgettext("dashboard", "This account holds no runner credit.")}
+        {dgettext("dashboard", "This account has no prepaid runner minutes.")}
       </p>
       <.form
         for={%{}}
@@ -255,7 +255,7 @@
             <dd data-part="prepaid-quote-invoiced">{format_money(@prepaid_quote.invoiced)}</dd>
           </div>
           <div>
-            <dt>{dgettext("dashboard", "Credit granted once paid")}</dt>
+            <dt>{dgettext("dashboard", "Granted once paid")}</dt>
             <dd data-part="prepaid-quote-granted">{format_money(@prepaid_quote.granted)}</dd>
           </div>
         </dl>

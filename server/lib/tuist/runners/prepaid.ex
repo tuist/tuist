@@ -431,6 +431,7 @@ defmodule Tuist.Runners.Prepaid do
           id: grant.id,
           kind: grant_kind(grant),
           available: Money.new(cents, currency),
+          available_minutes: minutes_for(cents),
           expires_at: grant_expires_at(grant)
         }
       end)
