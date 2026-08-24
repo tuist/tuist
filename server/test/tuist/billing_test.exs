@@ -23,13 +23,11 @@ defmodule Tuist.BillingTest do
         },
         "pro" => %{
           "usage" => ["pro.usage"],
-          "flat_monthly" => ["pro.flat.monthly"],
-          "flat_yearly" => ["pro.flat.yearly"]
+          "flat_monthly" => ["pro.flat.monthly"]
         },
         "enterprise" => %{
           "usage" => ["enterprise.usage"],
-          "flat_monthly" => ["enterprise.flat.monthly"],
-          "flat_yearly" => ["enterprise.flat.yearly"]
+          "flat_monthly" => ["enterprise.flat.monthly"]
         },
         "runners" => %{}
       }
@@ -310,24 +308,6 @@ defmodule Tuist.BillingTest do
         customer: "customer_id",
         default_payment_method: nil,
         items: %{data: [%{price: %{id: "enterprise.flat.monthly"}}]}
-      })
-
-      # Then
-      assert Billing.get_current_active_subscription(account).plan == :enterprise
-    end
-
-    test "when it's an enterprise subscription still on the retired yearly price" do
-      # Given
-      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
-      account = Accounts.get_account_from_user(user)
-
-      # When
-      Billing.on_subscription_change(%{
-        id: "sub_some-id",
-        status: "active",
-        customer: "customer_id",
-        default_payment_method: nil,
-        items: %{data: [%{price: %{id: "enterprise.flat.yearly"}}]}
       })
 
       # Then

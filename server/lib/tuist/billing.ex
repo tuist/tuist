@@ -727,19 +727,16 @@ defmodule Tuist.Billing do
   end
 
   defp plan_valid?({plan, plan_prices}, subscription_prices) do
+    flat = List.wrap(plan_prices["flat_monthly"])
+
     if plan == "enterprise" do
-      # flat_yearly is no longer sold, but subscriptions created before
-      # it was retired still carry it and must keep reading as
-      # enterprise until they are moved onto the monthly price.
-      flat = List.wrap(plan_prices["flat_monthly"]) ++ List.wrap(plan_prices["flat_yearly"])
       Enum.any?(flat, &Enum.member?(subscription_prices, &1))
     else
       usage = List.wrap(plan_prices["usage"])
-      flat = List.wrap(plan_prices["flat_monthly"])
 
       # The subscription must:
       #   - Include all the usage-based prices
-      #   - Include at least one flat-based price (monthly or yearly)
+      #   - Include the flat price
       Enum.all?(usage, &Enum.member?(subscription_prices, &1)) and
         Enum.any?(flat, &Enum.member?(subscription_prices, &1))
     end
