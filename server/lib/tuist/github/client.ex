@@ -109,8 +109,20 @@ defmodule Tuist.GitHub.Client do
       {:ok, _} ->
         {:error, :not_found}
 
-      response ->
-        response
+      # `github_request/2` flattens every non-2xx into a message. Only a 404
+      # says the account does not exist. A 5xx, a secondary rate limit, an
+      # expired installation token or a transport failure all mean the
+      # question could not be asked, which is a different thing to tell the
+      # caller than "no such user".
+      {:error, message} when is_binary(message) ->
+        if String.starts_with?(message, "Unexpected status code: 404") do
+          {:error, :not_found}
+        else
+          {:error, :unavailable}
+        end
+
+      _ ->
+        {:error, :unavailable}
     end
   end
 

@@ -170,6 +170,25 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
       assert html =~ "Connect the Tuist GitHub App"
     end
 
+    test "surfaces an unreachable GitHub as something to retry, not a missing account", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      expect(VCS, :get_user_by_username, fn _ -> {:error, :unavailable} end)
+
+      render_hook(lv, "select_approval_policy", %{"policy" => "selected"})
+      render_hook(lv, "open_add_approver_modal")
+      render_hook(lv, "update_approver_handle", %{"value" => "octocat"})
+      html = render_hook(lv, "add_approver")
+
+      assert Bundles.list_bundle_size_approvers(project) == []
+      assert html =~ "Couldn&#39;t reach GitHub"
+    end
+
     test "clears the pending username when the modal is dismissed", %{
       conn: conn,
       organization: organization,

@@ -781,6 +781,17 @@ defmodule Tuist.Bundles do
   def add_bundle_size_approver(%Project{} = project, handle) do
     handle = normalize_github_handle(handle)
 
+    # Checked before the call rather than only in the changeset, which runs at
+    # insert time. Input that cannot be a username has no account to find, so
+    # asking GitHub about it is a wasted round-trip.
+    if BundleSizeApprover.valid_handle?(handle) do
+      resolve_and_insert_approver(project, handle)
+    else
+      {:error, :invalid_github_handle}
+    end
+  end
+
+  defp resolve_and_insert_approver(project, handle) do
     case VCS.get_user_by_username(%{username: handle, project: project}) do
       {:ok, %VCS.User{id: github_id, username: username}} when is_binary(github_id) ->
         %BundleSizeApprover{id: UUIDv7.generate()}
@@ -794,8 +805,31 @@ defmodule Tuist.Bundles do
       {:error, :no_vcs_connection} = error ->
         error
 
-      _ ->
+      {:error, :not_found} ->
         {:error, :github_user_not_found}
+
+      # Anything else means GitHub could not be asked, which must not be
+      # reported to the caller as the account not existing.
+      _ ->
+        {:error, :github_unavailable}
+    end
+  end
+
+  @doc """
+  The project a bundle belongs to, without loading the bundle itself.
+
+  `get_bundle/2` builds the artifact tree, which is an unbounded read over
+  ClickHouse plus an in-memory recursive build. Callers that only need to know
+  which project owns a bundle should not pay for that, especially inside a
+  webhook GitHub gives about ten seconds.
+  """
+  def get_bundle_project_id(bundle_id) do
+    case Ecto.UUID.cast(bundle_id) do
+      {:ok, uuid} ->
+        ClickHouseRepo.one(from(b in Bundle, where: b.id == type(^uuid, Ecto.UUID), select: b.project_id))
+
+      :error ->
+        nil
     end
   end
 

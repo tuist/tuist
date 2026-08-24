@@ -1721,6 +1721,24 @@ defmodule Tuist.BundlesTest do
       assert {:error, :github_user_not_found} == Bundles.add_bundle_size_approver(project, "ghost")
     end
 
+    test "reports an unreachable GitHub separately from an account that does not exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      expect(VCS, :get_user_by_username, fn _ -> {:error, :unavailable} end)
+
+      # When / Then
+      assert {:error, :github_unavailable} == Bundles.add_bundle_size_approver(project, "octocat")
+    end
+
+    test "rejects input that cannot be a username without asking GitHub" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      reject(&VCS.get_user_by_username/1)
+
+      # When / Then
+      assert {:error, :invalid_github_handle} == Bundles.add_bundle_size_approver(project, "not a login")
+    end
+
     test "reports a missing VCS connection separately, since it is the project that needs fixing" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -1742,6 +1760,27 @@ defmodule Tuist.BundlesTest do
 
       # Then
       assert Keyword.has_key?(changeset.errors, :github_handle)
+    end
+  end
+
+  describe "get_bundle_project_id/1" do
+    test "returns the project without loading the bundle's artifacts" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle = BundlesFixtures.bundle_fixture(project: project)
+
+      # When / Then
+      assert Bundles.get_bundle_project_id(bundle.id) == project.id
+    end
+
+    test "returns nil for an id that is not a UUID, rather than raising" do
+      # Given / When / Then
+      assert is_nil(Bundles.get_bundle_project_id("not-a-uuid"))
+    end
+
+    test "returns nil for a UUID with no bundle behind it" do
+      # Given / When / Then
+      assert is_nil(Bundles.get_bundle_project_id(UUIDv7.generate()))
     end
   end
 

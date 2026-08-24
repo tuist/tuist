@@ -257,6 +257,14 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     dgettext("dashboard_projects", "No GitHub user with that username.")
   end
 
+  defp approver_error_message(:invalid_github_handle) do
+    dgettext("dashboard_projects", "That is not a valid GitHub username.")
+  end
+
+  defp approver_error_message(:github_unavailable) do
+    dgettext("dashboard_projects", "Couldn't reach GitHub to check that username. Try again in a moment.")
+  end
+
   defp approver_error_message(%Ecto.Changeset{} = changeset) do
     if Keyword.has_key?(changeset.errors, :github_handle) do
       dgettext("dashboard_projects", "Enter a valid GitHub username that isn't already on the list.")

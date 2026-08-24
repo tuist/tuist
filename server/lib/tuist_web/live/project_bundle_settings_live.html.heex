@@ -462,6 +462,7 @@
               label={dgettext("dashboard_projects", "Add approver")}
               variant="secondary"
               size="medium"
+              disabled={!@has_vcs_connection}
               phx-click="open_add_approver_modal"
               {attrs}
             />
