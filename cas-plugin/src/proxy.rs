@@ -43,6 +43,10 @@ const MAX_PUBLISH_CACHE: usize = 500_000;
 // cleared map self-heals per object through the snapshot fallback in
 // `fetch_object`.
 const MAX_PENDING_OBJECTS: usize = 1_000_000;
+/// One entry per value graph the remote could not fully produce. A healthy
+/// remote makes none; a badly degraded one makes at most one per resolved key,
+/// so this is sized to hold a whole warm build's worth and still be a cap.
+const MAX_WITHHELD_ROOTS: usize = 100_000;
 
 // Snapshot refresh cadence and cache bounds (see `refresh_snapshots`).
 // Default cadence for the incremental (watermark-scoped) snapshot delta of an
@@ -476,6 +480,22 @@ pub struct PathState {
     // anything dropped is reconstructible from the instance snapshot in
     // `fetch_object`.
     pending_objects: Mutex<HashMap<Vec<u8>, PendingFetch>>,
+    // Value-graph roots `materialize_manifest` refused to store because a node
+    // in their closure did not land, mapped to the digests that were missing.
+    //
+    // Withholding the root stops the MATERIALIZER publishing a root over a hole,
+    // but `fetch_object` is a second door into the same store: the compiler was
+    // already handed the value id, its demand load asks for the root, and the
+    // withheld instruction still carries the bytes, so the root goes in
+    // standalone and the hole is now permanent (the next build's root probe
+    // passes and the association is recorded, and nothing can retract it). This
+    // map is what lets that door recognise a root it must not put back on its
+    // own.
+    //
+    // Recorded WITHOUT the `committable` gate the known-local marks take. The
+    // record only ever withholds, never permits, so a stale one costs a repair
+    // attempt and never a wrong answer; `invalidate` clears it anyway.
+    withheld_roots: Mutex<HashMap<Vec<u8>, Vec<Vec<u8>>>>,
     pub stats_resolves: AtomicU64,
     pub stats_remote_hits: AtomicU64,
     pub stats_misses: AtomicU64,
@@ -495,6 +515,14 @@ pub struct PathState {
     // being served over a hole. Persistently non-zero means the remote is handing
     // out entries whose blobs it cannot produce.
     pub stats_incomplete_closures: AtomicU64,
+    // Demand loads of a withheld root that this proxy declined to answer because
+    // the closure was still incomplete. Each one is a build that fails on the
+    // ROOT instead of silently storing it and failing on an interior node
+    // forever after. Its companion is `stats_withheld_roots_repaired`: the same
+    // situation where the missing nodes did land on the retry, which is a build
+    // that would have failed and now does not.
+    pub stats_withheld_roots_refused: AtomicU64,
+    pub stats_withheld_roots_repaired: AtomicU64,
     pub stats_published: AtomicU64,
     pub ms_action: AtomicU64,
     pub ms_filter: AtomicU64,
@@ -781,6 +809,12 @@ impl PathState {
         // `pending_objects` is also KEPT: entries are content-addressed fetch
         // instructions, valid for any incarnation of the store — after a wipe
         // they let demand loads refill exactly what is asked for.
+        //
+        // `withheld_roots` IS cleared: it names nodes that were missing from a
+        // store incarnation that no longer exists. Keeping it would withhold a
+        // root whose closure the next materialization may complete in full, and
+        // the record is rebuilt by that materialization if the hole is real.
+        self.withheld_roots.lock().unwrap().clear();
     }
 
     /// Rebinds `cas` to the store that now lives at `cas_path`, releasing the
@@ -1364,6 +1398,7 @@ impl Proxy {
             publish_cache: Mutex::new(HashMap::new()),
             last_used: AtomicU64::new(self.epoch.elapsed().as_millis() as u64),
             pending_objects: Mutex::new(HashMap::new()),
+            withheld_roots: Mutex::new(HashMap::new()),
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
@@ -1372,6 +1407,8 @@ impl Proxy {
             stats_blobs_fetched: AtomicU64::new(0),
             stats_blobs_inlined: AtomicU64::new(0),
             stats_incomplete_closures: AtomicU64::new(0),
+            stats_withheld_roots_refused: AtomicU64::new(0),
+            stats_withheld_roots_repaired: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),
             ms_action: AtomicU64::new(0),
             ms_filter: AtomicU64::new(0),
@@ -1694,15 +1731,17 @@ impl Proxy {
             // load per node on the serial task-setup thread. Storing the root
             // first therefore published a graph we already knew was incomplete.
             //
-            // Ordering it last stops THIS writer publishing a root over a hole,
-            // which is a property of the materializer and not of the store:
-            // `fetch_object` stores whatever single node it is asked for, and a
-            // withheld root keeps its instruction, so the demand load that
-            // follows the served value puts the root back standalone. After that
-            // the probe passes and the association is recorded. The ordering
-            // buys that this crate stops CREATING the state unconditionally, not
-            // that it cannot be reached. A closure check in `fetch_object` would
-            // cost the transitive walk the root-only probe exists to avoid.
+            // Ordering it last stops THIS writer publishing a root over a hole.
+            // That is not enough on its own, because `fetch_object` is a second
+            // door into the same store: the compiler already holds the value id,
+            // its demand load asks for the root, and a withheld root keeps its
+            // instruction WITH the inlined bytes, so the load used to put the
+            // root back standalone and the hole became permanent. The withheld
+            // root is therefore RECORDED below, against the nodes that did not
+            // land, and `fetch_object` declines it until they do. Naming those
+            // nodes is what keeps the check off the transitive walk the
+            // root-only probe exists to avoid: the demand path repairs exactly
+            // what this pass was owed, not the graph.
             //
             // Repair is per object and on demand: every skipped node keeps its
             // fetch instructions, and the load that needs one fetches it. The
@@ -1719,14 +1758,25 @@ impl Proxy {
             // withheld closure.
             let root_pending = missing.iter().any(|entry| is_root(entry));
             let mut root_stored = false;
-            // Counts the OTHER nodes only. A root that fails on its own is not
-            // evidence about its children, and reporting it as one of them would
+            // The OTHER nodes only. A root that fails on its own is not evidence
+            // about its children, and reporting it as one of them would
             // misdescribe which side of the graph the remote could not produce.
-            let mut skipped = 0usize;
+            //
+            // Kept as digests rather than a count because `fetch_object` needs
+            // to know WHICH nodes were missing: a demand load of a withheld root
+            // can only be answered once those exact nodes are present, and
+            // re-deriving them there would mean the transitive walk the root-only
+            // probe exists to avoid.
+            let mut skipped_digests: Vec<Vec<u8>> = Vec::new();
 
+            let skip = |digest: &[u8], is_root: bool, skipped: &mut Vec<Vec<u8>>| {
+                if !is_root {
+                    skipped.push(digest.to_vec());
+                }
+            };
             for entry in ordered {
                 let entry_is_root = is_root(entry);
-                if entry_is_root && skipped > 0 {
+                if entry_is_root && !skipped_digests.is_empty() {
                     continue;
                 }
                 let (blob, inlined) = match &entry.contents {
@@ -1739,18 +1789,18 @@ impl Proxy {
                         // needs it retries — and surfaces the failure —
                         // per object.
                         None => {
-                            skipped += usize::from(!entry_is_root);
+                            skip(&entry.llcas_digest, entry_is_root, &mut skipped_digests);
                             continue;
                         }
                     },
                 };
                 let phase = Instant::now();
                 let Some(frame) = reapi::decompress_frame(blob) else {
-                    skipped += usize::from(!entry_is_root);
+                    skip(&entry.llcas_digest, entry_is_root, &mut skipped_digests);
                     continue;
                 };
                 let Some(node) = reapi::decode_frame(&frame) else {
-                    skipped += usize::from(!entry_is_root);
+                    skip(&entry.llcas_digest, entry_is_root, &mut skipped_digests);
                     continue;
                 };
                 let codec_elapsed = phase.elapsed();
@@ -1821,6 +1871,21 @@ impl Proxy {
             // only two nodes were in play, which under-reports the failure rate
             // this counter exists to trend.
             let root_already_local = !root_pending;
+            let skipped = skipped_digests.len();
+            // What this pass decided about the root, recorded for `fetch_object`
+            // so the demand load that follows cannot undo it. Only the withheld
+            // shape needs a record: a root already on disk is past withholding,
+            // and a root whose own blob was unavailable is refused by the plain
+            // absence of an instruction.
+            if let Some(root) = &root_digest {
+                let mut withheld = state.withheld_roots.lock().unwrap();
+                if root_pending && !root_stored && skipped > 0 {
+                    withheld.insert(root.clone(), std::mem::take(&mut skipped_digests));
+                } else if root_stored {
+                    // A later pass completed what an earlier one could not.
+                    withheld.remove(root);
+                }
+            }
             if skipped > 0 || (root_pending && !root_stored) {
                 state.stats_incomplete_closures.fetch_add(1, Ordering::Relaxed);
                 let root_hex = root_digest
@@ -1956,8 +2021,79 @@ impl Proxy {
         state
             .last_used
             .store(self.epoch.elapsed().as_millis() as u64, Ordering::Relaxed);
+        self.fetch_object_inner(state, cas_path, declared_instance, digest, true)
+    }
+
+    /// The body of `fetch_object`, with the withheld-root guard switchable.
+    ///
+    /// `honor_withheld` is false for the one-level repair the guard itself
+    /// drives: those digests are the CHILDREN of a withheld root, and letting
+    /// them consult the map again would recurse without ever adding a check
+    /// (a child is not a root of this graph).
+    fn fetch_object_inner(
+        &self,
+        state: &'static PathState,
+        cas_path: &str,
+        declared_instance: &str,
+        digest: &[u8],
+        honor_withheld: bool,
+    ) -> Result<bool, String> {
         if state.load_present(digest) {
             return Ok(true);
+        }
+        // A root the materializer withheld must not be put back on its own.
+        //
+        // Withholding it there was the whole point: the closure had a hole, and
+        // storing the root anyway makes that hole permanent, because the next
+        // build's root probe passes, the association is recorded, and the ABI
+        // has no way to retract it. Answering this call is the second door into
+        // the same store, and before this guard it walked straight through.
+        //
+        // Try the hole first. The missing nodes kept their fetch instructions,
+        // so this is the per-object repair the materializer's comment promises,
+        // narrowed to the exact nodes that did not land rather than a transitive
+        // walk: if the remote can produce them now (a writer that has since
+        // finished uploading, a blob declined under momentary memory pressure)
+        // the closure is whole and the root is safe to store. If it still
+        // cannot, decline, and the build fails naming the ROOT rather than
+        // storing it and failing on an interior node on this and every later
+        // build of that key.
+        if honor_withheld {
+            let owed = state.withheld_roots.lock().unwrap().get(digest).cloned();
+            if let Some(owed) = owed {
+                let mut repaired = true;
+                for child in &owed {
+                    match self.fetch_object_inner(state, cas_path, declared_instance, child, false) {
+                        Ok(true) => {}
+                        // A transport failure is not evidence the closure is
+                        // whole, so it withholds like an absence.
+                        Ok(false) | Err(_) => {
+                            repaired = false;
+                            break;
+                        }
+                    }
+                }
+                if !repaired {
+                    state
+                        .stats_withheld_roots_refused
+                        .fetch_add(1, Ordering::Relaxed);
+                    crate::log_line(&format!(
+                        "withheld root not produced, closure still incomplete: root={} owed={}",
+                        crate::analytics::hex_upper(digest),
+                        owed.len()
+                    ));
+                    return Ok(false);
+                }
+                state.withheld_roots.lock().unwrap().remove(digest);
+                state
+                    .stats_withheld_roots_repaired
+                    .fetch_add(1, Ordering::Relaxed);
+                crate::log_line(&format!(
+                    "withheld root repaired, closure completed on demand: root={} owed={}",
+                    crate::analytics::hex_upper(digest),
+                    owed.len()
+                ));
+            }
         }
         let pending = state.pending_objects.lock().unwrap().get(digest).cloned();
         // Second source of fetch instructions: nodes this machine PUBLISHED.
@@ -2419,6 +2555,13 @@ impl Proxy {
             }
             if state.pending_objects.lock().unwrap().len() > MAX_PENDING_OBJECTS {
                 state.pending_objects.lock().unwrap().clear();
+            }
+            // Bounded like the rest. Dropping a record only forgets that a root
+            // must not be put back standalone, which is the pre-fix behaviour
+            // rather than something worse, and the cap is far above the count a
+            // healthy remote produces (one entry per incomplete closure).
+            if state.withheld_roots.lock().unwrap().len() > MAX_WITHHELD_ROOTS {
+                state.withheld_roots.lock().unwrap().clear();
             }
         }
     }
@@ -3282,7 +3425,7 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} | ms action={} filter={} fetch={} decode={} store={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
@@ -3294,6 +3437,8 @@ impl Proxy {
                 state.stats_blobs_inlined.load(Ordering::Relaxed),
                 state.stats_published.load(Ordering::Relaxed),
                 state.stats_incomplete_closures.load(Ordering::Relaxed),
+                state.stats_withheld_roots_refused.load(Ordering::Relaxed),
+                state.stats_withheld_roots_repaired.load(Ordering::Relaxed),
                 state.ms_action.load(Ordering::Relaxed),
                 state.ms_filter.load(Ordering::Relaxed),
                 state.ms_fetch.load(Ordering::Relaxed),
@@ -4739,6 +4884,7 @@ mod tests {
             publish_cache: Mutex::new(HashMap::new()),
             last_used: AtomicU64::new(0),
             pending_objects: Mutex::new(HashMap::new()),
+            withheld_roots: Mutex::new(HashMap::new()),
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
@@ -4747,6 +4893,8 @@ mod tests {
             stats_blobs_fetched: AtomicU64::new(0),
             stats_blobs_inlined: AtomicU64::new(0),
             stats_incomplete_closures: AtomicU64::new(0),
+            stats_withheld_roots_refused: AtomicU64::new(0),
+            stats_withheld_roots_repaired: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),
             ms_action: AtomicU64::new(0),
             ms_filter: AtomicU64::new(0),
@@ -5243,6 +5391,221 @@ mod tests {
             "so the root is published and the key resolves locally next build"
         );
         assert_eq!(state.stats_incomplete_closures.load(Ordering::Relaxed), 0);
+    }
+
+    /// Registers fetch instructions the way `commit_and_materialize` does before
+    /// it answers, so the tests below drive the production sequence rather than
+    /// a materialization with no demand path behind it.
+    fn register_instructions(state: &PathState, manifest: &[ManifestEntry]) {
+        let mut pending = state.pending_objects.lock().unwrap();
+        for entry in manifest {
+            pending
+                .entry(entry.llcas_digest.clone())
+                .or_insert_with(|| PendingFetch {
+                    blob: entry.blob.clone(),
+                    contents: entry.contents.clone(),
+                });
+        }
+    }
+
+    /// A root and a child whose bytes are not a frame, which is one of the ways
+    /// a node is skipped.
+    fn incomplete_manifest(root: &[u8], child: &[u8], child_bytes: Vec<u8>) -> Vec<ManifestEntry> {
+        vec![
+            ManifestEntry {
+                llcas_digest: root.to_vec(),
+                blob: reapi::Digest { hash: "ee".repeat(32), size_bytes: 4 },
+                contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"root"))),
+            },
+            ManifestEntry {
+                llcas_digest: child.to_vec(),
+                blob: reapi::Digest { hash: "ff".repeat(32), size_bytes: 5 },
+                contents: Some(child_bytes),
+            },
+        ]
+    }
+
+    /// Withholding the root in the materializer is only half a guard: the
+    /// compiler was already handed the value id, and its demand load asks for
+    /// that exact root. The instruction is still registered WITH its inlined
+    /// bytes (a skipped node keeps them), so before this guard the demand load
+    /// decoded them and put the root back standalone -- over the same hole the
+    /// materializer had just refused to publish over.
+    ///
+    /// That is what makes the state permanent rather than transient: the next
+    /// build's root probe passes, the association is recorded, and the ABI has
+    /// no delete and refuses a differing re-put.
+    #[test]
+    fn a_withheld_root_is_not_put_back_by_a_demand_load() {
+        let dir = TempCasDir::new("withheld-root-demand");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/withheld");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        let root = vec![0x21];
+        let child = vec![0x22];
+        let manifest = incomplete_manifest(&root, &child, b"not a frame".to_vec());
+        register_instructions(state, &manifest);
+        proxy
+            .materialize_manifest(&remote, state, &manifest, observed)
+            .expect("a skipped node is the case being handled, not an error");
+        assert!(
+            !proxy.is_local(state, observed, &root),
+            "precondition: the root was withheld"
+        );
+
+        let produced = proxy
+            .fetch_object(state, &dir.path(), "", &root)
+            .expect("a declined fetch is an answer, not an error");
+
+        assert!(
+            !produced,
+            "a demand load must not produce a root whose closure is still \
+             incomplete: storing it here is what makes the hole permanent"
+        );
+        assert!(
+            !proxy.is_local(state, observed, &root),
+            "and nothing was written, so the next build's root probe still fails \
+             and the association is still not recorded"
+        );
+        assert_eq!(
+            state.stats_withheld_roots_refused.load(Ordering::Relaxed),
+            1
+        );
+    }
+
+    /// The other half, or the guard would turn a recoverable graph into a
+    /// permanent miss. The nodes that did not land kept their instructions, so
+    /// the demand load repairs exactly those and then produces the root. This is
+    /// the per-object repair the materializer's comment promises, narrowed to
+    /// the nodes actually owed instead of a transitive walk.
+    #[test]
+    fn a_withheld_root_is_produced_once_its_closure_is_completed() {
+        let dir = TempCasDir::new("withheld-root-repair");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/withheld-repair");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        let root = vec![0x31];
+        let child = vec![0x32];
+        let manifest = incomplete_manifest(&root, &child, b"not a frame".to_vec());
+        register_instructions(state, &manifest);
+        proxy
+            .materialize_manifest(&remote, state, &manifest, observed)
+            .expect("materialize");
+        assert!(
+            !proxy.is_local(state, observed, &root),
+            "precondition: withheld"
+        );
+
+        // The writer finished uploading, or the blob was declined under a
+        // momentary memory limit and is serveable now.
+        state
+            .pending_objects
+            .lock()
+            .unwrap()
+            .insert(
+                child.clone(),
+                PendingFetch {
+                    blob: reapi::Digest { hash: "ff".repeat(32), size_bytes: 5 },
+                    contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"child"))),
+                },
+            );
+
+        let produced = proxy
+            .fetch_object(state, &dir.path(), "", &root)
+            .expect("fetch");
+
+        assert!(
+            produced,
+            "the closure is whole now, so the root is safe to produce"
+        );
+        // Two objects went in, the owed node first and the root only after it:
+        // counted rather than probed because `is_local` answers from the
+        // known-local marks, which only `materialize_manifest` writes, and these
+        // digests are fixtures rather than real content addresses.
+        assert_eq!(
+            state.stats_demand_fetched.load(Ordering::Relaxed),
+            2,
+            "the owed node was produced, and then the root"
+        );
+        assert_eq!(
+            state.stats_withheld_roots_repaired.load(Ordering::Relaxed),
+            1
+        );
+        assert_eq!(
+            state.stats_withheld_roots_refused.load(Ordering::Relaxed),
+            0
+        );
+        assert!(
+            !state.withheld_roots.lock().unwrap().contains_key(&root),
+            "and the record is dropped, so later loads take the plain path"
+        );
+    }
+
+    /// A materialization that completes what an earlier one could not must drop
+    /// the record, or the root stays unproducible on demand for the life of the
+    /// proxy even though its closure is whole on disk.
+    #[test]
+    fn a_completed_closure_clears_an_earlier_withhold() {
+        let dir = TempCasDir::new("withheld-root-cleared");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/withheld-cleared");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        let root = vec![0x41];
+        let child = vec![0x42];
+        let broken = incomplete_manifest(&root, &child, b"not a frame".to_vec());
+        register_instructions(state, &broken);
+        proxy
+            .materialize_manifest(&remote, state, &broken, observed)
+            .expect("materialize");
+        assert!(
+            state.withheld_roots.lock().unwrap().contains_key(&root),
+            "precondition: the withhold was recorded"
+        );
+
+        let whole = incomplete_manifest(
+            &root,
+            &child,
+            reapi::compress_frame(&reapi::encode_frame(&[], b"child")),
+        );
+        proxy
+            .materialize_manifest(&remote, state, &whole, observed)
+            .expect("materialize");
+
+        assert!(
+            proxy.is_local(state, observed, &root),
+            "the second pass published the root"
+        );
+        assert!(
+            !state.withheld_roots.lock().unwrap().contains_key(&root),
+            "so the record must go with it"
+        );
+    }
+
+    /// The record names nodes missing from a store incarnation that no longer
+    /// exists. Keeping it across a wipe would withhold a root the next
+    /// materialization may complete in full.
+    #[test]
+    fn a_wipe_clears_the_withheld_roots() {
+        let dir = TempCasDir::new("withheld-root-invalidate");
+        let state = path_state_for(&dir.path());
+        state
+            .withheld_roots
+            .lock()
+            .unwrap()
+            .insert(vec![0x51], vec![vec![0x52]]);
+
+        state.invalidate();
+
+        assert!(
+            state.withheld_roots.lock().unwrap().is_empty(),
+            "a record about a store that is gone must not outlive it"
+        );
     }
 
     // A demand fetch is a door into the same store, and it does not have to come
