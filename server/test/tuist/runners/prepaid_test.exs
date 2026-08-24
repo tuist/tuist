@@ -186,6 +186,22 @@ defmodule Tuist.Runners.PrepaidTest do
       assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
     end
 
+    test "does not grant again for an item already granted when it was billed" do
+      # The line on the invoice is a different object from the invoice
+      # item it came from, so matching on the line id alone would grant
+      # the same minutes a second time a month later.
+      stub_account_period(~U[2026-09-01 00:00:00Z])
+
+      stub(CreditGrants, :list_for_customer, fn _customer_id ->
+        {:ok, [%{metadata: %{"tuist_prepaid_invoice_line_id" => "ii_1"}}]}
+      end)
+
+      stub_lines([line(%{id: "il_9", invoice_item: "ii_1"})])
+      reject(&CreditGrants.create/1)
+
+      assert {:ok, []} = Prepaid.grant_for_paid_invoice(invoice())
+    end
+
     test "expires the grant at the end of the billing period it was bought in" do
       # Minutes belong to a month and do not roll over, so the grant ends
       # with the period the invoice paid for rather than living on for a
@@ -363,6 +379,8 @@ defmodule Tuist.Runners.PrepaidTest do
 
   describe "bill_prepaid_minutes/3" do
     test "adds a pending invoice item so the charge rides the next monthly bill" do
+      stub(CreditGrants, :create, fn _attrs -> {:ok, %{id: "credgr_1"}} end)
+
       expect(Stripe.Invoiceitem, :create, fn params ->
         assert params.customer == "cus_bill"
         assert params.amount == 60_000
@@ -377,6 +395,8 @@ defmodule Tuist.Runners.PrepaidTest do
     end
 
     test "can be scoped to one platform" do
+      stub(CreditGrants, :create, fn _attrs -> {:ok, %{id: "credgr_1"}} end)
+
       expect(Stripe.Invoiceitem, :create, fn params ->
         assert params.metadata["tuist_prepaid_runners"] == "macos"
         {:ok, %{id: "ii_1"}}
@@ -386,11 +406,38 @@ defmodule Tuist.Runners.PrepaidTest do
                Prepaid.bill_prepaid_minutes(%Account{customer_id: "cus_bill"}, 10_000, platforms: [:macos])
     end
 
-    test "grants nothing on its own, since the money has not arrived" do
+    test "grants the minutes up front rather than waiting for the invoice" do
       stub(Stripe.Invoiceitem, :create, fn _params -> {:ok, %{id: "ii_1"}} end)
-      reject(&CreditGrants.create/1)
+      stub_account_period(~U[2026-09-01 00:00:00Z])
 
-      assert {:ok, _item} = Prepaid.bill_prepaid_minutes(%Account{customer_id: "cus_bill"}, 10_000)
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.customer_id == "cus_bill"
+        # The funded amount, not the invoiced one: 60_000 paid buys
+        # 75_000 of credit at the 1.25x default.
+        assert attrs.amount_cents == 75_000
+        assert attrs.category == "paid"
+        assert Enum.sort(attrs.price_ids) == Enum.sort([@macos_price, @linux_price])
+        assert attrs.expires_at == ~U[2026-09-01 00:00:00Z]
+        # Keyed on the invoice item, because there is no invoice yet.
+        assert attrs.idempotency_key == "runner-prepaid-item-ii_1"
+        assert attrs.metadata["tuist_prepaid_invoice_line_id"] == "ii_1"
+        {:ok, %{id: "credgr_1"}}
+      end)
+
+      assert {:ok, %{id: "ii_1"}} =
+               Prepaid.bill_prepaid_minutes(%Account{customer_id: "cus_bill"}, 10_000)
+    end
+
+    test "leaves the grant to the invoice when granting up front fails" do
+      # The charge is already on the customer, so failing here must not
+      # swallow it. Returning the error tells ops, and the invoice.paid
+      # path still finds no grant for the item and issues it then.
+      stub(Stripe.Invoiceitem, :create, fn _params -> {:ok, %{id: "ii_1"}} end)
+      stub_account_period(~U[2026-09-01 00:00:00Z])
+      stub(CreditGrants, :create, fn _attrs -> {:error, :stripe_down} end)
+
+      assert {:error, :stripe_down} =
+               Prepaid.bill_prepaid_minutes(%Account{customer_id: "cus_bill"}, 10_000)
     end
   end
 

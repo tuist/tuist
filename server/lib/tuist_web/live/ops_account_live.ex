@@ -158,12 +158,14 @@ defmodule TuistWeb.OpsAccountLive do
             {:noreply,
              socket
              |> assign(:account, preload_billing(account))
+             |> assign(:prepaid_balance, Prepaid.balance(account))
              |> assign(:prepaid_quote, nil)
              |> put_flash(
                :info,
                dgettext(
                  "dashboard",
-                 "Added %{amount} of prepaid runner minutes to %{account}'s next invoice. They are granted when that invoice is paid.",
+                 "Granted %{minutes} prepaid runner minutes to %{account}. %{amount} was added to its next invoice.",
+                 minutes: format_number(quoted.minutes),
                  amount: format_money(quoted.invoiced),
                  account: account.name
                )

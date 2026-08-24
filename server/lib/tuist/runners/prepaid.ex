@@ -89,14 +89,30 @@ defmodule Tuist.Runners.Prepaid do
   so nothing rolls over: what an account does not spend that month is
   gone, and next month's minutes arrive on their own invoice.
 
-  Neither top-ups nor expiry need machinery here. Every paid prepaid
-  line creates its own grant, and Stripe applies whichever grants are
-  live at invoice time in priority then expiry order, so a top-up is
-  just another grant and an exhausted or expired one simply stops
-  applying — usage past it falls through to the on-demand rate it was
-  always reported at. That is the second dividend of keeping the
-  balance in money: there is no merging, no re-basing, and no expiry
-  sweep to run.
+  Neither top-ups nor expiry need machinery here. Every prepaid line
+  creates its own grant, and Stripe applies whichever grants are live
+  at invoice time in priority then expiry order, so a top-up is just
+  another grant and an exhausted or expired one simply stops applying
+  — usage past it falls through to the on-demand rate it was always
+  reported at. That is the second dividend of keeping the balance in
+  money: there is no merging, no re-basing, and no expiry sweep to run.
+
+  ## When the grant happens
+
+  Selling minutes grants them, rather than waiting for the invoice
+  carrying the charge to be paid: an account that buys minutes can run
+  on them immediately, which is the whole point of selling them. The
+  charge still rides the next monthly bill, so an account that never
+  pays it has spent minutes it owes for — accepted deliberately, on the
+  grounds that an account which has agreed to prepay and then vanishes
+  is rare enough not to justify withholding what it bought.
+
+  `grant_for_paid_invoice/1` remains the path for lines that reach an
+  invoice without a grant, which is what a failure to grant at sale
+  time degrades to. It skips lines already granted, matching the
+  invoice item id the up-front grant recorded as well as the line id,
+  since a line and the invoice item it came from are different objects
+  with different ids.
 
   ## Trials are not this
 
@@ -189,7 +205,7 @@ defmodule Tuist.Runners.Prepaid do
       expires_at = expires_at(customer_id)
 
       lines
-      |> Enum.reject(&MapSet.member?(granted_line_ids, line_id(&1)))
+      |> Enum.reject(&granted?(granted_line_ids, &1))
       |> Enum.reduce_while({:ok, []}, fn line, {:ok, acc} ->
         case grant_line(customer_id, invoice_id, line, currency, expires_at) do
           {:ok, grant} -> {:cont, {:ok, [grant | acc]}}
@@ -255,6 +271,16 @@ defmodule Tuist.Runners.Prepaid do
   end
 
   defp line_id(line), do: Map.get(line, :id)
+
+  # A line billed up front was granted against the invoice item's id,
+  # which the line carries in `invoice_item`. Matching on the line id
+  # alone would grant those minutes a second time when the invoice is
+  # paid.
+  defp granted?(granted_line_ids, line) do
+    [line_id(line), Map.get(line, :invoice_item)]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.any?(&MapSet.member?(granted_line_ids, &1))
+  end
 
   defp line_metadata(line) do
     case Map.get(line, :metadata) do
@@ -348,13 +374,47 @@ defmodule Tuist.Runners.Prepaid do
     quote = quote_minutes(minutes)
     platforms = Keyword.get(opts, :platforms, @platforms)
 
-    Stripe.Invoiceitem.create(%{
-      customer: customer_id,
-      amount: quote.invoiced.amount,
-      currency: "usd",
-      description: "Prepaid runner minutes (#{minutes} on macOS 6 vCPU / 14 GB)",
-      metadata: %{@marker_key => Enum.map_join(platforms, ",", &to_string/1)}
-    })
+    with {:ok, item} <-
+           Stripe.Invoiceitem.create(%{
+             customer: customer_id,
+             amount: quote.invoiced.amount,
+             currency: "usd",
+             description: "Prepaid runner minutes (#{minutes} on macOS 6 vCPU / 14 GB)",
+             metadata: %{@marker_key => Enum.map_join(platforms, ",", &to_string/1)}
+           }),
+         {:ok, _grant} <- grant_billed_item(customer_id, item, quote, platforms) do
+      {:ok, item}
+    end
+  end
+
+  # The minutes are granted here rather than on `invoice.paid`, so the
+  # account can spend them the moment they are sold. The charge still
+  # rides the next monthly bill.
+  #
+  # Failing to grant returns the error rather than swallowing it: the
+  # charge is already on the customer, and leaving no grant for the item
+  # means `grant_for_paid_invoice/1` issues it when the invoice is paid,
+  # which is the behaviour this replaced.
+  defp grant_billed_item(customer_id, item, quote, platforms) do
+    with {:ok, price_ids} <- price_ids(platforms) do
+      CreditGrants.create(%{
+        customer_id: customer_id,
+        amount_cents: quote.granted.amount,
+        currency: "usd",
+        price_ids: price_ids,
+        category: "paid",
+        name: "Prepaid runner credit",
+        expires_at: expires_at(customer_id),
+        priority: @prepaid_priority,
+        metadata: %{
+          @kind_key => "prepaid",
+          @line_key => item.id,
+          @paid_cents_key => to_string(quote.invoiced.amount),
+          @granted_ratio_key => to_string(quote.funding_ratio_bp)
+        },
+        idempotency_key: "runner-prepaid-item-#{item.id}"
+      })
+    end
   end
 
   @doc """

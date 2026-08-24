@@ -306,7 +306,53 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert html =~ "750.00"
     end
 
-    test "adds the charge to the next invoice rather than granting credit now", %{conn: conn, user: user} do
+    test "shows the new balance without waiting for a reload", %{conn: conn, user: user} do
+      # The minutes are granted as the charge is created, so the table
+      # has to be re-read. Assigning it only at mount is what made the
+      # button look like it did nothing.
+      grant = fn minutes ->
+        %{
+          available: Money.new(minutes * 75, :USD),
+          expires_at: ~U[2026-09-01 00:00:00Z],
+          grants: [
+            %{
+              id: "credgr_1",
+              kind: "prepaid",
+              available: Money.new(minutes * 75, :USD),
+              available_minutes: minutes,
+              expires_at: ~U[2026-09-01 00:00:00Z]
+            }
+          ]
+        }
+      end
+
+      # Keyed on the charge rather than a call count: the page reads the
+      # balance once for the dead render and again on connect, so a
+      # counter would have advanced before the form was ever submitted.
+      {:ok, billed} = Agent.start_link(fn -> false end)
+
+      stub(Prepaid, :bill_prepaid_minutes, fn _account, _minutes ->
+        Agent.update(billed, fn _ -> true end)
+        {:ok, %{id: "ii_1"}}
+      end)
+
+      stub(Prepaid, :balance, fn _account ->
+        if Agent.get(billed, & &1), do: grant.(10_100), else: grant.(10_000)
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert has_element?(lv, "#prepaid-balance-table", "10,000")
+
+      html =
+        lv
+        |> form("#prepaid-minutes-form", %{"minutes" => "100"})
+        |> render_submit()
+
+      assert html =~ "10,100"
+    end
+
+    test "adds the charge to the next invoice and grants it at the same time", %{conn: conn, user: user} do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
       expect(Prepaid, :bill_prepaid_minutes, fn account, minutes ->
