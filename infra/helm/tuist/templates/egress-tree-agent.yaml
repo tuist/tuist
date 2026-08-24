@@ -178,14 +178,18 @@ metadata:
     app.kubernetes.io/component: egress-tree-agent
 spec:
   nodeSelector:
-    # Mirror the DaemonSet scope (kubernetes.io/os: linux + the same
-    # nodeSelector/nodePools): the policy must select exactly the nodes the
-    # agent runs on, never a non-linux node in a shared pool.
+    # A host policy matches against the HOST endpoint's labels, which Cilium's
+    # default label filter strips down to node.cluster.x-k8s.io/* (+ reserved)
+    # — kubernetes.io/os is NOT present on the host endpoint. So the policy
+    # selects by pool only; a kubernetes.io/os: linux matchLabel here never
+    # matches, leaving the host endpoint unenforced and the metrics port open
+    # (observed on canary/production). The DaemonSet keeps os: linux because
+    # pod scheduling does see full node labels. The kura pools are linux-only
+    # bare metal, so pool alone is exact.
+    {{- with .Values.egressTreeAgent.nodeSelector }}
     matchLabels:
-      kubernetes.io/os: linux
-      {{- with .Values.egressTreeAgent.nodeSelector }}
       {{- toYaml . | nindent 6 }}
-      {{- end }}
+    {{- end }}
     {{- with .Values.egressTreeAgent.nodePools }}
     matchExpressions:
       - key: node.cluster.x-k8s.io/pool
