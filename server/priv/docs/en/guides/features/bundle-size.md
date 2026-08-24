@@ -155,7 +155,3 @@ By default anyone with write access to the repository can accept a size increase
 - **Selected GitHub users**: only the GitHub usernames you add.
 
 Someone not on the list leaves the check failing with an explanation, and the button stays for whoever can use it.
-
-Approvers are stored by GitHub account id rather than username, so a rename keeps working and reclaiming a username grants nothing. Adding one needs the project connected to the Tuist GitHub App, which is how the username is resolved. No Tuist account link is required, so members who sign in through SSO work the same.
-
-For a rule Tuist does not model, such as requiring a specific team's review, keep the default and gate on a job of your own that reads the `tuist/bundle-size` check run.
