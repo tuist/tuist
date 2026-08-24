@@ -570,6 +570,79 @@ every public route, holds for 250. It also surfaces something the original could
 not see: 20 minutes of 5xx on `/api/cache/module/start`, a write route, on a pod
 the old rule never looked at.
 
+#### Before you call a 5xx a fault, check the shed
+
+Capacity shedding reached 429 in two steps, and a node can be running either
+half. #12548 moved the artifact **read** shed; the **write** shed — multipart
+caps, upload memory, the tmp staging budget, the critical-memory gate and the
+replication outbox — followed separately. Through kura@0.25.1 the write shed
+still answered 503, so a node merely full of in-flight uploads fired this rule
+as if its store had broken. Check the running image before reading a module-route
+503 as a fault.
+
+This misfired for real on 2026-08-24: `kura-tuist-scw-fr-par-0` in
+`tuist-production` paged on `/api/cache/module/start` with 568 x 503 against 218
+successes over a single container lifetime. Nothing was broken. Multipart uploads
+orphaned by liveness-kill restarts had pushed the persisted count past the cap,
+and every new upload was being turned away.
+
+Since both halves landed, the decisive query is the shed counter, which names
+the limit that refused the request:
+
+```promql
+sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
+```
+
+`kind` is one of `response_stream` (egress capacity — the only kind the warning
+rule below is about), `multipart_uploads`, `multipart_storage`, `upload_memory`,
+`tmp_staging`, `memory_pressure_write` or `outbox`. Reach for it before the
+older per-subsystem counters: the HTTP status cannot separate these, since 429
+is shared by every shed and `kura_http_requests_total` has no method label, so
+the routes that serve both reads and writes cannot be split by route either.
+
+On a node predating the write half, fall back to:
+
+```promql
+sum by (pod) (rate(kura_multipart_parts_total_total{result="capacity_exceeded"}[5m]))
+kura_multipart_uploads
+sum by (pod, result) (rate(kura_artifact_reads_total_total{result=~"error"}[5m]))
+```
+
+- `kura_multipart_parts_total{result="capacity_exceeded"}` is decisive but covers
+  `/api/cache/module/part` only. `/start` and `/complete` have no counter of
+  their own.
+- **`kura_multipart_uploads` is not the reservation counter.** It is the count of
+  *persisted* multipart records (`Store::snapshot` ->
+  `count_cf_entries(ROCKSDB_CF_MULTIPART_UPLOADS)`), while admission guards a
+  separate atomic. It legitimately reads above the cap — 207 against a cap of
+  128 during the incident. Read it as shed pressure, not as the quantity being
+  compared to the limit.
+- `/api/cache/module/start` has a **second 503 that looks identical**:
+  `artifact_exists` failing answers "Failed to inspect artifact". Nothing on the
+  route separates the two. What argues for the shed is
+  `kura_artifact_reads_total{result=~"error"}` staying empty while
+  `/api/cache/module/{id}` keeps serving 200/404.
+
+**The multipart cap is always 128.** `KURA_MULTIPART_MAX_ACTIVE_UPLOADS` is set
+nowhere in `kura/ops/` or `infra/kura-controller/`, so every managed instance
+runs `DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS` regardless of how large the instance
+is. A bigger node does not get a bigger upload budget.
+
+**An orphaned backlog can outlive the restart that caused it.** Startup seeds the
+admission atomic from persisted state, and when that lands over the limit it logs
+*"persisted multipart usage starts above its configured limits; rejecting growth
+until the janitor reclaims it"*. The janitor runs every 10 minutes, but
+`DEFAULT_MULTIPART_UPLOAD_TTL_MS` is **24 hours**, so a node that died mid-wave
+can come back already wedged and shed every new upload for up to a day. Grep the
+container's startup log for that line before assuming a fresh pod is clean. A
+restart cleared it on 2026-08-24, so the day-long wedge is a latent mode, not an
+observed one.
+
+Worth watching before it pages: a pod sitting at a non-zero resting
+`kura_multipart_uploads` while the rest of the fleet sits at 0 is leaking uploads
+toward the same cap.
+
+
 ### Kura cache pod restart loop
 
 ```promql
@@ -1213,21 +1286,25 @@ absent_over_time(
 
 ```promql
 (
-  sum by (cluster, pod) (
-    rate(kura_http_requests_total_total{
-      namespace="kura",
-      route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
-      status="429"
-    }[5m])
+  (
+    sum by (cluster, pod) (
+      rate(kura_capacity_sheds_total_total{namespace="kura", kind="response_stream"}[5m])
+    )
+    or
+    sum by (cluster, pod) (
+      rate(kura_http_requests_total_total{namespace="kura", route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched", status="429"}[5m])
+    )
   )
   /
   clamp_min(
-    sum by (cluster, pod) (
-      rate(kura_http_requests_total_total{
-        namespace="kura",
-        route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
-        status="429"
-      }[5m])
+    (
+      sum by (cluster, pod) (
+        rate(kura_capacity_sheds_total_total{namespace="kura", kind="response_stream"}[5m])
+      )
+      or
+      sum by (cluster, pod) (
+        rate(kura_http_requests_total_total{namespace="kura", route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched", status="429"}[5m])
+      )
     )
     +
     (
@@ -1235,24 +1312,28 @@ absent_over_time(
         rate(kura_artifact_reads_total_total{result="ok", producer!="reapi"}[5m])
       )
       or
-      sum by (cluster, pod) (
-        rate(kura_http_requests_total_total{
-          namespace="kura",
-          route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
-          status="429"
-        }[5m])
+      (
+        sum by (cluster, pod) (
+          rate(kura_capacity_sheds_total_total{namespace="kura", kind="response_stream"}[5m])
+        )
+        or
+        sum by (cluster, pod) (
+          rate(kura_http_requests_total_total{namespace="kura", route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched", status="429"}[5m])
+        )
       ) * 0
     ),
     0.01
   )
 )
 and
-sum by (cluster, pod) (
-  rate(kura_http_requests_total_total{
-    namespace="kura",
-    route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
-    status="429"
-  }[5m])
+(
+  sum by (cluster, pod) (
+    rate(kura_capacity_sheds_total_total{namespace="kura", kind="response_stream"}[5m])
+  )
+  or
+  sum by (cluster, pod) (
+    rate(kura_http_requests_total_total{namespace="kura", route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched", status="429"}[5m])
+  )
 ) > 1
 ```
 
@@ -1262,8 +1343,12 @@ sum by (cluster, pod) (
 - Pending period: 10 minutes
 - Severity: warning
 - Live: rule `dfvv8qn09k1z4b`, folder `Alerts`, group `Cache`, receiver
-  `Slack #notifications 2`, `no_data_state: OK`. It reads Normal until the 429
-  change is deployed, since no node emits the status yet.
+  `Slack #notifications 2`, `no_data_state: OK`. **Still on the bare-429 query;
+  the form above has not been applied yet.** It can be applied at any point --
+  before, during or after the rollout -- because the `or` arm makes it correct
+  on both images; see below. The query was validated against `grafanacloud-prom`
+  via `/api/ds/query` on 2026-08-24: it parses, executes, and returns an empty
+  vector on the currently quiet fleet, matching the deployed rule.
 - Summary: `Kura pod {{ $labels.pod }} is shedding
   {{ $values.A.Value | humanizePercentage }} of cache reads in
   {{ $labels.cluster }} — it is out of response-stream capacity, not broken`
@@ -1275,7 +1360,39 @@ whenever the volume floor is not met, which is most of the time.
 
 Kura answers a read it cannot admit a response stream for with `429` and
 `Retry-After: 1`. Clients retry, so a shed is a slowdown rather than a failure,
-and a short burst is the admission control working. What matters is the share of
+and a short burst is the admission control working.
+
+**Select on `kind`, with a bare-429 fallback.** Every public capacity shed now answers
+429 — multipart caps, upload memory, the tmp staging budget, the critical-memory
+gate and the replication outbox alongside this one — so an unqualified
+`status="429"` numerator mixes write sheds into a ratio whose denominator counts
+only reads. That both inflates the number and mislabels the cause, which matters
+because this rule's summary asserts response-stream capacity specifically.
+Splitting by route does not work either: `kura_http_requests_total` carries no
+method label, and `/v1/cache/{hash}`, `/api/metro/cache/{cache_key}`,
+`/api/cache/cas/{id}` and `/api/cache/gradle/{cache_key}` each serve reads and
+writes under one route template. `kura_capacity_sheds_total{kind}` exists for
+exactly this: one series per limit, every value a constant in
+`metrics::shed_kind`, so the label cannot grow with traffic. The other kinds are
+a capacity signal too, but a different one, and they belong in their own rule
+rather than this one.
+
+**The `or` arm is what lets this rule be correct before, during and after the
+rollout**, rather than having to be swapped at the exact moment of deploy.
+Neither ordering works on its own: repointing the rule ahead of deploy leaves it
+reading `NoData` (which `no_data_state: OK` renders as silence, so read sheds go
+uncovered), and repointing it afterwards leaves a window where write sheds page
+as read pressure. Selecting the kind and falling back to the bare-429 count
+where that series is absent is correct in both worlds, and per-pod, so a
+half-rolled fleet reads correctly on both sides.
+
+That fallback rests on the series existing from boot. Every kind in
+`shed_kind::ALL` is materialised at zero when `Metrics` is constructed, so
+"series missing" means "pod is running the old image" and never "new pod that
+has not shed a read yet" — the case that would otherwise have its write sheds
+counted as read sheds. `metrics::tests::every_shed_kind_is_published_before_the_first_shed`
+pins it. Once the whole fleet is on the new image the `or` arm is dead weight
+and can be dropped, but it costs nothing to leave. What matters is the share of
 reads being shed and for how long, which is why this is rate-relative: an
 absolute count fires on the busiest tenant first no matter how well they are
 being served, and the same count means very different things at 200 req/s and at
@@ -1300,8 +1417,9 @@ Note the doubled suffix: the counter is registered as
 the alert itself on that counter. One request can record more than one outcome —
 a read that records `queue_full` on its full-size attempt and then succeeds on
 the degraded pool records `degraded` too — so it counts admission attempts, not
-shed requests. The HTTP status is one value per request and is the only
-unambiguous shed signal.
+shed requests. `kura_capacity_sheds_total` is one increment per shed request and
+is the unambiguous signal; the HTTP status is one value per request but is now
+shared across every kind of shed.
 
 **Two details in this query are load-bearing, both measured over the 7 days to
 2026-08-21 using the pre-change 503s as a proxy for the 429s.**
