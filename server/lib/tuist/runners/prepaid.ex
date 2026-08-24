@@ -635,8 +635,14 @@ defmodule Tuist.Runners.Prepaid do
   # forever, so filtering on the marker alone would keep last year's
   # prepay on the page.
   defp live_runner_credit?(grant) do
-    grant_kind(grant) != nil and not expired?(grant_expires_at(grant))
+    grant_kind(grant) != nil and not expired?(grant_expires_at(grant)) and not voided?(grant)
   end
+
+  # A voided grant stays in the listing with its original amount, so
+  # without this it still reads as live: nothing draws on it, but a set
+  # tries to void it a second time, which Stripe rejects and which used
+  # to take the whole set down with it.
+  defp voided?(grant), do: not is_nil(Map.get(grant, :voided_at))
 
   # Soonest expiry first, never-expiring last. Sorting on the struct
   # itself would order by Erlang term comparison, which walks a

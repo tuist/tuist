@@ -64,6 +64,7 @@ defmodule Tuist.Runners.PrepaidTest do
   defp prepaid_grant(id, item_id) do
     %{
       id: id,
+      voided_at: nil,
       metadata: %{"tuist_runner_credit" => "prepaid", "tuist_prepaid_invoice_line_id" => item_id},
       amount: %{type: "monetary", monetary: %{currency: "usd", value: 750_000}},
       expires_at: nil
@@ -513,6 +514,30 @@ defmodule Tuist.Runners.PrepaidTest do
       expect(CreditGrants, :create, fn _attrs -> {:ok, %{id: "credgr_new"}} end)
 
       assert {:ok, _} = Prepaid.set_minutes(%Account{customer_id: "cus_set"}, 100)
+    end
+
+    test "leaves alone the grants it already voided" do
+      # A voided grant stays in Stripe's listing. Trying to void it again
+      # is an error, and it used to take the whole set down with it: the
+      # first set worked and every one after it did nothing.
+      stub(CreditGrants, :list_for_customer, fn _customer_id ->
+        {:ok,
+         [
+           %{prepaid_grant("credgr_spent", "ii_spent") | voided_at: 1_756_000_000},
+           prepaid_grant("credgr_live", "ii_live")
+         ]}
+      end)
+
+      stub_account_period(~U[2026-09-01 00:00:00Z])
+
+      # Only the live one: `expect` fails the test on a second call.
+      expect(Stripe.Invoiceitem, :delete, fn "ii_live" -> {:ok, %{deleted: true}} end)
+      expect(CreditGrants, :void, fn "credgr_live" -> {:ok, %{id: "credgr_live"}} end)
+
+      expect(Stripe.Invoiceitem, :create, fn _params -> {:ok, %{id: "ii_new"}} end)
+      expect(CreditGrants, :create, fn _attrs -> {:ok, %{id: "credgr_new"}} end)
+
+      assert {:ok, _} = Prepaid.set_minutes(%Account{customer_id: "cus_set"}, 3_000)
     end
 
     test "clears the balance when set to zero" do
