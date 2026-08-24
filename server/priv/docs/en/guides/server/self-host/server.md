@@ -62,7 +62,7 @@ Tuist server has been tested and is compatible with the following minimum versio
 | Component | Minimum Version | Notes |
 | --- | --- | --- |
 | PostgreSQL | 15 | |
-| ClickHouse | 25 | Required for analytics |
+| ClickHouse | {{minimum_supported_clickhouse_version}} | Required for analytics |
 
 ### Running Docker-virtualized images {#running-dockervirtualized-images}
 
