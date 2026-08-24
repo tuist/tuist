@@ -448,6 +448,12 @@
         <.modal
           id="add-approver-modal"
           title={dgettext("dashboard_projects", "Add approver")}
+          description={
+            dgettext(
+              "dashboard_projects",
+              "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
+            )
+          }
           header_size="large"
           on_dismiss="close_add_approver_modal"
         >
@@ -461,12 +467,6 @@
             />
           </:trigger>
           <.line_divider />
-          <p data-part="alert-description">
-            {dgettext(
-              "dashboard_projects",
-              "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
-            )}
-          </p>
           <div data-part="alert-form">
             <div data-part="schedule-row">
               <label data-part="schedule-label">
