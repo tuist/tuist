@@ -133,6 +133,11 @@ pub struct Store {
     /// constant read inline so tests can drive the chunk boundary without
     /// staging the megabytes of rows it would otherwise take to cross it.
     eviction_batch_budget_bytes: usize,
+    /// Thread the last eviction chunk was committed on. Test-only: the whole
+    /// point of `commit_eviction_chunk` is that the commit does not run on the
+    /// caller's thread, and that is otherwise unobservable from outside.
+    #[cfg(test)]
+    eviction_commit_thread: Arc<StdMutex<Option<std::thread::ThreadId>>>,
     /// Bumped whenever a namespace's action cache changes, so a snapshot index
     /// that came back EMPTY can tell "nothing to show" from "out of date". An
     /// empty index is otherwise indistinguishable from a stale one and has to be
@@ -977,6 +982,8 @@ impl Store {
             multipart_max_stored_bytes: config.multipart_max_stored_bytes,
             segment_write_lock: Mutex::new(()),
             eviction_batch_budget_bytes: SEGMENT_EVICTION_MAX_BATCH_BYTES,
+            #[cfg(test)]
+            eviction_commit_thread: Arc::new(StdMutex::new(None)),
             action_cache_generations: StdMutex::new(HashMap::new()),
             segment_fsync_count: Arc::new(AtomicU64::new(0)),
             pending_seq: AtomicU64::new(0),
@@ -3085,10 +3092,21 @@ impl Store {
     ) -> Result<(), String> {
         let payload = batch.data().to_vec();
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.write(WriteBatch::from_data(&payload)))
-            .await
-            .map_err(|error| format!("segment eviction commit task failed: {error}"))?
-            .map_err(|error| format!("failed to evict segment metadata: {error}"))?;
+        #[cfg(test)]
+        let committed_on = Arc::clone(&self.eviction_commit_thread);
+        tokio::task::spawn_blocking(move || {
+            #[cfg(test)]
+            {
+                *committed_on
+                    .lock()
+                    .expect("eviction commit thread lock should not be poisoned") =
+                    Some(std::thread::current().id());
+            }
+            db.write(WriteBatch::from_data(&payload))
+        })
+        .await
+        .map_err(|error| format!("segment eviction commit task failed: {error}"))?
+        .map_err(|error| format!("failed to evict segment metadata: {error}"))?;
 
         // Only after the commit: until it lands, a cached manifest is still a
         // correct answer, and dropping it early would just re-read the row.
@@ -11034,6 +11052,50 @@ mod tests {
                 .expect("failed to load manifest")
                 .is_none(),
             "the eviction must still remove every blob in the segment"
+        );
+    }
+
+    #[tokio::test]
+    async fn evict_segment_commits_off_the_thread_that_drives_the_runtime() {
+        // The layer that makes the 2026-08-24 stall survivable (#12556). The
+        // metadata store runs `allow_stall = true`, so a saturated write-buffer
+        // pool blocks whichever thread is inside `db.write` until a flush
+        // drains it. That is the flag working as intended — the fault was that
+        // the call ran inline, so it blocked a tokio worker and parked the
+        // runtime: probe handlers stopped being scheduled even though `/up`
+        // reads process-local state and takes no lock, which is why the pod
+        // held `up == 1` for 25 minutes without ever failing liveness.
+        //
+        // `#[tokio::test]` is a current-thread runtime, so every task — and
+        // every `.await` below — runs on this one thread. If the commit still
+        // ran inline it would be this thread, and a stall would take the whole
+        // runtime with it. Asserting the commit lands somewhere else is exactly
+        // the property, and it is deterministic rather than timing-dependent.
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+
+        let digest = reapi_digest(1, 5);
+        let manifest = persist_reapi_blob(&store, "offloaded", &digest, b"hello").await;
+        let segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("blob should be segment-backed");
+
+        let runtime_thread = std::thread::current().id();
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("failed to evict segment");
+
+        let committed_on = store
+            .eviction_commit_thread
+            .lock()
+            .expect("eviction commit thread lock should not be poisoned")
+            .expect("the eviction should have committed at least one chunk");
+        assert_ne!(
+            committed_on, runtime_thread,
+            "the eviction committed inline on the thread driving the runtime, so \
+             a write-buffer stall inside RocksDB would park the runtime itself"
         );
     }
 
