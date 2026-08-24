@@ -2981,7 +2981,11 @@ async fn get_artifact(
                 );
             } else if response.status() == StatusCode::NOT_FOUND {
                 state.metrics.record_artifact_read(producer, "not_found", 0);
-            } else {
+            } else if response.status() != StatusCode::TOO_MANY_REQUESTS {
+                // A shed is admission, not a read outcome: no read was attempted,
+                // and counting it as an error puts capacity back into the signal
+                // this route's error rate is read from. The accelerated path
+                // records nothing for the same reason.
                 state.metrics.record_artifact_read(producer, "error", 0);
             }
             response

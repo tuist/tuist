@@ -1226,8 +1226,22 @@ absent_over_time(
       rate(kura_http_requests_total_total{
         namespace="kura",
         route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
-        status=~"200|429"
+        status="429"
       }[5m])
+    )
+    +
+    (
+      sum by (cluster, pod) (
+        rate(kura_artifact_reads_total_total{result="ok", producer!="reapi"}[5m])
+      )
+      or
+      sum by (cluster, pod) (
+        rate(kura_http_requests_total_total{
+          namespace="kura",
+          route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+          status="429"
+        }[5m])
+      ) * 0
     ),
     0.01
   )
@@ -1292,11 +1306,29 @@ unambiguous shed signal.
 **Two details in this query are load-bearing, both measured over the 7 days to
 2026-08-21 using the pre-change 503s as a proxy for the 429s.**
 
-The denominator is `200|429`, the reads that wanted bytes, not all public
-requests. The module cache runs a high miss rate and 404s were 12.3M of 21.9M
-public requests in that week, so including them reports 6.9% where the reads
-that mattered were shed at 17.2% — and it would drift down as the hit rate
-improves, which is exactly backwards.
+The denominator is the reads that wanted bytes: successful artifact reads plus
+sheds. It cannot be assembled from HTTP status alone. Excluding 404s matters
+first — the module cache runs a high miss rate and 404s were 12.3M of 21.9M
+public requests in that week, so counting them reports 6.9% where the reads
+that mattered were shed at 17.2%, and the number would drift down as the hit
+rate improves, which is exactly backwards. But `status="200"` is not the
+complement either: **`kura_http_requests_total` carries no method label**, so a
+200 there is also an Nx or Metro `PUT`, a repeat Gradle upload (201 when new,
+**200 when it already exists**), or a `/status/cluster` poll, none of which
+wanted artifact bytes. Only the CAS write escapes it, by answering 204.
+
+`kura_artifact_reads_total{result="ok"}` is the honest denominator: it counts
+artifact reads that produced bytes and nothing else, and it is recorded on both
+the accelerated and the streaming serving path. Exclude `producer="reapi"` or
+gRPC reads swamp the ratio — they are 7.8M of the fleet's 15.7M weekly reads
+and they never carry an HTTP status, so a REAPI-heavy pod would show a shed
+ratio near zero no matter how hard it was shedding over HTTP.
+
+The `or ... * 0` around it is not decoration. `+` between two metrics matches
+on labels, so a pod with sheds but **no** successful reads in the window — a
+node shedding everything, the case the rule most needs to catch — has no
+matching series on the right and drops out of the result entirely. The `or`
+supplies a zero for those pods so the ratio stays defined at 1.0.
 
 The absolute floor exists because a ratio alone fires on idle pods: a pod
 answering two requests, one of them shed, reads as 50%. Without the floor,
