@@ -49,7 +49,7 @@
           </:description>
         </.progress_bar>
         <.progress_bar
-          :if={@runner_usage.total_ms > 0 or @runner_usage.prepaid_minutes > 0}
+          :if={@runner_usage.enabled or @runner_usage.total_ms > 0}
           id="runner-minutes-progress"
           value={@runner_usage.minutes}
           value_label={format_number(@runner_usage.minutes)}

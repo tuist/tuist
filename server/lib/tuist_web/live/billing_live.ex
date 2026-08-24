@@ -5,6 +5,7 @@ defmodule TuistWeb.BillingLive do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.FeatureFlags
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Prepaid
@@ -186,6 +187,9 @@ defmodule TuistWeb.BillingLive do
     prepaid_minutes = if prepaid, do: prepaid.granted_minutes, else: 0
 
     %{
+      # An account with runners turned on has an allowance whether or
+      # not it has touched it, and that is the thing the bar answers.
+      enabled: FeatureFlags.runners_enabled?(account),
       total_ms: total_ms,
       minutes: div(total_ms, 60_000),
       free_minutes: free_minutes,

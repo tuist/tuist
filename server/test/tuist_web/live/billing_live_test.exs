@@ -7,6 +7,7 @@ defmodule TuistWeb.BillingLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Billing
+  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.RunnerSession
@@ -351,10 +352,24 @@ defmodule TuistWeb.BillingLiveTest do
       refute value =~ "537"
     end
 
-    test "is not shown for an account that has run none", %{conn: conn, account: account} do
+    test "is shown for an account with runners enabled that has run none", %{conn: conn, account: account} do
+      # The bar answers "how much can I still run". An account with
+      # runners turned on has an allowance whether or not it has touched
+      # it yet, and that is worth seeing before the first run rather
+      # than after.
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
-      refute has_element?(lv, "#runner-usage-table")
+      assert has_element?(lv, "#runner-minutes-progress")
+    end
+
+    test "is hidden for an account without runners that has run none", %{conn: conn, account: account} do
+      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      refute has_element?(lv, "#runner-minutes-progress")
     end
 
     test "is shown for an account holding prepaid minutes it has not spent", %{conn: conn, account: account} do
