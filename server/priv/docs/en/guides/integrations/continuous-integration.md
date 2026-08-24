@@ -340,6 +340,14 @@ The cache is content-addressed by package identity, version, and revision, so a 
 >
 > The package scratch directory (`Tuist/.build`) lives in the freshly checked out workspace and is restored from the global cache on every run. Caching it instead of `~/.cache/swifterpm` leaves every run cold.
 
+When `Package.resolved` is committed, pass `--force-resolved-versions` to skip dependency solving and restore exactly the pinned versions:
+
+```bash
+tuist install --force-resolved-versions
+```
+
+The command fails when `Package.resolved` is out of date with `Package.swift`, so re-resolve and commit the lockfile whenever you change dependencies.
+
 ## Run report {#run-report}
 
 When Tuist uploads a run, the dashboard URLs for it are printed to the logs. To get them without scraping the logs — for example to post the test report link to Slack when a job fails, or to feed a run into your own tooling — pass `--run-report-path` (or set `TUIST_RUN_REPORT_PATH`) to `tuist test`, `tuist xcodebuild test`, or `tuist xcodebuild build`. Tuist writes a JSON report to that path once the run has been uploaded:
