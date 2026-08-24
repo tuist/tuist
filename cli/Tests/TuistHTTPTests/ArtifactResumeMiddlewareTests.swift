@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import Synchronization
 import Testing
 
 @testable import TuistHTTP
@@ -27,22 +28,31 @@ struct ArtifactResumeMiddlewareTests {
 
     /// Call counting that survives being captured by the `@Sendable` closure
     /// the throwing expectations run the middleware inside.
-    private final class Counter: @unchecked Sendable {
-        private let lock = NSLock()
-        private var count = 0
+    private final class RangeLog: Sendable {
+        private let entries = Mutex<[String?]>([])
+
+        /// Records this attempt's range header and returns the attempt number.
+        func record(_ range: String?) -> Int {
+            entries.withLock { values in
+                values.append(range)
+                return values.count
+            }
+        }
+
+        var values: [String?] { entries.withLock { $0 } }
+    }
+
+    private final class Counter: Sendable {
+        private let count = Mutex(0)
 
         func increment() -> Int {
-            lock.lock()
-            defer { lock.unlock() }
-            count += 1
-            return count
+            count.withLock { value in
+                value += 1
+                return value
+            }
         }
 
-        var value: Int {
-            lock.lock()
-            defer { lock.unlock() }
-            return count
-        }
+        var value: Int { count.withLock { $0 } }
     }
 
     private func request(method: HTTPRequest.Method = .get) -> HTTPRequest {
@@ -194,6 +204,53 @@ struct ArtifactResumeMiddlewareTests {
 
     /// An operation outside the allowlist keeps the streaming body it always
     /// had, so its failure still surfaces where the caller reads it.
+    /// Middlewares nest in array order, so resume must sit outside retry for a
+    /// ranged follow-up to be retried at all. Composing the two here pins that
+    /// relationship: the call site orders an array, and nothing else would
+    /// notice if the two entries were swapped.
+    @Test func a_resume_that_meets_a_retryable_status_is_retried_rather_than_abandoned() async throws {
+        let resume = ArtifactResumeMiddleware(resumableOperationIDs: [operationID])
+        let retry = RetryMiddleware(maxRetries: 3, baseDelayMilliseconds: 0)
+        let observedRanges = RangeLog()
+
+        // resume(retry(transport)), matching Client+Cache.swift.
+        let (_, body) = try await resume.intercept(
+            request(),
+            body: nil,
+            baseURL: baseURL,
+            operationID: operationID
+        ) { request, body, url in
+            try await retry.intercept(
+                request,
+                body: body,
+                baseURL: url,
+                operationID: operationID
+            ) { request, _, _ in
+                let attempt = observedRanges.record(request.headerFields[.range])
+                switch attempt {
+                case 1:
+                    return (HTTPResponse(status: 200), truncatedBody([Data("0123".utf8)]))
+                case 2:
+                    // The documented shed on the ranged follow-up. Without
+                    // retry in the resume path this ends the download.
+                    var shed = HTTPResponse(status: .init(code: 503))
+                    shed.headerFields[HTTPField.Name("Retry-After")!] = "0"
+                    return (shed, HTTPBody(Data()))
+                default:
+                    return (
+                        partialResponse(start: 4, end: 9, total: 10),
+                        HTTPBody(Data("456789".utf8))
+                    )
+                }
+            }
+        }
+
+        let collected = try await Data(collecting: body!, upTo: .max)
+        #expect(String(decoding: collected, as: UTF8.self) == "0123456789")
+        // The shed follow-up was retried with the same range, not restarted.
+        #expect(observedRanges.values == [nil, "bytes=4-", "bytes=4-"])
+    }
+
     @Test func does_not_resume_an_operation_outside_the_allowlist() async throws {
         let subject = ArtifactResumeMiddleware(resumableOperationIDs: [operationID])
         let callCount = Counter()

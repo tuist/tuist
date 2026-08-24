@@ -2995,24 +2995,29 @@ async fn get_artifact(
                     return range_not_satisfiable_response(manifest.size);
                 }
             };
-            let response = serve_file(&state, &manifest, range).await;
+            // A streaming response's status is decided when the stream is
+            // built, long before a byte reaches the client, so metering here
+            // would book an artifact the client may never receive and book it
+            // again when the client returns for the part it missed. The
+            // attribution rides on the body instead and is committed once the
+            // bytes have actually been delivered, which is what the
+            // accelerated plane has always done.
+            let attribution = DownloadAttribution {
+                state: state.clone(),
+                producer,
+                usage: usage.clone(),
+                analytics: analytics.as_ref().map(|context| {
+                    (
+                        context.tenant_id.to_owned(),
+                        context.namespace_id.to_owned(),
+                    )
+                }),
+                analytics_key: analytics_key.unwrap_or(key).to_owned(),
+            };
+            let response = serve_file(&state, &manifest, range, attribution).await;
             if response.status().is_success() {
-                // Usage, analytics and read counters all follow the bytes this
-                // response carries. A resumed download bills for its tail only,
-                // so the two halves of an interrupted transfer add up to one
-                // artifact rather than to two.
-                state
-                    .metrics
-                    .record_artifact_read(producer, "ok", range.length);
-                record_usage_event(&state, producer, "download", usage.as_ref(), range.length);
-                record_project_scoped_cache_event(
-                    &state,
-                    producer,
-                    "download",
-                    analytics,
-                    analytics_key.unwrap_or(key),
-                    range.length,
-                );
+                // Nothing to record: the body commits the read, usage and
+                // analytics when it completes.
             } else if response.status() == StatusCode::NOT_FOUND {
                 state.metrics.record_artifact_read(producer, "not_found", 0);
             } else {
@@ -3145,6 +3150,50 @@ async fn put_blob_artifact(
     }
 }
 
+/// What a download books once its body has actually delivered its bytes.
+///
+/// Carried by the response stream rather than recorded when the response is
+/// constructed, because on the streaming plane those two moments are far
+/// apart: the status is set as soon as the stream exists, and the transfer can
+/// still die at any point after that.
+struct DownloadAttribution {
+    state: SharedState,
+    producer: ArtifactProducer,
+    usage: Option<UsageContext>,
+    analytics: Option<(String, String)>,
+    analytics_key: String,
+}
+
+impl DownloadAttribution {
+    fn commit(&self, bytes: u64) {
+        self.state
+            .metrics
+            .record_artifact_read(self.producer, "ok", bytes);
+        record_usage_event(
+            &self.state,
+            self.producer,
+            "download",
+            self.usage.as_ref(),
+            bytes,
+        );
+        let analytics =
+            self.analytics
+                .as_ref()
+                .map(|(tenant_id, namespace_id)| ProjectAnalyticsContext {
+                    tenant_id,
+                    namespace_id,
+                });
+        record_project_scoped_cache_event(
+            &self.state,
+            self.producer,
+            "download",
+            analytics,
+            &self.analytics_key,
+            bytes,
+        );
+    }
+}
+
 fn record_usage_event(
     state: &SharedState,
     producer: ArtifactProducer,
@@ -3224,6 +3273,7 @@ async fn serve_file(
     state: &SharedState,
     manifest: &ArtifactManifest,
     range: ServedRange,
+    attribution: DownloadAttribution,
 ) -> Response {
     match state.store.try_mmap_artifact_bytes(manifest).await {
         Ok(Some(bytes)) => {
@@ -3239,7 +3289,7 @@ async fn serve_file(
                 // smaller degraded pool. Waiting here first would only delay
                 // that fallback by a full admission timeout.
                 None => {
-                    return serve_file_reader(state, manifest, range).await;
+                    return serve_file_reader(state, manifest, range, attribution).await;
                 }
             };
             // The mapping covers the whole artifact; the response carries only
@@ -3253,6 +3303,7 @@ async fn serve_file(
                 bytes_chunks(bytes.slice(start..end)),
                 true,
                 range.length,
+                Some(attribution),
             );
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = artifact_response_status(range);
@@ -3260,14 +3311,14 @@ async fn serve_file(
             attach_response_stream_permit(&mut response, permit);
             response
         }
-        Ok(None) => serve_file_reader(state, manifest, range).await,
+        Ok(None) => serve_file_reader(state, manifest, range, attribution).await,
         Err(error) => {
             tracing::warn!(
                 artifact_id = %manifest.artifact_id,
                 %error,
                 "mmap artifact serving failed; falling back to streaming reader"
             );
-            serve_file_reader(state, manifest, range).await
+            serve_file_reader(state, manifest, range, attribution).await
         }
     }
 }
@@ -3284,6 +3335,7 @@ async fn serve_file_reader(
     state: &SharedState,
     manifest: &ArtifactManifest,
     range: ServedRange,
+    attribution: DownloadAttribution,
 ) -> Response {
     state.metrics.record_artifact_serving_path("streaming");
     // An inline artifact is materialized into the reader, but only the
@@ -3340,7 +3392,14 @@ async fn serve_file_reader(
     {
         Ok(Some((manifest, reader))) => {
             let stream = ReaderStream::with_capacity(reader, stream_chunk_bytes);
-            let stream = instrument_artifact_stream(state, &manifest, stream, true, range.length);
+            let stream = instrument_artifact_stream(
+                state,
+                &manifest,
+                stream,
+                true,
+                range.length,
+                Some(attribution),
+            );
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = artifact_response_status(range);
             apply_artifact_response_headers(&mut response, &manifest, range);
@@ -3376,6 +3435,7 @@ fn instrument_artifact_stream<S>(
     stream: S,
     hold_public_inflight: bool,
     expected_bytes: u64,
+    attribution: Option<DownloadAttribution>,
 ) -> InstrumentedArtifactStream<S>
 where
     S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
@@ -3388,6 +3448,7 @@ where
         stream,
         request_guard,
         expected_bytes,
+        attribution,
     )
 }
 
@@ -3404,6 +3465,9 @@ struct InstrumentedArtifactStream<S> {
     // terminal `None` that would otherwise mark completion never arrives.
     expected_bytes: u64,
     recorded: bool,
+    // Booked only on a body that delivered in full, so an abandoned transfer
+    // meters nothing and the client's follow-up meters only what it receives.
+    attribution: Option<DownloadAttribution>,
 }
 
 impl<S> InstrumentedArtifactStream<S> {
@@ -3413,6 +3477,7 @@ impl<S> InstrumentedArtifactStream<S> {
         stream: S,
         request_guard: Option<InflightGuard>,
         expected_bytes: u64,
+        attribution: Option<DownloadAttribution>,
     ) -> Self {
         Self {
             inner: stream,
@@ -3423,6 +3488,7 @@ impl<S> InstrumentedArtifactStream<S> {
             yielded_bytes: 0,
             expected_bytes,
             recorded: false,
+            attribution,
         }
     }
 
@@ -3443,6 +3509,11 @@ impl<S> InstrumentedArtifactStream<S> {
             self.yielded_bytes,
             self.started_at.elapsed(),
         );
+        if result == "ok"
+            && let Some(attribution) = self.attribution.take()
+        {
+            attribution.commit(self.yielded_bytes);
+        }
     }
 }
 
@@ -7008,6 +7079,7 @@ mod tests {
             stream,
             Some(context.state.start_http_request(HttpTrafficClass::Public)),
             1,
+            None,
         );
 
         assert_eq!(context.state.runtime.public_http_inflight(), 1);
@@ -7082,6 +7154,7 @@ mod tests {
             futures_util::stream::iter(chunks),
             None,
             10,
+            None,
         );
 
         // Drain exactly the promised bytes, then drop without polling again.
@@ -7113,6 +7186,7 @@ mod tests {
             futures_util::stream::iter(chunks),
             None,
             10,
+            None,
         );
 
         // The client goes away after the first chunk.
@@ -7131,6 +7205,87 @@ mod tests {
             ),
             "aborted egress must report the 4 bytes it yielded, got:\n{rendered}"
         );
+    }
+
+    fn download_attribution(context: &crate::test_support::TestContext) -> DownloadAttribution {
+        DownloadAttribution {
+            state: context.state.clone(),
+            producer: ArtifactProducer::Module,
+            usage: Some(UsageContext {
+                tenant_id: context.state.config.tenant_id.clone(),
+                namespace_id: "ios".to_owned(),
+            }),
+            analytics: None,
+            analytics_key: "builds/hash/Module.framework".to_owned(),
+        }
+    }
+
+    fn metered_download_bytes(context: &crate::test_support::TestContext) -> u64 {
+        context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests()
+            .iter()
+            .filter(|rollup| rollup.operation == "download")
+            .map(|rollup| rollup.bytes)
+            .sum()
+    }
+
+    /// A response's status is set when its stream is built, so metering there
+    /// books an artifact the client may never receive. It must be booked from
+    /// the body instead.
+    #[tokio::test]
+    async fn a_body_that_dies_mid_transfer_meters_no_download() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let chunks = vec![
+            Ok(Bytes::from_static(b"0123")),
+            Ok(Bytes::from_static(b"456789")),
+        ];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            10,
+            Some(download_attribution(&context)),
+        );
+
+        assert!(stream.next().await.is_some());
+        drop(stream);
+
+        assert_eq!(
+            metered_download_bytes(&context),
+            0,
+            "an abandoned transfer must not be metered"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_completed_body_meters_exactly_the_bytes_it_delivered() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        // The tail a resumed download asks for, not the whole artifact.
+        let chunks = vec![Ok(Bytes::from_static(b"6789"))];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            4,
+            Some(download_attribution(&context)),
+        );
+
+        assert!(stream.next().await.is_some());
+        drop(stream);
+
+        assert_eq!(metered_download_bytes(&context), 4);
     }
 
     /// Puts an artifact and reads it back with `Range`. At this size the
