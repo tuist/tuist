@@ -237,9 +237,7 @@ defmodule Tuist.License do
         {:ok, license}
 
       {:fallback, reason} ->
-        Logger.warning(
-          "Atlas did not validate the license (#{inspect(reason)}); falling back to Keygen."
-        )
+        Logger.warning("Atlas did not validate the license (#{inspect(reason)}); falling back to Keygen.")
 
         resolve_license_from_keygen(key)
     end
