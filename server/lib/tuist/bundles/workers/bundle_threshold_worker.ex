@@ -106,7 +106,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
            vcs_connection: %{github_app_installation: installation, repository_full_handle: repo_handle},
            account: %{name: account_name},
            name: project_name
-         } = project,
+         },
          bundle,
          git_commit_sha,
          result
@@ -114,7 +114,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
     bundle_url =
       Environment.app_url(path: "/#{account_name}/#{project_name}/bundles/#{bundle.id}")
 
-    {conclusion, output} = build_check_run_output(result, bundle_url, project)
+    {conclusion, output} = build_check_run_output(result, bundle_url)
 
     params = %{
       repository_full_handle: repo_handle,
@@ -150,7 +150,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
     end
   end
 
-  defp build_check_run_output(:ok, _bundle_url, _project) do
+  defp build_check_run_output(:ok, _bundle_url) do
     {"success",
      %{
        title: "Bundle size check passed",
@@ -160,8 +160,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
 
   defp build_check_run_output(
          {:violated, threshold, %{current_size: current_size, baseline_size: baseline_size, deviation: deviation}},
-         bundle_url,
-         project
+         bundle_url
        ) do
     metric_label =
       case threshold.metric do
@@ -177,7 +176,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
     | #{metric_label} | #{ByteFormatter.format_bytes(baseline_size)} | #{ByteFormatter.format_bytes(current_size)} | +#{Float.round(deviation, 2)}% |
 
     **Threshold:** #{threshold.deviation_percentage}% on `#{threshold.baseline_branch}`#{if threshold.bundle_name, do: " (bundle: #{threshold.bundle_name})", else: ""}
-    #{approval_policy_note(project)}
+
     [View bundle details](#{bundle_url})
     """
 
@@ -187,20 +186,6 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
        summary: String.trim(summary)
      }}
   end
-
-  defp approval_policy_note(%{bundle_size_approval_policy: :selected} = project) do
-    handles =
-      project
-      |> Bundles.list_bundle_size_approvers()
-      |> Enum.map_join(", ", &"@#{&1.github_handle}")
-
-    case handles do
-      "" -> "\n**Who can accept:** nobody yet. A project admin can add approvers in Tuist under Settings > Bundles.\n"
-      handles -> "\n**Who can accept:** #{handles}\n"
-    end
-  end
-
-  defp approval_policy_note(_project), do: ""
 
   defp cancel_competing_jobs(current_job_id, args) do
     worker = inspect(__MODULE__, structs: false)

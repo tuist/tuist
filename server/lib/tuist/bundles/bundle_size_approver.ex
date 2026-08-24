@@ -10,9 +10,8 @@ defmodule Tuist.Bundles.BundleSizeApprover do
   schema "bundle_size_approvers" do
     field :github_handle, :string
 
-    # GitHub's numeric id for the account. Authorization compares this rather
-    # than the handle, which its owner can change and someone else can then
-    # claim.
+    # GitHub's `id` for the account, read from `GET /users/{username}` when the
+    # approver is added and compared against the webhook's `sender.id`.
     field :github_id, :string
 
     belongs_to :project, Tuist.Projects.Project, type: :integer
