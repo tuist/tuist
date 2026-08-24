@@ -398,7 +398,7 @@ struct XCActivityLogControllerTests {
         )
 
         let logPath = buildLogsDirectory.appending(component: "unregistered-log-id.xcactivitylog")
-        try await fileSystem.writeText("activity-log", at: logPath)
+        try writeActivityLog(at: logPath)
         let modificationDate = Date(timeIntervalSinceReferenceDate: 768_154_246.0)
         try setModificationDate(modificationDate, at: logPath)
 
@@ -423,7 +423,7 @@ struct XCActivityLogControllerTests {
 
         try await fileSystem.makeDirectory(at: buildLogsDirectory)
         let logPath = buildLogsDirectory.appending(component: "unregistered-log-id.xcactivitylog")
-        try await fileSystem.writeText("activity-log", at: logPath)
+        try writeActivityLog(at: logPath)
 
         // When
         let result = try await subject.mostRecentActivityLogFile(
@@ -444,8 +444,8 @@ struct XCActivityLogControllerTests {
         try await fileSystem.makeDirectory(at: buildLogsDirectory)
         let olderLogPath = buildLogsDirectory.appending(component: "older-log-id.xcactivitylog")
         let newerLogPath = buildLogsDirectory.appending(component: "newer-log-id.xcactivitylog")
-        try await fileSystem.writeText("activity-log", at: olderLogPath)
-        try await fileSystem.writeText("activity-log", at: newerLogPath)
+        try writeActivityLog(at: olderLogPath)
+        try writeActivityLog(at: newerLogPath)
         try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_240.0), at: olderLogPath)
         try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_246.0), at: newerLogPath)
 
@@ -496,7 +496,7 @@ struct XCActivityLogControllerTests {
         let registeredLogPath = buildLogsDirectory.appending(component: "registered-log-id.xcactivitylog")
         try await fileSystem.writeText("activity-log", at: registeredLogPath)
         let unregisteredLogPath = buildLogsDirectory.appending(component: "unregistered-log-id.xcactivitylog")
-        try await fileSystem.writeText("activity-log", at: unregisteredLogPath)
+        try writeActivityLog(at: unregisteredLogPath)
         try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_246.0), at: unregisteredLogPath)
 
         // When
@@ -547,7 +547,7 @@ struct XCActivityLogControllerTests {
 
         try await fileSystem.writeText("activity-log", at: buildLogsDirectory.appending(component: "clean-log-id.xcactivitylog"))
         let unregisteredLogPath = buildLogsDirectory.appending(component: "unregistered-log-id.xcactivitylog")
-        try await fileSystem.writeText("activity-log", at: unregisteredLogPath)
+        try writeActivityLog(at: unregisteredLogPath)
 
         // When
         let result = try await subject.mostRecentActivityLogFile(
@@ -597,8 +597,62 @@ struct XCActivityLogControllerTests {
         """
     }
 
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_ignoresPartiallyWrittenUnregisteredLogs() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+        try await fileSystem.writeText(
+            emptyManifestContent,
+            at: buildLogsDirectory.appending(component: "LogStoreManifest.plist")
+        )
+        try writeActivityLog(at: buildLogsDirectory.appending(component: "partial-log-id.xcactivitylog"), truncatedTo: 128)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        #expect(result == nil)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func mostRecentActivityLogFile_returnsOlderCompleteLog_whenMostRecentUnregisteredLogIsPartiallyWritten() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectDerivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let buildLogsDirectory = projectDerivedDataDirectory.appending(components: "Logs", "Build")
+
+        try await fileSystem.makeDirectory(at: buildLogsDirectory)
+        let completeLogPath = buildLogsDirectory.appending(component: "complete-log-id.xcactivitylog")
+        let partialLogPath = buildLogsDirectory.appending(component: "partial-log-id.xcactivitylog")
+        try writeActivityLog(at: completeLogPath)
+        try writeActivityLog(at: partialLogPath, truncatedTo: 128)
+        try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_240.0), at: completeLogPath)
+        try setModificationDate(Date(timeIntervalSinceReferenceDate: 768_154_246.0), at: partialLogPath)
+
+        // When
+        let result = try await subject.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: projectDerivedDataDirectory
+        )
+
+        // Then
+        #expect(try #require(result).path == completeLogPath)
+    }
+
     private func setModificationDate(_ date: Date, at path: AbsolutePath) throws {
         try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: path.pathString)
+    }
+
+    private func writeActivityLog(at path: AbsolutePath, truncatedTo bytes: Int? = nil) throws {
+        let fixture = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../../Fixtures/clean-build.xcactivitylog"))
+        let contents = try Data(contentsOf: fixture.url)
+        try (bytes.map { Data(contents.prefix($0)) } ?? contents).write(to: path.url)
     }
 
     @Test(.withMockedEnvironment())

@@ -20,7 +20,9 @@ public enum LoadCacheCASServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
+    case freeTierExhausted(String)
     case badRequest(String)
+    case unprocessableContent(String)
     case notFound(String)
 
     public var errorDescription: String? {
@@ -29,8 +31,10 @@ public enum LoadCacheCASServiceError: LocalizedError {
             return "The CAS artifact could not be loaded due to an unknown Tuist response of \(statusCode)."
         case let .unauthorized(message),
              let .forbidden(message),
+             let .freeTierExhausted(message),
              let .notFound(message),
-             let .badRequest(message):
+             let .badRequest(message),
+             let .unprocessableContent(message):
             return message
         }
     }
@@ -68,7 +72,7 @@ public struct LoadCacheCASService: LoadCacheCASServicing {
         )
         let handles = try fullHandleService.parse(fullHandle)
 
-        let response = try await client.downloadCASArtifact(
+        let response = try await client.downloadXcodeArtifact(
             .init(
                 path: .init(id: casId),
                 query: .init(
@@ -95,15 +99,20 @@ public struct LoadCacheCASService: LoadCacheCASServicing {
             case let .json(error):
                 throw LoadCacheCASServiceError.forbidden(error.message)
             }
-        case let .badRequest(badRequest):
-            switch badRequest.body {
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
             case let .json(error):
-                throw LoadCacheCASServiceError.badRequest(error.message)
+                throw LoadCacheCASServiceError.freeTierExhausted(error.message)
             }
         case let .notFound(notFound):
             switch notFound.body {
             case let .json(error):
                 throw LoadCacheCASServiceError.notFound(error.message)
+            }
+        case let .unprocessableContent(unprocessableContent):
+            switch unprocessableContent.body {
+            case let .json(error):
+                throw LoadCacheCASServiceError.unprocessableContent(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw LoadCacheCASServiceError.unknownError(statusCode)

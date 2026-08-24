@@ -502,9 +502,14 @@ defmodule Tuist.Runners.Claims do
   only moved through `claimed → running` in *our* store. Whether it
   should run again is GitHub's call, since the runner may be
   executing a sibling's job, so a `running` row is left for the
-  caller to schedule recovery on; `OrphanedRunnersWorker` re-checks
-  GitHub's own view before re-queueing, and the released ids are
-  candidates, not verdicts.
+  caller to schedule recovery on.
+
+  That scheduling reads the lifecycle rows bound to the Pod rather
+  than this function's return value. The two sets differ in the
+  direction that matters: a Pod whose runner executed a sibling's job
+  has already had its claim released by that job's completion
+  (`release_by_executor/2`), so nothing is released here while the job
+  it was minted for is still sitting at `running`.
 
   A claim still in `claimed` needs no such cross-check: the Pod
   stopped before the JIT was minted, so nothing is running for that

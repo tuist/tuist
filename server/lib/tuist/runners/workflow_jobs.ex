@@ -425,6 +425,45 @@ defmodule Tuist.Runners.WorkflowJobs do
     )
   end
 
+  @doc """
+  Postgres twin of `Tuist.Runners.Jobs.list_running_for_pod/1`: every
+  `running` row bound to `pod_name`, in the recovery shape.
+
+  Keyed on the lifecycle row rather than the claim because the two
+  answer different questions. The claim is the account's capacity
+  reservation and is released by whichever event frees the Pod's slot
+  first — most often the `completed` webhook of the *sibling* job the
+  runner actually executed (`Claims.release_by_executor/2`). The
+  lifecycle row is what dispatch reads, and it stays at `running` until
+  something moves it. So a stopped Pod routinely has no claim left to
+  release while the job it was minted for is still stuck.
+  """
+  def list_running_for_pod(pod_name) when is_binary(pod_name) and pod_name != "" do
+    Repo.all(
+      from(j in WorkflowJob,
+        where: j.status == "running" and j.pod_name == ^pod_name,
+        select: map(j, ^orphan_fields())
+      )
+    )
+  end
+
+  def list_running_for_pod(_pod_name), do: []
+
+  @doc """
+  Postgres twin of `Tuist.Runners.Jobs.list_running_since/1`: the
+  complement of `list_orphaned_running/1` — `running` rows too young
+  for the staleness floor, which the caller filters by an evidence
+  signal of its own rather than by age.
+  """
+  def list_running_since(%DateTime{} = threshold) do
+    Repo.all(
+      from(j in WorkflowJob,
+        where: j.status == "running" and j.started_at >= ^threshold,
+        select: map(j, ^orphan_fields())
+      )
+    )
+  end
+
   @orphan_fields [:workflow_job_id, :account_id, :repository, :claimed_at, :started_at, :pod_name, :fleet_name]
 
   defp orphan_fields, do: @orphan_fields
@@ -479,8 +518,69 @@ defmodule Tuist.Runners.WorkflowJobs do
       pod_name: payload["pod_name"],
       runner_name: payload["runner_name"],
       requested_dispatch_label: payload["requested_dispatch_label"],
+      log_archived_at: parse_datetime(payload["log_archived_at"]),
       updated_at: parse_datetime(payload["updated_at"])
     }
+  end
+
+  @doc """
+  Stamps `log_archived_at` and emits the transition event carrying it.
+
+  Not a status transition: the write is unguarded on status because an
+  archive lands after the job is already terminal, and it preserves
+  whatever status the row holds. Routing it through the outbox is what
+  keeps ClickHouse single-writer, so nothing can re-assert a stale
+  lifecycle state under a newer `updated_at`.
+
+  Returns `:ok` when applied, `:noop` when no lifecycle row exists —
+  jobs archived before this table was introduced have none.
+  """
+  def record_log_archived_at(workflow_job_id, archived_at)
+      when is_integer(workflow_job_id) and (is_nil(archived_at) or is_struct(archived_at, DateTime)) do
+    now = DateTime.utc_now()
+
+    {:ok, outcome} =
+      Repo.transaction(fn ->
+        {count, rows} =
+          Repo.update_all(from(j in WorkflowJob, where: j.workflow_job_id == ^workflow_job_id, select: j),
+            set: [log_archived_at: archived_at, updated_at: DateTime.truncate(now, :second)]
+          )
+
+        case {count, rows} do
+          {1, [row]} ->
+            emit_transition_event(row, now)
+            :ok
+
+          {0, _} ->
+            :noop
+        end
+      end)
+
+    outcome
+  end
+
+  @doc """
+  The `log_archived_at` on `account_id`'s lifecycle row for the job, or
+  `:not_found` when the account has no such row.
+
+  Control-plane reads use this rather than the ClickHouse row, which
+  trails the outbox flush by up to a tick after an archive lands. Scoped
+  on `account_id` as well as the job id: the row is account-owned, so a
+  lookup keyed on the caller-supplied job id alone would answer across
+  tenants.
+  """
+  def log_archived_at(workflow_job_id, account_id) when is_integer(workflow_job_id) and is_integer(account_id) do
+    # Wrapping the value keeps "no row for this account" distinguishable
+    # from "row exists, never stamped" in one query.
+    from(j in WorkflowJob,
+      where: j.workflow_job_id == ^workflow_job_id and j.account_id == ^account_id,
+      select: {true, j.log_archived_at}
+    )
+    |> Repo.one()
+    |> case do
+      nil -> :not_found
+      {true, archived_at} -> {:ok, archived_at}
+    end
   end
 
   # ----- internal -----
@@ -561,6 +661,7 @@ defmodule Tuist.Runners.WorkflowJobs do
       pod_name: row.pod_name || "",
       runner_name: row.runner_name || "",
       requested_dispatch_label: row.requested_dispatch_label,
+      log_archived_at: row.log_archived_at,
       updated_at: transition_at
     }
   end

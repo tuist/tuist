@@ -67,12 +67,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       refute Map.has_key?(env, "KURA_PEERS")
 
-      # Tuist platform secrets (JWT verifier) live in the
-      # kura-shared-secrets Kubernetes Secret; the controller envFroms
-      # them into the pod. They must NEVER appear in the spec, since
-      # anyone with list/watch on KuraInstance would otherwise read the
-      # global JWT signing secret.
+      # The verifier material lives in the kura-shared-secrets Kubernetes
+      # Secret; the controller envFroms it into the pod. It must NEVER
+      # appear in the spec, which anyone with list/watch on KuraInstance
+      # can read. The signing secret must not reach a node at all — it
+      # would let one mint what it verifies — and even the public half
+      # belongs in the Secret rather than here.
       refute Map.has_key?(env, "KURA_AUTH_JWT_SECRET")
+      refute Map.has_key?(env, "KURA_AUTH_JWT_PUBLIC_KEY")
     end
 
     test "reserves the Egress floor for enterprise accounts" do
@@ -839,7 +841,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
 
       segment = 512 * 1024 * 1024
-      tmp = 8 * 1024 * 1024 * 1024
       floor = 5 * segment
 
       for region <- Enum.filter(Regions.all(), &(&1.provisioner == KubernetesController)) do
@@ -866,9 +867,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           value ->
             capacity = String.to_integer(value)
             envelope = envelope_bytes(region)
+            # Absent means Kura's own 8Gi default, which is what a claim large
+            # enough to keep it renders.
+            tmp = staging_bytes(env)
 
             assert capacity < Integer.pow(2, 64), "#{region.id} declares a capacity Kura's u64 config rejects"
             assert capacity >= floor, "#{region.id} budgets under Kura's ring floor, which the runtime raises"
+
+            assert tmp >= 2 * 1024 * 1024 * 1024,
+                   "#{region.id} stages less than one max-size module upload, which Kura rejects outright"
 
             assert div(capacity, segment) * segment + tmp + segment <= envelope,
                    "#{region.id} overruns its declared envelope once staging and a rotation are reserved"
@@ -880,8 +887,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
 
-      # 10Gi clears the reserves, so a budget is derivable, but it comes to
-      # ~1.4GiB and Kura clamps the ring up to its 2.5GiB floor. Emitting the
+      # 6Gi clears the reserves, so a budget is derivable, but it comes to
+      # ~2.4GiB and Kura clamps the ring up to its 2.5GiB floor. Emitting the
       # derived value would promise a ring the runtime does not honour, and the
       # floor plus the reserves overruns the volume.
       manifest =
@@ -889,7 +896,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "kura-tuist-under-floor-1",
           "0.5.2",
           %{name: "tuist"},
-          eu_region(%{storage_size: "10Gi"}),
+          eu_region(%{storage_size: "6Gi"}),
           %Server{}
         )
 
@@ -913,6 +920,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       capacity = String.to_integer(env["KURA_CAS_CAPACITY_BYTES"])
+      tmp = staging_bytes(env)
 
       segment = 512 * 1024 * 1024
       floor = 5 * segment
@@ -920,7 +928,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # Above the floor the clamp is a no-op, so the ring Kura resolves is the
       # segment count this budget buys and the reserves still hold.
       assert capacity >= floor
-      assert div(capacity, segment) * segment + 8 * 1024 * 1024 * 1024 + segment < 12 * 1024 * 1024 * 1024
+      assert div(capacity, segment) * segment + tmp + segment < 12 * 1024 * 1024 * 1024
     end
 
     test "raises rather than falling back to statvfs when a region's size cannot be parsed" do
@@ -947,7 +955,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "kura-tuist-tiny-1",
           "0.5.2",
           %{name: "tuist"},
-          eu_region(%{storage_size: "8Gi"}),
+          eu_region(%{storage_size: "2Gi"}),
           %Server{}
         )
 
@@ -978,6 +986,74 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # spec.storageSize on every reconcile, and scw-local-nvme is not expandable,
       # so raising it would wedge every instance that already exists.
       assert manifest["spec"]["storageSize"] == "50Gi"
+    end
+
+    test "renders the instance's own claim over the region's" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "50Gi", replicas: 2}),
+          %Server{storage_claim_size: "24Gi"}
+        )
+
+      assert manifest["spec"]["storageSize"] == "24Gi"
+
+      # The replica count stays the region's.
+      assert manifest["spec"]["replicas"] == 2
+    end
+
+    test "budgets the ring from the instance's claim, not the region's" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      # The ring each plan's claim leaves once the 8Gi staging ceiling, one
+      # rotation segment and 3% for the index are reserved: 40 GiB, 20.5 GiB and
+      # 5.3 GiB. A region-derived budget would hand all three the same ring and
+      # let an Air instance overrun the claim its pod reserved.
+      for {claim, ring_gib} <- [{"50Gi", 40.2}, {"30Gi", 20.8}, {"8Gi", 3.4}] do
+        manifest =
+          KubernetesController.manifest(
+            "kura-tuist-eu-central-1",
+            "0.5.2",
+            %{name: "tuist"},
+            eu_region(%{storage_size: "50Gi"}),
+            %Server{storage_claim_size: claim}
+          )
+
+        env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+        capacity = String.to_integer(env["KURA_CAS_CAPACITY_BYTES"])
+
+        assert_in_delta capacity / (1024 * 1024 * 1024), ring_gib, 0.1
+
+        # Whatever the claim, the ring plus staging plus one rotation stays
+        # inside it.
+        {claim_gib, "Gi"} = Integer.parse(claim)
+        assert capacity + staging_bytes(env) + 512 * 1024 * 1024 < claim_gib * 1024 * 1024 * 1024
+      end
+    end
+
+    test "keeps the envelope override ahead of the instance's claim" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-local-controller",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "50Gi", disk_envelope_size: "200Gi"}),
+          %Server{storage_claim_size: "24Gi"}
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+      assert env["KURA_CAS_CAPACITY_BYTES"] == "199452912517"
+      assert manifest["spec"]["storageSize"] == "24Gi"
     end
 
     test "omits the CAS capacity when the region declares no storage size" do
@@ -1043,7 +1119,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
       stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
 
-      assert KubernetesController.manifest_revision(%{name: "tuist"}, eu_region(%{mesh: true})) ==
+      assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, eu_region(%{mesh: true})) ==
                KubernetesController.manifest_revision() <> "+backfill"
     end
 
@@ -1058,7 +1134,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       peers = ["https://kura.acme.example:7443"]
       stub(Mesh, :self_hosted_peer_urls, fn _ -> peers end)
 
-      revision = KubernetesController.manifest_revision(%{name: "tuist"}, region)
+      revision = KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region)
       refute revision == KubernetesController.manifest_revision()
 
       manifest =
@@ -1078,10 +1154,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       region = eu_region(%{mesh: true})
 
       stub(Mesh, :self_hosted_peer_urls, fn _ -> ["https://b.example:7443", "https://a.example:7443"] end)
-      sorted = KubernetesController.manifest_revision(%{name: "tuist"}, region)
+      sorted = KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region)
 
       stub(Mesh, :self_hosted_peer_urls, fn _ -> ["https://a.example:7443", "https://b.example:7443"] end)
-      reordered = KubernetesController.manifest_revision(%{name: "tuist"}, region)
+      reordered = KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region)
 
       assert sorted == reordered
     end
@@ -1089,7 +1165,43 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     test "ignores peers for a region without the mesh enabled" do
       reject(&Mesh.self_hosted_peer_urls/1)
 
-      assert KubernetesController.manifest_revision(%{name: "tuist"}, eu_region()) ==
+      assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, eu_region()) ==
+               KubernetesController.manifest_revision() <> "+backfill"
+    end
+
+    test "crosses a revision boundary on the claim so a change re-applies" do
+      reject(&Mesh.self_hosted_peer_urls/1)
+      account = %Account{id: 1, name: "tuist"}
+      region = eu_region(%{storage_size: "50Gi", replicas: 2})
+
+      # Without the claim in the revision, a claim that changed would alter what
+      # the manifest renders while leaving the desired revision where it was, so
+      # the reconciler would compare equal and never re-apply.
+      legacy =
+        KubernetesController.manifest_revision(
+          %Server{account: account, storage_claim_size: "50Gi"},
+          region
+        )
+
+      smaller =
+        KubernetesController.manifest_revision(
+          %Server{account: account, storage_claim_size: "24Gi"},
+          region
+        )
+
+      refute legacy == smaller
+
+      # An instance pinning nothing follows its region, so a region-level change
+      # still moves it.
+      assert KubernetesController.manifest_revision(%Server{account: account}, region) == legacy
+    end
+
+    test "leaves the revision alone for a region that declares no claim" do
+      reject(&Mesh.self_hosted_peer_urls/1)
+
+      # Self-hosted peers carry their own disk, so there is nothing to declare
+      # and nothing to fold in.
+      assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, eu_region()) ==
                KubernetesController.manifest_revision() <> "+backfill"
     end
 
@@ -1103,13 +1215,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # the memory profile its instance was created with until some unrelated
       # field happened to move.
       stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
-      air = KubernetesController.manifest_revision(account, region)
+      air = KubernetesController.manifest_revision(%Server{account: account}, region)
 
       stub(Tuist.Billing, :effective_plan, fn _ -> :pro end)
-      pro = KubernetesController.manifest_revision(account, region)
+      pro = KubernetesController.manifest_revision(%Server{account: account}, region)
 
       stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
-      enterprise = KubernetesController.manifest_revision(account, region)
+      enterprise = KubernetesController.manifest_revision(%Server{account: account}, region)
 
       assert Enum.uniq([air, pro, enterprise]) == [air, pro, enterprise]
       assert String.contains?(air, "+mem256-768")
@@ -1131,12 +1243,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # Pending because a node stopped advertising the budget.
       packed =
         KubernetesController.manifest_revision(
-          account,
+          %Server{account: account},
           eu_region(%{memory_governed: true, memory_ceiling_bin_packed: true})
         )
 
       unpacked =
-        KubernetesController.manifest_revision(account, eu_region(%{memory_governed: true}))
+        KubernetesController.manifest_revision(%Server{account: account}, eu_region(%{memory_governed: true}))
 
       assert packed != unpacked
       assert String.contains?(packed, "+mem1024-4096")
@@ -1161,10 +1273,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       account = %Account{id: 1, name: "tuist"}
 
       stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
-      non_entitled = KubernetesController.manifest_revision(account, region)
+      non_entitled = KubernetesController.manifest_revision(%Server{account: account}, region)
 
       stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
-      entitled = KubernetesController.manifest_revision(account, region)
+      entitled = KubernetesController.manifest_revision(%Server{account: account}, region)
 
       # The upgrade crosses a revision boundary, so the reconciler re-applies
       # and arms the peer-view gate instead of leaving the instance ungated.
@@ -1197,7 +1309,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       revision =
         KubernetesController.manifest_revision(
-          %Account{id: 1, name: "tuist"},
+          %Server{account: %Account{id: 1, name: "tuist"}},
           eu_region(%{mesh: true})
         )
 
@@ -1353,8 +1465,23 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   # The size the region's budget is derived against: the envelope override where
   # the claim is a fiction, the claim itself otherwise.
+  # The staging budget the instance runs with: the variable when the derivation
+  # narrows it, and Kura's own default when it does not, which is why a large
+  # claim renders no variable at all.
+  defp staging_bytes(env) do
+    case env["KURA_TMP_DIR_MAX_BYTES"] do
+      nil -> 8 * 1024 * 1024 * 1024
+      value -> String.to_integer(value)
+    end
+  end
+
+  # A region that declares no claim of its own sizes each instance from its
+  # account's plan, and the accounts these manifests render for resolve to air.
   defp envelope_bytes(%Regions{provisioner_config: config}) do
-    size = config[:disk_envelope_size] || config[:storage_size]
+    size =
+      config[:disk_envelope_size] || config[:storage_size] ||
+        Regions.storage_profile(:air).claim_size
+
     {quantity, "Gi"} = Integer.parse(size)
     quantity * 1024 * 1024 * 1024
   end

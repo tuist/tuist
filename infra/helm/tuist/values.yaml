@@ -245,11 +245,90 @@ kuraController:
         name: onepassword
       item: ""
       field: KURA_SENTRY_DSN
+  # Public half of the keypair the server signs cache tokens with. A node
+  # holding it reads a cache token where the request lands instead of asking
+  # the server, and cannot mint one. Only ever the public half: the private
+  # half stays on the server as TUIST_SECRET_KEY_CACHE_TOKENS.
+  #
+  # The value may carry two concatenated PEM blocks during a rotation, so that
+  # the server and the nodes, which roll independently, are never required to
+  # switch keys at the same instant.
+  cacheTokenPublicKey:
+    externalSecret:
+      enabled: false
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      item: ""
+      field: KURA_AUTH_JWT_PUBLIC_KEY
     # Example shape — never commit real values here:
-    #   KURA_AUTH_JWT_ALGORITHM: HS512
     #   KURA_AUTH_JWT_ISSUER: tuist
-    #   KURA_AUTH_JWT_SECRET: "<JWT signing secret>"
+    #   KURA_AUTH_JWT_PUBLIC_KEY: "<PEM public key>"
     #   KURA_CONTROL_PLANE_CLIENT_SECRET: "<Kura OAuth introspection secret>"
+
+# Per-node shared egress HTB tree for kura pods (infra/egress-tree-agent/):
+# enforces the per-tenant floors (egress_guaranteed_mbps), ceilings
+# (egress_burst_mbps) and the node's advertised egress budget
+# (tuist.dev/egress-mbps) via a tcx/HTB trampoline that keeps Cilium's
+# datapath (policy, identity, masquerade) fully applied to shaped traffic.
+# Inert unless the kura-controller also renders the tuist.dev/egress-class
+# pod annotation (it does so for every instance with a floor or ceiling).
+egressTreeAgent:
+  # When enabled, the chart also renders a CiliumClusterwideNetworkPolicy that
+  # drops the metrics port from `world` on the selected nodes. That policy is a
+  # no-op unless the cluster runs Cilium with `enable-host-firewall: true` — the
+  # policy object applies but the host endpoint is never enforced, leaving the
+  # port world-readable with no signal. Confirm host-firewall is on before
+  # relying on it. If a host endpoint is ever locked out, recover by setting
+  # `enabled: false` and redeploying, or delete the policy object directly
+  # (see infra/egress-tree-agent/AGENTS.md).
+  enabled: false
+  # Full image reference, pinned (e.g. ghcr.io/tuist/egress-tree-agent@sha256:...).
+  image: ""
+  # Deployed into the kura namespace (kuraController.namespace) by default.
+  namespace: ""
+  # Backstop sweep only: pod/node watch events drive convergence, so this
+  # interval just repairs what no event reports (stripped tcx links, deleted
+  # trampoline devices, stale pins).
+  reconcileInterval: 2m
+  metricsPort: 9469
+  # Agent log level: debug, info, warn, or error.
+  logLevel: info
+  # Consecutive return-program attach failures after which the agent
+  # detaches every pod program (shaped packets drop at the trampoline peer
+  # without a return program; unshaped beats blackholed).
+  returnAttachMaxFailures: 3
+  # Beta-rollout gate: when set, the agent attaches its BPF programs only to
+  # pods whose name starts with this prefix (e.g. "kura-<account>-"); every
+  # other annotated pod stays on the unshaped Cilium-only path and is counted
+  # in kura_egress_tree_beta_excluded_pods. Empty = shape all annotated pods.
+  betaPodPrefix: ""
+  # Observe-mode fallback for the tree's root ceiling on nodes that do not
+  # advertise tuist.dev/egress-mbps capacity. 0 = no fallback: such nodes get
+  # no tree and their pods stay unshaped on the node-local leg.
+  defaultNodeEgressMbps: 0
+  # Kura cache pools to schedule onto, matched as
+  # `node.cluster.x-k8s.io/pool In [<nodePools>]` required node affinity —
+  # the same pool names the region specs use (server/lib/tuist/kura/regions.ex)
+  # and the regional kura-*-ingress-nginx blocks in
+  # infra/helm/platform/values-tuist.yaml. The template refuses to render an
+  # enabled agent when both nodePools and nodeSelector are empty: this is a
+  # privileged host-network DaemonSet and must never run cluster-wide.
+  nodePools: []
+  # Optional extra equality constraints on top of nodePools
+  # (kubernetes.io/os: linux is always applied).
+  nodeSelector: {}
+  tolerations:
+    - key: tuist.dev/kura-cache
+      operator: Exists
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
 
 kuraRuntime:
   image:
@@ -480,6 +559,22 @@ server:
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
       enabled: false
+    # Private half of the keypair cache tokens are signed with, so that a cache
+    # node given the public half reads them without calling back here. Off until
+    # a pair exists in the environment's vault: cache tokens are then signed by
+    # the API-credential key instead and nodes answer them through introspection,
+    # which is what every environment did before the pair existed.
+    #
+    # The two flags are switched on in order, in separate rollouts. `enabled`
+    # installs the key, which only teaches a replica to verify tokens signed
+    # with it and changes nothing a client sees. `signing` then makes replicas
+    # issue those tokens. Doing both at once means that partway through the
+    # rollout a token minted by a replica holding the key can be introspected
+    # by one that does not yet hold it, which reports it inactive and 401s a
+    # request that was perfectly valid.
+    cacheTokenKey:
+      enabled: false
+      signing: false
     externalSecrets:
       refreshInterval: "1h"
       storeRef:
@@ -2201,195 +2296,6 @@ cache:
     bucket: tuist-cache
     xcodeCacheBucket: tuist-xcode-cache
     registryBucket: tuist-registry
-
-# OCI registry of record. Holds the large Tart VM images the macOS fleet
-# boots from (Xcode base, runner, xcresult processor) and the Xcode .xip
-# mirror, which is an OCI artifact rather than an image — hence the name
-# tracking the protocol rather than the payload. Distinct from `registry`
-# (the Swift package registry) and `registryCache` (the Docker Hub
-# mirror), and backed by the same object store as the latter under its
-# own prefix; see the template for why these don't belong on GHCR.
-# Disabled by default — only hosted Tuist publishes these.
-#
-# Standing this up is inert on its own: the build workflows keep pushing
-# to GHCR and the fleet keeps pulling from there until the image
-# references move, which is a separate, canaried change.
-ociRegistry:
-  enabled: false
-  replicaCount: 1
-  image:
-    # ECR Public rather than docker.io, for the same reason as
-    # registryCache below: this must not depend on a registry that
-    # rate-limits us. 3 rather than registryCache's 2 because 2 is in
-    # maintenance; both were exercised against our object store and
-    # behave identically.
-    repository: public.ecr.aws/docker/library/registry
-    tag: "3"
-    pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 5000
-  logLevel: info
-  s3:
-    bucket: tuist-registry
-    rootDirectory: oci
-    # Multipart part size in bytes for blob uploads. 64 MiB against Tart's
-    # 512 MiB layers is 8 parts per layer; the default 10 MiB would be 52.
-    chunkSize: 67108864
-  auth:
-    # Anonymous read, authenticated write, split on request method by a
-    # proxy in front of the registry. Off by default so a self-hoster
-    # who exposes this on a trusted network isn't forced into it.
-    #
-    # Do not substitute the registry's own htpasswd realm: it
-    # authenticates without authorizing, so any account that can pull
-    # can also push, and a pull credential on the fleet becomes a push
-    # credential on every host.
-    enabled: false
-    realm: "Tuist OCI registry"
-    # Operator-managed Secret with `htpasswdReaders` and `htpasswdWriters`
-    # keys, used when `externalSecret` below is off. With auth on and
-    # neither set, the chart fails to render.
-    existingSecret: ""
-    proxy:
-      image:
-        repository: public.ecr.aws/nginx/nginx
-        tag: "1.29"
-        pullPolicy: IfNotPresent
-      # 443 so a tailnet client reaches the registry without a port in
-      # the reference. When the Pod is a tailnet node, clients dial the
-      # container port directly — the Service's 443 -> proxy mapping only
-      # applies to in-cluster traffic — so this port ends up in every
-      # image tag and chart pin if it is not the default one.
-      port: 443
-      # Generous enough to cover a part being flushed to the object
-      # store mid-upload.
-      timeoutSeconds: 900
-      resources:
-        requests:
-          cpu: 50m
-          memory: 64Mi
-        limits:
-          cpu: "1"
-          memory: 256Mi
-  tailscale:
-    # Put the registry on the tailnet instead of a public ingress. Every
-    # puller (build hosts, fleet Macs) joins the tailnet at bootstrap.
-    #
-    # The Pod joins as a node in its own right rather than being fronted
-    # by an operator-managed proxy, because it has to own the tailnet
-    # name: only the node a name belongs to can obtain a certificate for
-    # it, and clients reach this registry by that name. Letting the proxy
-    # terminate TLS instead would put the registry's Basic credential on
-    # the proxy-to-Pod hop, which crosses the cluster network in the
-    # clear.
-    enabled: false
-    # Tailnet node name; the registry is reachable at
-    # `<hostname>.<tailnet>.ts.net`, which is also the certificate's
-    # name. Must be unique per environment — a collision is not an error,
-    # Tailscale appends a suffix and the certificate then follows the name
-    # actually assigned rather than the one configured here.
-    hostname: ""
-    tags: ""
-    image:
-      repository: tailscale/tailscale
-      # renovate: datasource=docker depName=tailscale/tailscale versioning=docker
-      tag: "v1.96.5"
-      pullPolicy: IfNotPresent
-    resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        # Every byte in or out of the registry crosses this daemon, so
-        # its ceiling is the registry's ceiling. Measured 2026-08-19
-        # pushing a base image from a builder: the sidecar sat pinned at
-        # 498m against the previous 500m limit while the registry
-        # container idled at 115m of its 2000m and the host node ran at
-        # 12% of 16 cores. Throughput tracked the cap exactly, 3.2 MB/s
-        # with one upload in flight and 6.3 MB/s with four, which is
-        # this daemon saturating rather than the registry, the disk or
-        # the link. Raising the cap is the only thing that moves it:
-        # TS_USERSPACE is already false, so the faster kernel-TUN path
-        # is in use and the remaining cost is WireGuard crypto in
-        # tailscaled, which parallelises across concurrent streams.
-        cpu: "2"
-        memory: 256Mi
-    # The cert sidecar is idle almost always: one `tailscale cert` call,
-    # then a day's sleep.
-    certResources:
-      requests:
-        cpu: 10m
-        memory: 32Mi
-      limits:
-        cpu: 200m
-        memory: 128Mi
-    externalSecret:
-      # The operator's OAuth client, not the Mac fleet's. Tailscale
-      # scopes an OAuth client to the tags it may mint, and the fleet's
-      # covers `tag:tuist-macmini-*` only — asking it for the tag this
-      # Pod advertises fails the join with `requested tags ... are
-      # invalid or not permitted`. This client already mints
-      # `tag:tuist-k8s-<env>`, which is what the operator stamps on the
-      # proxies it creates in this namespace.
-      item: TAILSCALE_OPERATOR
-      fields:
-        authKey: client-secret
-  tls:
-    # Serve HTTPS from the proxy. Off by default so a self-hoster on a
-    # trusted network isn't forced into certificate plumbing; on, clients
-    # no longer need `--insecure`, and credentials stop crossing the
-    # cluster network in the clear.
-    enabled: false
-    # The name clients connect to and the certificate is issued for. Must
-    # be a name we control — no public CA issues for `.ts.net`.
-    host: ""
-    certificate:
-      # Emit a cert-manager Certificate. Turn off to supply your own.
-      enabled: true
-      issuerRef:
-        name: letsencrypt-cloudflare
-        kind: ClusterIssuer
-    # Secret holding tls.crt/tls.key when `certificate.enabled` is false.
-    existingSecret: ""
-    dns:
-      # Publish `tls.host` as a CNAME onto the MagicDNS name via
-      # external-dns, so the record follows the node rather than pinning
-      # a tailnet address that changes when it is recreated.
-      enabled: false
-      # Tailnet domain, e.g. `example-tailnet.ts.net`.
-      tailnet: ""
-  # Runtime secrets, from one 1P item via ESO. Carries `httpSecret`
-  # always, and `htpasswd` when auth is on.
-  externalSecret:
-    enabled: false
-    refreshInterval: 1h
-    storeRef:
-      name: onepassword
-      kind: ClusterSecretStore
-    item: OCI_REGISTRY_CREDENTIALS
-    fields:
-      # Signs upload state; any stable random string.
-      httpSecret: http_secret
-      # Full htpasswd files (`user:$2y$...` lines), not bare passwords.
-      # Readers lists every account, writers only those allowed to push.
-      htpasswdReaders: htpasswd_readers
-      htpasswdWriters: htpasswd_writers
-  # Used when `externalSecret` is off. Required either way: leaving the
-  # registry to generate one per process breaks in-flight chunked uploads
-  # across a restart, and across a rolling update even at one replica.
-  httpSecret: ""
-  extraEnv: []
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      # Headroom over s3.chunkSize above: the S3 driver holds a multipart
-      # part in memory per in-flight upload, and a push runs several
-      # concurrently.
-      cpu: "2"
-      memory: 2Gi
 
 # Docker Hub pull-through cache for the Linux runner fleet. Disabled by
 # default; flip `enabled: true` per environment (staging first) once it's

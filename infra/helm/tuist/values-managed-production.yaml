@@ -280,6 +280,16 @@ kuraController:
       enabled: true
       item: kura-sentry
 
+# Only the shared mesh cache pools are listed. The runner-cache pool
+# (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
+# and its traffic is node-local runner reads that must not be shaped.
+# betaPodPrefix keeps the first enforcement step on kura-tuist-* pods.
+egressTreeAgent:
+  enabled: true
+  image: ghcr.io/tuist/egress-tree-agent@sha256:b0e324e95d04cee3a63e536a7a0eb00acebcd365ae475c513741572b50f7a75d
+  nodePools: [kura-dedibox, kura-us-east, kura-us-west]
+  betaPodPrefix: "kura-tuist-"
+
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
 # replica holding the whole DB, so the size is per-replica capacity,
@@ -393,39 +403,6 @@ cache:
     bucket: tuist-cas-production
     xcodeCacheBucket: tuist-xcode-cache-production
     registryBucket: tuist-registry
-
-# OCI registry of record for the large Tart VM images. Uses the shared
-# production bucket under an `oci` prefix, alongside the Docker mirror
-# below — unlike staging, which is parked on a different bucket because
-# a miss in the shared one resolves against a stale shadow-bucket
-# configuration. This bucket answers misses correctly.
-#
-# Standing this up publishes nothing: the build workflows push here only
-# once their references move, and the fleet keeps pulling GHCR until the
-# image pins move after that.
-ociRegistry:
-  enabled: true
-  s3:
-    bucket: tuist-prod-storage
-    rootDirectory: oci
-  auth:
-    enabled: true
-  externalSecret:
-    enabled: true
-  tailscale:
-    enabled: true
-    hostname: tuist-oci-production
-    tags: tag:tuist-k8s-production
-  # 443 so image references carry no port: `oci.tuist.dev/<repo>`. The
-  # reference is embedded in every pushed tag and chart pin.
-  service:
-    port: 443
-  tls:
-    enabled: true
-    host: oci.tuist.dev
-    dns:
-      enabled: true
-      tailnet: taild6d7bb.ts.net
 
 # Docker Hub pull-through cache. Reuses the production object-storage
 # bucket under a `docker-mirror` prefix. Runner `docker pull`s route

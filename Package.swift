@@ -1595,6 +1595,7 @@ targets.append(contentsOf: [
     .target(
         name: "TuistCache",
         dependencies: [
+            "TuistAlert",
             "TuistCore",
             "TuistSupport",
             "TuistHTTP",
@@ -1623,6 +1624,7 @@ targets.append(contentsOf: [
             "TuistGit",
             fileSystemDependency,
             pathDependency,
+            .product(name: "Gzip", package: "1024jp.gzipswift"),
             .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
             .product(name: "XCActivityLogParser", package: "xcactivitylog_nif"),
         ],
@@ -1883,6 +1885,7 @@ let package = Package(
         .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
         .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.49")),
+        .package(id: "1024jp.gzipswift", .upToNextMajor(from: "5.2.0")),
         .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
         .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.22")),

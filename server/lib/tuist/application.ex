@@ -344,6 +344,7 @@ defmodule Tuist.Application do
         {Phoenix.PubSub, name: Tuist.PubSub},
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
+        Tuist.Kura.Demand,
         TuistCommon.GitHub.RateLimit,
         TuistWeb.Telemetry
       ] ++

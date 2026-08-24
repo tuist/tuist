@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Gzip
 import Mockable
 import Path
 import TuistCASAnalytics
@@ -79,7 +80,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
             in: logsBuildDirectoryPath,
             registeredPaths: Set(manifestLogFiles.map(\.path))
         )
-        return mostRecentLogFile(in: unregisteredLogFiles, filter: filter)
+        return mostRecentLogFile(in: unregisteredLogFiles, filter: filter, isEligible: { isDecodable(at: $0.path) })
     }
 
     private func manifestLogFiles(in logsBuildDirectoryPath: AbsolutePath) async throws -> [XCActivityLogFile] {
@@ -139,9 +140,26 @@ public struct XCActivityLogController: XCActivityLogControlling {
         return logFiles
     }
 
+    /// Xcode registers a log in the manifest only once it's finalized, so an unregistered log can
+    /// also be a gzip stream that is still being written, which no size check tells apart from a
+    /// complete one. Uploading a partial log leaves the build run in `failed_processing`, and the
+    /// only way to rule it out is to reach the end of the stream, which is also what the parser
+    /// that reads the uploaded log does. Callers apply this to one candidate at a time, since it
+    /// holds the log's inflated contents in memory.
+    private func isDecodable(at path: AbsolutePath) -> Bool {
+        guard let contents = try? Data(contentsOf: path.url),
+              (try? contents.gunzipped()) != nil
+        else {
+            Logger.current.debug("Skipping the activity log at \(path.pathString) because it can't be decoded")
+            return false
+        }
+        return true
+    }
+
     private func mostRecentLogFile(
         in logFiles: [XCActivityLogFile],
-        filter: (XCActivityLogFile) -> Bool
+        filter: (XCActivityLogFile) -> Bool,
+        isEligible: (XCActivityLogFile) -> Bool = { _ in true }
     ) -> XCActivityLogFile? {
         let sortedLogFiles = logFiles.sorted(by: {
             $0.timeStoppedRecording > $1.timeStoppedRecording
@@ -154,7 +172,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
         let logFile = sortedLogFiles
             .filter(filter)
-            .first
+            .first(where: isEligible)
         if logFile == nil, !sortedLogFiles.isEmpty {
             Logger.current.debug("No activity log matched the filter (all \(sortedLogFiles.count) entries were filtered out)")
         }

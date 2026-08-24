@@ -52,7 +52,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Runners.Workers.ExpireInteractiveSessionsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},
-    {"* * * * *", Tuist.Runners.Workers.FlushJobTransitionEventsWorker}
+    {"* * * * *", Tuist.Runners.Workers.FlushJobTransitionEventsWorker},
+    {"* * * * *", Tuist.Runners.Workers.ReplicateRunnerSessionsWorker}
   ]
 
   @database_artifact_retention_resource_types [
@@ -123,7 +124,7 @@ defmodule Tuist.Oban.RuntimeConfig do
               @hosted_only_crons
             end
 
-          hosted_crons ++ @hosted_artifact_retention_crons ++ @shared_crons
+          hosted_crons ++ [kura_archival_sweep_cron()] ++ @hosted_artifact_retention_crons ++ @shared_crons
         else
           self_hosted_artifact_retention_crons(artifact_retention_days) ++ @shared_crons
         end
@@ -151,6 +152,14 @@ defmodule Tuist.Oban.RuntimeConfig do
   pods do not need it and run with least-privilege database roles.
   """
   def met_auto_start?(mode), do: peer_eligible?(mode)
+
+  # The archival sweep's cadence tracks the inactive window rather than being
+  # fixed: a daily sweep against a one-day window would leave an instance
+  # eligible for up to another day before anything looked at it. See
+  # `Tuist.Environment.kura_archival_sweep_cron/0`.
+  defp kura_archival_sweep_cron do
+    {Tuist.Environment.kura_archival_sweep_cron(), Tuist.Kura.Workers.ArchiveInactiveInstancesWorker}
+  end
 
   defp self_hosted_artifact_retention_crons(artifact_retention_days) do
     database_crons =

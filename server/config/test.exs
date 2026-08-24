@@ -58,6 +58,10 @@ config :tuist, Tuist.IngestRepo,
 # Keep ClickHouse buffer writes in the calling test process so they share the sandboxed transaction.
 config :tuist, Tuist.Ingestion.Bufferable, write_through_repo: true
 
+# Same for the Kura cache-demand buffer, which is otherwise process-wide and
+# would let one async test's demand be flushed inside another's transaction.
+config :tuist, Tuist.Kura.Demand, write_through_repo: true
+
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
 
