@@ -24,7 +24,11 @@ use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field};
 
 use crate::{
-    artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
+    artifact::{
+        manifest::ArtifactManifest,
+        producer::ArtifactProducer,
+        range::{RangeOutcome, RangeRequest, ServedRange, entity_tag, resolve_conditional_range},
+    },
     auth::{AccessDecision, RequestContext},
     backpressure,
     bandwidth::BandwidthLimiter,
@@ -1660,7 +1664,11 @@ async fn get_keyvalue(
     }
 }
 
-async fn get_nx(AxumPath(hash): AxumPath<String>, State(state): State<SharedState>) -> Response {
+async fn get_nx(
+    AxumPath(hash): AxumPath<String>,
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+) -> Response {
     let usage = UsageContext {
         tenant_id: state.config.tenant_id.clone(),
         namespace_id: NX_NAMESPACE_ID.to_owned(),
@@ -1674,6 +1682,7 @@ async fn get_nx(AxumPath(hash): AxumPath<String>, State(state): State<SharedStat
         None,
         None,
         Some(usage),
+        request_range(&headers),
     )
     .await
 }
@@ -1709,6 +1718,7 @@ async fn put_nx(
 async fn get_metro(
     AxumPath(cache_key): AxumPath<String>,
     State(state): State<SharedState>,
+    headers: HeaderMap,
 ) -> Response {
     let usage = UsageContext {
         tenant_id: state.config.tenant_id.clone(),
@@ -1723,6 +1733,7 @@ async fn get_metro(
         None,
         None,
         Some(usage),
+        request_range(&headers),
     )
     .await
 }
@@ -1857,6 +1868,7 @@ async fn get_xcode(
     AxumPath(id): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
+    headers: HeaderMap,
 ) -> Response {
     let namespace = match NamespaceQuery::from_params(&params) {
         Ok(namespace) => namespace,
@@ -1874,6 +1886,7 @@ async fn get_xcode(
         Some(&id),
         analytics,
         Some(usage),
+        request_range(&headers),
     )
     .await
 }
@@ -1914,6 +1927,7 @@ async fn get_gradle(
     AxumPath(cache_key): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
+    headers: HeaderMap,
 ) -> Response {
     let namespace = match NamespaceQuery::from_params(&params) {
         Ok(namespace) => namespace,
@@ -1931,6 +1945,7 @@ async fn get_gradle(
         Some(&cache_key),
         analytics,
         Some(usage),
+        request_range(&headers),
     )
     .await
 }
@@ -1985,7 +2000,14 @@ async fn head_module(
         )
         .await
     {
-        Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        Ok(true) => {
+            let mut response = StatusCode::NO_CONTENT.into_response();
+            response.headers_mut().insert(
+                axum::http::header::ACCEPT_RANGES,
+                HeaderValue::from_static("bytes"),
+            );
+            response
+        }
         Ok(false) => StatusCode::NOT_FOUND.into_response(),
         Err(error) => error_response(
             StatusCode::SERVICE_UNAVAILABLE,
@@ -1997,6 +2019,7 @@ async fn head_module(
 async fn get_module(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
+    headers: HeaderMap,
 ) -> Response {
     let query = match ModuleQuery::from_params(&params) {
         Ok(query) => query,
@@ -2012,6 +2035,7 @@ async fn get_module(
         None,
         None,
         Some(usage),
+        request_range(&headers),
     )
     .await
 }
@@ -3027,6 +3051,7 @@ async fn internal_delete_namespace(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn get_artifact(
     state: SharedState,
     producer: ArtifactProducer,
@@ -3035,6 +3060,7 @@ async fn get_artifact(
     analytics_key: Option<&str>,
     analytics: Option<ProjectAnalyticsContext<'_>>,
     usage: Option<UsageContext>,
+    range_request: RangeRequest<'_>,
 ) -> Response {
     match state
         .store
@@ -3042,20 +3068,43 @@ async fn get_artifact(
         .await
     {
         Ok(Some(manifest)) => {
-            let response = serve_file(&state, StatusCode::OK, &manifest).await;
+            // Resolved after the fetch so a 416's `Content-Range` only ever
+            // discloses the size of an artifact the caller is already allowed
+            // to read.
+            let etag = entity_tag(manifest.version_ms, manifest.size);
+            let range = match resolve_conditional_range(range_request, &etag, manifest.size) {
+                RangeOutcome::Full => ServedRange::full(manifest.size),
+                RangeOutcome::Partial(range) => range,
+                RangeOutcome::Unsatisfiable => {
+                    state
+                        .metrics
+                        .record_artifact_read(producer, "range_not_satisfiable", 0);
+                    return range_not_satisfiable_response(manifest.size);
+                }
+            };
+            // A streaming response's status is decided when the stream is
+            // built, long before a byte reaches the client, so metering here
+            // would book an artifact the client may never receive and book it
+            // again when the client returns for the part it missed. The
+            // attribution rides on the body instead and is committed once the
+            // bytes have actually been delivered, which is what the
+            // accelerated plane has always done.
+            let attribution = DownloadAttribution {
+                state: state.clone(),
+                producer,
+                usage: usage.clone(),
+                analytics: analytics.as_ref().map(|context| {
+                    (
+                        context.tenant_id.to_owned(),
+                        context.namespace_id.to_owned(),
+                    )
+                }),
+                analytics_key: analytics_key.unwrap_or(key).to_owned(),
+            };
+            let response = serve_file(&state, &manifest, range, attribution).await;
             if response.status().is_success() {
-                state
-                    .metrics
-                    .record_artifact_read(producer, "ok", manifest.size);
-                record_usage_event(&state, producer, "download", usage.as_ref(), manifest.size);
-                record_project_scoped_cache_event(
-                    &state,
-                    producer,
-                    "download",
-                    analytics,
-                    analytics_key.unwrap_or(key),
-                    manifest.size,
-                );
+                // Nothing to record: the body commits the read, usage and
+                // analytics when it completes.
             } else if response.status() == StatusCode::NOT_FOUND {
                 state.metrics.record_artifact_read(producer, "not_found", 0);
             } else if response.status() != StatusCode::TOO_MANY_REQUESTS {
@@ -3205,6 +3254,50 @@ async fn put_blob_artifact(
     }
 }
 
+/// What a download books once its body has actually delivered its bytes.
+///
+/// Carried by the response stream rather than recorded when the response is
+/// constructed, because on the streaming plane those two moments are far
+/// apart: the status is set as soon as the stream exists, and the transfer can
+/// still die at any point after that.
+struct DownloadAttribution {
+    state: SharedState,
+    producer: ArtifactProducer,
+    usage: Option<UsageContext>,
+    analytics: Option<(String, String)>,
+    analytics_key: String,
+}
+
+impl DownloadAttribution {
+    fn commit(&self, bytes: u64) {
+        self.state
+            .metrics
+            .record_artifact_read(self.producer, "ok", bytes);
+        record_usage_event(
+            &self.state,
+            self.producer,
+            "download",
+            self.usage.as_ref(),
+            bytes,
+        );
+        let analytics =
+            self.analytics
+                .as_ref()
+                .map(|(tenant_id, namespace_id)| ProjectAnalyticsContext {
+                    tenant_id,
+                    namespace_id,
+                });
+        record_project_scoped_cache_event(
+            &self.state,
+            self.producer,
+            "download",
+            analytics,
+            &self.analytics_key,
+            bytes,
+        );
+    }
+}
+
 fn record_usage_event(
     state: &SharedState,
     producer: ArtifactProducer,
@@ -3282,13 +3375,14 @@ fn record_project_scoped_cache_event(
 
 async fn serve_file(
     state: &SharedState,
-    status: StatusCode,
     manifest: &ArtifactManifest,
+    range: ServedRange,
+    attribution: DownloadAttribution,
 ) -> Response {
     match state.store.try_mmap_artifact_bytes(manifest).await {
         Ok(Some(bytes)) => {
             state.metrics.record_artifact_serving_path("mmap");
-            let requested_bytes = response_stream_chunk_bytes(manifest.size).saturating_mul(4);
+            let requested_bytes = response_stream_chunk_bytes(range.length).saturating_mul(4);
             let permit = match state
                 .memory
                 .try_acquire_mmap_response_stream_memory(requested_bytes, "http")
@@ -3299,24 +3393,36 @@ async fn serve_file(
                 // smaller degraded pool. Waiting here first would only delay
                 // that fallback by a full admission timeout.
                 None => {
-                    return serve_file_reader(state, status, manifest).await;
+                    return serve_file_reader(state, manifest, range, attribution).await;
                 }
             };
-            let stream = instrument_artifact_stream(state, manifest, bytes_chunks(bytes), true);
+            // The mapping covers the whole artifact; the response carries only
+            // the requested window of it. `Bytes::slice` is a view, so no copy
+            // and no second mapping.
+            let start = (range.start as usize).min(bytes.len());
+            let end = start.saturating_add(range.length as usize).min(bytes.len());
+            let stream = instrument_artifact_stream(
+                state,
+                manifest,
+                bytes_chunks(bytes.slice(start..end)),
+                true,
+                range.length,
+                Some(attribution),
+            );
             let mut response = Response::new(Body::from_stream(stream));
-            *response.status_mut() = status;
-            apply_artifact_response_headers(&mut response, manifest);
+            *response.status_mut() = artifact_response_status(range);
+            apply_artifact_response_headers(&mut response, manifest, range);
             attach_response_stream_permit(&mut response, permit);
             response
         }
-        Ok(None) => serve_file_reader(state, status, manifest).await,
+        Ok(None) => serve_file_reader(state, manifest, range, attribution).await,
         Err(error) => {
             tracing::warn!(
                 artifact_id = %manifest.artifact_id,
                 %error,
                 "mmap artifact serving failed; falling back to streaming reader"
             );
-            serve_file_reader(state, status, manifest).await
+            serve_file_reader(state, manifest, range, attribution).await
         }
     }
 }
@@ -3331,12 +3437,17 @@ async fn serve_file(
 /// retries on its own schedule.
 async fn serve_file_reader(
     state: &SharedState,
-    status: StatusCode,
     manifest: &ArtifactManifest,
+    range: ServedRange,
+    attribution: DownloadAttribution,
 ) -> Response {
     state.metrics.record_artifact_serving_path("streaming");
-    let inline_bytes = if manifest.inline { manifest.size } else { 0 };
-    let stream_chunk_bytes = response_stream_chunk_bytes(manifest.size);
+    // An inline artifact is materialized into the reader, but only the
+    // requested window of it, so a resume reserves its tail rather than the
+    // whole body. That is what keeps a large artifact's resume admissible
+    // under a budget its from-scratch re-send would be shed under.
+    let inline_bytes = if manifest.inline { range.length } else { 0 };
+    let stream_chunk_bytes = response_stream_chunk_bytes(range.length);
     let requested_bytes = usize::try_from(
         u64::try_from(stream_chunk_bytes.saturating_mul(4))
             .unwrap_or(u64::MAX)
@@ -3380,15 +3491,22 @@ async fn serve_file_reader(
     // always describe the bytes being streamed.
     match state
         .store
-        .open_artifact_reader_range_tolerating_promotion(manifest, 0, None)
+        .open_artifact_reader_range_tolerating_promotion(manifest, range.start, Some(range.length))
         .await
     {
         Ok(Some((manifest, reader))) => {
             let stream = ReaderStream::with_capacity(reader, stream_chunk_bytes);
-            let stream = instrument_artifact_stream(state, &manifest, stream, true);
+            let stream = instrument_artifact_stream(
+                state,
+                &manifest,
+                stream,
+                true,
+                range.length,
+                Some(attribution),
+            );
             let mut response = Response::new(Body::from_stream(stream));
-            *response.status_mut() = status;
-            apply_artifact_response_headers(&mut response, &manifest);
+            *response.status_mut() = artifact_response_status(range);
+            apply_artifact_response_headers(&mut response, &manifest, range);
             attach_response_stream_permit(&mut response, permit);
             response
         }
@@ -3439,6 +3557,8 @@ fn instrument_artifact_stream<S>(
     manifest: &ArtifactManifest,
     stream: S,
     hold_public_inflight: bool,
+    expected_bytes: u64,
+    attribution: Option<DownloadAttribution>,
 ) -> InstrumentedArtifactStream<S>
 where
     S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
@@ -3450,6 +3570,8 @@ where
         manifest.producer,
         stream,
         request_guard,
+        expected_bytes,
+        attribution,
     )
 }
 
@@ -3460,7 +3582,15 @@ struct InstrumentedArtifactStream<S> {
     _request_guard: Option<InflightGuard>,
     started_at: Instant,
     yielded_bytes: u64,
+    // What the response promised in its `Content-Length`. A body is complete
+    // when it has yielded this much, whether or not anything polls it again:
+    // Hyper stops polling once the promised length is on the wire, so the
+    // terminal `None` that would otherwise mark completion never arrives.
+    expected_bytes: u64,
     recorded: bool,
+    // Booked only on a body that delivered in full, so an abandoned transfer
+    // meters nothing and the client's follow-up meters only what it receives.
+    attribution: Option<DownloadAttribution>,
 }
 
 impl<S> InstrumentedArtifactStream<S> {
@@ -3469,6 +3599,8 @@ impl<S> InstrumentedArtifactStream<S> {
         producer: ArtifactProducer,
         stream: S,
         request_guard: Option<InflightGuard>,
+        expected_bytes: u64,
+        attribution: Option<DownloadAttribution>,
     ) -> Self {
         Self {
             inner: stream,
@@ -3477,8 +3609,15 @@ impl<S> InstrumentedArtifactStream<S> {
             _request_guard: request_guard,
             started_at: Instant::now(),
             yielded_bytes: 0,
+            expected_bytes,
             recorded: false,
+            attribution,
         }
+    }
+
+    /// Whether every promised byte reached the response body.
+    fn delivered_in_full(&self) -> bool {
+        self.yielded_bytes >= self.expected_bytes
     }
 
     fn record_once(&mut self, result: &str) {
@@ -3493,6 +3632,11 @@ impl<S> InstrumentedArtifactStream<S> {
             self.yielded_bytes,
             self.started_at.elapsed(),
         );
+        if result == "ok"
+            && let Some(attribution) = self.attribution.take()
+        {
+            attribution.commit(self.yielded_bytes);
+        }
     }
 }
 
@@ -3545,7 +3689,17 @@ where
 
 impl<S> Drop for InstrumentedArtifactStream<S> {
     fn drop(&mut self) {
-        self.record_once("aborted");
+        // Reached without a terminal `None` in two very different situations:
+        // the body delivered everything and Hyper simply stopped polling, or
+        // the peer went away mid-transfer. Only the second is waste, and
+        // conflating them made `result="aborted"` a label for "served by the
+        // streaming path" rather than for a transfer nobody received.
+        let result = if self.delivered_in_full() {
+            "ok"
+        } else {
+            "aborted"
+        };
+        self.record_once(result);
     }
 }
 
@@ -3576,7 +3730,38 @@ fn bytes_chunks(bytes: Bytes) -> BytesChunks {
     BytesChunks { bytes, offset: 0 }
 }
 
-fn apply_artifact_response_headers(response: &mut Response, manifest: &ArtifactManifest) {
+fn request_range(headers: &HeaderMap) -> RangeRequest<'_> {
+    RangeRequest::new(
+        header_str(headers, axum::http::header::RANGE),
+        header_str(headers, axum::http::header::IF_RANGE),
+    )
+}
+
+fn header_str(headers: &HeaderMap, name: axum::http::header::HeaderName) -> Option<&str> {
+    headers.get(name).and_then(|value| value.to_str().ok())
+}
+
+fn artifact_response_status(range: ServedRange) -> StatusCode {
+    if range.partial {
+        StatusCode::PARTIAL_CONTENT
+    } else {
+        StatusCode::OK
+    }
+}
+
+fn apply_artifact_response_headers(
+    response: &mut Response,
+    manifest: &ArtifactManifest,
+    range: ServedRange,
+) {
+    // The validator a resume echoes back in `If-Range`. On the full response
+    // as well as the partial one: a client can only name the representation it
+    // started from if the server told it before the transfer died.
+    if let Ok(etag) = HeaderValue::from_str(&entity_tag(manifest.version_ms, manifest.size)) {
+        response
+            .headers_mut()
+            .insert(axum::http::header::ETAG, etag);
+    }
     response.headers_mut().insert(
         axum::http::header::CONTENT_TYPE,
         HeaderValue::from_str(&manifest.content_type)
@@ -3584,9 +3769,40 @@ fn apply_artifact_response_headers(response: &mut Response, manifest: &ArtifactM
     );
     response.headers_mut().insert(
         axum::http::header::CONTENT_LENGTH,
-        HeaderValue::from_str(&manifest.size.to_string())
+        HeaderValue::from_str(&range.length.to_string())
             .unwrap_or_else(|_| HeaderValue::from_static("0")),
     );
+    // Advertised on the full response as well, so a client that has to retry
+    // knows resume is on offer before it needs it.
+    response.headers_mut().insert(
+        axum::http::header::ACCEPT_RANGES,
+        HeaderValue::from_static("bytes"),
+    );
+    if let Some(content_range) = range
+        .content_range(manifest.size)
+        .and_then(|value| HeaderValue::from_str(&value).ok())
+    {
+        response
+            .headers_mut()
+            .insert(axum::http::header::CONTENT_RANGE, content_range);
+    }
+}
+
+fn range_not_satisfiable_response(size: u64) -> Response {
+    let mut response = error_response(
+        StatusCode::RANGE_NOT_SATISFIABLE,
+        format!("Requested range is not satisfiable for a {size}-byte artifact"),
+    );
+    response.headers_mut().insert(
+        axum::http::header::ACCEPT_RANGES,
+        HeaderValue::from_static("bytes"),
+    );
+    if let Ok(content_range) = HeaderValue::from_str(&format!("bytes */{size}")) {
+        response
+            .headers_mut()
+            .insert(axum::http::header::CONTENT_RANGE, content_range);
+    }
+    response
 }
 
 fn draining_response(version: Version) -> Response {
@@ -7171,6 +7387,8 @@ mod tests {
             ArtifactProducer::Xcode,
             stream,
             Some(context.state.start_http_request(HttpTrafficClass::Public)),
+            1,
+            None,
         );
 
         assert_eq!(context.state.runtime.public_http_inflight(), 1);
@@ -7263,6 +7481,309 @@ mod tests {
         });
 
         (format!("http://{address}"), handle)
+    }
+
+    /// A response body that hyper stops polling once `Content-Length` is
+    /// satisfied never yields the terminal `None`, so the only record comes
+    /// from `Drop`. It has still delivered every byte it promised, and calling
+    /// that an abort makes `result="aborted"` mean "served by the streaming
+    /// path" rather than "the client did not get its artifact".
+    #[tokio::test]
+    async fn a_body_dropped_after_delivering_every_byte_is_recorded_as_ok() {
+        let context = test_context(|_| {}).await;
+        let chunks = vec![
+            Ok(Bytes::from_static(b"0123")),
+            Ok(Bytes::from_static(b"456789")),
+        ];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            10,
+            None,
+        );
+
+        // Drain exactly the promised bytes, then drop without polling again.
+        assert!(stream.next().await.is_some());
+        assert!(stream.next().await.is_some());
+        drop(stream);
+
+        let rendered = context.state.metrics.render();
+        assert!(
+            rendered.contains(r#"producer="module",result="ok""#),
+            "a fully delivered body must record ok, got:\n{rendered}"
+        );
+        assert!(
+            !rendered.contains(r#"producer="module",result="aborted""#),
+            "a fully delivered body must not record aborted, got:\n{rendered}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_body_dropped_before_delivering_every_byte_is_recorded_as_aborted() {
+        let context = test_context(|_| {}).await;
+        let chunks = vec![
+            Ok(Bytes::from_static(b"0123")),
+            Ok(Bytes::from_static(b"456789")),
+        ];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            10,
+            None,
+        );
+
+        // The client goes away after the first chunk.
+        assert!(stream.next().await.is_some());
+        drop(stream);
+
+        let rendered = context.state.metrics.render();
+        assert!(
+            rendered.contains(r#"producer="module",result="aborted""#),
+            "a short body must record aborted, got:\n{rendered}"
+        );
+        // Only the bytes that were actually put on the wire count as waste.
+        assert!(
+            rendered.contains(
+                r#"kura_artifact_egress_bytes_total_total{producer="module",result="aborted"} 4"#
+            ),
+            "aborted egress must report the 4 bytes it yielded, got:\n{rendered}"
+        );
+    }
+
+    fn download_attribution(context: &crate::test_support::TestContext) -> DownloadAttribution {
+        DownloadAttribution {
+            state: context.state.clone(),
+            producer: ArtifactProducer::Module,
+            usage: Some(UsageContext {
+                tenant_id: context.state.config.tenant_id.clone(),
+                namespace_id: "ios".to_owned(),
+            }),
+            analytics: None,
+            analytics_key: "builds/hash/Module.framework".to_owned(),
+        }
+    }
+
+    fn metered_download_bytes(context: &crate::test_support::TestContext) -> u64 {
+        context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests()
+            .iter()
+            .filter(|rollup| rollup.operation == "download")
+            .map(|rollup| rollup.bytes)
+            .sum()
+    }
+
+    /// A response's status is set when its stream is built, so metering there
+    /// books an artifact the client may never receive. It must be booked from
+    /// the body instead.
+    #[tokio::test]
+    async fn a_body_that_dies_mid_transfer_meters_no_download() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let chunks = vec![
+            Ok(Bytes::from_static(b"0123")),
+            Ok(Bytes::from_static(b"456789")),
+        ];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            10,
+            Some(download_attribution(&context)),
+        );
+
+        assert!(stream.next().await.is_some());
+        drop(stream);
+
+        assert_eq!(
+            metered_download_bytes(&context),
+            0,
+            "an abandoned transfer must not be metered"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_completed_body_meters_exactly_the_bytes_it_delivered() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        // The tail a resumed download asks for, not the whole artifact.
+        let chunks = vec![Ok(Bytes::from_static(b"6789"))];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            4,
+            Some(download_attribution(&context)),
+        );
+
+        assert!(stream.next().await.is_some());
+        drop(stream);
+
+        assert_eq!(metered_download_bytes(&context), 4);
+    }
+
+    /// Puts an artifact and reads it back with `Range`. At this size the
+    /// response comes back through the mapped-file path; `serve_file_reader`'s
+    /// own ranged open is covered by the store's segment-offset test.
+    async fn seed_ranged_artifact(app: &Router, body: &[u8]) {
+        let put = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/v1/cache/ranged-key")
+                    .body(Body::from(body.to_vec()))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put.status(), StatusCode::OK);
+    }
+
+    async fn ranged_get(app: &Router, range: &str) -> Response {
+        app.clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/cache/ranged-key")
+                    .header("range", range)
+                    .body(Body::empty())
+                    .expect("failed to build ranged get request"),
+            )
+            .await
+            .expect("ranged get request failed")
+    }
+
+    #[tokio::test]
+    async fn a_ranged_artifact_read_returns_only_the_requested_tail() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let body: Vec<u8> = (0..4096_u32).map(|index| index as u8).collect();
+        seed_ranged_artifact(&app, &body).await;
+
+        let response = ranged_get(&app, "bytes=4000-").await;
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(
+            response
+                .headers()
+                .get("content-range")
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes 4000-4095/4096")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("content-length")
+                .and_then(|value| value.to_str().ok()),
+            Some("96")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("accept-ranges")
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes")
+        );
+        assert_eq!(response_bytes(response).await, body[4000..].to_vec());
+    }
+
+    #[tokio::test]
+    async fn a_closed_range_returns_exactly_that_window() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let body: Vec<u8> = (0..4096_u32).map(|index| index as u8).collect();
+        seed_ranged_artifact(&app, &body).await;
+
+        let response = ranged_get(&app, "bytes=10-19").await;
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(
+            response
+                .headers()
+                .get("content-range")
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes 10-19/4096")
+        );
+        assert_eq!(response_bytes(response).await, body[10..20].to_vec());
+    }
+
+    #[tokio::test]
+    async fn an_unranged_artifact_read_still_advertises_resume() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let body: Vec<u8> = (0..4096_u32).map(|index| index as u8).collect();
+        seed_ranged_artifact(&app, &body).await;
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/cache/ranged-key")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get("accept-ranges")
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes")
+        );
+        // A full response must not claim to be partial.
+        assert!(response.headers().get("content-range").is_none());
+        assert_eq!(response_bytes(response).await, body);
+    }
+
+    #[tokio::test]
+    async fn a_range_past_the_end_is_refused_so_a_resume_cannot_corrupt_the_file() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let body: Vec<u8> = (0..4096_u32).map(|index| index as u8).collect();
+        seed_ranged_artifact(&app, &body).await;
+
+        let response = ranged_get(&app, "bytes=99999-").await;
+        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+        assert_eq!(
+            response
+                .headers()
+                .get("content-range")
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes */4096")
+        );
+    }
+
+    #[tokio::test]
+    async fn resuming_from_a_partial_download_reassembles_the_whole_artifact() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let body: Vec<u8> = (0..4096_u32).map(|index| index as u8).collect();
+        seed_ranged_artifact(&app, &body).await;
+
+        // What a client that lost its connection at 1500 bytes does next.
+        let head = ranged_get(&app, "bytes=0-1499").await;
+        assert_eq!(head.status(), StatusCode::PARTIAL_CONTENT);
+        let mut assembled = response_bytes(head).await;
+        assert_eq!(assembled.len(), 1500);
+
+        let tail = ranged_get(&app, &format!("bytes={}-", assembled.len())).await;
+        assert_eq!(tail.status(), StatusCode::PARTIAL_CONTENT);
+        assembled.extend(response_bytes(tail).await);
+
+        assert_eq!(assembled, body);
     }
 
     async fn capture_request(

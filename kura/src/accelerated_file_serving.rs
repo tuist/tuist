@@ -26,7 +26,10 @@ use tracing::{Instrument, debug, info, warn};
 
 use crate::{
     analytics::Analytics,
-    artifact::producer::ArtifactProducer,
+    artifact::{
+        producer::ArtifactProducer,
+        range::{RangeOutcome, RangeRequest, ServedRange, entity_tag, resolve_conditional_range},
+    },
     auth::{AccessDecision, RequestContext},
     config::{AcceleratedFileServingConfig, AcceleratedFileServingMode},
     constants::response_stream_chunk_bytes,
@@ -197,14 +200,16 @@ async fn serve_connection(
             ClassifiedRequest::Deny(denial) => {
                 drop(permit);
                 consume_headers(&mut stream, denial.header_len).await?;
-                let headers = BTreeMap::new();
+                // The JSON body from main, with this denial's own headers: a
+                // 416 has to carry `Content-Range` so the client learns the
+                // artifact's real length rather than guessing at a new range.
                 let body = json_error_body(&denial.body);
                 let result = write_response(
                     &mut stream,
                     denial.status,
                     denial.reason,
                     JSON_CONTENT_TYPE,
-                    &headers,
+                    &denial.headers,
                     body.as_bytes(),
                 )
                 .await;
@@ -377,6 +382,7 @@ struct Denial {
     route: &'static str,
     status: u16,
     reason: &'static str,
+    headers: BTreeMap<String, String>,
     body: String,
 }
 
@@ -384,6 +390,7 @@ struct AcceleratedCandidate {
     header_len: usize,
     artifact: ArtifactRequest,
     file: AcceleratedArtifactFile,
+    range: ServedRange,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -457,16 +464,57 @@ async fn open_and_authorize(
                     route: artifact.route,
                     status: deny.status,
                     reason: reason_for_status(deny.status),
+                    headers: BTreeMap::new(),
                     body: deny.message,
                 });
             }
         }
     }
 
+    // Resolved after access, so an unauthorized caller cannot learn an
+    // artifact's size from a 416's `Content-Range`.
+    let etag = entity_tag(file.version_ms, file.size);
+    let range = match resolve_conditional_range(
+        RangeRequest::new(
+            parsed.headers.get("range").map(String::as_str),
+            parsed.headers.get("if-range").map(String::as_str),
+        ),
+        &etag,
+        file.size,
+    ) {
+        RangeOutcome::Full => ServedRange::full(file.size),
+        RangeOutcome::Partial(range) => range,
+        RangeOutcome::Unsatisfiable => {
+            // Counted here rather than in the Deny branch, which only knows
+            // about HTTP and would report this plane's 416s as an
+            // `kura_http_requests_total` entry with no matching artifact read.
+            // This is the plane that carries plain-HTTP artifact GETs on Linux,
+            // so leaving it out would hide the 416s most likely to happen.
+            state
+                .metrics
+                .record_artifact_read(artifact.producer, "range_not_satisfiable", 0);
+            return ClassifiedRequest::Deny(Denial {
+                header_len: parsed.header_len,
+                route: artifact.route,
+                status: 416,
+                reason: reason_for_status(416),
+                headers: BTreeMap::from([
+                    ("accept-ranges".to_owned(), "bytes".to_owned()),
+                    ("content-range".to_owned(), format!("bytes */{}", file.size)),
+                ]),
+                body: format!(
+                    "Requested range is not satisfiable for a {}-byte artifact",
+                    file.size
+                ),
+            });
+        }
+    };
+
     ClassifiedRequest::Accelerate(AcceleratedCandidate {
         header_len: parsed.header_len,
         artifact,
         file,
+        range,
     })
 }
 
@@ -558,7 +606,12 @@ async fn serve_accelerated(
     let chunk_bytes = config.chunk_bytes;
     let memory = state.memory.clone();
     let metrics = state.metrics.clone();
-    let response_stream_bytes = response_stream_chunk_bytes(file.size);
+    let range = candidate.range;
+    // Sized from the bytes this response will actually send, not the whole
+    // artifact: a resume asks for the tail it is missing and should reserve
+    // only that, so it is admitted under a budget a full re-send would be
+    // shed under.
+    let response_stream_bytes = response_stream_chunk_bytes(range.length);
     let response_stream_permit = match memory
         .acquire_response_stream_memory(
             response_stream_bytes,
@@ -602,29 +655,56 @@ async fn serve_accelerated(
             return Ok(None);
         }
     };
+    let artifact_size = file.size;
+    let etag = entity_tag(file.version_ms, file.size);
     let result = tokio::task::spawn_blocking(
-        move || -> std::io::Result<(std::net::TcpStream, u64, Duration)> {
+        move || -> Result<(std::net::TcpStream, u64, Duration), (u64, std::io::Error)> {
             let _response_stream_permit = response_stream_permit;
-            let mut stream = stream.into_std()?;
-            stream.set_nonblocking(false)?;
-            stream.set_write_timeout(Some(IO_TIMEOUT))?;
-            write_headers(&mut stream, 200, "OK", &content_type, file.size, keep_alive)?;
-            // Time to first byte is measured once the headers are on the wire,
-            // before the body transfer, so large downloads do not inflate the
-            // responsiveness signal.
-            let time_to_first_byte = request_started_at.elapsed();
-            let mut cache_drop = AcceleratedReadCacheDrop::new(chunk_bytes);
+            let mut stream = stream.into_std().map_err(|error| (0, error))?;
+            let mut setup = || -> std::io::Result<Duration> {
+                stream.set_nonblocking(false)?;
+                stream.set_write_timeout(Some(IO_TIMEOUT))?;
+                let (status, reason) = range.status();
+                write_headers(
+                    &mut stream,
+                    status,
+                    reason,
+                    &content_type,
+                    range.length,
+                    range.content_range(artifact_size).as_deref(),
+                    Some(etag.as_str()),
+                    keep_alive,
+                )?;
+                // Time to first byte is measured once the headers are on the
+                // wire, before the body transfer, so large downloads do not
+                // inflate the responsiveness signal.
+                Ok(request_started_at.elapsed())
+            };
+            let time_to_first_byte = match setup() {
+                Ok(time_to_first_byte) => time_to_first_byte,
+                Err(error) => return Err((0, error)),
+            };
+            let mut cache_drop = AcceleratedReadCacheDrop::new(chunk_bytes, &file, range);
+            // `sent` is written through even when the transfer fails, so a
+            // response that dies mid-body still reports how much of the link
+            // it consumed for nothing.
+            let mut sent = 0_u64;
             let transfer = transfer_file(
                 &mut stream,
                 &file,
                 mode,
                 chunk_bytes,
+                range,
                 &memory,
                 &mut cache_drop,
+                &mut sent,
             );
             cache_drop.finish(&file, &memory);
             cache_drop.record(&metrics);
-            Ok((stream, transfer?, time_to_first_byte))
+            match transfer {
+                Ok(()) => Ok((stream, sent, time_to_first_byte)),
+                Err(error) => Err((sent, error)),
+            }
         },
     )
     .await
@@ -639,9 +719,11 @@ async fn serve_accelerated(
                 &route,
                 time_to_first_byte,
             );
-            state
-                .metrics
-                .record_http(route, StatusCode::OK, time_to_first_byte);
+            state.metrics.record_http(
+                route,
+                StatusCode::from_u16(range.status().0).unwrap_or(StatusCode::OK),
+                time_to_first_byte,
+            );
             state.metrics.record_artifact_read(producer, "ok", bytes);
             state.metrics.record_artifact_egress(
                 producer,
@@ -671,27 +753,34 @@ async fn serve_accelerated(
                 Ok(None)
             }
         }
-        Err(error) => {
+        Err((bytes, error)) => {
             let failure = TransferFailure::classify(&error);
             if failure == TransferFailure::ClientAborted {
-                debug!(route = %route, "artifact transfer aborted by client: {error}");
+                debug!(route = %route, wasted_bytes = bytes, "artifact transfer aborted by client: {error}");
             } else {
                 warn!(
                     route = %route,
                     result = failure.result(),
+                    wasted_bytes = bytes,
                     "artifact transfer failed: {error}"
                 );
             }
             state
                 .metrics
                 .record_http(route, failure.status(), transfer_started_at.elapsed());
+            // Carrying the byte count onto the failure result is what makes the
+            // waste measurable: `kura_artifact_egress_bytes_total` split by
+            // `result` separates link capacity that delivered an artifact from
+            // capacity spent on a transfer the client threw away and will ask
+            // for again. Usage and analytics stay unrecorded, so the tenant
+            // is not billed for bytes that never landed.
             state
                 .metrics
-                .record_artifact_read(producer, failure.result(), 0);
+                .record_artifact_read(producer, failure.result(), bytes);
             state.metrics.record_artifact_egress(
                 producer,
                 failure.result(),
-                0,
+                bytes,
                 transfer_started_at.elapsed(),
             );
             Err(error)
@@ -702,6 +791,12 @@ async fn serve_accelerated(
 struct AcceleratedReadCacheDrop {
     interval_bytes: u64,
     page_bytes: u64,
+    // Where in the backing file this response's first byte lives, and how many
+    // bytes follow it. A ranged response starts partway into the artifact, so
+    // the pages it touches are offset from the artifact's own start and the
+    // prefix it never reads must not be advised away.
+    base_offset: u64,
+    length: u64,
     advised_through: u64,
     sent_through: u64,
     next_advice_at: u64,
@@ -711,10 +806,12 @@ struct AcceleratedReadCacheDrop {
 }
 
 impl AcceleratedReadCacheDrop {
-    fn new(chunk_bytes: usize) -> Self {
+    fn new(chunk_bytes: usize, file: &AcceleratedArtifactFile, range: ServedRange) -> Self {
         Self {
             interval_bytes: chunk_bytes.max(1) as u64,
             page_bytes: system_page_bytes(),
+            base_offset: file.offset.saturating_add(range.start),
+            length: range.length,
             advised_through: 0,
             sent_through: 0,
             next_advice_at: 0,
@@ -731,11 +828,11 @@ impl AcceleratedReadCacheDrop {
         sent_through: u64,
         finish: bool,
     ) {
-        self.sent_through = self.sent_through.max(sent_through.min(file.size));
+        self.sent_through = self.sent_through.max(sent_through.min(self.length));
         if !memory.should_reclaim_file_cache() {
             self.pressure_active = false;
             self.advised_through = align_up(
-                file.offset.saturating_add(self.sent_through),
+                self.base_offset.saturating_add(self.sent_through),
                 self.page_bytes,
             );
             self.next_advice_at = self.sent_through.saturating_add(self.interval_bytes);
@@ -748,7 +845,7 @@ impl AcceleratedReadCacheDrop {
             // first to age into the inactive list; the most recently touched
             // transfer window is what keeps the working set elevated.
             self.advised_through = align_up(
-                file.offset
+                self.base_offset
                     .saturating_add(self.sent_through.saturating_sub(self.interval_bytes)),
                 self.page_bytes,
             );
@@ -758,7 +855,7 @@ impl AcceleratedReadCacheDrop {
         }
 
         let completed_through = align_down(
-            file.offset.saturating_add(self.sent_through),
+            self.base_offset.saturating_add(self.sent_through),
             self.page_bytes,
         );
         let bytes = completed_through.saturating_sub(self.advised_through);
@@ -1049,19 +1146,32 @@ async fn write_response(
     stream.write_all(&response).await
 }
 
+#[allow(clippy::too_many_arguments)]
 fn write_headers(
     stream: &mut std::net::TcpStream,
     status: u16,
     reason: &str,
     content_type: &str,
     content_length: u64,
+    content_range: Option<&str>,
+    etag: Option<&str>,
     keep_alive: bool,
 ) -> std::io::Result<()> {
     let connection = if keep_alive { "keep-alive" } else { "close" };
+    // `accept-ranges` rides on the full response too: a client only knows it
+    // may resume a download if the server said so before the download died.
     write!(
         stream,
-        "HTTP/1.1 {status} {reason}\r\ncontent-length: {content_length}\r\ncontent-type: {content_type}\r\nconnection: {connection}\r\n"
+        "HTTP/1.1 {status} {reason}\r\ncontent-length: {content_length}\r\ncontent-type: {content_type}\r\naccept-ranges: bytes\r\nconnection: {connection}\r\n"
     )?;
+    if let Some(content_range) = content_range {
+        write!(stream, "content-range: {content_range}\r\n")?;
+    }
+    // Paired with `accept-ranges`: the validator the client echoes in
+    // `If-Range` so a resume can be refused when the artifact moved on.
+    if let Some(etag) = etag {
+        write!(stream, "etag: {etag}\r\n")?;
+    }
     stream.write_all(b"\r\n")
 }
 
@@ -1106,6 +1216,7 @@ fn reason_for_status(status: u16) -> &'static str {
         403 => "Forbidden",
         404 => "Not Found",
         413 => "Payload Too Large",
+        416 => "Range Not Satisfiable",
         429 => "Too Many Requests",
         500 => "Internal Server Error",
         503 => "Service Unavailable",
@@ -1113,55 +1224,64 @@ fn reason_for_status(status: u16) -> &'static str {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(target_os = "linux")]
 fn transfer_file(
     stream: &mut std::net::TcpStream,
     file: &AcceleratedArtifactFile,
     mode: AcceleratedFileServingMode,
     chunk_bytes: usize,
+    range: ServedRange,
     memory: &MemoryController,
     cache_drop: &mut AcceleratedReadCacheDrop,
-) -> std::io::Result<u64> {
+    sent: &mut u64,
+) -> std::io::Result<()> {
     match mode {
         AcceleratedFileServingMode::Sendfile => {
-            transfer_sendfile(stream, file, chunk_bytes, memory, cache_drop)
+            transfer_sendfile(stream, file, chunk_bytes, range, memory, cache_drop, sent)
         }
         AcceleratedFileServingMode::Splice => {
-            transfer_splice(stream, file, chunk_bytes, memory, cache_drop)
+            transfer_splice(stream, file, chunk_bytes, range, memory, cache_drop, sent)
         }
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(not(target_os = "linux"))]
 fn transfer_file(
     _stream: &mut std::net::TcpStream,
     _file: &AcceleratedArtifactFile,
     _mode: AcceleratedFileServingMode,
     _chunk_bytes: usize,
+    _range: ServedRange,
     _memory: &MemoryController,
     _cache_drop: &mut AcceleratedReadCacheDrop,
-) -> std::io::Result<u64> {
+    _sent: &mut u64,
+) -> std::io::Result<()> {
     Err(std::io::Error::new(
         std::io::ErrorKind::Unsupported,
         "accelerated file serving requires Linux",
     ))
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(target_os = "linux")]
 fn transfer_sendfile(
     stream: &mut std::net::TcpStream,
     file: &AcceleratedArtifactFile,
     chunk_bytes: usize,
+    range: ServedRange,
     memory: &MemoryController,
     cache_drop: &mut AcceleratedReadCacheDrop,
-) -> std::io::Result<u64> {
+    sent_total: &mut u64,
+) -> std::io::Result<()> {
     use std::os::fd::AsRawFd;
 
     let in_fd = file.handle.as_std().as_raw_fd();
     let out_fd = stream.as_raw_fd();
-    let mut offset = file.offset as libc::off_t;
-    let end = file.offset.saturating_add(file.size);
-    let mut sent_total = 0_u64;
+    let start = file.offset.saturating_add(range.start);
+    let mut offset = start as libc::off_t;
+    let end = start.saturating_add(range.length);
     while (offset as u64) < end {
         let remaining = end - offset as u64;
         let chunk = remaining.min(chunk_bytes as u64) as usize;
@@ -1180,20 +1300,23 @@ fn transfer_sendfile(
         if sent == 0 {
             break;
         }
-        sent_total += sent as u64;
-        cache_drop.observe_progress(file, memory, sent_total, false);
+        *sent_total += sent as u64;
+        cache_drop.observe_progress(file, memory, *sent_total, false);
     }
-    ensure_complete_transfer("sendfile", sent_total, file.size)
+    ensure_complete_transfer("sendfile", *sent_total, range.length)
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(target_os = "linux")]
 fn transfer_splice(
     stream: &mut std::net::TcpStream,
     file: &AcceleratedArtifactFile,
     chunk_bytes: usize,
+    range: ServedRange,
     memory: &MemoryController,
     cache_drop: &mut AcceleratedReadCacheDrop,
-) -> std::io::Result<u64> {
+    sent_total: &mut u64,
+) -> std::io::Result<()> {
     use std::os::fd::AsRawFd;
 
     let in_fd = file.handle.as_std().as_raw_fd();
@@ -1204,9 +1327,9 @@ fn transfer_splice(
     }
 
     let result = (|| {
-        let mut offset = file.offset as libc::off_t;
-        let end = file.offset.saturating_add(file.size);
-        let mut sent_total = 0_u64;
+        let start = file.offset.saturating_add(range.start);
+        let mut offset = start as libc::off_t;
+        let end = start.saturating_add(range.length);
         while (offset as u64) < end {
             let remaining = end - offset as u64;
             let chunk = remaining.min(chunk_bytes as u64) as usize;
@@ -1266,11 +1389,11 @@ fn transfer_splice(
                     ));
                 }
                 pending -= spliced_out as usize;
-                sent_total += spliced_out as u64;
+                *sent_total += spliced_out as u64;
             }
-            cache_drop.observe_progress(file, memory, sent_total, false);
+            cache_drop.observe_progress(file, memory, *sent_total, false);
         }
-        ensure_complete_transfer("splice", sent_total, file.size)
+        ensure_complete_transfer("splice", *sent_total, range.length)
     })();
 
     unsafe {
@@ -1339,10 +1462,17 @@ impl TransferFailure {
     }
 }
 
+/// Confirms a transfer moved every byte the response promised.
+///
+/// `expected` is the length of the range being served, not the artifact's
+/// size, so a satisfied partial response is complete at its own last byte
+/// while a file that runs short of the range still reports `UnexpectedEof`.
+/// That keeps `Incomplete` meaning what it has always meant: the bytes on disk
+/// disagree with the record describing them.
 #[cfg(target_os = "linux")]
-fn ensure_complete_transfer(operation: &str, sent: u64, expected: u64) -> std::io::Result<u64> {
+fn ensure_complete_transfer(operation: &str, sent: u64, expected: u64) -> std::io::Result<()> {
     if sent == expected {
-        Ok(sent)
+        Ok(())
     } else {
         Err(std::io::Error::new(
             std::io::ErrorKind::UnexpectedEof,
@@ -1367,6 +1497,8 @@ mod tests {
         store::AcceleratedArtifactFile,
     };
     use tempfile::tempdir;
+
+    use crate::artifact::range::ServedRange;
 
     use super::{
         AcceleratedCandidate, AcceleratedReadCacheDrop, ArtifactRequest, ParsedRequest,
@@ -1440,6 +1572,7 @@ mod tests {
             offset: 0,
             size,
             content_type: "application/octet-stream".into(),
+            version_ms: 1,
         };
         let candidate = AcceleratedCandidate {
             header_len: 0,
@@ -1455,6 +1588,7 @@ mod tests {
                 query: BTreeMap::new(),
             },
             file,
+            range: ServedRange::full(size),
         };
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -1639,7 +1773,9 @@ mod tests {
             offset: 0,
             size: 8,
             content_type: "application/octet-stream".into(),
+            version_ms: 1,
         };
+        let range = ServedRange::full(file.size);
         let candidate = AcceleratedCandidate {
             header_len: 0,
             artifact: ArtifactRequest {
@@ -1654,6 +1790,7 @@ mod tests {
                 query: BTreeMap::new(),
             },
             file,
+            range,
         };
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -1714,6 +1851,171 @@ mod tests {
         drop((elastic_pool_hog, pool_hog));
     }
 
+    /// The sendfile/splice body path only exists on Linux, so the 206 wire
+    /// format is asserted where it actually runs.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn an_accelerated_ranged_read_writes_a_206_and_only_the_requested_tail() {
+        let context = crate::test_support::test_context(|_| {}).await;
+        let path = context.state.config.tmp_dir.join("ranged-artifact");
+        std::fs::write(&path, b"0123456789").expect("write accelerated artifact");
+        let file = AcceleratedArtifactFile {
+            handle: Arc::new(
+                context
+                    .state
+                    .io
+                    .open_persistent_read_file(&path)
+                    .await
+                    .expect("open accelerated artifact"),
+            ),
+            offset: 0,
+            size: 10,
+            content_type: "application/octet-stream".into(),
+            version_ms: 1,
+        };
+        let crate::artifact::range::RangeOutcome::Partial(range) =
+            crate::artifact::range::resolve_range(Some("bytes=6-"), file.size)
+        else {
+            panic!("expected a partial range");
+        };
+        let candidate = AcceleratedCandidate {
+            header_len: 0,
+            artifact: ArtifactRequest {
+                producer: ArtifactProducer::Module,
+                tenant_id: context.state.config.tenant_id.clone(),
+                namespace_id: "ios".into(),
+                key: "builds/hash/Module.framework".into(),
+                analytics_key: None,
+                artifact_hash: Some("hash".into()),
+                route: "/api/cache/module/{id}",
+                path: "/api/cache/module/hash".into(),
+                query: BTreeMap::new(),
+            },
+            file,
+            range,
+        };
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let address = listener.local_addr().expect("test listener address");
+        let mut client = tokio::net::TcpStream::connect(address)
+            .await
+            .expect("connect test client");
+        let (server, _) = listener.accept().await.expect("accept test client");
+
+        serve_accelerated(
+            server,
+            &context.state,
+            &context.state.config.accelerated_file_serving,
+            candidate,
+            Instant::now(),
+            false,
+        )
+        .await
+        .expect("ranged accelerated transfer should succeed");
+
+        let mut response = Vec::new();
+        tokio::io::AsyncReadExt::read_to_end(&mut client, &mut response)
+            .await
+            .expect("read accelerated response");
+        let response = String::from_utf8(response).expect("response should be valid UTF-8");
+        assert!(
+            response.starts_with("HTTP/1.1 206 Partial Content\r\n"),
+            "got: {response}"
+        );
+        assert!(
+            response.contains("content-range: bytes 6-9/10\r\n"),
+            "got: {response}"
+        );
+        assert!(
+            response.contains("content-length: 4\r\n"),
+            "got: {response}"
+        );
+        assert!(
+            response.contains("accept-ranges: bytes\r\n"),
+            "got: {response}"
+        );
+        assert!(response.ends_with("\r\n\r\n6789"), "got: {response}");
+    }
+
+    /// A full accelerated response must still say resume is on offer, or a
+    /// client has no reason to try one after a transfer dies.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn an_accelerated_full_read_advertises_accept_ranges_without_claiming_partial() {
+        let context = crate::test_support::test_context(|_| {}).await;
+        let path = context.state.config.tmp_dir.join("full-artifact");
+        std::fs::write(&path, b"0123456789").expect("write accelerated artifact");
+        let file = AcceleratedArtifactFile {
+            handle: Arc::new(
+                context
+                    .state
+                    .io
+                    .open_persistent_read_file(&path)
+                    .await
+                    .expect("open accelerated artifact"),
+            ),
+            offset: 0,
+            size: 10,
+            content_type: "application/octet-stream".into(),
+            version_ms: 1,
+        };
+        let range = ServedRange::full(file.size);
+        let candidate = AcceleratedCandidate {
+            header_len: 0,
+            artifact: ArtifactRequest {
+                producer: ArtifactProducer::Module,
+                tenant_id: context.state.config.tenant_id.clone(),
+                namespace_id: "ios".into(),
+                key: "builds/hash/Module.framework".into(),
+                analytics_key: None,
+                artifact_hash: Some("hash".into()),
+                route: "/api/cache/module/{id}",
+                path: "/api/cache/module/hash".into(),
+                query: BTreeMap::new(),
+            },
+            file,
+            range,
+        };
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let address = listener.local_addr().expect("test listener address");
+        let mut client = tokio::net::TcpStream::connect(address)
+            .await
+            .expect("connect test client");
+        let (server, _) = listener.accept().await.expect("accept test client");
+
+        serve_accelerated(
+            server,
+            &context.state,
+            &context.state.config.accelerated_file_serving,
+            candidate,
+            Instant::now(),
+            false,
+        )
+        .await
+        .expect("full accelerated transfer should succeed");
+
+        let mut response = Vec::new();
+        tokio::io::AsyncReadExt::read_to_end(&mut client, &mut response)
+            .await
+            .expect("read accelerated response");
+        let response = String::from_utf8(response).expect("response should be valid UTF-8");
+        assert!(
+            response.starts_with("HTTP/1.1 200 OK\r\n"),
+            "got: {response}"
+        );
+        assert!(
+            response.contains("accept-ranges: bytes\r\n"),
+            "got: {response}"
+        );
+        assert!(!response.contains("content-range:"), "got: {response}");
+        assert!(response.ends_with("\r\n\r\n0123456789"), "got: {response}");
+    }
+
     #[tokio::test]
     async fn accelerated_reads_release_file_cache_only_under_memory_pressure() {
         let directory = tempdir().expect("temporary directory");
@@ -1738,10 +2040,12 @@ mod tests {
             offset: 0,
             size,
             content_type: "application/octet-stream".into(),
+            version_ms: 1,
         };
         let memory = MemoryController::new(metrics, 100, 200);
 
-        let mut cache_drop = AcceleratedReadCacheDrop::new(1024 * 1024);
+        let mut cache_drop =
+            AcceleratedReadCacheDrop::new(1024 * 1024, &file, ServedRange::full(size));
         cache_drop.observe_progress(&file, &memory, file.size, false);
         assert_eq!(cache_drop.advised_bytes, 0);
         memory.observe(100);
@@ -1775,10 +2079,12 @@ mod tests {
             offset,
             size,
             content_type: "application/octet-stream".into(),
+            version_ms: 1,
         };
         let memory = MemoryController::new(metrics, 100, 200);
         memory.observe(100);
-        let mut cache_drop = AcceleratedReadCacheDrop::new(chunk_bytes);
+        let mut cache_drop =
+            AcceleratedReadCacheDrop::new(chunk_bytes, &file, ServedRange::full(size));
 
         cache_drop.observe_progress(&file, &memory, chunk_bytes as u64, false);
         assert_eq!(
