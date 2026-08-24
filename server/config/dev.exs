@@ -193,3 +193,8 @@ config :tuist,
   generators: [timestamp_type: :utc_datetime],
   api_pipeline_producer_module: OffBroadwayMemory.Producer,
   api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
+
+# One session cookie per dev server. See `@session_options` in
+# `TuistWeb.Endpoint`: cookies ignore the port, so a shared name lets
+# concurrent worktree servers clobber each other's sessions.
+config :tuist, session_cookie_key: "_tuist_key_" <> (System.get_env("TUIST_SERVER_PORT") || "8080")
