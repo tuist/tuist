@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -107,6 +108,67 @@ const (
 	runnerLogTailBytes = 64 << 10
 )
 
+// openGuestFile opens a file the guest wrote into the status share and requires
+// it to be a plain file. Both the path and its contents are attacker-chosen: the
+// share is writable by the guest, and the guest runs untrusted customer CI.
+// O_NOFOLLOW stops a guest-planted symlink from making the host resolve and read
+// some other file on its behalf. O_NONBLOCK stops a FIFO from parking the caller
+// inside the open until something writes to the other end, which nothing ever
+// does: one job could otherwise wedge a reconcile for as long as it liked. The
+// regular-file check cannot stand in for O_NONBLOCK there, because it never runs
+// if the open never returns.
+//
+// Returns the handle and its stat together, so a reader that wants metadata
+// rather than bytes fstats what it already opened instead of racing a second
+// path lookup against the guest.
+func openGuestFile(statusDir, name string) (*os.File, os.FileInfo, bool) {
+	if statusDir == "" {
+		return nil, nil, false
+	}
+	f, err := os.OpenFile(
+		filepath.Join(statusDir, name),
+		os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK,
+		0,
+	)
+	if err != nil {
+		return nil, nil, false
+	}
+	fi, err := f.Stat()
+	if err != nil || !fi.Mode().IsRegular() {
+		f.Close()
+		return nil, nil, false
+	}
+	return f, fi, true
+}
+
+// guestMarkerMaxBytes bounds the scalar markers: an exit code, a percentage, a
+// millisecond count, a promote outcome. Set orders of magnitude above anything
+// the guest legitimately writes, so it binds only on a file the host has no
+// reason to be holding in memory in the first place.
+const guestMarkerMaxBytes = 4 << 10
+
+// guestHeadMaxBytes bounds volume-head.json, whose presigned download URL is the
+// one field that is not a handful of bytes.
+const guestHeadMaxBytes = 64 << 10
+
+// readGuestFile returns the bytes of a guest-written status file, or false when
+// the guest left something other than a plain file. Oversize reads as absent
+// rather than truncated: every caller parses a whole value, and half of one is
+// not a value.
+func readGuestFile(statusDir, name string, maxBytes int64) ([]byte, bool) {
+	f, _, ok := openGuestFile(statusDir, name)
+	if !ok {
+		return nil, false
+	}
+	defer f.Close()
+
+	b, err := io.ReadAll(io.LimitReader(f, maxBytes+1))
+	if err != nil || int64(len(b)) > maxBytes {
+		return nil, false
+	}
+	return b, true
+}
+
 // readRunnerExit reads the guest-reported exit code from the status share.
 // The bool is false when the guest reported nothing usable.
 //
@@ -119,11 +181,8 @@ const (
 // this file exists to close. Out of range therefore reads as unreported,
 // the same as no file at all.
 func readRunnerExit(statusDir string) (int32, bool) {
-	if statusDir == "" {
-		return 0, false
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, runnerExitFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, runnerExitFile, guestMarkerMaxBytes)
+	if !ok {
 		return 0, false
 	}
 	// ParseInt over Atoi so an oversized value fails here rather than
@@ -143,32 +202,18 @@ func readRunnerExit(statusDir string) (int32, bool) {
 // is what it said last. runnerLogTail reduces the scanned window to the
 // published line and byte budgets.
 //
-// Opened O_NOFOLLOW and required to be a regular file, because the guest
-// writes this path and the guest runs untrusted customer CI. A job that
-// replaces runner.log with a symlink would otherwise have the host
-// resolve it and publish up to runnerLogTailBytes of a host-readable
-// file to Loki — the guest picks the target, the host does the reading.
-// O_NONBLOCK covers the same trick with a FIFO, where the open itself
-// would park this reconcile until something wrote to the other end.
-// Whatever the guest left is inspected but never trusted to be a file.
+// Read through openGuestFile, which is what keeps a guest-planted
+// symlink or FIFO at this path from being followed. The stake is highest
+// here of all the status-share readers: this one's output goes to Loki,
+// so a followed symlink publishes up to runnerLogTailBytes of a
+// host-readable file the guest chose.
 func readRunnerLog(statusDir string) string {
-	if statusDir == "" {
-		return ""
-	}
-	f, err := os.OpenFile(
-		filepath.Join(statusDir, runnerLogFile),
-		os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK,
-		0,
-	)
-	if err != nil {
+	f, fi, ok := openGuestFile(statusDir, runnerLogFile)
+	if !ok {
 		return ""
 	}
 	defer f.Close()
 
-	fi, err := f.Stat()
-	if err != nil || !fi.Mode().IsRegular() {
-		return ""
-	}
 	offset := int64(0)
 	if fi.Size() > runnerLogScanBytes {
 		offset = fi.Size() - runnerLogScanBytes
@@ -184,13 +229,11 @@ func readRunnerLog(statusDir string) string {
 // is the moment it halted. Used to date a stop on the recovered path,
 // where no `tart run` handle survived to have observed the exit itself.
 func readRunnerExitTime(statusDir string) (time.Time, bool) {
-	if statusDir == "" {
+	f, fi, ok := openGuestFile(statusDir, runnerExitFile)
+	if !ok {
 		return time.Time{}, false
 	}
-	fi, err := os.Stat(filepath.Join(statusDir, runnerExitFile))
-	if err != nil {
-		return time.Time{}, false
-	}
+	defer f.Close()
 	return fi.ModTime(), true
 }
 
@@ -391,11 +434,8 @@ const uploadMillisFile = "volume-upload-ms"
 // readUploadMillis returns the guest-reported upload duration in ms, or -1 when
 // absent (no promote, or the job did not upload).
 func readUploadMillis(statusDir string) int64 {
-	if statusDir == "" {
-		return -1
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, uploadMillisFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, uploadMillisFile, guestMarkerMaxBytes)
+	if !ok {
 		return -1
 	}
 	ms, err := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 64)
@@ -413,11 +453,8 @@ const fillPercentFile = "cache-fill-percent"
 
 // readFillPercent returns the guest-reported image fill %, or -1 when absent.
 func readFillPercent(statusDir string) int {
-	if statusDir == "" {
-		return -1
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, fillPercentFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, fillPercentFile, guestMarkerMaxBytes)
+	if !ok {
 		return -1
 	}
 	pct, err := strconv.Atoi(strings.TrimSpace(string(b)))
@@ -485,11 +522,8 @@ type promoteResult struct {
 
 // readPromoteResult parses the guest-relayed promote outcome.
 func readPromoteResult(statusDir string) promoteResult {
-	if statusDir == "" {
-		return promoteResult{}
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, promoteResultFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, promoteResultFile, guestMarkerMaxBytes)
+	if !ok {
 		return promoteResult{}
 	}
 	fields := strings.Fields(string(b))
@@ -525,11 +559,8 @@ type volumeHead struct {
 }
 
 func readVolumeHead(statusDir string) *volumeHead {
-	if statusDir == "" {
-		return nil
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, volumeHeadFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, volumeHeadFile, guestHeadMaxBytes)
+	if !ok {
 		return nil
 	}
 	var h volumeHead
@@ -799,11 +830,8 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 // Returns (present, dirty): present is false when the guest never wrote it
 // (crashed / incomplete job), which the caller treats as "discard".
 func readDirtyMarker(statusDir string) (present, dirty bool) {
-	if statusDir == "" {
-		return false, false
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, dirtyMarkerFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, dirtyMarkerFile, guestMarkerMaxBytes)
+	if !ok {
 		return false, false
 	}
 	return true, strings.TrimSpace(string(b)) == "1"
