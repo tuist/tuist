@@ -1395,6 +1395,11 @@ k8s-monitoring:
           - key: tuist.dev/stable-egress
             operator: Exists
             effect: NoSchedule
+          # Scaleway Elastic Metal cache pool (kura-scw-fr-par), which
+          # registers with tuist.dev/runner-cache=true:NoSchedule.
+          - key: tuist.dev/runner-cache
+            operator: Exists
+            effect: NoSchedule
     # Kubernetes Events must come from exactly one replica — otherwise
     # every pod watches the event stream and emits duplicate log lines.
     alloy-singleton:
