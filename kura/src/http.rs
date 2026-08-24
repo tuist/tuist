@@ -1572,7 +1572,7 @@ async fn get_keyvalue(
                     state
                         .metrics
                         .record_memory_action("keyvalue_response_materialization_rejected");
-                    return response_stream_unavailable(&state.memory);
+                    return response_stream_shed(&state.memory);
                 }
             };
             state
@@ -2267,7 +2267,7 @@ async fn internal_backfill_artifact(
         .try_acquire_background_response_stream_memory(requested_bytes, "backfill")
     {
         Ok(permit) => permit,
-        Err(_) => return response_stream_unavailable(&state.memory),
+        Err(_) => return peer_response_stream_unavailable(&state.memory),
     };
 
     match state
@@ -2475,7 +2475,7 @@ async fn internal_backfill_bodies(State(state): State<SharedState>, request: Req
             state
                 .metrics
                 .record_backfill_bodies_peer_request(&peer_label, "backpressure");
-            return response_stream_unavailable(&state.memory);
+            return peer_response_stream_unavailable(&state.memory);
         }
     };
     let file = match state.io.open_file(&spool.path).await {
@@ -2981,7 +2981,11 @@ async fn get_artifact(
                 );
             } else if response.status() == StatusCode::NOT_FOUND {
                 state.metrics.record_artifact_read(producer, "not_found", 0);
-            } else {
+            } else if response.status() != StatusCode::TOO_MANY_REQUESTS {
+                // A shed is admission, not a read outcome: no read was attempted,
+                // and counting it as an error puts capacity back into the signal
+                // this route's error rate is read from. The accelerated path
+                // records nothing for the same reason.
                 state.metrics.record_artifact_read(producer, "error", 0);
             }
             response
@@ -3275,7 +3279,7 @@ async fn serve_file_reader(
                 .await
             {
                 Ok(permit) => (permit, RESPONSE_STREAM_MIN_CHUNK_BYTES),
-                Err(_) => return response_stream_unavailable(&state.memory),
+                Err(_) => return response_stream_shed(&state.memory),
             }
         }
     };
@@ -3309,7 +3313,28 @@ async fn serve_file_reader(
     }
 }
 
-fn response_stream_unavailable(memory: &MemoryController) -> Response {
+/// Sheds a public read that could not be admitted a response stream.
+///
+/// Backpressure rather than a fault: the node is healthy and the same request
+/// succeeds once a permit frees, so a 5xx here would be indistinguishable from
+/// an unreachable auth backend or a failed transfer. Both admission outcomes
+/// land here, including the queue-full one that gives up before waiting at
+/// all, which is another reason not to describe it as the service being
+/// unavailable.
+fn response_stream_shed(memory: &MemoryController) -> Response {
+    let mut response = error_response(
+        StatusCode::TOO_MANY_REQUESTS,
+        "The server is limiting concurrent artifact response streams; retry shortly".to_string(),
+    );
+    retry_after(&mut response, memory.response_stream_retry_after_seconds());
+    response
+}
+
+/// The peer counterpart, on the background pool. It stays 503: internal routes
+/// are outside the public error signal this split exists to clean up, and the
+/// requester already treats a 503 carrying `Retry-After` as budget-exempt
+/// backpressure (`classify_backfill_response`).
+fn peer_response_stream_unavailable(memory: &MemoryController) -> Response {
     let mut response = error_response(
         StatusCode::SERVICE_UNAVAILABLE,
         "The server is limiting concurrent artifact response streams; retry shortly".to_string(),
@@ -5977,17 +6002,26 @@ mod tests {
             .await
             .expect("get request failed");
 
-        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
         assert_retryable_hint(
             &response,
             backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS,
         );
+        let metrics = context.state.metrics.render();
+        assert!(metrics.contains("outcome=\"degraded_memory_unavailable\""));
         assert!(
-            context
-                .state
-                .metrics
-                .render()
-                .contains("outcome=\"degraded_memory_unavailable\"")
+            metrics.lines().any(|line| {
+                line.starts_with("kura_http_requests_total")
+                    && line.contains("route=\"/api/cache/cas/{id}\"")
+                    && line.contains("status=\"429\"")
+            }),
+            "the shed must be counted as backpressure on the read route"
+        );
+        assert!(
+            !metrics.lines().any(|line| {
+                line.starts_with("kura_http_exceptions_total") && line.contains("server_error")
+            }),
+            "a capacity shed must not be counted as a server error"
         );
     }
 
@@ -6904,7 +6938,7 @@ mod tests {
         let memory =
             MemoryController::new(Metrics::new("eu-west".into(), "tenant".into()), 100, 200);
         let values: std::collections::HashSet<u64> = (0..64)
-            .map(|_| retry_after_hint(&response_stream_unavailable(&memory)))
+            .map(|_| retry_after_hint(&response_stream_shed(&memory)))
             .collect();
 
         assert!(
@@ -6922,10 +6956,24 @@ mod tests {
     }
 
     #[test]
-    fn response_stream_admission_failure_is_retryable() {
+    fn public_response_stream_admission_failure_is_rate_limited() {
         let memory =
             MemoryController::new(Metrics::new("eu-west".into(), "tenant".into()), 100, 200);
-        let response = response_stream_unavailable(&memory);
+        let response = response_stream_shed(&memory);
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(!response.status().is_server_error());
+        assert_retryable_hint(
+            &response,
+            backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS,
+        );
+    }
+
+    #[test]
+    fn peer_response_stream_admission_failure_is_retryable() {
+        let memory =
+            MemoryController::new(Metrics::new("eu-west".into(), "tenant".into()), 100, 200);
+        let response = peer_response_stream_unavailable(&memory);
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
         assert_retryable_hint(

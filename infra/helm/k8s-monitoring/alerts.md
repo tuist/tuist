@@ -512,6 +512,64 @@ separate them because every host, healthy or not, has quiet stretches. Scope thi
 to the runner fleet: `macos-fleet` and `builders-fleet` hosts sit at a couple of
 hundred B/s legitimately, since they run no cache-using VMs.
 
+### Kura cache read faults
+
+```promql
+sum by (cluster, pod, route) (
+  rate(kura_http_requests_total_total{
+    namespace="kura",
+    route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+    status=~"5.."
+  }[5m])
+)
+```
+
+- Threshold: `> 0.1`, as a separate threshold expression on `A` rather than a
+  comparison inside the PromQL, so the alert value is the failure rate itself
+- Pending period: 5 minutes
+- Live: rule `cftoutryd1jwge`, titled `Kura - 5xx errors on public cache
+  routes`, folder `Alerts`, group `Cache`, receiver `Slack #notifications 2`
+  (routed by notification settings, so it carries no `severity` label),
+  `no_data_state: OK`. It was originally titled for `/api/cache/module/{id}` and
+  ran `sum by (pod) (increase(kura_http_requests_total_total{namespace="kura",
+  route="/api/cache/module/{id}", status=~"5.."}[5m])) > 0` — one route, firing
+  on a single 5xx.
+- **The rule lives in Grafana, not in this repo.** Nothing provisions it from
+  here, so an edit means pasting into the rule editor and updating this section
+  to match.
+- Summary: `Kura pod {{ $labels.pod }} is failing requests on
+  {{ $labels.route }} ({{ $labels.cluster }})`
+
+A 5xx on the public cache routes now means one thing: the node could not serve a
+request it should have served. The two survivors are an unreachable auth backend
+(`kura_auth_decisions_total{result="unavailable"}`) and a transfer that failed
+for a reason other than the client going away. Capacity shedding used to land
+here as a 503 and no longer does, which is what makes a fixed low threshold
+meaningful again — before the split, this rule fired on 25,882 sheds in a single
+ten-minute window while the node was healthy and serving 27,418 reads alongside
+them.
+
+One expected 5xx source remains: a draining pod answers public requests with
+`503 server is draining` until it leaves the Service endpoints, so a rolling
+deploy puts a short 5xx blip on this rule. The 5-minute pending period is what
+absorbs it; if a deploy ever trips the rule, lengthen the pending period rather
+than lowering the threshold, since the blip is bounded by the drain timeout
+(`KURA_DRAIN_COMPLETION_TIMEOUT_MS`) and a real fault is not.
+
+Match by exclusion rather than by naming one route: every public cache read
+shares the same serving path, so a fault on the CAS or Gradle route is the same
+event with a different label, and the exclusion form is the one the `tuist-kura`
+dashboard uses for public traffic. There is no `tenant_id` label on
+`kura_http_requests_total` — it comes from a join against `kura_node_info` — so
+group by `pod`, whose name carries the account (`kura-<account>-<region>-<n>`).
+
+Widening the routes does not make it noisier, because the threshold moves at the
+same time. Over the 7 days to 2026-08-21 the original form (one route, fires on
+a single 5xx) held its condition for 390 pod-minutes; the form above, across
+every public route, holds for 250. It also surfaces something the original could
+not see: 20 minutes of 5xx on `/api/cache/module/start`, a write route, on a pod
+the old rule never looked at.
+
 ### Kura cache pod restart loop
 
 ```promql
@@ -1150,6 +1208,139 @@ absent_over_time(
 - Summary: `The public endpoint check stopped producing telemetry`
 
 ## Warning alerts
+
+### Kura shedding cache reads under capacity pressure
+
+```promql
+(
+  sum by (cluster, pod) (
+    rate(kura_http_requests_total_total{
+      namespace="kura",
+      route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+      status="429"
+    }[5m])
+  )
+  /
+  clamp_min(
+    sum by (cluster, pod) (
+      rate(kura_http_requests_total_total{
+        namespace="kura",
+        route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+        status="429"
+      }[5m])
+    )
+    +
+    (
+      sum by (cluster, pod) (
+        rate(kura_artifact_reads_total_total{result="ok", producer!="reapi"}[5m])
+      )
+      or
+      sum by (cluster, pod) (
+        rate(kura_http_requests_total_total{
+          namespace="kura",
+          route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+          status="429"
+        }[5m])
+      ) * 0
+    ),
+    0.01
+  )
+)
+and
+sum by (cluster, pod) (
+  rate(kura_http_requests_total_total{
+    namespace="kura",
+    route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+    status="429"
+  }[5m])
+) > 1
+```
+
+- Threshold: `> 0.05`, as a separate threshold expression on `A`. The volume
+  floor stays inside the PromQL, since `and` filters the series rather than
+  reducing it to a boolean, which keeps the shed ratio as the alert value
+- Pending period: 10 minutes
+- Severity: warning
+- Live: rule `dfvv8qn09k1z4b`, folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`, `no_data_state: OK`. It reads Normal until the 429
+  change is deployed, since no node emits the status yet.
+- Summary: `Kura pod {{ $labels.pod }} is shedding
+  {{ $values.A.Value | humanizePercentage }} of cache reads in
+  {{ $labels.cluster }} — it is out of response-stream capacity, not broken`
+
+`$values.A.Value`, not `$value`: the ratio is query `A` and the threshold is a
+separate expression, so `$value` renders both refIds rather than the percentage.
+`no_data_state: OK` is load-bearing too — the `and` returns an empty vector
+whenever the volume floor is not met, which is most of the time.
+
+Kura answers a read it cannot admit a response stream for with `429` and
+`Retry-After: 1`. Clients retry, so a shed is a slowdown rather than a failure,
+and a short burst is the admission control working. What matters is the share of
+reads being shed and for how long, which is why this is rate-relative: an
+absolute count fires on the busiest tenant first no matter how well they are
+being served, and the same count means very different things at 200 req/s and at
+20,000 req/s.
+
+The threshold is a ratio because the lever is capacity, and the decision it
+feeds is a capacity decision: sustained shedding means the tenant's peak demand
+is above what their node's uplink can deliver, so the fix is egress budget or
+placement, not a restart. Which admission stage refused breaks down as:
+
+```promql
+sum by (pod, outcome) (
+  rate(kura_response_stream_admissions_total_total{
+    outcome=~"timeout|queue_full|degraded_timeout|degraded_memory_unavailable"
+  }[5m])
+)
+```
+
+Note the doubled suffix: the counter is registered as
+`kura_response_stream_admissions_total` and reaches Grafana Cloud as
+`..._total_total`, the same as `kura_http_requests_total_total`. Do not build
+the alert itself on that counter. One request can record more than one outcome —
+a read that records `queue_full` on its full-size attempt and then succeeds on
+the degraded pool records `degraded` too — so it counts admission attempts, not
+shed requests. The HTTP status is one value per request and is the only
+unambiguous shed signal.
+
+**Two details in this query are load-bearing, both measured over the 7 days to
+2026-08-21 using the pre-change 503s as a proxy for the 429s.**
+
+The denominator is the reads that wanted bytes: successful artifact reads plus
+sheds. It cannot be assembled from HTTP status alone. Excluding 404s matters
+first — the module cache runs a high miss rate and 404s were 12.3M of 21.9M
+public requests in that week, so counting them reports 6.9% where the reads
+that mattered were shed at 17.2%, and the number would drift down as the hit
+rate improves, which is exactly backwards. But `status="200"` is not the
+complement either: **`kura_http_requests_total` carries no method label**, so a
+200 there is also an Nx or Metro `PUT`, a repeat Gradle upload (201 when new,
+**200 when it already exists**), or a `/status/cluster` poll, none of which
+wanted artifact bytes. Only the CAS write escapes it, by answering 204.
+
+`kura_artifact_reads_total{result="ok"}` is the honest denominator: it counts
+artifact reads that produced bytes and nothing else, and it is recorded on both
+the accelerated and the streaming serving path. Exclude `producer="reapi"` or
+gRPC reads swamp the ratio — they are 7.8M of the fleet's 15.7M weekly reads
+and they never carry an HTTP status, so a REAPI-heavy pod would show a shed
+ratio near zero no matter how hard it was shedding over HTTP.
+
+The `or ... * 0` around it is not decoration. `+` between two metrics matches
+on labels, so a pod with sheds but **no** successful reads in the window — a
+node shedding everything, the case the rule most needs to catch — has no
+matching series on the right and drops out of the result entirely. The `or`
+supplies a zero for those pods so the ratio stays defined at 1.0.
+
+The absolute floor exists because a ratio alone fires on idle pods: a pod
+answering two requests, one of them shed, reads as 50%. Without the floor,
+`kura-tuist-scw-fr-par-0` spent 35 minutes of that week above 5% purely on low
+volume; with it, 15. That pod recorded **zero** response-stream admission
+failures over the same week, so its 503s were never sheds and will not appear as
+429s at all — worth remembering when reading a ratio on a quiet pod.
+
+For scale, the rule would have been quiet: 90 and 85 minutes above threshold in
+that week on the two busy pods, in bursts that peaked between 47% and 100%, with
+at least one burst per pod holding above 5% for a full 10 minutes. Nothing else
+in the fleet came close.
 
 ### Swift registry release work repeatedly deferred
 
