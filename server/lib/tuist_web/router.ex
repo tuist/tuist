@@ -1191,6 +1191,7 @@ defmodule TuistWeb.Router do
 
       live "/settings", ProjectSettingsLive
       live "/settings/automations", ProjectAutomationsLive
+      live "/settings/automations/:automation_id", ProjectAutomationLive
       live "/settings/bundles", ProjectBundleSettingsLive
       live "/settings/notifications", ProjectNotificationsLive
     end

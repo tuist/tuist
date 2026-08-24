@@ -198,13 +198,14 @@ async fn serve_connection(
                 drop(permit);
                 consume_headers(&mut stream, denial.header_len).await?;
                 let headers = BTreeMap::new();
+                let body = json_error_body(&denial.body);
                 let result = write_response(
                     &mut stream,
                     denial.status,
                     denial.reason,
-                    "text/plain",
+                    JSON_CONTENT_TYPE,
                     &headers,
-                    denial.body.as_bytes(),
+                    body.as_bytes(),
                 )
                 .await;
                 state.metrics.record_http(
@@ -567,23 +568,32 @@ async fn serve_accelerated(
         .await
     {
         Ok(permit) => permit,
+        // Shedding for want of a response-stream permit is capacity
+        // backpressure, not a fault: the node is healthy and the same request
+        // succeeds once a permit frees. It is 429 so a 5xx on an artifact read
+        // keeps meaning a real server fault (an unreachable auth backend, or a
+        // transfer that failed for a reason other than the client going away).
         Err(_) => {
             let mut stream = stream;
-            let headers = BTreeMap::from([("retry-after".to_owned(), "1".to_owned())]);
-            let body =
-                b"The server is limiting concurrent artifact response streams; retry shortly";
+            let headers = BTreeMap::from([(
+                "retry-after".to_owned(),
+                memory.response_stream_retry_after_seconds().to_string(),
+            )]);
+            let body = json_error_body(
+                "The server is limiting concurrent artifact response streams; retry shortly",
+            );
             write_response(
                 &mut stream,
-                503,
-                "Service Unavailable",
-                "text/plain",
+                429,
+                "Too Many Requests",
+                JSON_CONTENT_TYPE,
                 &headers,
-                body,
+                body.as_bytes(),
             )
             .await?;
             state.metrics.record_http(
                 route,
-                StatusCode::SERVICE_UNAVAILABLE,
+                StatusCode::TOO_MANY_REQUESTS,
                 transfer_started_at.elapsed(),
             );
             return Ok(None);
@@ -1073,6 +1083,19 @@ fn sanitized_content_type(content_type: &str) -> String {
     }
 }
 
+/// The accelerated path answers the same routes as the Axum handlers, so its
+/// errors have to be the same bytes: the published contract declares
+/// `application/json` for them, and a generated client rejects a mismatched
+/// content type before it can decode the status into its typed case. A shed
+/// answered as `text/plain` here reached clients as an undecodable response
+/// rather than as backpressure.
+const JSON_CONTENT_TYPE: &str = "application/json";
+
+/// Mirrors `error_response` in `http.rs`: `{"message": "..."}`.
+fn json_error_body(message: &str) -> String {
+    serde_json::json!({ "message": message }).to_string()
+}
+
 fn reason_for_status(status: u16) -> &'static str {
     match status {
         400 => "Bad Request",
@@ -1344,8 +1367,8 @@ mod tests {
 
     use super::{
         AcceleratedCandidate, AcceleratedReadCacheDrop, ArtifactRequest, ParsedRequest,
-        TransferFailure, artifact_request, parse_request, request_wants_keep_alive,
-        sanitized_content_type, serve_accelerated, system_page_bytes,
+        TransferFailure, artifact_request, json_error_body, parse_request,
+        request_wants_keep_alive, sanitized_content_type, serve_accelerated, system_page_bytes,
     };
 
     #[test]
@@ -1548,6 +1571,18 @@ mod tests {
     }
 
     #[test]
+    fn error_bodies_match_the_axum_error_shape() {
+        // Auth denials share this helper with the shed above, so both answer the
+        // `application/json` the routes publish rather than the plain text the
+        // accelerated path used to write.
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&json_error_body("nope"))
+                .expect("body should be JSON"),
+            serde_json::json!({ "message": "nope" })
+        );
+    }
+
+    #[test]
     fn sanitizes_content_type_with_unsafe_characters() {
         assert_eq!(sanitized_content_type("application/zip"), "application/zip");
         assert_eq!(
@@ -1642,8 +1677,35 @@ mod tests {
             .await
             .expect("read accelerated response");
         let response = String::from_utf8(response).expect("response should be valid UTF-8");
-        assert!(response.starts_with("HTTP/1.1 503 Service Unavailable\r\n"));
-        assert!(response.contains("retry-after: 1\r\n"));
+        assert!(response.starts_with("HTTP/1.1 429 Too Many Requests\r\n"));
+        // The published contract declares `application/json` for this status, and a
+        // generated client checks the content type before it decodes the status, so
+        // these bytes have to match what the Axum path writes.
+        assert!(response.contains("content-type: application/json\r\n"));
+        let body = response
+            .split_once("\r\n\r\n")
+            .expect("response should have a body")
+            .1;
+        let body: serde_json::Value = serde_json::from_str(body).expect("body should be JSON");
+        assert_eq!(
+            body,
+            serde_json::json!({
+                "message": "The server is limiting concurrent artifact response streams; retry shortly"
+            })
+        );
+        let retry_after: u64 = response
+            .lines()
+            .find_map(|line| line.strip_prefix("retry-after: "))
+            .expect("shed must be retryable")
+            .trim()
+            .parse()
+            .expect("numeric retry-after");
+        assert!(
+            (crate::backpressure::MIN_RETRY_AFTER_SECONDS
+                ..=crate::backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS)
+                .contains(&retry_after),
+            "retry-after {retry_after} outside the jittered window"
+        );
         assert!(!response.contains("200 OK"));
 
         drop((elastic_pool_hog, pool_hog));

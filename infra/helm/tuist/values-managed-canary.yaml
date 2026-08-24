@@ -242,6 +242,16 @@ kuraController:
       enabled: true
       item: kura-sentry
 
+# Only the shared mesh cache pools are listed. The runner-cache pool
+# (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
+# and its traffic is node-local runner reads that must not be shaped.
+# betaPodPrefix keeps the first enforcement step on kura-tuist-* pods.
+egressTreeAgent:
+  enabled: true
+  image: ghcr.io/tuist/egress-tree-agent@sha256:b0e324e95d04cee3a63e536a7a0eb00acebcd365ae475c513741572b50f7a75d
+  nodePools: [kura-dedibox, kura-ca-east]
+  betaPodPrefix: "kura-tuist-"
+
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Matches the cluster's general-purpose
 # hcloud-worker pool (md-0, replicas: 2) — hard pod anti-affinity

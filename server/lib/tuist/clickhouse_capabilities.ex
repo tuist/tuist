@@ -11,9 +11,13 @@ defmodule Tuist.ClickHouseCapabilities do
   the server what it supports instead.
   """
 
+  alias Tuist.ClickHouseVersions
   alias Tuist.Environment
 
   @deduplicate_insert_select_since [26, 1]
+  @minimum_supported_version ClickHouseVersions.minimum_supported_version()
+                             |> String.split(".")
+                             |> Enum.map(&String.to_integer/1)
 
   @doc """
   Whether `generateSerialID/1` is usable against `repo`, which requires a
@@ -57,6 +61,32 @@ defmodule Tuist.ClickHouseCapabilities do
   end
 
   defp numeric?(version_component), do: match?({_integer, ""}, Integer.parse(version_component))
+
+  @doc """
+  Raises unless `repo` runs a ClickHouse release within the supported range
+  published in the self-hosting requirements.
+
+  The version gates in this module reason about that range rather than about
+  every release ClickHouse has ever shipped: `insert_select_deduplication_settings/1`
+  omits `deduplicate_insert_select` below 26.1 because releases in the supported
+  range deduplicate `INSERT SELECT` under `insert_deduplicate` on their own. Below
+  the floor that premise is untested, so an upgrade stops here, before any
+  migration has run, instead of failing part-way through against a server whose
+  behaviour we do not model.
+  """
+  def assert_supported_version!(repo) do
+    version = server_version(repo)
+
+    if Enum.take(version, length(@minimum_supported_version)) < @minimum_supported_version do
+      raise """
+      ClickHouse #{Enum.join(version, ".")} is older than the minimum version Tuist supports (#{Enum.join(@minimum_supported_version, ".")}).
+
+      Upgrade ClickHouse before upgrading Tuist. No migration has run, so the database is unchanged.
+      """
+    end
+
+    :ok
+  end
 
   @doc """
   Settings that make an `INSERT SELECT` deduplicate against its

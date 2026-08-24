@@ -36,7 +36,7 @@ extension XcodeGraph.Workspace {
                 $0.basename != Constants.tuistDirectoryName
                     && !SwiftPackageManagerPaths.isPath(
                         $0,
-                        inSwiftPackageManagerCheckoutsOf: swiftPackageManagerScratchDirectory
+                        inSwiftPackageManagerPackageSourcesOf: swiftPackageManagerScratchDirectory
                     )
             }
             .uniqued()

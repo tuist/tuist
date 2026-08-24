@@ -93,6 +93,19 @@ public struct RetryMiddleware: ClientMiddleware {
         let boundedMilliseconds = milliseconds.overflow
             ? HTTPRetryPolicy.maximumDelayMilliseconds
             : min(milliseconds.partialValue, HTTPRetryPolicy.maximumDelayMilliseconds)
-        return max(policyDelay, boundedMilliseconds * 1_000_000)
+        let retryAfter = boundedMilliseconds * 1_000_000
+        guard retryAfter > 0 else { return policyDelay }
+        return max(policyDelay, retryAfter + jitter(onTopOf: retryAfter))
     }
+
+    /// `Retry-After` is a floor expressed in whole seconds, so without a smear across the
+    /// second it names every client the server shed at once wakes on the same instant.
+    private static func jitter(onTopOf retryAfter: UInt64) -> UInt64 {
+        let maximumDelay = HTTPRetryPolicy.maximumDelayMilliseconds * 1_000_000
+        let span = min(retryAfterResolutionNanoseconds, maximumDelay - retryAfter)
+        guard span > 0 else { return 0 }
+        return UInt64.random(in: 0 ... span)
+    }
+
+    private static let retryAfterResolutionNanoseconds: UInt64 = 1_000_000_000
 }

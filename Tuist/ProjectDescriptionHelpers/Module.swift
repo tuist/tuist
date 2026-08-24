@@ -1853,6 +1853,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.threadSafe.targetName),
                     .external(name: "PathKit"),
                     .external(name: "XcodeProj"),
