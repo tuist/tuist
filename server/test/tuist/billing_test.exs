@@ -556,6 +556,35 @@ defmodule Tuist.BillingTest do
       %{account: Accounts.get_account_from_user(user)}
     end
 
+    test "adding runner items never invoices usage recorded before they existed", %{account: account} do
+      # A trial's whole promise is that its minutes are free. Stripe's
+      # default proration can bill usage already recorded in the open
+      # period when the item is added, which would charge for exactly the
+      # minutes the trial covered.
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        subscription_id: "sub_ending_trial",
+        plan: :pro,
+        status: "active"
+      )
+
+      stub(Stripe.Subscription, :retrieve, fn "sub_ending_trial" ->
+        {:ok, %Stripe.Subscription{items: %{data: []}}}
+      end)
+
+      parent = self()
+
+      stub(Stripe.Subscription, :update, fn "sub_ending_trial", params ->
+        send(parent, {:params, params})
+        {:ok, %{}}
+      end)
+
+      assert {:ok, _} = Billing.sync_runner_subscription_items(account)
+
+      assert_received {:params, params}
+      assert params.proration_behavior == "none"
+    end
+
     test "keeps an existing runner item instead of deleting and re-adding it", %{account: account} do
       # Given a subscription that already carries the Linux runner item, so
       # its accrued usage would be lost if the plan change deleted it.

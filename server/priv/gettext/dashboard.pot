@@ -2040,11 +2040,6 @@ msgstr ""
 msgid "Cancel runner trial"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:176
-#, elixir-autogen, elixir-format
-msgid "Cancelling adds the runner items to this account's subscription, which makes its runner usage billable. Prefer cancelling at the end of a billing period: usage already recorded in the current one may become billable when the item is added."
-msgstr ""
-
 #: lib/tuist_web/live/ops_account_live.ex:177
 #, elixir-autogen, elixir-format
 msgid "Could not bill prepaid minutes: %{reason}"
@@ -2148,4 +2143,9 @@ msgstr ""
 #: lib/tuist_web/live/ops_account_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "Trial"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Cancelling adds the runner items to this account's subscription, which makes its runner usage billable from that moment. Minutes it ran during the trial stay free, including those already recorded in the current billing period."
 msgstr ""

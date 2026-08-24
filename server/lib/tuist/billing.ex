@@ -541,9 +541,9 @@ defmodule Tuist.Billing do
   account with no active subscription — that account picks the items up
   from `get_subscription_items/2` whenever it next gets one.
 
-  Whether ending a trial mid-period makes that period's earlier usage
-  billable depends on the subscription's `billing_mode`. See
-  `Tuist.Runners.Trials`, and prefer a period boundary.
+  Items are added with `proration_behavior: "none"` so ending a trial
+  mid-period cannot invoice the usage the trial covered. See
+  `Tuist.Runners.Trials`.
   """
   def sync_runner_subscription_items(%Account{} = account) do
     case get_current_active_subscription(account) do
@@ -575,8 +575,16 @@ defmodule Tuist.Billing do
       end
 
     case changes do
-      [] -> {:ok, :unchanged}
-      changes -> Stripe.Subscription.update(subscription_id, %{items: changes})
+      [] ->
+        {:ok, :unchanged}
+
+      changes ->
+        # `none` is what makes a trial's minutes free in fact rather than
+        # by convention. Stripe's default settles the amount accrued
+        # before the change, so adding the runner item mid-period can
+        # invoice usage the account ran while it had no runner item at
+        # all, which is precisely the usage the trial covered.
+        Stripe.Subscription.update(subscription_id, %{items: changes, proration_behavior: "none"})
     end
   end
 

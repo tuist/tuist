@@ -26,18 +26,17 @@ defmodule Tuist.Runners.Trials do
   An account with no subscription simply has the trial cleared; it will
   pick the items up whenever it next gets one.
 
-  What happens to usage already metered earlier in the period depends on
-  the subscription's `billing_mode`, which we never set, so it is
-  whatever each subscription was created with and can differ per
-  account. On `classic`, adding a meter-priced item mid-cycle bills only
-  the usage recorded from the date the item was added, so the backlog is
-  not charged. On `flexible`, Stripe prices usage at whatever price was
-  in effect when the usage happened, and the documentation covers
-  changing an item's price rather than adding an item that did not exist,
-  so it does not say what happens when no price was in effect at all.
+  Usage the account ran during the trial stays free, including usage
+  already recorded in the billing period the trial ends in. The items
+  are added with `proration_behavior: "none"`, so Stripe does not settle
+  the amount accrued before they existed. Without it the default
+  proration can invoice exactly the minutes the trial was covering.
 
-  Read the account's `billing_mode` before ending a trial mid-period.
-  Ending one at a period boundary avoids the question entirely.
+  On `billing_mode=classic` this is belt and braces, since adding a
+  meter-priced item mid-cycle already bills only from the date it was
+  added. On `flexible`, where Stripe otherwise prices usage at whatever
+  price was in effect when it happened, it is what makes the guarantee
+  hold.
 
   https://docs.stripe.com/billing/subscriptions/usage-based/manage-billing-setup
   """

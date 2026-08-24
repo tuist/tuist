@@ -405,7 +405,10 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
       assert has_element?(lv, "#runner-trial-active-alert")
-      assert render(lv) =~ "may become billable when the item is added"
+      # The panel promises the trial's minutes stay free rather than
+      # warning that they might not; Tuist.BillingTest covers the
+      # proration parameter that makes that true.
+      assert render(lv) =~ "Minutes it ran during the trial stay free"
 
       lv |> element("button", "Cancel runner trial") |> render_click()
 
