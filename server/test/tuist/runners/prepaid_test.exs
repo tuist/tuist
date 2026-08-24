@@ -2,7 +2,9 @@ defmodule Tuist.Runners.PrepaidTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Billing
   alias Tuist.Billing.CreditGrants
   alias Tuist.Billing.Invoices
   alias Tuist.Environment
@@ -22,6 +24,14 @@ defmodule Tuist.Runners.PrepaidTest do
     end)
 
     stub(CreditGrants, :list_for_customer, fn _customer_id -> {:ok, []} end)
+
+    # Every grant is dated from the account's billing period, so the
+    # tests that are not about expiry still need one to exist.
+    stub(Accounts, :get_account_from_customer_id, fn _id -> {:ok, %Account{id: 1}} end)
+
+    stub(Billing, :current_billing_period, fn _account ->
+      {~U[2026-08-01 00:00:00Z], ~U[2026-09-01 00:00:00Z]}
+    end)
 
     :ok
   end
@@ -51,6 +61,11 @@ defmodule Tuist.Runners.PrepaidTest do
 
   # Stubs the lines endpoint for whatever invoice is asked about, so a
   # test only has to say what is on the bill.
+  defp stub_account_period(period_end) do
+    stub(Accounts, :get_account_from_customer_id, fn _id -> {:ok, %Account{id: 1}} end)
+    stub(Billing, :current_billing_period, fn _account -> {DateTime.add(period_end, -30, :day), period_end} end)
+  end
+
   defp stub_lines(lines) do
     stub(Invoices, :list_lines, fn _invoice_id -> {:ok, lines} end)
   end
@@ -171,10 +186,51 @@ defmodule Tuist.Runners.PrepaidTest do
       assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
     end
 
-    test "honours a per-deal expiry and rejects an out-of-range one" do
+    test "expires the grant at the end of the billing period it was bought in" do
+      # Minutes belong to a month and do not roll over, so the grant ends
+      # with the period the invoice paid for rather than living on for a
+      # year and quietly accumulating across months.
+      now = ~U[2026-08-18 12:00:00Z]
+      period_end = ~U[2026-09-01 00:00:00Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      stub_account_period(period_end)
+
+      stub_lines([line()])
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.expires_at == period_end
+        {:ok, %{id: "credgr_1"}}
+      end)
+
+      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+    end
+
+    test "falls back to a month out when the account has no billing period" do
+      # The money is already collected, so an account Stripe reports no
+      # period for must still get its minutes. A month keeps the promise
+      # monthly rather than stranding what was paid for.
       now = ~U[2026-08-18 12:00:00Z]
       stub(DateTime, :utc_now, fn -> now end)
-      expected = DateTime.add(now, 90, :day)
+      stub(Accounts, :get_account_from_customer_id, fn _id -> {:ok, %Account{id: 1}} end)
+      stub(Billing, :current_billing_period, fn _account -> nil end)
+
+      stub_lines([line()])
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.expires_at == DateTime.shift(now, month: 1)
+        {:ok, %{id: "credgr_1"}}
+      end)
+
+      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+    end
+
+    test "ignores a legacy per-deal expiry carried in line metadata" do
+      # Invoices raised before expiry became monthly still carry this
+      # key. Honouring it would reintroduce a grant outliving its month.
+      now = ~U[2026-08-18 12:00:00Z]
+      period_end = ~U[2026-09-01 00:00:00Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      stub_account_period(period_end)
 
       stub_lines([
         line(%{
@@ -186,34 +242,7 @@ defmodule Tuist.Runners.PrepaidTest do
       ])
 
       expect(CreditGrants, :create, fn attrs ->
-        assert attrs.expires_at == expected
-        {:ok, %{id: "credgr_1"}}
-      end)
-
-      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
-
-      stub_lines([
-        line(%{
-          metadata: %{
-            "tuist_prepaid_runners" => "true",
-            "tuist_prepaid_runners_expires_in_days" => "0"
-          }
-        })
-      ])
-
-      assert {:error, {:invalid_metadata, :expires_in_days, "0"}} =
-               Prepaid.grant_for_paid_invoice(invoice())
-    end
-
-    test "defaults the expiry to a year out" do
-      now = ~U[2026-08-18 12:00:00Z]
-      stub(DateTime, :utc_now, fn -> now end)
-      expected = DateTime.add(now, 365, :day)
-
-      stub_lines([line()])
-
-      expect(CreditGrants, :create, fn attrs ->
-        assert attrs.expires_at == expected
+        assert attrs.expires_at == period_end
         {:ok, %{id: "credgr_1"}}
       end)
 

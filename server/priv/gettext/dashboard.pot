@@ -2120,11 +2120,6 @@ msgstr ""
 msgid "Prepaid"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:202
-#, elixir-autogen, elixir-format
-msgid "Prepaid minutes are added to the account's next invoice alongside the rest of the bill, and are granted once that invoice is paid. The figures below are minutes on the macOS 6 vCPU / 14 GB baseline; a larger machine draws them down faster than one minute per minute it runs."
-msgstr ""
-
 #: lib/tuist_web/live/ops_account_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "Prepaid runner minutes"
@@ -2148,4 +2143,9 @@ msgstr ""
 #: lib/tuist_web/live/ops_account_live.html.heex:176
 #, elixir-autogen, elixir-format
 msgid "Cancelling adds the runner items to this account's subscription, which makes its runner usage billable from that moment. Minutes it ran during the trial stay free, including those already recorded in the current billing period."
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:202
+#, elixir-autogen, elixir-format
+msgid "Prepaid minutes are added to the account's next invoice alongside the rest of the bill, and are granted once that invoice is paid. They expire at the end of the billing period they were bought for and do not roll over. The figures below are minutes on the macOS 6 vCPU / 14 GB baseline; a larger machine draws them down faster than one minute per minute it runs."
 msgstr ""

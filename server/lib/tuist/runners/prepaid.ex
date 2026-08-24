@@ -41,7 +41,7 @@ defmodule Tuist.Runners.Prepaid do
 
   ## Where the terms are configured
 
-  The default ratio and expiry are module attributes here, alongside
+  The default ratio is a module attribute here, alongside
   `Tuist.Billing`'s `@unit_prices`, rather than deployment config:
   they are rate-card facts, identical in every environment, and a
   change to either should be a reviewed commit rather than a values
@@ -62,8 +62,6 @@ defmodule Tuist.Runners.Prepaid do
     * `tuist_prepaid_runners_funding_ratio_bp` — optional, basis
       points of credit per unit paid, so the 1.25x default is `12500`.
       Bounded between par (10000, no discount) and 20000 (50% off).
-    * `tuist_prepaid_runners_expires_in_days` — optional, overrides the
-      default expiry.
 
   ## Why the line and not the invoice
 
@@ -86,13 +84,19 @@ defmodule Tuist.Runners.Prepaid do
 
   ## Top-ups and expiry
 
-  Neither needs machinery here. Every paid prepaid line creates its
-  own grant, and Stripe applies whichever grants are live at invoice
-  time in priority then expiry order, so a top-up is just another
-  grant and an exhausted or expired one simply stops applying —
-  usage past it falls through to the on-demand rate it was always
-  reported at. That is the second dividend of keeping the balance in
-  money: there is no merging, no re-basing, and no expiry sweep to run.
+  Minutes belong to the month they were bought for. Every grant
+  expires at the end of the billing period the paying invoice covered,
+  so nothing rolls over: what an account does not spend that month is
+  gone, and next month's minutes arrive on their own invoice.
+
+  Neither top-ups nor expiry need machinery here. Every paid prepaid
+  line creates its own grant, and Stripe applies whichever grants are
+  live at invoice time in priority then expiry order, so a top-up is
+  just another grant and an exhausted or expired one simply stops
+  applying — usage past it falls through to the on-demand rate it was
+  always reported at. That is the second dividend of keeping the
+  balance in money: there is no merging, no re-basing, and no expiry
+  sweep to run.
 
   ## Trials are not this
 
@@ -103,7 +107,9 @@ defmodule Tuist.Runners.Prepaid do
   are only ever the paid kind.
   """
 
+  alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Billing
   alias Tuist.Billing.CreditGrants
   alias Tuist.Billing.Invoices
   alias Tuist.KeyValueStore
@@ -135,14 +141,10 @@ defmodule Tuist.Runners.Prepaid do
   # 50% off. Past this a metadata typo is likelier than a real deal.
   @max_funding_ratio_bp 20_000
 
-  @default_expiry_days 365
-  @max_expiry_days 1095
-
   @prepaid_priority 50
 
   @marker_key "tuist_prepaid_runners"
   @ratio_key "tuist_prepaid_runners_funding_ratio_bp"
-  @expiry_key "tuist_prepaid_runners_expires_in_days"
 
   @kind_key "tuist_runner_credit"
   @invoice_key "tuist_prepaid_invoice_id"
@@ -184,10 +186,12 @@ defmodule Tuist.Runners.Prepaid do
   # lookup instead of one each.
   defp grant_lines(customer_id, invoice_id, lines, currency) do
     with {:ok, granted_line_ids} <- granted_line_ids(customer_id) do
+      expires_at = expires_at(customer_id)
+
       lines
       |> Enum.reject(&MapSet.member?(granted_line_ids, line_id(&1)))
       |> Enum.reduce_while({:ok, []}, fn line, {:ok, acc} ->
-        case grant_line(customer_id, invoice_id, line, currency) do
+        case grant_line(customer_id, invoice_id, line, currency, expires_at) do
           {:ok, grant} -> {:cont, {:ok, [grant | acc]}}
           {:error, reason} -> {:halt, {:error, reason}}
         end
@@ -199,13 +203,12 @@ defmodule Tuist.Runners.Prepaid do
     end
   end
 
-  defp grant_line(customer_id, invoice_id, line, currency) do
+  defp grant_line(customer_id, invoice_id, line, currency, expires_at) do
     metadata = line_metadata(line)
 
     with {:ok, platforms} <- platforms_from_metadata(metadata),
          {:ok, amount} <- line_amount(line),
          {:ok, ratio_bp} <- funding_ratio_bp(metadata),
-         {:ok, expiry_days} <- expiry_days(metadata),
          {:ok, price_ids} <- price_ids(platforms) do
       CreditGrants.create(%{
         customer_id: customer_id,
@@ -214,7 +217,7 @@ defmodule Tuist.Runners.Prepaid do
         price_ids: price_ids,
         category: "paid",
         name: "Prepaid runner credit",
-        expires_at: DateTime.add(DateTime.utc_now(), expiry_days, :day),
+        expires_at: expires_at,
         priority: @prepaid_priority,
         metadata: %{
           @kind_key => "prepaid",
@@ -456,6 +459,19 @@ defmodule Tuist.Runners.Prepaid do
   # machine.
   defp minutes_for(cents), do: div(cents * 10, @macos_on_demand_rate)
 
+  # Minutes belong to the month they were bought for and do not roll
+  # over, so the grant dies with the billing period the invoice paid
+  # for. An account Stripe reports no period for still has to get what
+  # it paid for, and a month keeps that promise on the same footing.
+  defp expires_at(customer_id) do
+    with {:ok, account} <- Accounts.get_account_from_customer_id(customer_id),
+         {_period_start, period_end} <- Billing.current_billing_period(account) do
+      period_end
+    else
+      _ -> DateTime.shift(DateTime.utc_now(), month: 1)
+    end
+  end
+
   defp grant_amount_cents(grant) do
     grant
     |> Map.get(:amount, %{})
@@ -527,14 +543,6 @@ defmodule Tuist.Runners.Prepaid do
       nil -> {:ok, @default_funding_ratio_bp}
       "" -> {:ok, @default_funding_ratio_bp}
       value -> bounded_integer(value, @min_funding_ratio_bp, @max_funding_ratio_bp, :funding_ratio_bp)
-    end
-  end
-
-  defp expiry_days(metadata) do
-    case metadata |> Map.get(@expiry_key) |> normalize() do
-      nil -> {:ok, @default_expiry_days}
-      "" -> {:ok, @default_expiry_days}
-      value -> bounded_integer(value, 1, @max_expiry_days, :expires_in_days)
     end
   end
 
