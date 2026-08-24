@@ -109,8 +109,40 @@ pub fn is_multipart_capacity_error(error: &str) -> bool {
     error.starts_with(MULTIPART_CAPACITY_ERROR)
 }
 
+/// Runs a blocking RocksDB commit without taking a tokio worker out of
+/// circulation for its duration.
+///
+/// The metadata store is built with `allow_stall = true` on a
+/// `WriteBufferManager`, so once memtable memory reaches the pool size RocksDB
+/// blocks *every* thread inside its write call until a flush drains it. That
+/// block happens in FFI and is not a yield point. A commit issued from a tokio
+/// worker therefore parks that worker for the whole stall, and with enough
+/// concurrent writers the entire runtime stops scheduling — at which point
+/// `/up`, `/ready` and `/metrics` go unanswered even though they read only
+/// process-local state, and the kubelet scores it as a liveness failure.
+///
+/// `block_in_place` hands the worker's remaining tasks to a replacement thread
+/// before blocking, so the runtime keeps scheduling through a stall. It requires
+/// the multi-threaded runtime and panics on a current-thread one, so the flavor
+/// is checked first: single-threaded tests and any caller already off a runtime
+/// commit inline.
+///
+/// This is the floor, not the preferred path. Callers that are already async
+/// should use [`Store::write_batch_sync_off_runtime`], which moves the commit to
+/// the blocking pool outright and never occupies a worker at all. This function
+/// exists because Store commits are also reachable through deep chains of
+/// synchronous helpers, and those must not park the runtime either.
+fn commit_without_parking_the_runtime<T>(commit: impl FnOnce() -> T) -> T {
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
+            tokio::task::block_in_place(commit)
+        }
+        _ => commit(),
+    }
+}
+
 pub struct Store {
-    db: DB,
+    db: Arc<DB>,
     io: IoController,
     memory: MemoryController,
     tenant_id: String,
@@ -877,8 +909,10 @@ impl Store {
         ];
 
         let db_path = config.data_dir.join("rocksdb");
-        let db = DB::open_cf_descriptors(&options, db_path, cfs)
-            .map_err(|error| format!("failed to open RocksDB: {error}"))?;
+        let db = Arc::new(
+            DB::open_cf_descriptors(&options, db_path, cfs)
+                .map_err(|error| format!("failed to open RocksDB: {error}"))?,
+        );
         io.metrics()
             .update_manifest_cache_capacity_bytes(config.manifest_cache_max_bytes);
         io.metrics().update_manifest_index_entries(0);
@@ -1389,7 +1423,8 @@ impl Store {
         let mut batch = WriteBatch::default();
         let manifest =
             self.stage_segment_manifest(&mut batch, spec, artifact_id, existing, location, size)?;
-        self.write_batch_sync(batch, "manifest batch")?;
+        self.write_batch_sync_off_runtime(batch, "manifest batch")
+            .await?;
         outbox_reservation.commit();
         self.note_segment_manifest_committed(&manifest, &location.segment_id)
             .await?;
@@ -2107,7 +2142,8 @@ impl Store {
             segment_artifact_index_key(&location.segment_id, &current.artifact_id).as_bytes(),
             [],
         );
-        self.write_batch_sync(batch, "refreshed manifest")?;
+        self.write_batch_sync_off_runtime(batch, "refreshed manifest")
+            .await?;
         // The promoted entry keeps its original version, which the max-only
         // stat semantics absorb without dragging the destination segment's
         // seal-time max down.
@@ -2182,7 +2218,8 @@ impl Store {
             bytes,
         )?;
 
-        self.write_batch_sync(batch, "keyvalue batch")?;
+        self.write_batch_sync_off_runtime(batch, "keyvalue batch")
+            .await?;
         outbox_reservation.commit();
         self.note_inline_manifest_committed(&manifest, wrote_action_cache_index);
 
@@ -3699,7 +3736,7 @@ impl Store {
         self.hit_failpoint(FailpointName::AfterBackfillBatchCommitBeforeWalFlush)
             .await?;
         // Phase 4: the batch durability barrier.
-        self.flush_wal_barrier()
+        self.flush_wal_barrier_off_runtime().await
     }
 
     /// Phase-3 commit of one group of staged records: re-takes each record's
@@ -3798,11 +3835,12 @@ impl Store {
         if batch.is_empty() {
             return Ok(false);
         }
-        self.write_batch_with_durability(
+        self.write_batch_with_durability_off_runtime(
             batch,
             "backfill group batch",
             ApplyDurability::DeferredBatch,
-        )?;
+        )
+        .await?;
         for record in committed {
             match record {
                 CommittedGroupRecord::Segmented {
@@ -4009,7 +4047,8 @@ impl Store {
             )?;
         }
 
-        self.write_batch_sync(batch, "delete namespace batch")?;
+        self.write_batch_sync_off_runtime(batch, "delete namespace batch")
+            .await?;
         outbox_reservation.commit();
         self.remove_manifest_cache_keys(&removed_artifact_ids);
 
@@ -4227,7 +4266,8 @@ impl Store {
                 upload_id.as_bytes(),
                 upload_bytes,
             );
-            self.write_batch_sync(batch, "multipart upload replacement")
+            self.write_batch_sync_off_runtime(batch, "multipart upload replacement")
+                .await
                 .map_err(MultipartError::Other)?;
             Ok(())
         }
@@ -4456,7 +4496,8 @@ impl Store {
         if upload_exists {
             let mut batch = WriteBatch::default();
             batch.delete_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), upload_id.as_bytes());
-            self.write_batch_sync(batch, "multipart upload deletion")?;
+            self.write_batch_sync_off_runtime(batch, "multipart upload deletion")
+                .await?;
             release_atomic_slots(&self.multipart_uploads, 1);
         }
 
@@ -6115,6 +6156,56 @@ impl Store {
         label: &str,
         durability: ApplyDurability,
     ) -> Result<(), String> {
+        let write_options = self.write_options_for(durability);
+        commit_without_parking_the_runtime(|| self.db.write_opt(batch, &write_options))
+            .map_err(|error| format!("failed to write {label}: {error}"))
+    }
+
+    /// Commits on a blocking thread instead of the caller's.
+    ///
+    /// The metadata store is built with `allow_stall = true` on a
+    /// `WriteBufferManager` (see [`Store::open`]), so once memtable memory
+    /// reaches the pool size RocksDB blocks *every* thread inside `write_opt`
+    /// until a flush drains it. That block happens in FFI and is not a yield
+    /// point, so a saturated pool parks whichever threads are inside the call.
+    /// On a tokio worker that means the runtime itself stops scheduling, and
+    /// `/up`, `/ready` and `/metrics` go unanswered even though they read only
+    /// process-local state — which the kubelet scores as a liveness failure.
+    ///
+    /// Every commit reachable from an async context must therefore go through
+    /// this and not [`Self::write_batch_sync`]. The sync form remains correct
+    /// for callers already running on a blocking thread.
+    async fn write_batch_sync_off_runtime(
+        &self,
+        batch: WriteBatch,
+        label: &str,
+    ) -> Result<(), String> {
+        self.write_batch_with_durability_off_runtime(batch, label, ApplyDurability::Sync)
+            .await
+    }
+
+    /// Durability-selecting twin of [`Self::write_batch_sync_off_runtime`].
+    async fn write_batch_with_durability_off_runtime(
+        &self,
+        batch: WriteBatch,
+        label: &str,
+        durability: ApplyDurability,
+    ) -> Result<(), String> {
+        let write_options = self.write_options_for(durability);
+        let db = Arc::clone(&self.db);
+        match tokio::task::spawn_blocking(move || db.write_opt(batch, &write_options)).await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(error)) => Err(format!("failed to write {label}: {error}")),
+            Err(error) => Err(format!(
+                "failed to write {label}: commit task failed to run: {error}"
+            )),
+        }
+    }
+
+    /// Builds the write options for `durability` and charges the matching
+    /// durability counter. Called once per commit, on the caller's thread:
+    /// only the `write_opt` itself is worth moving off the runtime.
+    fn write_options_for(&self, durability: ApplyDurability) -> WriteOptions {
         let mut write_options = WriteOptions::default();
         match durability {
             ApplyDurability::Sync => {
@@ -6127,18 +6218,23 @@ impl Store {
                     .fetch_add(1, Ordering::Relaxed);
             }
         }
-        self.db
-            .write_opt(batch, &write_options)
-            .map_err(|error| format!("failed to write {label}: {error}"))
+        write_options
     }
 
     /// The deferred batch's phase-4 durability barrier: one synced WAL flush
-    /// makes every WAL-only commit before it durable.
-    fn flush_wal_barrier(&self) -> Result<(), String> {
+    /// makes every WAL-only commit before it durable. Runs on a blocking
+    /// thread: `flush_wal` waits on the same write path as
+    /// [`Self::write_batch_with_durability_off_runtime`] and stalls with it.
+    async fn flush_wal_barrier_off_runtime(&self) -> Result<(), String> {
         self.wal_flush_count.fetch_add(1, Ordering::Relaxed);
-        self.db
-            .flush_wal(true)
-            .map_err(|error| format!("failed to flush WAL: {error}"))
+        let db = Arc::clone(&self.db);
+        match tokio::task::spawn_blocking(move || db.flush_wal(true)).await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(error)) => Err(format!("failed to flush WAL: {error}")),
+            Err(error) => Err(format!(
+                "failed to flush WAL: flush task failed to run: {error}"
+            )),
+        }
     }
 
     /// (sync WriteBatch commits, deferred WriteBatch commits, WAL flushes) —
@@ -10706,6 +10802,63 @@ mod tests {
         );
         assert!(!segment_path.exists());
         assert_eq!(store.segment_handles.lock().await.len(), 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn a_blocking_commit_leaves_the_runtime_able_to_schedule() {
+        // Production regression (2026-08-24, issue #12556): the metadata store
+        // runs with `allow_stall = true` on a 32 MiB write-buffer pool, so a
+        // saturated pool blocks every thread inside RocksDB's write call, in
+        // FFI, with no yield point. Commits issued straight from a tokio worker
+        // therefore park it for the whole stall. `kura-tuist-scw-fr-par-0` took
+        // three liveness kills that morning on a build carrying the #12553
+        // eviction yield, each one an eviction followed by ~50 seconds of total
+        // process silence: yielding during the scan does not help once the
+        // commit itself is what blocks.
+        //
+        // The commit has to run inside a spawned task to reproduce this. A
+        // `#[tokio::test]` body runs on the `block_on` thread, which is NOT a
+        // worker, so blocking there leaves the worker free and the test passes
+        // whether or not the fix is present.
+        let blocking_started = Arc::new(AtomicBool::new(false));
+        let scheduled = Arc::new(AtomicBool::new(false));
+
+        let started = Arc::clone(&blocking_started);
+        let blocker = tokio::spawn(async move {
+            commit_without_parking_the_runtime(|| {
+                started.store(true, Ordering::SeqCst);
+                std::thread::sleep(Duration::from_millis(500));
+            });
+        });
+
+        while !blocking_started.load(Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+
+        let observer = Arc::clone(&scheduled);
+        tokio::spawn(async move {
+            observer.store(true, Ordering::SeqCst);
+        });
+        std::thread::sleep(Duration::from_millis(150));
+        let ran_while_the_commit_blocked = scheduled.load(Ordering::SeqCst);
+
+        blocker.await.expect("blocking commit task panicked");
+
+        assert!(
+            ran_while_the_commit_blocked,
+            "the commit held the runtime's only worker, so no other task could \
+             be scheduled while it blocked - this is what stops /up being \
+             answered and gets the container killed"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_blocking_commit_runs_inline_on_a_current_thread_runtime() {
+        // `block_in_place` panics on a current-thread runtime, so the flavor
+        // check is what keeps single-threaded tests - and any caller that is
+        // not on a runtime at all - working.
+        let value = commit_without_parking_the_runtime(|| 7);
+        assert_eq!(value, 7);
     }
 
     #[tokio::test]
