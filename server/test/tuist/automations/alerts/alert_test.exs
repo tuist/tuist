@@ -2,6 +2,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Automations.Alerts.Alert
+  alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   defp valid_attrs(project, overrides \\ %{}) do
@@ -818,6 +819,77 @@ defmodule Tuist.Automations.Alerts.AlertTest do
     test "unknown monitor types are neither event-driven nor recovery-ledger" do
       refute Alert.event_driven?("legacy_unknown")
       refute Alert.recovery_ledger?("legacy_unknown")
+    end
+  end
+
+  describe "kind" do
+    test "defaults to standard" do
+      project = ProjectsFixtures.project_fixture()
+      changeset = Alert.changeset(%Alert{}, valid_attrs(project))
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :kind) == "standard"
+    end
+
+    test "accepts an explicit standard kind" do
+      project = ProjectsFixtures.project_fixture()
+      changeset = Alert.changeset(%Alert{}, valid_attrs(project, %{"kind" => "standard"}))
+      assert changeset.valid?
+    end
+
+    test "rejects an unknown kind" do
+      project = ProjectsFixtures.project_fixture()
+      changeset = Alert.changeset(%Alert{}, valid_attrs(project, %{"kind" => "bogus"}))
+      refute changeset.valid?
+      assert errors_on(changeset).kind
+    end
+
+    test "a standard changeset cannot set kind to manual" do
+      project = ProjectsFixtures.project_fixture()
+      changeset = Alert.changeset(%Alert{}, valid_attrs(project, %{"kind" => "manual"}))
+      refute changeset.valid?
+      assert "cannot be manual" in errors_on(changeset).kind
+    end
+
+    test "a standard changeset cannot flip a persisted standard row to manual" do
+      alert = AutomationsFixtures.automation_alert_fixture()
+      changeset = Alert.changeset(alert, %{"kind" => "manual"})
+      refute changeset.valid?
+      assert "cannot be manual" in errors_on(changeset).kind
+    end
+  end
+
+  describe "manual_changeset/2" do
+    test "builds the Manual row without monitor configuration" do
+      project = ProjectsFixtures.project_fixture()
+      changeset = Alert.manual_changeset(%Alert{}, %{project_id: project.id})
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :kind) == "manual"
+      assert Ecto.Changeset.get_field(changeset, :name) == "Manual"
+      assert Ecto.Changeset.get_field(changeset, :enabled) == true
+      assert Ecto.Changeset.get_field(changeset, :monitor_type) == nil
+      assert Ecto.Changeset.get_field(changeset, :trigger_config) == %{}
+      assert Ecto.Changeset.get_field(changeset, :trigger_actions) == []
+    end
+
+    test "requires project_id" do
+      changeset = Alert.manual_changeset(%Alert{}, %{})
+      refute changeset.valid?
+      assert "can't be blank" in errors_on(changeset).project_id
+    end
+
+    test "inserts a valid Manual row" do
+      project = ProjectsFixtures.project_fixture()
+      assert {:ok, alert} = Repo.insert(Alert.manual_changeset(%Alert{}, %{project_id: project.id}))
+      assert alert.kind == "manual"
+      assert alert.monitor_type == nil
+    end
+  end
+
+  describe "manual?/1" do
+    test "detects the manual kind" do
+      assert Alert.manual?(%Alert{kind: "manual"})
+      refute Alert.manual?(%Alert{kind: "standard"})
     end
   end
 end

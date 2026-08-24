@@ -13,7 +13,7 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
 
   @impl Oban.Worker
   def perform(_job) do
-    alerts = Repo.all(from(a in Alert, where: a.enabled == true))
+    alerts = Repo.all(from(a in Alert, where: a.kind == "standard", where: a.enabled == true))
 
     Enum.each(alerts, fn alert ->
       if scheduled_alert?(alert) do

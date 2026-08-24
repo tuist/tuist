@@ -63,6 +63,14 @@ defmodule Tuist.Automations.Workers.AutomationSchedulerTest do
     assert [] = all_enqueued(worker: AlertEvaluationWorker)
   end
 
+  test "does not schedule the Manual automation" do
+    AutomationsFixtures.manual_automation_alert_fixture()
+
+    assert :ok = AutomationScheduler.perform(%Oban.Job{args: %{}})
+
+    assert [] = all_enqueued(worker: AlertEvaluationWorker)
+  end
+
   test "does not enqueue overlapping scheduler jobs" do
     assert {:ok, %Oban.Job{conflict?: false}} =
              %{}

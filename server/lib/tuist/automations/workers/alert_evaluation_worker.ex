@@ -7,8 +7,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
+  alias Tuist.Automations.Holds
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.ClickHouseRepo
+  alias Tuist.FeatureFlags
   alias Tuist.Projects
   alias Tuist.Tests
   alias Tuist.Tests.TestCaseRun
@@ -38,7 +40,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       project_id
       |> Automations.list_alerts()
       |> Enum.filter(fn alert ->
-        alert.enabled and Alert.scoped_evaluation?(alert) and
+        alert.kind == "standard" and alert.enabled and Alert.scoped_evaluation?(alert) and
           Alert.cadence_seconds(alert.cadence) == cadence_seconds and
           trigger_window_supported?(alert)
       end)
@@ -50,6 +52,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     case Automations.get_alert(alert_id) do
       {:ok, alert} ->
         cond do
+          Alert.manual?(alert) ->
+            :ok
+
           not alert.enabled ->
             :ok
 
@@ -283,13 +288,11 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
         {candidates, MapSet.new([])}
       end
 
+    release = release_claims(alert, actionable_ids)
+
     Enum.each(to_rearm, fn event ->
       entity = %{type: :test_case, id: event.test_case_id}
-
-      actions =
-        if MapSet.member?(actionable_ids, event.test_case_id),
-          do: alert.recovery_actions,
-          else: []
+      actions = recovery_actions_for(alert, event.test_case_id, actionable_ids, release)
 
       # Run recovery actions BEFORE appending the "recovered" event. If we
       # flipped the order, a failure in the Slack ping / label removal /
@@ -315,6 +318,76 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       end
     end)
   end
+
+  # Recovery always withdraws the alert's own claim for each actionable test
+  # (dual-write: harmless when no claim exists, e.g. baseline-established
+  # candidates whose `triggered` event never ran actions). With the holds flag
+  # on, the batched re-derivation replaces the absolute `change_state`
+  # recovery write and reports which tests actually changed state; with it
+  # off, recovery actions keep writing state directly.
+  defp release_claims(alert, actionable_ids) do
+    if MapSet.size(actionable_ids) == 0 do
+      :direct
+    else
+      Enum.each(actionable_ids, fn test_case_id ->
+        case Holds.withdraw_claim(alert, test_case_id) do
+          {:ok, _} ->
+            :ok
+
+          {:error, reason} ->
+            Logger.warning("Alert #{alert.id} claim withdrawal failed for test_case #{test_case_id}: #{inspect(reason)}")
+        end
+      end)
+
+      if FeatureFlags.test_state_holds_enabled?(alert.project_id) do
+        {:ok, %{changed: changed}} =
+          Holds.derive_and_apply(alert.project_id, MapSet.to_list(actionable_ids), alert_id: alert.id)
+
+        {:derived, MapSet.new(changed)}
+      else
+        :direct
+      end
+    end
+  end
+
+  # On the derived path, `change_state` is subsumed by the claim withdrawal
+  # and the state-narrating actions announce that release, so they only run
+  # when the derived state actually changed — releasing a claim shadowed by
+  # another rule must not announce a recovery. Ownership is keyed on the
+  # trigger actions: an alert owns claims iff its trigger placed them via
+  # `change_state`. Alerts that never place claims (e.g. label-only
+  # automations) keep running their recovery actions unconditionally; a
+  # claim-owning alert whose release is shadowed still runs its
+  # non-narrating label actions but never `send_slack` or `change_state`.
+  defp recovery_actions_for(alert, test_case_id, actionable_ids, release) do
+    cond do
+      not MapSet.member?(actionable_ids, test_case_id) ->
+        []
+
+      release == :direct ->
+        alert.recovery_actions
+
+      not claim_owning?(alert) ->
+        alert.recovery_actions
+
+      true ->
+        {:derived, changed} = release
+
+        if MapSet.member?(changed, test_case_id) do
+          Enum.reject(alert.recovery_actions, &change_state_action?/1)
+        else
+          Enum.filter(alert.recovery_actions, &non_narrating_action?/1)
+        end
+    end
+  end
+
+  defp claim_owning?(alert), do: Enum.any?(alert.trigger_actions, &change_state_action?/1)
+
+  defp change_state_action?(%{"type" => "change_state"}), do: true
+  defp change_state_action?(_action), do: false
+
+  defp non_narrating_action?(%{"type" => type}), do: type in ["add_label", "remove_label"]
+  defp non_narrating_action?(_action), do: false
 
   # A scoped evaluation only re-checked `scoped_test_case_ids`, so a triggered
   # test case outside that set wasn't measured this tick — leave its event
