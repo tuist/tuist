@@ -84,8 +84,22 @@ config:
 
 # RocksDB caches don't have dedicated Helm template knobs, so they go
 # through extraEnv. Same rationale as the memory config above.
+#
+# KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES is deliberately NOT pinned here.
+# It used to be 32 MiB, set alongside the read cache in #12117 to shrink the
+# process's anonymous footprint during a memory-pressure incident, not because
+# RocksDB needed it that tight. The write-buffer pool is built with
+# `allow_stall = true`, so at 32 MiB a single burst saturated it and blocked
+# every writer inside RocksDB (#12556). Left unset, the process derives
+# `memory_limit / 32` clamped to [16, 128] MiB, which is 128 MiB at the 4Gi
+# limit managed instances run — the sizing the code already reasons about.
+#
+# The read cache stays pinned at 32 MiB. It only shared the write-buffer pool's
+# fate because the two were one allocation; now that the write-buffer manager
+# no longer charges memtable growth to the block cache, 32 MiB of read cache is
+# not what saturates, and leaving it pinned keeps the added footprint to the
+# ~96 MiB of pool. Production pods sit at ~558 MB of a 4Gi limit, and an env
+# var does not move `resources.limits`, so node limit-commit is unchanged.
 extraEnv:
   - name: KURA_METADATA_STORE_READ_CACHE_BYTES
-    value: "33554432"
-  - name: KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES
     value: "33554432"

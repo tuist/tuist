@@ -393,6 +393,16 @@ impl Config {
     /// (measured at ~150 MiB total on an idle instance, of which the caches are
     /// the larger part).
     ///
+    /// The block cache and the write-buffer pool are counted as two separate
+    /// allocations because that is now what they are. They used to overlap —
+    /// the write-buffer manager charged memtable growth to the block cache — so
+    /// subtracting both over-counted. Since #12556 the manager holds its own
+    /// budget, which makes this arithmetic right and also means raising
+    /// `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` genuinely narrows what
+    /// admission may hand out. That is the intended trade: a smaller admission
+    /// budget sheds load with a retryable `503`, where a pool too small to
+    /// absorb a write burst stalls every writer inside RocksDB instead.
+    ///
     /// The snapshot cache counts for the same reason the manifest cache does:
     /// it fills to its own ceiling and is never admitted through this budget,
     /// so every byte of `KURA_SNAPSHOT_CACHE_MAX_BYTES` is anon this budget

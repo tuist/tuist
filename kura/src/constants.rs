@@ -196,6 +196,25 @@ pub const BACKFILL_INDEX_BUILD_CHUNK_ROWS: usize = 4_096;
 // compaction-blocking scale that shaped the constant above. Revisit if segments
 // ever grow far past `MAX_SEGMENT_BYTES` worth of small artifacts.
 pub const SEGMENT_EVICTION_YIELD_ROWS: usize = 256;
+// Payload ceiling of one segment-eviction write batch, and so of how much
+// memtable a single eviction can pin at once.
+//
+// The comment above is still right that a blob and the action-cache entries
+// cascading off it must land in ONE atomic batch, or an entry is left pointing
+// at a blob that is already gone (#12152). It does not follow that two
+// different blobs must share a batch, and treating it as if it did is what
+// made one eviction stage its whole 512 MiB segment index plus every cascade
+// as a single write: ~130k deletes, ~20 MB of memtable, committed in one call
+// against a pool that is 32 MiB on managed instances. That saturated the pool
+// and stalled every writer inside RocksDB (#12556).
+//
+// So the batch is committed at blob boundaries and never inside a cascade.
+// 2 MiB of payload is roughly 4-6 MiB of memtable once tombstone overhead is
+// counted, which stays clear of even the 16 MiB floor the pool clamps to. The
+// commits are `sync = false`, so the extra ones cost a memtable insert and a
+// WAL append each, not an fsync. Keeping chunks small also keeps the copy in
+// `Store::commit_eviction_chunk` cheap.
+pub const SEGMENT_EVICTION_MAX_BATCH_BYTES: usize = 2 * 1024 * 1024;
 // Byte ceiling of one backfill bodies batch: the sum of body bytes one
 // `POST /_internal/backfill/bodies` response may carry, and the per-entry
 // oversized cutoff (entries larger than this route to the per-artifact

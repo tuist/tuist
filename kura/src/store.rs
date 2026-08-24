@@ -42,7 +42,7 @@ use crate::{
         ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
         ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
         ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
-        SEGMENT_EVICTION_YIELD_ROWS, SEGMENT_FREE_SPACE_MARGIN,
+        SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS, SEGMENT_FREE_SPACE_MARGIN,
     },
     failpoints::{FailpointName, FailpointSet},
     file_cache::{
@@ -110,7 +110,7 @@ pub fn is_multipart_capacity_error(error: &str) -> bool {
 }
 
 pub struct Store {
-    db: DB,
+    db: Arc<DB>,
     io: IoController,
     memory: MemoryController,
     tenant_id: String,
@@ -128,6 +128,11 @@ pub struct Store {
     multipart_max_active_uploads: usize,
     multipart_max_stored_bytes: u64,
     segment_write_lock: Mutex<()>,
+    /// Payload ceiling of one segment-eviction write batch. Mirrors
+    /// `SEGMENT_EVICTION_MAX_BATCH_BYTES`; it is a field rather than the
+    /// constant read inline so tests can drive the chunk boundary without
+    /// staging the megabytes of rows it would otherwise take to cross it.
+    eviction_batch_budget_bytes: usize,
     /// Bumped whenever a namespace's action cache changes, so a snapshot index
     /// that came back EMPTY can tell "nothing to show" from "out of date". An
     /// empty index is otherwise indistinguishable from a stale one and has to be
@@ -771,6 +776,37 @@ impl PersistArtifactOutcome {
     }
 }
 
+/// Bookkeeping for the action-cache entries one segment eviction cascades.
+///
+/// `seen` de-duplicates across every blob in the segment, so an entry that two
+/// evicted blobs both reference is staged once. The `pending_*` fields hold
+/// only what has been staged since the last commit: eviction commits in chunks,
+/// and each chunk must invalidate exactly the cache keys it made unreachable
+/// rather than the whole segment's worth. `total` is the segment-wide count,
+/// kept separately because the pending list is drained on every commit.
+#[derive(Default)]
+struct CascadeProgress {
+    seen: HashSet<String>,
+    pending_entries: Vec<String>,
+    pending_namespaces: HashSet<String>,
+    total: usize,
+}
+
+impl CascadeProgress {
+    fn contains(&self, entry_id: &str) -> bool {
+        self.seen.contains(entry_id)
+    }
+
+    fn record(&mut self, namespace_id: &str, entry_id: String) {
+        if !self.seen.insert(entry_id.clone()) {
+            return;
+        }
+        self.pending_namespaces.insert(namespace_id.to_owned());
+        self.pending_entries.push(entry_id);
+        self.total += 1;
+    }
+}
+
 impl Store {
     pub fn open(
         config: &Config,
@@ -779,10 +815,20 @@ impl Store {
     ) -> Result<Self, String> {
         let rebuild_started = std::time::Instant::now();
         let rocksdb_block_cache = Cache::new_lru_cache(config.rocksdb_block_cache_bytes);
-        let rocksdb_write_buffer_manager = WriteBufferManager::new_write_buffer_manager_with_cache(
+        // Deliberately NOT `new_write_buffer_manager_with_cache`: charging
+        // memtable growth to the block cache made the two budgets one, so a
+        // write burst evicted the read cache that the eviction scan itself
+        // depends on, and the cache ran far over its own capacity because the
+        // index/filter blocks pinned below cannot be evicted to make room
+        // (measured at 169% of capacity during the 2026-08-24 stall). They are
+        // separate allocations now; `Config::anon_admission_budget_bytes`
+        // subtracts both, which is correct precisely because they no longer
+        // overlap. `allow_stall` stays on: without it a saturated pool grows
+        // the memtables without bound, which on these memory limits is an
+        // OOMKill instead of a stall. See #12556.
+        let rocksdb_write_buffer_manager = WriteBufferManager::new_write_buffer_manager(
             config.rocksdb_write_buffer_manager_bytes,
             true,
-            rocksdb_block_cache.clone(),
         );
         let mut options = Options::default();
         options.create_if_missing(true);
@@ -878,8 +924,10 @@ impl Store {
         ];
 
         let db_path = config.data_dir.join("rocksdb");
-        let db = DB::open_cf_descriptors(&options, db_path, cfs)
-            .map_err(|error| format!("failed to open RocksDB: {error}"))?;
+        let db = Arc::new(
+            DB::open_cf_descriptors(&options, db_path, cfs)
+                .map_err(|error| format!("failed to open RocksDB: {error}"))?,
+        );
         io.metrics()
             .update_manifest_cache_capacity_bytes(config.manifest_cache_max_bytes);
         io.metrics().update_manifest_index_entries(0);
@@ -928,6 +976,7 @@ impl Store {
             multipart_max_active_uploads: config.multipart_max_active_uploads,
             multipart_max_stored_bytes: config.multipart_max_stored_bytes,
             segment_write_lock: Mutex::new(()),
+            eviction_batch_budget_bytes: SEGMENT_EVICTION_MAX_BATCH_BYTES,
             action_cache_generations: StdMutex::new(HashMap::new()),
             segment_fsync_count: Arc::new(AtomicU64::new(0)),
             pending_seq: AtomicU64::new(0),
@@ -2910,8 +2959,7 @@ impl Store {
         // whatever reverse rows exist, so coverage grows as entries are written;
         // the serve-side presence gates remain the safety net for the rest.
         let cascade_active = self.action_cache_cascade_active();
-        let mut cascaded_entries = HashSet::new();
-        let mut cascaded_namespaces = HashSet::new();
+        let mut cascade = CascadeProgress::default();
         let iter = self.db.iterator_cf(
             self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
             IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
@@ -2927,6 +2975,23 @@ impl Store {
             // Everything below is synchronous RocksDB work, so without this the
             // whole segment's scan runs in one poll and parks a runtime worker.
             yield_scanned_row(&mut scanned_rows).await;
+            // Commit only here, at a blob boundary, and never part-way through a
+            // cascade: #12152's invariant is that an action-cache entry never
+            // outlives the blob it references, which requires the blob and its
+            // own cascaded entries to share a batch but says nothing about two
+            // different blobs. Every chunk is therefore self-consistent on its
+            // own, and a crash between chunks is safe because the segment stays
+            // in the ring state (and its file on disk) until the whole loop is
+            // done, so a restart re-runs the eviction and the `Some(_) | None`
+            // arm below absorbs whatever the previous attempt already removed.
+            if batch.size_in_bytes() >= self.eviction_batch_budget_bytes {
+                self.commit_eviction_chunk(
+                    std::mem::take(&mut batch),
+                    &mut removed_artifact_ids,
+                    &mut cascade,
+                )
+                .await?;
+            }
             saw_entries = true;
             let artifact_id = std::str::from_utf8(&index_key[prefix.len()..])
                 .map_err(|error| format!("invalid segment index key: {error}"))?
@@ -2950,8 +3015,7 @@ impl Store {
                         self.stage_action_cache_cascade_for_blob(
                             &mut batch,
                             &artifact_id,
-                            &mut cascaded_entries,
-                            &mut cascaded_namespaces,
+                            &mut cascade,
                             &mut scanned_rows,
                         )
                         .await?;
@@ -2966,24 +3030,15 @@ impl Store {
         }
 
         if saw_entries {
-            self.db
-                .write(batch)
-                .map_err(|error| format!("failed to evict segment metadata: {error}"))?;
-            self.remove_manifest_cache_keys(&removed_artifact_ids);
-            if !cascaded_entries.is_empty() {
-                let cascaded_ids: Vec<String> = cascaded_entries.iter().cloned().collect();
-                self.remove_manifest_cache_keys(&cascaded_ids);
-                // A cached snapshot must rebuild so it drops the entries the
-                // cascade removed; the reconcile reads the now-pruned index CF.
-                for namespace_id in &cascaded_namespaces {
-                    self.bump_action_cache_generation(namespace_id);
-                }
+            self.commit_eviction_chunk(batch, &mut removed_artifact_ids, &mut cascade)
+                .await?;
+            if cascade.total > 0 {
                 self.io
                     .metrics()
-                    .record_action_cache_cascade(cascaded_entries.len() as u64);
+                    .record_action_cache_cascade(cascade.total as u64);
                 tracing::info!(
                     segment_id,
-                    cascaded_entries = cascaded_entries.len(),
+                    cascaded_entries = cascade.total,
                     "cascaded action-cache entries stranded by segment eviction"
                 );
             }
@@ -3000,6 +3055,54 @@ impl Store {
                 .record_segment_eviction(producer, "ok", artifacts);
         }
 
+        Ok(())
+    }
+
+    /// Commits one chunk of a segment eviction and then invalidates exactly the
+    /// caches that chunk just made unreachable.
+    ///
+    /// The write runs on the blocking pool rather than inline. The metadata
+    /// store is built with `allow_stall = true`, so a saturated write-buffer
+    /// pool blocks the calling thread inside RocksDB until a flush drains it —
+    /// which is the point of the flag, but on a tokio worker it parks the
+    /// runtime rather than one task. That is how a pod stops answering `/up`
+    /// and `/metrics` while still running: both read process-local state and
+    /// take no lock, so only scheduling starvation can stop them. Off the
+    /// worker threads, a stall costs a blocking-pool thread and the runtime
+    /// keeps scheduling — probes answer, the metrics snapshot task keeps
+    /// publishing, and inbound request bodies keep draining. See #12556.
+    ///
+    /// `WriteBatch` is not `Send` (it is a raw `rocksdb_writebatch_t` pointer),
+    /// so the batch crosses the thread boundary as its own serialized
+    /// representation, which is the same encoding RocksDB puts in the WAL and
+    /// preserves column-family targeting. That costs one copy, bounded by
+    /// `SEGMENT_EVICTION_MAX_BATCH_BYTES`.
+    async fn commit_eviction_chunk(
+        &self,
+        batch: WriteBatch,
+        removed_artifact_ids: &mut Vec<String>,
+        cascade: &mut CascadeProgress,
+    ) -> Result<(), String> {
+        let payload = batch.data().to_vec();
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.write(WriteBatch::from_data(&payload)))
+            .await
+            .map_err(|error| format!("segment eviction commit task failed: {error}"))?
+            .map_err(|error| format!("failed to evict segment metadata: {error}"))?;
+
+        // Only after the commit: until it lands, a cached manifest is still a
+        // correct answer, and dropping it early would just re-read the row.
+        self.remove_manifest_cache_keys(removed_artifact_ids);
+        removed_artifact_ids.clear();
+        if !cascade.pending_entries.is_empty() {
+            self.remove_manifest_cache_keys(&cascade.pending_entries);
+            cascade.pending_entries.clear();
+        }
+        // A cached snapshot must rebuild so it drops the entries the cascade
+        // removed; the reconcile reads the now-pruned index CF.
+        for namespace_id in cascade.pending_namespaces.drain() {
+            self.bump_action_cache_generation(&namespace_id);
+        }
         Ok(())
     }
 
@@ -3032,8 +3135,7 @@ impl Store {
         &self,
         batch: &mut WriteBatch,
         blob_artifact_id: &str,
-        cascaded_entries: &mut HashSet<String>,
-        cascaded_namespaces: &mut HashSet<String>,
+        cascade: &mut CascadeProgress,
         scanned_rows: &mut usize,
     ) -> Result<(), String> {
         let prefix = action_cache_blob_ref_prefix(blob_artifact_id);
@@ -3055,7 +3157,7 @@ impl Store {
             // we decide about the entry below.
             batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
 
-            if cascaded_entries.contains(&entry_id) {
+            if cascade.contains(&entry_id) {
                 continue;
             }
             let Some(entry_manifest) = self.manifest_from_db(&entry_id)? else {
@@ -3080,8 +3182,7 @@ impl Store {
                 continue;
             }
             self.stage_action_cache_entry_delete(batch, &entry_manifest, &entry_bytes);
-            cascaded_namespaces.insert(entry_manifest.namespace_id.clone());
-            cascaded_entries.insert(entry_id);
+            cascade.record(&entry_manifest.namespace_id, entry_id);
         }
         Ok(())
     }
@@ -10934,6 +11035,214 @@ mod tests {
                 .is_none(),
             "the eviction must still remove every blob in the segment"
         );
+    }
+
+    #[test]
+    fn an_empty_write_batch_survives_the_serialized_round_trip() {
+        // `commit_eviction_chunk` moves the batch to the blocking pool as its
+        // serialized representation, because `WriteBatch` is not `Send`. The
+        // tail commit of an eviction can hand it an empty batch — every row
+        // already went out on a chunk boundary — so the round trip has to hold
+        // for one, rather than `from_data` choking on a bare header.
+        let batch = WriteBatch::default();
+        assert!(batch.is_empty());
+        let round_tripped = WriteBatch::from_data(batch.data());
+        assert!(round_tripped.is_empty());
+        assert_eq!(round_tripped.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn evict_segment_commits_in_chunks_so_one_eviction_cannot_saturate_the_pool() {
+        // Production regression (2026-08-24, #12556): one eviction staged its
+        // whole segment index plus every cascade into a single `WriteBatch` —
+        // 21,749 artifacts and 10,377 cascaded entries — and committed it in
+        // one call. The metadata store runs `allow_stall = true`, so a batch
+        // that large against a 32 MiB pool blocked every writer inside RocksDB
+        // and the pod went silent for 25 minutes without ever failing liveness.
+        //
+        // The budget is dropped to a byte here so every blob boundary crosses
+        // it; the point is that a bounded batch commits more than once, not the
+        // production byte figure.
+        const BLOBS: usize = 6;
+
+        let (_temp_dir, _config, mut store) = temp_store();
+        store.eviction_batch_budget_bytes = 1;
+        let store = Arc::new(store);
+
+        let mut blob_ids = Vec::new();
+        for blob in 0..BLOBS {
+            let namespace_id = format!("chunked-{blob}");
+            let digest = reapi_digest(blob as u8, 5);
+            let manifest = persist_reapi_blob(&store, &namespace_id, &digest, b"hello").await;
+            persist_action_cache_entry(
+                &store,
+                &namespace_id,
+                0,
+                &action_result_referencing(&[&digest]),
+                1,
+            )
+            .await;
+            blob_ids.push(manifest.artifact_id);
+        }
+        let segment_id = store
+            .manifest(&blob_ids[0])
+            .expect("failed to load manifest")
+            .expect("blob should exist")
+            .segment_id
+            .expect("blob should be segment-backed");
+
+        let eviction_started = Arc::new(AtomicBool::new(false));
+        let observed_partial_commit = Arc::new(AtomicBool::new(false));
+        let probe = tokio::spawn({
+            let store = Arc::clone(&store);
+            let blob_ids = blob_ids.clone();
+            let eviction_started = Arc::clone(&eviction_started);
+            let observed_partial_commit = Arc::clone(&observed_partial_commit);
+            async move {
+                loop {
+                    if eviction_started.load(Ordering::SeqCst) {
+                        let present = blob_ids
+                            .iter()
+                            .filter(|id| {
+                                store
+                                    .manifest(id)
+                                    .expect("failed to load manifest")
+                                    .is_some()
+                            })
+                            .count();
+                        if present > 0 && present < BLOBS {
+                            observed_partial_commit.store(true, Ordering::SeqCst);
+                        }
+                    }
+                    tokio::task::yield_now().await;
+                }
+            }
+        });
+        tokio::task::yield_now().await;
+
+        eviction_started.store(true, Ordering::SeqCst);
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("failed to evict segment");
+        probe.abort();
+
+        assert!(
+            observed_partial_commit.load(Ordering::SeqCst),
+            "the eviction committed every blob in one batch, so a single \
+             segment can still push the write-buffer pool past its size"
+        );
+        for blob_id in &blob_ids {
+            assert!(
+                store
+                    .manifest(blob_id)
+                    .expect("failed to load manifest")
+                    .is_none(),
+                "chunking must still remove every blob in the segment"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn evict_segment_never_commits_a_blob_without_its_cascaded_entries() {
+        // The invariant chunking must not break (#12152): an action-cache entry
+        // may never outlive the blob it references. A blob and its own cascade
+        // therefore have to share a batch — but two *different* blobs never had
+        // to, which is what makes the chunking above legal. This probes for the
+        // state that would prove otherwise: a blob gone while an entry that
+        // referenced it is still readable.
+        const BLOBS: usize = 6;
+        const ENTRIES_PER_BLOB: u8 = 8;
+
+        let (_temp_dir, _config, mut store) = temp_store();
+        store.eviction_batch_budget_bytes = 1;
+        let store = Arc::new(store);
+
+        let mut blobs = Vec::new();
+        for blob in 0..BLOBS {
+            let namespace_id = format!("atomic-{blob}");
+            let digest = reapi_digest(blob as u8, 5);
+            let manifest = persist_reapi_blob(&store, &namespace_id, &digest, b"hello").await;
+            let mut entry_ids = Vec::new();
+            for marker in 0..ENTRIES_PER_BLOB {
+                let entry = persist_action_cache_entry(
+                    &store,
+                    &namespace_id,
+                    marker,
+                    &action_result_referencing(&[&digest]),
+                    1,
+                )
+                .await;
+                entry_ids.push(entry.artifact_id);
+            }
+            blobs.push((manifest.artifact_id, entry_ids));
+        }
+        let segment_id = store
+            .manifest(&blobs[0].0)
+            .expect("failed to load manifest")
+            .expect("blob should exist")
+            .segment_id
+            .expect("blob should be segment-backed");
+
+        let stranded = Arc::new(AtomicBool::new(false));
+        let probe = tokio::spawn({
+            let store = Arc::clone(&store);
+            let blobs = blobs.clone();
+            let stranded = Arc::clone(&stranded);
+            async move {
+                loop {
+                    for (blob_id, entry_ids) in &blobs {
+                        let blob_gone = store
+                            .manifest(blob_id)
+                            .expect("failed to load manifest")
+                            .is_none();
+                        if !blob_gone {
+                            continue;
+                        }
+                        let entry_alive = entry_ids.iter().any(|entry_id| {
+                            store
+                                .manifest(entry_id)
+                                .expect("failed to load manifest")
+                                .is_some()
+                        });
+                        if entry_alive {
+                            stranded.store(true, Ordering::SeqCst);
+                        }
+                    }
+                    tokio::task::yield_now().await;
+                }
+            }
+        });
+        tokio::task::yield_now().await;
+
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("failed to evict segment");
+        probe.abort();
+
+        assert!(
+            !stranded.load(Ordering::SeqCst),
+            "a chunk boundary fell inside a blob's cascade, leaving an \
+             action-cache entry pointing at a blob that was already gone"
+        );
+        for (blob_id, entry_ids) in &blobs {
+            assert!(
+                store
+                    .manifest(blob_id)
+                    .expect("failed to load manifest")
+                    .is_none()
+            );
+            for entry_id in entry_ids {
+                assert!(
+                    store
+                        .manifest(entry_id)
+                        .expect("failed to load manifest")
+                        .is_none(),
+                    "every cascaded entry must be removed with its blob"
+                );
+            }
+        }
     }
 
     // ---- Action-cache blob-refs reverse index + eviction cascade ----
