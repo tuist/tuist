@@ -24,6 +24,20 @@ struct ArtifactResumeMiddlewareTests {
         )
     }
 
+    /// A streaming body that stops early and reports nothing, as distinct from
+    /// `truncatedBody`, which stops early and throws.
+    private func shortBody(_ chunks: [Data]) -> HTTPBody {
+        HTTPBody(
+            AsyncThrowingStream<ArraySlice<UInt8>, any Error> { continuation in
+                for chunk in chunks {
+                    continuation.yield(ArraySlice(chunk))
+                }
+                continuation.finish()
+            },
+            length: .unknown
+        )
+    }
+
     private struct TruncatedTransfer: Error {}
 
     /// Call counting that survives being captured by the `@Sendable` closure
@@ -62,9 +76,12 @@ struct ArtifactResumeMiddlewareTests {
     /// A whole-artifact response that names the representation it carries.
     /// Resume echoes this back in `If-Range`, and refuses to append without it,
     /// so a response lacking one is never resumed.
-    private func okResponse(etag: String = validator) -> HTTPResponse {
+    private func okResponse(etag: String = validator, length: Int? = 10) -> HTTPResponse {
         var response = HTTPResponse(status: 200)
         response.headerFields[.eTag] = etag
+        if let length {
+            response.headerFields[.contentLength] = String(length)
+        }
         return response
     }
 
@@ -187,6 +204,57 @@ struct ArtifactResumeMiddlewareTests {
                 )
             }
         }
+    }
+
+    /// A reset after the final chunk still surfaces as a thrown stream, but
+    /// every byte the response promised is already in hand. Resuming would ask
+    /// for `bytes=<size>-`, which is by definition unsatisfiable, so the server
+    /// answers 416 and a download that fully arrived gets thrown away — after
+    /// paying for the round-trip that established it.
+    @Test func keeps_a_download_whose_stream_fails_after_the_last_byte() async throws {
+        let subject = ArtifactResumeMiddleware(resumableOperationIDs: [operationID])
+        var rangedRequests = 0
+
+        let (_, body) = try await subject.intercept(
+            request(),
+            body: nil,
+            baseURL: baseURL,
+            operationID: operationID
+        ) { request, _, _ in
+            if request.headerFields[.range] != nil { rangedRequests += 1 }
+            return (okResponse(), truncatedBody([Data("0123456789".utf8)]))
+        }
+
+        let collected = try await Data(collecting: body!, upTo: .max)
+        #expect(String(decoding: collected, as: UTF8.self) == "0123456789")
+        #expect(rangedRequests == 0)
+    }
+
+    /// The other direction of the same missing check. A stream that ends
+    /// without an error is not necessarily a complete one, and nothing compared
+    /// the bytes in hand against the length the response promised, so a short
+    /// body was handed back as though it were the whole artifact.
+    @Test func resumes_a_stream_that_ends_short_without_reporting_an_error() async throws {
+        let subject = ArtifactResumeMiddleware(resumableOperationIDs: [operationID])
+
+        let (_, body) = try await subject.intercept(
+            request(),
+            body: nil,
+            baseURL: baseURL,
+            operationID: operationID
+        ) { request, _, _ in
+            guard request.headerFields[.range] != nil else {
+                // Ends cleanly, six bytes short of the ten it promised.
+                return (okResponse(), shortBody([Data("0123".utf8)]))
+            }
+            return (
+                partialResponse(start: 4, end: 9, total: 10),
+                HTTPBody(Data("456789".utf8))
+            )
+        }
+
+        let collected = try await Data(collecting: body!, upTo: .max)
+        #expect(String(decoding: collected, as: UTF8.self) == "0123456789")
     }
 
     /// The case an offset check cannot see. Kura lets a newer write replace an

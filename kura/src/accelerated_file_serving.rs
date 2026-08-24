@@ -485,6 +485,14 @@ async fn open_and_authorize(
         RangeOutcome::Full => ServedRange::full(file.size),
         RangeOutcome::Partial(range) => range,
         RangeOutcome::Unsatisfiable => {
+            // Counted here rather than in the Deny branch, which only knows
+            // about HTTP and would report this plane's 416s as an
+            // `kura_http_requests_total` entry with no matching artifact read.
+            // This is the plane that carries plain-HTTP artifact GETs on Linux,
+            // so leaving it out would hide the 416s most likely to happen.
+            state
+                .metrics
+                .record_artifact_read(artifact.producer, "range_not_satisfiable", 0);
             return ClassifiedRequest::Deny(Denial {
                 header_len: parsed.header_len,
                 route: artifact.route,
