@@ -23,6 +23,25 @@ defmodule CacheWeb.XcodeModuleController do
 
   @max_part_size 10 * 1024 * 1024
 
+  # Kura, the regional implementation of these cache routes, sheds a read it
+  # cannot admit a response stream for instead of queueing it unboundedly. This
+  # app never returns it, but clients see one contract across both
+  # implementations, and a client that reads the shed as an unknown failure
+  # gives up the retry the server explicitly asked for.
+  @too_many_requests %OpenApiSpex.Response{
+    description: "The server is limiting concurrent artifact response streams; retry after the hint",
+    headers: %{
+      "retry-after" => %OpenApiSpex.Header{
+        description:
+          "Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.",
+        schema: %OpenApiSpex.Schema{type: :string}
+      }
+    },
+    content: %{
+      "application/json" => %OpenApiSpex.MediaType{schema: Error}
+    }
+  }
+
   operation(:download,
     summary: "Download a module cache artifact",
     operation_id: "downloadModuleCacheArtifact",
@@ -70,7 +89,8 @@ defmodule CacheWeb.XcodeModuleController do
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
       payment_required: {"The account has exhausted its plan's free tier", "application/json", Error},
-      unprocessable_entity: {"Invalid request parameters", "application/json", Error}
+      unprocessable_entity: {"Invalid request parameters", "application/json", Error},
+      too_many_requests: @too_many_requests
     }
   )
 
