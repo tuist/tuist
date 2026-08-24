@@ -105,32 +105,10 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
 
-      render_hook(lv, "select_approval_policy", %{"policy" => "admins"})
+      html = render_hook(lv, "select_approval_policy", %{"policy" => "selected"})
 
-      assert Projects.get_project_by_id(project.id).bundle_size_approval_policy == :admins
-    end
-
-    test "warns that an admins-only policy would deny everybody when no admin has linked GitHub", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
-
-      html = render_hook(lv, "select_approval_policy", %{"policy" => "admins"})
-
-      assert html =~ "nobody can accept a size increase"
-    end
-
-    test "switches to report only", %{conn: conn, organization: organization, project: project} do
-      {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
-
-      html = render_hook(lv, "select_approval_policy", %{"policy" => "report_only"})
-
-      assert Projects.get_project_by_id(project.id).bundle_size_approval_policy == :report_only
-      assert html =~ "without an Accept button"
+      assert Projects.get_project_by_id(project.id).bundle_size_approval_policy == :selected
+      assert html =~ "Approvers"
     end
 
     test "adds and removes an approver", %{conn: conn, organization: organization, project: project} do

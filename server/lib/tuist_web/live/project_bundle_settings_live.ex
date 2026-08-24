@@ -8,7 +8,7 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
   alias Tuist.Projects
   alias Tuist.Repo
 
-  @approval_policies [:everyone, :admins, :selected, :report_only]
+  @approval_policies [:everyone, :selected]
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_project: selected_project, current_user: current_user}} = socket) do
@@ -25,7 +25,6 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Bundles")} · #{selected_project.name} · Tuist")
       |> assign(:has_vcs_connection, has_vcs_connection)
       |> assign(:approval_policies, @approval_policies)
-      |> assign(:admin_with_linked_github, Bundles.account_admin_with_linked_github?(selected_project))
       |> assign_threshold_defaults(selected_project)
       |> assign_approval_defaults(selected_project)
 
@@ -239,36 +238,20 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     end
   end
 
-  defp approval_policy_label(:everyone), do: dgettext("dashboard_projects", "Anyone with write access")
-  defp approval_policy_label(:admins), do: dgettext("dashboard_projects", "Admins only")
+  defp approval_policy_label(:everyone), do: dgettext("dashboard_projects", "Anyone with repository write access")
   defp approval_policy_label(:selected), do: dgettext("dashboard_projects", "Selected GitHub users")
-  defp approval_policy_label(:report_only), do: dgettext("dashboard_projects", "Nobody (report only)")
 
   defp approval_policy_description(:everyone) do
     dgettext(
       "dashboard_projects",
-      "Anyone GitHub lets press the button on a check run, which is everyone with write access to the repository."
-    )
-  end
-
-  defp approval_policy_description(:admins) do
-    dgettext(
-      "dashboard_projects",
-      "Admins of this account. An admin has to have signed in to Tuist with GitHub, so that their GitHub account can be matched to their Tuist account."
+      "Whoever GitHub offers the button to, which is everyone with write access to the repository."
     )
   end
 
   defp approval_policy_description(:selected) do
     dgettext(
       "dashboard_projects",
-      "Only the GitHub users listed below. Admins are not included unless they are on the list."
-    )
-  end
-
-  defp approval_policy_description(:report_only) do
-    dgettext(
-      "dashboard_projects",
-      "Nobody. The check reports the size change without an Accept button and without failing, leaving the merge decision to your own checks. Use this to gate on bundle size from a job that applies your own rules, such as requiring a review from a specific team."
+      "Only the GitHub users listed below, matched on their GitHub username."
     )
   end
 

@@ -779,26 +779,17 @@ defmodule Tuist.Bundles do
   Whether the GitHub user who requested the `accept_bundle_size` check run
   action is allowed to accept a size increase for `project`.
 
-  `:everyone` short-circuits before any identity resolution, so the default
-  policy never depends on a member having linked GitHub to their Tuist
-  account. The stricter policies do, which is why the failure is reported as
-  `:github_account_not_linked` rather than a plain denial: the two need
-  different remedies.
+  `:everyone` applies no check of its own. GitHub only offers the button to
+  someone with write access to the repository, which is the effective floor
+  either way, and this policy leaves it there.
 
-  `:selected` matches the allowlist exactly. Admins are not implicitly
-  included, so the list is the whole answer to who can accept, and an admin
-  who wants the ability adds themselves to it.
-
-  `:report_only` never renders a button, so a request under it can only come
-  from a check run posted before the project switched to the policy. It is
-  denied so the stale button stops working.
+  `:selected` matches the allowlist on the GitHub handle alone. Nothing here
+  resolves the sender to a Tuist account, so the policy works the same for
+  members who sign in through SSO and have never linked GitHub.
   """
   def authorize_bundle_size_approval(project, sender)
 
   def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :everyone}, _sender), do: :ok
-
-  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :report_only}, _sender),
-    do: {:error, :report_only}
 
   def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :selected} = project, %{handle: handle}) do
     handle = normalize_github_handle(handle)
@@ -807,20 +798,6 @@ defmodule Tuist.Bundles do
       :ok
     else
       {:error, :not_an_approver}
-    end
-  end
-
-  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :admins} = project, sender) do
-    case user_for_github_sender(sender) do
-      nil ->
-        {:error, :github_account_not_linked}
-
-      user ->
-        if Accounts.owns_account_or_is_admin_to_account_organization?(user, %{id: project.account_id}) do
-          :ok
-        else
-          {:error, :not_an_admin}
-        end
     end
   end
 
@@ -852,17 +829,6 @@ defmodule Tuist.Bundles do
     BundleSizeApproval
     |> Repo.get_by(bundle_id: bundle_id)
     |> Repo.preload(:approved_by_user)
-  end
-
-  @doc """
-  Whether any admin of the project's account has a GitHub identity linked.
-
-  Surfaced in the settings UI so an admin switching to `:admins` sees up
-  front that the policy would lock everyone out, instead of finding out when
-  a pull request is already stuck.
-  """
-  def account_admin_with_linked_github?(%Project{account_id: account_id}) do
-    Accounts.any_admin_with_github_identity?(%{id: account_id})
   end
 
   defp user_for_github_sender(%{id: nil}), do: nil

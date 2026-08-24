@@ -181,27 +181,11 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
     [View bundle details](#{bundle_url})
     """
 
-    {violation_conclusion(project),
+    {"action_required",
      %{
        title: "Bundle size threshold exceeded",
        summary: String.trim(summary)
      }}
-  end
-
-  # `action_required` is a failing conclusion that only the Accept button can
-  # clear. Under `report_only` there is no button, so failing would leave the
-  # check red with no way out. `neutral` reports the same information without
-  # standing in as the gate, which is the point of the policy: the merge
-  # decision belongs to a check the project owns.
-  defp violation_conclusion(%{bundle_size_approval_policy: :report_only}), do: "neutral"
-  defp violation_conclusion(_project), do: "action_required"
-
-  defp approval_policy_note(%{bundle_size_approval_policy: :report_only}) do
-    "\nThis project reports bundle size without gating on it. Accepting or blocking the change is up to the project's own checks.\n"
-  end
-
-  defp approval_policy_note(%{bundle_size_approval_policy: :admins, account: %{name: account_name}}) do
-    "\n**Who can accept:** admins of the `#{account_name}` account.\n"
   end
 
   defp approval_policy_note(%{bundle_size_approval_policy: :selected} = project) do

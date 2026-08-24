@@ -235,67 +235,6 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
       assert :ok == BundleThresholdWorker.perform(job)
     end
 
-    test "creates a neutral check run with no accept button when the project only reports" do
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_connection: [
-            repository_full_handle: "org/repo",
-            provider: :github
-          ]
-        )
-
-      {:ok, project} = Projects.update_project(project, %{bundle_size_approval_policy: :report_only})
-
-      BundlesFixtures.bundle_threshold_fixture(
-        project: project,
-        name: "Strict",
-        deviation_percentage: 5.0
-      )
-
-      BundlesFixtures.bundle_fixture(
-        project: project,
-        install_size: 1000,
-        git_branch: "main",
-        inserted_at: ~U[2024-01-01 00:00:00Z]
-      )
-
-      bundle =
-        BundlesFixtures.bundle_fixture(
-          project: project,
-          install_size: 1200,
-          git_branch: "feature",
-          git_commit_sha: "abc123",
-          git_ref: "refs/pull/1/merge",
-          inserted_at: ~U[2024-01-02 00:00:00Z]
-        )
-
-      stub(Environment, :github_app_configured?, fn -> true end)
-      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
-
-      expect(Client, :get_pull_request, fn _params ->
-        {:ok, %{"head" => %{"sha" => "real-head-sha"}}}
-      end)
-
-      expect(Client, :create_check_run, fn params ->
-        assert params.conclusion == "neutral"
-        assert params.output.title == "Bundle size threshold exceeded"
-        assert params.output.summary =~ "Strict"
-        refute Map.has_key?(params, :actions)
-        {:ok, %{"id" => 1}}
-      end)
-
-      job = %Oban.Job{
-        id: 1,
-        args: %{
-          "bundle_id" => bundle.id,
-          "project_id" => project.id,
-          "git_commit_sha" => "abc123"
-        }
-      }
-
-      assert :ok == BundleThresholdWorker.perform(job)
-    end
-
     test "reports the configured threshold and the deviation without losing sub-decimal precision" do
       project =
         ProjectsFixtures.project_fixture(

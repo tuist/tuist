@@ -430,21 +430,6 @@ defmodule TuistWeb.Webhooks.GitHubController do
     )
   end
 
-  # The project stopped gating on bundle size after this check run was
-  # posted, so its button is stale. Drop it and settle the check run as
-  # neutral rather than re-sending an action the policy no longer offers.
-  defp reject_bundle_size(check_run_params, sender, project, :report_only) do
-    VCS.update_check_run(
-      Map.merge(check_run_params, %{
-        conclusion: "neutral",
-        output: %{
-          title: "Bundle size threshold exceeded",
-          summary: rejected_summary(sender, project, :report_only)
-        }
-      })
-    )
-  end
-
   # Leaves the check run failing and re-sends the action so whoever is
   # allowed to accept still has a button to press.
   defp reject_bundle_size(check_run_params, sender, project, reason) do
@@ -469,20 +454,8 @@ defmodule TuistWeb.Webhooks.GitHubController do
   defp accepted_summary(%{handle: nil}), do: "The bundle size increase was manually accepted."
   defp accepted_summary(%{handle: handle}), do: "The bundle size increase was accepted by @#{handle}."
 
-  defp rejected_summary(sender, project, :not_an_admin) do
-    "#{who(sender)} is not an admin of the `#{project.account.name}` account. Only admins can accept bundle size increases for this project."
-  end
-
   defp rejected_summary(sender, _project, :not_an_approver) do
     "#{who(sender)} is not allowed to accept bundle size increases for this project. A project admin can change who is, under Settings > Bundles in Tuist."
-  end
-
-  defp rejected_summary(_sender, _project, :report_only) do
-    "This project no longer gates on bundle size, so this button no longer does anything. Accepting or blocking the change is up to the project's own checks."
-  end
-
-  defp rejected_summary(sender, _project, :github_account_not_linked) do
-    "#{who(sender)} is not linked to a Tuist account, so their role could not be checked. Signing in to Tuist with GitHub, using the email the Tuist account already has, links the two."
   end
 
   defp who(%{handle: nil}), do: "This GitHub account"

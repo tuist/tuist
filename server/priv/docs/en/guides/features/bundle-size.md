@@ -151,19 +151,11 @@ To configure thresholds, go to your project's **Settings > Bundles** tab:
 
 By default, anyone GitHub lets press the button on a check run can accept a size increase, which is everyone with write access to the repository. To narrow that, set **Who can accept** under **Settings > Bundles**:
 
-- **Anyone with write access**: the default.
-- **Admins only**: admins of the account that owns the project.
-- **Selected GitHub users**: only the GitHub usernames you list. Admins are not included unless you add them.
-- **Nobody (report only)**: no Accept button at all. See [Reporting without gating](#size-thresholds-report-only) below.
+- **Anyone with repository write access**: the default. Tuist applies no check of its own, so whoever GitHub offers the button to can accept.
+- **Selected GitHub users**: only the GitHub usernames you list.
 
-When someone who is not allowed to accept presses the button, the check run stays failing and explains who can accept instead. The button remains available so that someone who is allowed can press it.
+When someone who is not on the list presses the button, the check run stays failing and says so. The button remains available so that someone who is on the list can press it.
 
-**Admins only** matches the GitHub user who pressed the button against Tuist accounts, so an admin has to have signed in to Tuist with GitHub at least once for Tuist to recognize them. If no admin has, the settings page warns you that the policy would deny everybody. **Selected GitHub users** matches on the GitHub username alone and works regardless of how those people sign in to Tuist.
+The allowlist matches on the GitHub username alone. It needs no link between a GitHub account and a Tuist account, so it works the same for members who sign in through SSO.
 
-### Reporting without gating {#size-thresholds-report-only}
-
-If you want to apply your own rules for who can approve a size increase, set **Who can accept** to **Nobody (report only)**. Tuist then reports the size change without an Accept button, and the check run concludes as neutral instead of failing, so it does not block the merge on its own.
-
-This is the option to use when your approval rule is something Tuist does not model, such as requiring a review from a specific GitHub team. Add a job of your own that reads the `tuist/bundle-size` check run and combines it with whatever else you require, and make that job the required check in your branch protection rules rather than the Tuist one.
-
-Switching to this policy does not retract Accept buttons on check runs that were already posted. Pressing one of those tells you the project no longer gates on bundle size, and settles the check run as neutral.
+If your approval rule is something Tuist does not model, such as requiring a review from a specific GitHub team, keep the default here and gate on a job of your own that reads the `tuist/bundle-size` check run alongside whatever else you require.
