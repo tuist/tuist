@@ -149,10 +149,10 @@ To configure thresholds, go to your project's **Settings > Bundles** tab:
 
 ### Restricting who can accept {#size-thresholds-approvals}
 
-By default, anyone GitHub lets press the button on a check run can accept a size increase, which is everyone with write access to the repository. To narrow that, set **Who can accept** under **Settings > Bundles**:
+By default anyone with write access to the repository can accept a size increase, because that is who GitHub shows the button to. To narrow it, set **Who can accept** under **Settings > Bundles**:
 
-- **Anyone with repository write access**: the default. Tuist applies no check of its own, so whoever GitHub offers the button to can accept.
-- **Selected GitHub users**: only the GitHub usernames you list.
+- **Anyone with write access**: the default.
+- **Selected GitHub users**: only the GitHub usernames you add.
 
 When someone who is not on the list presses the button, the check run stays failing and says so. The button remains available so that someone who is on the list can press it.
 
