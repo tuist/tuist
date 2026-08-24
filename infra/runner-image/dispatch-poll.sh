@@ -172,6 +172,12 @@ SHELL_CLAIM_MARKER="${TUIST_RUNNER_SHELL_CLAIM_MARKER:-/tmp/tuist-runner-shell-c
 export TUIST_RUNNER_SHELL_CLAIM_MARKER="${SHELL_CLAIM_MARKER}"
 rm -f "${SHELL_CLAIM_MARKER}" 2>/dev/null || true
 
+# Mirrors the lock protocol in runner-shell-agent-supervisor.sh. The lock is
+# shared across uids: the supervisor holds it as root from its LaunchDaemon,
+# this script runs as `runner`. Liveness therefore goes through ps, not
+# kill -0, which from `runner` fails with EPERM against a live root-owned
+# holder exactly as it fails with ESRCH against a dead pid. Reading a healthy
+# daemon as stale is what started the redundant second supervisor.
 shell_agent_lock_active() {
   local lock_dir=/tmp/tuist-runner-shell-agent.lock
   local pid_file="${lock_dir}/pid"
@@ -181,17 +187,31 @@ shell_agent_lock_active() {
     return 1
   fi
 
+  if [ -e "${pid_file}" ] && [ ! -r "${pid_file}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: cannot read ${pid_file}; assuming the supervisor lock is held"
+    return 0
+  fi
+
   if [ -f "${pid_file}" ]; then
     read -r lock_pid <"${pid_file}" || lock_pid=""
   fi
 
-  if [ -n "${lock_pid}" ] && kill -0 "${lock_pid}" 2>/dev/null; then
-    return 0
-  fi
+  case "${lock_pid}" in
+    '' | *[!0-9]*) ;;
+    *)
+      if ps -p "${lock_pid}" -o pid= >/dev/null 2>&1; then
+        return 0
+      fi
+      ;;
+  esac
 
   echo "$(date -u +%FT%TZ) dispatch-poll: removing stale runner-shell-agent lock"
-  rm -rf "${lock_dir}"
-  return 1
+  if rm -rf "${lock_dir}"; then
+    return 1
+  fi
+
+  echo "$(date -u +%FT%TZ) dispatch-poll: cannot remove ${lock_dir}; assuming the supervisor lock is held"
+  return 0
 }
 
 if shell_agent_lock_active; then
