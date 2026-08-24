@@ -672,6 +672,105 @@ rules; that reads as correct but inverts the semantics of every
 `absent_over_time` rule in this document, so check the deployed configuration
 of the older ones too.
 
+### Kura cache read faults
+
+```promql
+sum by (cluster, pod, route) (
+  rate(kura_http_requests_total_total{
+    route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+    status=~"5.."
+  }[5m])
+) > 0.1
+```
+
+- Pending period: 5 minutes
+- Severity: critical
+- Already created: rule `cftoutryd1jwge`, folder `df5dn1g4rckxsf`, group
+  `Cache`, receiver `Slack #notifications 2`. **The rule lives in Grafana, not
+  in this repo** — nothing here provisions it, so a query or description change
+  means the rule editor.
+- Summary: `Kura pod {{ $labels.pod }} is failing requests on
+  {{ $labels.route }} ({{ $labels.cluster }})`
+
+A 5xx on the public cache routes is meant to mean one thing: the node could not
+serve a request it should have served. Capacity backpressure is deliberately
+kept off this rule, because a shed is the node working as designed and a fixed
+low threshold cannot survive being shared with it.
+
+Match by exclusion rather than by naming one route: every public cache read
+shares the same serving path, so a fault on the CAS or Gradle route is the same
+event with a different label. There is no `tenant_id` label on
+`kura_http_requests_total` — the dashboard gets it by joining `kura_node_info` —
+so group by `pod`, whose name carries the account (`kura-<account>-<region>-<n>`).
+
+One expected 5xx source remains: a draining pod answers public requests with
+`503 server is draining` until it leaves the Service endpoints, so a rolling
+deploy puts a short blip on this rule. The 5-minute pending period absorbs it.
+If a deploy ever trips the rule, lengthen the pending period rather than raising
+the threshold — the blip is bounded by `KURA_DRAIN_COMPLETION_TIMEOUT_MS` and a
+real fault is not.
+
+#### Before you call a 5xx a fault, check the shed
+
+**The rule's own description says "Capacity shedding is 429 and has its own
+warning rule, so this does not fire on a healthy but saturated node." Check the
+running version before you trust that sentence.** It describes the intended end
+state, not every release. Through kura@0.25.1 the multipart upload shed answered
+**503**, so a node that was merely full of in-flight uploads fired this rule as
+if its store had broken. Public capacity shedding moved to `429` in
+`capacity_shed_response` (`kura/src/http.rs`); the artifact-read shed moves with
+it separately. Until both are in the running image, treat a module-route 503 as
+unclassified rather than as a fault.
+
+This misfired for real on 2026-08-24: `kura-tuist-scw-fr-par-0` in
+`tuist-production` paged on `/api/cache/module/start` with 568 × 503 against 218
+successes over a single container lifetime. Nothing was broken. Multipart
+uploads orphaned by liveness-kill restarts had pushed the persisted count past
+the cap, and every new upload was being turned away.
+
+The discriminators, in the order worth running:
+
+```promql
+sum by (pod) (rate(kura_multipart_parts_total_total{result="capacity_exceeded"}[5m]))
+kura_multipart_uploads
+sum by (pod, result) (rate(kura_artifact_reads_total_total{result=~"error"}[5m]))
+```
+
+- `kura_multipart_parts_total{result="capacity_exceeded"}` is decisive, but it
+  covers `/api/cache/module/part` only. The `/start` and `/complete` sheds have
+  no counter of their own.
+- **`kura_multipart_uploads` is not the reservation counter.** The gauge is the
+  count of *persisted* multipart records (`Store::snapshot` →
+  `count_cf_entries(ROCKSDB_CF_MULTIPART_UPLOADS)`), while admission guards a
+  separate atomic. It legitimately reads above the cap — 207 against a cap of
+  128 during the incident. Read it as shed pressure, not as the quantity being
+  compared to the limit.
+- `/api/cache/module/start` has a **second 503 that looks identical**:
+  `artifact_exists` failing answers "Failed to inspect artifact". Nothing on the
+  route separates the two. What argues for the shed is
+  `kura_artifact_reads_total{result=~"error"}` staying empty while
+  `/api/cache/module/{id}` keeps serving 200/404 — a store that reads fine is
+  not a store that has faulted.
+
+**The cap is always 128.** `KURA_MULTIPART_MAX_ACTIVE_UPLOADS` is set nowhere in
+`kura/ops/` or `infra/kura-controller/`, so every managed instance runs
+`DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS` regardless of how large the instance is.
+A bigger node does not get a bigger upload budget.
+
+**An orphaned backlog can outlive the restart that caused it.** Startup seeds
+the admission atomic from persisted state, and when that lands over the limit it
+logs *"persisted multipart usage starts above its configured limits; rejecting
+growth until the janitor reclaims it"*. The janitor runs every 10 minutes, but
+`DEFAULT_MULTIPART_UPLOAD_TTL_MS` is **24 hours** — so a node that died
+mid-upload-wave can come back already wedged and shed every new upload for up to
+a day. Grep the container's startup log for that line before assuming a fresh
+pod is clean. A restart cleared it on 2026-08-24, so the day-long wedge is a
+latent mode, not an observed one.
+
+Worth watching before it pages: a pod sitting at a non-zero resting
+`kura_multipart_uploads` while the rest of the fleet sits at 0 is leaking
+uploads toward the same cap.
+
 ### Runner host PN VLAN missing
 
 ```promql
