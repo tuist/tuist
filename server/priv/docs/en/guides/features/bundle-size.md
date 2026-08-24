@@ -146,3 +146,12 @@ The check run shows the baseline size, current size, and percentage change. If t
 To configure thresholds, go to your project's **Settings > Bundles** tab:
 
 ![Bundle size thresholds settings](/images/guides/features/bundle-size/bundle-size-thresholds.png)
+
+### Restricting who can accept {#size-thresholds-approvals}
+
+By default anyone with write access to the repository can accept a size increase, because that is who GitHub shows the button to. To narrow it, set **Who can accept** under **Settings > Bundles**:
+
+- **Anyone**: the default. Anyone with write access to the repository.
+- **Selected GitHub users**: only the GitHub usernames you add.
+
+Someone not on the list leaves the check failing with an explanation, and the button stays for whoever can use it.

@@ -47,6 +47,7 @@ defmodule Tuist do
       Bundles,
       Bundles.Artifact,
       Bundles.Bundle,
+      Bundles.BundleSizeApprover,
       Bundles.BundleThreshold,
       Bundles.Workers.BundleThresholdWorker,
       Cache,
