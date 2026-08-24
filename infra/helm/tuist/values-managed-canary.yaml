@@ -248,7 +248,6 @@ kuraController:
 # betaPodPrefix keeps the first enforcement step on kura-tuist-* pods.
 egressTreeAgent:
   enabled: true
-  image: ghcr.io/tuist/egress-tree-agent@sha256:b0e324e95d04cee3a63e536a7a0eb00acebcd365ae475c513741572b50f7a75d
   nodePools: [kura-dedibox, kura-ca-east]
   betaPodPrefix: "kura-tuist-"
 

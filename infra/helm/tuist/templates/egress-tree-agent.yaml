@@ -1,8 +1,9 @@
 {{- if .Values.egressTreeAgent.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "egress-tree-agent") }}
 {{- $namespace := .Values.egressTreeAgent.namespace | default .Values.kuraController.namespace }}
-{{- if not .Values.egressTreeAgent.image }}
-{{- fail "egressTreeAgent.image is required (pin by digest)" }}
+{{- $imageTag := .Values.egressTreeAgent.image.tag }}
+{{- if not $imageTag }}
+{{- fail "egressTreeAgent.image.tag is required — running a privileged datapath DaemonSet on :latest silently drifts and surfaces in production after the next push to ghcr. The deploy resolves it from the highest egress-tree-agent@<semver> tag reachable from the deployed commit." }}
 {{- end }}
 {{- if and (not .Values.egressTreeAgent.nodePools) (not .Values.egressTreeAgent.nodeSelector) }}
 {{- fail "egressTreeAgent.nodePools (or nodeSelector) is required: restrict the privileged DaemonSet to the kura cache pools" }}
@@ -101,8 +102,8 @@ spec:
       {{- end }}
       containers:
         - name: agent
-          image: {{ .Values.egressTreeAgent.image | quote }}
-          imagePullPolicy: IfNotPresent
+          image: "{{ .Values.egressTreeAgent.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.egressTreeAgent.image.pullPolicy }}
           env:
             - name: NODE_NAME
               valueFrom:

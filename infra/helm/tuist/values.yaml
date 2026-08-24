@@ -284,8 +284,15 @@ egressTreeAgent:
   # `enabled: false` and redeploying, or delete the policy object directly
   # (see infra/egress-tree-agent/AGENTS.md).
   enabled: false
-  # Full image reference, pinned (e.g. ghcr.io/tuist/egress-tree-agent@sha256:...).
-  image: ""
+  # The tag is resolved at deploy time from the highest
+  # `egress-tree-agent@<semver>` git tag reachable from the deployed commit
+  # (server-deployment.yml's fleet/runtime resolution step), so a release
+  # rolls forward on the next deploy and there is no in-repo pin to bump.
+  # Empty is a render-time failure — see the template's guard.
+  image:
+    repository: ghcr.io/tuist/egress-tree-agent
+    tag: ""
+    pullPolicy: IfNotPresent
   # Deployed into the kura namespace (kuraController.namespace) by default.
   namespace: ""
   # Backstop sweep only: pod/node watch events drive convergence, so this
