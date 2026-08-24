@@ -460,19 +460,6 @@
           <:item :for={{code, name} <- countries()} value={code} label={name} />
         </.select>
       </div>
-
-      <div class="select-field">
-        <.label label={dgettext("dashboard", "Billing cadence")} />
-        <.select
-          id="enterprise-cadence"
-          label={dgettext("dashboard", "Monthly")}
-          name="cadence"
-          value="monthly"
-        >
-          <:item value="monthly" label={dgettext("dashboard", "Monthly")} />
-          <:item value="yearly" label={dgettext("dashboard", "Yearly")} />
-        </.select>
-      </div>
     </form>
 
     <:footer>

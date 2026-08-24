@@ -316,7 +316,7 @@ defmodule Tuist.BillingTest do
       assert Billing.get_current_active_subscription(account).plan == :enterprise
     end
 
-    test "when it's a new enterprise yearly subscription" do
+    test "when it's an enterprise subscription still on the retired yearly price" do
       # Given
       user = AccountsFixtures.user_fixture(customer_id: "customer_id")
       account = Accounts.get_account_from_user(user)
@@ -1601,7 +1601,7 @@ defmodule Tuist.BillingTest do
                                                   %{id: "pro.flat.monthly", deleted: true},
                                                   %{id: "pro.usage", deleted: true},
                                                   %{price: "enterprise.usage"},
-                                                  %{price: "enterprise.flat.yearly", quantity: 0}
+                                                  %{price: "enterprise.flat.monthly", quantity: 0}
                                                 ],
                                                 collection_method: "send_invoice",
                                                 days_until_due: 30
@@ -1612,11 +1612,13 @@ defmodule Tuist.BillingTest do
            status: "active",
            customer: "customer_id",
            default_payment_method: nil,
-           items: %{data: [%{price: %{id: "enterprise.flat.yearly"}}]}
+           items: %{data: [%{price: %{id: "enterprise.flat.monthly"}}]}
          }}
       end)
 
-      # When
+      # When — a caller still asking for yearly gets monthly anyway. The
+      # yearly price is being retired, and enterprises are invoiced off
+      # to the side rather than through it.
       {:ok, _} =
         Billing.upgrade_to_enterprise(account, %{
           name: "Acme",

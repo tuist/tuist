@@ -445,7 +445,11 @@ defmodule Tuist.Billing do
 
   When `params` contains billing details (`:name`, `:billing_email`,
   `:address`), the Stripe customer is updated first. Callers that already
-  have a customer with those details on file can pass just `%{cadence: ...}`.
+  have a customer with those details on file can pass `%{}`.
+
+  Always monthly. Enterprise terms are invoiced off to the side rather
+  than through this subscription, so a yearly cadence bought nothing and
+  billed runner usage a year in arrears.
   """
   def upgrade_to_enterprise(%Account{} = account, params) do
     account = Accounts.create_customer_when_absent(account)
@@ -459,7 +463,7 @@ defmodule Tuist.Billing do
         })
     end
 
-    subscription_items = enterprise_subscription_items(Map.get(params, :cadence, "monthly"), account)
+    subscription_items = enterprise_subscription_items(account)
     current_subscription = get_current_active_subscription(account)
 
     stripe_sub =
@@ -490,9 +494,8 @@ defmodule Tuist.Billing do
     {:ok, stripe_sub}
   end
 
-  defp enterprise_subscription_items(cadence, account) do
+  defp enterprise_subscription_items(account) do
     available_prices = Tuist.Environment.stripe_prices()
-    key = if cadence == "yearly", do: "flat_yearly", else: "flat_monthly"
 
     usage_prices =
       available_prices["enterprise"]["usage"]
@@ -502,7 +505,7 @@ defmodule Tuist.Billing do
     # Enterprise is negotiated per-deal; start the subscription with 0 seats
     # so sales can fill in the actual quantity on Stripe without us guessing.
     flat_prices =
-      available_prices["enterprise"][key]
+      available_prices["enterprise"]["flat_monthly"]
       |> List.wrap()
       |> Enum.take(1)
       |> Enum.map(&%{price: &1, quantity: 0})
@@ -725,6 +728,9 @@ defmodule Tuist.Billing do
 
   defp plan_valid?({plan, plan_prices}, subscription_prices) do
     if plan == "enterprise" do
+      # flat_yearly is no longer sold, but subscriptions created before
+      # it was retired still carry it and must keep reading as
+      # enterprise until they are moved onto the monthly price.
       flat = List.wrap(plan_prices["flat_monthly"]) ++ List.wrap(plan_prices["flat_yearly"])
       Enum.any?(flat, &Enum.member?(subscription_prices, &1))
     else

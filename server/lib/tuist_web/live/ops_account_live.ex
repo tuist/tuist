@@ -233,7 +233,7 @@ defmodule TuistWeb.OpsAccountLive do
     if customer_has_billing_details?(customer) do
       # Customer already has name/email/address on Stripe: upgrade in
       # one click without prompting ops to re-enter anything.
-      {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
+      {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{})
 
       {:noreply,
        socket
@@ -355,7 +355,6 @@ defmodule TuistWeb.OpsAccountLive do
     %{
       name: params["name"],
       billing_email: params["billing_email"],
-      cadence: params["cadence"] || "monthly",
       address: %{
         line1: params["address_line1"],
         line2: params["address_line2"],

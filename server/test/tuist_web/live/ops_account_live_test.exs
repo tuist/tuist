@@ -225,7 +225,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     expect(Billing, :upgrade_to_enterprise, fn account, params ->
       assert account.id == user.account.id
-      assert params == %{cadence: "monthly"}
+      assert params == %{}
       {:ok, %{id: "sub_fake"}}
     end)
 
@@ -253,7 +253,9 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert account.id == user.account.id
       assert params.name == "Acme Corp"
       assert params.billing_email == "billing@acme.test"
-      assert params.cadence == "yearly"
+      # The form no longer offers a cadence, and a stale one posted at it
+      # must not resurrect the retired yearly price.
+      refute Map.has_key?(params, :cadence)
       assert params.address.line1 == "1 Market St"
       assert params.address.city == "San Francisco"
       assert params.address.postal_code == "94103"
