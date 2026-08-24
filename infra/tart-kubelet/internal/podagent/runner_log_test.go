@@ -135,3 +135,171 @@ func TestReadRunnerLogRejectsDirectory(t *testing.T) {
 		t.Errorf("got %q, want \"\"", got)
 	}
 }
+
+// hotLoopBlock is the shape that floods these logs: the supervisor
+// retries a refused stale-lock removal with no backoff, many times per
+// second. Three lines, and no line follows itself, so collapsing equal
+// adjacent lines finds nothing here.
+const hotLoopBlock = "runner-shell-agent-supervisor: removing stale lock at /tmp/tuist-runner-shell-agent.lock\n" +
+	"rm: /tmp/tuist-runner-shell-agent.lock/pid: Permission denied\n" +
+	"rm: /tmp/tuist-runner-shell-agent.lock: Permission denied\n"
+
+func hotLoopLog(t *testing.T, prefix []string, bytes int) string {
+	t.Helper()
+	var b strings.Builder
+	for _, l := range prefix {
+		b.WriteString(l)
+		b.WriteByte('\n')
+	}
+	for b.Len() < bytes {
+		b.WriteString(hotLoopBlock)
+	}
+	return writeRunnerLog(t, b.String())
+}
+
+func TestReadRunnerLogKeepsHistoryBehindARepeatingBlock(t *testing.T) {
+	// The runner's own trail sits behind more than a byte window's worth
+	// of one repeating block, and that trail is what the capture exists
+	// to carry.
+	var prefix []string
+	for i := range 20 {
+		prefix = append(prefix, fmt.Sprintf("dispatch-poll: runner-said-%d", i))
+	}
+	dir := hotLoopLog(t, prefix, runnerLogTailBytes*4)
+
+	published := map[string]bool{}
+	for _, l := range strings.Split(readRunnerLog(dir), "\n") {
+		published[l] = true
+	}
+
+	for _, want := range prefix {
+		if !published[want] {
+			t.Errorf("published tail lost %q", want)
+		}
+	}
+}
+
+func TestReadRunnerLogReportsHowOftenABlockRepeated(t *testing.T) {
+	// The repetition is itself the finding, so the count survives even
+	// though the instances do not.
+	dir := hotLoopLog(t, nil, runnerLogTailBytes*4)
+
+	got := readRunnerLog(dir)
+
+	repeats := strings.Count(got, hotLoopBlock)
+	if repeats != 1 {
+		t.Errorf("block appears %d times, want 1 copy plus a count", repeats)
+	}
+	if !strings.Contains(got, "... (previous 3 lines repeated ") {
+		t.Errorf("got %q, want a marker naming the repeat count", got)
+	}
+}
+
+func TestReadRunnerLogBoundsARepeatingBlock(t *testing.T) {
+	// Collapsing runs before the budgets are applied, so the budgets
+	// still have to hold on the input that motivated it.
+	dir := hotLoopLog(t, nil, runnerLogScanBytes*2)
+
+	got := readRunnerLog(dir)
+
+	if len(got) > runnerLogTailBytes {
+		t.Errorf("got %d bytes, want at most %d", len(got), runnerLogTailBytes)
+	}
+	if n := len(strings.Split(got, "\n")); n > runnerLogTailLines {
+		t.Errorf("got %d lines, want at most %d", n, runnerLogTailLines)
+	}
+}
+
+func TestReadRunnerLogDropsPartialFirstLineAtScanBoundary(t *testing.T) {
+	// The mid-line start moved with the window: it is the scan budget,
+	// not the published byte budget, that the read now lands inside.
+	const width = 4095
+	var b strings.Builder
+	for i := 0; b.Len() <= runnerLogScanBytes+width; i++ {
+		fmt.Fprintf(&b, "%04d%s\n", i, strings.Repeat("z", width-4))
+	}
+	dir := writeRunnerLog(t, b.String())
+
+	for _, l := range strings.Split(readRunnerLog(dir), "\n") {
+		if len(l) != width {
+			t.Fatalf("published a %d-byte line, want whole %d-byte lines only", len(l), width)
+		}
+	}
+}
+
+func TestCollapseRepeatedBlocks(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{
+			name: "a run of one line collapses",
+			in:   []string{"a", "a", "a", "a", "b"},
+			want: []string{"a", "... (previous line repeated 3 more times)", "b"},
+		},
+		{
+			name: "a doubled line is left alone",
+			in:   []string{"a", "a", "b"},
+			want: []string{"a", "a", "b"},
+		},
+		{
+			// Below the floor the marker costs more lines than it saves.
+			name: "a doubled block is left alone",
+			in:   []string{"a", "b", "a", "b", "c"},
+			want: []string{"a", "b", "a", "b", "c"},
+		},
+		{
+			name: "the shortest period wins",
+			in:   []string{"a", "a", "a", "a", "a", "a"},
+			want: []string{"a", "... (previous line repeated 5 more times)"},
+		},
+		{
+			name: "lines between runs survive",
+			in:   []string{"x", "a", "b", "a", "b", "a", "b", "y"},
+			want: []string{"x", "a", "b", "... (previous 2 lines repeated 2 more times)", "y"},
+		},
+		{
+			name: "nothing repeating is untouched",
+			in:   []string{"a", "b", "c"},
+			want: []string{"a", "b", "c"},
+		},
+		{
+			// A block longer than the cap is not a loop worth chasing.
+			name: "a period over the cap is left alone",
+			in:   append(append(longBlock(), longBlock()...), longBlock()...),
+			want: append(append(longBlock(), longBlock()...), longBlock()...),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := collapseRepeatedBlocks(tt.in)
+			if strings.Join(got, "|") != strings.Join(tt.want, "|") {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func longBlock() []string {
+	b := make([]string, runnerLogMaxPeriod+1)
+	for i := range b {
+		b[i] = fmt.Sprintf("l%d", i)
+	}
+	return b
+}
+
+func TestReadRunnerLogKeepsTheEndOfAFileWithoutNewlines(t *testing.T) {
+	// Nothing to split on, so the fragment published is chosen by the
+	// byte cap alone, and it has to be the end of the file.
+	body := strings.Repeat("q", runnerLogScanBytes+1<<20) + "last-thing-it-said"
+	dir := writeRunnerLog(t, body)
+
+	got := readRunnerLog(dir)
+
+	if len(got) > runnerLogTailBytes {
+		t.Fatalf("got %d bytes, want at most %d", len(got), runnerLogTailBytes)
+	}
+	if !strings.HasSuffix(got, "last-thing-it-said") {
+		t.Error("published a fragment from somewhere other than the end of the file")
+	}
+}

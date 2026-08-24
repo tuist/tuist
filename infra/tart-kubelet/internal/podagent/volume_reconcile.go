@@ -140,9 +140,8 @@ func readRunnerExit(statusDir string) (int32, bool) {
 // own stdout before teardown deletes the share.
 //
 // Tail rather than head: the interesting part of a runner that gave up
-// is what it said last. Bounded twice because the file is guest-written
-// — by bytes first so a single pathological line cannot blow up the log
-// record, then by lines.
+// is what it said last. runnerLogTail reduces the scanned window to the
+// published line and byte budgets.
 //
 // Opened O_NOFOLLOW and required to be a regular file, because the guest
 // writes this path and the guest runs untrusted customer CI. A job that
@@ -171,24 +170,14 @@ func readRunnerLog(statusDir string) string {
 		return ""
 	}
 	offset := int64(0)
-	if fi.Size() > runnerLogTailBytes {
-		offset = fi.Size() - runnerLogTailBytes
+	if fi.Size() > runnerLogScanBytes {
+		offset = fi.Size() - runnerLogScanBytes
 	}
 	b := make([]byte, fi.Size()-offset)
 	if _, err := f.ReadAt(b, offset); err != nil {
 		return ""
 	}
-
-	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
-	// A byte-bounded read almost certainly starts mid-line; drop that
-	// fragment so the tail begins on a real record.
-	if offset > 0 && len(lines) > 1 {
-		lines = lines[1:]
-	}
-	if len(lines) > runnerLogTailLines {
-		lines = lines[len(lines)-runnerLogTailLines:]
-	}
-	return strings.Join(lines, "\n")
+	return runnerLogTail(string(b), offset > 0)
 }
 
 // readRunnerExitTime returns when the guest wrote its exit report, which
