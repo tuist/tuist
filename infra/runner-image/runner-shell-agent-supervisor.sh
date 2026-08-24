@@ -28,11 +28,20 @@ lock_holder_alive() {
   ps -p "${1}" -o pid= >/dev/null 2>&1
 }
 
-# Sets lock_pid. Returns 1 when the pid file exists but cannot be read, which
-# is not evidence that the holder died.
+# Sets lock_pid. Returns 1 only when the pid file is a regular file that cannot
+# be read, which is not evidence that the holder died.
+#
+# The -f test carries weight beyond -r: -r is an access(2) permission check and
+# passes on a FIFO or a blocking device node, and the redirect below would then
+# hang in open(2), before any of the bounded handling downstream gets to run.
+# A non-regular path is never a live holder's doing either, since the holder
+# publishes its pid with a plain `echo >` that would block on the same FIFO, so
+# anything that is not a regular file falls through to the stale path where
+# removal is bounded and refusal exits.
 lock_pid=""
 read_lock_pid() {
   lock_pid=""
+  [ -f "${LOCK_PID_FILE}" ] || return 0
   [ -r "${LOCK_PID_FILE}" ] || return 1
   read -r lock_pid <"${LOCK_PID_FILE}" || lock_pid=""
   return 0
