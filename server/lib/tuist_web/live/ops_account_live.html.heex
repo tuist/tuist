@@ -201,7 +201,7 @@
       <p data-part="prepaid-description">
         {dgettext(
           "dashboard",
-          "Prepaid minutes are granted as soon as they are added here, so the account can run on them right away. The charge rides its next invoice alongside the rest of the bill. They expire at the end of the billing period they were bought for and do not roll over. The figures below are minutes on the macOS 6 vCPU / 14 GB baseline; a larger machine draws them down faster than one minute per minute it runs."
+          "Setting this replaces what the account holds rather than adding to it, and the minutes are granted straight away so it can run on them. The charge rides its next invoice alongside the rest of the bill. Minutes expire at the end of the billing period they were bought for and do not roll over. The figures are minutes on the macOS 6 vCPU / 14 GB baseline; a larger machine draws them down faster than one minute per minute it runs."
         )}
       </p>
       <.alert
@@ -239,14 +239,14 @@
         for={%{}}
         id="prepaid-minutes-form"
         phx-change="quote_prepaid_minutes"
-        phx-submit="bill_prepaid_minutes"
+        phx-submit="set_prepaid_minutes"
       >
         <.text_input
           id="prepaid-minutes-input"
           name="minutes"
-          value=""
+          value={@prepaid_minutes_value}
           input_type="number"
-          min={1}
+          min={0}
           label={dgettext("dashboard", "Prepaid minutes (macOS 6 vCPU / 14 GB)")}
         />
         <dl :if={@prepaid_quote} data-part="prepaid-quote">
@@ -263,7 +263,7 @@
           <.button
             type="submit"
             variant="primary"
-            label={dgettext("dashboard", "Add to next invoice")}
+            label={dgettext("dashboard", "Set minutes")}
           />
         </div>
       </.form>

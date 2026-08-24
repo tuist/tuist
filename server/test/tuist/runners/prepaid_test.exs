@@ -61,6 +61,15 @@ defmodule Tuist.Runners.PrepaidTest do
 
   # Stubs the lines endpoint for whatever invoice is asked about, so a
   # test only has to say what is on the bill.
+  defp prepaid_grant(id, item_id) do
+    %{
+      id: id,
+      metadata: %{"tuist_runner_credit" => "prepaid", "tuist_prepaid_invoice_line_id" => item_id},
+      amount: %{type: "monetary", monetary: %{currency: "usd", value: 750_000}},
+      expires_at: nil
+    }
+  end
+
   defp stub_account_period(period_end) do
     stub(Accounts, :get_account_from_customer_id, fn _id -> {:ok, %Account{id: 1}} end)
     stub(Billing, :current_billing_period, fn _account -> {DateTime.add(period_end, -30, :day), period_end} end)
@@ -438,6 +447,87 @@ defmodule Tuist.Runners.PrepaidTest do
 
       assert {:error, :stripe_down} =
                Prepaid.bill_prepaid_minutes(%Account{customer_id: "cus_bill"}, 10_000)
+    end
+  end
+
+  describe "set_minutes/3" do
+    test "grants the target when the account holds none" do
+      stub(CreditGrants, :list_for_customer, fn _customer_id -> {:ok, []} end)
+      stub_account_period(~U[2026-09-01 00:00:00Z])
+
+      expect(Stripe.Invoiceitem, :create, fn params ->
+        assert params.amount == 60_000
+        {:ok, %{id: "ii_1"}}
+      end)
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.amount_cents == 75_000
+        {:ok, %{id: "credgr_1"}}
+      end)
+
+      assert {:ok, _} = Prepaid.set_minutes(%Account{customer_id: "cus_set"}, 10_000)
+    end
+
+    test "replaces what is there rather than stacking another grant on top" do
+      # Setting is not adding: the account ends up with the number typed,
+      # held as one grant, not that many more minutes than before.
+      stub(CreditGrants, :list_for_customer, fn _customer_id ->
+        {:ok, [prepaid_grant("credgr_old", "ii_old")]}
+      end)
+
+      stub_account_period(~U[2026-09-01 00:00:00Z])
+
+      # Still pending, so the charge for the minutes being replaced can
+      # be withdrawn before the customer is ever billed for them.
+      expect(Stripe.Invoiceitem, :retrieve, fn "ii_old" -> {:ok, %{id: "ii_old", invoice: nil}} end)
+      expect(Stripe.Invoiceitem, :delete, fn "ii_old" -> {:ok, %{id: "ii_old", deleted: true}} end)
+      expect(CreditGrants, :void, fn "credgr_old" -> {:ok, %{id: "credgr_old"}} end)
+
+      expect(Stripe.Invoiceitem, :create, fn params ->
+        assert params.amount == 600
+        {:ok, %{id: "ii_new"}}
+      end)
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.amount_cents == 750
+        {:ok, %{id: "credgr_new"}}
+      end)
+
+      assert {:ok, _} = Prepaid.set_minutes(%Account{customer_id: "cus_set"}, 100)
+    end
+
+    test "refuses to withdraw minutes the customer has already been invoiced for" do
+      # Voiding a grant that was paid for would take away minutes the
+      # account bought. Stripe is where that gets sorted out, with a
+      # refund attached, not a button here.
+      stub(CreditGrants, :list_for_customer, fn _customer_id ->
+        {:ok, [prepaid_grant("credgr_paid", "ii_paid")]}
+      end)
+
+      stub(Stripe.Invoiceitem, :retrieve, fn "ii_paid" -> {:ok, %{id: "ii_paid", invoice: "in_1"}} end)
+
+      reject(&CreditGrants.void/1)
+      reject(&Stripe.Invoiceitem.delete/1)
+      reject(&CreditGrants.create/1)
+      reject(&Stripe.Invoiceitem.create/1)
+
+      assert {:error, {:already_invoiced, "ii_paid"}} =
+               Prepaid.set_minutes(%Account{customer_id: "cus_set"}, 100)
+    end
+
+    test "clears the balance when set to zero" do
+      stub(CreditGrants, :list_for_customer, fn _customer_id ->
+        {:ok, [prepaid_grant("credgr_old", "ii_old")]}
+      end)
+
+      stub(Stripe.Invoiceitem, :retrieve, fn "ii_old" -> {:ok, %{id: "ii_old", invoice: nil}} end)
+      expect(Stripe.Invoiceitem, :delete, fn "ii_old" -> {:ok, %{deleted: true}} end)
+      expect(CreditGrants, :void, fn "credgr_old" -> {:ok, %{id: "credgr_old"}} end)
+
+      reject(&Stripe.Invoiceitem.create/1)
+      reject(&CreditGrants.create/1)
+
+      assert {:ok, _} = Prepaid.set_minutes(%Account{customer_id: "cus_set"}, 0)
     end
   end
 

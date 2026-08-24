@@ -295,7 +295,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     test "quotes the money as minutes are typed, before anything is charged", %{conn: conn, user: user} do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-      reject(&Prepaid.bill_prepaid_minutes/3)
+      reject(&Prepaid.set_minutes/3)
 
       html =
         lv
@@ -331,7 +331,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
       # counter would have advanced before the form was ever submitted.
       {:ok, billed} = Agent.start_link(fn -> false end)
 
-      stub(Prepaid, :bill_prepaid_minutes, fn _account, _minutes ->
+      stub(Prepaid, :set_minutes, fn _account, _minutes ->
         Agent.update(billed, fn _ -> true end)
         {:ok, %{id: "ii_1"}}
       end)
@@ -352,27 +352,63 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert html =~ "10,100"
     end
 
-    test "adds the charge to the next invoice and grants it at the same time", %{conn: conn, user: user} do
+    test "sets the balance to the figure typed rather than adding to it", %{conn: conn, user: user} do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-      expect(Prepaid, :bill_prepaid_minutes, fn account, minutes ->
+      expect(Prepaid, :set_minutes, fn account, minutes ->
         assert account.id == user.account.id
         assert minutes == 10_000
         {:ok, %{id: "ii_1"}}
       end)
 
       # `expect` above is the assertion: it pins the account and the
-      # minute count, and verify_on_exit! fails the test if the charge
-      # was never created.
+      # minute count, and verify_on_exit! fails the test if nothing was
+      # set.
       lv
       |> form("#prepaid-minutes-form", %{"minutes" => "10000"})
       |> render_submit()
     end
 
+    test "arrives prefilled with what the account already holds", %{conn: conn, user: user} do
+      stub(Prepaid, :balance, fn _account ->
+        %{
+          available: Money.new(750_000, :USD),
+          expires_at: ~U[2026-09-01 00:00:00Z],
+          grants: [
+            %{
+              id: "credgr_1",
+              kind: "prepaid",
+              available: Money.new(750_000, :USD),
+              available_minutes: 10_000,
+              expires_at: ~U[2026-09-01 00:00:00Z]
+            }
+          ]
+        }
+      end)
+
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ ~s(id="prepaid-minutes-input")
+      assert html =~ ~s(value="10000")
+    end
+
+    test "says so when the minutes were already invoiced", %{conn: conn, user: user} do
+      stub(Prepaid, :set_minutes, fn _account, _minutes -> {:error, {:already_invoiced, "ii_1"}} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html =
+        lv
+        |> form("#prepaid-minutes-form", %{"minutes" => "100"})
+        |> render_submit()
+
+      assert html =~ "already been invoiced"
+    end
+
     test "refuses a minute count that is not a positive whole number", %{conn: conn, user: user} do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-      reject(&Prepaid.bill_prepaid_minutes/3)
+      reject(&Prepaid.set_minutes/3)
 
       # `reject` is the assertion: nothing may reach Stripe for any of
       # these, so no charge is created from a malformed minute count.

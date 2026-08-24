@@ -74,6 +74,21 @@ defmodule Tuist.Billing.CreditGrants do
   end
 
   @doc """
+  Voids a grant, so whatever is left on it stops applying.
+
+  Stripe has no partial void: what is left goes, and a grant already
+  drawn down keeps whatever it paid for. Voiding is not a refund, so a
+  grant the customer was invoiced for needs one raised separately.
+  """
+  def void(grant_id) when is_binary(grant_id) do
+    []
+    |> Stripe.Request.new_request(%{})
+    |> Stripe.Request.put_endpoint("#{@grants_endpoint}/#{grant_id}/void")
+    |> Stripe.Request.put_method(:post)
+    |> Stripe.Request.make_request()
+  end
+
+  @doc """
   Every credit grant on `customer_id`, oldest page first.
 
   Pages through the collection rather than reading the first 100, because

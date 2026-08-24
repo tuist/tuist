@@ -387,6 +387,97 @@ defmodule Tuist.Runners.Prepaid do
     end
   end
 
+  @doc """
+  Sets the account's prepaid minutes to `minutes`, replacing whatever it
+  holds rather than adding to it.
+
+  Setting is not adding. The account ends up holding the number given,
+  as a single grant, so an operator correcting a figure types the figure
+  they want rather than the difference from one they have to work out.
+
+  Replacing means withdrawing what is there: the grant is voided and the
+  charge behind it deleted, which is only honest while that charge is
+  still pending. A grant the customer has already been invoiced for is
+  refused with `{:error, {:already_invoiced, item_id}}` — taking those
+  minutes back needs a refund, which belongs in Stripe rather than
+  behind a button here.
+
+  `0` clears the balance and bills nothing.
+  """
+  def set_minutes(account, minutes, opts \\ [])
+
+  def set_minutes(%Account{customer_id: customer_id} = account, minutes, opts)
+      when is_binary(customer_id) and is_integer(minutes) and minutes >= 0 do
+    with {:ok, grants} <- CreditGrants.list_for_customer(customer_id),
+         held = Enum.filter(grants, &live_runner_credit?/1),
+         {:ok, items} <- withdrawable_items(held),
+         :ok <- withdraw(held, items) do
+      result = if minutes > 0, do: bill_prepaid_minutes(account, minutes, opts), else: {:ok, :cleared}
+
+      refresh_balance(customer_id)
+      result
+    end
+  end
+
+  @doc """
+  Re-reads the balance and replaces the cached copy with it.
+
+  Callers that have just changed the grants need this: `balance/2` is
+  cached for minutes, so without it the next read serves the figure from
+  before the change and the operator sees nothing happen.
+  """
+  def refresh_balance(customer_id) when is_binary(customer_id) do
+    balance = fetch_balance(customer_id)
+
+    if balance do
+      KeyValueStore.put(balance_cache_key(customer_id), balance, ttl: @balance_cache_ttl)
+    end
+
+    balance
+  end
+
+  # Every held grant is checked before any of them is withdrawn, so a
+  # set that cannot go through leaves the account exactly as it was
+  # rather than half-emptied.
+  defp withdrawable_items(grants) do
+    Enum.reduce_while(grants, {:ok, []}, fn grant, {:ok, acc} ->
+      item_id = grant_metadata(grant, @line_key)
+
+      cond do
+        is_nil(item_id) ->
+          {:halt, {:error, {:not_withdrawable, grant_id(grant)}}}
+
+        # Granted from a paid invoice, so the money is in.
+        not is_nil(grant_metadata(grant, @invoice_key)) ->
+          {:halt, {:error, {:already_invoiced, item_id}}}
+
+        true ->
+          case Stripe.Invoiceitem.retrieve(item_id) do
+            {:ok, %{invoice: nil}} -> {:cont, {:ok, [item_id | acc]}}
+            {:ok, _invoiced} -> {:halt, {:error, {:already_invoiced, item_id}}}
+            {:error, reason} -> {:halt, {:error, reason}}
+          end
+      end
+    end)
+  end
+
+  defp withdraw(grants, item_ids) do
+    with :ok <- each_ok(item_ids, &Stripe.Invoiceitem.delete/1) do
+      each_ok(grants, fn grant -> CreditGrants.void(grant_id(grant)) end)
+    end
+  end
+
+  defp each_ok(items, fun) do
+    Enum.reduce_while(items, :ok, fn item, :ok ->
+      case fun.(item) do
+        {:ok, _} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp grant_id(grant), do: Map.get(grant, :id) || Map.get(grant, "id")
+
   # The minutes are granted here rather than on `invoice.paid`, so the
   # account can spend them the moment they are sold. The charge still
   # rides the next monthly bill.
@@ -438,7 +529,7 @@ defmodule Tuist.Runners.Prepaid do
     # Versioned: the cached value is a map this module shapes, so a
     # deploy that changes that shape would otherwise serve stale entries
     # to new code until the TTL lapsed. Bump on any shape change.
-    cache_key = [:runner_prepaid_balance, :v2, customer_id]
+    cache_key = balance_cache_key(customer_id)
 
     case KeyValueStore.get(cache_key, opts) do
       nil ->
@@ -458,6 +549,11 @@ defmodule Tuist.Runners.Prepaid do
   quote prepaid terms without creating a grant.
   """
   def default_funding_ratio_bp, do: @default_funding_ratio_bp
+
+  # Versioned: the cached value is a map this module shapes, so a deploy
+  # that changes that shape would otherwise serve stale entries to new
+  # code until the TTL lapsed. Bump on any shape change.
+  defp balance_cache_key(customer_id), do: [:runner_prepaid_balance, :v2, customer_id]
 
   defp fetch_balance(customer_id) do
     with {:ok, grants} <- CreditGrants.list_for_customer(customer_id),

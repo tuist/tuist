@@ -24,13 +24,15 @@ defmodule TuistWeb.OpsAccountLive do
     case Accounts.get_account_by_id(parse_id(id)) do
       {:ok, account} ->
         account = preload_billing(account)
+        balance = Prepaid.balance(account)
 
         {:ok,
          socket
          |> assign(:head_title, "#{account.name} · Tuist Ops")
          |> assign(:account, account)
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
-         |> assign(:prepaid_balance, Prepaid.balance(account))
+         |> assign(:prepaid_balance, balance)
+         |> assign(:prepaid_minutes_value, held_minutes(balance))
          |> assign(:on_runner_trial, Trials.on_trial?(account))
          |> assign(:prepaid_quote, nil)
          |> assign(:has_subscription, not is_nil(Billing.get_current_active_subscription(account)))
@@ -146,28 +148,41 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   @impl true
-  def handle_event("bill_prepaid_minutes", %{"minutes" => minutes}, socket) do
+  def handle_event("set_prepaid_minutes", %{"minutes" => minutes}, socket) do
     case parse_minutes(minutes) do
       {:ok, minutes} ->
         account = Accounts.create_customer_when_absent(socket.assigns.account)
 
-        case Prepaid.bill_prepaid_minutes(account, minutes) do
-          {:ok, _item} ->
-            quoted = Prepaid.quote_minutes(minutes)
+        case Prepaid.set_minutes(account, minutes) do
+          {:ok, _result} ->
+            quoted = Prepaid.quote_minutes(max(minutes, 1))
+            refreshed = Prepaid.balance(account)
 
             {:noreply,
              socket
              |> assign(:account, preload_billing(account))
-             |> assign(:prepaid_balance, Prepaid.balance(account))
+             |> assign(:prepaid_balance, refreshed)
+             |> assign(:prepaid_minutes_value, held_minutes(refreshed))
              |> assign(:prepaid_quote, nil)
              |> put_flash(
                :info,
                dgettext(
                  "dashboard",
-                 "Granted %{minutes} prepaid runner minutes to %{account}. %{amount} was added to its next invoice.",
-                 minutes: format_number(quoted.minutes),
+                 "%{account} now holds %{minutes} prepaid runner minutes. %{amount} was added to its next invoice.",
+                 minutes: format_number(minutes),
                  amount: format_money(quoted.invoiced),
                  account: account.name
+               )
+             )}
+
+          {:error, {:already_invoiced, _item_id}} ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               dgettext(
+                 "dashboard",
+                 "These minutes have already been invoiced, so they cannot be withdrawn here. Refund the charge in Stripe first."
                )
              )}
 
@@ -176,12 +191,12 @@ defmodule TuistWeb.OpsAccountLive do
              put_flash(
                socket,
                :error,
-               dgettext("dashboard", "Could not bill prepaid minutes: %{reason}", reason: inspect(reason))
+               dgettext("dashboard", "Could not set prepaid minutes: %{reason}", reason: inspect(reason))
              )}
         end
 
       :error ->
-        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes above zero."))}
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes, or zero to clear."))}
     end
   end
 
@@ -370,14 +385,22 @@ defmodule TuistWeb.OpsAccountLive do
 
   defp quote_minutes(raw) do
     case parse_minutes(raw) do
-      {:ok, minutes} -> Prepaid.quote_minutes(minutes)
-      :error -> nil
+      {:ok, minutes} when minutes > 0 -> Prepaid.quote_minutes(minutes)
+      _ -> nil
     end
+  end
+
+  # The field opens on what the account holds, so an operator corrects a
+  # figure rather than working out the difference from the table above.
+  defp held_minutes(nil), do: 0
+
+  defp held_minutes(%{grants: grants}) do
+    grants |> Enum.map(&Map.get(&1, :available_minutes, 0)) |> Enum.sum()
   end
 
   defp parse_minutes(raw) when is_binary(raw) do
     case Integer.parse(String.trim(raw)) do
-      {minutes, ""} when minutes > 0 -> {:ok, minutes}
+      {minutes, ""} when minutes >= 0 -> {:ok, minutes}
       _ -> :error
     end
   end
