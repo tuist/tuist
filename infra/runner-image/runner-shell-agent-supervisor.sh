@@ -12,25 +12,75 @@ echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: starting"
 
 LOCK_DIR=/tmp/tuist-runner-shell-agent.lock
 LOCK_PID_FILE="${LOCK_DIR}/pid"
+
+# The lock is deliberately shared across uids: this script runs as root from
+# /Library/LaunchDaemons, while dispatch-poll.sh starts its fallback copy as
+# `runner`. Both must see the same lock, so the path stays in /tmp.
+#
+# kill -0 cannot arbitrate that. From `runner` it fails with EPERM against a
+# live root-owned holder exactly as it fails with ESRCH against a dead pid, so
+# a healthy daemon reads as stale. ps reports every uid, so it can tell the
+# two apart.
+lock_holder_alive() {
+  case "${1}" in
+    '' | *[!0-9]*) return 1 ;;
+  esac
+  ps -p "${1}" -o pid= >/dev/null 2>&1
+}
+
+# Sets lock_pid. Returns 1 when the pid file exists but cannot be read, which
+# is not evidence that the holder died.
+lock_pid=""
+read_lock_pid() {
+  lock_pid=""
+  [ -r "${LOCK_PID_FILE}" ] || return 1
+  read -r lock_pid <"${LOCK_PID_FILE}" || lock_pid=""
+  return 0
+}
+
+LOCK_REMOVAL_ATTEMPT_LIMIT=5
+lock_removal_failures=0
+
 while ! mkdir "${LOCK_DIR}" 2>/dev/null; do
   lock_pid=""
-  if [ -f "${LOCK_PID_FILE}" ]; then
-    read -r lock_pid <"${LOCK_PID_FILE}" || lock_pid=""
-  else
+  # The holder writes its pid just after mkdir; give it a beat to appear.
+  if [ ! -e "${LOCK_PID_FILE}" ]; then
     sleep 1
-    if [ -f "${LOCK_PID_FILE}" ]; then
-      read -r lock_pid <"${LOCK_PID_FILE}" || lock_pid=""
-    fi
   fi
 
-  if [ -z "${lock_pid}" ] || ! kill -0 "${lock_pid}" 2>/dev/null; then
-    echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: removing stale lock at ${LOCK_DIR}"
-    rm -rf "${LOCK_DIR}"
+  if [ -e "${LOCK_PID_FILE}" ] && ! read_lock_pid; then
+    echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: cannot read ${LOCK_PID_FILE}; assuming the lock is held"
+    sleep 30
     continue
   fi
 
-  echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: another supervisor is active; waiting"
-  sleep 30
+  if lock_holder_alive "${lock_pid}"; then
+    echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: another supervisor is active (pid=${lock_pid}); waiting"
+    sleep 30
+    continue
+  fi
+
+  echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: removing stale lock at ${LOCK_DIR}"
+  if rm -rf "${LOCK_DIR}"; then
+    lock_removal_failures=0
+    continue
+  fi
+
+  # Refused removal means the lock belongs to another uid, and the only other
+  # uid reaching this path is the one running the other supervisor copy. Retry
+  # bounded and backed off, then exit rather than run unlocked: starting a
+  # second runner-shell-agent against the same dispatch URL and claim marker is
+  # what the lock exists to prevent. Exiting is safe for both callers. The
+  # LaunchDaemon copy is KeepAlive=true, so launchd respawns it under its own
+  # 10s throttle and reclaims the lock once the holder is gone; the
+  # dispatch-poll.sh fallback copy is redundant while the daemon holds it.
+  lock_removal_failures=$((lock_removal_failures + 1))
+  if [ "${lock_removal_failures}" -ge "${LOCK_REMOVAL_ATTEMPT_LIMIT}" ]; then
+    echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: cannot remove ${LOCK_DIR} after ${LOCK_REMOVAL_ATTEMPT_LIMIT} attempts; another uid owns it, giving up"
+    exit 1
+  fi
+  echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: lock removal refused (attempt ${lock_removal_failures}/${LOCK_REMOVAL_ATTEMPT_LIMIT}); retrying"
+  sleep $((lock_removal_failures * 5))
 done
 echo "$$" >"${LOCK_PID_FILE}"
 trap 'rm -rf "${LOCK_DIR}" 2>/dev/null || true' EXIT
