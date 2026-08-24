@@ -1206,14 +1206,20 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenProjectNameHasDashesInItBundleNameIncludeDashForProjectNameAndUnderscoreForTargetName() async throws {
+    func mapWhenSwiftPackageProjectAndTargetNamesRequireCIdentifierSanitization() async throws {
         // Given
-        let projectName = "sdk-with-dash"
+        let projectName = "3sdk-with.dash"
         let targetName = "target-with-dash"
-        let expectedBundleName = "sdk-with-dash_target_with_dash"
-        let sources: [SourceFile] = ["/ViewController.m", "/ViewController2.swift"]
+        let expectedBundleName = "_sdk_with_dash_target_with_dash"
+        let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
-        let target = Target.test(name: targetName, product: .staticLibrary, sources: sources, resources: .init(resources))
+        let target = Target.test(
+            name: targetName,
+            product: .staticLibrary,
+            sources: sources,
+            resources: .init(resources),
+            metadata: .test(tags: [TargetTags.swiftPackage])
+        )
         let project = Project.test(
             path: try AbsolutePath(validating: "/AbsolutePath/Project"),
             name: projectName,
@@ -1223,12 +1229,15 @@ struct ResourcesProjectMapperTests {
         given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
-        let (gotProject, _) = try await subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+        let gotTarget = try #require(gotProject.targets.values.first(where: { $0.name == targetName }))
         let bundleTarget = try #require(gotProject.targets.values.sorted().first(where: { $0.product == .bundle }))
 
         // Then
         #expect(bundleTarget.name == expectedBundleName)
         #expect(bundleTarget.productName == expectedBundleName)
+        #expect(gotTarget.settings?.base["PACKAGE_RESOURCE_BUNDLE_NAME"] == .string(expectedBundleName))
+        verifyObjcResourceAccessorGeneration(for: target, gotTarget: gotTarget, gotSideEffects: gotSideEffects)
         #expect(gotProject.targets.count == 2)
     }
 

@@ -58,13 +58,15 @@ public struct ResourcesProjectMapper: ProjectMapping {
             return ([target], [])
         }
 
+        let objcResourceAccessorNeeded = targetNeedsObjcResourceAccessor(target)
         let bundleName = "\(project.name)_\(target.name.sanitizedModuleName)"
+        let resourceBundleName = objcResourceAccessorNeeded ? bundleName.asLegalCIdentifier : bundleName
         var modifiedTarget = target
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
 
         if targetNeedsCompanionBundle(target) {
-            let companion = synthesizeCompanionBundle(for: target, bundleName: bundleName)
+            let companion = synthesizeCompanionBundle(for: target, bundleName: resourceBundleName)
             modifiedTarget = companion.modifiedTarget
             additionalTargets.append(companion.bundleTarget)
         }
@@ -75,14 +77,14 @@ public struct ResourcesProjectMapper: ProjectMapping {
                 sideEffects: &sideEffects,
                 target: target,
                 project: project,
-                bundleName: bundleName
+                bundleName: resourceBundleName
             )
             if targetNeedsCompanionBundle(target) {
                 modifiedTarget = addingModuleResourceBundleAvailableCondition(to: modifiedTarget)
             }
         }
 
-        if targetNeedsObjcResourceAccessor(target) {
+        if objcResourceAccessorNeeded {
             modifiedTarget = addingObjcResourceAccessorGeneration(to: modifiedTarget)
         }
 
