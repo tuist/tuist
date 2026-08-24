@@ -156,12 +156,13 @@
   }
 
   & > [data-part="bundle-approvals-card-section"] {
-    & > [data-part="content"] {
-      gap: var(--noora-spacing-7);
+    /* The card is already a flex column with a gap, so the shared header
+       padding would double the space under this card's header. */
+    & > [data-part="header"] {
+      padding-bottom: var(--noora-spacing-0);
     }
 
-    & > [data-part="approvers-section"],
-    & [data-part="approvers-section"] {
+    & > [data-part="approvers-section"] {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-5);
