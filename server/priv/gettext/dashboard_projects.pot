@@ -772,8 +772,8 @@ msgstr ""
 msgid "Deviation"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:289
-#: lib/tuist_web/live/project_automation_live.ex:295
+#: lib/tuist_web/live/project_automation_live.ex:290
+#: lib/tuist_web/live/project_automation_live.ex:296
 #: lib/tuist_web/live/project_notifications_live.html.heex:546
 #, elixir-autogen, elixir-format
 msgid "None"
@@ -804,7 +804,7 @@ msgstr ""
 msgid "No alert rules"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:38
+#: lib/tuist_web/live/project_automation_live.ex:39
 #: lib/tuist_web/live/project_automation_live.html.heex:6
 #: lib/tuist_web/live/project_automations_live.ex:35
 #: lib/tuist_web/live/project_automations_live.html.heex:20
@@ -1103,7 +1103,7 @@ msgstr ""
 msgid "Enable"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:286
+#: lib/tuist_web/live/project_automation_live.ex:287
 #: lib/tuist_web/live/project_automation_live.html.heex:26
 #: lib/tuist_web/live/project_automations_live.ex:724
 #: lib/tuist_web/live/project_automations_live.html.heex:449
@@ -1360,7 +1360,7 @@ msgstr ""
 msgid "Window"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:298
+#: lib/tuist_web/live/project_automation_live.ex:299
 #: lib/tuist_web/live/project_automations_live.ex:814
 #, elixir-autogen, elixir-format
 msgid "the last %{size} runs"
@@ -1498,12 +1498,12 @@ msgstr ""
 msgid "This automation uses an unsupported trigger configuration. Edit it before enabling it."
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:89
+#: lib/tuist_web/live/project_automation_live.ex:90
 #, elixir-autogen, elixir-format
 msgid "%{actor} changed this automation from %{source}"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:80
+#: lib/tuist_web/live/project_automation_live.ex:81
 #, elixir-autogen, elixir-format
 msgid "%{actor} created this automation from %{source}"
 msgstr ""
@@ -1518,33 +1518,33 @@ msgstr ""
 msgid "Automation"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:76
-#: lib/tuist_web/live/project_automation_live.ex:119
+#: lib/tuist_web/live/project_automation_live.ex:77
+#: lib/tuist_web/live/project_automation_live.ex:120
 #, elixir-autogen, elixir-format
 msgid "Automation created"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:161
+#: lib/tuist_web/live/project_automation_live.ex:162
 #, elixir-autogen, elixir-format
 msgid "Automation disabled"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:160
+#: lib/tuist_web/live/project_automation_live.ex:161
 #, elixir-autogen, elixir-format
 msgid "Automation enabled"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:43
+#: lib/tuist_web/live/project_automation_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Automation not found."
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:127
+#: lib/tuist_web/live/project_automation_live.ex:128
 #, elixir-autogen, elixir-format
 msgid "Automation renamed"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:77
+#: lib/tuist_web/live/project_automation_live.ex:78
 #, elixir-autogen, elixir-format
 msgid "Automation updated"
 msgstr ""
@@ -1554,12 +1554,12 @@ msgstr ""
 msgid "Cadence"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:130
+#: lib/tuist_web/live/project_automation_live.ex:131
 #, elixir-autogen, elixir-format
 msgid "Cadence changed"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:195
+#: lib/tuist_web/live/project_automation_live.ex:196
 #, elixir-autogen, elixir-format
 msgid "Condition changed"
 msgstr ""
@@ -1574,8 +1574,8 @@ msgstr ""
 msgid "Current configuration"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:62
-#: lib/tuist_web/live/project_automation_live.ex:287
+#: lib/tuist_web/live/project_automation_live.ex:63
+#: lib/tuist_web/live/project_automation_live.ex:288
 #: lib/tuist_web/live/project_automation_live.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Disabled"
@@ -1586,17 +1586,17 @@ msgstr ""
 msgid "Edit history"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:65
+#: lib/tuist_web/live/project_automation_live.ex:66
 #, elixir-autogen, elixir-format
 msgid "Enabled after %{window}"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:73
+#: lib/tuist_web/live/project_automation_live.ex:74
 #, elixir-autogen, elixir-format
 msgid "Every %{cadence}"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:117
+#: lib/tuist_web/live/project_automation_live.ex:118
 #, elixir-autogen, elixir-format
 msgid "Initial configuration"
 msgstr ""
@@ -1606,22 +1606,22 @@ msgstr ""
 msgid "No configuration changes recorded yet"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:141
+#: lib/tuist_web/live/project_automation_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Recovery actions changed"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:253
+#: lib/tuist_web/live/project_automation_live.ex:254
 #, elixir-autogen, elixir-format
 msgid "Recovery condition changed"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:230
+#: lib/tuist_web/live/project_automation_live.ex:231
 #, elixir-autogen, elixir-format
 msgid "Recovery disabled"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:229
+#: lib/tuist_web/live/project_automation_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "Recovery enabled"
 msgstr ""
@@ -1631,13 +1631,13 @@ msgstr ""
 msgid "Review changes to this automation and see who changed its configuration."
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:134
+#: lib/tuist_web/live/project_automation_live.ex:135
 #, elixir-autogen, elixir-format
 msgid "Trigger actions changed"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:99
-#: lib/tuist_web/live/project_automation_live.ex:103
+#: lib/tuist_web/live/project_automation_live.ex:100
+#: lib/tuist_web/live/project_automation_live.ex:104
 #, elixir-autogen, elixir-format
 msgid "Tuist"
 msgstr ""
@@ -1647,12 +1647,12 @@ msgstr ""
 msgid "View automation details"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:98
+#: lib/tuist_web/live/project_automation_live.ex:99
 #, elixir-autogen, elixir-format
 msgid "an integration"
 msgstr ""
 
-#: lib/tuist_web/live/project_automation_live.ex:97
+#: lib/tuist_web/live/project_automation_live.ex:98
 #, elixir-autogen, elixir-format
 msgid "the dashboard"
 msgstr ""
