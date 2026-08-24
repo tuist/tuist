@@ -461,14 +461,20 @@ defmodule Tuist.Runners.Prepaid do
 
   # Minutes belong to the month they were bought for and do not roll
   # over, so the grant dies with the billing period the invoice paid
-  # for. An account Stripe reports no period for still has to get what
-  # it paid for, and a month keeps that promise on the same footing.
+  # for — capped at a month, because runner items ride the account's own
+  # subscription and an annual enterprise term reports a year-long
+  # period. Dating a grant from that would hand each of those accounts a
+  # year of minutes to bank. An account Stripe reports no period for
+  # still has to get what it paid for, and a month keeps that promise on
+  # the same footing.
   defp expires_at(customer_id) do
+    monthly = DateTime.shift(DateTime.utc_now(), month: 1)
+
     with {:ok, account} <- Accounts.get_account_from_customer_id(customer_id),
          {_period_start, period_end} <- Billing.current_billing_period(account) do
-      period_end
+      Enum.min([period_end, monthly], DateTime)
     else
-      _ -> DateTime.shift(DateTime.utc_now(), month: 1)
+      _ -> monthly
     end
   end
 

@@ -205,6 +205,25 @@ defmodule Tuist.Runners.PrepaidTest do
       assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
     end
 
+    test "stays monthly on a yearly enterprise term" do
+      # Runner items ride the account's own subscription, so an annual
+      # enterprise term reports a year-long period. Dating the grant from
+      # it would hand that account a year of minutes to bank, which is
+      # the accumulation monthly expiry exists to prevent.
+      now = ~U[2026-08-18 12:00:00Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      stub_account_period(~U[2027-08-01 00:00:00Z])
+
+      stub_lines([line()])
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.expires_at == DateTime.shift(now, month: 1)
+        {:ok, %{id: "credgr_1"}}
+      end)
+
+      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+    end
+
     test "falls back to a month out when the account has no billing period" do
       # The money is already collected, so an account Stripe reports no
       # period for must still get its minutes. A month keeps the promise
