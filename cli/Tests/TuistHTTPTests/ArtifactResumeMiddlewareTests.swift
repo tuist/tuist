@@ -59,6 +59,17 @@ struct ArtifactResumeMiddlewareTests {
         HTTPRequest(method: method, scheme: nil, authority: nil, path: "/api/cache/cas/artifact")
     }
 
+    /// A whole-artifact response that names the representation it carries.
+    /// Resume echoes this back in `If-Range`, and refuses to append without it,
+    /// so a response lacking one is never resumed.
+    private func okResponse(etag: String = validator) -> HTTPResponse {
+        var response = HTTPResponse(status: 200)
+        response.headerFields[.eTag] = etag
+        return response
+    }
+
+    private static let validator = "\"1-10\""
+
     private func partialResponse(start: Int, end: Int, total: Int) -> HTTPResponse {
         var response = HTTPResponse(status: .init(code: 206))
         response.headerFields[.contentRange] = "bytes \(start)-\(end)/\(total)"
@@ -77,7 +88,7 @@ struct ArtifactResumeMiddlewareTests {
         ) { request, _, _ in
             observedRanges.append(request.headerFields[.range])
             if observedRanges.count == 1 {
-                return (HTTPResponse(status: 200), truncatedBody([Data("0123".utf8)]))
+                return (okResponse(), truncatedBody([Data("0123".utf8)]))
             }
             return (
                 partialResponse(start: 4, end: 9, total: 10),
@@ -105,7 +116,7 @@ struct ArtifactResumeMiddlewareTests {
             observedRanges.append(request.headerFields[.range])
             switch observedRanges.count {
             case 1:
-                return (HTTPResponse(status: 200), truncatedBody([Data("012".utf8)]))
+                return (okResponse(), truncatedBody([Data("012".utf8)]))
             case 2:
                 return (
                     partialResponse(start: 3, end: 9, total: 10),
@@ -142,7 +153,7 @@ struct ArtifactResumeMiddlewareTests {
             ) { _, _, _ in
                 let count = callCount.increment()
                 if count == 1 {
-                    return (HTTPResponse(status: 200), self.truncatedBody([Data("01".utf8)]))
+                    return (okResponse(), self.truncatedBody([Data("01".utf8)]))
                 }
                 return (
                     self.partialResponse(start: count, end: 9, total: 10),
@@ -168,7 +179,7 @@ struct ArtifactResumeMiddlewareTests {
                 operationID: operationID
             ) { request, _, _ in
                 if request.headerFields[.range] == nil {
-                    return (HTTPResponse(status: 200), self.truncatedBody([Data("0123".utf8)]))
+                    return (okResponse(), self.truncatedBody([Data("0123".utf8)]))
                 }
                 return (
                     self.partialResponse(start: 0, end: 9, total: 10),
@@ -176,6 +187,105 @@ struct ArtifactResumeMiddlewareTests {
                 )
             }
         }
+    }
+
+    /// The case an offset check cannot see. Kura lets a newer write replace an
+    /// artifact under the same key, and the replacement is served from zero
+    /// like any other, so its tail begins exactly where the client asked for
+    /// one. Here both versions are even the same length, which leaves the sizes
+    /// agreeing too. Only the validator separates them.
+    @Test func refuses_a_resumed_response_that_names_a_different_representation() async throws {
+        let subject = ArtifactResumeMiddleware(resumableOperationIDs: [operationID])
+
+        await #expect(throws: TruncatedTransfer.self) {
+            _ = try await subject.intercept(
+                request(),
+                body: nil,
+                baseURL: baseURL,
+                operationID: operationID
+            ) { request, _, _ in
+                guard request.headerFields[.range] != nil else {
+                    return (self.okResponse(), self.truncatedBody([Data("0123".utf8)]))
+                }
+                // A server that does not honour `If-Range` answers the range on
+                // the artifact it holds now, which is a different one.
+                var replaced = self.partialResponse(start: 4, end: 9, total: 10)
+                replaced.headerFields[.eTag] = "\"2-10\""
+                return (replaced, HTTPBody(Data("XXXXXX".utf8)))
+            }
+        }
+    }
+
+    /// The same replacement against a server that does honour `If-Range`: it
+    /// answers 200 with the current artifact rather than a tail, and the bytes
+    /// from the version that went away are dropped instead of spliced.
+    @Test func restarts_when_a_conditional_resume_is_answered_with_a_fresh_artifact() async throws {
+        let subject = ArtifactResumeMiddleware(resumableOperationIDs: [operationID])
+        var sentValidator: String?
+
+        let (_, body) = try await subject.intercept(
+            request(),
+            body: nil,
+            baseURL: baseURL,
+            operationID: operationID
+        ) { request, _, _ in
+            guard request.headerFields[.range] != nil else {
+                return (okResponse(), truncatedBody([Data("0123".utf8)]))
+            }
+            sentValidator = request.headerFields[.ifRange]
+            return (okResponse(etag: "\"2-10\""), HTTPBody(Data("abcdefghij".utf8)))
+        }
+
+        // The resume has to name what it started from, or the server has
+        // nothing to compare and cannot refuse the range.
+        #expect(sentValidator == "\"1-10\"")
+        let collected = try await Data(collecting: body!, upTo: .max)
+        #expect(String(decoding: collected, as: UTF8.self) == "abcdefghij")
+    }
+
+    /// A response the transport already holds in full is handed back untouched.
+    /// Collecting it would put a second copy of the artifact next to the
+    /// transport's and a third in the body handed on, which for a multi-gigabyte
+    /// module is the difference between a download and a dead client.
+    @Test func passes_a_materialised_body_through_without_copying_it() async throws {
+        let subject = ArtifactResumeMiddleware(resumableOperationIDs: [operationID])
+        let original = HTTPBody(Data("0123456789".utf8))
+
+        let (_, body) = try await subject.intercept(
+            request(),
+            body: nil,
+            baseURL: baseURL,
+            operationID: operationID
+        ) { _, _, _ in
+            (okResponse(), original)
+        }
+
+        #expect(body === original)
+    }
+
+    /// Without a validator there is no way to establish that a resumed tail
+    /// belongs to the artifact already in hand, so the transfer is left to fail
+    /// rather than resumed on the offset alone.
+    @Test func does_not_resume_a_response_that_names_no_representation() async throws {
+        let subject = ArtifactResumeMiddleware(resumableOperationIDs: [operationID])
+        var rangedRequests = 0
+
+        // The body is handed back untouched, so the failure surfaces where the
+        // caller reads it rather than inside the middleware.
+        let (_, body) = try await subject.intercept(
+            request(),
+            body: nil,
+            baseURL: baseURL,
+            operationID: operationID
+        ) { request, _, _ in
+            if request.headerFields[.range] != nil { rangedRequests += 1 }
+            return (HTTPResponse(status: 200), truncatedBody([Data("0123".utf8)]))
+        }
+
+        await #expect(throws: TruncatedTransfer.self) {
+            _ = try await Data(collecting: body!, upTo: .max)
+        }
+        #expect(rangedRequests == 0)
     }
 
     /// A server that ignores the `Range` header answers 200 with the whole
@@ -193,7 +303,7 @@ struct ArtifactResumeMiddlewareTests {
         ) { _, _, _ in
             callCount += 1
             if callCount == 1 {
-                return (HTTPResponse(status: 200), truncatedBody([Data("0123".utf8)]))
+                return (okResponse(), truncatedBody([Data("0123".utf8)]))
             }
             return (HTTPResponse(status: 200), HTTPBody(Data("0123456789".utf8)))
         }
@@ -229,7 +339,7 @@ struct ArtifactResumeMiddlewareTests {
                 let attempt = observedRanges.record(request.headerFields[.range])
                 switch attempt {
                 case 1:
-                    return (HTTPResponse(status: 200), truncatedBody([Data("0123".utf8)]))
+                    return (okResponse(), truncatedBody([Data("0123".utf8)]))
                 case 2:
                     // The capacity shed the server actually returns on a
                     // ranged follow-up. Without retry in the resume path this
@@ -263,7 +373,7 @@ struct ArtifactResumeMiddlewareTests {
             operationID: "someOtherOperation"
         ) { _, _, _ in
             _ = callCount.increment()
-            return (HTTPResponse(status: 200), truncatedBody([Data("0123".utf8)]))
+            return (okResponse(), truncatedBody([Data("0123".utf8)]))
         }
 
         await #expect(throws: TruncatedTransfer.self) {

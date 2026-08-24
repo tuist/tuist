@@ -27,7 +27,7 @@ use crate::{
     artifact::{
         manifest::ArtifactManifest,
         producer::ArtifactProducer,
-        range::{RangeOutcome, ServedRange, resolve_range},
+        range::{RangeOutcome, RangeRequest, ServedRange, entity_tag, resolve_conditional_range},
     },
     auth::{AccessDecision, RequestContext},
     backpressure,
@@ -1638,7 +1638,7 @@ async fn get_nx(
         None,
         None,
         Some(usage),
-        request_range_header(&headers),
+        request_range(&headers),
     )
     .await
 }
@@ -1689,7 +1689,7 @@ async fn get_metro(
         None,
         None,
         Some(usage),
-        request_range_header(&headers),
+        request_range(&headers),
     )
     .await
 }
@@ -1832,7 +1832,7 @@ async fn get_xcode(
         Some(&id),
         analytics,
         Some(usage),
-        request_range_header(&headers),
+        request_range(&headers),
     )
     .await
 }
@@ -1891,7 +1891,7 @@ async fn get_gradle(
         Some(&cache_key),
         analytics,
         Some(usage),
-        request_range_header(&headers),
+        request_range(&headers),
     )
     .await
 }
@@ -1981,7 +1981,7 @@ async fn get_module(
         None,
         None,
         Some(usage),
-        request_range_header(&headers),
+        request_range(&headers),
     )
     .await
 }
@@ -2983,7 +2983,7 @@ async fn get_artifact(
     analytics_key: Option<&str>,
     analytics: Option<ProjectAnalyticsContext<'_>>,
     usage: Option<UsageContext>,
-    range_header: Option<&str>,
+    range_request: RangeRequest<'_>,
 ) -> Response {
     match state
         .store
@@ -2994,7 +2994,8 @@ async fn get_artifact(
             // Resolved after the fetch so a 416's `Content-Range` only ever
             // discloses the size of an artifact the caller is already allowed
             // to read.
-            let range = match resolve_range(range_header, manifest.size) {
+            let etag = entity_tag(manifest.version_ms, manifest.size);
+            let range = match resolve_conditional_range(range_request, &etag, manifest.size) {
                 RangeOutcome::Full => ServedRange::full(manifest.size),
                 RangeOutcome::Partial(range) => range,
                 RangeOutcome::Unsatisfiable => {
@@ -3638,10 +3639,15 @@ fn bytes_chunks(bytes: Bytes) -> BytesChunks {
     BytesChunks { bytes, offset: 0 }
 }
 
-fn request_range_header(headers: &HeaderMap) -> Option<&str> {
-    headers
-        .get(axum::http::header::RANGE)
-        .and_then(|value| value.to_str().ok())
+fn request_range(headers: &HeaderMap) -> RangeRequest<'_> {
+    RangeRequest::new(
+        header_str(headers, axum::http::header::RANGE),
+        header_str(headers, axum::http::header::IF_RANGE),
+    )
+}
+
+fn header_str(headers: &HeaderMap, name: axum::http::header::HeaderName) -> Option<&str> {
+    headers.get(name).and_then(|value| value.to_str().ok())
 }
 
 fn artifact_response_status(range: ServedRange) -> StatusCode {
@@ -3657,6 +3663,14 @@ fn apply_artifact_response_headers(
     manifest: &ArtifactManifest,
     range: ServedRange,
 ) {
+    // The validator a resume echoes back in `If-Range`. On the full response
+    // as well as the partial one: a client can only name the representation it
+    // started from if the server told it before the transfer died.
+    if let Ok(etag) = HeaderValue::from_str(&entity_tag(manifest.version_ms, manifest.size)) {
+        response
+            .headers_mut()
+            .insert(axum::http::header::ETAG, etag);
+    }
     response.headers_mut().insert(
         axum::http::header::CONTENT_TYPE,
         HeaderValue::from_str(&manifest.content_type)

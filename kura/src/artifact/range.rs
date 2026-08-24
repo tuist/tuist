@@ -125,9 +125,134 @@ pub fn resolve_range(header: Option<&str>, size: u64) -> RangeOutcome {
     })
 }
 
+/// The entity tag for a stored representation.
+///
+/// `version_ms` is the discriminator: the store refuses a write whose version
+/// does not advance past the one already held, so every accepted replacement
+/// under a key has a strictly greater value. Size rides along because it is
+/// free and rules out a same-millisecond pair whose lengths differ.
+pub fn entity_tag(version_ms: u64, size: u64) -> String {
+    format!("\"{version_ms}-{size}\"")
+}
+
+/// The range-related headers of one request.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RangeRequest<'a> {
+    pub range: Option<&'a str>,
+    pub if_range: Option<&'a str>,
+}
+
+impl<'a> RangeRequest<'a> {
+    pub fn new(range: Option<&'a str>, if_range: Option<&'a str>) -> Self {
+        Self { range, if_range }
+    }
+}
+
+/// Resolves a range against `size`, honouring `If-Range`.
+///
+/// Range resume is only safe while the bytes already in the client's hand and
+/// the bytes about to be sent belong to the same representation. A key here can
+/// be rewritten at any time, and the replacement is served from offset zero
+/// like any other artifact, so an offset check alone cannot tell a resumed tail
+/// apart from a different artifact's tail: both start exactly where the client
+/// asked. Two versions of the same size make the sizes agree as well.
+///
+/// So a resume that names a validator it no longer matches is answered with the
+/// whole artifact instead of the tail. That costs the client the bytes it had
+/// and is the point: a 200 tells it to start over, where a 206 would have it
+/// splice one artifact's head onto another's tail and store the result under a
+/// key that describes neither.
+pub fn resolve_conditional_range(request: RangeRequest<'_>, etag: &str, size: u64) -> RangeOutcome {
+    if let Some(if_range) = request.if_range
+        && if_range.trim() != etag
+    {
+        return RangeOutcome::Full;
+    }
+    resolve_range(request.range, size)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{RangeOutcome, ServedRange, resolve_range};
+    use super::{
+        RangeOutcome, RangeRequest, ServedRange, entity_tag, resolve_conditional_range,
+        resolve_range,
+    };
+
+    #[test]
+    fn a_resume_naming_the_representation_it_started_from_is_served_its_tail() {
+        let etag = entity_tag(10, 100);
+        assert_eq!(
+            resolve_conditional_range(
+                RangeRequest::new(Some("bytes=40-"), Some(&etag)),
+                &etag,
+                100
+            ),
+            partial(40, 60)
+        );
+    }
+
+    #[test]
+    fn a_resume_is_served_the_whole_artifact_once_a_replacement_of_the_same_size_lands() {
+        // The offset alone cannot separate these two: a replacement is served
+        // from zero like any artifact, so its tail begins exactly where the
+        // client asked, and an equal size leaves the lengths agreeing too. The
+        // validator is the only thing that differs, so it has to be what
+        // decides.
+        let started_from = entity_tag(10, 100);
+        let now_stored = entity_tag(11, 100);
+        assert_ne!(started_from, now_stored);
+        assert_eq!(
+            resolve_conditional_range(
+                RangeRequest::new(Some("bytes=40-"), Some(&started_from)),
+                &now_stored,
+                100
+            ),
+            RangeOutcome::Full
+        );
+    }
+
+    #[test]
+    fn a_range_without_a_validator_is_resolved_on_the_offset_alone() {
+        let etag = entity_tag(10, 100);
+        assert_eq!(
+            resolve_conditional_range(RangeRequest::new(Some("bytes=40-"), None), &etag, 100),
+            partial(40, 60)
+        );
+    }
+
+    #[test]
+    fn a_stale_validator_outranks_a_range_that_falls_outside_the_artifact() {
+        // Answering 416 here would tell the client its range is impossible,
+        // when what actually happened is that the artifact it was reading was
+        // replaced. It gets the whole of the current one instead.
+        assert_eq!(
+            resolve_conditional_range(
+                RangeRequest::new(Some("bytes=400-"), Some(&entity_tag(10, 100))),
+                &entity_tag(11, 100),
+                100
+            ),
+            RangeOutcome::Full
+        );
+    }
+
+    #[test]
+    fn a_validator_is_matched_ignoring_the_whitespace_a_client_may_pad_it_with() {
+        let etag = entity_tag(10, 100);
+        assert_eq!(
+            resolve_conditional_range(
+                RangeRequest::new(Some("bytes=40-"), Some(&format!(" {etag} "))),
+                &etag,
+                100
+            ),
+            partial(40, 60)
+        );
+    }
+
+    #[test]
+    fn a_version_bump_alone_changes_the_validator() {
+        assert_ne!(entity_tag(10, 100), entity_tag(11, 100));
+        assert_eq!(entity_tag(10, 100), entity_tag(10, 100));
+    }
 
     fn partial(start: u64, length: u64) -> RangeOutcome {
         RangeOutcome::Partial(ServedRange {

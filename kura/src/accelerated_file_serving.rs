@@ -28,7 +28,7 @@ use crate::{
     analytics::Analytics,
     artifact::{
         producer::ArtifactProducer,
-        range::{RangeOutcome, ServedRange, resolve_range},
+        range::{RangeOutcome, RangeRequest, ServedRange, entity_tag, resolve_conditional_range},
     },
     auth::{AccessDecision, RequestContext},
     config::{AcceleratedFileServingConfig, AcceleratedFileServingMode},
@@ -473,7 +473,15 @@ async fn open_and_authorize(
 
     // Resolved after access, so an unauthorized caller cannot learn an
     // artifact's size from a 416's `Content-Range`.
-    let range = match resolve_range(parsed.headers.get("range").map(String::as_str), file.size) {
+    let etag = entity_tag(file.version_ms, file.size);
+    let range = match resolve_conditional_range(
+        RangeRequest::new(
+            parsed.headers.get("range").map(String::as_str),
+            parsed.headers.get("if-range").map(String::as_str),
+        ),
+        &etag,
+        file.size,
+    ) {
         RangeOutcome::Full => ServedRange::full(file.size),
         RangeOutcome::Partial(range) => range,
         RangeOutcome::Unsatisfiable => {
@@ -637,6 +645,7 @@ async fn serve_accelerated(
         }
     };
     let artifact_size = file.size;
+    let etag = entity_tag(file.version_ms, file.size);
     let result = tokio::task::spawn_blocking(
         move || -> Result<(std::net::TcpStream, u64, Duration), (u64, std::io::Error)> {
             let _response_stream_permit = response_stream_permit;
@@ -652,6 +661,7 @@ async fn serve_accelerated(
                     &content_type,
                     range.length,
                     range.content_range(artifact_size).as_deref(),
+                    Some(etag.as_str()),
                     keep_alive,
                 )?;
                 // Time to first byte is measured once the headers are on the
@@ -1125,6 +1135,7 @@ async fn write_response(
     stream.write_all(&response).await
 }
 
+#[allow(clippy::too_many_arguments)]
 fn write_headers(
     stream: &mut std::net::TcpStream,
     status: u16,
@@ -1132,6 +1143,7 @@ fn write_headers(
     content_type: &str,
     content_length: u64,
     content_range: Option<&str>,
+    etag: Option<&str>,
     keep_alive: bool,
 ) -> std::io::Result<()> {
     let connection = if keep_alive { "keep-alive" } else { "close" };
@@ -1143,6 +1155,11 @@ fn write_headers(
     )?;
     if let Some(content_range) = content_range {
         write!(stream, "content-range: {content_range}\r\n")?;
+    }
+    // Paired with `accept-ranges`: the validator the client echoes in
+    // `If-Range` so a resume can be refused when the artifact moved on.
+    if let Some(etag) = etag {
+        write!(stream, "etag: {etag}\r\n")?;
     }
     stream.write_all(b"\r\n")
 }
@@ -1544,6 +1561,7 @@ mod tests {
             offset: 0,
             size,
             content_type: "application/octet-stream".into(),
+            version_ms: 1,
         };
         let candidate = AcceleratedCandidate {
             header_len: 0,
@@ -1744,6 +1762,7 @@ mod tests {
             offset: 0,
             size: 8,
             content_type: "application/octet-stream".into(),
+            version_ms: 1,
         };
         let range = ServedRange::full(file.size);
         let candidate = AcceleratedCandidate {
@@ -1841,6 +1860,7 @@ mod tests {
             offset: 0,
             size: 10,
             content_type: "application/octet-stream".into(),
+            version_ms: 1,
         };
         let crate::artifact::range::RangeOutcome::Partial(range) =
             crate::artifact::range::resolve_range(Some("bytes=6-"), file.size)
@@ -1928,6 +1948,7 @@ mod tests {
             offset: 0,
             size: 10,
             content_type: "application/octet-stream".into(),
+            version_ms: 1,
         };
         let range = ServedRange::full(file.size);
         let candidate = AcceleratedCandidate {
@@ -2008,6 +2029,7 @@ mod tests {
             offset: 0,
             size,
             content_type: "application/octet-stream".into(),
+            version_ms: 1,
         };
         let memory = MemoryController::new(metrics, 100, 200);
 
@@ -2046,6 +2068,7 @@ mod tests {
             offset,
             size,
             content_type: "application/octet-stream".into(),
+            version_ms: 1,
         };
         let memory = MemoryController::new(metrics, 100, 200);
         memory.observe(100);

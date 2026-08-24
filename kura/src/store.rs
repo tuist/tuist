@@ -326,6 +326,7 @@ pub struct AcceleratedArtifactFile {
     pub offset: u64,
     pub size: u64,
     pub content_type: String,
+    pub version_ms: u64,
 }
 
 impl AsyncRead for ArtifactReader {
@@ -1555,6 +1556,7 @@ impl Store {
                 offset,
                 size: manifest.size,
                 content_type: manifest.content_type.clone(),
+                version_ms: manifest.version_ms,
             }));
         }
 
@@ -1566,6 +1568,7 @@ impl Store {
                 offset: 0,
                 size: manifest.size,
                 content_type: manifest.content_type.clone(),
+                version_ms: manifest.version_ms,
             }));
         }
 
