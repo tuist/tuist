@@ -324,6 +324,28 @@ defmodule Tuist.VCS do
     end
   end
 
+  @doc """
+  Looks a VCS user up by username, through the project's own connection.
+
+  Returns the provider's durable id alongside the canonical username. The
+  username is what a person types and can be changed later, and the id is
+  what survives that, so callers that need to recognise the same person
+  again should keep the id.
+  """
+  def get_user_by_username(%{username: username, project: project}) do
+    project = Repo.preload(project, vcs_connection: :github_app_installation)
+
+    with %{vcs_connection: %{provider: provider, github_app_installation: %GitHubAppInstallation{} = installation}} <-
+           project,
+         %{} <- github_app_credentials(installation) do
+      provider
+      |> get_client_for_provider()
+      |> then(& &1.get_user_by_username(%{username: username, installation: installation}))
+    else
+      _ -> {:error, :no_vcs_connection}
+    end
+  end
+
   def enqueue_vcs_pull_request_comment(args) do
     # Schedule the comment worker after a delay to allow ClickHouse ingestion
     # buffers to flush. Without this, data inserted just before enqueuing

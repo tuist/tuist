@@ -4,6 +4,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
   alias Tuist.Bundles
   alias Tuist.Environment
   alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.Runners.Workers.DispatchWorker
   alias Tuist.VCS
 
@@ -386,18 +387,31 @@ defmodule TuistWeb.Webhooks.GitHubController do
   defp sender_from_params(%{"sender" => %{"id" => id, "login" => login}}), do: %{id: to_string(id), handle: login}
   defp sender_from_params(_params), do: %{id: nil, handle: nil}
 
-  # Check runs created before `external_id` was stamped on them carry no
-  # bundle reference, so the project they belong to is unknowable. Those
-  # accept as they did before rather than stranding pull requests that were
-  # already open when this shipped.
+  # A check run with no `external_id` predates the stamping and carries no
+  # bundle reference, so the project it belongs to is unknowable. Those accept
+  # as they did before, rather than stranding pull requests that were already
+  # open when this shipped.
+  #
+  # A check run that does carry one is a different case. Failing to resolve it
+  # means the bundle read came back empty, not that the project has no policy,
+  # so accepting would hand an unverified click the same outcome as an
+  # authorized one. `bundles` lives in ClickHouse, where a read is not
+  # guaranteed to see a recent write, and a bundle can also age out of
+  # retention, so this is reachable without anyone doing anything wrong. It
+  # leaves the check failing and invites another press instead.
   defp resolve_bundle_size_approval(check_run, check_run_params, sender) do
-    bundle_id = check_run["external_id"]
+    case check_run["external_id"] do
+      bundle_id when is_binary(bundle_id) and bundle_id != "" ->
+        authorize_stamped_check_run(bundle_id, check_run_params, sender)
 
-    case project_for_bundle(bundle_id) do
-      nil ->
+      _ ->
         accept_bundle_size(check_run_params, sender)
+    end
+  end
 
-      project ->
+  defp authorize_stamped_check_run(bundle_id, check_run_params, sender) do
+    case project_for_bundle(bundle_id) do
+      {:ok, project} ->
         case Bundles.authorize_bundle_size_approval(project, sender) do
           :ok ->
             Bundles.record_bundle_size_approval(%{bundle_id: bundle_id, project_id: project.id, sender: sender})
@@ -406,17 +420,20 @@ defmodule TuistWeb.Webhooks.GitHubController do
           {:error, reason} ->
             reject_bundle_size(check_run_params, sender, project, reason)
         end
+
+      {:error, :not_found} ->
+        reject_bundle_size(check_run_params, sender, nil, :bundle_not_found)
     end
   end
 
-  defp project_for_bundle(bundle_id) when is_binary(bundle_id) and bundle_id != "" do
-    case Bundles.get_bundle(bundle_id) do
-      {:ok, bundle} -> Projects.get_project_by_id(bundle.project_id)
-      {:error, :not_found} -> nil
+  defp project_for_bundle(bundle_id) do
+    with {:ok, bundle} <- Bundles.get_bundle(bundle_id),
+         %Project{} = project <- Projects.get_project_by_id(bundle.project_id) do
+      {:ok, project}
+    else
+      _ -> {:error, :not_found}
     end
   end
-
-  defp project_for_bundle(_bundle_id), do: nil
 
   defp accept_bundle_size(check_run_params, sender) do
     VCS.update_check_run(
@@ -453,6 +470,10 @@ defmodule TuistWeb.Webhooks.GitHubController do
 
   defp accepted_summary(%{handle: nil}), do: "The bundle size increase was manually accepted."
   defp accepted_summary(%{handle: handle}), do: "The bundle size increase was accepted by @#{handle}."
+
+  defp rejected_summary(_sender, _project, :bundle_not_found) do
+    "This check run could not be matched to its bundle, so who may accept could not be checked. Press Accept again in a moment."
+  end
 
   defp rejected_summary(sender, _project, :not_an_approver) do
     "#{who(sender)} is not allowed to accept bundle size increases for this project. A project admin can change who is, under Settings > Bundles in Tuist."

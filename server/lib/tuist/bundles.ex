@@ -16,6 +16,7 @@ defmodule Tuist.Bundles do
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.VCS
 
   require Logger
 
@@ -758,17 +759,44 @@ defmodule Tuist.Bundles do
     Repo.all(from(a in BundleSizeApprover, where: a.project_id == ^project.id, order_by: [asc: a.github_handle]))
   end
 
-  def get_bundle_size_approver(id) do
-    case Repo.get(BundleSizeApprover, id) do
+  def get_bundle_size_approver(%Project{} = project, id) do
+    case Repo.get_by(BundleSizeApprover, id: id, project_id: project.id) do
       nil -> {:error, :not_found}
       approver -> {:ok, approver}
     end
+  rescue
+    Ecto.Query.CastError -> {:error, :not_found}
   end
 
-  def create_bundle_size_approver(attrs) do
-    %BundleSizeApprover{id: UUIDv7.generate()}
-    |> BundleSizeApprover.changeset(attrs)
-    |> Repo.insert()
+  @doc """
+  Adds an approver by GitHub username.
+
+  The username is resolved against GitHub so the row can store the account's
+  numeric id, which is what authorization compares. A username is not a
+  durable identifier: its owner can change it, and the old one becomes
+  available for someone else to claim, so an allowlist keyed on it can be
+  inherited. Resolving also rejects a username that does not exist, which a
+  format check alone cannot do.
+  """
+  def add_bundle_size_approver(%Project{} = project, handle) do
+    handle = normalize_github_handle(handle)
+
+    case VCS.get_user_by_username(%{username: handle, project: project}) do
+      {:ok, %VCS.User{id: github_id, username: username}} when is_binary(github_id) ->
+        %BundleSizeApprover{id: UUIDv7.generate()}
+        |> BundleSizeApprover.changeset(%{
+          project_id: project.id,
+          github_handle: username,
+          github_id: github_id
+        })
+        |> Repo.insert()
+
+      {:error, :no_vcs_connection} = error ->
+        error
+
+      _ ->
+        {:error, :github_user_not_found}
+    end
   end
 
   def delete_bundle_size_approver(%BundleSizeApprover{} = approver) do
@@ -783,23 +811,26 @@ defmodule Tuist.Bundles do
   someone with write access to the repository, which is the effective floor
   either way, and this policy leaves it there.
 
-  `:selected` matches the allowlist on the GitHub handle alone. Nothing here
-  resolves the sender to a Tuist account, so the policy works the same for
-  members who sign in through SSO and have never linked GitHub.
+  `:selected` matches the allowlist on GitHub's numeric id for the sender,
+  which is recorded when the approver is added. Nothing here resolves the
+  sender to a Tuist account, so the policy works the same for members who
+  sign in through SSO and have never linked GitHub.
   """
   def authorize_bundle_size_approval(project, sender)
 
   def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :everyone}, _sender), do: :ok
 
-  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :selected} = project, %{handle: handle}) do
-    handle = normalize_github_handle(handle)
-
-    if Repo.exists?(from(a in BundleSizeApprover, where: a.project_id == ^project.id and a.github_handle == ^handle)) do
+  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :selected} = project, %{id: github_id})
+      when is_binary(github_id) and github_id != "" do
+    if Repo.exists?(from(a in BundleSizeApprover, where: a.project_id == ^project.id and a.github_id == ^github_id)) do
       :ok
     else
       {:error, :not_an_approver}
     end
   end
+
+  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :selected}, _sender),
+    do: {:error, :not_an_approver}
 
   @doc """
   Records who accepted a bundle size increase.

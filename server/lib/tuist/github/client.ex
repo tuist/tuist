@@ -98,6 +98,22 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
+  def get_user_by_username(%{username: username, installation: installation}) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/users/#{username}"
+
+    case github_request(&Req.get/1, url: url, installation: installation, api_url: api_url) do
+      {:ok, %{"id" => id, "login" => login}} ->
+        {:ok, %VCS.User{id: to_string(id), username: login}}
+
+      {:ok, _} ->
+        {:error, :not_found}
+
+      response ->
+        response
+    end
+  end
+
   def get_comments(%{repository_full_handle: repository_full_handle, issue_id: issue_id, installation: installation}) do
     api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/issues/#{issue_id}/comments"

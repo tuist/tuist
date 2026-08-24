@@ -7,6 +7,7 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
 
   alias Tuist.Bundles
   alias Tuist.Projects
+  alias Tuist.VCS
   alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -115,6 +116,8 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
 
+      expect(VCS, :get_user_by_username, fn _ -> {:ok, %VCS.User{id: "583231", username: "octocat"}} end)
+
       render_hook(lv, "select_approval_policy", %{"policy" => "selected"})
       render_hook(lv, "open_add_approver_modal")
       render_hook(lv, "update_approver_handle", %{"value" => "octocat"})
@@ -122,6 +125,7 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
 
       assert [approver] = Bundles.list_bundle_size_approvers(project)
       assert approver.github_handle == "octocat"
+      assert approver.github_id == "583231"
 
       render_hook(lv, "delete_approver", %{"approver_id" => approver.id})
 
@@ -136,13 +140,34 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
 
+      expect(VCS, :get_user_by_username, fn _ -> {:error, :not_found} end)
+
       render_hook(lv, "select_approval_policy", %{"policy" => "selected"})
       render_hook(lv, "open_add_approver_modal")
-      render_hook(lv, "update_approver_handle", %{"value" => "not a login"})
+      render_hook(lv, "update_approver_handle", %{"value" => "ghost"})
       html = render_hook(lv, "add_approver")
 
       assert Bundles.list_bundle_size_approvers(project) == []
-      assert html =~ "valid GitHub username"
+      assert html =~ "No GitHub user with that username"
+    end
+
+    test "explains that the project needs a GitHub connection before approvers can be added", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      expect(VCS, :get_user_by_username, fn _ -> {:error, :no_vcs_connection} end)
+
+      render_hook(lv, "select_approval_policy", %{"policy" => "selected"})
+      render_hook(lv, "open_add_approver_modal")
+      render_hook(lv, "update_approver_handle", %{"value" => "octocat"})
+      html = render_hook(lv, "add_approver")
+
+      assert Bundles.list_bundle_size_approvers(project) == []
+      assert html =~ "Connect the Tuist GitHub App"
     end
 
     test "clears the pending username when the modal is dismissed", %{
@@ -171,8 +196,7 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
     } do
       other_project = ProjectsFixtures.project_fixture()
 
-      {:ok, approver} =
-        Bundles.create_bundle_size_approver(%{project_id: other_project.id, github_handle: "octocat"})
+      approver = BundlesFixtures.bundle_size_approver_fixture(project: other_project, github_handle: "octocat")
 
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")

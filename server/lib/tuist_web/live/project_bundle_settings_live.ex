@@ -215,9 +215,7 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
   end
 
   def handle_event("add_approver", _params, %{assigns: assigns} = socket) do
-    attrs = %{project_id: assigns.selected_project.id, github_handle: assigns.approver_handle}
-
-    case Bundles.create_bundle_size_approver(attrs) do
+    case Bundles.add_bundle_size_approver(assigns.selected_project, assigns.approver_handle) do
       {:ok, _approver} ->
         socket =
           socket
@@ -227,14 +225,13 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
         {:noreply, socket}
 
       # Keeps the modal open so the message lands next to the field it is about.
-      {:error, changeset} ->
-        {:noreply, assign(socket, approver_error: approver_error_message(changeset))}
+      {:error, reason} ->
+        {:noreply, assign(socket, approver_error: approver_error_message(reason))}
     end
   end
 
   def handle_event("delete_approver", %{"approver_id" => approver_id}, %{assigns: assigns} = socket) do
-    with {:ok, approver} <- Bundles.get_bundle_size_approver(approver_id),
-         true <- approver.project_id == assigns.selected_project.id,
+    with {:ok, approver} <- Bundles.get_bundle_size_approver(assigns.selected_project, approver_id),
          {:ok, _} <- Bundles.delete_bundle_size_approver(approver) do
       {:noreply, assign_approval_defaults(socket, assigns.selected_project)}
     else
@@ -249,12 +246,27 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     |> assign(approver_error: nil)
   end
 
-  defp approver_error_message(changeset) do
+  defp approver_error_message(:no_vcs_connection) do
+    dgettext(
+      "dashboard_projects",
+      "Connect the Tuist GitHub App to this project first, so the username can be checked against GitHub."
+    )
+  end
+
+  defp approver_error_message(:github_user_not_found) do
+    dgettext("dashboard_projects", "No GitHub user with that username.")
+  end
+
+  defp approver_error_message(%Ecto.Changeset{} = changeset) do
     if Keyword.has_key?(changeset.errors, :github_handle) do
       dgettext("dashboard_projects", "Enter a valid GitHub username that isn't already on the list.")
     else
       dgettext("dashboard_projects", "The approver could not be added.")
     end
+  end
+
+  defp approver_error_message(_reason) do
+    dgettext("dashboard_projects", "The approver could not be added.")
   end
 
   defp approval_policy_label(:everyone), do: dgettext("dashboard_projects", "Anyone")

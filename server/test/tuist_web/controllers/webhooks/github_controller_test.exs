@@ -439,7 +439,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       # Given
       %{project: project} = bundle_size_check_run_setup()
       {:ok, project} = Projects.update_project(project, %{bundle_size_approval_policy: :selected})
-      {:ok, _} = Bundles.create_bundle_size_approver(%{project_id: project.id, github_handle: "octocat"})
+      BundlesFixtures.bundle_size_approver_fixture(project: project, github_handle: "octocat", github_id: "999")
       bundle = BundlesFixtures.bundle_fixture(project: project)
       conn = put_req_header(conn, "x-github-event", "check_run")
 
@@ -452,6 +452,29 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
 
       # When
       result = GitHubController.handle(conn, check_run_params(bundle.id))
+
+      # Then
+      assert result.status == 200
+    end
+
+    test "does not accept when a stamped check run cannot be matched to its bundle", %{conn: conn} do
+      # A bundle read that comes back empty is not evidence that nobody needs
+      # to be checked, so this must not take the accept path.
+      %{project: project} = bundle_size_check_run_setup()
+      {:ok, _project} = Projects.update_project(project, %{bundle_size_approval_policy: :selected})
+      conn = put_req_header(conn, "x-github-event", "check_run")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn _ -> {:ok, %{installation_id: "12345"}} end)
+
+      expect(VCS, :update_check_run, fn params ->
+        assert params.conclusion == "action_required"
+        assert params.output.summary =~ "could not be matched to its bundle"
+        assert hd(params.actions).identifier == "accept_bundle_size"
+        {:ok, %{"id" => 42}}
+      end)
+
+      # When
+      result = GitHubController.handle(conn, check_run_params(UUIDv7.generate()))
 
       # Then
       assert result.status == 200

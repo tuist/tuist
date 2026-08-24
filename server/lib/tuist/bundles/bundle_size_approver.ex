@@ -10,6 +10,11 @@ defmodule Tuist.Bundles.BundleSizeApprover do
   schema "bundle_size_approvers" do
     field :github_handle, :string
 
+    # GitHub's numeric id for the account. Authorization compares this rather
+    # than the handle, which its owner can change and someone else can then
+    # claim.
+    field :github_id, :string
+
     belongs_to :project, Tuist.Projects.Project, type: :integer
 
     timestamps(type: :utc_datetime)
@@ -17,13 +22,14 @@ defmodule Tuist.Bundles.BundleSizeApprover do
 
   def changeset(approver, attrs) do
     approver
-    |> cast(attrs, [:id, :github_handle, :project_id])
+    |> cast(attrs, [:id, :github_handle, :github_id, :project_id])
     |> update_change(:github_handle, &(&1 |> String.trim() |> String.trim_leading("@") |> String.downcase()))
-    |> validate_required([:github_handle, :project_id])
+    |> validate_required([:github_handle, :github_id, :project_id])
     |> validate_format(:github_handle, ~r/^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/,
       message: "must be a valid GitHub username"
     )
     |> foreign_key_constraint(:project_id)
     |> unique_constraint(:github_handle, name: "bundle_size_approvers_project_id_github_handle_index")
+    |> unique_constraint(:github_handle, name: "bundle_size_approvers_project_id_github_id_index")
   end
 end
