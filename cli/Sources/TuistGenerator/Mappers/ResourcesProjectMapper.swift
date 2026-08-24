@@ -14,8 +14,8 @@ import XcodeGraph
 ///      cannot host their own resources).
 ///   2. Writes a `TuistBundle+<Target>.swift` accessor into the target's Derived directory so
 ///      that user code can call `Bundle.module`.
-///   3. For Objective-C targets generated from Swift packages, also emits
-///      Swift Package Manager-shaped C bridging files.
+///   3. For Objective-C targets generated from Swift packages, asks Xcode to generate resource
+///      accessors with the same build setting as Swift Package Manager.
 public struct ResourcesProjectMapper: ProjectMapping {
     private let contentHasher: ContentHashing
     private let buildableFolderChecker: BuildableFolderChecking
@@ -82,14 +82,8 @@ public struct ResourcesProjectMapper: ProjectMapping {
             }
         }
 
-        if targetNeedsObjcAccessor(target) {
-            try appendObjcBundleAccessor(
-                to: &modifiedTarget,
-                sideEffects: &sideEffects,
-                target: target,
-                project: project,
-                bundleName: bundleName
-            )
+        if targetNeedsObjcResourceAccessor(target) {
+            modifiedTarget = addingObjcResourceAccessorGeneration(to: modifiedTarget)
         }
 
         return ([modifiedTarget] + additionalTargets, sideEffects)
@@ -120,7 +114,7 @@ public struct ResourcesProjectMapper: ProjectMapping {
         return containsSwift || containsSourcesInBuildableFolders
     }
 
-    private func targetNeedsObjcAccessor(_ target: Target) -> Bool {
+    private func targetNeedsObjcResourceAccessor(_ target: Target) -> Bool {
         guard target.metadata.tags.contains(TargetTags.swiftPackage) else { return false }
         let containsObjc = target.sources.contains {
             $0.path.extension == "m" || $0.path.extension == "mm"
@@ -329,32 +323,13 @@ public struct ResourcesProjectMapper: ProjectMapping {
         return target
     }
 
-    private func appendObjcBundleAccessor(
-        to modifiedTarget: inout Target,
-        sideEffects: inout [SideEffectDescriptor],
-        target: Target,
-        project: Project,
-        bundleName: String
-    ) throws {
-        let header = bundleAccessorTemplate.objcAccessorHeader(target: target, project: project)
-        let implementation = bundleAccessorTemplate.objcAccessorImplementation(
-            target: target,
-            bundleName: bundleName,
-            project: project
-        )
-
-        // Point the target's prefix header at the synthesised .h so every Obj-C file picks up
-        // `SWIFTPM_MODULE_BUNDLE` without an explicit `#import`.
-        let prefixHeaderPath = "$(SRCROOT)/\(header.path.relative(to: project.path).pathString)"
-        var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
-        settings["GCC_PREFIX_HEADER"] = .string(prefixHeaderPath)
-        modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
-
-        let implementationHash = try implementation.contents.map(contentHasher.hash)
-        modifiedTarget.sources.append(SourceFile(path: implementation.path, contentHash: implementationHash))
-
-        sideEffects.append(.file(.init(path: header.path, contents: header.contents, state: .present)))
-        sideEffects.append(.file(.init(path: implementation.path, contents: implementation.contents, state: .present)))
+    private func addingObjcResourceAccessorGeneration(to target: Target) -> Target {
+        var target = target
+        var settings = target.settings?.base ?? SettingsDictionary()
+        settings["GENERATE_RESOURCE_ACCESSORS"] = .string("YES")
+        target.settings = target.settings?.with(base: settings)
+            ?? Settings(base: settings, configurations: [:])
+        return target
     }
 
     private func appendUniqueSourceFiles(paths: [AbsolutePath], to target: inout Target) {

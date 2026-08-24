@@ -133,12 +133,7 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        verifyObjcBundleAccessor(
-            for: target,
-            gotTarget: gotTarget,
-            gotSideEffects: gotSideEffects,
-            project: project
-        )
+        verifyObjcResourceAccessorGeneration(for: target, gotTarget: gotTarget, gotSideEffects: gotSideEffects)
     }
 
     @Test
@@ -160,12 +155,7 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        verifyObjcBundleAccessor(
-            for: target,
-            gotTarget: gotTarget,
-            gotSideEffects: gotSideEffects,
-            project: project
-        )
+        verifyObjcResourceAccessorGeneration(for: target, gotTarget: gotTarget, gotSideEffects: gotSideEffects)
     }
 
     @Test
@@ -1161,9 +1151,9 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenProjectIsExternalTargetHasObjcSourceFiles() async throws {
+    func mapWhenSwiftPackageTargetHasObjcAndCSourceFiles() async throws {
         // Given
-        let sources: [SourceFile] = ["/ViewController.m"]
+        let sources: [SourceFile] = ["/ViewController.m", "/ViewController.c"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(
             product: .staticLibrary,
@@ -1184,12 +1174,7 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        verifyObjcBundleAccessor(
-            for: target,
-            gotTarget: gotTarget,
-            gotSideEffects: gotSideEffects,
-            project: project
-        )
+        verifyObjcResourceAccessorGeneration(for: target, gotTarget: gotTarget, gotSideEffects: gotSideEffects)
     }
 
     @Test
@@ -1512,37 +1497,6 @@ struct ResourcesProjectMapperTests {
         #expect(gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == nil)
     }
 
-    @Test
-    func objcImplementationFileContentSanitizesTargetNameWithHyphens() {
-        // Given
-        let targetName = "YoutubePlayer-in-WKWebView"
-
-        // When
-        let got = BundleAccessorTemplate.objcImplementationContents(
-            targetName: targetName,
-            bundleName: "MyProject_YoutubePlayer-in-WKWebView"
-        )
-
-        // Then
-        #expect(!got.contains("YoutubePlayer-in-WKWebViewBundleFinder"))
-        #expect(got.contains("YoutubePlayerInWKWebViewBundleFinder"))
-        #expect(got.contains("YoutubePlayerInWKWebView_SWIFTPM_MODULE_BUNDLE"))
-        #expect(!got.contains("YoutubePlayer-in-WKWebView_SWIFTPM_MODULE_BUNDLE"))
-    }
-
-    @Test
-    func objcHeaderFileContentSanitizesTargetNameWithHyphens() {
-        // Given
-        let targetName = "YoutubePlayer-in-WKWebView"
-
-        // When
-        let got = BundleAccessorTemplate.objcHeaderContents(targetName: targetName)
-
-        // Then
-        #expect(got.contains("YoutubePlayerInWKWebView_SWIFTPM_MODULE_BUNDLE"))
-        #expect(!got.contains("YoutubePlayer-in-WKWebView_SWIFTPM_MODULE_BUNDLE"))
-    }
-
     // MARK: - Helpers
 
     private func verifySideEffects(
@@ -1574,48 +1528,14 @@ struct ResourcesProjectMapperTests {
         }
     }
 
-    private func verifyObjcBundleAccessor(
+    private func verifyObjcResourceAccessorGeneration(
         for target: Target,
         gotTarget: Target,
-        gotSideEffects: [SideEffectDescriptor],
-        project: Project
+        gotSideEffects: [SideEffectDescriptor]
     ) {
-        #expect(
-            gotTarget.settings?.base["GCC_PREFIX_HEADER"] ==
-                .string(
-                    "$(SRCROOT)/\(Constants.DerivedDirectory.name)/\(Constants.DerivedDirectory.sources)/TuistBundle+\(target.name).h"
-                )
-        )
-        #expect(gotTarget.sources.count == 2)
-        #expect(gotSideEffects.count == 2)
-        let generatedFiles = gotSideEffects.compactMap {
-            if case let .file(file) = $0 {
-                return file
-            } else {
-                return nil
-            }
-        }
-
-        let expectedBasePath = project.derivedDirectoryPath(for: target)
-            .appending(component: Constants.DerivedDirectory.sources)
-        #expect(
-            generatedFiles == [
-                FileDescriptor(
-                    path: expectedBasePath.appending(component: "TuistBundle+\(target.name).h"),
-                    contents: BundleAccessorTemplate
-                        .objcHeaderContents(targetName: target.name)
-                        .data(using: .utf8)
-                ),
-                FileDescriptor(
-                    path: expectedBasePath.appending(component: "TuistBundle+\(target.name).m"),
-                    contents: BundleAccessorTemplate
-                        .objcImplementationContents(
-                            targetName: target.name,
-                            bundleName: "\(project.name)_\(target.name)"
-                        )
-                        .data(using: .utf8)
-                ),
-            ]
-        )
+        #expect(gotTarget.settings?.base["GENERATE_RESOURCE_ACCESSORS"] == .string("YES"))
+        #expect(gotTarget.settings?.base["GCC_PREFIX_HEADER"] == nil)
+        #expect(gotTarget.sources.count == target.sources.count)
+        #expect(gotSideEffects.isEmpty)
     }
 }
