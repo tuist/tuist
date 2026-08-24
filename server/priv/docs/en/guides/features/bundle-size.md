@@ -151,7 +151,7 @@ To configure thresholds, go to your project's **Settings > Bundles** tab:
 
 By default anyone with write access to the repository can accept a size increase, because that is who GitHub shows the button to. To narrow it, set **Who can accept** under **Settings > Bundles**:
 
-- **Anyone with write access**: the default.
+- **Anyone**: the default. Anyone with write access to the repository.
 - **Selected GitHub users**: only the GitHub usernames you add.
 
 When someone who is not on the list presses the button, the check run stays failing and says so. The button remains available so that someone who is on the list can press it.

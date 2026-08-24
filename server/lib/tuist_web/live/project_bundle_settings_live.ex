@@ -257,11 +257,11 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     end
   end
 
-  defp approval_policy_label(:everyone), do: dgettext("dashboard_projects", "Anyone with write access")
+  defp approval_policy_label(:everyone), do: dgettext("dashboard_projects", "Anyone")
   defp approval_policy_label(:selected), do: dgettext("dashboard_projects", "Selected GitHub users")
 
   defp approval_policy_description(:everyone) do
-    dgettext("dashboard_projects", "GitHub only shows the button to people who can write to the repository.")
+    dgettext("dashboard_projects", "Anyone with write access to the repository.")
   end
 
   defp approval_policy_description(:selected) do

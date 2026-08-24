@@ -1567,16 +1567,6 @@ msgstr ""
 msgid "Add approver"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:260
-#, elixir-autogen, elixir-format
-msgid "Anyone with write access"
-msgstr ""
-
-#: lib/tuist_web/live/project_bundle_settings_live.ex:264
-#, elixir-autogen, elixir-format
-msgid "GitHub only shows the button to people who can write to the repository."
-msgstr ""
-
 #: lib/tuist_web/live/project_bundle_settings_live.ex:268
 #, elixir-autogen, elixir-format
 msgid "Only the GitHub usernames you add below."
@@ -1585,4 +1575,14 @@ msgstr ""
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:452
 #, elixir-autogen, elixir-format
 msgid "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:260
+#, elixir-autogen, elixir-format
+msgid "Anyone"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:264
+#, elixir-autogen, elixir-format
+msgid "Anyone with write access to the repository."
 msgstr ""
