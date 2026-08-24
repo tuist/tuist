@@ -30,6 +30,7 @@ use crate::{
         range::{RangeOutcome, ServedRange, resolve_range},
     },
     auth::{AccessDecision, RequestContext},
+    backpressure,
     bandwidth::BandwidthLimiter,
     constants::{
         BACKFILL_BODIES_BATCH_BYTES, MAX_BACKFILL_BODIES_ENTRIES,
@@ -40,8 +41,8 @@ use crate::{
     },
     io::is_fd_pool_exhausted_error,
     memory::{
-        MemoryPressure, ResponseStreamAdmissionPatience, ResponseStreamMemoryPermit,
-        ResponseTransportGuard,
+        MemoryController, MemoryPressure, ResponseStreamAdmissionPatience,
+        ResponseStreamMemoryPermit, ResponseTransportGuard,
     },
     metrics::Metrics,
     multipart::error::MultipartError,
@@ -1099,11 +1100,19 @@ fn is_write_method(method: &axum::http::Method) -> bool {
 
 fn overloaded_response(message: &str) -> Response {
     let mut response = error_response(StatusCode::SERVICE_UNAVAILABLE, message);
-    response.headers_mut().insert(
-        axum::http::header::RETRY_AFTER,
-        HeaderValue::from_static("1"),
+    retry_after(
+        &mut response,
+        backpressure::retry_after_seconds(backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS),
     );
     response
+}
+
+fn retry_after(response: &mut Response, seconds: u64) {
+    if let Ok(value) = HeaderValue::from_str(&seconds.to_string()) {
+        response
+            .headers_mut()
+            .insert(axum::http::header::RETRY_AFTER, value);
+    }
 }
 
 async fn authorize_request(State(state): State<SharedState>, req: Request, next: Next) -> Response {
@@ -1567,7 +1576,7 @@ async fn get_keyvalue(
                     state
                         .metrics
                         .record_memory_action("keyvalue_response_materialization_rejected");
-                    return response_stream_unavailable();
+                    return response_stream_shed(&state.memory);
                 }
             };
             state
@@ -2282,7 +2291,7 @@ async fn internal_backfill_artifact(
         .try_acquire_background_response_stream_memory(requested_bytes, "backfill")
     {
         Ok(permit) => permit,
-        Err(_) => return response_stream_unavailable(),
+        Err(_) => return peer_response_stream_unavailable(&state.memory),
     };
 
     match state
@@ -2388,9 +2397,9 @@ fn backfill_unavailable_response(error: &str, message: &str) -> Response {
         .into_response();
     // Retry-After marks the response as retryable backpressure to the peer
     // pass's response classifier (`classify_backfill_response`).
-    response.headers_mut().insert(
-        axum::http::header::RETRY_AFTER,
-        HeaderValue::from_static("1"),
+    retry_after(
+        &mut response,
+        backpressure::retry_after_seconds(backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS),
     );
     response
 }
@@ -2490,7 +2499,7 @@ async fn internal_backfill_bodies(State(state): State<SharedState>, request: Req
             state
                 .metrics
                 .record_backfill_bodies_peer_request(&peer_label, "backpressure");
-            return response_stream_unavailable();
+            return peer_response_stream_unavailable(&state.memory);
         }
     };
     let file = match state.io.open_file(&spool.path).await {
@@ -3020,7 +3029,11 @@ async fn get_artifact(
                 // analytics when it completes.
             } else if response.status() == StatusCode::NOT_FOUND {
                 state.metrics.record_artifact_read(producer, "not_found", 0);
-            } else {
+            } else if response.status() != StatusCode::TOO_MANY_REQUESTS {
+                // A shed is admission, not a read outcome: no read was attempted,
+                // and counting it as an error puts capacity back into the signal
+                // this route's error rate is read from. The accelerated path
+                // records nothing for the same reason.
                 state.metrics.record_artifact_read(producer, "error", 0);
             }
             response
@@ -3376,7 +3389,7 @@ async fn serve_file_reader(
                 .await
             {
                 Ok(permit) => (permit, RESPONSE_STREAM_MIN_CHUNK_BYTES),
-                Err(_) => return response_stream_unavailable(),
+                Err(_) => return response_stream_shed(&state.memory),
             }
         }
     };
@@ -3417,15 +3430,33 @@ async fn serve_file_reader(
     }
 }
 
-fn response_stream_unavailable() -> Response {
+/// Sheds a public read that could not be admitted a response stream.
+///
+/// Backpressure rather than a fault: the node is healthy and the same request
+/// succeeds once a permit frees, so a 5xx here would be indistinguishable from
+/// an unreachable auth backend or a failed transfer. Both admission outcomes
+/// land here, including the queue-full one that gives up before waiting at
+/// all, which is another reason not to describe it as the service being
+/// unavailable.
+fn response_stream_shed(memory: &MemoryController) -> Response {
+    let mut response = error_response(
+        StatusCode::TOO_MANY_REQUESTS,
+        "The server is limiting concurrent artifact response streams; retry shortly".to_string(),
+    );
+    retry_after(&mut response, memory.response_stream_retry_after_seconds());
+    response
+}
+
+/// The peer counterpart, on the background pool. It stays 503: internal routes
+/// are outside the public error signal this split exists to clean up, and the
+/// requester already treats a 503 carrying `Retry-After` as budget-exempt
+/// backpressure (`classify_backfill_response`).
+fn peer_response_stream_unavailable(memory: &MemoryController) -> Response {
     let mut response = error_response(
         StatusCode::SERVICE_UNAVAILABLE,
         "The server is limiting concurrent artifact response streams; retry shortly".to_string(),
     );
-    response.headers_mut().insert(
-        axum::http::header::RETRY_AFTER,
-        HeaderValue::from_static("1"),
-    );
+    retry_after(&mut response, memory.response_stream_retry_after_seconds());
     response
 }
 
@@ -3715,6 +3746,25 @@ mod tests {
         test_support::{response_text, test_context},
         utils::{artifact_storage_id, blob_key},
     };
+
+    fn retry_after_hint(response: &Response) -> u64 {
+        response
+            .headers()
+            .get(axum::http::header::RETRY_AFTER)
+            .expect("backpressure must be marked retryable")
+            .to_str()
+            .expect("ascii retry-after")
+            .parse()
+            .expect("numeric retry-after")
+    }
+
+    fn assert_retryable_hint(response: &Response, ceiling_seconds: u64) {
+        let seconds = retry_after_hint(response);
+        assert!(
+            (backpressure::MIN_RETRY_AFTER_SECONDS..=ceiling_seconds).contains(&seconds),
+            "retry-after {seconds} outside 1..={ceiling_seconds}"
+        );
+    }
 
     fn test_usage_config() -> UsageConfig {
         UsageConfig {
@@ -4151,10 +4201,7 @@ mod tests {
             .expect("request failed");
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(
-            response.headers().get(axum::http::header::RETRY_AFTER),
-            Some(&HeaderValue::from_static("1")),
-        );
+        assert_retryable_hint(&response, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
     }
 
     #[tokio::test]
@@ -5514,10 +5561,7 @@ mod tests {
             .expect("request failed");
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(
-            response.headers().get(axum::http::header::RETRY_AFTER),
-            Some(&HeaderValue::from_static("1")),
-        );
+        assert_retryable_hint(&response, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
     }
 
     #[tokio::test]
@@ -5551,10 +5595,7 @@ mod tests {
             .expect("request failed");
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(
-            response.headers().get(axum::http::header::RETRY_AFTER),
-            Some(&HeaderValue::from_static("1")),
-        );
+        assert_retryable_hint(&response, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
         let rendered = context.state.metrics.render();
         assert!(rendered.lines().any(|line| {
             line.starts_with("kura_backfill_bodies_peer_requests_total")
@@ -6163,17 +6204,26 @@ mod tests {
             .await
             .expect("get request failed");
 
-        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(
-            response.headers().get(axum::http::header::RETRY_AFTER),
-            Some(&HeaderValue::from_static("1"))
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_retryable_hint(
+            &response,
+            backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS,
+        );
+        let metrics = context.state.metrics.render();
+        assert!(metrics.contains("outcome=\"degraded_memory_unavailable\""));
+        assert!(
+            metrics.lines().any(|line| {
+                line.starts_with("kura_http_requests_total")
+                    && line.contains("route=\"/api/cache/cas/{id}\"")
+                    && line.contains("status=\"429\"")
+            }),
+            "the shed must be counted as backpressure on the read route"
         );
         assert!(
-            context
-                .state
-                .metrics
-                .render()
-                .contains("outcome=\"degraded_memory_unavailable\"")
+            !metrics.lines().any(|line| {
+                line.starts_with("kura_http_exceptions_total") && line.contains("server_error")
+            }),
+            "a capacity shed must not be counted as a server error"
         );
     }
 
@@ -7088,13 +7138,51 @@ mod tests {
     }
 
     #[test]
-    fn response_stream_admission_failure_is_retryable() {
-        let response = response_stream_unavailable();
+    fn response_stream_admission_failure_spreads_retry_after() {
+        let memory =
+            MemoryController::new(Metrics::new("eu-west".into(), "tenant".into()), 100, 200);
+        let values: std::collections::HashSet<u64> = (0..64)
+            .map(|_| retry_after_hint(&response_stream_shed(&memory)))
+            .collect();
+
+        assert!(
+            values.len() > 1,
+            "a constant retry-after wakes every shed client on the same instant: {values:?}"
+        );
+        assert!(
+            values
+                .iter()
+                .all(|seconds| (backpressure::MIN_RETRY_AFTER_SECONDS
+                    ..=backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS)
+                    .contains(seconds)),
+            "{values:?}"
+        );
+    }
+
+    #[test]
+    fn public_response_stream_admission_failure_is_rate_limited() {
+        let memory =
+            MemoryController::new(Metrics::new("eu-west".into(), "tenant".into()), 100, 200);
+        let response = response_stream_shed(&memory);
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(!response.status().is_server_error());
+        assert_retryable_hint(
+            &response,
+            backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS,
+        );
+    }
+
+    #[test]
+    fn peer_response_stream_admission_failure_is_retryable() {
+        let memory =
+            MemoryController::new(Metrics::new("eu-west".into(), "tenant".into()), 100, 200);
+        let response = peer_response_stream_unavailable(&memory);
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(
-            response.headers().get(axum::http::header::RETRY_AFTER),
-            Some(&HeaderValue::from_static("1"))
+        assert_retryable_hint(
+            &response,
+            backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS,
         );
     }
 

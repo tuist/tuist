@@ -1,0 +1,208 @@
+{{- if .Values.egressTreeAgent.enabled }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "egress-tree-agent") }}
+{{- $namespace := .Values.egressTreeAgent.namespace | default .Values.kuraController.namespace }}
+{{- if not .Values.egressTreeAgent.image }}
+{{- fail "egressTreeAgent.image is required (pin by digest)" }}
+{{- end }}
+{{- if and (not .Values.egressTreeAgent.nodePools) (not .Values.egressTreeAgent.nodeSelector) }}
+{{- fail "egressTreeAgent.nodePools (or nodeSelector) is required: restrict the privileged DaemonSet to the kura cache pools" }}
+{{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: egress-tree-agent
+---
+# Cluster-scoped reads only: the agent watches its own Node (advertised
+# egress budget) and the pods scheduled onto that node (fieldSelector
+# spec.nodeName); both feed field-selected informers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: egress-tree-agent
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: egress-tree-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: egress-tree-agent
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: egress-tree-agent
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: egress-tree-agent
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: egress-tree-agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.egressTreeAgent.metricsPort | quote }}
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: {{ $name }}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      priorityClassName: system-node-critical
+      nodeSelector:
+        kubernetes.io/os: linux
+        {{- with .Values.egressTreeAgent.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.egressTreeAgent.nodePools }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.cluster.x-k8s.io/pool
+                    operator: In
+                    values:
+                      {{- toYaml . | nindent 22 }}
+      {{- end }}
+      {{- with .Values.egressTreeAgent.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: agent
+          image: {{ .Values.egressTreeAgent.image | quote }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: RECONCILE_INTERVAL
+              value: {{ .Values.egressTreeAgent.reconcileInterval | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.egressTreeAgent.logLevel | quote }}
+            - name: RETURN_ATTACH_MAX_FAILURES
+              value: {{ .Values.egressTreeAgent.returnAttachMaxFailures | quote }}
+            - name: METRICS_ADDR
+              value: ":{{ .Values.egressTreeAgent.metricsPort }}"
+            - name: DEFAULT_NODE_EGRESS_MBPS
+              value: {{ .Values.egressTreeAgent.defaultNodeEgressMbps | quote }}
+            {{- with .Values.egressTreeAgent.betaPodPrefix }}
+            - name: BETA_POD_PREFIX
+              value: {{ . | quote }}
+            {{- end }}
+          securityContext:
+            # Privileged like every datapath agent on these nodes: it creates
+            # host veth devices, installs qdiscs, writes net sysctls, and
+            # attaches/pins tcx BPF programs — the default container runtime
+            # masks (read-only /proc/sys) break those under a
+            # capabilities-only grant.
+            privileged: true
+          volumeMounts:
+            - name: bpffs
+              mountPath: /sys/fs/bpf
+              mountPropagation: HostToContainer
+            - name: cilium-run
+              mountPath: /var/run/cilium
+              readOnly: true
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.egressTreeAgent.metricsPort }}
+              hostPort: {{ .Values.egressTreeAgent.metricsPort }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: metrics }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.egressTreeAgent.resources | nindent 12 }}
+      volumes:
+        - name: bpffs
+          hostPath:
+            path: /sys/fs/bpf
+            type: Directory
+        - name: cilium-run
+          hostPath:
+            path: /var/run/cilium
+            type: Directory
+---
+# Host-firewall hardening for the metrics listener. The agent is hostNetwork
+# on boxes whose primary IP is public and which carry no host firewall, so
+# without this rule /metrics — per-tenant classids and traffic volumes — is
+# world-readable.
+#
+# ANY host policy selecting a node — deny rules included — switches that
+# host endpoint into ingress enforcement (staging-verified the hard way:
+# a deny-only version of this policy default-denied the kura nodes,
+# dropping vxlan, scrapes, and node-exporter). The baseline allow-all
+# ingress rule below keeps every other flow open; the ingressDeny takes
+# precedence over it, so the net effect is exactly "drop the metrics port
+# from world". In-cluster scrapes arrive as cluster identities and are
+# untouched either way.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: {{ $name }}-metrics-no-world
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: egress-tree-agent
+spec:
+  nodeSelector:
+    # A host policy matches against the HOST endpoint's labels, which Cilium's
+    # default label filter strips down to node.cluster.x-k8s.io/* (+ reserved)
+    # — kubernetes.io/os is NOT present on the host endpoint. So the policy
+    # selects by pool only; a kubernetes.io/os: linux matchLabel here never
+    # matches, leaving the host endpoint unenforced and the metrics port open
+    # (observed on canary/production). The DaemonSet keeps os: linux because
+    # pod scheduling does see full node labels. The kura pools are linux-only
+    # bare metal, so pool alone is exact.
+    {{- with .Values.egressTreeAgent.nodeSelector }}
+    matchLabels:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.egressTreeAgent.nodePools }}
+    matchExpressions:
+      - key: node.cluster.x-k8s.io/pool
+        operator: In
+        values:
+          {{- toYaml . | nindent 10 }}
+    {{- end }}
+  ingress:
+    - fromEntities: [all]
+  ingressDeny:
+    - fromEntities: [world]
+      toPorts:
+        - ports:
+            - port: {{ .Values.egressTreeAgent.metricsPort | quote }}
+              protocol: TCP
+{{- end }}

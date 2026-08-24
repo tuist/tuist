@@ -169,9 +169,9 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
 
     | Metric | Baseline | Current | Change |
     |--------|----------|---------|--------|
-    | #{metric_label} | #{ByteFormatter.format_bytes(baseline_size)} | #{ByteFormatter.format_bytes(current_size)} | +#{Float.round(deviation, 1)}% |
+    | #{metric_label} | #{ByteFormatter.format_bytes(baseline_size)} | #{ByteFormatter.format_bytes(current_size)} | +#{Float.round(deviation, 2)}% |
 
-    **Threshold:** #{Float.round(threshold.deviation_percentage, 1)}% on `#{threshold.baseline_branch}`#{if threshold.bundle_name, do: " (bundle: #{threshold.bundle_name})", else: ""}
+    **Threshold:** #{threshold.deviation_percentage}% on `#{threshold.baseline_branch}`#{if threshold.bundle_name, do: " (bundle: #{threshold.bundle_name})", else: ""}
 
     [View bundle details](#{bundle_url})
     """

@@ -838,7 +838,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             )
             moduleMapModuleName = resolvedModuleName
             let swiftPackageManagerScratchDirectory: AbsolutePath? = if packageType.isRemoteExternal {
-                SwiftPackageManagerPaths.scratchDirectory(containingCheckout: path)
+                SwiftPackageManagerPaths.scratchDirectory(containingPackageSource: path)
             } else {
                 nil
             }

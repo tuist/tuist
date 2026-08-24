@@ -231,9 +231,10 @@ struct ArtifactResumeMiddlewareTests {
                 case 1:
                     return (HTTPResponse(status: 200), truncatedBody([Data("0123".utf8)]))
                 case 2:
-                    // The documented shed on the ranged follow-up. Without
-                    // retry in the resume path this ends the download.
-                    var shed = HTTPResponse(status: .init(code: 503))
+                    // The capacity shed the server actually returns on a
+                    // ranged follow-up. Without retry in the resume path this
+                    // ends the download and the bytes in hand are discarded.
+                    var shed = HTTPResponse(status: .init(code: 429))
                     shed.headerFields[HTTPField.Name("Retry-After")!] = "0"
                     return (shed, HTTPBody(Data()))
                 default:

@@ -173,10 +173,24 @@ struct RetryMiddlewareTests {
         var response = HTTPResponse(status: 503)
         response.headerFields[HTTPField.Name("Retry-After")!] = "1"
 
-        #expect(
-            RetryMiddleware.retryDelay(for: response, policyDelay: 100_000_000)
-                == 1_000_000_000
+        let delay = RetryMiddleware.retryDelay(for: response, policyDelay: 100_000_000)
+
+        #expect(delay >= 1_000_000_000)
+        #expect(delay <= 2_000_000_000)
+    }
+
+    @Test func spreads_numeric_retry_after_across_clients() {
+        var response = HTTPResponse(status: 503)
+        response.headerFields[HTTPField.Name("Retry-After")!] = "1"
+
+        let delays = Set(
+            (0 ..< 64).map { _ in
+                RetryMiddleware.retryDelay(for: response, policyDelay: 100_000_000)
+            }
         )
+
+        #expect(delays.count > 1)
+        #expect(delays.allSatisfy { $0 >= 1_000_000_000 && $0 <= 2_000_000_000 })
     }
 
     @Test func bounds_numeric_retry_after_to_the_maximum_policy_delay() {

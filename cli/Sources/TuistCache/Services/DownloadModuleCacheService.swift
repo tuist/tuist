@@ -25,11 +25,19 @@ public enum DownloadModuleCacheServiceError: LocalizedError {
     case forbidden(String)
     case notFound(String)
     case badRequest(String)
+    /// The server admitted no response stream for the read and asked for a retry. The
+    /// artifact exists and the server is healthy, so this is distinct from a failure:
+    /// it is worth retrying, and worth reporting to the user as congestion rather than
+    /// as an outage.
+    case rateLimited(String, retryAfterSeconds: Int?)
 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The module cache artifact could not be downloaded due to an unknown response of \(statusCode)."
+        case let .rateLimited(message, retryAfterSeconds):
+            guard let retryAfterSeconds else { return message }
+            return "\(message) (retry after \(retryAfterSeconds)s)"
         case let .unauthorized(message),
              let .forbidden(message),
              let .notFound(message),
@@ -102,6 +110,14 @@ public struct DownloadModuleCacheService: DownloadModuleCacheServicing {
             switch unprocessableContent.body {
             case let .json(error):
                 throw DownloadModuleCacheServiceError.badRequest(error.message)
+            }
+        case let .tooManyRequests(tooManyRequests):
+            switch tooManyRequests.body {
+            case let .json(error):
+                throw DownloadModuleCacheServiceError.rateLimited(
+                    error.message,
+                    retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+                )
             }
         case let .undocumented(statusCode: statusCode, _):
             throw DownloadModuleCacheServiceError.unknownError(statusCode)

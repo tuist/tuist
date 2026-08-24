@@ -512,6 +512,166 @@ separate them because every host, healthy or not, has quiet stretches. Scope thi
 to the runner fleet: `macos-fleet` and `builders-fleet` hosts sit at a couple of
 hundred B/s legitimately, since they run no cache-using VMs.
 
+### Kura cache read faults
+
+```promql
+sum by (cluster, pod, route) (
+  rate(kura_http_requests_total_total{
+    namespace="kura",
+    route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+    status=~"5.."
+  }[5m])
+)
+```
+
+- Threshold: `> 0.1`, as a separate threshold expression on `A` rather than a
+  comparison inside the PromQL, so the alert value is the failure rate itself
+- Pending period: 5 minutes
+- Live: rule `cftoutryd1jwge`, titled `Kura - 5xx errors on public cache
+  routes`, folder `Alerts`, group `Cache`, receiver `Slack #notifications 2`
+  (routed by notification settings, so it carries no `severity` label),
+  `no_data_state: OK`. It was originally titled for `/api/cache/module/{id}` and
+  ran `sum by (pod) (increase(kura_http_requests_total_total{namespace="kura",
+  route="/api/cache/module/{id}", status=~"5.."}[5m])) > 0` — one route, firing
+  on a single 5xx.
+- **The rule lives in Grafana, not in this repo.** Nothing provisions it from
+  here, so an edit means pasting into the rule editor and updating this section
+  to match.
+- Summary: `Kura pod {{ $labels.pod }} is failing requests on
+  {{ $labels.route }} ({{ $labels.cluster }})`
+
+A 5xx on the public cache routes now means one thing: the node could not serve a
+request it should have served. The two survivors are an unreachable auth backend
+(`kura_auth_decisions_total{result="unavailable"}`) and a transfer that failed
+for a reason other than the client going away. Capacity shedding used to land
+here as a 503 and no longer does, which is what makes a fixed low threshold
+meaningful again — before the split, this rule fired on 25,882 sheds in a single
+ten-minute window while the node was healthy and serving 27,418 reads alongside
+them.
+
+One expected 5xx source remains: a draining pod answers public requests with
+`503 server is draining` until it leaves the Service endpoints, so a rolling
+deploy puts a short 5xx blip on this rule. The 5-minute pending period is what
+absorbs it; if a deploy ever trips the rule, lengthen the pending period rather
+than lowering the threshold, since the blip is bounded by the drain timeout
+(`KURA_DRAIN_COMPLETION_TIMEOUT_MS`) and a real fault is not.
+
+Match by exclusion rather than by naming one route: every public cache read
+shares the same serving path, so a fault on the CAS or Gradle route is the same
+event with a different label, and the exclusion form is the one the `tuist-kura`
+dashboard uses for public traffic. There is no `tenant_id` label on
+`kura_http_requests_total` — it comes from a join against `kura_node_info` — so
+group by `pod`, whose name carries the account (`kura-<account>-<region>-<n>`).
+
+Widening the routes does not make it noisier, because the threshold moves at the
+same time. Over the 7 days to 2026-08-21 the original form (one route, fires on
+a single 5xx) held its condition for 390 pod-minutes; the form above, across
+every public route, holds for 250. It also surfaces something the original could
+not see: 20 minutes of 5xx on `/api/cache/module/start`, a write route, on a pod
+the old rule never looked at.
+
+### Kura cache pod restart loop
+
+```promql
+sum by (cluster, pod) (
+  increase(kube_pod_container_status_restarts_total{
+    namespace="kura",
+    container="kura"
+  }[6h])
+) >= 2
+```
+
+- Pending period: 10 minutes
+- Severity: critical
+- Already created: rule `efvvcl6qu3tvkc`, folder `Alerts`, group `Cache`,
+  receiver `Slack #notifications 2`, alongside the other Kura rules. The
+  deployed rule keeps the raw `increase(...)` in query A and puts the
+  comparison in threshold expression C as `gt 1.5`, matching the house pattern.
+- Summary: `Kura cache pod {{ $labels.pod }} restarted
+  {{ $values.A.Value | printf "%.0f" }} times in the last 6 hours in
+  {{ $labels.cluster }}`
+
+**Nothing covered the `kura` namespace before this.** Two generic restart rules
+already existed and neither could have fired: `Pod restarts (possible
+overload)` is scoped `namespace="tuist"`, and both it and `Pod CrashLoop /
+Frequent Restarts` use thresholds (more than 2 in 15 minutes, more than 5 in an
+hour) far above this fault's rate. Check the namespace scope of a generic rule
+before assuming it covers a new workload.
+
+**This is the primary rule for the fault.** Backtested over the 7 days to
+2026-08-21 across all 30 production Kura pods, sampled every 10 minutes: it
+held true at 304, 45 and 35 sample points for the three pods of the account
+carrying the heaviest remote-execution traffic, and was never true for any
+other pod. Perfect specificity, no tuning required.
+
+Counts in-place container restarts, so a rollout cannot trigger it: a
+replacement pod starts its counter at zero. Every restart observed on this
+fault reports `Error` with exit code 137 and never `OOMKilled`, because the
+container is killed by the kubelet after `Container kura failed liveness
+probe`, not by the cgroup out-of-memory killer. A rule keyed on `OOMKilled`
+would not have seen any of it.
+
+**Use the 6-hour window, not 1 hour.** The same expression over `[1h]` is
+equally specific but much less sensitive: on the same backtest it held at only
+1 and 3 sample points for two of the three affected pods, which a 10-minute
+pending period may not survive. Restarts on this fault arrive in clusters
+separated by hours, so the shorter window keeps falling back below the
+threshold between clusters.
+
+A restart is not a cheap recovery here. The node loses its place in the mesh,
+its peers log `membership changed: lost peers`, and when it returns every peer
+runs a catch-up backfill pass against it: passes applying 27,716 artifacts and
+545 MB were logged in the minutes after one restart. That write burst is itself
+a trigger for the next stall, so restarts cluster.
+
+### Kura cache telemetry missing
+
+```promql
+absent_over_time(up{cluster="tuist-production", job="kura"}[15m])
+or
+absent_over_time(up{cluster="tuist-staging", job="kura"}[15m])
+or
+absent_over_time(up{cluster="tuist-canary", job="kura"}[15m])
+```
+
+- Pending period: 0 minutes
+- Severity: critical
+- Already created: rule `ffvvcpp359qm8d`, folder `Alerts`, group `Cache`,
+  receiver `Slack #notifications 2`
+- Summary: `Kura cache scrape targets have disappeared in {{ $labels.cluster }}`
+
+The paired telemetry rule for the Kura rules that read `up`. Those are
+threshold rules with **No Data: Normal**, so they cannot distinguish a healthy
+fleet from a scrape configuration that stopped discovering the `kura` namespace
+altogether.
+
+**Enumerate the clusters; do not write the bare selector.** `absent_over_time`
+is absent-or-nothing across everything the selector matches, so
+`absent_over_time(up{job="kura"}[15m])` stays empty while *any* cluster still
+has one Kura target. It cannot see a single cluster's targets disappear, which
+is the case worth alerting on, and on the one occasion it did fire the result
+would carry no `cluster` label for the summary to interpolate. Only equality
+matchers survive into the output, so naming each cluster is also what puts
+`cluster` on the alert. Same shape as **Kubernetes control-plane scrape
+telemetry missing**.
+
+Kura runs in `tuist-production`, `tuist-staging` and `tuist-canary`, and
+deliberately not in `tuist-management`. Add a disjunct when a new cluster
+starts hosting Kura: a cluster that is absent from this list is not covered,
+and nothing will point that out.
+
+**Watch the polarity, which is the reverse of a threshold rule.**
+`absent_over_time` returns `1` when the series has been absent for the whole
+window and returns *nothing* when it is present, so the healthy state here is
+an empty result. **No Data** must therefore be **Normal**, not Alerting;
+setting it to Alerting makes the rule fire continuously while the fleet is
+healthy. Only **Error** goes to **Alerting**, because a failed evaluation does
+mean the safety net is not working. This corrects steps 8 and the Assistant
+prompt below, which said to make **No Data** Alerting for telemetry-missing
+rules; that reads as correct but inverts the semantics of every
+`absent_over_time` rule in this document, so check the deployed configuration
+of the older ones too.
+
 ### Runner host PN VLAN missing
 
 ```promql
@@ -1049,6 +1209,139 @@ absent_over_time(
 
 ## Warning alerts
 
+### Kura shedding cache reads under capacity pressure
+
+```promql
+(
+  sum by (cluster, pod) (
+    rate(kura_http_requests_total_total{
+      namespace="kura",
+      route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+      status="429"
+    }[5m])
+  )
+  /
+  clamp_min(
+    sum by (cluster, pod) (
+      rate(kura_http_requests_total_total{
+        namespace="kura",
+        route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+        status="429"
+      }[5m])
+    )
+    +
+    (
+      sum by (cluster, pod) (
+        rate(kura_artifact_reads_total_total{result="ok", producer!="reapi"}[5m])
+      )
+      or
+      sum by (cluster, pod) (
+        rate(kura_http_requests_total_total{
+          namespace="kura",
+          route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+          status="429"
+        }[5m])
+      ) * 0
+    ),
+    0.01
+  )
+)
+and
+sum by (cluster, pod) (
+  rate(kura_http_requests_total_total{
+    namespace="kura",
+    route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched",
+    status="429"
+  }[5m])
+) > 1
+```
+
+- Threshold: `> 0.05`, as a separate threshold expression on `A`. The volume
+  floor stays inside the PromQL, since `and` filters the series rather than
+  reducing it to a boolean, which keeps the shed ratio as the alert value
+- Pending period: 10 minutes
+- Severity: warning
+- Live: rule `dfvv8qn09k1z4b`, folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`, `no_data_state: OK`. It reads Normal until the 429
+  change is deployed, since no node emits the status yet.
+- Summary: `Kura pod {{ $labels.pod }} is shedding
+  {{ $values.A.Value | humanizePercentage }} of cache reads in
+  {{ $labels.cluster }} — it is out of response-stream capacity, not broken`
+
+`$values.A.Value`, not `$value`: the ratio is query `A` and the threshold is a
+separate expression, so `$value` renders both refIds rather than the percentage.
+`no_data_state: OK` is load-bearing too — the `and` returns an empty vector
+whenever the volume floor is not met, which is most of the time.
+
+Kura answers a read it cannot admit a response stream for with `429` and
+`Retry-After: 1`. Clients retry, so a shed is a slowdown rather than a failure,
+and a short burst is the admission control working. What matters is the share of
+reads being shed and for how long, which is why this is rate-relative: an
+absolute count fires on the busiest tenant first no matter how well they are
+being served, and the same count means very different things at 200 req/s and at
+20,000 req/s.
+
+The threshold is a ratio because the lever is capacity, and the decision it
+feeds is a capacity decision: sustained shedding means the tenant's peak demand
+is above what their node's uplink can deliver, so the fix is egress budget or
+placement, not a restart. Which admission stage refused breaks down as:
+
+```promql
+sum by (pod, outcome) (
+  rate(kura_response_stream_admissions_total_total{
+    outcome=~"timeout|queue_full|degraded_timeout|degraded_memory_unavailable"
+  }[5m])
+)
+```
+
+Note the doubled suffix: the counter is registered as
+`kura_response_stream_admissions_total` and reaches Grafana Cloud as
+`..._total_total`, the same as `kura_http_requests_total_total`. Do not build
+the alert itself on that counter. One request can record more than one outcome —
+a read that records `queue_full` on its full-size attempt and then succeeds on
+the degraded pool records `degraded` too — so it counts admission attempts, not
+shed requests. The HTTP status is one value per request and is the only
+unambiguous shed signal.
+
+**Two details in this query are load-bearing, both measured over the 7 days to
+2026-08-21 using the pre-change 503s as a proxy for the 429s.**
+
+The denominator is the reads that wanted bytes: successful artifact reads plus
+sheds. It cannot be assembled from HTTP status alone. Excluding 404s matters
+first — the module cache runs a high miss rate and 404s were 12.3M of 21.9M
+public requests in that week, so counting them reports 6.9% where the reads
+that mattered were shed at 17.2%, and the number would drift down as the hit
+rate improves, which is exactly backwards. But `status="200"` is not the
+complement either: **`kura_http_requests_total` carries no method label**, so a
+200 there is also an Nx or Metro `PUT`, a repeat Gradle upload (201 when new,
+**200 when it already exists**), or a `/status/cluster` poll, none of which
+wanted artifact bytes. Only the CAS write escapes it, by answering 204.
+
+`kura_artifact_reads_total{result="ok"}` is the honest denominator: it counts
+artifact reads that produced bytes and nothing else, and it is recorded on both
+the accelerated and the streaming serving path. Exclude `producer="reapi"` or
+gRPC reads swamp the ratio — they are 7.8M of the fleet's 15.7M weekly reads
+and they never carry an HTTP status, so a REAPI-heavy pod would show a shed
+ratio near zero no matter how hard it was shedding over HTTP.
+
+The `or ... * 0` around it is not decoration. `+` between two metrics matches
+on labels, so a pod with sheds but **no** successful reads in the window — a
+node shedding everything, the case the rule most needs to catch — has no
+matching series on the right and drops out of the result entirely. The `or`
+supplies a zero for those pods so the ratio stays defined at 1.0.
+
+The absolute floor exists because a ratio alone fires on idle pods: a pod
+answering two requests, one of them shed, reads as 50%. Without the floor,
+`kura-tuist-scw-fr-par-0` spent 35 minutes of that week above 5% purely on low
+volume; with it, 15. That pod recorded **zero** response-stream admission
+failures over the same week, so its 503s were never sheds and will not appear as
+429s at all — worth remembering when reading a ratio on a quiet pod.
+
+For scale, the rule would have been quiet: 90 and 85 minutes above threshold in
+that week on the two busy pods, in bursts that peaked between 47% and 100%, with
+at least one burst per pod holding above 5% for a full 10 minutes. Nothing else
+in the fleet came close.
+
 ### Swift registry release work repeatedly deferred
 
 ```promql
@@ -1085,6 +1378,106 @@ after a non-throttling failure, so the cursor has already rotated beyond
 them and they wait a full catalog rotation for another look. A steady
 rate here is upstream repositories going away or a scope problem on the
 mirror's credential, not a quota problem.
+
+### Kura cache pod failing scrapes
+
+```promql
+sum by (cluster, pod) (
+  count_over_time((up{job="kura"} == 0)[6h:1m])
+) >= 2
+```
+
+- Pending period: 5 minutes
+- Severity: warning
+- Already created: rule `cfvvcmpw0wqv4f`, folder `Alerts`, group `Cache`,
+  receiver `Slack #notifications 2`
+- Summary: `Kura cache pod {{ $labels.pod }} failed
+  {{ $values.A.Value | printf "%.0f" }} scrapes in the last 6 hours in
+  {{ $labels.cluster }}`
+
+Kura serves `/metrics`, `/up` and `/ready` from the same axum server on the
+same port, so an Alloy scrape timeout and a kubelet probe timeout are two
+collectors observing the same event. That makes this the only rule that can see
+a stall the kubelet does *not* act on, which matters because most stalls never
+become restarts: one pod logged 55 readiness and 30 liveness timeouts over 23
+hours, of which only 10 crossed the three-consecutive-failure liveness
+threshold.
+
+**Its coverage is partial, and it is a warning for that reason.** Measured over
+the 24 hours to 2026-08-21, three pods restarted 15 times between them but the
+whole production fleet produced only 15 failed scrapes, 13 of them on one pod;
+a pod that restarted three times produced **zero**. A stall costs roughly one
+scrape at the default interval, and the container often comes back before the
+next one lands. Treat this rule as supplementary detail on top of **Kura cache
+pod restart loop**, never as the detector.
+
+Do not reach for a ratio here. An earlier version used
+`avg_over_time(up[30m]) < 0.9`, which the same measurement rules out: a single
+stall plus restart costs about 2 of 30 scrapes in the window, or 0.93, so it
+sits above any threshold loose enough to survive a rolling update. Counting
+absolute failures is what makes a one-scrape event visible.
+
+### Kura metadata store write buffer saturated
+
+```promql
+max by (cluster, pod) (
+  kura_rocksdb_write_buffer_usage_bytes
+  /
+  kura_rocksdb_write_buffer_capacity_bytes
+) > 0.95
+```
+
+- Pending period: 10 minutes
+- Severity: warning
+- Already created: rule `dfvvcp2lfgb9cd`, folder `Alerts`, group `Cache`,
+  receiver `Slack #notifications 2`
+- Summary: `Kura metadata store write buffer is
+  {{ $values.A.Value | humanizePercentage }} full on {{ $labels.pod }} in
+  {{ $labels.cluster }}`
+
+The mechanism behind the two rules above, and the only one of the three visible
+*before* the pod stops answering.
+
+Kura builds its metadata store with a RocksDB `WriteBufferManager` whose stall
+flag is enabled (`kura/src/store.rs`). Once memtable memory reaches the pool
+size, RocksDB blocks every thread inside its write call until a flush drains
+it. Those write calls run directly on tokio worker threads rather than on the
+blocking pool, so a saturated write buffer parks the runtime itself: the probe
+handlers stop being scheduled even though `/up` reads nothing but process-local
+config and takes no lock. Managed instances pin the pool with
+`KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES`, set in
+`kura/ops/helm/kura/values-managed.yaml` and in the kura-controller, to a value
+below what the process would otherwise derive from its memory limit, and the
+same allocation is shared with the block cache, so memtable growth evicts the
+read cache that the eviction scan depends on.
+
+The largest batch the store writes is CAS segment eviction, which deletes every
+artifact in a 512 MiB segment plus every action-cache entry cascading off those
+blobs in a single batch, and scans that whole segment index synchronously to
+build it. Four restarts across three pods and two node pools on 2026-08-21 each
+followed an eviction by 49 to 63 seconds, which is what three liveness failures
+at `periodSeconds: 20` costs. The cascade size does not predict it: evictions
+cascading 47 and 305 entries stalled the pod exactly as ones cascading 4,555 and
+7,360 did, so treat the eviction itself as the trigger rather than its fanout.
+
+**The threshold is 0.95 because busy is not the same as stalled.** Over the 24
+hours to 2026-08-21 the idle fleet baseline was 0.063, five healthy pods across
+three regions peaked at 0.844 under ordinary load, and exactly one pod exceeded
+the pool size at 1.125. A threshold at 0.9, and certainly one at 0.8, would
+page on the normal peak. Confirm this distribution before tightening it: the
+gauge is unproven as a leading indicator, and 0.95 was chosen to sit between the
+measured normal peak and the one measured excursion rather than from any
+property of RocksDB.
+
+The deployed rule sets **Error** to **OK**: the provisioning API accepts only
+`OK`, `Alerting` and `Error` for that field, so the **Keep Last State** the
+capacity warnings use is reachable from the UI but not from a provisioned
+create. `OK` keeps a data-source error from fanning out a warning, which is the
+same intent.
+
+This gauge only exists while the pod is scrapeable, which is precisely the
+window this rule is for: once the stall is underway the series stops arriving
+and the restart rule takes over.
 
 ### Worker node pool stuck mid-rollout
 
@@ -1861,16 +2254,29 @@ min by (cluster, namespace, repo, database) (
 7. Use the explicit telemetry-missing rules in this document to detect absent
    series. They use `absent_over_time` and fire even though threshold rules use
    **No Data: Normal**.
-8. Set **Error** to **Alerting** for the critical availability and
+8. Set **No Data** to **Normal** on the telemetry-missing rules as well.
+   `absent_over_time` returns a series only when the metric is *gone*, so an
+   empty result is the healthy state exactly as it is for a threshold rule.
+   Setting **No Data** to **Alerting** on one of these inverts it and the rule
+   fires continuously while everything is healthy.
+9. Set **Error** to **Alerting** for the critical availability and
    telemetry-missing rules. Use **Keep Last State** for capacity and latency
    warnings so a data-source evaluation error does not fan out into unrelated
-   warnings.
-9. Add the suggested summary, a `severity` label, and the notification contact
+   warnings. Note that **Keep Last State** is reachable from the UI but not
+   from the provisioning API, which accepts only `OK`, `Alerting` and `Error`;
+   use `OK` there for the same intent.
+10. Write value interpolations as `{{ $values.A.Value }}`, not `{{ $value }}`.
+    Every rule here is a data query plus a separate threshold expression, and on
+    a multi-ref-id rule `$value` expands to a string listing each ref id and its
+    value (`[ var='C0' labels={...} value=1 ]`) rather than the number from A.
+    That also breaks any pipe into `humanizePercentage` or `printf`, which want
+    a number. `{{ $labels.x }}` is unaffected.
+11. Add the suggested summary, a `severity` label, and the notification contact
    point used by the infrastructure team. Add `affected_service` to
    customer-visible rules as described in **Routing to Grafana IRM** above.
-10. Preview the raw metric selector and the final comparison separately against
+12. Preview the raw metric selector and the final comparison separately against
     recent data before saving it.
-11. For a rule whose healthy state is an empty result *and* whose unhealthy
+13. For a rule whose healthy state is an empty result *and* whose unhealthy
     state depends on the series existing (`Remote processing queue has no
     consumer`, `xcresult processor guest metrics unavailable fleet-wide`),
     confirm the paired telemetry-missing rule exists before relying on it.
@@ -1886,10 +2292,12 @@ infra/helm/k8s-monitoring/alerts.md. Use the Grafana Cloud metrics data source,
 preserve every query and pending period exactly, put the rules in a folder
 named Tuist infrastructure, add the suggested summary as the annotation, and
 route critical and warning severities through our existing infrastructure
-notification policy. Configure No Data and Error as Alerting for every
-explicit telemetry-missing rule. Configure No Data as Normal for every
-threshold rule. Configure Error as Alerting for critical availability and
-telemetry-missing rules, and Keep Last State for warning rules. Group
+notification policy. Configure No Data as Normal for EVERY rule, including the
+telemetry-missing ones: those use absent_over_time, which returns a series only
+when the metric is gone, so an empty result is the healthy state and No Data as
+Alerting would make them fire continuously while healthy. Configure Error as
+Alerting for critical availability and telemetry-missing rules, and Keep Last
+State for warning rules. Group
 notifications by cluster and alert name. Preview each raw metric selector and
 final comparison against the last seven days, report any selector with no
 matching series, and show me the resulting rules before saving.

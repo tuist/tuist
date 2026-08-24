@@ -21,12 +21,12 @@ public struct ExternalDependencyPathWorkspaceMapper: WorkspaceMapping {
 
     private func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
         let swiftPackageManagerScratchDirectory = SwiftPackageManagerPaths.scratchDirectory(
-            containingCheckout: project.path,
+            containingPackageSource: project.path,
             knownScratchDirectory: project.swiftPackageManagerScratchDirectory
         )
         guard case .external = project.type,
               let swiftPackageManagerScratchDirectory,
-              SwiftPackageManagerPaths.isPath(project.path, inCheckoutsOf: swiftPackageManagerScratchDirectory)
+              SwiftPackageManagerPaths.isPath(project.path, inPackageSourcesOf: swiftPackageManagerScratchDirectory)
         else { return (project, []) }
         var project = project
         let xcodeProjBasename = project.xcodeProjPath.basename

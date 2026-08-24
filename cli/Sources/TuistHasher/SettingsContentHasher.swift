@@ -49,7 +49,8 @@ public struct SettingsContentHasher: SettingsContentHashing {
 
     private func hash(_ settingsDictionary: SettingsDictionary) throws -> String {
         let filteredSettings = settingsDictionary.compactMap { key, value -> (String, SettingValue)? in
-            let filteredValue = filterWarningFlags(from: value)
+            guard !Self.isCompilationCacheSetting(key) else { return nil }
+            let filteredValue = filterProductNeutralFlags(from: value)
             return filteredValue.map { (key, $0) }
         }
         let sortedAndNormalizedSettings = filteredSettings
@@ -58,13 +59,50 @@ public struct SettingsContentHasher: SettingsContentHashing {
         return try contentHasher.hash(sortedAndNormalizedSettings)
     }
 
-    private func filterWarningFlags(from value: SettingValue) -> SettingValue? {
+    /// Build settings that configure Xcode's compilation cache, written by
+    /// `XcodeCacheSettingsProjectMapper` into a project's base settings.
+    ///
+    /// They select where a compilation caches, not what it produces, so two builds
+    /// differing only here yield the same binary and must land on the same hash.
+    /// Hashing them splits the cache along axes that have nothing to do with the
+    /// code: `COMPILATION_CACHE_PLUGIN_PATH` carries the dylib's install path, which
+    /// differs between a Homebrew install and a mise one, and toggling
+    /// `enableCaching` or the `kura` client flag at all moves every target's hash.
+    private static func isCompilationCacheSetting(_ key: String) -> Bool {
+        key.hasPrefix("COMPILATION_CACHE_")
+    }
+
+    private func filterProductNeutralFlags(from value: SettingValue) -> SettingValue? {
         guard case let .array(elements) = value else {
             return value
         }
 
-        let filteredElements = filterWarningFlags(from: elements)
+        let filteredElements = filterCASPluginOptions(from: filterWarningFlags(from: elements))
         return filteredElements.isEmpty ? nil : .array(filteredElements)
+    }
+
+    /// Drops `-cas-plugin-option <value>` pairs, which `XcodeCacheSettingsProjectMapper`
+    /// appends to `OTHER_SWIFT_FLAGS` to reach compiler frontends that carry no CLI
+    /// environment. They configure the CAS plugin's routing and upload policy, not
+    /// codegen. `tuist-upload=false` is the one that matters in practice: the
+    /// documented `xcodeCache(upload: Environment.isCI)` policy sets it on developer
+    /// machines and not on CI, which would otherwise give the two disjoint cache keys
+    /// and deny developers every artifact CI warmed.
+    private func filterCASPluginOptions(from elements: [String]) -> [String] {
+        var result: [String] = []
+        var index = 0
+
+        while index < elements.count {
+            if elements[index] == "-cas-plugin-option", index + 1 < elements.count {
+                index += 2
+                continue
+            }
+
+            result.append(elements[index])
+            index += 1
+        }
+
+        return result
     }
 
     private func filterWarningFlags(from elements: [String]) -> [String] {
