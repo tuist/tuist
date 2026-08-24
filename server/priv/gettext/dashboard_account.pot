@@ -2860,5 +2860,5 @@ msgstr ""
 
 #: lib/tuist_web/live/billing_live.ex:215
 #, elixir-autogen, elixir-format
-msgid "of your runner usage — %{free} free plus %{prepaid} prepaid"
+msgid "of your runner usage (%{free} free plus %{prepaid} prepaid)"
 msgstr ""

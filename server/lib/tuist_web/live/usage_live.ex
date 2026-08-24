@@ -429,7 +429,7 @@ defmodule TuistWeb.UsageLive do
   it are not read as all-time.
   """
   def current_period_label(%{period_start: from, period_end: to}) do
-    dgettext("dashboard_usage", "Current period %{from} — %{to}",
+    dgettext("dashboard_usage", "Current period %{from} – %{to}",
       from: Timex.format!(from, "{Mshort} {D}"),
       to: Timex.format!(to, "{Mshort} {D}")
     )

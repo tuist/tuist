@@ -212,7 +212,7 @@ defmodule TuistWeb.BillingLive do
 
   def runner_minutes_composition(%{free_minutes: free, prepaid_minutes: prepaid}),
     do:
-      dgettext("dashboard_account", "of your runner usage — %{free} free plus %{prepaid} prepaid",
+      dgettext("dashboard_account", "of your runner usage (%{free} free plus %{prepaid} prepaid)",
         free: format_number(free),
         prepaid: format_number(prepaid)
       )

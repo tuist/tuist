@@ -128,11 +128,6 @@ msgstr ""
 msgid "What lands on your invoice"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:432
-#, elixir-autogen, elixir-format
-msgid "Current period %{from} — %{to}"
-msgstr ""
-
 #: lib/tuist_web/live/usage_live.ex:424
 #, elixir-autogen, elixir-format
 msgid "Linux"
@@ -221,4 +216,9 @@ msgstr ""
 #: lib/tuist_web/live/usage_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "Projected"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.ex:432
+#, elixir-autogen, elixir-format
+msgid "Current period %{from} – %{to}"
 msgstr ""
