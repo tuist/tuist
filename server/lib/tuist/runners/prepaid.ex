@@ -396,7 +396,9 @@ defmodule Tuist.Runners.Prepaid do
   they want rather than the difference from one they have to work out.
 
   Replacing means withdrawing what is there: the grant is voided and the
-  charge behind it deleted. Deleting is best effort, since Stripe
+  charge behind it deleted. The new minutes are granted first, so a
+  failure part-way leaves the account holding too much rather than
+  nothing and a retry converges. Deleting is best effort, since Stripe
   refuses once the item is on an invoice; the grant is withdrawn either
   way, and a charge that already went out is refunded separately.
 
@@ -408,13 +410,25 @@ defmodule Tuist.Runners.Prepaid do
       when is_binary(customer_id) and is_integer(minutes) and minutes >= 0 do
     with {:ok, grants} <- CreditGrants.list_for_customer(customer_id),
          held = Enum.filter(grants, &live_runner_credit?/1),
-         :ok <- withdraw(held) do
-      result = if minutes > 0, do: bill_prepaid_minutes(account, minutes, opts), else: {:ok, :cleared}
+         {:ok, granted} <- grant_target(account, minutes, opts) do
+      result =
+        case withdraw(held) do
+          :ok -> {:ok, granted}
+          {:error, reason} -> {:error, reason}
+        end
 
       refresh_balance(customer_id)
       result
     end
   end
+
+  # Granting before withdrawing, so a failure part-way leaves the account
+  # holding too much rather than nothing. Withdrawing first meant a set
+  # that errored destroyed minutes the customer had paid for and granted
+  # nothing in their place; this way a retry converges on the figure
+  # asked for.
+  defp grant_target(_account, 0, _opts), do: {:ok, :cleared}
+  defp grant_target(account, minutes, opts), do: bill_prepaid_minutes(account, minutes, opts)
 
   @doc """
   Re-reads the balance and replaces the cached copy with it.

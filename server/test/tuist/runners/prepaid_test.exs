@@ -540,6 +540,26 @@ defmodule Tuist.Runners.PrepaidTest do
       assert {:ok, _} = Prepaid.set_minutes(%Account{customer_id: "cus_set"}, 3_000)
     end
 
+    test "keeps the minutes it was set to when withdrawing the old ones fails" do
+      # Withdrawing first meant a failure part-way emptied the account
+      # and granted nothing, so a set that errored destroyed minutes the
+      # customer had paid for. Granting first fails the other way: the
+      # account holds too much rather than nothing, and a retry
+      # converges on the figure asked for.
+      stub(CreditGrants, :list_for_customer, fn _customer_id ->
+        {:ok, [prepaid_grant("credgr_old", "ii_old")]}
+      end)
+
+      stub_account_period(~U[2026-09-01 00:00:00Z])
+      stub(Stripe.Invoiceitem, :delete, fn _id -> {:ok, %{deleted: true}} end)
+
+      expect(Stripe.Invoiceitem, :create, fn _params -> {:ok, %{id: "ii_new"}} end)
+      expect(CreditGrants, :create, fn _attrs -> {:ok, %{id: "credgr_new"}} end)
+      expect(CreditGrants, :void, fn "credgr_old" -> {:error, :stripe_down} end)
+
+      assert {:error, :stripe_down} = Prepaid.set_minutes(%Account{customer_id: "cus_set"}, 3_000)
+    end
+
     test "clears the balance when set to zero" do
       stub(CreditGrants, :list_for_customer, fn _customer_id ->
         {:ok, [prepaid_grant("credgr_old", "ii_old")]}
