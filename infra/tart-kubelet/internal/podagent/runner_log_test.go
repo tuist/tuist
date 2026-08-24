@@ -10,11 +10,11 @@ import (
 	"time"
 )
 
-func writeRunnerLog(t *testing.T, body string) string {
-	t.Helper()
-	dir := t.TempDir()
+func writeRunnerLog(tb testing.TB, body string) string {
+	tb.Helper()
+	dir := tb.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, runnerLogFile), []byte(body), 0o644); err != nil {
-		t.Fatalf("write runner log: %v", err)
+		tb.Fatalf("write runner log: %v", err)
 	}
 	return dir
 }
@@ -144,8 +144,8 @@ const hotLoopBlock = "runner-shell-agent-supervisor: removing stale lock at /tmp
 	"rm: /tmp/tuist-runner-shell-agent.lock/pid: Permission denied\n" +
 	"rm: /tmp/tuist-runner-shell-agent.lock: Permission denied\n"
 
-func hotLoopLog(t *testing.T, prefix []string, bytes int) string {
-	t.Helper()
+func hotLoopLog(tb testing.TB, prefix []string, bytes int) string {
+	tb.Helper()
 	var b strings.Builder
 	for _, l := range prefix {
 		b.WriteString(l)
@@ -154,7 +154,7 @@ func hotLoopLog(t *testing.T, prefix []string, bytes int) string {
 	for b.Len() < bytes {
 		b.WriteString(hotLoopBlock)
 	}
-	return writeRunnerLog(t, b.String())
+	return writeRunnerLog(tb, b.String())
 }
 
 func TestReadRunnerLogKeepsHistoryBehindARepeatingBlock(t *testing.T) {
@@ -302,4 +302,80 @@ func TestReadRunnerLogKeepsTheEndOfAFileWithoutNewlines(t *testing.T) {
 	if !strings.HasSuffix(got, "last-thing-it-said") {
 		t.Error("published a fragment from somewhere other than the end of the file")
 	}
+}
+
+func TestScanLinesStart(t *testing.T) {
+	if got := scanLinesStart([]byte("a\nb\nc")); got != 0 {
+		t.Errorf("window within the cap: got %d, want 0", got)
+	}
+
+	var b strings.Builder
+	for i := range runnerLogScanLines + 5 {
+		fmt.Fprintf(&b, "%d\n", i)
+	}
+	b.WriteString("last")
+	window := []byte(b.String())
+
+	start := scanLinesStart(window)
+
+	if start == 0 {
+		t.Fatal("over-long window not capped")
+	}
+	kept := strings.Split(string(window[start:]), "\n")
+	if len(kept) != runnerLogScanLines {
+		t.Errorf("kept %d lines, want %d", len(kept), runnerLogScanLines)
+	}
+	// Dropping from the wrong side would discard the tail the capture
+	// exists for.
+	if kept[len(kept)-1] != "last" {
+		t.Errorf("last kept line = %q, want the end of the window", kept[len(kept)-1])
+	}
+}
+
+func TestCollapseRepeatedBlocksKeepsItsTail(t *testing.T) {
+	var in []string
+	for i := range runnerLogTailLines * 10 {
+		in = append(in, fmt.Sprintf("line-%d", i))
+	}
+
+	got := collapseRepeatedBlocks(in)
+
+	if len(got) > 2*runnerLogTailLines {
+		t.Errorf("kept %d lines, want at most %d", len(got), 2*runnerLogTailLines)
+	}
+	if got[len(got)-1] != in[len(in)-1] {
+		t.Errorf("last line = %q, want %q", got[len(got)-1], in[len(in)-1])
+	}
+}
+
+// The guest picks this file's byte size and its line count independently,
+// so the shapes that cost the most are measured separately from the one
+// that actually shows up.
+func benchmarkReadRunnerLog(b *testing.B, body string) {
+	dir := writeRunnerLog(b, body)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for b.Loop() {
+		_ = readRunnerLog(dir)
+	}
+}
+
+func BenchmarkReadRunnerLogHotLoop(b *testing.B) {
+	var s strings.Builder
+	for s.Len() < runnerLogScanBytes+1<<20 {
+		s.WriteString(hotLoopBlock)
+	}
+	benchmarkReadRunnerLog(b, s.String())
+}
+
+func BenchmarkReadRunnerLogMostlyNewlines(b *testing.B) {
+	benchmarkReadRunnerLog(b, strings.Repeat("\n", runnerLogScanBytes+1<<20)+"x")
+}
+
+func BenchmarkReadRunnerLogShortDistinctLines(b *testing.B) {
+	var s strings.Builder
+	for i := 0; s.Len() < runnerLogScanBytes+1<<20; i++ {
+		fmt.Fprintf(&s, "aaaaaaaaaaaa%d\n", i)
+	}
+	benchmarkReadRunnerLog(b, s.String())
 }

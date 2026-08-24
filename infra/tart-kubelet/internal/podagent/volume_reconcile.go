@@ -177,7 +177,7 @@ func readRunnerLog(statusDir string) string {
 	if _, err := f.ReadAt(b, offset); err != nil {
 		return ""
 	}
-	return runnerLogTail(string(b), offset > 0)
+	return runnerLogTail(b, offset > 0)
 }
 
 // readRunnerExitTime returns when the guest wrote its exit report, which

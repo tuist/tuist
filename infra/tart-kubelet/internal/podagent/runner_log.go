@@ -1,15 +1,17 @@
 package podagent
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 )
 
 // runnerLogScanBytes / runnerLogScanLines bound the window that is read
-// and collapsed down to runnerLogTailLines / runnerLogTailBytes. The
-// line cap binds only below ~16 bytes per line, which no runner log
-// reaches; it is there to bound collapseRepeatedBlocks on a file the
-// guest chose the shape of.
+// and collapsed down to runnerLogTailLines / runnerLogTailBytes. Both
+// caps are needed: the guest picks the file's size and its line count
+// independently, and a line costs a slice header whether or not it
+// holds anything. The line cap binds only below ~16 bytes per line,
+// which no runner log reaches.
 const (
 	runnerLogScanBytes  = 16 << 20
 	runnerLogScanLines  = 1 << 20
@@ -20,13 +22,15 @@ const (
 // runnerLogTail reduces a scanned window to the published tail.
 // partialFirstLine reports that the window began mid-file, so its first
 // line is a fragment.
-func runnerLogTail(window string, partialFirstLine bool) string {
-	lines := strings.Split(strings.TrimRight(window, "\n"), "\n")
+func runnerLogTail(window []byte, partialFirstLine bool) string {
+	window = bytes.TrimRight(window, "\n")
+	if start := scanLinesStart(window); start > 0 {
+		window = window[start:]
+		partialFirstLine = false
+	}
+	lines := strings.Split(string(window), "\n")
 	if partialFirstLine && len(lines) > 1 {
 		lines = lines[1:]
-	}
-	if len(lines) > runnerLogScanLines {
-		lines = lines[len(lines)-runnerLogScanLines:]
 	}
 	lines = collapseRepeatedBlocks(lines)
 	if len(lines) > runnerLogTailLines {
@@ -35,10 +39,30 @@ func runnerLogTail(window string, partialFirstLine bool) string {
 	return strings.Join(boundToTailBytes(lines), "\n")
 }
 
+// scanLinesStart returns where the last runnerLogScanLines records of
+// window begin, or 0 when window holds no more than that many. Selected
+// before the split, so a file the guest filled with newlines costs one
+// backward pass rather than a slice header per line.
+func scanLinesStart(window []byte) int {
+	end := len(window)
+	for range runnerLogScanLines {
+		i := bytes.LastIndexByte(window[:end], '\n')
+		if i < 0 {
+			return 0
+		}
+		end = i
+	}
+	return end + 1
+}
+
 // collapseRepeatedBlocks rewrites each consecutively repeating block of
 // lines as one copy followed by a count. Blocks rather than single
 // lines: the supervisor loop that floods these logs cycles three
 // distinct lines, so no line there ever follows itself.
+//
+// Keeps only the most recent runnerLogTailLines it has produced, since
+// that is all the caller can publish; a window that collapses to
+// nothing would otherwise cost a header per line of it.
 func collapseRepeatedBlocks(lines []string) []string {
 	var out []string
 	for i := 0; i < len(lines); {
@@ -46,11 +70,14 @@ func collapseRepeatedBlocks(lines []string) []string {
 		if period == 0 {
 			out = append(out, lines[i])
 			i++
-			continue
+		} else {
+			out = append(out, lines[i:i+period]...)
+			out = append(out, repeatMarker(period, repeats))
+			i += period * repeats
 		}
-		out = append(out, lines[i:i+period]...)
-		out = append(out, repeatMarker(period, repeats))
-		i += period * repeats
+		if len(out) > 2*runnerLogTailLines {
+			out = append(out[:0], out[len(out)-runnerLogTailLines:]...)
+		}
 	}
 	return out
 }
