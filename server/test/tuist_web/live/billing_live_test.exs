@@ -357,6 +357,27 @@ defmodule TuistWeb.BillingLiveTest do
       refute has_element?(lv, "#runner-usage-table")
     end
 
+    test "is shown for an account holding prepaid minutes it has not spent", %{conn: conn, account: account} do
+      # The bar answers "how much can I still run", and an account that
+      # bought minutes and has run nothing yet is exactly when that
+      # question has an interesting answer. Hiding it on zero usage
+      # loses the minutes it paid for.
+      stub(Prepaid, :balance, fn _account ->
+        %{
+          available: Money.new(750_000, :USD),
+          granted: Money.new(750_000, :USD),
+          granted_minutes: 10_000,
+          expires_at: ~U[2027-08-20 00:00:00Z],
+          grants: []
+        }
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      assert has_element?(lv, "#runner-minutes-progress")
+      assert render(lv) =~ "10,100"
+    end
+
     test "separates what usage is worth from what is billed while on a trial", %{conn: conn, account: account} do
       runner_session_fixture(account, 100)
       {:ok, _account} = Trials.start(account)
