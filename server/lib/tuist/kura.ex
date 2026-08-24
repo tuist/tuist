@@ -23,6 +23,7 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
@@ -338,6 +339,53 @@ defmodule Tuist.Kura do
     end
   end
 
+  @doc """
+  Re-pins an account's running instances after its plan changed.
+
+  The claim is carried on the row rather than resolved per render, so a plan
+  change would otherwise not reach an instance until its volumes were next
+  built. This is what applies it: an account that upgrades gets the ring its new
+  plan pays for, on the rolling rebuild the controller does for a grown claim.
+
+  A move to `:air` never re-pins, and that is the whole safety property rather
+  than a detail. `Tuist.Billing.effective_plan/1` reads `:air` whenever an
+  account has no `active` or `trialing` subscription, which is a state real
+  accounts pass through on the way between two paid subscriptions rather than a
+  statement that they downgraded. Measured across the accounts holding an
+  instance in a per-account region, four of seven have done it, with the gap
+  lasting anywhere from six minutes to four and a half days. Sizing on that
+  would drop an enterprise claim to air's, evict a 40 GiB ring down to 3.4 GiB,
+  and then rebuild the volumes on the way back up -- destroying the cache twice
+  over for a billing round trip that changed nothing about the account.
+
+  So air is only ever reached by provisioning, where it describes an account
+  that is actually on that plan. The cost of ignoring it here is that a genuine
+  permanent downgrade keeps its larger claim until its volumes are next built,
+  which reserves disk we could have taken back. That is the cheaper mistake.
+  """
+  def refresh_storage_claims_for_plan(%Account{id: account_id}) do
+    # Read the account back rather than trusting the caller's copy: this runs
+    # from the subscription write that just changed the answer.
+    with {:ok, account} <- Accounts.get_account_by_id(account_id, preload: [:subscriptions]),
+         true <- AccountPolicies.sizing_plan(account) != :air,
+         {:ok, result} <- repin_for_plan(account) do
+      Enum.each(result.raised ++ result.lowered, &broadcast_server(&1, :updated))
+      :ok
+    else
+      _ -> :ok
+    end
+  end
+
+  defp repin_for_plan(account) do
+    Repo.transaction(fn ->
+      lock_account(account.id)
+
+      claim_size = StorageClaims.effective_claim_size(account)
+
+      repin_storage_claims(account, claim_size, claim_size)
+    end)
+  end
+
   defp write_storage_claim_override(account, override) do
     Repo.transaction(fn ->
       # Taken before anything is read, and paired with the shared lock every path
@@ -376,19 +424,31 @@ defmodule Tuist.Kura do
   # A row already rendering `claim_size` is left alone: re-pinning it would
   # produce no manifest change, and reporting it as rebuilt would tell an
   # operator a cache was dropped that never was.
+  # Pins every governed row that still holds volumes, and reports only the ones
+  # whose rendered claim actually moved.
+  #
+  # Pinning is unconditional on purpose. It used to happen only when the value
+  # moved, which left the case that reads as a no-op and is not one: an override
+  # set to exactly what the account's plan already gives it pinned nothing, so
+  # the row went on resolving from the plan and a later plan change moved it off
+  # the override that was supposed to govern it. Every live instance in
+  # production carries no pin today, so that was the default shape rather than a
+  # corner. Writing the claim onto the row is what makes the override stick, and
+  # a row already carrying this claim produces an empty changeset and no write.
   defp repin_storage_claims(%Account{id: account_id}, previous, claim_size) do
     {raised, lowered} =
       Server
       |> where([server], server.account_id == ^account_id)
       |> where([server], server.status not in ^@volumeless_statuses)
       |> Repo.all()
-      |> Enum.filter(&storage_claim_moves?(&1, previous, claim_size))
+      |> Enum.filter(&storage_governed_instance?/1)
       |> Enum.map(fn server ->
-        raised? = claim_grows?(instance_storage_claim(server, previous), claim_size)
+        held = instance_storage_claim(server, previous)
 
-        {server |> Server.lifecycle_changeset(%{storage_claim_size: claim_size}) |> Repo.update!(), raised?}
+        {server |> Server.lifecycle_changeset(%{storage_claim_size: claim_size}) |> Repo.update!(), held}
       end)
-      |> Enum.split_with(fn {_server, raised?} -> raised? end)
+      |> Enum.filter(fn {_server, held} -> held != claim_size end)
+      |> Enum.split_with(fn {_server, held} -> claim_grows?(held, claim_size) end)
 
     %{raised: Enum.map(raised, &elem(&1, 0)), lowered: Enum.map(lowered, &elem(&1, 0))}
   end
@@ -416,13 +476,10 @@ defmodule Tuist.Kura do
   # today. Pinning such a row is the point rather than a side effect, since it
   # stops resolving with the account and holds what its volumes were built at,
   # which is what every row created in a governed region already does.
-  defp storage_claim_moves?(%Server{} = server, previous, claim_size) do
+  defp storage_governed_instance?(%Server{} = server) do
     case Regions.fetch(server.region) do
-      {:ok, region} ->
-        Regions.storage_governed?(region) and instance_storage_claim(server, previous) != claim_size
-
-      {:error, _reason} ->
-        false
+      {:ok, region} -> Regions.storage_governed?(region)
+      {:error, _reason} -> false
     end
   end
 

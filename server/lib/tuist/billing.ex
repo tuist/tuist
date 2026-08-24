@@ -14,6 +14,7 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.TokenUsage
   alias Tuist.CommandEvents
+  alias Tuist.Kura
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
 
@@ -582,6 +583,10 @@ defmodule Tuist.Billing do
         })
         |> Repo.update!()
     end
+
+    # A Kura instance carries the claim it is built at rather than resolving one
+    # per render, so a plan change reaches it from here or not at all.
+    Kura.refresh_storage_claims_for_plan(account)
 
     :ok
   end

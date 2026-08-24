@@ -1,11 +1,13 @@
 defmodule Tuist.KuraTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import Ecto.Query, only: [from: 2]
   import Mimic
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.Billing.Subscription
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
@@ -714,6 +716,24 @@ defmodule Tuist.KuraTest do
       assert Repo.get!(Server, server.id).storage_claim_size == "40Gi"
     end
 
+    # The case that reads as a no-op and is not one. Setting an override to what
+    # the plan already gives pins nothing under the old rule, so the row went on
+    # resolving from the plan and a later plan change moved it off the override.
+    test "pins the override even when it matches the claim the plan already gives", %{account: account} do
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
+
+      # Provisioned rows pin at creation, so clear it to reproduce the shape
+      # every instance in production is actually in.
+      Repo.update_all(from(s in Server, where: s.id == ^server.id), set: [storage_claim_size: nil])
+
+      assert {:ok, %{claim_size: "8Gi", raised: [], lowered: []}} =
+               Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "8Gi"})
+
+      # Nothing moved, so nothing is reported, but the claim is now carried on
+      # the row: that is what makes it survive a later plan change.
+      assert Repo.get!(Server, server.id).storage_claim_size == "8Gi"
+    end
+
     test "reports nothing moved when the claim it renders does not move", %{account: account} do
       {:ok, _server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
 
@@ -786,6 +806,59 @@ defmodule Tuist.KuraTest do
       {:ok, server} = Kura.begin_drain(server)
       {:ok, server} = Kura.archive_server(server)
       server
+    end
+  end
+
+  describe "refresh_storage_claims_for_plan/1" do
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east"] end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      %{account: account}
+    end
+
+    test "applies an upgrade to a running instance", %{account: account} do
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
+      assert server.storage_claim_size == "30Gi"
+
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+
+      assert :ok = Kura.refresh_storage_claims_for_plan(account)
+
+      # Without this the upgrade would sit unapplied until the volumes were next
+      # built, which for a serving instance is indefinitely.
+      assert Repo.get!(Server, server.id).storage_claim_size == "50Gi"
+    end
+
+    # The safety property. An account between two paid subscriptions reads as air
+    # for anywhere from minutes to days, and sizing on that would evict the ring
+    # down to air's and then rebuild the volumes on the way back up.
+    test "ignores a move to air rather than sizing on a billing gap", %{account: account} do
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
+      assert server.storage_claim_size == "50Gi"
+
+      Repo.update_all(from(s in Subscription, where: s.account_id == ^account.id), set: [status: "canceled"])
+      account = Repo.preload(account, :subscriptions, force: true)
+      assert Tuist.Billing.effective_plan(account) == :air
+
+      assert :ok = Kura.refresh_storage_claims_for_plan(account)
+
+      assert Repo.get!(Server, server.id).storage_claim_size == "50Gi"
+    end
+
+    test "leaves an account that is genuinely on air where provisioning put it", %{account: account} do
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
+      assert server.storage_claim_size == "8Gi"
+
+      assert :ok = Kura.refresh_storage_claims_for_plan(account)
+
+      assert Repo.get!(Server, server.id).storage_claim_size == "8Gi"
     end
   end
 
