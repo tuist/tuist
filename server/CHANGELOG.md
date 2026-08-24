@@ -1,6 +1,13 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
+## Unreleased
+
+### ⛰️ Features
+
+* add automation configuration history
+
 ## What's Changed in server@1.207.6<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
