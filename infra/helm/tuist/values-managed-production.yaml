@@ -70,6 +70,9 @@ server:
   externalSecrets:
     # The offline-certificate license config is now the shared default in
     # values-managed-common.yaml, so production no longer overrides it here.
+    license:
+      verifyKeyItem: TUIST_LICENSE_VERIFY_KEY
+      verifyKeyField: password
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
 
