@@ -12,9 +12,17 @@ defmodule Tuist.Kura.Telemetry do
       cold return is the latency an archived account pays to come back.
     * `drain_pending`, `archive_cancelled`, and `archived` bracket the
       reclamation, with reclaimed bytes and drain duration on the last.
+    * `resolution_refused` counts the accounts that never reach any of the
+      above, because their plan or storage region resolved to no pool.
+
+  That last one is the only signal a refusal produces. A refused account keeps
+  being served by whatever lane it is already on, raises nothing, and appears
+  in none of the transition counters precisely because it has no instance to
+  transition, so an entire class of accounts can sit unprovisioned for months
+  without it.
 
   `plan` and `region` are both bounded (four plans, a handful of regions), so
-  tagging by them is safe. Account is never a tag.
+  tagging by them is safe, as is `reason`. Account is never a tag.
   """
 
   @prefix [:tuist, :kura, :lifecycle]
@@ -24,6 +32,7 @@ defmodule Tuist.Kura.Telemetry do
   def event_name_drain_pending, do: @prefix ++ [:drain_pending]
   def event_name_archive_cancelled, do: @prefix ++ [:archive_cancelled]
   def event_name_archived, do: @prefix ++ [:archived]
+  def event_name_resolution_refused, do: @prefix ++ [:resolution_refused]
 
   def provisioned(plan, region, cold_return?) do
     :telemetry.execute(event_name_provisioned(), %{count: 1}, %{
@@ -62,5 +71,13 @@ defmodule Tuist.Kura.Telemetry do
       %{count: 1, reclaimed_bytes: reclaimed_bytes, drain_duration_ms: drain_duration_ms},
       %{plan: to_string(plan), region: region}
     )
+  end
+
+  # No region tag: a refusal is the absence of one.
+  def resolution_refused(plan, reason) do
+    :telemetry.execute(event_name_resolution_refused(), %{count: 1}, %{
+      plan: to_string(plan),
+      reason: to_string(reason)
+    })
   end
 end

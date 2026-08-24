@@ -7,6 +7,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.API.Pipeline
   alias Tuist.Billing
   alias Tuist.CacheActionItems
+  alias Tuist.Kura.Demand
   alias Tuist.Projects.Workers.CleanProjectWorker
   alias Tuist.Repo
   alias Tuist.Storage
@@ -289,7 +290,12 @@ defmodule TuistWeb.API.CacheControllerTest do
 
     test "returns custom endpoints when the client requests Kura but the account has no Kura endpoints", %{conn: conn} do
       # Given
+      # An account that has never routed through Kura keeps the custom-endpoint
+      # behaviour. Stubbed rather than arranged, because the demand this very
+      # request records is what makes an account lifecycle-managed, and the
+      # window before it is flushed is exactly what this branch serves.
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Demand, :lifecycle_managed?, fn _account -> false end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
