@@ -136,6 +136,13 @@
     }
   }
 
+  /* The threshold modals open with a description whose padding separates the
+     header from the first field. This one puts its explanation in the header
+     instead, so the form supplies that spacing itself. */
+  & #add-approver-modal [data-part="alert-form"] {
+    padding-top: var(--noora-spacing-9);
+  }
+
   & #thresholds-table {
     margin-top: var(--noora-spacing-4);
 
