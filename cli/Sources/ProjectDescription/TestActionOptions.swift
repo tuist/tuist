@@ -1,4 +1,4 @@
-/// The order in which Xcode executes tests in a test plan (in Xcode 15).
+/// The order in which Xcode executes tests in a test plan (from Xcode 15).
 public enum TestExecutionOrdering: String, Codable, Sendable {
     /// Run tests in alphabetical order.
     case alphabetical
@@ -7,7 +7,7 @@ public enum TestExecutionOrdering: String, Codable, Sendable {
     case random
 }
 
-/// The global parallelization mode for a generated test plan (in Xcode 16).
+/// The global parallelization mode for a generated test plan (from Xcode 16).
 public enum TestPlanParallelizationMode: String, Codable, Sendable {
     /// Let Xcode choose the parallelization mode.
     case automatic
@@ -22,7 +22,7 @@ public enum TestPlanParallelizationMode: String, Codable, Sendable {
     case swiftTestingOnly
 }
 
-/// The repetition policy Xcode applies to each test (in Xcode 15).
+/// The repetition policy Xcode applies to each test (from Xcode 15).
 public enum TestRepetitionMode: String, Codable, Sendable {
     /// Run every test once.
     case none
@@ -34,7 +34,7 @@ public enum TestRepetitionMode: String, Codable, Sendable {
     case retryOnFailure
 }
 
-/// How long Xcode retains test attachments (in Xcode 15).
+/// How long Xcode retains test attachments (from Xcode 15).
 public enum TestAttachmentLifetime: String, Codable, Sendable {
     /// Keep every attachment.
     case keepAlways
@@ -46,7 +46,7 @@ public enum TestAttachmentLifetime: String, Codable, Sendable {
     case keepNever
 }
 
-/// When Xcode collects diagnostics while executing tests (in Xcode 15).
+/// When Xcode collects diagnostics while executing tests (from Xcode 15).
 public enum TestDiagnosticCollectionPolicy: String, Codable, Sendable {
     /// Never collect diagnostics.
     case never = "Never"
@@ -55,7 +55,7 @@ public enum TestDiagnosticCollectionPolicy: String, Codable, Sendable {
     case onFailure = "OnFailure"
 }
 
-/// The degree of interoperability between Swift Testing and XCTest (in Xcode 27).
+/// The degree of interoperability between Swift Testing and XCTest (from Xcode 27).
 public enum TestInteropMode: String, Codable, Sendable {
     /// Report assertion failures across framework boundaries as warnings.
     case limited
@@ -64,7 +64,7 @@ public enum TestInteropMode: String, Codable, Sendable {
     case complete
 }
 
-/// How Xcode treats UI application crashes while tests run (in Xcode 27).
+/// How Xcode treats UI application crashes while tests run (from Xcode 27).
 public enum ApplicationCrashDetectionSeverity: String, Codable, Sendable {
     /// Do not detect application crashes.
     case disabled
@@ -79,7 +79,7 @@ public enum ApplicationCrashDetectionSeverity: String, Codable, Sendable {
     case fatalFailure
 }
 
-/// A location simulated while running tests (in Xcode 15).
+/// A location simulated while running tests (from Xcode 15).
 public struct TestLocationScenario: Equatable, Codable, Sendable {
     /// The scenario identifier shown by Xcode.
     public let identifier: String
@@ -96,67 +96,67 @@ public struct TestLocationScenario: Equatable, Codable, Sendable {
 
 /// The type `TestActionOptions` represents a set of options for a test action.
 public struct TestActionOptions: Equatable, Codable, Sendable {
-    /// Language used to run the tests (in Xcode 15).
+    /// Language used to run the tests (from Xcode 15).
     public var language: SchemeLanguage?
 
-    /// Region used to run the tests (in Xcode 15).
+    /// Region used to run the tests (from Xcode 15).
     public var region: String?
 
-    /// Preferred screen capture format for UI tests results (in Xcode 15).
+    /// Preferred screen capture format for UI tests results (from Xcode 15).
     public var preferredScreenCaptureFormat: ScreenCaptureFormat?
 
-    /// Whether the scheme should or not gather the test coverage data (in Xcode 15).
+    /// Whether the scheme should or not gather the test coverage data (from Xcode 15).
     public var coverage: Bool
 
-    /// A list of targets you want to gather the test coverage data for them, which are defined in the project (in Xcode 15).
+    /// A list of targets you want to gather the test coverage data for them, which are defined in the project (from Xcode 15).
     public var codeCoverageTargets: [TargetReference]
 
-    /// The order in which Xcode executes the tests (in Xcode 15).
+    /// The order in which Xcode executes the tests (from Xcode 15).
     public var testExecutionOrdering: TestExecutionOrdering
 
-    /// The global parallelization mode for the plan (in Xcode 16).
+    /// The global parallelization mode for the plan (from Xcode 16).
     public var parallelizationMode: TestPlanParallelizationMode?
 
-    /// The policy used to repeat tests (in Xcode 15).
+    /// The policy used to repeat tests (from Xcode 15).
     public var testRepetitionMode: TestRepetitionMode
 
-    /// The maximum number of test repetitions when repetition is enabled (in Xcode 15).
+    /// The maximum number of test repetitions when repetition is enabled (from Xcode 15).
     public var maximumTestRepetitions: Int?
 
-    /// Whether each test repetition runs in a new runner process (in Xcode 15).
+    /// Whether each test repetition runs in a new runner process (from Xcode 15).
     public var repeatInNewRunnerProcess: Bool
 
-    /// Whether test timeouts are enabled (in Xcode 15).
+    /// Whether test timeouts are enabled (from Xcode 15).
     public var testTimeoutsEnabled: Bool
 
-    /// The default per-test timeout in seconds (in Xcode 15).
+    /// The default per-test timeout in seconds (from Xcode 15).
     public var defaultTestExecutionTimeAllowance: Int?
 
-    /// The maximum permitted per-test timeout in seconds (in Xcode 15).
+    /// The maximum permitted per-test timeout in seconds (from Xcode 15).
     public var maximumTestExecutionTimeAllowance: Int?
 
-    /// How long user-created attachments are retained (in Xcode 15).
+    /// How long user-created attachments are retained (from Xcode 15).
     public var userAttachmentLifetime: TestAttachmentLifetime
 
-    /// How long UI-testing screenshots are retained (in Xcode 15).
+    /// How long UI-testing screenshots are retained (from Xcode 15).
     public var uiTestingScreenshotsLifetime: TestAttachmentLifetime
 
-    /// Whether Xcode captures screenshots for localization issues (in Xcode 15).
+    /// Whether Xcode captures screenshots for localization issues (from Xcode 15).
     public var areLocalizationScreenshotsEnabled: Bool
 
-    /// When Xcode collects diagnostics during the test run (in Xcode 15).
+    /// When Xcode collects diagnostics during the test run (from Xcode 15).
     public var diagnosticCollectionPolicy: TestDiagnosticCollectionPolicy
 
-    /// The distribution service identifier used for the test run (in Xcode 15).
+    /// The distribution service identifier used for the test run (from Xcode 15).
     public var distributor: String?
 
-    /// The location scenario simulated during the test run (in Xcode 15).
+    /// The location scenario simulated during the test run (from Xcode 15).
     public var locationScenario: TestLocationScenario?
 
-    /// The interoperability mode between Swift Testing and XCTest (in Xcode 27).
+    /// The interoperability mode between Swift Testing and XCTest (from Xcode 27).
     public var testInteropMode: TestInteropMode?
 
-    /// How Xcode treats UI application crashes during testing (in Xcode 27).
+    /// How Xcode treats UI application crashes during testing (from Xcode 27).
     public var applicationCrashDetectionSeverity: ApplicationCrashDetectionSeverity?
 
     /// Returns a set of options for a test action.
