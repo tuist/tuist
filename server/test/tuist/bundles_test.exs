@@ -4,7 +4,6 @@ defmodule Tuist.BundlesTest do
 
   import Ecto.Query
 
-  alias Tuist.Accounts
   alias Tuist.Bundles
   alias Tuist.Bundles.Artifact
   alias Tuist.Bundles.Bundle

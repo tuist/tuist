@@ -5,7 +5,6 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
   alias Tuist.Bundles.Workers.BundleThresholdWorker
   alias Tuist.Environment
   alias Tuist.GitHub.Client
-  alias Tuist.Projects
   alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
