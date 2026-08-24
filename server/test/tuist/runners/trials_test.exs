@@ -106,6 +106,36 @@ defmodule Tuist.Runners.TrialsTest do
     end
   end
 
+  describe "reconciliation failure" do
+    test "a failed sync leaves the account on trial so cancelling can be retried", %{account: account} do
+      # Committing the database change before Stripe means a failed sync
+      # strands the account: it reads as off trial, so cancel/1 refuses to
+      # run again, while its subscription still carries no runner item.
+      {:ok, account} = Trials.start(account)
+
+      stub(Billing, :sync_runner_subscription_items, fn _account -> {:error, :stripe_unavailable} end)
+
+      assert {:error, :stripe_unavailable} = Trials.cancel(account)
+
+      {:ok, reloaded} = Accounts.get_account_by_id(account.id)
+      assert Trials.on_trial?(reloaded)
+    end
+
+    test "a failed sync does not leave an account reading as on trial while Stripe still bills it", %{
+      account: account
+    } do
+      # The inverse: the database says the trial started, so nothing is
+      # expected to be billed, while the subscription still carries the
+      # runner item that bills it.
+      stub(Billing, :sync_runner_subscription_items, fn _account -> {:error, :stripe_unavailable} end)
+
+      assert {:error, :stripe_unavailable} = Trials.start(account)
+
+      {:ok, reloaded} = Accounts.get_account_by_id(account.id)
+      refute Trials.on_trial?(reloaded)
+    end
+  end
+
   describe "backfill_runner_trials/0" do
     test "puts accounts that already ran runner jobs onto a trial", %{account: account} do
       never_used_runners = AccountsFixtures.user_fixture(preload: [:account]).account

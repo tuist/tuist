@@ -65,16 +65,10 @@ defmodule Tuist.Runners.Trials do
   as on trial again.
   """
   def start(%Account{} = account) do
-    with {:ok, account} <-
-           account
-           |> Account.runner_trial_changeset(%{
-             runner_trial_started_at: DateTime.utc_now(),
-             runner_trial_ended_at: nil
-           })
-           |> Repo.update(),
-         {:ok, _} <- Billing.sync_runner_subscription_items(account) do
-      {:ok, account}
-    end
+    transition(account, %{
+      runner_trial_started_at: DateTime.utc_now(),
+      runner_trial_ended_at: nil
+    })
   end
 
   @doc """
@@ -85,15 +79,35 @@ defmodule Tuist.Runners.Trials do
   """
   def cancel(%Account{} = account) do
     if on_trial?(account) do
-      with {:ok, account} <-
-             account
-             |> Account.runner_trial_changeset(%{runner_trial_ended_at: DateTime.utc_now()})
-             |> Repo.update(),
-           {:ok, _} <- Billing.sync_runner_subscription_items(account) do
-        {:ok, account}
-      end
+      transition(account, %{runner_trial_ended_at: DateTime.utc_now()})
     else
       {:error, :not_on_trial}
+    end
+  end
+
+  # Stripe is reconciled inside the transaction that records the
+  # transition, and a failure rolls the row back. Committing first would
+  # strand the account in the one state from which it cannot recover: off
+  # trial in the database, so `cancel/1` refuses to run again, while the
+  # subscription still carries no runner item. The inverse is worse, an
+  # account reading as on trial while Stripe still bills it.
+  #
+  # Rolling back is safe because a failed sync has not changed Stripe,
+  # so the caller can simply retry.
+  defp transition(%Account{} = account, attrs) do
+    result =
+      Repo.transaction(fn ->
+        with {:ok, account} <- account |> Account.runner_trial_changeset(attrs) |> Repo.update(),
+             {:ok, _} <- Billing.sync_runner_subscription_items(account) do
+          account
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+
+    case result do
+      {:ok, account} -> {:ok, account}
+      {:error, reason} -> {:error, reason}
     end
   end
 

@@ -275,6 +275,25 @@ defmodule TuistWeb.BillingLiveTest do
       })
     end
 
+    defp runner_session_at(account, started, minutes) do
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: System.unique_integer([:positive]),
+        fleet_name: "tuist-staging-macos",
+        pod_name: "pod-#{System.unique_integer([:positive])}",
+        runner_name: "",
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        billing_multiplier: 10_000,
+        started_at: started,
+        job_started_at: started,
+        job_ended_at: DateTime.add(started, minutes * 60, :second),
+        inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+    end
+
     test "shows sub-minute usage rather than hiding it as zero", %{conn: conn, account: account} do
       # 18 seconds is real usage worth real money. Gating the card on
       # whole minutes hid it entirely, which reads as though nothing ran.
@@ -302,6 +321,34 @@ defmodule TuistWeb.BillingLiveTest do
       # Under a minute is still usage, so the row appears; the detail of
       # what it is worth lives on the usage page.
       assert render(lv) =~ "Runner minutes:"
+    end
+
+    test "counts the subscription's cycle rather than the calendar month", %{conn: conn, account: account} do
+      # A subscription renewing mid-month bills on its own cycle, so usage
+      # from before the cycle opened belongs to an invoice already sent.
+      # Both sessions sit inside the current calendar month but only one
+      # inside the cycle, so reading the wrong window shows both. Kept to
+      # hours rather than days so the older one cannot fall into the
+      # previous month and stop discriminating.
+      now = DateTime.utc_now()
+      period_start = DateTime.add(now, -1, :hour)
+
+      stub(Billing, :current_billing_period, fn _account ->
+        {period_start, DateTime.shift(period_start, month: 1)}
+      end)
+
+      runner_session_at(account, DateTime.add(now, -25, :hour), 500)
+      # Ends before now, so the whole run falls inside the window rather
+      # than being clipped at the period end.
+      runner_session_at(account, DateTime.add(now, -45, :minute), 37)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      value = lv |> element("#runner-minutes-progress [data-part='value']") |> render()
+
+      assert value =~ "37"
+      # 537 would mean the window reached back past the cycle boundary.
+      refute value =~ "537"
     end
 
     test "is not shown for an account that has run none", %{conn: conn, account: account} do

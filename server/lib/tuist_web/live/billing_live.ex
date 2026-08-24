@@ -74,7 +74,6 @@ defmodule TuistWeb.BillingLive do
 
     socket =
       socket
-      |> assign(:prepaid_runner_credit, prepaid_runner_credit)
       |> assign(:runner_usage, runner_usage)
       |> assign(:estimated_next_payment, estimated_next_payment)
       |> assign(:plan, plan)
@@ -130,12 +129,21 @@ defmodule TuistWeb.BillingLive do
     }
   end
 
-  def prepaid_credit_kind_label("trial"), do: dgettext("dashboard_account", "Trial credit")
-  def prepaid_credit_kind_label(_kind), do: dgettext("dashboard_account", "Prepaid credit")
+  # The window the next invoice will cover. A subscription renewing
+  # mid-month bills on its own cycle, so counting from the first of the
+  # calendar month would show usage from a window the customer is never
+  # invoiced for, and disagree with the same figure on the usage page.
+  # The calendar month is only the fallback for an account with no
+  # subscription, which has no cycle to read.
+  defp runner_usage_period(account, now) do
+    case Billing.current_billing_period(account) do
+      {%DateTime{} = period_start, %DateTime{} = period_end} ->
+        {period_start, period_end}
 
-  def prepaid_credit_expiry_label(nil), do: dgettext("dashboard_account", "No expiry")
-
-  def prepaid_credit_expiry_label(%DateTime{} = expires_at), do: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")
+      _ ->
+        {%{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}, now}
+    end
+  end
 
   # Runner usage is reported gross for every account, so what it accrues
   # and what it is billed are two different numbers whenever a trial or
@@ -145,10 +153,10 @@ defmodule TuistWeb.BillingLive do
   # not coming.
   defp runner_usage(account, subscription, prepaid) do
     now = DateTime.utc_now()
-    month_start = %{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}
+    {period_start, _period_end} = runner_usage_period(account, now)
 
     total_ms =
-      RunnerBilling.compute_milliseconds(account.id, month_start, now)
+      RunnerBilling.compute_milliseconds(account.id, period_start, now)
 
     # Truncated to whole minutes, matching how the Stripe Price rounds,
     # so this figure is the quantity that would be invoiced rather than

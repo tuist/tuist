@@ -50,6 +50,7 @@
         </.progress_bar>
         <.progress_bar
           :if={@runner_usage.total_ms > 0}
+          id="runner-minutes-progress"
           value={@runner_usage.minutes}
           value_label={format_number(@runner_usage.minutes)}
           max={@runner_usage.covered_minutes}
