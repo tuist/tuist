@@ -367,6 +367,21 @@ defmodule TuistWeb.OpsAccountLiveTest do
   end
 
   describe "runner trial" do
+    test "says why the trial could not start instead of appearing to do nothing", %{conn: conn, user: user} do
+      # The page renders no flash of its own and nothing renders one for
+      # it, so a failed transition was completely silent: the button
+      # stayed put and no reason reached the operator.
+      stub(Billing, :sync_runner_subscription_items, fn _account -> {:error, :stripe_unavailable} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html = lv |> element("button", "Start runner trial") |> render_click()
+
+      assert html =~ "Could not start the trial"
+      assert html =~ "stripe_unavailable"
+      refute Trials.on_trial?(Repo.reload!(user.account))
+    end
+
     test "starts a trial, which stops runner usage being billable", %{conn: conn, user: user} do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
