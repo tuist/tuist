@@ -13,7 +13,7 @@
           "enable": true,
           "hide": true,
           "iconColor": "rgba(0, 211, 255, 1)",
-          "name": "Annotations & Alerts",
+          "name": "Annotations \u0026 Alerts",
           "query": {
             "datasource": {
               "name": "-- Grafana --"
@@ -3069,7 +3069,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "limit": 50,
-                        "query": "{ resource.service.namespace = \"kura\" && resource.service.name =~ \"kura-(${tenant})-.*\" && span.http.route =~ \"/api/cache.*|/api/metro/cache.*|/v1/cache.*\" } with (most_recent=true)",
+                        "query": "{ resource.service.namespace = \"kura\" \u0026\u0026 resource.service.name =~ \"kura-(${tenant})-.*\" \u0026\u0026 span.http.route =~ \"/api/cache.*|/api/metro/cache.*|/v1/cache.*\" } with (most_recent=true)",
                         "queryType": "traceql",
                         "tableType": "traces"
                       },
@@ -3227,7 +3227,7 @@
           "description": "Server locations (blue squares) and request traffic volume (amber bubbles sized by req/s) on the same map. Fly.io-style: infrastructure markers sit on top of load bubbles.",
           "id": 55,
           "links": [],
-          "title": "Server Regions & Request Traffic",
+          "title": "Server Regions \u0026 Request Traffic",
           "vizConfig": {
             "group": "geomap",
             "kind": "VizConfig",
