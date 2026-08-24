@@ -166,6 +166,66 @@ defmodule Tuist.AutomationsTest do
 
       assert Automations.list_alert_revisions(automation.id) == revisions_before
     end
+
+    test "records redacted webhook updates" do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          trigger_actions: [
+            %{
+              "type" => "send_slack",
+              "channel" => "test-infra",
+              "message" => "A test was quarantined",
+              "webhook_url_encrypted" => "old-webhook"
+            }
+          ]
+        )
+
+      assert {:ok, _updated} =
+               Automations.update_alert(automation, %{
+                 trigger_actions: [
+                   %{
+                     "type" => "send_slack",
+                     "channel" => "test-infra",
+                     "message" => "A test was quarantined",
+                     "webhook_url_encrypted" => "new-webhook"
+                   }
+                 ]
+               })
+
+      [updated_revision | _] = Automations.list_alert_revisions(automation.id)
+
+      assert %{"trigger_actions" => %{"from" => [before_action], "to" => [after_action]}} = updated_revision.changes
+      refute Map.has_key?(before_action, "webhook_url_encrypted")
+      refute Map.has_key?(after_action, "webhook_url_encrypted")
+      assert before_action["webhook_url_digest"] != after_action["webhook_url_digest"]
+    end
+
+    test "returns a revision error when the actor no longer exists" do
+      project = ProjectsFixtures.project_fixture()
+
+      assert {:error, :revision} =
+               Automations.create_alert(
+                 %{
+                   project_id: project.id,
+                   name: "Quarantine flaky tests",
+                   monitor_type: "flakiness_rate",
+                   trigger_config: %{"threshold" => 10, "window_type" => "last_days", "window" => "30d"},
+                   trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
+                 },
+                 actor_id: -1
+               )
+
+      assert [] = Automations.list_alerts(project.id)
+    end
+
+    test "rolls back an update when the actor no longer exists" do
+      automation = AutomationsFixtures.automation_alert_fixture()
+
+      assert {:error, :revision} = Automations.update_alert(automation, %{enabled: false}, actor_id: -1)
+
+      assert {:ok, unchanged} = Automations.get_alert(automation.id)
+      assert unchanged.enabled
+    end
   end
 
   describe "delete_alert/1" do

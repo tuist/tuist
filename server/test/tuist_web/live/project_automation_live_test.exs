@@ -7,6 +7,7 @@ defmodule TuistWeb.ProjectAutomationLiveTest do
 
   alias Tuist.Automations
   alias TuistTestSupport.Fixtures.AutomationsFixtures
+  alias TuistWeb.Errors.NotFoundError
 
   defp open(conn, organization, project, automation) do
     live(
@@ -81,8 +82,18 @@ defmodule TuistWeb.ProjectAutomationLiveTest do
     other_project = TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture()
     automation = AutomationsFixtures.automation_alert_fixture(project: other_project)
 
-    assert_raise TuistWeb.Errors.NotFoundError, fn ->
+    assert_raise NotFoundError, fn ->
       open(conn, organization, project, automation)
+    end
+  end
+
+  test "raises not found when the automation identifier is malformed", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    assert_raise NotFoundError, fn ->
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations/not-a-uuid")
     end
   end
 end

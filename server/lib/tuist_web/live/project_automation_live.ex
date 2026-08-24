@@ -24,7 +24,8 @@ defmodule TuistWeb.ProjectAutomationLive do
             dgettext("dashboard_projects", "You are not authorized to perform this action.")
     end
 
-    with {:ok, automation} <- Automations.get_alert(automation_id),
+    with {:ok, _} <- Ecto.UUID.cast(automation_id),
+         {:ok, automation} <- Automations.get_alert(automation_id),
          true <- automation.project_id == selected_project.id do
       {revisions, has_more_revisions?} = fetch_revisions(automation.id)
 

@@ -211,6 +211,9 @@ defmodule Tuist.ProjectsTest do
       assert alert.trigger_actions == [%{"type" => "add_label", "label" => "flaky"}]
       assert alert.recovery_enabled == true
       assert alert.recovery_actions == [%{"type" => "remove_label", "label" => "flaky"}]
+
+      assert [%{event: "created", source: "system", changes: %{}}] =
+               Automations.list_alert_revisions(alert.id)
     end
 
     test "rolls back the project insert if alert seeding fails" do

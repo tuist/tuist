@@ -101,7 +101,7 @@ defmodule Tuist.Automations do
       insert_alert_revision(repo, nil, alert, "created", opts)
     end)
     |> Repo.transaction()
-    |> unwrap_alert_transaction()
+    |> unwrap_create_alert_transaction()
   end
 
   @doc """
@@ -125,7 +125,7 @@ defmodule Tuist.Automations do
   end
 
   def update_alert(%Alert{id: alert_id}, attrs, opts \\ []) do
-    Repo.transaction(fn ->
+    fn ->
       alert =
         Repo.one!(
           from(current in Alert,
@@ -148,18 +148,25 @@ defmodule Tuist.Automations do
       updated_alert =
         case Repo.update(changeset) do
           {:ok, updated_alert} -> updated_alert
-          {:error, reason} -> Repo.rollback(reason)
+          {:error, reason} -> Repo.rollback({:alert, reason})
         end
 
       case insert_alert_revision(Repo, alert, updated_alert, "updated", opts) do
         {:ok, _revision} -> updated_alert
-        {:error, reason} -> Repo.rollback(reason)
+        {:error, reason} -> Repo.rollback({:revision, reason})
       end
-    end)
+    end
+    |> Repo.transaction()
+    |> unwrap_update_alert_transaction()
   end
 
-  defp unwrap_alert_transaction({:ok, %{alert: alert}}), do: {:ok, alert}
-  defp unwrap_alert_transaction({:error, _operation, reason, _changes}), do: {:error, reason}
+  defp unwrap_create_alert_transaction({:ok, %{alert: alert}}), do: {:ok, alert}
+  defp unwrap_create_alert_transaction({:error, :alert, reason, _changes}), do: {:error, reason}
+  defp unwrap_create_alert_transaction({:error, :revision, _reason, _changes}), do: {:error, :revision}
+
+  defp unwrap_update_alert_transaction({:ok, alert}), do: {:ok, alert}
+  defp unwrap_update_alert_transaction({:error, {:alert, reason}}), do: {:error, reason}
+  defp unwrap_update_alert_transaction({:error, {:revision, _reason}}), do: {:error, :revision}
 
   defp insert_alert_revision(repo, previous_alert, alert, event, opts) do
     changes = alert_revision_changes(previous_alert, alert)
@@ -211,10 +218,20 @@ defmodule Tuist.Automations do
   end
 
   defp revision_value(field, actions) when field in [:trigger_actions, :recovery_actions] do
-    Enum.map(actions, &Map.delete(&1, "webhook_url_encrypted"))
+    Enum.map(actions, &redact_webhook_url/1)
   end
 
   defp revision_value(_field, value), do: value
+
+  defp redact_webhook_url(action) do
+    case Map.pop(action, "webhook_url_encrypted") do
+      {webhook_url, action} when is_binary(webhook_url) ->
+        Map.put(action, "webhook_url_digest", :sha256 |> :crypto.hash(webhook_url) |> Base.encode16(case: :lower))
+
+      {_webhook_url, action} ->
+        action
+    end
+  end
 
   defp maybe_reset_baseline(attrs, true), do: reset_baseline(attrs)
   defp maybe_reset_baseline(attrs, false), do: attrs
