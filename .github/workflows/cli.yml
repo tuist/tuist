@@ -135,7 +135,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        run: tuist install --force-resolved-versions --cached-directory-materialization symlink
       - name: Inspect swifterpm store (after install)
         run: |
           du -sh ~/.cache/swifterpm 2>/dev/null || true
