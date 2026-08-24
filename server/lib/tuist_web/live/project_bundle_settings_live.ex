@@ -197,6 +197,19 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     end
   end
 
+  def handle_event("open_add_approver_modal", _params, socket) do
+    {:noreply, assign(socket, approver_handle: "", approver_error: nil)}
+  end
+
+  def handle_event("close_add_approver_modal", _params, socket) do
+    socket =
+      socket
+      |> assign(approver_handle: "", approver_error: nil)
+      |> push_event("close-modal", %{id: "add-approver-modal"})
+
+    {:noreply, socket}
+  end
+
   def handle_event("update_approver_handle", %{"value" => handle}, socket) do
     {:noreply, assign(socket, approver_handle: handle, approver_error: nil)}
   end
@@ -206,8 +219,14 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
 
     case Bundles.create_bundle_size_approver(attrs) do
       {:ok, _approver} ->
-        {:noreply, assign_approval_defaults(socket, assigns.selected_project)}
+        socket =
+          socket
+          |> assign_approval_defaults(assigns.selected_project)
+          |> push_event("close-modal", %{id: "add-approver-modal"})
 
+        {:noreply, socket}
+
+      # Keeps the modal open so the message lands next to the field it is about.
       {:error, changeset} ->
         {:noreply, assign(socket, approver_error: approver_error_message(changeset))}
     end

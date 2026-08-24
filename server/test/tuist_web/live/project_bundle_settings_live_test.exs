@@ -116,6 +116,7 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
         live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
 
       render_hook(lv, "select_approval_policy", %{"policy" => "selected"})
+      render_hook(lv, "open_add_approver_modal")
       render_hook(lv, "update_approver_handle", %{"value" => "octocat"})
       render_hook(lv, "add_approver")
 
@@ -136,11 +137,31 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
         live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
 
       render_hook(lv, "select_approval_policy", %{"policy" => "selected"})
+      render_hook(lv, "open_add_approver_modal")
       render_hook(lv, "update_approver_handle", %{"value" => "not a login"})
       html = render_hook(lv, "add_approver")
 
       assert Bundles.list_bundle_size_approvers(project) == []
       assert html =~ "valid GitHub username"
+    end
+
+    test "clears the pending username when the modal is dismissed", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      render_hook(lv, "select_approval_policy", %{"policy" => "selected"})
+      # Not the field's placeholder, which is always present in the markup.
+      render_hook(lv, "open_add_approver_modal")
+      render_hook(lv, "update_approver_handle", %{"value" => "ramonarguello"})
+      render_hook(lv, "close_add_approver_modal")
+      html = render_hook(lv, "open_add_approver_modal")
+
+      assert Bundles.list_bundle_size_approvers(project) == []
+      refute html =~ "ramonarguello"
     end
 
     test "does not allow removing an approver from a different project", %{

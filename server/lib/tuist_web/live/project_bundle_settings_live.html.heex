@@ -445,25 +445,69 @@
     >
       <div data-part="approvers-header">
         <h3 data-part="approvers-title">{dgettext("dashboard_projects", "Approvers")}</h3>
-        <div data-part="add-approver">
-          <.text_input
-            type="basic"
-            id="add-approver-handle"
-            name="github_handle"
-            value={@approver_handle}
-            placeholder={dgettext("dashboard_projects", "GitHub username")}
-            phx-keyup="update_approver_handle"
-            phx-debounce="300"
-          />
-          <.button
-            label={dgettext("dashboard_projects", "Add")}
-            variant="secondary"
-            size="medium"
-            phx-click="add_approver"
-          />
-        </div>
+        <.modal
+          id="add-approver-modal"
+          title={dgettext("dashboard_projects", "Add approver")}
+          header_size="large"
+          on_dismiss="close_add_approver_modal"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              label={dgettext("dashboard_projects", "Add approver")}
+              variant="secondary"
+              size="medium"
+              phx-click="open_add_approver_modal"
+              {attrs}
+            />
+          </:trigger>
+          <.line_divider />
+          <p data-part="alert-description">
+            {dgettext(
+              "dashboard_projects",
+              "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
+            )}
+          </p>
+          <div data-part="alert-form">
+            <div data-part="schedule-row">
+              <label data-part="schedule-label">
+                {dgettext("dashboard_projects", "GitHub username")}
+              </label>
+              <.text_input
+                type="basic"
+                id="add-approver-handle"
+                name="github_handle"
+                value={@approver_handle}
+                placeholder="octocat"
+                phx-keyup="update_approver_handle"
+                phx-debounce="300"
+              />
+            </div>
+            <.hint_text :if={@approver_error} label={@approver_error} variant="destructive" />
+          </div>
+          <.line_divider />
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  type="button"
+                  label={dgettext("dashboard_projects", "Cancel")}
+                  variant="secondary"
+                  phx-click="close_add_approver_modal"
+                />
+              </:action>
+              <:action>
+                <.button
+                  type="button"
+                  label={dgettext("dashboard_projects", "Add")}
+                  variant="primary"
+                  disabled={String.trim(@approver_handle) == ""}
+                  phx-click="add_approver"
+                />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
       </div>
-      <.hint_text :if={@approver_error} label={@approver_error} variant="destructive" />
       <.table
         id="bundle-size-approvers-table"
         rows={@approvers}
