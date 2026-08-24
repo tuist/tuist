@@ -574,7 +574,10 @@ async fn serve_accelerated(
         // transfer that failed for a reason other than the client going away).
         Err(_) => {
             let mut stream = stream;
-            let headers = BTreeMap::from([("retry-after".to_owned(), "1".to_owned())]);
+            let headers = BTreeMap::from([(
+                "retry-after".to_owned(),
+                memory.response_stream_retry_after_seconds().to_string(),
+            )]);
             let body =
                 b"The server is limiting concurrent artifact response streams; retry shortly";
             write_response(
@@ -1648,7 +1651,19 @@ mod tests {
             .expect("read accelerated response");
         let response = String::from_utf8(response).expect("response should be valid UTF-8");
         assert!(response.starts_with("HTTP/1.1 429 Too Many Requests\r\n"));
-        assert!(response.contains("retry-after: 1\r\n"));
+        let retry_after: u64 = response
+            .lines()
+            .find_map(|line| line.strip_prefix("retry-after: "))
+            .expect("shed must be retryable")
+            .trim()
+            .parse()
+            .expect("numeric retry-after");
+        assert!(
+            (crate::backpressure::MIN_RETRY_AFTER_SECONDS
+                ..=crate::backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS)
+                .contains(&retry_after),
+            "retry-after {retry_after} outside the jittered window"
+        );
         assert!(!response.contains("200 OK"));
 
         drop((elastic_pool_hog, pool_hog));
