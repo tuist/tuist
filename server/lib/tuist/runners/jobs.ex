@@ -869,6 +869,25 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  Queue depth and oldest-arrival per fleet, for the queue gauges.
+
+  Served from the Postgres lifecycle table — the same rows
+  `pick_queued_top_k/5` selects from and under the same
+  `@queued_lookback_seconds` floor, so the gauge and dispatch can never
+  disagree about what is queued. They used to: the gauge scanned the
+  ClickHouse `runner_jobs` replica, which since #12031 is fed only by
+  the transition outbox and therefore holds `queued` for any job whose
+  terminal transition never replayed. Those rows are unreachable to
+  dispatch and never age out on their own, so the tile read a backlog
+  that no Pod could ever drain.
+
+  Returns `%{fleet_name => %{count: n, oldest_enqueued_at: dt}}`.
+  """
+  def queue_stats_by_fleet do
+    WorkflowJobs.queue_stats_by_fleet(queued_lookback_floor())
+  end
+
+  @doc """
   Queued workflow_job counts for `fleet_name`, broken down by account.
 
   Same rows `queued_count_by_fleet/1` totals, grouped so the caller can
