@@ -321,6 +321,25 @@ workflows:
 >
 > Create an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> and add it as a secret environment variable named `TUIST_TOKEN`.
 
+## Caching dependencies {#caching-dependencies}
+
+`tuist install` resolves and restores Swift package dependencies with [SwifterPM](https://github.com/tuist/tuist/tree/main/swifterpm), which stores package archives and extracted source trees once in a global cache at `~/.cache/swifterpm`, or `$XDG_CACHE_HOME/swifterpm` when that variable is set. Persist that directory across runs:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: ~/.cache/swifterpm
+    key: swifterpm-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}
+    restore-keys: swifterpm-${{ runner.os }}-
+```
+
+The cache is content-addressed by package identity, version, and revision, so a stale restore is safe: entries that no longer match go unused, and `restore-keys` lets a run start from the closest previous cache instead of from nothing.
+
+> [!IMPORTANT]
+> **Cache the global cache, not the scratch directory**
+>
+> The package scratch directory (`Tuist/.build`) lives in the freshly checked out workspace and is restored from the global cache on every run. Caching it instead of `~/.cache/swifterpm` leaves every run cold.
+
 ## Run report {#run-report}
 
 When Tuist uploads a run, the dashboard URLs for it are printed to the logs. To get them without scraping the logs — for example to post the test report link to Slack when a job fails, or to feed a run into your own tooling — pass `--run-report-path` (or set `TUIST_RUN_REPORT_PATH`) to `tuist test`, `tuist xcodebuild test`, or `tuist xcodebuild build`. Tuist writes a JSON report to that path once the run has been uploaded:
