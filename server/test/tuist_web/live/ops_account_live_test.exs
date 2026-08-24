@@ -392,19 +392,6 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert html =~ ~s(value="10000")
     end
 
-    test "says so when the minutes were already invoiced", %{conn: conn, user: user} do
-      stub(Prepaid, :set_minutes, fn _account, _minutes -> {:error, {:already_invoiced, "ii_1"}} end)
-
-      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-
-      html =
-        lv
-        |> form("#prepaid-minutes-form", %{"minutes" => "100"})
-        |> render_submit()
-
-      assert html =~ "already been invoiced"
-    end
-
     test "refuses a minute count that is not a positive whole number", %{conn: conn, user: user} do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 

@@ -175,17 +175,6 @@ defmodule TuistWeb.OpsAccountLive do
                )
              )}
 
-          {:error, {:already_invoiced, _item_id}} ->
-            {:noreply,
-             put_flash(
-               socket,
-               :error,
-               dgettext(
-                 "dashboard",
-                 "These minutes have already been invoiced, so they cannot be withdrawn here. Refund the charge in Stripe first."
-               )
-             )}
-
           {:error, reason} ->
             {:noreply,
              put_flash(

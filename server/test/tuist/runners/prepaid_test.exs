@@ -477,9 +477,6 @@ defmodule Tuist.Runners.PrepaidTest do
 
       stub_account_period(~U[2026-09-01 00:00:00Z])
 
-      # Still pending, so the charge for the minutes being replaced can
-      # be withdrawn before the customer is ever billed for them.
-      expect(Stripe.Invoiceitem, :retrieve, fn "ii_old" -> {:ok, %{id: "ii_old", invoice: nil}} end)
       expect(Stripe.Invoiceitem, :delete, fn "ii_old" -> {:ok, %{id: "ii_old", deleted: true}} end)
       expect(CreditGrants, :void, fn "credgr_old" -> {:ok, %{id: "credgr_old"}} end)
 
@@ -496,23 +493,26 @@ defmodule Tuist.Runners.PrepaidTest do
       assert {:ok, _} = Prepaid.set_minutes(%Account{customer_id: "cus_set"}, 100)
     end
 
-    test "refuses to withdraw minutes the customer has already been invoiced for" do
-      # Voiding a grant that was paid for would take away minutes the
-      # account bought. Stripe is where that gets sorted out, with a
-      # refund attached, not a button here.
+    test "sets through a charge that has already been invoiced" do
+      # Stripe refuses to delete an invoice item once it is on an
+      # invoice. That is not a reason to leave the account holding
+      # minutes nobody asked it to hold: the set goes through and the
+      # charge stands, to be refunded separately if it needs to be.
       stub(CreditGrants, :list_for_customer, fn _customer_id ->
         {:ok, [prepaid_grant("credgr_paid", "ii_paid")]}
       end)
 
-      stub(Stripe.Invoiceitem, :retrieve, fn "ii_paid" -> {:ok, %{id: "ii_paid", invoice: "in_1"}} end)
+      stub_account_period(~U[2026-09-01 00:00:00Z])
 
-      reject(&CreditGrants.void/1)
-      reject(&Stripe.Invoiceitem.delete/1)
-      reject(&CreditGrants.create/1)
-      reject(&Stripe.Invoiceitem.create/1)
+      expect(Stripe.Invoiceitem, :delete, fn "ii_paid" ->
+        {:error, %Stripe.Error{source: :stripe, code: :invalid_request_error, message: "already invoiced"}}
+      end)
 
-      assert {:error, {:already_invoiced, "ii_paid"}} =
-               Prepaid.set_minutes(%Account{customer_id: "cus_set"}, 100)
+      expect(CreditGrants, :void, fn "credgr_paid" -> {:ok, %{id: "credgr_paid"}} end)
+      expect(Stripe.Invoiceitem, :create, fn _params -> {:ok, %{id: "ii_new"}} end)
+      expect(CreditGrants, :create, fn _attrs -> {:ok, %{id: "credgr_new"}} end)
+
+      assert {:ok, _} = Prepaid.set_minutes(%Account{customer_id: "cus_set"}, 100)
     end
 
     test "clears the balance when set to zero" do
@@ -520,7 +520,6 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, [prepaid_grant("credgr_old", "ii_old")]}
       end)
 
-      stub(Stripe.Invoiceitem, :retrieve, fn "ii_old" -> {:ok, %{id: "ii_old", invoice: nil}} end)
       expect(Stripe.Invoiceitem, :delete, fn "ii_old" -> {:ok, %{deleted: true}} end)
       expect(CreditGrants, :void, fn "credgr_old" -> {:ok, %{id: "credgr_old"}} end)
 

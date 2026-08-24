@@ -396,11 +396,9 @@ defmodule Tuist.Runners.Prepaid do
   they want rather than the difference from one they have to work out.
 
   Replacing means withdrawing what is there: the grant is voided and the
-  charge behind it deleted, which is only honest while that charge is
-  still pending. A grant the customer has already been invoiced for is
-  refused with `{:error, {:already_invoiced, item_id}}` — taking those
-  minutes back needs a refund, which belongs in Stripe rather than
-  behind a button here.
+  charge behind it deleted. Deleting is best effort, since Stripe
+  refuses once the item is on an invoice; the grant is withdrawn either
+  way, and a charge that already went out is refunded separately.
 
   `0` clears the balance and bills nothing.
   """
@@ -410,8 +408,7 @@ defmodule Tuist.Runners.Prepaid do
       when is_binary(customer_id) and is_integer(minutes) and minutes >= 0 do
     with {:ok, grants} <- CreditGrants.list_for_customer(customer_id),
          held = Enum.filter(grants, &live_runner_credit?/1),
-         {:ok, items} <- withdrawable_items(held),
-         :ok <- withdraw(held, items) do
+         :ok <- withdraw(held) do
       result = if minutes > 0, do: bill_prepaid_minutes(account, minutes, opts), else: {:ok, :cleared}
 
       refresh_balance(customer_id)
@@ -436,44 +433,36 @@ defmodule Tuist.Runners.Prepaid do
     balance
   end
 
-  # Every held grant is checked before any of them is withdrawn, so a
-  # set that cannot go through leaves the account exactly as it was
-  # rather than half-emptied.
-  defp withdrawable_items(grants) do
-    Enum.reduce_while(grants, {:ok, []}, fn grant, {:ok, acc} ->
-      item_id = grant_metadata(grant, @line_key)
+  # Deleting the charge is best effort: Stripe refuses once the item is
+  # on an invoice, and that is not a reason to leave the account holding
+  # minutes nobody asked it to hold. The grant goes either way, and a
+  # charge that already went out is refunded separately.
+  defp withdraw(grants) do
+    Enum.each(grants, &delete_charge/1)
 
-      cond do
-        is_nil(item_id) ->
-          {:halt, {:error, {:not_withdrawable, grant_id(grant)}}}
-
-        # Granted from a paid invoice, so the money is in.
-        not is_nil(grant_metadata(grant, @invoice_key)) ->
-          {:halt, {:error, {:already_invoiced, item_id}}}
-
-        true ->
-          case Stripe.Invoiceitem.retrieve(item_id) do
-            {:ok, %{invoice: nil}} -> {:cont, {:ok, [item_id | acc]}}
-            {:ok, _invoiced} -> {:halt, {:error, {:already_invoiced, item_id}}}
-            {:error, reason} -> {:halt, {:error, reason}}
-          end
-      end
-    end)
-  end
-
-  defp withdraw(grants, item_ids) do
-    with :ok <- each_ok(item_ids, &Stripe.Invoiceitem.delete/1) do
-      each_ok(grants, fn grant -> CreditGrants.void(grant_id(grant)) end)
-    end
-  end
-
-  defp each_ok(items, fun) do
-    Enum.reduce_while(items, :ok, fn item, :ok ->
-      case fun.(item) do
-        {:ok, _} -> {:cont, :ok}
+    Enum.reduce_while(grants, :ok, fn grant, :ok ->
+      case CreditGrants.void(grant_id(grant)) do
+        {:ok, _voided} -> {:cont, :ok}
         {:error, reason} -> {:halt, {:error, reason}}
       end
     end)
+  end
+
+  defp delete_charge(grant) do
+    case grant_metadata(grant, @line_key) do
+      nil ->
+        :ok
+
+      item_id ->
+        case Stripe.Invoiceitem.delete(item_id) do
+          {:ok, _deleted} ->
+            :ok
+
+          {:error, reason} ->
+            Logger.info("runners: prepaid charge #{item_id} was not withdrawn: #{inspect(reason)}")
+            :ok
+        end
+    end
   end
 
   defp grant_id(grant), do: Map.get(grant, :id) || Map.get(grant, "id")
