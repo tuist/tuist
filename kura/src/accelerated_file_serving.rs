@@ -593,7 +593,7 @@ async fn serve_accelerated(
             .await?;
             state
                 .metrics
-                .record_capacity_shed(crate::http::RESPONSE_STREAM_SHED_KIND);
+                .record_capacity_shed(crate::metrics::shed_kind::RESPONSE_STREAM);
             state.metrics.record_http(
                 route,
                 StatusCode::TOO_MANY_REQUESTS,

@@ -1286,19 +1286,25 @@ absent_over_time(
 
 ```promql
 (
-  sum by (cluster, pod) (
-    rate(kura_capacity_sheds_total_total{
-      namespace="kura",
-      kind="response_stream"
-    }[5m])
+  (
+    sum by (cluster, pod) (
+      rate(kura_capacity_sheds_total_total{namespace="kura", kind="response_stream"}[5m])
+    )
+    or
+    sum by (cluster, pod) (
+      rate(kura_http_requests_total_total{namespace="kura", route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched", status="429"}[5m])
+    )
   )
   /
   clamp_min(
-    sum by (cluster, pod) (
-      rate(kura_capacity_sheds_total_total{
-        namespace="kura",
-        kind="response_stream"
-      }[5m])
+    (
+      sum by (cluster, pod) (
+        rate(kura_capacity_sheds_total_total{namespace="kura", kind="response_stream"}[5m])
+      )
+      or
+      sum by (cluster, pod) (
+        rate(kura_http_requests_total_total{namespace="kura", route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched", status="429"}[5m])
+      )
     )
     +
     (
@@ -1306,22 +1312,28 @@ absent_over_time(
         rate(kura_artifact_reads_total_total{result="ok", producer!="reapi"}[5m])
       )
       or
-      sum by (cluster, pod) (
-        rate(kura_capacity_sheds_total_total{
-          namespace="kura",
-          kind="response_stream"
-        }[5m])
+      (
+        sum by (cluster, pod) (
+          rate(kura_capacity_sheds_total_total{namespace="kura", kind="response_stream"}[5m])
+        )
+        or
+        sum by (cluster, pod) (
+          rate(kura_http_requests_total_total{namespace="kura", route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched", status="429"}[5m])
+        )
       ) * 0
     ),
     0.01
   )
 )
 and
-sum by (cluster, pod) (
-  rate(kura_capacity_sheds_total_total{
-    namespace="kura",
-    kind="response_stream"
-  }[5m])
+(
+  sum by (cluster, pod) (
+    rate(kura_capacity_sheds_total_total{namespace="kura", kind="response_stream"}[5m])
+  )
+  or
+  sum by (cluster, pod) (
+    rate(kura_http_requests_total_total{namespace="kura", route!~"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched", status="429"}[5m])
+  )
 ) > 1
 ```
 
@@ -1331,10 +1343,12 @@ sum by (cluster, pod) (
 - Pending period: 10 minutes
 - Severity: warning
 - Live: rule `dfvv8qn09k1z4b`, folder `Alerts`, group `Cache`, receiver
-  `Slack #notifications 2`, `no_data_state: OK`. **The deployed rule still counts
-  bare HTTP 429s and has to be repointed at `kura_capacity_sheds_total` before
-  the write-side 429s reach production**, or write sheds land in a numerator
-  whose denominator only counts reads.
+  `Slack #notifications 2`, `no_data_state: OK`. **Still on the bare-429 query;
+  the form above has not been applied yet.** It can be applied at any point --
+  before, during or after the rollout -- because the `or` arm makes it correct
+  on both images; see below. The query was validated against `grafanacloud-prom`
+  via `/api/ds/query` on 2026-08-24: it parses, executes, and returns an empty
+  vector on the currently quiet fleet, matching the deployed rule.
 - Summary: `Kura pod {{ $labels.pod }} is shedding
   {{ $values.A.Value | humanizePercentage }} of cache reads in
   {{ $labels.cluster }} — it is out of response-stream capacity, not broken`
@@ -1348,7 +1362,7 @@ Kura answers a read it cannot admit a response stream for with `429` and
 `Retry-After: 1`. Clients retry, so a shed is a slowdown rather than a failure,
 and a short burst is the admission control working.
 
-**Select on `kind`, not on a bare 429.** Every public capacity shed now answers
+**Select on `kind`, with a bare-429 fallback.** Every public capacity shed now answers
 429 — multipart caps, upload memory, the tmp staging budget, the critical-memory
 gate and the replication outbox alongside this one — so an unqualified
 `status="429"` numerator mixes write sheds into a ratio whose denominator counts
@@ -1358,9 +1372,27 @@ Splitting by route does not work either: `kura_http_requests_total` carries no
 method label, and `/v1/cache/{hash}`, `/api/metro/cache/{cache_key}`,
 `/api/cache/cas/{id}` and `/api/cache/gradle/{cache_key}` each serve reads and
 writes under one route template. `kura_capacity_sheds_total{kind}` exists for
-exactly this: one series per limit, every value a literal in `http.rs`, so the
-label cannot grow with traffic. The other kinds are a capacity signal too, but a
-different one, and they belong in their own rule rather than this one. What matters is the share of
+exactly this: one series per limit, every value a constant in
+`metrics::shed_kind`, so the label cannot grow with traffic. The other kinds are
+a capacity signal too, but a different one, and they belong in their own rule
+rather than this one.
+
+**The `or` arm is what lets this rule be correct before, during and after the
+rollout**, rather than having to be swapped at the exact moment of deploy.
+Neither ordering works on its own: repointing the rule ahead of deploy leaves it
+reading `NoData` (which `no_data_state: OK` renders as silence, so read sheds go
+uncovered), and repointing it afterwards leaves a window where write sheds page
+as read pressure. Selecting the kind and falling back to the bare-429 count
+where that series is absent is correct in both worlds, and per-pod, so a
+half-rolled fleet reads correctly on both sides.
+
+That fallback rests on the series existing from boot. Every kind in
+`shed_kind::ALL` is materialised at zero when `Metrics` is constructed, so
+"series missing" means "pod is running the old image" and never "new pod that
+has not shed a read yet" — the case that would otherwise have its write sheds
+counted as read sheds. `metrics::tests::every_shed_kind_is_published_before_the_first_shed`
+pins it. Once the whole fleet is on the new image the `or` arm is dead weight
+and can be dropped, but it costs nothing to leave. What matters is the share of
 reads being shed and for how long, which is why this is rate-relative: an
 absolute count fires on the busiest tenant first no matter how well they are
 being served, and the same count means very different things at 200 req/s and at

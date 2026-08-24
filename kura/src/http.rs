@@ -40,7 +40,7 @@ use crate::{
         MemoryController, MemoryPressure, ResponseStreamAdmissionPatience,
         ResponseStreamMemoryPermit, ResponseTransportGuard,
     },
-    metrics::Metrics,
+    metrics::{Metrics, shed_kind},
     multipart::error::MultipartError,
     peer_tls::InternalPeerIdentity,
     replication::replication_targets,
@@ -3403,11 +3403,6 @@ async fn serve_file_reader(
     }
 }
 
-/// The one shed kind an alert rule can attribute to egress capacity. Kept as a
-/// constant because the live warning rule selects on it and the accelerated
-/// serving path records it from a second call site.
-pub(crate) const RESPONSE_STREAM_SHED_KIND: &str = "response_stream";
-
 /// Sheds a public read that could not be admitted a response stream.
 ///
 /// Backpressure rather than a fault: the node is healthy and the same request
@@ -3417,7 +3412,7 @@ pub(crate) const RESPONSE_STREAM_SHED_KIND: &str = "response_stream";
 /// all, which is another reason not to describe it as the service being
 /// unavailable.
 fn response_stream_shed(metrics: &Metrics, memory: &MemoryController) -> Response {
-    metrics.record_capacity_shed(RESPONSE_STREAM_SHED_KIND);
+    metrics.record_capacity_shed(shed_kind::RESPONSE_STREAM);
     let mut response = error_response(
         StatusCode::TOO_MANY_REQUESTS,
         "The server is limiting concurrent artifact response streams; retry shortly".to_string(),
@@ -6764,6 +6759,13 @@ mod tests {
         // still loses when the remaining room is smaller than the target
         // count. Two targets against a cap of one reproduces that gap
         // deterministically; concurrency reaches the same branch by racing.
+        //
+        // `public_router`, not `router`: the gap only exists downstream of
+        // `reject_overloaded_public_writes`, and `combined_router` does not
+        // layer it. Going through the middleware is what makes this a test of
+        // the persistence branches rather than of the handlers in isolation --
+        // on `router` it would stay green even if the middleware regressed to
+        // answering 503.
         let context = test_context(|config| {
             config.outbox_max_depth = 1;
             config.peers = vec![
@@ -6772,7 +6774,7 @@ mod tests {
             ];
         })
         .await;
-        let app = router(context.state.clone());
+        let app = public_router(context.state.clone());
 
         assert!(
             context.state.store.outbox_depth() < context.state.config.outbox_max_depth,
