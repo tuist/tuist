@@ -110,6 +110,16 @@ func (f *fakeBackend) freeBytes(root string) (uint64, error) {
 		return nil
 	})
 	used := masters * f.perMaster
+	// Banked convergence partials are real bytes on the volume, and the real
+	// backend's statfs sees them, so eviction tests can only be honest if the
+	// fake charges for them too.
+	_ = filepath.Walk(filepath.Join(root, convergePartialsDirName), func(_ string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		used += uint64(info.Size())
+		return nil
+	})
 	if used > f.totalBytes {
 		return 0, nil
 	}

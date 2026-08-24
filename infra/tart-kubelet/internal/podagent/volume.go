@@ -333,6 +333,70 @@ func (m *VolumeManager) ConvergeStagingDir(vm string) string {
 // sits beside the account dirs under Root, so master scanning skips it by name.
 const convergeDirName = "_converge"
 
+// convergePartialsDirName holds HEAD images that are still being downloaded,
+// keyed by content address. Unlike the per-VM scratch above it deliberately
+// OUTLIVES a convergence: a master big enough that one fetch cannot finish
+// inside convergeDownloadTimeout would otherwise restart from zero on every job
+// forever, and a host in that state never converges at all. Keyed by digest
+// because that is what makes resuming safe — the object is immutable and
+// content-addressed, so bytes banked under a digest can only belong to that one
+// object, and the assembled result is verified against the digest before it is
+// adopted either way.
+//
+// It sits beside the account dirs under Root, so master scanning skips it by
+// name, and it survives a restart because the bytes stay valid across one (a
+// deploy roll should not cost a host 20 GB of re-download). Two reapers keep it
+// bounded: convergeMaster discards an account's partials for every digest but
+// the one it is currently fetching, and the evictor drops the whole tree before
+// it evicts any master, since a partial is speculative where a master is
+// realized warmth.
+const convergePartialsDirName = "_partials"
+
+// ConvergePartial returns the path an in-flight HEAD image download lands at for
+// (account, volume, digest), creating its parent dir, along with how many bytes
+// an earlier convergence already banked there.
+func (m *VolumeManager) ConvergePartial(account, volume, digest string) (string, int64, error) {
+	dir := filepath.Join(m.Root, convergePartialsDirName, account, volume)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", 0, fmt.Errorf("mkdir converge partials dir: %w", err)
+	}
+	path := filepath.Join(dir, digest)
+	var banked int64
+	if info, err := os.Stat(path); err == nil {
+		banked = info.Size()
+	}
+	return path, banked, nil
+}
+
+// DiscardConvergePartials drops every banked partial for (account, volume)
+// except keep. Called with the digest being fetched, so a HEAD that moved on
+// takes its superseded partials with it.
+func (m *VolumeManager) DiscardConvergePartials(account, volume, keep string) {
+	dir := filepath.Join(m.Root, convergePartialsDirName, account, volume)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.Name() == keep {
+			continue
+		}
+		_ = os.RemoveAll(filepath.Join(dir, e.Name()))
+	}
+}
+
+// reclaimConvergePartialsLocked drops every banked partial on the host,
+// reporting whether anything was there to drop. Eviction calls it before it
+// starts dropping masters: a partial is a download that has not paid off yet,
+// so it is always the cheaper thing to give up.
+func (m *VolumeManager) reclaimConvergePartialsLocked() bool {
+	dir := filepath.Join(m.Root, convergePartialsDirName)
+	if _, err := os.Stat(dir); err != nil {
+		return false
+	}
+	return os.RemoveAll(dir) == nil
+}
+
 // AllocateBranch prepares an empty per-VM branch directory for a booting warm-
 // pool VM and reserves its worst-case growth against the quota volume. It
 // clones nothing and predicts nothing — the branch gets its image later from
@@ -1100,6 +1164,16 @@ func (m *VolumeManager) EvictToWatermark() (evicted int, err error) {
 	if free >= target {
 		return 0, nil
 	}
+	if m.reclaimConvergePartialsLocked() {
+		f, ferr := m.backend.freeBytes(m.Root)
+		if ferr != nil {
+			return 0, ferr
+		}
+		free = f
+		if free >= target {
+			return 0, nil
+		}
+	}
 	masters, err := m.mastersByLRULocked()
 	if err != nil {
 		return 0, err
@@ -1144,6 +1218,16 @@ func (m *VolumeManager) ensureFreeLocked(want uint64) (uint64, error) {
 	}
 	if free >= want {
 		return free, nil
+	}
+	if m.reclaimConvergePartialsLocked() {
+		f, ferr := m.backend.freeBytes(m.Root)
+		if ferr != nil {
+			return free, ferr
+		}
+		free = f
+		if free >= want {
+			return free, nil
+		}
 	}
 	masters, err := m.mastersByLRULocked()
 	if err != nil {
@@ -1199,7 +1283,7 @@ func (m *VolumeManager) allMastersLocked() ([]masterEntry, error) {
 	}
 	var out []masterEntry
 	for _, acct := range accounts {
-		if !acct.IsDir() || acct.Name() == "branches" || acct.Name() == convergeDirName {
+		if !acct.IsDir() || acct.Name() == "branches" || acct.Name() == convergeDirName || acct.Name() == convergePartialsDirName {
 			continue
 		}
 		volumes, err := os.ReadDir(filepath.Join(m.Root, acct.Name()))
