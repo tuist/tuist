@@ -73,10 +73,10 @@ defmodule TuistWeb.Marketing.Components.KuraNetworkLab do
           </div>
 
           <div data-scenario-copy="global-mesh">
-            <strong>Three nearby Kura regions</strong>
+            <strong>One short cache trip per environment</strong>
             <p>
-              <code>us-east</code>, <code>eu-central</code>, and <code>ap-northeast</code>
-              give each active environment a shorter path while the mesh keeps results shared.
+              Continuous integration reads from <code>us-east</code>. Germany reads from <code>eu-central</code>, and Japan reads from <code>ap-northeast</code>. The
+              short purple arcs show those local reads while the mesh keeps results shared.
             </p>
           </div>
 
@@ -136,20 +136,30 @@ defmodule TuistWeb.Marketing.Components.KuraNetworkLab do
             arcs: [
               {
                 from: [38.9517, -77.4481],
-                to: [50.1109, 8.6821],
-                id: "us-east-to-eu-central",
+                to: [38.8, -77.05],
+                id: "us-east-local-read",
               },
               {
-                from: [50.1109, 8.6821],
-                to: [35.6762, 139.6503],
-                id: "eu-central-to-ap-northeast",
+                from: [52.52, 13.405],
+                to: [50.1109, 8.6821],
+                id: "germany-local-read",
+              },
+              {
+                from: [35.6762, 139.6503],
+                to: [34.6937, 135.5023],
+                id: "japan-local-read",
               },
             ],
             markers: [
               {
                 id: "us-east-kura",
-                location: [38.9517, -77.4481],
+                location: [38.8, -77.05],
                 kind: "cache",
+              },
+              {
+                id: "germany-developer",
+                location: [52.52, 13.405],
+                kind: "client",
               },
               {
                 id: "eu-central-kura",
@@ -157,12 +167,17 @@ defmodule TuistWeb.Marketing.Components.KuraNetworkLab do
                 kind: "cache",
               },
               {
-                id: "ap-northeast-kura",
+                id: "japan-developer",
                 location: [35.6762, 139.6503],
+                kind: "client",
+              },
+              {
+                id: "ap-northeast-kura",
+                location: [34.6937, 135.5023],
                 kind: "cache",
               },
             ],
-            arcHeight: 0.22,
+            arcHeight: 0.14,
             scale: 1,
           },
         }
