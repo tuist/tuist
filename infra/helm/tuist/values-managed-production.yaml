@@ -146,15 +146,20 @@ server:
     # region: this cluster's Elastic Metal node (kuraFleet) hosts the
     # per-account cache pods and dispatch routes the Mac fleet's build
     # cache to it over the Private Network.
-    # ap-southeast (Singapore) is in the catalog and in the assignable set but
-    # deliberately absent from this list. The SGP box is on order; what this
-    # variable gates on is the box being ADOPTED — delivered, prepped, and
-    # joined as a node in the kura-ap-southeast pool — not ordered. Until then
-    # the server would resolve accounts into a region nothing can provision in.
-    # Add it here in the same change that enables ovhFleets.ap-southeast, not
-    # before.
+    # ap-southeast (Singapore / OVHcloud SGP) serves APAC accounts that would
+    # otherwise be answered from Virginia, ~200 ms away. It goes live with
+    # ovhFleets.ap-southeast and kura-ap-southeast-ingress-nginx in the platform
+    # chart — all three flip together, because this variable alone makes the
+    # region selectable in account settings and iterated by the lifecycle, and
+    # either without capacity behind it leaves a KuraInstance Pending.
+    #
+    # PRECONDITION for the deploy that carries this: the SGP box
+    # (ns5036444.ip-15-235-229.net) must have finished installing and be
+    # reachable. The OVH machine controller does claim + self-join and never
+    # install — it assumes an adoptable box is already up — so adopting one
+    # mid-install fails the bootstrap instead of waiting for it.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central,us-east,us-west,scw-fr-par-runners
+      value: eu-central,us-east,us-west,ap-southeast,scw-fr-par-runners
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -767,20 +772,25 @@ ovhFleets:
   # every cache request. The legacy cache fleet serves an ap-southeast endpoint,
   # so this is continuity rather than a new capability.
   #
-  # DELIBERATELY DISABLED. The box (ns5036444.ip-15-235-229.net) is DELIVERED and
-  # powered on, but not adoptable yet: it reports os "none_64" (no OS installed)
-  # and its displayName is still OVH's default, so the adoptDisplayNamePrefix
-  # below matches nothing. An enabled fleet with no ADOPTABLE machine hangs
-  # helm --wait (the failure the dediboxFleet comment above warns about), which
-  # would wedge every production deploy rather than just this region. Flip to
-  # true only once a box is delivered, prepped
+  # ENABLED. The box (ns5036444.ip-15-235-229.net) is delivered, prepped
+  # (mise run baremetal:prep-ovh) and named tuist-kura-ovh-production-ap-southeast,
+  # so the reconciler claims it and self-joins it into the kura-ap-southeast pool.
+  #
+  # An enabled fleet with no ADOPTABLE machine hangs helm --wait (the failure the
+  # dediboxFleet comment above warns about) and wedges every production deploy,
+  # not just this region — so if this box is ever released, disable the fleet in
+  # the same change rather than leaving it enabled against an empty pool. The box
+  # must also be finished installing before the deploy that enables this lands:
+  # the OVH controller does claim + self-join and never install, so it fails the
+  # bootstrap on a half-installed box rather than waiting for it. Prep is
+  # (mise run baremetal:prep-ovh
   # (mise run baremetal:prep-ovh, including the /data XFS project-quota layout,
   # which has to be applied at install time), and named with the displayName
   # prefix below. The region also stays out of TUIST_KURA_AVAILABLE_REGIONS
   # until then, so the server will not resolve an account into it even if this
   # fleet comes up first.
   ap-southeast:
-    enabled: false
+    enabled: true
     replicas: 1
     # Same endpoint and same secrets as every other OVH fleet: the endpoint
     # names the OVHcloud legal entity holding the ACCOUNT, not the box's

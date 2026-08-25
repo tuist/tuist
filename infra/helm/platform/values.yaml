@@ -195,13 +195,10 @@ kura-us-west-ingress-nginx:
     metrics:
       enabled: true
 
-# Asia Pacific Southeast (Singapore). Off everywhere today: the region is in the
-# Kura catalog but no environment serves it yet (it is absent from every
-# TUIST_KURA_AVAILABLE_REGIONS) and the SGP box, though on order, is not yet
-# adopted into the kura-ap-southeast pool. The controller
-# exists here so the ingress class its Ingresses name has something to handle
-# them the moment the region is switched on; enable it in the same change that
-# enables ovhFleets.ap-southeast and adds the region to the gate.
+# Asia Pacific Southeast (Singapore). Default off like every other kura gateway;
+# production turns it on in values-tuist.yaml, where the region's fleet and its
+# entry in TUIST_KURA_AVAILABLE_REGIONS live. Staging and canary have no SGP
+# hardware, so it stays off there.
 kura-ap-southeast-ingress-nginx:
   enabled: false
   controller:

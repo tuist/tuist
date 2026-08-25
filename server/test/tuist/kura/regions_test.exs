@@ -446,15 +446,16 @@ defmodule Tuist.Kura.RegionsTest do
              }
     end
 
-    test "is served only where TUIST_KURA_AVAILABLE_REGIONS names it" do
+    test "is not served in an environment whose gate omits it" do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
 
-      # Production's list today. The region is in the catalog, so it has to be
-      # the gate that keeps it unserved rather than its absence from the
-      # catalog — there is a fleet definition waiting on hardware behind it.
+      # Staging and canary have no SGP hardware, so they leave it out. Being in
+      # the catalog is not being served: the gate is what decides, and a region
+      # served without its fleet and ingress controller behind it would leave
+      # every instance Pending.
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-central", "us-east", "us-west", "scw-fr-par-runners"]
+        ["eu-central", "scw-fr-par-runners", "ca-east"]
       end)
 
       refute Regions.available?("ap-southeast")
