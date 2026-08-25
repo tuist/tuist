@@ -23,13 +23,17 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.Kura.ClaimProposal
+  alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
+  alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Kura.StorageClaims
+  alias Tuist.Kura.StorageTelemetry
   alias Tuist.Repo
 
   require Logger
@@ -40,6 +44,9 @@ defmodule Tuist.Kura do
   # change has nothing to apply to these, and they pick up the current one when
   # they are next built.
   @volumeless_statuses [:destroying, :destroyed, :archived]
+
+  def volumeless_statuses, do: @volumeless_statuses
+
   @create_server_keys %{
     "account_id" => :account_id,
     "region" => :region,
@@ -254,10 +261,31 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  The claim the account's instances are built at: its override when it carries
-  one, the claim its plan gives it otherwise.
+  The claim the account's instances are built at: its operator override when
+  it carries one, then the claim automatic sizing chose, then the claim its
+  plan gives it.
   """
   defdelegate effective_storage_claim(account), to: StorageClaims, as: :effective_claim_size
+
+  @doc """
+  The claim automatic sizing chose for the account, or `nil`.
+  """
+  defdelegate sized_storage_claim(account), to: PlacerClaims, as: :claim_for
+
+  @doc """
+  The account's open claim sizing proposal, or `nil`.
+  """
+  defdelegate claim_proposal_for(account), to: ClaimProposals, as: :open_proposal_for
+
+  @doc """
+  Dismisses an open claim sizing proposal without acting on it.
+  """
+  defdelegate dismiss_claim_proposal(proposal, resolved_by), to: ClaimProposals, as: :dismiss
+
+  @doc """
+  The latest reported disk state of each of the account's Kura pods.
+  """
+  def latest_storage_snapshots(%Account{id: account_id}), do: StorageTelemetry.latest_snapshots(account_id)
 
   @doc """
   The account's claim override, or `nil` when its plan still decides.
@@ -339,6 +367,71 @@ defmodule Tuist.Kura do
   end
 
   defp write_storage_claim_override(account, override) do
+    write_effective_claim(account, fn -> StorageClaims.put_override(account, override) end)
+  end
+
+  @doc """
+  Applies an open claim sizing proposal: writes its recommendation as the
+  account's sized claim and re-pins the running instances, exactly like an
+  operator override write. `resolved_by` lands on the proposal's audit trail —
+  an operator's handle from the ops page, or `"automatic"` from the sweep.
+
+  A proposal whose premises no longer hold — resolved meanwhile, an operator
+  override appeared, or the effective claim moved since it was written — is
+  marked superseded instead of applied and `{:error, :stale_proposal}` comes
+  back. The sweep writes a fresh proposal on its next pass if the
+  recommendation still stands.
+  """
+  def apply_claim_proposal(%ClaimProposal{} = proposal, resolved_by) when is_binary(resolved_by) do
+    account = Repo.get!(Account, proposal.account_id)
+
+    result =
+      Repo.transaction(fn ->
+        # Same lock as every claim write, and the proposal is re-read under it:
+        # two appliers (an operator click racing the automatic sweep) serialize
+        # here, and the loser sees a proposal that is no longer open.
+        lock_account(account.id)
+        proposal = Repo.get!(ClaimProposal, proposal.id)
+
+        cond do
+          proposal.status != :open ->
+            {:stale, proposal}
+
+          StorageClaims.override_for(account) != nil or
+              StorageClaims.effective_claim_size(account) != proposal.current_claim_size ->
+            {:stale, proposal |> ClaimProposal.resolve_changeset(:superseded, "stale_on_apply") |> Repo.update!()}
+
+          true ->
+            :ok = PlacerClaims.put(account, proposal.recommended_claim_size)
+            claim_size = StorageClaims.effective_claim_size(account)
+
+            proposal
+            |> ClaimProposal.resolve_changeset(:applied, resolved_by)
+            |> Repo.update!()
+
+            outcome =
+              account
+              |> repin_storage_claims(proposal.current_claim_size, claim_size)
+              |> Map.put(:claim_size, claim_size)
+
+            {:applied, outcome}
+        end
+      end)
+
+    case result do
+      {:ok, {:applied, outcome}} ->
+        Enum.each(outcome.raised ++ outcome.lowered, &broadcast_server(&1, :updated))
+        {:ok, outcome}
+
+      {:ok, {:stale, _proposal}} ->
+        {:error, :stale_proposal}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp write_effective_claim(account, mutate) do
     Repo.transaction(fn ->
       # Taken before anything is read, and paired with the shared lock every path
       # that builds volumes takes. Without it the two interleave and never
@@ -351,10 +444,10 @@ defmodule Tuist.Kura do
       # Read before the write. A governed region resolves an instance that pins
       # no claim of its own from its account rather than from a region-wide
       # constant, so this is what those instances are rendering right now, and
-      # what a change to the override has to be measured against.
+      # what a change to the claim has to be measured against.
       previous = StorageClaims.effective_claim_size(account)
 
-      case StorageClaims.put_override(account, override) do
+      case mutate.() do
         :ok ->
           claim_size = StorageClaims.effective_claim_size(account)
 

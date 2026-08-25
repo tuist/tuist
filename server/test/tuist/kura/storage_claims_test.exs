@@ -46,6 +46,19 @@ defmodule Tuist.Kura.StorageClaimsTest do
       assert StorageClaims.override_for(account) == nil
       assert StorageClaims.effective_claim_size(account) == "8Gi"
     end
+
+    test "the sized claim sits between the override and the plan", %{account: account} do
+      assert :ok = Tuist.Kura.PlacerClaims.put(account, "12Gi")
+      assert StorageClaims.effective_claim_size(account) == "12Gi"
+
+      # The operator override wins over sizing.
+      assert :ok = StorageClaims.put_override(account, "40Gi")
+      assert StorageClaims.effective_claim_size(account) == "40Gi"
+
+      # And clearing it falls back to the sized claim, not the plan.
+      assert :ok = StorageClaims.put_override(account, nil)
+      assert StorageClaims.effective_claim_size(account) == "12Gi"
+    end
   end
 
   describe "cast_override/2" do

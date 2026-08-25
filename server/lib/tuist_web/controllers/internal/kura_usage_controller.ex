@@ -6,26 +6,35 @@ defmodule TuistWeb.Internal.KuraUsageController do
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Kura.SelfHostedClients
+  alias Tuist.Kura.StorageTelemetry
   alias Tuist.Kura.Usage
 
-  def create(conn, %{"schema_version" => 1, "events" => events}) when is_list(events) do
-    case authorize(conn) do
-      {:ok, :unconstrained} ->
-        ingest(conn, events)
+  def create(conn, %{"schema_version" => 1, "events" => events} = params) when is_list(events) do
+    with {:ok, evictions} <- optional_list(params, "evictions"),
+         {:ok, storage_snapshots} <- optional_list(params, "storage_snapshots") do
+      case authorize(conn) do
+        {:ok, :unconstrained} ->
+          ingest(conn, events, evictions, storage_snapshots)
 
-      {:ok, {:account, account}} ->
-        if events_scoped_to_account?(events, account) do
-          ingest(conn, events)
-        else
+        {:ok, {:account, account}} ->
+          if events_scoped_to_account?(events ++ evictions ++ storage_snapshots, account) do
+            ingest(conn, events, evictions, storage_snapshots)
+          else
+            conn
+            |> put_status(:forbidden)
+            |> json(%{error: "tenant_mismatch"})
+          end
+
+        {:error, :unauthorized} ->
           conn
-          |> put_status(:forbidden)
-          |> json(%{error: "tenant_mismatch"})
-        end
-
-      {:error, :unauthorized} ->
+          |> put_status(:unauthorized)
+          |> json(%{error: "unauthorized"})
+      end
+    else
+      :error ->
         conn
-        |> put_status(:unauthorized)
-        |> json(%{error: "unauthorized"})
+        |> put_status(:bad_request)
+        |> json(%{error: "invalid_payload"})
     end
   end
 
@@ -35,13 +44,23 @@ defmodule TuistWeb.Internal.KuraUsageController do
     |> json(%{error: "invalid_payload"})
   end
 
-  defp ingest(conn, events) do
-    case Usage.create_events(events) do
-      {:ok, count} ->
-        conn
-        |> put_status(:accepted)
-        |> json(%{accepted: count})
+  # Nodes that predate storage telemetry send batches without these keys, so
+  # absence is an empty list rather than an error.
+  defp optional_list(params, key) do
+    case Map.get(params, key, []) do
+      list when is_list(list) -> {:ok, list}
+      _other -> :error
+    end
+  end
 
+  defp ingest(conn, events, evictions, storage_snapshots) do
+    with {:ok, count} <- Usage.create_events(events),
+         {:ok, _evictions} <- StorageTelemetry.create_eviction_events(evictions),
+         {:ok, _snapshots} <- StorageTelemetry.create_storage_snapshots(storage_snapshots) do
+      conn
+      |> put_status(:accepted)
+      |> json(%{accepted: count})
+    else
       {:error, :too_many_events} ->
         conn
         |> put_status(:payload_too_large)
@@ -51,7 +70,7 @@ defmodule TuistWeb.Internal.KuraUsageController do
 
   # A self-hosted credential may only report usage for its own tenant. Rejecting
   # the whole batch on any foreign `tenant_id` keeps a customer's node from
-  # attributing traffic to another account.
+  # attributing traffic or storage telemetry to another account.
   defp events_scoped_to_account?(events, %Account{name: name}) do
     handle = String.downcase(name)
     Enum.all?(events, &(String.downcase(to_string(&1["tenant_id"])) == handle))

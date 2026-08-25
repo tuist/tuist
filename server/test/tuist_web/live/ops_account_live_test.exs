@@ -8,6 +8,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Kura
+  alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
@@ -149,63 +150,42 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert html =~ "24Gi"
   end
 
-  test "sets a claim override and re-pins the instance it rebuilds", %{conn: conn, user: user} do
+  test "surfaces each pod's reported disk state", %{conn: conn, user: user} do
     stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
 
-    server =
-      Repo.insert!(%Server{
+    Repo.insert!(%Server{
+      account_id: user.account.id,
+      region: "us-east",
+      status: :active,
+      url: "https://acme-us-east-1.kura.tuist.dev",
+      current_image_tag: "0.5.2",
+      provisioner_node_ref: "kura-#{user.account.id}-us-east",
+      storage_claim_size: "25Gi"
+    })
+
+    captured_at = NaiveDateTime.truncate(NaiveDateTime.add(NaiveDateTime.utc_now(), -3_600), :second)
+
+    Tuist.IngestRepo.insert_all(Tuist.Kura.StorageSnapshot, [
+      %{
+        event_id: "ops-snap-#{user.account.id}",
         account_id: user.account.id,
+        node_id: "kura-#{user.account.id}-us-east-0",
         region: "us-east",
-        status: :active,
-        url: "https://acme-us-east-1.kura.tuist.dev",
-        current_image_tag: "0.5.2",
-        provisioner_node_ref: "kura-#{user.account.id}-us-east",
-        storage_claim_size: "8Gi"
-      })
+        captured_at: captured_at,
+        ring_budget_bytes: 26_843_545_600,
+        desired_segment_count: 50,
+        live_segment_count: 24,
+        live_segment_bytes: 12_884_901_888,
+        oldest_segment_created_at: captured_at,
+        newest_content_at: captured_at,
+        inserted_at: captured_at
+      }
+    ])
 
-    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-    html =
-      lv
-      |> form("#kura-storage-claim-form", account: %{kura_storage_claim_size: "40Gi"})
-      |> render_submit()
-
-    assert Kura.storage_claim_override(user.account) == "40Gi"
-
-    # Re-pinned, which is what carries the new claim into the manifest and has
-    # the controller rebuild the volumes that no longer match it.
-    assert Repo.get!(Server, server.id).storage_claim_size == "40Gi"
-
-    # And the table the operator is looking at reflects it without a reload.
-    assert html =~ "40Gi"
-  end
-
-  test "clears the override from the form and returns the account to its plan", %{conn: conn, user: user} do
-    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
-
-    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-
-    lv
-    |> form("#kura-storage-claim-form", account: %{kura_storage_claim_size: "40Gi"})
-    |> render_submit()
-
-    lv
-    |> form("#kura-storage-claim-form", account: %{kura_storage_claim_size: ""})
-    |> render_submit()
-
-    assert Kura.storage_claim_override(user.account) == nil
-  end
-
-  test "refuses a claim below the floor a ring can be derived from", %{conn: conn, user: user} do
-    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-
-    html =
-      lv
-      |> form("#kura-storage-claim-form", account: %{kura_storage_claim_size: "4Gi"})
-      |> render_submit()
-
-    assert html =~ "must be at least 8Gi"
-    assert Kura.storage_claim_override(user.account) == nil
+    assert html =~ "kura-#{user.account.id}-us-east-0"
+    assert html =~ "12.9 GB of 26.8 GB"
   end
 
   test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do
@@ -534,6 +514,84 @@ defmodule TuistWeb.OpsAccountLiveTest do
       end)
 
       lv |> element("button", "Start runner trial") |> render_click()
+    end
+  end
+
+  describe "claim sizing proposals" do
+    setup %{user: user} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      server =
+        Repo.insert!(%Server{
+          account_id: user.account.id,
+          region: "us-east",
+          status: :active,
+          url: "https://acme-us-east-1.kura.tuist.dev",
+          current_image_tag: "0.5.2",
+          provisioner_node_ref: "kura-#{user.account.id}-us-east",
+          storage_claim_size: "8Gi"
+        })
+
+      proposal =
+        Repo.insert!(%ClaimProposal{
+          account_id: user.account.id,
+          region: "us-east",
+          direction: :grow,
+          current_claim_size: "8Gi",
+          recommended_claim_size: "16Gi",
+          evidence: %{
+            "signal" => "shed_age_below_retention_floor",
+            "region" => "us-east",
+            "window_days" => 14,
+            "retention_floor_seconds" => 86_400,
+            "median_shed_age_seconds" => 43_200,
+            "median_ring_span_seconds" => 129_600,
+            "evicted_bytes" => 10_737_418_240
+          }
+        })
+
+      %{server: server, proposal: proposal}
+    end
+
+    test "renders the open proposal with its evidence", %{conn: conn, user: user} do
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ "Sizing proposes growing the disk claim from 8Gi to 16Gi."
+      assert html =~ "retention floor"
+      assert html =~ "Apply proposal"
+    end
+
+    test "applying the proposal writes the sized claim and re-pins the instance", %{
+      conn: conn,
+      user: user,
+      server: server,
+      proposal: proposal
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html = lv |> element("button", "Apply proposal") |> render_click()
+
+      assert html =~ "Kura disk claim raised to 16Gi"
+      assert Kura.sized_storage_claim(user.account) == "16Gi"
+      assert Repo.get!(Server, server.id).storage_claim_size == "16Gi"
+      assert Repo.get!(ClaimProposal, proposal.id).status == :applied
+      refute has_element?(lv, "button", "Apply proposal")
+    end
+
+    test "dismissing the proposal leaves the claim alone", %{
+      conn: conn,
+      user: user,
+      server: server,
+      proposal: proposal
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      lv |> element("button", "Dismiss") |> render_click()
+
+      assert Kura.sized_storage_claim(user.account) == nil
+      assert Repo.get!(Server, server.id).storage_claim_size == "8Gi"
+      assert Repo.get!(ClaimProposal, proposal.id).status == :dismissed
+      refute has_element?(lv, "button", "Dismiss")
     end
   end
 end

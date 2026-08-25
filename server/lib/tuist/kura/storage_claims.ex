@@ -23,6 +23,7 @@ defmodule Tuist.Kura.StorageClaims do
   alias Ecto.Changeset
   alias Tuist.Accounts.Account
   alias Tuist.Kura.AccountPolicies
+  alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.Regions
   alias Tuist.Kura.StorageClaim
   alias Tuist.Repo
@@ -31,11 +32,13 @@ defmodule Tuist.Kura.StorageClaims do
   @form_types %{@form_field => :string}
 
   @doc """
-  The claim an account's storage-governed instances are built at: its override
-  when it has one, its plan's claim otherwise.
+  The claim an account's storage-governed instances are built at: its
+  operator override when it has one, then the claim automatic sizing chose,
+  then its plan's claim. Clearing an override therefore falls back to the
+  sized claim rather than snapping to the plan.
   """
   def effective_claim_size(%Account{} = account) do
-    override_for(account) || plan_claim_size(account)
+    override_for(account) || PlacerClaims.claim_for(account) || plan_claim_size(account)
   end
 
   @doc """

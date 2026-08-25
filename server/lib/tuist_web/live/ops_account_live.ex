@@ -18,6 +18,7 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.Trials
+  alias Tuist.Utilities.ByteFormatter
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -36,7 +37,6 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:on_runner_trial, Trials.on_trial?(account))
          |> assign(:prepaid_quote, nil)
          |> assign(:has_subscription, not is_nil(Billing.get_current_active_subscription(account)))
-         |> assign(:kura_minimum_claim, Kura.minimum_storage_claim())
          |> assign_kura_storage_claim(account)
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
@@ -180,21 +180,45 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   @impl true
-  def handle_event("update_kura_storage_claim", %{"account" => params}, socket) do
+  def handle_event("apply_kura_claim_proposal", _params, socket) do
     account = socket.assigns.account
+    proposal = socket.assigns.kura_claim_proposal
 
-    case Kura.update_storage_claim_override(account, params) do
+    case proposal && Kura.apply_claim_proposal(proposal, socket.assigns.current_user.email) do
       {:ok, result} ->
         {:noreply,
          socket
          |> assign_kura_storage_claim(account)
          |> put_flash(:info, kura_storage_claim_message(result))}
 
-      {:error, changeset} ->
+      _stale_or_missing ->
         {:noreply,
          socket
-         |> assign(:kura_storage_claim_form, to_form(changeset, as: "account"))
-         |> put_flash(:error, dgettext("dashboard", "Kura disk claim could not be updated."))}
+         |> assign_kura_storage_claim(account)
+         |> put_flash(
+           :error,
+           dgettext(
+             "dashboard",
+             "The proposal no longer applies; the next sizing sweep re-evaluates the account."
+           )
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("dismiss_kura_claim_proposal", _params, socket) do
+    account = socket.assigns.account
+    proposal = socket.assigns.kura_claim_proposal
+
+    case proposal && Kura.dismiss_claim_proposal(proposal, socket.assigns.current_user.email) do
+      {:ok, _proposal} ->
+        {:noreply,
+         socket
+         |> assign_kura_storage_claim(account)
+         |> put_flash(:info, dgettext("dashboard", "Sizing proposal dismissed."))}
+
+      _stale_or_missing ->
+        {:noreply, assign_kura_storage_claim(socket, account)}
     end
   end
 
@@ -414,21 +438,58 @@ defmodule TuistWeb.OpsAccountLive do
     |> to_form(as: "account")
   end
 
-  # The rows, the form and the claim the rows resolve against move together: an
-  # override write re-pins instances, so a table left on the old assign would
-  # show claims that no longer exist.
+  # The rows and the claim they resolve against move together: an applied
+  # proposal re-pins instances, so a table left on the old assign would show
+  # claims that no longer exist.
   defp assign_kura_storage_claim(socket, account) do
     socket
     |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
     |> assign(:kura_account_claim, Kura.effective_storage_claim(account))
-    |> assign(:kura_plan_claim, Kura.plan_storage_claim(account))
-    |> assign(:kura_storage_claim_form, kura_storage_claim_form(account))
+    |> assign(:kura_sized_claim, Kura.sized_storage_claim(account))
+    |> assign(:kura_claim_proposal, Kura.claim_proposal_for(account))
+    |> assign(:kura_disk_usage, Kura.latest_storage_snapshots(account))
   end
 
-  defp kura_storage_claim_form(account) do
-    account
-    |> Kura.change_storage_claim_override()
-    |> to_form(as: "account")
+  # The proposal's evidence differs by direction: growth argues from how young
+  # the shed content was against the plan's retention floor, shrinking from
+  # how empty the ring stayed.
+  defp kura_claim_proposal_evidence(%{direction: :grow, evidence: evidence}) do
+    dgettext(
+      "dashboard",
+      "Evicted content was a median %{shed_age} old over %{days} days in %{region}; the plan's retention floor is %{floor}.",
+      shed_age: humanize_seconds(evidence["median_shed_age_seconds"]),
+      days: evidence["window_days"],
+      region: evidence["region"],
+      floor: humanize_seconds(evidence["retention_floor_seconds"])
+    )
+  end
+
+  defp kura_claim_proposal_evidence(%{direction: :shrink, evidence: evidence}) do
+    dgettext(
+      "dashboard",
+      "Ring occupancy stayed under %{threshold}%% for %{days} days in %{region} (peak %{peak}%%).",
+      threshold: evidence["occupancy_threshold_percent"],
+      days: evidence["window_days"],
+      region: evidence["region"],
+      peak: evidence["max_occupancy_percent"]
+    )
+  end
+
+  defp humanize_seconds(nil), do: dgettext("dashboard", "unknown")
+
+  defp humanize_seconds(seconds) when is_integer(seconds) do
+    cond do
+      seconds >= 86_400 -> dgettext("dashboard", "%{count} days", count: Float.round(seconds / 86_400, 1))
+      seconds >= 3_600 -> dgettext("dashboard", "%{count} hours", count: Float.round(seconds / 3_600, 1))
+      true -> dgettext("dashboard", "%{count} minutes", count: div(seconds, 60))
+    end
+  end
+
+  defp kura_disk_usage_label(snapshot) do
+    dgettext("dashboard", "%{used} of %{budget}",
+      used: ByteFormatter.format_bytes(snapshot.live_segment_bytes),
+      budget: ByteFormatter.format_bytes(snapshot.ring_budget_bytes)
+    )
   end
 
   # Raising a claim and lowering one do different things to a running instance,
