@@ -312,6 +312,59 @@ defmodule Tuist.ShardsTest do
       assert planned_targets(result) == MapSet.new([])
     end
 
+    test "collapses to a single catch-all shard when every suite is skipped" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppUITests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "OnboardingFlowTests", status: "success", duration: 6_000},
+              %{name: "CheckoutFlowTests", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> true end)
+      stub(Tuist.Storage, :generate_download_url, fn key, _account -> key end)
+
+      params = %{
+        reference: "all-skipped-1",
+        modules: ["AppUITests"],
+        skipped_test_suites: ["AppUITests/OnboardingFlowTests", "AppUITests/CheckoutFlowTests"],
+        granularity: "suite",
+        shard_total: 4
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      # Nothing is left to distribute, so the requested shard count is ignored rather than spreading
+      # an empty plan over four shards, three of which would resolve to nothing at all.
+      assert result.shard_count == 1
+      assert planned_targets(result) == MapSet.new([])
+
+      # The one shard is the catch-all, and it still runs. An empty unit set means "nothing to
+      # distribute", which is also what a project with no recorded suites produces, so it cannot be
+      # read as "nothing to run". The shard carries no -only-testing and no skip list, which leaves
+      # the decision to the bundle's own SkipTestIdentifiers.
+      assert {:ok, shard} = Shards.get_shard(project, account, "all-skipped-1", 0, suite_catch_all?: true)
+      assert shard.modules == []
+      assert shard.suites == %{}
+      assert shard.skip == []
+      assert Enum.any?(shard.download_urls, &String.ends_with?(&1, "/modules/AppUITests.aar"))
+    end
+
     test "does not append a catch-all shard for module granularity" do
       project = ProjectsFixtures.project_fixture()
 
