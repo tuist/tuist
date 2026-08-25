@@ -355,17 +355,6 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
-  describe "runners_enabled?/1" do
-    test "defaults to enabled when the environment variable is absent" do
-      assert Environment.runners_enabled?(%{})
-    end
-
-    test "honors an explicit runtime setting" do
-      assert Environment.runners_enabled?(%{"TUIST_RUNNERS_ENABLED" => "true"})
-      refute Environment.runners_enabled?(%{"TUIST_RUNNERS_ENABLED" => "false"})
-    end
-  end
-
   describe "quote_postgres_identifier/1" do
     test "quotes identifiers used in SQL and startup parameters" do
       assert Environment.quote_postgres_identifier("tuist") == ~s("tuist")

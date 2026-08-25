@@ -10,14 +10,6 @@ defmodule TuistWeb.RunnersControllerTest do
   alias Tuist.Runners.Jobs
 
   describe "GET /api/internal/runners/desired_replicas" do
-    test "returns not found when runners are disabled", %{conn: conn} do
-      stub(Tuist.Environment, :runners_enabled?, fn -> false end)
-
-      conn = get(conn, "/api/internal/runners/desired_replicas?fleet=fleet-x")
-
-      assert response(conn, 404) == ""
-    end
-
     test "returns claimed, occupied, queued, and historical concurrency for the fleet", %{conn: conn} do
       account = account_fixture()
 

@@ -244,10 +244,6 @@ defmodule TuistWeb.Router do
     plug TuistWeb.OnPremisePlug, :api_license_validation
   end
 
-  pipeline :runners_enabled do
-    plug TuistWeb.Plugs.RunnersEnabledPlug
-  end
-
   pipeline :analytics do
     plug TuistWeb.AnalyticsPlug, :track_page_view
   end
@@ -552,6 +548,8 @@ defmodule TuistWeb.Router do
     end
 
     post "/analytics", AnalyticsController, :create
+    post "/runners/interactive/shell", RunnerInteractiveShellSessionController, :create
+    get "/runners/interactive/shell/connect", RunnerInteractiveShellController, :connect
     post "/runs/:run_id/start", AnalyticsController, :multipart_start
 
     post "/runs/:run_id/generate-url",
@@ -753,13 +751,6 @@ defmodule TuistWeb.Router do
         :update_member
   end
 
-  scope "/api/runners", TuistWeb.API do
-    pipe_through [:open_api, :runners_enabled, :authenticated_api, :on_premise_api]
-
-    post "/interactive/shell", RunnerInteractiveShellSessionController, :create
-    get "/interactive/shell/connect", RunnerInteractiveShellController, :connect
-  end
-
   scope "/api" do
     pipe_through [:open_api, :non_authenticated_api]
 
@@ -787,7 +778,7 @@ defmodule TuistWeb.Router do
   # these endpoints are for our own runner infrastructure, not
   # for SDK / CLI consumers.
   scope "/api/internal", TuistWeb do
-    pipe_through [:non_authenticated_api, :runners_enabled]
+    pipe_through [:non_authenticated_api]
 
     post "/runners/dispatch", RunnersController, :dispatch
     post "/runners/volume-head", RunnersController, :report_volume_head
@@ -1077,6 +1068,10 @@ defmodule TuistWeb.Router do
       :analytics
     ]
 
+    get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs/download",
+        RunnerJobLogsController,
+        :download
+
     live_session :public_account,
       layout: {TuistWeb.Layouts, :account},
       on_mount: [
@@ -1087,40 +1082,12 @@ defmodule TuistWeb.Router do
       ] do
       live "/", ProjectsLive
       live "/projects", ProjectsLive
-      live "/usage", UsageLive
-    end
-  end
-
-  scope "/:account_handle", TuistWeb do
-    pipe_through [
-      :open_api,
-      :browser_app,
-      :rate_limit,
-      :load_operator_grant,
-      :redirect_to_ops_if_operator,
-      :require_authenticated_user_for_private_accounts,
-      :require_sso_authentication,
-      :analytics,
-      :runners_enabled
-    ]
-
-    get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs/download",
-        RunnerJobLogsController,
-        :download
-
-    live_session :public_runners,
-      layout: {TuistWeb.Layouts, :account},
-      on_mount: [
-        {TuistWeb.Authentication, :mount_current_user},
-        {TuistWeb.OperatorGrant, :load},
-        {TuistWeb.Locale, :assign_locale},
-        {TuistWeb.LayoutLive, :account}
-      ] do
       live "/runners", RunnersLive
       live "/runners/workflows", RunnerWorkflowsLive
       live "/runners/workflows/:repo_owner/:repo_name/:workflow_name", RunnerWorkflowLive
       live "/runners/jobs", RunnerJobsLive
       live "/runners/runs/:workflow_run_id/jobs/:workflow_job_id", RunnerJobLive
+      live "/usage", UsageLive
     end
   end
 
@@ -1138,6 +1105,14 @@ defmodule TuistWeb.Router do
     get "/billing/manage", BillingController, :manage
     get "/billing/upgrade", BillingController, :upgrade
 
+    get "/runners/interactive/vnc",
+        RunnerInteractiveVNCController,
+        :connect
+
+    get "/runners/interactive/shell",
+        RunnerInteractiveShellController,
+        :connect
+
     live_session :account,
       layout: {TuistWeb.Layouts, :account},
       on_mount: [
@@ -1146,6 +1121,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
+      live "/runners/profiles", RunnerProfilesLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
@@ -1157,38 +1133,6 @@ defmodule TuistWeb.Router do
       live "/settings/tokens/:token_id", AccountTokenLive
       live "/settings/integrations", IntegrationsLive
       live "/settings/authentication", AuthenticationSettingsLive
-    end
-  end
-
-  scope "/:account_handle", TuistWeb do
-    pipe_through [
-      :open_api,
-      :browser_app,
-      :load_operator_grant,
-      :redirect_to_ops_if_operator,
-      :require_authenticated_user,
-      :require_sso_authentication,
-      :analytics,
-      :runners_enabled
-    ]
-
-    get "/runners/interactive/vnc",
-        RunnerInteractiveVNCController,
-        :connect
-
-    get "/runners/interactive/shell",
-        RunnerInteractiveShellController,
-        :connect
-
-    live_session :runner_profiles,
-      layout: {TuistWeb.Layouts, :account},
-      on_mount: [
-        {TuistWeb.Authentication, :ensure_authenticated},
-        {TuistWeb.OperatorGrant, :load},
-        {TuistWeb.Locale, :assign_locale},
-        {TuistWeb.LayoutLive, :account}
-      ] do
-      live "/runners/profiles", RunnerProfilesLive
     end
   end
 

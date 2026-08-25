@@ -12,7 +12,6 @@ defmodule Tuist.FeatureFlagsTest do
     account = %Account{id: 42, name: "tuist"}
 
     stub(Environment, :env, fn -> :can end)
-    stub(Environment, :runners_enabled?, fn -> true end)
 
     expect(FunWithFlags, :enabled?, fn :runners, [for: ^account] -> true end)
 
@@ -23,7 +22,6 @@ defmodule Tuist.FeatureFlagsTest do
     account = %Account{id: 42, name: "tuist"}
 
     stub(Environment, :env, fn -> :prod end)
-    stub(Environment, :runners_enabled?, fn -> true end)
 
     expect(FunWithFlags, :enabled?, fn :runners, [for: ^account] -> true end)
 
@@ -40,7 +38,6 @@ defmodule Tuist.FeatureFlagsTest do
     }
 
     stub(Environment, :env, fn -> :can end)
-    stub(Environment, :runners_enabled?, fn -> true end)
 
     assert FeatureFlags.runners_enabled?(account, flag)
     refute FeatureFlags.runners_enabled?(other, flag)
@@ -48,16 +45,8 @@ defmodule Tuist.FeatureFlagsTest do
 
   test "defaults to enabled outside canary and production" do
     stub(Environment, :env, fn -> :dev end)
-    stub(Environment, :runners_enabled?, fn -> true end)
     reject(FunWithFlags, :enabled?, 2)
 
     assert FeatureFlags.runners_enabled?(%Account{name: "tuist"})
-  end
-
-  test "disables runners when the deployment disables the surface" do
-    stub(Environment, :runners_enabled?, fn -> false end)
-    reject(FunWithFlags, :enabled?, 1)
-
-    refute FeatureFlags.runners_enabled?(%Account{name: "tuist"})
   end
 end

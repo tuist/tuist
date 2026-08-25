@@ -296,13 +296,6 @@ defmodule Tuist.Environment do
     dev?() or truthy?(System.get_env("TUIST_TEST_USER_LOGIN_ENABLED", "0"))
   end
 
-  def runners_enabled?(environment \\ System.get_env()) when is_map(environment) do
-    case Map.get(environment, "TUIST_RUNNERS_ENABLED") do
-      nil -> true
-      value -> truthy?(value)
-    end
-  end
-
   def dev_all_locales?, do: @dev_all_locales
 
   # Both :dev and :test compile a single locale ("en") by default so Gettext

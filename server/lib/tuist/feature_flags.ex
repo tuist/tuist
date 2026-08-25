@@ -5,24 +5,21 @@ defmodule Tuist.FeatureFlags do
 
   @doc """
   Whether the Runners dashboard (and its sub-pages) should be visible
-  for the given account. Deployments can switch the surface off entirely
-  with `TUIST_RUNNERS_ENABLED=false`. Canary and production otherwise
-  require an explicit `:runners` FunWithFlags toggle for the actor.
-  Development, test, and staging default to enabled.
+  for the given account. Canary and production require an explicit
+  `:runners` FunWithFlags toggle for the actor. Development, test, and
+  staging default to enabled.
 
   This is also the source of truth for co-located private Kura cache
   infrastructure, so enabling runners provides the cache without a second
   operator-managed switch.
   """
   def runners_enabled?(account) do
-    Environment.runners_enabled?() and
-      (not runner_flag_required?() or FunWithFlags.enabled?(:runners, for: account))
+    not runner_flag_required?() or FunWithFlags.enabled?(:runners, for: account)
   end
 
   @doc false
   def runners_enabled?(account, %FunWithFlags.Flag{} = flag) do
-    Environment.runners_enabled?() and
-      (not runner_flag_required?() or FunWithFlags.Flag.enabled?(flag, for: account))
+    not runner_flag_required?() or FunWithFlags.Flag.enabled?(flag, for: account)
   end
 
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
