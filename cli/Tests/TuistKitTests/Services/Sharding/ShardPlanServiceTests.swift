@@ -730,7 +730,11 @@ struct ShardPlanServiceTests {
                         testTargets: [
                             TestTargetFixture(
                                 blueprintName: "AppUITests",
-                                skipTestIdentifiers: ["OnboardingFlowTests", "CheckoutFlowTests/testExample()"]
+                                skipTestIdentifiers: [
+                                    "OnboardingFlowTests",
+                                    "SettingsFlowTests/NestedFlowTests",
+                                    "CheckoutFlowTests/testExample()",
+                                ]
                             ),
                             TestTargetFixture(blueprintName: "SmokeTests"),
                         ]
@@ -798,13 +802,103 @@ struct ShardPlanServiceTests {
             archivePath: temporaryDirectory.appending(components: "artifacts", "bundle.aar")
         )
 
-        // Only the whole-suite skip is reported: a skip naming a single test leaves its suite with
-        // work that may still run.
-        #expect(sentSkippedTestSuites.value == ["AppUITests/OnboardingFlowTests"])
+        // A nested suite is skipped by its path and reported under its innermost name, which is how
+        // a run reports it. A skip naming a single test is left out, since its suite may still have
+        // work that runs.
+        #expect(sentSkippedTestSuites.value == ["AppUITests/NestedFlowTests", "AppUITests/OnboardingFlowTests"])
 
         // The module universe is untouched. A skipped module's products still have to be downloaded
         // for the bundle to load, and whether its skips cover everything isn't knowable here.
         #expect(sentModules.value == ["AppUITests", "SmokeTests"])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_sendsTheWholeSelectionWhenEverySelectedSuiteIsSkipped() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(
+                        testTargets: [
+                            TestTargetFixture(
+                                blueprintName: "AppUITests",
+                                onlyTestIdentifiers: ["OnboardingFlowTests/testExample()"],
+                                skipTestIdentifiers: ["OnboardingFlowTests"]
+                            ),
+                        ]
+                    ),
+                ]
+            ),
+            at: testProductsPath.appending(component: "MyApp.xctestrun"),
+            encoder: plistEncoder()
+        )
+
+        let sentTestSuites = LockedValue<[String]?>(nil)
+        let sentSkippedTestSuites = LockedValue<[String]?>(nil)
+        let createShardPlanService = MockCreateShardPlanServicing()
+        given(createShardPlanService)
+            .createShardPlan(
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                modules: .any,
+                parallelizableModules: .any,
+                testSuites: .any,
+                skippedTestSuites: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                shardGranularity: .any,
+                buildRunId: .any,
+                gitBranch: .any
+            )
+            .willProduce { _, _, _, _, _, testSuites, skippedTestSuites, _, _, _, _, _, _, _ in
+                sentTestSuites.mutate { $0 = testSuites }
+                sentSkippedTestSuites.mutate { $0 = skippedTestSuites }
+                return Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 1,
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
+                )
+            }
+
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService).output(.any).willReturn()
+
+        let subject = ShardPlanService(
+            createShardPlanService: createShardPlanService,
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService
+        )
+
+        _ = try await subject.plan(
+            xctestproductsPath: testProductsPath,
+            projectPath: temporaryDirectory,
+            reference: "ref",
+            shardGranularity: .suite,
+            shardMin: nil,
+            shardMax: nil,
+            shardTotal: 1,
+            shardMaxDuration: nil,
+            fullHandle: "tuist/tuist",
+            serverURL: try #require(URL(string: "https://tuist.dev")),
+            buildRunId: nil,
+            skipUpload: true,
+            archivePath: temporaryDirectory.appending(components: "artifacts", "bundle.aar")
+        )
+
+        // The selection still has to be sent, even though the skips cancel it out. Sending nothing
+        // would leave the module looking unrestricted, and it would be resolved from history into
+        // suites that `OnlyTestIdentifiers` never let run.
+        #expect(sentTestSuites.value == ["AppUITests/OnboardingFlowTests"])
+        #expect(sentSkippedTestSuites.value == ["AppUITests/OnboardingFlowTests"])
     }
 
     private func writeXCTestProducts(modules: [String], at testProductsPath: AbsolutePath, fileSystem: FileSystem) async throws {

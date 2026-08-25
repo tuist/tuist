@@ -52,10 +52,14 @@ public struct XCTestRun: Decodable, Equatable {
     /// limited to nothing contributes no entries and is left to be resolved from history.
     ///
     /// Identifiers naming a single test are collapsed to the suite that holds it, since a plan
-    /// distributes suites. Suites the products also skip are left out: xcodebuild applies the skips
-    /// after the selection, so a selected suite that is skipped runs nothing.
+    /// distributes suites.
+    ///
+    /// Suites the products also skip stay in: this is what tells a consumer which modules the
+    /// products restrict at all, and it has to be read before the skips are applied. Narrowing it
+    /// here would leave a module whose every selected suite is skipped looking unrestricted, which
+    /// is the one state that invites resolving it from history and planning suites the selection
+    /// already ruled out.
     public func selectedTestSuiteIdentifiers() -> [String] {
-        let skipped = Set(skippedTestSuiteIdentifiers())
         let identifiers = testConfigurations
             .flatMap { $0.testTargets ?? [] }
             .flatMap { target in
@@ -64,20 +68,28 @@ public struct XCTestRun: Decodable, Equatable {
                     return "\(target.blueprintName)/\(suite)"
                 }
             }
-        return Set(identifiers).subtracting(skipped).sorted()
+        return Set(identifiers).sorted()
     }
 
-    /// The suites the built products take out of a module's run, as `Module/Suite`. Only skips that
-    /// name a whole suite are reported: xcodebuild applies them to everything under that name, so
-    /// the suite is known not to run. A skip naming a single test says nothing about its suite,
-    /// which may still have tests left, and the xctestrun holds no inventory to check against.
+    /// The suites the built products take out of a module's run, as `Module/Suite`.
+    ///
+    /// A skip identifier names the innermost thing it disables, and a nested suite is named by its
+    /// whole path, so the suite is the last component rather than the first: skipping
+    /// `ParentSuite/NestedSuite` takes out `NestedSuite`, which is also the name a run reports it
+    /// under. An identifier ending in a function only reduces the suite holding it, which may still
+    /// have tests left to run, and the xctestrun carries no inventory to check that against, so
+    /// those are left out. A trailing `()` and a lowercase first character each mark a function
+    /// rather than a type.
     public func skippedTestSuiteIdentifiers() -> [String] {
         let identifiers = testConfigurations
             .flatMap { $0.testTargets ?? [] }
             .flatMap { target in
                 (target.skipTestIdentifiers ?? []).compactMap { identifier -> String? in
-                    guard !identifier.contains("/") else { return nil }
-                    return "\(target.blueprintName)/\(identifier)"
+                    guard let suite = identifier.split(separator: "/").last.map(String.init),
+                          !suite.hasSuffix("()"),
+                          suite.first?.isLowercase != true
+                    else { return nil }
+                    return "\(target.blueprintName)/\(suite)"
                 }
             }
         return Set(identifiers).sorted()

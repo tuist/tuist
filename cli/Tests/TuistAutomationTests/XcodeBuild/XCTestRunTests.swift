@@ -130,7 +130,7 @@
         }
 
         @Test
-        func decode_v2_skippedSuitesAreExcludedFromSelectedSuites() throws {
+        func decode_v2_selectedSuitesAreReportedWholeAlongsideTheSkips() throws {
             let plist = try makePlist([
                 "TestConfigurations": [
                     [
@@ -147,10 +147,64 @@
 
             let xcTestRun = try PropertyListDecoder().decode(XCTestRun.self, from: plist)
 
-            // xcodebuild applies the skips after the selection, so a selected suite that is also
-            // skipped runs nothing.
-            #expect(xcTestRun.selectedTestSuiteIdentifiers() == ["AppUITests/CheckoutFlowTests"])
+            // The selection is reported in full even where the skips cancel it out. It is what tells
+            // the consumer which modules the products restrict at all, and narrowing it here would
+            // make a module whose every selected suite is skipped look unrestricted.
+            #expect(
+                xcTestRun.selectedTestSuiteIdentifiers() == [
+                    "AppUITests/CheckoutFlowTests",
+                    "AppUITests/OnboardingFlowTests",
+                ]
+            )
             #expect(xcTestRun.skippedTestSuiteIdentifiers() == ["AppUITests/OnboardingFlowTests"])
+        }
+
+        @Test
+        func decode_v2_parsesNestedSuiteSkips() throws {
+            let plist = try makePlist([
+                "TestConfigurations": [
+                    [
+                        "TestTargets": [
+                            [
+                                "BlueprintName": "AppUITests",
+                                "SkipTestIdentifiers": ["OnboardingFlowTests/NestedFlowTests"],
+                            ],
+                        ],
+                    ],
+                ],
+            ])
+
+            let xcTestRun = try PropertyListDecoder().decode(XCTestRun.self, from: plist)
+
+            // A nested Swift Testing suite is skipped by its path, and a suite is named by its
+            // innermost component, matching how a run reports it.
+            #expect(xcTestRun.skippedTestSuiteIdentifiers() == ["AppUITests/NestedFlowTests"])
+        }
+
+        @Test
+        func decode_v2_ignoresSkipsNamingASingleTest() throws {
+            let plist = try makePlist([
+                "TestConfigurations": [
+                    [
+                        "TestTargets": [
+                            [
+                                "BlueprintName": "AppUITests",
+                                "SkipTestIdentifiers": [
+                                    "OnboardingFlowTests/testExample",
+                                    "CheckoutFlowTests/testExample()",
+                                    "SettingsFlowTests/NestedFlowTests/testExample()",
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ])
+
+            let xcTestRun = try PropertyListDecoder().decode(XCTestRun.self, from: plist)
+
+            // Skips naming a single test leave their suite with tests that may still run. A trailing
+            // "()" and a lowercase first character both mark a function rather than a type.
+            #expect(xcTestRun.skippedTestSuiteIdentifiers().isEmpty)
         }
 
         @Test
