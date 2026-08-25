@@ -48,6 +48,21 @@ defmodule Tuist.ProjectsTest do
       assert got == 2
     end
 
+    test "counts only public projects when filtered by visibility" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      ProjectsFixtures.project_fixture(account_id: account.id, visibility: :public)
+      ProjectsFixtures.project_fixture(account_id: account.id, visibility: :private)
+
+      # When
+      got = Projects.get_project_count_for_account(account, visibility: :public)
+
+      # Then
+      assert got == 1
+    end
+
     test "returns 0 when account has no projects" do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -196,6 +211,9 @@ defmodule Tuist.ProjectsTest do
       assert alert.trigger_actions == [%{"type" => "add_label", "label" => "flaky"}]
       assert alert.recovery_enabled == true
       assert alert.recovery_actions == [%{"type" => "remove_label", "label" => "flaky"}]
+
+      assert [%{event: "created", source: "system", changes: %{}}] =
+               Automations.list_alert_revisions(alert.id)
     end
 
     test "rolls back the project insert if alert seeding fails" do
@@ -1151,6 +1169,38 @@ defmodule Tuist.ProjectsTest do
       # Project A should come first (most recent interaction at 15:00)
       # Project B should come second (interaction at 12:00)
       assert project_names == ["project-a", "project-b"]
+    end
+  end
+
+  describe "list_accessible_projects/2 visibility filtering" do
+    test "returns only public projects when filtered" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      public_project = ProjectsFixtures.project_fixture(account_id: account.id, visibility: :public)
+      ProjectsFixtures.project_fixture(account_id: account.id, visibility: :private)
+
+      # When
+      got = Projects.list_accessible_projects(account, visibility: :public)
+
+      # Then
+      assert Enum.map(got, & &1.id) == [public_project.id]
+    end
+
+    test "returns every project when unfiltered" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      ProjectsFixtures.project_fixture(account_id: account.id, visibility: :public)
+      ProjectsFixtures.project_fixture(account_id: account.id, visibility: :private)
+
+      # When
+      got = Projects.list_accessible_projects(account)
+
+      # Then
+      assert length(got) == 2
     end
   end
 

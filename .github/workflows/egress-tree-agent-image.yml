@@ -1,0 +1,102 @@
+name: Egress Tree Agent Image
+
+# PR validation + ad-hoc image build for egress-tree-agent, the DaemonSet
+# that enforces the kura per-tenant egress floors/ceilings and the node box
+# cap through a shared per-node HTB tree (infra/egress-tree-agent/).
+#
+# Steady-state image promotion is owned by the release + deploy pipeline
+# (server-production-deployment.yml's `release-egress-tree-agent` builds the
+# `<semver>` image and tags `egress-tree-agent@<semver>`; server-deployment.yml
+# resolves that tag into `egressTreeAgent.image.tag`). This workflow validates
+# PRs and handles pre-release iteration via `:sha-<git-sha>` tags, which
+# server-deployment.yml's `egress_tree_agent_image_tag` input can pin.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/egress-tree-agent/**
+      - .github/workflows/egress-tree-agent-image.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - infra/egress-tree-agent/**
+      - .github/workflows/egress-tree-agent-image.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/egress-tree-agent
+
+jobs:
+  test:
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/egress-tree-agent/go.mod
+          cache-dependency-path: infra/egress-tree-agent/go.sum
+      - name: Install BPF toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang libbpf-dev
+          # Debian/Ubuntu keep asm/ under the multiarch dir; clang -target bpf
+          # does not search it, so expose it the way gcc-multilib would.
+          sudo ln -sfn "/usr/include/$(uname -m)-linux-gnu/asm" /usr/include/asm
+      - name: Generate BPF bindings
+        working-directory: infra/egress-tree-agent
+        run: go generate ./internal/agent
+      - name: Test
+        working-directory: infra/egress-tree-agent
+        run: go test ./...
+      - name: Vet
+        working-directory: infra/egress-tree-agent
+        run: go vet ./...
+
+  # Builds on every run (a Dockerfile broken on a PR must not surface only
+  # after merge on main); pushes to ghcr only outside pull_request events,
+  # which also keeps fork PRs away from the registry.
+  build:
+    needs: test
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute tags
+        id: tags
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          GIT_SHA="${GITHUB_SHA::12}"
+          {
+            echo "tags<<EOF"
+            echo "${IMAGE}:sha-${GIT_SHA}"
+            # latest tracks main only; a branch workflow_dispatch (pre-merge
+            # staging builds) must not repoint it.
+            if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+              echo "${IMAGE}:latest"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/egress-tree-agent/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha,scope=egress-tree-agent
+          cache-to: type=gha,mode=max,scope=egress-tree-agent

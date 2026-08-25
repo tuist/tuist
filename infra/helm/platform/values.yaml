@@ -195,6 +195,28 @@ kura-us-west-ingress-nginx:
     metrics:
       enabled: true
 
+# Asia Pacific Southeast (Singapore). Off by default like every other kura
+# gateway; the environments that serve the region turn it on.
+kura-ap-southeast-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-ap-southeast-ingress-nginx-leader
+    ingressClass: kura-ap-southeast
+    ingressClassResource:
+      name: kura-ap-southeast
+      controllerValue: k8s.io/kura-ap-southeast-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
 external-dns:
   enabled: true
   provider: cloudflare

@@ -136,6 +136,87 @@ func TestReplaceUnreadyPodsForImageChange(t *testing.T) {
 	}
 }
 
+// Adding a key to kura-shared-secrets has to reach running pods. envFrom is
+// resolved at pod start, so a Secret edit alone would leave every existing node
+// on its old environment indefinitely. The pod template carries the Secret's
+// resourceVersion, so editing it changes the template and the StatefulSet rolls;
+// the Secret watch in SetupWithManager is what schedules the reconcile that
+// recomputes it.
+func TestSharedSecretChangeRollsKuraPods(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:    "tuist",
+			TenantID:         "tuist",
+			Region:           "eu",
+			Image:            "ghcr.io/tuist/kura:0.5.2",
+			PublicHost:       "tuist-eu-1.kura.tuist.dev",
+			IngressClassName: "kura-eu-central",
+			StorageClassName: "hcloud-volumes",
+		},
+	}
+	sharedSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: sharedSecretsName, Namespace: instance.Namespace, ResourceVersion: "12345"},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(instance, sharedSecret).WithStatusSubresource(instance).Build(),
+		Scheme:            scheme,
+		GRPCClusterIssuer: "letsencrypt-prod",
+		Environment:       "canary",
+	}
+	request := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+
+	if _, err := reconciler.Reconcile(ctx, request); err != nil {
+		t.Fatal(err)
+	}
+	before := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, before); err != nil {
+		t.Fatal(err)
+	}
+	if got := before.Spec.Template.Annotations[sharedSecretsRVAnnotation]; got != "12345" {
+		t.Fatalf("expected the pod template to carry the shared secret resource version, got %q", got)
+	}
+
+	// What ESO does when the cache-token public key lands in the Secret.
+	stored := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: sharedSecretsName, Namespace: instance.Namespace}, stored); err != nil {
+		t.Fatal(err)
+	}
+	stored.StringData = map[string]string{"KURA_AUTH_JWT_PUBLIC_KEY": "-----BEGIN PUBLIC KEY-----"}
+	if err := reconciler.Update(ctx, stored); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := reconciler.Reconcile(ctx, request); err != nil {
+		t.Fatal(err)
+	}
+	after := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, after); err != nil {
+		t.Fatal(err)
+	}
+
+	if after.Spec.Template.Annotations[sharedSecretsRVAnnotation] == before.Spec.Template.Annotations[sharedSecretsRVAnnotation] {
+		t.Fatal("expected the pod template to change so the StatefulSet rolls and pods pick up the new environment")
+	}
+
+	// And the Secret watch is what makes that reconcile happen at all.
+	requests := reconciler.kuraInstancesForSharedSecret(ctx, stored)
+	if len(requests) != 1 || requests[0].NamespacedName != request.NamespacedName {
+		t.Fatalf("expected the shared secret to enqueue its instances, got %v", requests)
+	}
+}
+
 func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
@@ -296,14 +377,20 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		t.Fatalf("expected deployment environment, got %q", got)
 	}
 	for name, expected := range map[string]string{
-		snapshotCacheMaxBytesEnvVar:             "67108864",
-		manifestCacheMaxBytesEnvVar:             "33554432",
-		metadataStoreReadCacheBytesEnvVar:       "33554432",
-		metadataStoreWriteBufferPoolBytesEnvVar: "33554432",
+		snapshotCacheMaxBytesEnvVar:       "67108864",
+		manifestCacheMaxBytesEnvVar:       "33554432",
+		metadataStoreReadCacheBytesEnvVar: "33554432",
 	} {
 		if got := env[name]; got != expected {
 			t.Fatalf("expected managed cache default %s=%s, got %q", name, expected, got)
 		}
+	}
+	// The write-buffer pool must stay unset so the process derives it from the
+	// pod's memory limit. Pinning it to 32 MiB is what let a single write burst
+	// saturate a pool built with allow_stall=true and block every writer inside
+	// RocksDB (#12556).
+	if _, pinned := env["KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES"]; pinned {
+		t.Fatal("expected the metadata-store write-buffer pool to be left auto-derived")
 	}
 	peerMountFound := false
 	for _, mount := range container.VolumeMounts {
@@ -1782,7 +1869,7 @@ func TestKuraInstanceReconcileConvertsLegacyGRPCIngressToSingleHost(t *testing.T
 	}
 }
 
-func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplateAndExpandsPVCs(t *testing.T) {
+func TestKuraInstanceReconcileLeavesStorageAloneOnImageChange(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
@@ -1806,7 +1893,6 @@ func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplateAnd
 	}
 	legacyInstance := instance.DeepCopy()
 	legacyInstance.Spec.Image = "ghcr.io/tuist/kura:0.5.2"
-	legacyInstance.Spec.StorageSize = "20Gi"
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace},
 		Spec: appsv1.StatefulSetSpec{
@@ -1816,8 +1902,8 @@ func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplateAnd
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(legacyInstance)},
 		},
 	}
-	pvc0 := dataPersistentVolumeClaim(instance, 0, "20Gi")
-	pvc1 := dataPersistentVolumeClaim(instance, 1, "20Gi")
+	pvc0 := dataPersistentVolumeClaim(instance, 0, "200Gi")
+	pvc1 := dataPersistentVolumeClaim(instance, 1, "200Gi")
 
 	reconciler := &KuraInstanceReconciler{
 		Client: fake.NewClientBuilder().
@@ -1839,23 +1925,24 @@ func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplateAnd
 	if got := updatedSts.Spec.Template.Spec.Containers[0].Image; got != "ghcr.io/tuist/kura:0.5.3" {
 		t.Fatalf("expected StatefulSet pod template to be updated, got %q", got)
 	}
-	if got := updatedSts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests.Storage().String(); got != "20Gi" {
+	if got := updatedSts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests.Storage().String(); got != "200Gi" {
 		t.Fatalf("expected existing StatefulSet PVC template to be preserved, got %q", got)
 	}
 
+	// An image change touches nothing about storage: the claims already hold the
+	// declared size, so no re-template and no rebuild.
 	for _, name := range []string{pvc0.Name, pvc1.Name} {
 		pvc := &corev1.PersistentVolumeClaim{}
 		if err := reconciler.Get(ctx, types.NamespacedName{Name: name, Namespace: instance.Namespace}, pvc); err != nil {
 			t.Fatal(err)
 		}
 		if got := pvc.Spec.Resources.Requests.Storage().String(); got != "200Gi" {
-			t.Fatalf("expected PVC %s to expand to 200Gi, got %q", name, got)
+			t.Fatalf("expected PVC %s to be left at 200Gi, got %q", name, got)
 		}
 	}
 }
 
-func TestKuraInstanceReconcileDoesNotShrinkPVCs(t *testing.T) {
-	ctx := context.Background()
+func TestReconcileDataStorageResize(t *testing.T) {
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
@@ -1864,51 +1951,173 @@ func TestKuraInstanceReconcileDoesNotShrinkPVCs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	replicas := int32(1)
-	instance := &kurav1alpha1.KuraInstance{
-		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
-		Spec: kurav1alpha1.KuraInstanceSpec{
-			AccountHandle: "tuist",
-			TenantID:      "tuist",
-			Region:        "eu",
-			Image:         "ghcr.io/tuist/kura:0.5.3",
-			Replicas:      &replicas,
-			StorageSize:   "20Gi",
-		},
-	}
-	stsInstance := instance.DeepCopy()
-	stsInstance.Spec.StorageSize = "200Gi"
-	sts := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace},
-		Spec: appsv1.StatefulSetSpec{
-			Replicas:             &replicas,
-			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(stsInstance, "", "production", "", false),
-			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(stsInstance)},
-		},
-	}
-	pvc := dataPersistentVolumeClaim(instance, 0, "200Gi")
+	const (
+		instanceName = "kura-acme-scw-fr-par"
+		namespace    = "kura"
+	)
 
-	reconciler := &KuraInstanceReconciler{
-		Client: fake.NewClientBuilder().
-			WithScheme(scheme).
-			WithObjects(instance, sts, pvc).
-			WithStatusSubresource(instance).
-			Build(),
-		Scheme: scheme,
+	instance := func(storage string) *kurav1alpha1.KuraInstance {
+		return &kurav1alpha1.KuraInstance{
+			ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace},
+			Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(2)), StorageSize: storage},
+		}
+	}
+	sts := func(storage string) *appsv1.StatefulSet {
+		return &appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace},
+			Spec: appsv1.StatefulSetSpec{
+				VolumeClaimTemplates: []corev1.PersistentVolumeClaim{{
+					ObjectMeta: metav1.ObjectMeta{Name: "data"},
+					Spec: corev1.PersistentVolumeClaimSpec{Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse(storage)},
+					}},
+				}},
+			},
+		}
+	}
+	claim := func(ordinal int, storage string) *corev1.PersistentVolumeClaim {
+		return &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("data-%s-%d", instanceName, ordinal),
+				Namespace: namespace,
+				Labels:    selectorLabels(instance("40Gi")),
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse(storage)},
+			}},
+		}
+	}
+	pod := func(ordinal int, ready bool) *corev1.Pod {
+		status := corev1.ConditionFalse
+		if ready {
+			status = corev1.ConditionTrue
+		}
+		return &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-%d", instanceName, ordinal),
+				Namespace: namespace,
+				Labels:    selectorLabels(instance("40Gi")),
+			},
+			Status: corev1.PodStatus{Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: status}}},
+		}
+	}
+	exists := func(t *testing.T, c client.Client, obj client.Object) bool {
+		t.Helper()
+		err := c.Get(context.Background(), types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, obj)
+		if err == nil {
+			return true
+		}
+		if apierrors.IsNotFound(err) {
+			return false
+		}
+		t.Fatalf("unexpected get error: %v", err)
+		return false
 	}
 
-	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
-		t.Fatal(err)
-	}
+	// The template is what the next PVC is created from, and it cannot be edited
+	// on a live StatefulSet. Replacing the object with Orphan propagation is what
+	// lets the claim move without the pods that are serving from it going away.
+	t.Run("re-templates without disturbing the running pods", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), sts("20Gi"), claim(0, "20Gi"), claim(1, "20Gi"), pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
 
-	updatedPVC := &corev1.PersistentVolumeClaim{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, updatedPVC); err != nil {
-		t.Fatal(err)
-	}
-	if got := updatedPVC.Spec.Resources.Requests.Storage().String(); got != "200Gi" {
-		t.Fatalf("expected PVC not to shrink, got %q", got)
-	}
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to report in flight")
+		}
+		if exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
+			t.Fatal("expected the StatefulSet to be replaced")
+		}
+		// The point of the whole exercise: nothing serving was taken down.
+		for ordinal := 0; ordinal < 2; ordinal++ {
+			if !exists(t, c, pod(ordinal, true)) {
+				t.Fatalf("pod %d must keep serving through the re-template", ordinal)
+			}
+			if !exists(t, c, claim(ordinal, "20Gi")) {
+				t.Fatalf("claim %d must survive the re-template", ordinal)
+			}
+		}
+	})
+
+	// One ordinal at a time, lowest first, and only the one.
+	t.Run("rebuilds a single replica at a time", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "20Gi"), pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to report in flight")
+		}
+		if exists(t, c, claim(0, "20Gi")) || exists(t, c, pod(0, true)) {
+			t.Fatal("expected ordinal 0 to be taken for rebuild")
+		}
+		if !exists(t, c, claim(1, "20Gi")) || !exists(t, c, pod(1, true)) {
+			t.Fatal("ordinal 1 must keep serving while ordinal 0 rebuilds")
+		}
+	})
+
+	// The standby is the whole safety argument, so a rebuild waits for it rather
+	// than joining it in being down.
+	t.Run("waits while a sibling is not serving", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "20Gi"), pod(0, true), pod(1, false),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to keep requeuing while it waits")
+		}
+		if !exists(t, c, claim(0, "20Gi")) || !exists(t, c, pod(0, true)) {
+			t.Fatal("expected ordinal 0 to be left alone while its sibling is down")
+		}
+	})
+
+	t.Run("leaves a volume larger than the claim alone", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("20Gi"), sts("20Gi"), claim(0, "40Gi"), claim(1, "40Gi"), pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("20Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("a volume larger than the claim needs no resize")
+		}
+		if !exists(t, c, claim(0, "40Gi")) {
+			t.Fatal("an oversized volume must not be rebuilt")
+		}
+	})
+
+	t.Run("does nothing once every volume holds the claim", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), sts("40Gi"), claim(0, "40Gi"), claim(1, "40Gi"), pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("expected the resize to be finished")
+		}
+	})
 }
 
 func TestKuraInstanceReconcileDeletionReclaimsDataVolumes(t *testing.T) {
@@ -2422,7 +2631,7 @@ func TestPrimaryPodHealthRuntimeConfirmedIgnoresAge(t *testing.T) {
 		},
 	}
 
-	routable := reconciler.primaryPodHealth(context.Background(), instance, pods)
+	routable, _ := reconciler.primaryPodHealth(context.Background(), instance, pods)
 	if !routable[name+"-0"] {
 		t.Fatal("expected a runtime-confirmed fresh pod to be routable (gapless deploy)")
 	}
@@ -2450,7 +2659,7 @@ func TestPrimaryPodHealthAgeGatesWhenRuntimeStatusUnavailable(t *testing.T) {
 		RuntimeStatusClient: fakeRuntimeStatusClient{err: fmt.Errorf("status endpoint unreachable")},
 	}
 
-	routable := reconciler.primaryPodHealth(context.Background(), instance, pods)
+	routable, _ := reconciler.primaryPodHealth(context.Background(), instance, pods)
 	if routable[name+"-0"] {
 		t.Fatal("expected fresh pod to be excluded when the runtime bootstrap signal is unavailable")
 	}
@@ -2698,8 +2907,9 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 		pod,
 	).Build()
 	reconciler := &KuraInstanceReconciler{
-		Client: client,
-		Scheme: scheme,
+		Client:    client,
+		APIReader: client,
+		Scheme:    scheme,
 		RuntimeStatusClient: fakeRuntimeStatusClient{
 			statuses: map[string]runtimeStatus{
 				instance.Name + "-0": {Ready: true, State: "serving", WriterLockOwned: true},

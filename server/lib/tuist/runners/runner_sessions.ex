@@ -63,6 +63,12 @@ defmodule Tuist.Runners.RunnerSessions do
   @max_session_lifetime_seconds 6 * 60 * 60
 
   @doc """
+  The six-hour bound above, for callers that reconstruct how long a
+  runner held its slot from records that may be missing their close.
+  """
+  def max_session_lifetime_seconds, do: @max_session_lifetime_seconds
+
+  @doc """
   Open a billing session once dispatch has committed and the runner
   is recorded as running. `started_at` is the claim timestamp, the
   moment we bound the warm Pod to this workflow job. Opening at this

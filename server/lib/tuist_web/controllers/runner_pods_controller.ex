@@ -14,6 +14,7 @@ defmodule TuistWeb.RunnerPodsController do
 
   alias Tuist.Runners.Claims
   alias Tuist.Runners.InteractiveSessions
+  alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.Workers.OrphanedRunnersWorker
@@ -47,6 +48,7 @@ defmodule TuistWeb.RunnerPodsController do
          {:ok, _} <- RunnerSessions.close_by_pod_name(pod_name, ended_at),
          {:ok, _} <- InteractiveSessions.close_by_pod_name(pod_name, ended_at) do
       release_stranded_claim(pod_name)
+      recover_jobs_left_running(pod_name)
       send_resp(conn, :no_content, "")
     else
       {:error, :missing_bearer} ->
@@ -114,18 +116,50 @@ defmodule TuistWeb.RunnerPodsController do
           %{count: length(released)},
           %{kind: "stranded_claim_released"}
         )
-
-        Enum.each(released, &schedule_orphan_recovery(&1, pod_name))
     end
   end
 
-  # Releasing the claim frees capacity but leaves the job undispatchable:
-  # its ClickHouse row still reads `running`, which `pick_queued/2` skips.
-  # Nothing else corrects that promptly — GitHub never re-announces a job
-  # it still considers `queued`, and `OrphanedRunnersWorker`'s sweep will
-  # not look at the row until it is 5 minutes old. So hand the worker the
-  # one id to re-check now. It still asks GitHub before re-queueing, so
-  # this shortens the wait without widening what we act on.
+  # Freeing capacity is only half the recovery: the job's lifecycle row
+  # still reads `running`, which `pick_queued/2` skips. Nothing else
+  # corrects that promptly — GitHub never re-announces a job it still
+  # considers `queued`, and `OrphanedRunnersWorker`'s sweep will not look
+  # at the row until it is 5 minutes old. So hand the worker the ids to
+  # re-check now. It still asks GitHub before re-queueing, so this
+  # shortens the wait without widening what we act on.
+  #
+  # Driven off the lifecycle rows bound to the Pod rather than off what
+  # the claim release returned, because the claim is a *capacity*
+  # reservation and is released by whichever event frees the slot first.
+  # When the runner executed a sibling's job — the common shape, since
+  # GitHub binds a JIT runner by label set and never to a specific job —
+  # that sibling's `completed` webhook already released this Pod's claim
+  # by executor, leaving nothing here to release while the job the Pod
+  # was minted for sits at `running`. Keying on the claim delete made the
+  # fast path a silent no-op for exactly that population; the Pod
+  # stopping is proof the job is not executing on it either way.
+  defp recover_jobs_left_running(pod_name) do
+    case Jobs.list_running_for_pod(pod_name) do
+      [] ->
+        :ok
+
+      running ->
+        workflow_job_ids = Enum.map(running, & &1.workflow_job_id)
+
+        Logger.warning("runners: recovering jobs left running by a stopped pod",
+          pod: pod_name,
+          workflow_job_ids: workflow_job_ids
+        )
+
+        :telemetry.execute(
+          Telemetry.event_name_recovery(),
+          %{count: length(workflow_job_ids)},
+          %{kind: "pod_stop_recovery_scheduled"}
+        )
+
+        Enum.each(workflow_job_ids, &schedule_orphan_recovery(&1, pod_name))
+    end
+  end
+
   defp schedule_orphan_recovery(workflow_job_id, pod_name) do
     # `pod_name` binds the recovery to this attempt: a delayed run must
     # not act on a row that a replacement Pod has since claimed.

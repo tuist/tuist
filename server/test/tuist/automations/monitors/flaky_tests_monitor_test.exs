@@ -1295,37 +1295,6 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       assert FlakyTestsMonitor.branch_scope(flakiness) == :all_branches
     end
 
-    test "an explicit branch_scope overrides the per-monitor default in both directions" do
-      project = ProjectsFixtures.project_fixture()
-
-      opted_out =
-        AutomationsFixtures.automation_alert_fixture(
-          project: project,
-          monitor_type: "reliability_rate",
-          trigger_config: %{
-            "threshold" => 90,
-            "window_type" => "last_days",
-            "window" => "30d",
-            "branch_scope" => "all_branches"
-          }
-        )
-
-      opted_in =
-        AutomationsFixtures.automation_alert_fixture(
-          project: project,
-          monitor_type: "flakiness_rate",
-          trigger_config: %{
-            "threshold" => 10,
-            "window_type" => "last_days",
-            "window" => "30d",
-            "branch_scope" => "default_branch"
-          }
-        )
-
-      assert FlakyTestsMonitor.branch_scope(opted_out) == :all_branches
-      assert FlakyTestsMonitor.branch_scope(opted_in) == :default_branch
-    end
-
     test "alerts that read different buckets are not collapsed into one rolling query" do
       project = ProjectsFixtures.project_fixture()
 
@@ -1335,14 +1304,14 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "reliability_rate",
-          trigger_config: Map.put(base, "branch_scope", "default_branch")
+          trigger_config: base
         )
 
       unscoped =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
-          monitor_type: "reliability_rate",
-          trigger_config: Map.put(base, "branch_scope", "all_branches")
+          monitor_type: "flakiness_rate",
+          trigger_config: base
         )
 
       refute FlakyTestsMonitor.rolling_group_key(scoped) == FlakyTestsMonitor.rolling_group_key(unscoped)
@@ -1368,21 +1337,16 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
           trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d"}
         )
 
-      unscoped =
-        AutomationsFixtures.automation_alert_fixture(
-          project: project,
-          monitor_type: "reliability_rate",
-          trigger_config: %{
-            "threshold" => 90,
-            "window_type" => "last_days",
-            "window" => "30d",
-            "branch_scope" => "all_branches"
-          }
-        )
-
       assert %{triggered: []} = FlakyTestsMonitor.evaluate_by_reliability_rate(scoped)
-      assert %{triggered: [triggered_id]} = FlakyTestsMonitor.evaluate_by_reliability_rate(unscoped)
-      assert triggered_id == test_case.id
+
+      # The failure is still on record; it is the scoping that excluded it, not
+      # the run having gone missing. The all-branch aggregate holds both runs and
+      # would put this test case at 50%, under the 90% threshold.
+      assert aggregate_runs("test_case_run_daily_stats_per_case", project.id, test_case.id) ==
+               {2, 1}
+
+      assert aggregate_runs("test_case_run_daily_stats_per_case_default_branch", project.id, test_case.id) ==
+               {1, 1}
     end
 
     test "a project whose default branch is master scopes to master, not to main" do
@@ -1448,25 +1412,12 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
           trigger_config: %{"threshold" => 50, "window_type" => "last_days", "window" => "30d"}
         )
 
-      opted_in =
-        AutomationsFixtures.automation_alert_fixture(
-          project: project,
-          monitor_type: "flakiness_rate",
-          trigger_config: %{
-            "threshold" => 50,
-            "window_type" => "last_days",
-            "window" => "30d",
-            "branch_scope" => "default_branch"
-          }
-        )
-
       assert %{triggered: [^test_case_id]} = FlakyTestsMonitor.evaluate(unscoped)
-      assert %{triggered: []} = FlakyTestsMonitor.evaluate(opted_in)
     end
   end
 
   describe "measurable_test_case_ids/2" do
-    test "an unscoped alert measures everything it is asked about" do
+    test "a flakiness alert measures everything it is asked about" do
       project = ProjectsFixtures.project_fixture()
       ids = [UUIDv7.generate(), UUIDv7.generate()]
 
@@ -1532,5 +1483,22 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       )
 
     run
+  end
+
+  # Returns {run_count, successful_run_count} straight out of an aggregate, so a
+  # test can show which runs a table actually holds rather than inferring it from
+  # whether an alert fired.
+  defp aggregate_runs(table, project_id, test_case_id) do
+    %{rows: [[runs, successes]]} =
+      IngestRepo.query!(
+        """
+        SELECT countMerge(run_count), sumMerge(successful_run_count)
+        FROM #{table}
+        WHERE project_id = {project_id:Int64} AND test_case_id = {test_case_id:UUID}
+        """,
+        %{project_id: project_id, test_case_id: test_case_id}
+      )
+
+    {runs, successes}
   end
 end

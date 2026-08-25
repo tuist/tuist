@@ -16,6 +16,7 @@ defmodule Tuist.Billing do
   alias Tuist.CommandEvents
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
+  alias Tuist.Runners.Trials
 
   # Unfortunately, this data can't be obtained and cached
   # from the Stripe's API, so we have to make sure it's in sync
@@ -352,7 +353,7 @@ defmodule Tuist.Billing do
 
     current_subscription = get_current_active_subscription(account)
 
-    subscription_items = get_subscription_items(to_string(plan))
+    subscription_items = get_subscription_items(to_string(plan), account)
 
     if is_nil(current_subscription) do
       {:ok, session} =
@@ -420,7 +421,7 @@ defmodule Tuist.Billing do
     |> MapSet.new()
   end
 
-  defp get_subscription_items(plan) do
+  defp get_subscription_items(plan, account) do
     available_prices = Tuist.Environment.stripe_prices()
 
     usage_prices =
@@ -434,7 +435,7 @@ defmodule Tuist.Billing do
       |> Enum.map(&%{price: &1, quantity: 1})
       |> Enum.take(1)
 
-    usage_prices ++ runner_subscription_items(available_prices) ++ flat_prices
+    usage_prices ++ runner_subscription_items(available_prices, account) ++ flat_prices
   end
 
   @doc """
@@ -444,7 +445,11 @@ defmodule Tuist.Billing do
 
   When `params` contains billing details (`:name`, `:billing_email`,
   `:address`), the Stripe customer is updated first. Callers that already
-  have a customer with those details on file can pass just `%{cadence: ...}`.
+  have a customer with those details on file can pass `%{}`.
+
+  Always monthly. Enterprise terms are invoiced off to the side rather
+  than through this subscription, so a yearly cadence bought nothing and
+  billed runner usage a year in arrears.
   """
   def upgrade_to_enterprise(%Account{} = account, params) do
     account = Accounts.create_customer_when_absent(account)
@@ -458,7 +463,7 @@ defmodule Tuist.Billing do
         })
     end
 
-    subscription_items = enterprise_subscription_items(Map.get(params, :cadence, "monthly"))
+    subscription_items = enterprise_subscription_items(account)
     current_subscription = get_current_active_subscription(account)
 
     stripe_sub =
@@ -489,9 +494,8 @@ defmodule Tuist.Billing do
     {:ok, stripe_sub}
   end
 
-  defp enterprise_subscription_items(cadence) do
+  defp enterprise_subscription_items(account) do
     available_prices = Tuist.Environment.stripe_prices()
-    key = if cadence == "yearly", do: "flat_yearly", else: "flat_monthly"
 
     usage_prices =
       available_prices["enterprise"]["usage"]
@@ -501,15 +505,27 @@ defmodule Tuist.Billing do
     # Enterprise is negotiated per-deal; start the subscription with 0 seats
     # so sales can fill in the actual quantity on Stripe without us guessing.
     flat_prices =
-      available_prices["enterprise"][key]
+      available_prices["enterprise"]["flat_monthly"]
       |> List.wrap()
       |> Enum.take(1)
       |> Enum.map(&%{price: &1, quantity: 0})
 
-    usage_prices ++ runner_subscription_items(available_prices) ++ flat_prices
+    usage_prices ++ runner_subscription_items(available_prices, account) ++ flat_prices
   end
 
-  defp runner_subscription_items(available_prices) do
+  # An account on a runner trial carries no runner item, which is what
+  # makes its runner usage unbillable: usage is still metered and still
+  # reported gross, but there is nothing on the subscription for Stripe
+  # to invoice it against. See `Tuist.Runners.Trials`.
+  defp runner_subscription_items(available_prices, account) do
+    if Trials.on_trial?(account) do
+      []
+    else
+      configured_runner_prices(available_prices)
+    end
+  end
+
+  defp configured_runner_prices(available_prices) do
     available_prices
     |> Map.get("runners", %{})
     |> Enum.sort_by(&elem(&1, 0))
@@ -517,6 +533,111 @@ defmodule Tuist.Billing do
       {_meter_event_name, price_id} when is_binary(price_id) and price_id != "" -> [%{price: price_id}]
       _ -> []
     end)
+  end
+
+  @doc """
+  Reconciles `account`'s live subscription so its runner items match its
+  trial state: an account on a runner trial carries none, and one off
+  trial carries every configured runner Price.
+
+  Called when a trial starts or ends. Idempotent, and a no-op for an
+  account with no active subscription — that account picks the items up
+  from `get_subscription_items/2` whenever it next gets one.
+
+  Items are added with `proration_behavior: "none"` so ending a trial
+  mid-period cannot invoice the usage the trial covered. See
+  `Tuist.Runners.Trials`.
+  """
+  def sync_runner_subscription_items(%Account{} = account) do
+    case get_current_active_subscription(account) do
+      %Subscription{subscription_id: subscription_id} when is_binary(subscription_id) ->
+        with {:ok, stripe_subscription} <- Stripe.Subscription.retrieve(subscription_id) do
+          apply_runner_item_changes(subscription_id, stripe_subscription, account)
+        end
+
+      _ ->
+        {:ok, :no_subscription}
+    end
+  end
+
+  defp apply_runner_item_changes(subscription_id, stripe_subscription, account) do
+    runner_price_ids = configured_runner_price_ids()
+
+    present =
+      Enum.filter(stripe_subscription.items.data, &MapSet.member?(runner_price_ids, subscription_item_price_id(&1)))
+
+    changes =
+      if Trials.on_trial?(account) do
+        Enum.map(present, &%{id: &1.id, deleted: true})
+      else
+        present_price_ids = MapSet.new(present, &subscription_item_price_id/1)
+
+        (Tuist.Environment.stripe_prices() || %{})
+        |> configured_runner_prices()
+        |> Enum.reject(&MapSet.member?(present_price_ids, &1.price))
+      end
+
+    case changes do
+      [] ->
+        {:ok, :unchanged}
+
+      changes ->
+        # `none` is what makes a trial's minutes free in fact rather than
+        # by convention. Stripe's default settles the amount accrued
+        # before the change, so adding the runner item mid-period can
+        # invoice usage the account ran while it had no runner item at
+        # all, which is precisely the usage the trial covered.
+        Stripe.Subscription.update(subscription_id, %{items: changes, proration_behavior: "none"})
+    end
+  end
+
+  @doc """
+  The account's current billing period as `{start, end}`, or `nil` when
+  it has no active subscription or Stripe cannot be reached.
+
+  Callers that need a window to attribute usage to should prefer this
+  over the calendar month whenever it is available: Stripe resets
+  tiered allowances on the subscription cycle, so a customer whose cycle
+  does not start on the first would otherwise be shown a free tier that
+  refreshes on a different day from the one they are billed against.
+
+  Returns `nil` rather than raising, because a usage page that cannot
+  reach Stripe should fall back to the calendar month rather than fail.
+  """
+  def current_billing_period(%Account{} = account) do
+    with %Subscription{subscription_id: subscription_id} when is_binary(subscription_id) <-
+           get_current_active_subscription(account),
+         {:ok, stripe_subscription} <- Stripe.Subscription.retrieve(subscription_id),
+         period_start when is_integer(period_start) <- Map.get(stripe_subscription, :current_period_start),
+         period_end when is_integer(period_end) <- Map.get(stripe_subscription, :current_period_end) do
+      {DateTime.from_unix!(period_start), DateTime.from_unix!(period_end)}
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  The `count` most recent billing periods, newest first, as
+  `{start, end}` datetimes.
+
+  Derived by stepping the current period back a month at a time rather
+  than read from Stripe's invoice history: the anchor day is what makes
+  a period, and stepping it reproduces the same bounds without a call
+  per period. Accounts with no subscription get calendar months, which
+  is the window their allowance follows.
+  """
+  def recent_billing_periods(%Account{} = account, count) when is_integer(count) and count > 0 do
+    {period_start, period_end} = current_billing_period(account) || calendar_month(DateTime.utc_now())
+
+    Enum.map(0..(count - 1), fn months_back ->
+      {Timex.shift(period_start, months: -months_back), Timex.shift(period_end, months: -months_back)}
+    end)
+  end
+
+  defp calendar_month(%DateTime{} = now) do
+    period_start = %{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}
+
+    {period_start, Timex.shift(period_start, months: 1)}
   end
 
   @doc """
@@ -606,16 +727,16 @@ defmodule Tuist.Billing do
   end
 
   defp plan_valid?({plan, plan_prices}, subscription_prices) do
+    flat = List.wrap(plan_prices["flat_monthly"])
+
     if plan == "enterprise" do
-      flat = List.wrap(plan_prices["flat_monthly"]) ++ List.wrap(plan_prices["flat_yearly"])
       Enum.any?(flat, &Enum.member?(subscription_prices, &1))
     else
       usage = List.wrap(plan_prices["usage"])
-      flat = List.wrap(plan_prices["flat_monthly"])
 
       # The subscription must:
       #   - Include all the usage-based prices
-      #   - Include at least one flat-based price (monthly or yearly)
+      #   - Include the flat price
       Enum.all?(usage, &Enum.member?(subscription_prices, &1)) and
         Enum.any?(flat, &Enum.member?(subscription_prices, &1))
     end
@@ -719,6 +840,68 @@ defmodule Tuist.Billing do
       %{plan: plan} when is_atom(plan) -> plan
       _ -> :air
     end
+  end
+
+  @doc """
+  Whether the account has exhausted the free tier and must upgrade before it
+  can reach the cache again.
+
+  Only Air accounts are gated. An account whose paid subscription lapsed
+  resolves to Air, so it is gated on the same terms as one that never
+  subscribed.
+  """
+  def cache_access_blocked?(%Account{} = account) do
+    effective_plan(account) == :air and
+      over_free_tier?(account.current_month_remote_cache_hits_count)
+  end
+
+  @doc """
+  The ids of the given accounts whose free tier is exhausted.
+
+  Only accounts already past the threshold need their plan resolved, and those
+  are resolved in one query rather than one apiece, so the cache authorization
+  paths do not scale a query per account the subject can reach.
+  """
+  def cache_blocked_account_ids(accounts) do
+    candidates =
+      accounts
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.filter(&over_free_tier?(&1.current_month_remote_cache_hits_count))
+
+    case candidates do
+      [] ->
+        MapSet.new()
+
+      candidates ->
+        plans = latest_active_plans(Enum.map(candidates, & &1.id))
+
+        candidates
+        |> Enum.filter(&(Map.get(plans, &1.id, :air) == :air))
+        |> MapSet.new(& &1.id)
+    end
+  end
+
+  # Ordered rather than compared in memory: `Enum.group_by/3` keeps the order it
+  # is given within each group, and comparing `inserted_at` structs by term
+  # order is not chronological.
+  defp latest_active_plans(account_ids) do
+    from(s in Subscription,
+      where: s.account_id in ^account_ids,
+      where: s.status in ["active", "trialing"],
+      order_by: [desc: s.inserted_at, desc: s.id],
+      select: {s.account_id, s.plan}
+    )
+    |> Repo.all()
+    |> Enum.group_by(fn {account_id, _plan} -> account_id end, fn {_account_id, plan} -> plan end)
+    |> Map.new(fn {account_id, [latest | _]} -> {account_id, latest} end)
+  end
+
+  # Elixir orders atoms above numbers, so a nil counter would compare as being
+  # over the threshold and deny the account.
+  defp over_free_tier?(nil), do: false
+
+  defp over_free_tier?(count) do
+    count >= get_payment_thresholds()[:remote_cache_hits]
   end
 
   defp latest_subscription([subscription | subscriptions]) do

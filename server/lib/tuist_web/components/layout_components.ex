@@ -84,8 +84,12 @@ defmodule TuistWeb.LayoutComponents do
     <% else %>
       <meta property="og:image" content={assigns[:head_image]} />
     <% end %>
-    <meta property="og:image:width" content="1920" />
-    <meta property="og:image:height" content="1080" />
+    <%= case Map.get(assigns, :head_image_dimensions, {1920, 1080}) do %>
+      <% {width, height} -> %>
+        <meta property="og:image:width" content={width} />
+        <meta property="og:image:height" content={height} />
+      <% nil -> %>
+    <% end %>
     """
   end
 

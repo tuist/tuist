@@ -2,6 +2,7 @@ defmodule Tuist.DocsTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  alias Tuist.ClickHouseVersions
   alias Tuist.Docs
   alias Tuist.Docs.CLI
   alias Tuist.Docs.NimblePublisher.Cache
@@ -95,6 +96,13 @@ defmodule Tuist.DocsTest do
 
       assert page.body =~
                ~s(<div data-part="overlay-scrollbar" aria-hidden="true"><div data-part="overlay-thumb"></div></div>)
+    end
+
+    test "renders the compatibility matrix from the canonical ClickHouse version" do
+      page = Docs.get_page("/en/guides/server/self-host/server")
+
+      assert page.body =~
+               ~s(<td>ClickHouse</td><td>#{ClickHouseVersions.minimum_supported_version()}</td>)
     end
 
     test "does not cache missing pages" do

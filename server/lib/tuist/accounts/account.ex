@@ -50,7 +50,9 @@ defmodule Tuist.Accounts.Account do
     field :customer_id, :string
     field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
+    field :free_tier_reset_at, :utc_datetime
     field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
+    field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
 
     field :cache_write_policy, Ecto.Enum,
       values: [members_and_tokens: 0, tokens_only: 1],
@@ -63,6 +65,8 @@ defmodule Tuist.Accounts.Account do
     field :s3_endpoint, :string
 
     field :custom_cache_endpoints_enabled, :boolean, default: false
+    field :runner_trial_started_at, :utc_datetime
+    field :runner_trial_ended_at, :utc_datetime
 
     belongs_to :organization, Organization
     belongs_to :user, User
@@ -129,12 +133,28 @@ defmodule Tuist.Accounts.Account do
     ])
   end
 
+  def runner_trial_changeset(account, attrs) do
+    cast(account, attrs, [:runner_trial_started_at, :runner_trial_ended_at])
+  end
+
   def update_changeset(account, attrs) do
     account
     |> cast(attrs, [:name, :region, :billing_email, :cache_write_policy, :custom_cache_endpoints_enabled])
     |> validate_handle()
     |> validate_inclusion(:region, [:all, :europe, :usa])
     |> validate_inclusion(:cache_write_policy, [:members_and_tokens, :tokens_only])
+  end
+
+  @doc """
+  Toggles whether the account's non-admin dashboards are readable by
+  signed-out visitors. Kept out of `update_changeset/2` so the account
+  update API can't flip it: the toggle is operator-only.
+  """
+  def visibility_changeset(account, attrs) do
+    account
+    |> cast(attrs, [:visibility])
+    |> validate_required([:visibility])
+    |> validate_inclusion(:visibility, [:private, :public])
   end
 
   @s3_fields [:s3_bucket_name, :s3_access_key_id, :s3_secret_access_key, :s3_region, :s3_endpoint]

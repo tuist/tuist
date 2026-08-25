@@ -16,19 +16,28 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Kura
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
+  alias Tuist.Runners.Prepaid
+  alias Tuist.Runners.Trials
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     case Accounts.get_account_by_id(parse_id(id)) do
       {:ok, account} ->
         account = preload_billing(account)
+        balance = Prepaid.balance(account)
 
         {:ok,
          socket
          |> assign(:head_title, "#{account.name} · Tuist Ops")
          |> assign(:account, account)
-         |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
+         |> assign(:prepaid_balance, balance)
+         |> assign(:prepaid_minutes_value, held_minutes(balance))
+         |> assign(:on_runner_trial, Trials.on_trial?(account))
+         |> assign(:prepaid_quote, nil)
+         |> assign(:has_subscription, not is_nil(Billing.get_current_active_subscription(account)))
+         |> assign(:kura_minimum_claim, Kura.minimum_storage_claim())
+         |> assign_kura_storage_claim(account)
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
 
@@ -83,6 +92,136 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   @impl true
+  def handle_event("start_runner_trial", _params, socket) do
+    case Trials.start(socket.assigns.account) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, preload_billing(account))
+         |> assign(:on_runner_trial, true)
+         |> put_flash(
+           :info,
+           dgettext(
+             "dashboard",
+             "%{account} is on a runner trial and will not be billed for runner usage until it is cancelled.",
+             account: account.name
+           )
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("dashboard", "Could not start the trial: %{reason}", reason: inspect(reason)))}
+    end
+  end
+
+  @impl true
+  def handle_event("cancel_runner_trial", _params, socket) do
+    case Trials.cancel(socket.assigns.account) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, preload_billing(account))
+         |> assign(:on_runner_trial, false)
+         |> put_flash(
+           :info,
+           dgettext("dashboard", "%{account}'s runner trial is over. Runner usage is billable from now on.",
+             account: account.name
+           )
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard", "Could not cancel the trial: %{reason}", reason: inspect(reason))
+         )}
+    end
+  end
+
+  # Quoted live as ops types, so the money leaving the customer is on
+  # screen before the charge is created rather than inferred from a
+  # minute count.
+  @impl true
+  def handle_event("quote_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    {:noreply, assign(socket, :prepaid_quote, quote_minutes(minutes))}
+  end
+
+  @impl true
+  def handle_event("set_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    case parse_minutes(minutes) do
+      {:ok, minutes} ->
+        account = Accounts.create_customer_when_absent(socket.assigns.account)
+
+        case Prepaid.set_minutes(account, minutes) do
+          {:ok, _result} ->
+            refreshed = Prepaid.balance(account)
+
+            {:noreply,
+             socket
+             |> assign(:account, preload_billing(account))
+             |> assign(:prepaid_balance, refreshed)
+             |> assign(:prepaid_minutes_value, held_minutes(refreshed))
+             |> assign(:prepaid_quote, nil)
+             |> put_flash(:info, set_minutes_message(account, minutes))}
+
+          {:error, reason} ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               dgettext("dashboard", "Could not set prepaid minutes: %{reason}", reason: inspect(reason))
+             )}
+        end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes, or zero to clear."))}
+    end
+  end
+
+  @impl true
+  def handle_event("update_kura_storage_claim", %{"account" => params}, socket) do
+    account = socket.assigns.account
+
+    case Kura.update_storage_claim_override(account, params) do
+      {:ok, result} ->
+        {:noreply,
+         socket
+         |> assign_kura_storage_claim(account)
+         |> put_flash(:info, kura_storage_claim_message(result))}
+
+      {:error, changeset} ->
+        {:noreply,
+         socket
+         |> assign(:kura_storage_claim_form, to_form(changeset, as: "account"))
+         |> put_flash(:error, dgettext("dashboard", "Kura disk claim could not be updated."))}
+    end
+  end
+
+  @impl true
+  def handle_event("toggle_visibility", _params, socket) do
+    account = socket.assigns.account
+    visibility = if account.visibility == :public, do: :private, else: :public
+
+    case Accounts.update_account_visibility(account, visibility) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, preload_billing(account))
+         |> put_flash(
+           :info,
+           dgettext("dashboard", "%{account} is now %{visibility}.",
+             account: account.name,
+             visibility: account.visibility
+           )
+         )}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Account visibility could not be updated."))}
+    end
+  end
+
+  @impl true
   def handle_event("initiate_enterprise_upgrade", _params, socket) do
     account = Accounts.create_customer_when_absent(socket.assigns.account)
     customer = fetch_stripe_customer(account.customer_id)
@@ -90,7 +229,7 @@ defmodule TuistWeb.OpsAccountLive do
     if customer_has_billing_details?(customer) do
       # Customer already has name/email/address on Stripe: upgrade in
       # one click without prompting ops to re-enter anything.
-      {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
+      {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{})
 
       {:noreply,
        socket
@@ -212,7 +351,6 @@ defmodule TuistWeb.OpsAccountLive do
     %{
       name: params["name"],
       billing_email: params["billing_email"],
-      cadence: params["cadence"] || "monthly",
       address: %{
         line1: params["address_line1"],
         line2: params["address_line2"],
@@ -224,10 +362,110 @@ defmodule TuistWeb.OpsAccountLive do
     }
   end
 
+  defp quote_minutes(raw) do
+    case parse_minutes(raw) do
+      {:ok, minutes} when minutes > 0 -> Prepaid.quote_minutes(minutes)
+      _ -> nil
+    end
+  end
+
+  defp set_minutes_message(account, 0) do
+    dgettext("dashboard", "%{account} no longer holds any prepaid runner minutes.", account: account.name)
+  end
+
+  defp set_minutes_message(account, minutes) do
+    quoted = Prepaid.quote_minutes(minutes)
+
+    dgettext(
+      "dashboard",
+      "%{account} now holds %{minutes} prepaid runner minutes. %{amount} was added to its next invoice.",
+      minutes: format_number(minutes),
+      amount: format_money(quoted.invoiced),
+      account: account.name
+    )
+  end
+
+  # The field opens on what the account holds, so an operator corrects a
+  # figure rather than working out the difference from the table above.
+  defp held_minutes(nil), do: 0
+
+  defp held_minutes(%{grants: grants}) do
+    grants |> Enum.map(&Map.get(&1, :available_minutes, 0)) |> Enum.sum()
+  end
+
+  defp parse_minutes(raw) when is_binary(raw) do
+    case Integer.parse(String.trim(raw)) do
+      {minutes, ""} when minutes >= 0 -> {:ok, minutes}
+      _ -> :error
+    end
+  end
+
+  defp parse_minutes(_raw), do: :error
+
+  def prepaid_grant_kind_label("trial"), do: dgettext("dashboard", "Trial")
+  def prepaid_grant_kind_label(_kind), do: dgettext("dashboard", "Prepaid")
+
+  def prepaid_expiry_label(nil), do: dgettext("dashboard", "No expiry")
+  def prepaid_expiry_label(%DateTime{} = expires_at), do: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")
+
   defp runner_concurrency_form(account) do
     account
     |> Concurrency.change_limits()
     |> to_form(as: "account")
+  end
+
+  # The rows, the form and the claim the rows resolve against move together: an
+  # override write re-pins instances, so a table left on the old assign would
+  # show claims that no longer exist.
+  defp assign_kura_storage_claim(socket, account) do
+    socket
+    |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
+    |> assign(:kura_account_claim, Kura.effective_storage_claim(account))
+    |> assign(:kura_plan_claim, Kura.plan_storage_claim(account))
+    |> assign(:kura_storage_claim_form, kura_storage_claim_form(account))
+  end
+
+  defp kura_storage_claim_form(account) do
+    account
+    |> Kura.change_storage_claim_override()
+    |> to_form(as: "account")
+  end
+
+  # Raising a claim and lowering one do different things to a running instance,
+  # and only one of them costs a cache. Say which happened rather than reporting
+  # a successful save: an operator raising a claim to rescue a capped account is
+  # the one most likely to assume it was free.
+  defp kura_storage_claim_message(%{claim_size: claim_size, raised: [], lowered: []}) do
+    dgettext(
+      "dashboard",
+      "Kura disk claim set to %{claim}. No running instance changed; it applies the next time volumes are built.",
+      claim: claim_size
+    )
+  end
+
+  defp kura_storage_claim_message(%{claim_size: claim_size, raised: []} = result) do
+    dngettext(
+      "dashboard",
+      "Kura disk claim lowered to %{claim}. %{count} running instance keeps its cache and evicts down to the new budget.",
+      "Kura disk claim lowered to %{claim}. %{count} running instances keep their caches and evict down to the new budget.",
+      length(result.lowered),
+      claim: claim_size
+    )
+  end
+
+  # "Up to", because an instance rebuilds only if its volumes are smaller than
+  # the new claim, and an earlier decrease can have left them larger. The rebuild
+  # rolls one replica at a time behind the standby, so it is a rollout rather
+  # than an outage and the cache survives it where there is a standby to refill
+  # from.
+  defp kura_storage_claim_message(%{claim_size: claim_size} = result) do
+    dngettext(
+      "dashboard",
+      "Kura disk claim raised to %{claim}. Up to %{count} running instance rebuilds its volumes, one replica at a time behind the standby that keeps serving.",
+      "Kura disk claim raised to %{claim}. Up to %{count} running instances rebuild their volumes, one replica at a time behind the standby that keeps serving.",
+      length(result.raised),
+      claim: claim_size
+    )
   end
 
   # ISO 3166-1 alpha-2 codes for the countries most likely to appear on

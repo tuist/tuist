@@ -23,6 +23,7 @@ defmodule Tuist.Tests do
 
   alias Tuist.Accounts.Account
   alias Tuist.Automations
+  alias Tuist.ClickHouseCapabilities
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.IngestRepo
@@ -311,6 +312,7 @@ defmodule Tuist.Tests do
               test
               |> Repo.preload(pg_preloads)
               |> ClickHouseRepo.preload(ch_preloads)
+              |> dedupe_run_destinations()
 
             {:ok, test}
         end
@@ -319,6 +321,15 @@ defmodule Tuist.Tests do
         {:error, :not_found}
     end
   end
+
+  # `test_run_destinations` has no uniqueness constraint, and a row is written
+  # per shard report and per reprocessing attempt. Collapse them to the
+  # distinct destinations the run executed on.
+  defp dedupe_run_destinations(%Test{run_destinations: destinations} = test) when is_list(destinations) do
+    %{test | run_destinations: Enum.uniq_by(destinations, &{&1.name, &1.platform, &1.os_version})}
+  end
+
+  defp dedupe_run_destinations(test), do: test
 
   def get_latest_test_by_build_run_id(build_run_id) do
     query =
@@ -664,6 +675,11 @@ defmodule Tuist.Tests do
           # uniqueness, so an error hit by several shards is deduplicated on
           # read instead of here.
           create_run_errors(merged_test, Map.get(attrs, :run_errors, []))
+
+          # Every shard reports the destination it executed on, so a merged run
+          # that never takes the branch above would carry none at all. Same
+          # concurrency story as the errors: duplicates are collapsed on read.
+          create_run_destinations(merged_test, Map.get(attrs, :run_destinations, []))
 
           insert_shard_run(
             shard_plan_id,
@@ -3801,11 +3817,11 @@ defmodule Tuist.Tests do
         },
         default_branch
       ),
-      settings: [
-        insert_deduplication_token: "test-case-run-flaky-correction:#{flaky_correction_batch_id(test_case_run_ids)}",
-        deduplicate_insert_select: "force_enable",
-        deduplicate_blocks_in_dependent_materialized_views: 1
-      ]
+      settings:
+        [
+          insert_deduplication_token: "test-case-run-flaky-correction:#{flaky_correction_batch_id(test_case_run_ids)}",
+          deduplicate_blocks_in_dependent_materialized_views: 1
+        ] ++ ClickHouseCapabilities.insert_select_deduplication_settings(IngestRepo)
     )
   end
 

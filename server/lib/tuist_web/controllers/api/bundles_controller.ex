@@ -389,7 +389,15 @@ defmodule TuistWeb.API.BundlesController do
 
   defp maybe_enqueue_threshold_check(bundle, project) do
     if bundle.git_commit_sha && bundle.git_ref do
-      %{bundle_id: bundle.id, project_id: project.id, git_commit_sha: bundle.git_commit_sha}
+      %{
+        bundle_id: bundle.id,
+        project_id: project.id,
+        git_commit_sha: bundle.git_commit_sha,
+        bundle_name: bundle.name,
+        git_ref: bundle.git_ref,
+        install_size: bundle.install_size,
+        download_size: bundle.download_size
+      }
       |> Tuist.Bundles.Workers.BundleThresholdWorker.new()
       |> Oban.insert()
     end

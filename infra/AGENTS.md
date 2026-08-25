@@ -28,7 +28,7 @@ README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
 cert-manager + external-dns + ESO + metrics-server + ingress-nginx controllers, installed once per workload cluster. Kura customer endpoints default to dedicated shared regional Kura ingress controllers rather than the main web ingress dataplane. Enterprise/high-volume exceptions are reconciled dynamically by the Kura controller from `KuraGateway` CRs, not hard-coded as customer-specific platform chart aliases. Provider-specific LB annotations live in per-provider and cluster overlays (e.g., `values-hetzner.yaml`, `values-tuist.yaml`).
 
 ### `helm/tailscale-operator/` — Tailscale Kubernetes operator wrapper
-Wraps the upstream `tailscale-operator` chart with ESO-synced OAuth credentials and per-env tag identity (`tag:tuist-k8s-<env>`). Provides three tailnet paths used today: a Connector subnet router (tailnet devices dial in-cluster Services), Mac mini egress (cluster Pods scrape the macOS fleet), and per-Service ingress nodes via `tailscale.com/expose: "true"` (a Service gets its own tailnet name, used by `tuist-ops` and by the main chart's `ociRegistry`, which is reachable on the tailnet and has no public ingress). Human kubectl access to workload clusters does NOT flow through the operator's API-server proxy anymore — see `helm/pomerium/` below.
+Wraps the upstream `tailscale-operator` chart with ESO-synced OAuth credentials and per-env tag identity (`tag:tuist-k8s-<env>`). Provides three tailnet paths used today: a Connector subnet router (tailnet devices dial in-cluster Services), Mac mini egress (cluster Pods scrape the macOS fleet), and per-Service ingress nodes via `tailscale.com/expose: "true"` (a Service gets its own tailnet name, used by `tuist-ops`). Human kubectl access to workload clusters does NOT flow through the operator's API-server proxy anymore — see `helm/pomerium/` below.
 
 ### `helm/pomerium/` — kubectl gateway, one per workload cluster
 Self-contained chart (NOT a wrapper around upstream's split-mode `pomerium/pomerium` — too heavy for our scale; one binary in all-in-one mode covers our 5-human team). One Helm release per workload env (staging / canary / production) deployed into that cluster. Pomerium fronts `https://kube-<env>.tuist.dev` and authenticates humans via Google Workspace OIDC. Per-request impersonation injection is handled by the `kube-impersonator` sidecar in the same pod (see [`kube-impersonator/`](../kube-impersonator/)) — Pomerium forwards every kubectl call to the sidecar, the sidecar calls tuist-ops's `/api/v1/policy` over the tailnet, the policy returns `Impersonate-User` + `Impersonate-Group` response headers, the sidecar attaches them plus the pod SA bearer to the upstream request, and the apiserver RBAC-binds the impersonated group to a built-in `ClusterRole`. ClusterRoleBindings for `tuist-admins / tuist-eng / tuist-<env>-write` ship in this chart (`templates/access-tiers.yaml`). Default tier is **`view` for everyone (founders and engineers alike)**; elevated `edit` access flows through the JIT Slack flow (see [Cluster access for agents](#cluster-access-for-agents) below). The sidecar reaches tuist-ops over the tailnet via a `tailscale.com/tailnet-fqdn`-annotated egress Service.
@@ -39,13 +39,18 @@ Single-replica deploy of the `tuist-ops` app into the production cluster (same c
 ### `k8s/` — CAPI cluster manifests
 Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph stack we operate on Hetzner:
 - `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config).
-- `clusters/cluster-{staging,canary,production,preview}.yaml` — per-env Cluster CRs in topology mode.
+- `clusters/cluster-{staging,canary,production,preview,pentest}.yaml` — per-env Cluster CRs in topology mode.
 - Production Kura regions are node pools in `clusters/cluster-production.yaml`, not separate workload clusters.
 - The preview cluster also hosts Slack-requested preview environments:
   app workloads and preview Kura runtime pods both land on the tainted
   preview worker pool (`role=preview`, with the preview toleration on the
   KuraInstance). The Kura controller itself runs once cluster-wide in the
   `kura` namespace; each preview's `KuraInstance` is created there.
+- `clusters/cluster-pentest.yaml` is the isolated security-assessment cluster.
+  Its Kura controller, credentials, data volumes, and application namespace
+  are not shared with preview or any managed environment. It has no runner or
+  Mac worker pools; `values-pentest.yaml` keeps its embedded data services
+  persistent and places Kura on the dedicated `kura` worker pool.
 - `clusters/README.md` — ClusterClass authoring + caph-upstream porting notes.
 - `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access).
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).
@@ -55,6 +60,9 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 
 ### `kura-controller/` — Kura endpoint controller
 Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle.
+
+### `egress-tree-agent/` — per-node shared egress HTB tree
+Go DaemonSet that enforces the kura per-tenant egress floors (`egress_guaranteed_mbps`), ceilings (`egress_burst_mbps`), and the node's advertised egress budget (`tuist.dev/egress-mbps`) with one shared HTB tree per node (tuist/tuist#12363). Shaped packets take a tcx BPF veth-trampoline detour (attached ahead of `cil_from_container`, returned to the same hook afterwards) so Cilium policy/identity/masquerade stay fully applied — the classic ifb detour measurably bypasses NetworkPolicy and must not come back. Consumes the `tuist.dev/egress-class` pod annotation rendered by kura-controller; co-located replica sync takes an unshaped bypass. Deliberately no pod-level qdisc underneath. See `egress-tree-agent/AGENTS.md`.
 
 ### `tart-kubelet/` — Mac mini VM kubelet
 Go kubelet-shaped agent that registers a Mac mini as a Kubernetes Node and maps Pods to Tart VMs. Interactive runner VNC is host-controlled here: runner VMs start with Tart's host-owned experimental VNC enabled, generated VNC credentials stay in host-control state, and a relay opens only while either a legacy host-local `vnc-control-dir/requests/<namespace>_<pod>` file exists or the server stamps its session annotation on the runner Pod.

@@ -66,6 +66,7 @@ pub struct Metrics {
     replication_bandwidth_effective_limit_bytes_per_second: Gauge,
     replication_bandwidth_public_latency_target_ms: Gauge,
     multipart_parts: Family<MultipartLabels, Counter>,
+    capacity_sheds: Family<CapacityShedLabels, Counter>,
     node_info: Family<NodeInfoLabels, Gauge>,
     node_geo: Family<NodeGeoLabels, Gauge>,
     file_descriptor_wait: Family<FileDescriptorWaitLabels, Histogram>,
@@ -159,6 +160,7 @@ pub struct Metrics {
     memory_protection_min_bytes: Gauge,
     memory_protection_low_bytes: Gauge,
     memory_transient_reserved_bytes: Gauge,
+    memory_transient_capacity_bytes: Gauge,
     foreground_memory_waiters: Gauge,
     response_stream_pool_capacity_bytes: Gauge,
     response_stream_foreground_pool_capacity_bytes: Gauge,
@@ -202,6 +204,45 @@ struct RolloutSnapshot {
 pub struct RolloutMetricsSnapshot {
     pub outbox_messages: u64,
     pub fd_timeout_count: u64,
+}
+
+/// The limits that can refuse a public request, one label value each.
+///
+/// Every kind is materialised at construction so its series exists from the
+/// first scrape, before the node has shed anything. Alert and dashboard
+/// queries rely on that: they select the response-stream kind and fall back to
+/// counting bare 429s where the series is absent, which is how one query stays
+/// correct across a fleet running both the old and new image. If a new pod
+/// only published the series after its first shed, that fallback would count
+/// its write sheds as read sheds until it happened to shed a read.
+pub mod shed_kind {
+    pub const RESPONSE_STREAM: &str = "response_stream";
+    pub const MULTIPART_UPLOADS: &str = "multipart_uploads";
+    pub const MULTIPART_STORAGE: &str = "multipart_storage";
+    pub const UPLOAD_MEMORY: &str = "upload_memory";
+    pub const TMP_STAGING: &str = "tmp_staging";
+    pub const MEMORY_PRESSURE_WRITE: &str = "memory_pressure_write";
+    pub const OUTBOX: &str = "outbox";
+    // The remote-execution surface sheds against the same transient budget the
+    // HTTP kinds above do, so it belongs in the counter that names which limit
+    // refused a request. It carries no HTTP status of its own -- gRPC answers
+    // RESOURCE_EXHAUSTED, which is already the retryable code -- so without a
+    // kind here a node shedding remote-execution traffic is invisible to the
+    // query operators are told to reach for first.
+    pub const REAPI_WRITE_DECODE: &str = "reapi_write_decode";
+    pub const REAPI_MATERIALIZATION: &str = "reapi_materialization";
+
+    pub const ALL: [&str; 9] = [
+        RESPONSE_STREAM,
+        MULTIPART_UPLOADS,
+        MULTIPART_STORAGE,
+        UPLOAD_MEMORY,
+        TMP_STAGING,
+        MEMORY_PRESSURE_WRITE,
+        OUTBOX,
+        REAPI_WRITE_DECODE,
+        REAPI_MATERIALIZATION,
+    ];
 }
 
 impl Metrics {
@@ -255,6 +296,12 @@ impl Metrics {
         let replication_bandwidth_effective_limit_bytes_per_second = Gauge::default();
         let replication_bandwidth_public_latency_target_ms = Gauge::default();
         let multipart_parts = Family::<MultipartLabels, Counter>::default();
+        let capacity_sheds = Family::<CapacityShedLabels, Counter>::default();
+        for kind in shed_kind::ALL {
+            let _ = capacity_sheds.get_or_create(&CapacityShedLabels {
+                kind: kind.to_owned(),
+            });
+        }
         let node_info = Family::<NodeInfoLabels, Gauge>::default();
         let node_geo = Family::<NodeGeoLabels, Gauge>::default();
         let file_descriptor_wait =
@@ -365,6 +412,7 @@ impl Metrics {
         let memory_protection_min_bytes = Gauge::default();
         let memory_protection_low_bytes = Gauge::default();
         let memory_transient_reserved_bytes = Gauge::default();
+        let memory_transient_capacity_bytes = Gauge::default();
         let foreground_memory_waiters = Gauge::default();
         let response_stream_pool_capacity_bytes = Gauge::default();
         let response_stream_foreground_pool_capacity_bytes = Gauge::default();
@@ -549,6 +597,11 @@ impl Metrics {
             "kura_multipart_parts_total",
             "Multipart part uploads by result",
             multipart_parts.clone(),
+        );
+        registry.register(
+            "kura_capacity_sheds_total",
+            "Public requests shed for capacity, by which limit refused them",
+            capacity_sheds.clone(),
         );
         registry.register(
             "kura_node_info",
@@ -1016,6 +1069,11 @@ impl Metrics {
             memory_transient_reserved_bytes.clone(),
         );
         registry.register(
+            "kura_memory_transient_capacity_bytes",
+            "Transient admission capacity: the anonymous-memory budget every upload, response stream and REAPI materialization is admitted against",
+            memory_transient_capacity_bytes.clone(),
+        );
+        registry.register(
             "kura_foreground_memory_waiters",
             "Foreground requests currently waiting for memory admission",
             foreground_memory_waiters.clone(),
@@ -1210,6 +1268,7 @@ impl Metrics {
             replication_bandwidth_effective_limit_bytes_per_second,
             replication_bandwidth_public_latency_target_ms,
             multipart_parts,
+            capacity_sheds,
             node_info,
             node_geo,
             file_descriptor_wait,
@@ -1303,6 +1362,7 @@ impl Metrics {
             memory_protection_min_bytes,
             memory_protection_low_bytes,
             memory_transient_reserved_bytes,
+            memory_transient_capacity_bytes,
             foreground_memory_waiters,
             response_stream_pool_capacity_bytes,
             response_stream_foreground_pool_capacity_bytes,
@@ -1618,6 +1678,21 @@ impl Metrics {
             .set(effective_bytes_per_second as i64);
         self.replication_bandwidth_public_latency_target_ms
             .set(public_latency_target_ms as i64);
+    }
+
+    /// One shed request, labelled by which limit refused it.
+    ///
+    /// The HTTP status cannot carry this: 429 is shared by every shed, and
+    /// `kura_http_requests_total` has no method label, so the read routes that
+    /// also accept writes cannot be split by route either. Alert rules that
+    /// mean "response-stream pressure" specifically have to select on `kind`
+    /// rather than on a bare 429.
+    pub fn record_capacity_shed(&self, kind: &str) {
+        self.capacity_sheds
+            .get_or_create(&CapacityShedLabels {
+                kind: kind.to_owned(),
+            })
+            .inc();
     }
 
     pub fn record_multipart_part(&self, result: &str) {
@@ -2076,6 +2151,11 @@ impl Metrics {
             .set(reserved_bytes as i64);
     }
 
+    pub fn update_transient_memory_capacity(&self, capacity_bytes: u64) {
+        self.memory_transient_capacity_bytes
+            .set(capacity_bytes as i64);
+    }
+
     pub fn update_foreground_memory_waiters(&self, waiters: u64) {
         self.foreground_memory_waiters.set(waiters as i64);
     }
@@ -2450,6 +2530,11 @@ struct MultipartLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct CapacityShedLabels {
+    kind: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct FileDescriptorWaitLabels {
     result: String,
 }
@@ -2596,6 +2681,28 @@ struct MembershipChangeLabels {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn every_shed_kind_is_published_before_the_first_shed() {
+        // The alert and dashboard queries select the response-stream kind and
+        // fall back to counting bare 429s wherever that series is missing, so
+        // a fleet running both images reads correctly. That fallback is only
+        // safe while "series missing" means "old image" — a new pod that
+        // published the series lazily would be read as an old one and have its
+        // write sheds counted as read sheds.
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let rendered = metrics.render();
+
+        for kind in shed_kind::ALL {
+            assert!(
+                rendered
+                    .lines()
+                    .any(|line| line.starts_with("kura_capacity_sheds_total")
+                        && line.contains(&format!("kind=\"{kind}\""))),
+                "{kind} is missing from a freshly constructed registry:\n{rendered}"
+            );
+        }
+    }
+
     use super::*;
 
     #[test]

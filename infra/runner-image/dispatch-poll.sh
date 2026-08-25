@@ -39,6 +39,34 @@ exec >>"${LOG}" 2>&1
 # reason.
 STATUS_SHARE="/Volumes/My Shared Files/status"
 
+# publish_runner_log copies this script's log into the status share on
+# the way out, so it survives the VM. `${LOG}` lives inside the ephemeral
+# guest and dies with it, which is why a runner that halts without ever
+# taking its job leaves an exit code and nothing that explains it: the
+# EXIT trap reports 0 both for a finished job and for a runner that gave
+# up, so the code alone cannot separate them. tart-kubelet re-emits a
+# bounded tail of this file to its own stdout before teardown deletes the
+# share, and that reaches Loki via the host log shipper.
+#
+# A copy from the trap rather than a `tee` alongside `${LOG}`. A tee is
+# the obvious shape and the wrong one here: it would still be running
+# when the trap fires, so its buffered tail can land after this copy and
+# duplicate it, and bash 3.2 (what /bin/bash is on macOS) does not report
+# a process substitution's PID in `$!`, so there is no portable way to
+# reap it first. Copying after the last line is written is exact.
+#
+# The cost is that a guest killed without running its trap publishes
+# nothing — but that case already reaches the host distinguishably, as
+# `TartRunExited` rather than a reported exit code.
+#
+# Guarded on the share being mounted, exactly like report_runner_exit:
+# pools with the cache-volume feature off have no share, and there the
+# guest keeps logging only to `${LOG}`.
+publish_runner_log() {
+  [ -d "${STATUS_SHARE:-}" ] || return 0
+  cp "${LOG}" "${STATUS_SHARE}/runner.log" 2>/dev/null || true
+}
+
 # report_runner_exit hands this script's exit code to the host through
 # the writable status share, for tart-kubelet to publish as the Pod's
 # terminated container state.
@@ -71,7 +99,7 @@ report_runner_exit() {
 # refilling. The trap fires once on EXIT so the happy path
 # (clean ./run.sh exit) and every error path halt the VM the
 # same way.
-trap '_rc=$?; report_runner_exit "${_rc}"; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
+trap '_rc=$?; report_runner_exit "${_rc}"; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; publish_runner_log; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
 
 if [ ! -f /etc/tuist.env ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: /etc/tuist.env missing; aborting"
@@ -144,6 +172,12 @@ SHELL_CLAIM_MARKER="${TUIST_RUNNER_SHELL_CLAIM_MARKER:-/tmp/tuist-runner-shell-c
 export TUIST_RUNNER_SHELL_CLAIM_MARKER="${SHELL_CLAIM_MARKER}"
 rm -f "${SHELL_CLAIM_MARKER}" 2>/dev/null || true
 
+# Mirrors the lock protocol in runner-shell-agent-supervisor.sh. The lock is
+# shared across uids: the supervisor holds it as root from its LaunchDaemon,
+# this script runs as `runner`. Liveness therefore goes through ps, not
+# kill -0, which from `runner` fails with EPERM against a live root-owned
+# holder exactly as it fails with ESRCH against a dead pid. Reading a healthy
+# daemon as stale is what started the redundant second supervisor.
 shell_agent_lock_active() {
   local lock_dir=/tmp/tuist-runner-shell-agent.lock
   local pid_file="${lock_dir}/pid"
@@ -153,17 +187,31 @@ shell_agent_lock_active() {
     return 1
   fi
 
+  if [ -e "${pid_file}" ] && [ ! -r "${pid_file}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: cannot read ${pid_file}; assuming the supervisor lock is held"
+    return 0
+  fi
+
   if [ -f "${pid_file}" ]; then
     read -r lock_pid <"${pid_file}" || lock_pid=""
   fi
 
-  if [ -n "${lock_pid}" ] && kill -0 "${lock_pid}" 2>/dev/null; then
-    return 0
-  fi
+  case "${lock_pid}" in
+    '' | *[!0-9]*) ;;
+    *)
+      if ps -p "${lock_pid}" -o pid= >/dev/null 2>&1; then
+        return 0
+      fi
+      ;;
+  esac
 
   echo "$(date -u +%FT%TZ) dispatch-poll: removing stale runner-shell-agent lock"
-  rm -rf "${lock_dir}"
-  return 1
+  if rm -rf "${lock_dir}"; then
+    return 1
+  fi
+
+  echo "$(date -u +%FT%TZ) dispatch-poll: cannot remove ${lock_dir}; assuming the supervisor lock is held"
+  return 0
 }
 
 if shell_agent_lock_active; then

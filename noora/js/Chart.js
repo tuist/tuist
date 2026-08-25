@@ -53,6 +53,13 @@ function formatBytes(bytes) {
   }
 }
 
+function formatCurrency(amount, currency = "USD") {
+  return Number(amount).toLocaleString(navigator.language, {
+    style: "currency",
+    currency,
+  });
+}
+
 function formatMbps(bytesPerSecond) {
   const mbps = (bytesPerSecond * 8) / 1_000_000;
   return `${mbps.toFixed(1)} Mbps`;
@@ -87,6 +94,9 @@ const formatters = {
   formatBytes: (el) => (value, _) => {
     return formatBytes(value);
   },
+  formatCurrency: (el) => (value, _) => {
+    return formatCurrency(value);
+  },
   formatMbps: (el) => (value, _) => {
     return formatMbps(value);
   },
@@ -103,6 +113,7 @@ const formatters = {
 
 const tooltipFormatters = {
   formatBytes,
+  formatCurrency,
   formatMbps,
   formatMilliseconds,
   formatSeconds,
@@ -501,7 +512,7 @@ function tooltipFormatter(options = {}) {
   };
 }
 
-function tooltipSeries(param, options = {}) {
+export function tooltipSeries(param, options = {}) {
   let { color, seriesName, value, data } = param;
   if (!seriesName && Array.isArray(value)) {
     const date = new Date(value[0]);
@@ -515,6 +526,13 @@ function tooltipSeries(param, options = {}) {
   }
   if (value !== null && typeof value === "object" && "value" in value) {
     value = value.value;
+  }
+
+  // A null value is a bucket with nothing in it, not a measurement of zero.
+  // Running it through a formatter would print "0ms" and read as a real
+  // observation, so the series says it has no value for this point instead.
+  if (value === null || value === undefined) {
+    return seriesItem(color, seriesName, "\u2014");
   }
 
   let formattedValue;
@@ -544,6 +562,10 @@ function tooltipSeries(param, options = {}) {
     return extraLines;
   }
 
+  return seriesItem(color, seriesName, formattedValue);
+}
+
+function seriesItem(color, seriesName, formattedValue) {
   const dotColor = Array.isArray(color) ? color[0] : color;
   return `
   <div data-part="series-item">

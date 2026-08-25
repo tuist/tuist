@@ -19,7 +19,6 @@ defmodule Tuist.Automations.Alerts.Alert do
     state_changed_to_skipped
   )
   @window_types ~w(last_days rolling)
-  @branch_scopes ~w(all_branches default_branch)
 
   # Trigger windows are served by `test_case_runs_recent_window_per_case`, whose
   # 2000-slot state holds 1000 distinct runs even when every run in the window
@@ -36,13 +35,6 @@ defmodule Tuist.Automations.Alerts.Alert do
   threshold or content filter.
   """
   def test_updated_events, do: @test_updated_events
-
-  @doc """
-  Branch scopes a metric monitor can be configured with. `reliability_rate`
-  defaults to `default_branch` and the others to `all_branches`; see
-  `Tuist.Automations.Monitors.FlakyTestsMonitor.branch_scope/1`.
-  """
-  def branch_scopes, do: @branch_scopes
 
   @doc """
   Maximum rolling trigger window the active aggregate storage can serve.
@@ -266,7 +258,6 @@ defmodule Tuist.Automations.Alerts.Alert do
 
     changeset
     |> validate_comparison(trigger_config)
-    |> validate_branch_scope(monitor_type, trigger_config)
     |> validate_state_filter(trigger_config, :trigger_config)
     |> validate_recovery_config()
   end
@@ -288,25 +279,6 @@ defmodule Tuist.Automations.Alerts.Alert do
 
       _ ->
         add_error(changeset, :trigger_config, "events must be a non-empty list")
-    end
-  end
-
-  # `branch_scope` is only meaningful for the monitors that measure runs.
-  # `test_updated` fires off state changes and has no window to narrow.
-  defp validate_branch_scope(changeset, monitor_type, trigger_config) do
-    case Map.get(trigger_config, "branch_scope") do
-      nil ->
-        changeset
-
-      value when value in @branch_scopes ->
-        if recovery_ledger?(monitor_type) do
-          changeset
-        else
-          add_error(changeset, :trigger_config, "branch_scope is not supported for #{monitor_type}")
-        end
-
-      _ ->
-        add_error(changeset, :trigger_config, "branch_scope must be one of: #{Enum.join(@branch_scopes, ", ")}")
     end
   end
 

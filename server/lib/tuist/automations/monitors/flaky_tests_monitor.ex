@@ -112,16 +112,14 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   Which runs an alert measures.
 
   Reliability answers "is this test trustworthy", which is a question about the
-  trunk, so it defaults to the default branch. Flakiness answers "does this test
+  trunk, so it measures the default branch. Flakiness answers "does this test
   waste developers' time", which is true wherever it happens, so it stays on
-  every branch unless the alert opts in.
+  every branch.
 
-  A project with no default branch configured has no trunk to scope to, and the
-  aggregate holds nothing for it, so it reads every branch whatever the alert
-  asks for.
+  A project with no default branch configured has no trunk to scope to, so its
+  scoped aggregate holds nothing and a reliability alert has nothing to measure
+  until one is set.
   """
-  def branch_scope(%{trigger_config: %{"branch_scope" => "default_branch"}}), do: :default_branch
-  def branch_scope(%{trigger_config: %{"branch_scope" => "all_branches"}}), do: :all_branches
   def branch_scope(%{monitor_type: "reliability_rate"}), do: :default_branch
   def branch_scope(_alert), do: :all_branches
 
@@ -135,7 +133,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   there is nothing left to measure, and recovery would read that as proof it got
   better and un-quarantine it.
 
-  Unscoped alerts are deliberately not filtered. Their existing behaviour, that a
+  Flakiness alerts are deliberately not filtered. Their existing behaviour, that a
   test case with fewer runs than its window stops being measured and lets
   recovery re-arm, is documented at `window_filled_expr/1` and is not this
   change's to alter.

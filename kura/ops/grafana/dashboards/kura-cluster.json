@@ -191,6 +191,12 @@
         },
         {
           "editorMode": "code",
+          "expr": "kura_memory_transient_capacity_bytes",
+          "legendFormat": "{{region}} transient capacity",
+          "refId": "Q"
+        },
+        {
+          "editorMode": "code",
           "expr": "kura_response_stream_pool_capacity_bytes",
           "legendFormat": "{{region}} stream pool capacity",
           "refId": "S"

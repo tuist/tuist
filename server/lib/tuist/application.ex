@@ -344,6 +344,7 @@ defmodule Tuist.Application do
         {Phoenix.PubSub, name: Tuist.PubSub},
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
+        Tuist.Kura.Demand,
         TuistCommon.GitHub.RateLimit,
         TuistWeb.Telemetry
       ] ++
@@ -426,8 +427,15 @@ defmodule Tuist.Application do
   # user-data directory, so it is started only when hosted, and only in web
   # mode. See `RuntimeChildren.open_graph_image_renderer/1`. Everywhere else
   # render/2 falls back to libvips.
+  #
+  # Test is excluded on top of those gates: `mise.toml` exports TUIST_HOSTED=1
+  # for the whole repo, so the suite would otherwise start the pool on CI
+  # runners that have no Chrome and hit the retry loop documented in
+  # `RuntimeChildren.open_graph_image_renderer/1`. The suite never needs it —
+  # `Tuist.OpenGraphImageRenderer` is stubbed through Mimic wherever a test
+  # exercises Open Graph rendering.
   defp open_graph_image_children do
-    if Environment.tuist_hosted?() do
+    if Environment.tuist_hosted?() and not Environment.test?() do
       RuntimeChildren.open_graph_image_renderer(Environment.mode())
     else
       []

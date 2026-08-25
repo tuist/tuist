@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #MISE description="Bootstrap a freshly-provisioned workload cluster end-to-end (CNI, CCM, CSI, platform, monitoring, and app bits when needed). Idempotent."
-#USAGE arg "<cluster_name>" help="Cluster name (e.g. tuist-staging-2, tuist-canary, tuist, tuist-preview)"
-#USAGE arg "<env>" help="Helm values overlay (staging | canary | production | preview)"
+#USAGE arg "<cluster_name>" help="Cluster name (e.g. tuist-staging-2, tuist-canary, tuist, tuist-preview, tuist-pentest)"
+#USAGE arg "<env>" help="Helm values overlay (staging | canary | production | preview | pentest)"
 #USAGE arg "[kubeconfig_item]" help="Optional 1Password document title for the workload kubeconfig"
 
 # End-to-end workload-cluster bootstrap. Run AFTER:
@@ -25,7 +25,7 @@
 #      Secret + ClusterSecretStore so ESO can pull from 1Password.
 #  10. Install the monitoring chart (Grafana Cloud agent).
 #  11. App-serving clusters: pre-create the app namespace.
-#  12. App-serving clusters: install the Cloudflare origin cert TLS Secret.
+#  12. Non-pentest app clusters: install the shared Cloudflare origin cert TLS Secret.
 #  13. Smoke ingress + upload the workload kubeconfig to 1Password.
 #
 # Idempotent: re-running is safe; helm upgrades in-place, kubectl
@@ -35,8 +35,8 @@ set -euo pipefail
 
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
   echo "Usage: $0 <cluster_name> <env> [kubeconfig_item]" >&2
-  echo "  cluster_name:     tuist-staging-2, tuist-canary, tuist, tuist-preview" >&2
-  echo "  env:              staging | canary | production | preview" >&2
+  echo "  cluster_name:     tuist-staging-2, tuist-canary, tuist, tuist-preview, tuist-pentest" >&2
+  echo "  env:              staging | canary | production | preview | pentest" >&2
   echo "  kubeconfig_item:  optional 1Password document title, defaults to 'kubeconfig: tuist-<env>'" >&2
   exit 64
 fi
@@ -51,8 +51,8 @@ MGMT_KUBECONFIG="${MGMT_KUBECONFIG:-$HOME/.kube/tuist-mgmt.yaml}"
 WL_KUBECONFIG="$HOME/.kube/${CLUSTER_NAME}.yaml"
 
 case "$ENV" in
-  staging|canary|production|preview) ;;
-  *) echo "ERROR: env must be one of staging|canary|production|preview" >&2; exit 64 ;;
+  staging|canary|production|preview|pentest) ;;
+  *) echo "ERROR: env must be one of staging|canary|production|preview|pentest" >&2; exit 64 ;;
 esac
 
 # Map env -> 1Password vault name.
@@ -61,15 +61,24 @@ case "$ENV" in
   canary)     VAULT_NAME="tuist-k8s-canary"     ;  OP_TOKEN_ID="6o5lcwgudi6qtt2754svzh7jka" ;;
   production) VAULT_NAME="tuist-k8s-production" ;  OP_TOKEN_ID="gunhzznxo73w2p3hy6t46nihym" ;;
   preview)    VAULT_NAME="tuist-k8s-preview"    ;  OP_TOKEN_ID="skxlwhsvmnqqvrmiqzlxs7fqru" ;;
+  # Pentest credentials must be created specifically for this environment;
+  # do not reuse another environment's 1Password service account. The item
+  # identifier is supplied by the operator after provisioning the vault.
+  pentest)    VAULT_NAME="${PENTEST_VAULT_NAME:-tuist-k8s-pentest}" ; OP_TOKEN_ID="${PENTEST_OP_TOKEN_ID:-}" ;;
 esac
 # OP_TOKEN_ID points at the per-env "Service Account Auth Token: tuist-<env>-k8s"
 # 1P item, addressed by UUID because the colon in the title trips up `op read`.
+
+if [ "$ENV" = "pentest" ] && [ -z "$OP_TOKEN_ID" ]; then
+  echo "ERROR: PENTEST_OP_TOKEN_ID must identify the pentest-only 1Password service-account token." >&2
+  exit 64
+fi
 
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 err() { printf '\n\033[1;31mERROR: %s\033[0m\n' "$*" >&2; }
 
 upload_workload_kubeconfig() {
-  local kubeconfig_vault="tuist-k8s-${ENV}"
+  local kubeconfig_vault="$VAULT_NAME"
 
   if op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$kubeconfig_vault" >/dev/null 2>&1; then
     local existing_id
@@ -375,6 +384,10 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl create namespace "$APP_NAMESPACE" --dry-run=
   KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
 
 # ---------------------------------------------------------------------------
+# The pentest cluster uses certificate-manager DNS validation to issue separate
+# exact-host certificates. Do not copy the shared wildcard origin private key
+# into an environment intentionally exposed to external security testing.
+if [ "$ENV" != "pentest" ]; then
 log "Step 12/13: install Cloudflare origin cert as TLS Secret"
 
 # Cloudflare-proxied DNS (the orange cloud) requires the origin to
@@ -406,6 +419,9 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl -n "$APP_NAMESPACE" create secret tls tuist-
   --cert="$CERT_TMP" --key="$KEY_TMP" \
   --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
 rm -f "$CERT_TMP" "$KEY_TMP"
+else
+  log "Step 12/13: skip shared Cloudflare origin certificate for pentest"
+fi
 
 # ---------------------------------------------------------------------------
 log "Step 13/13: smoke ingress + upload workload kubeconfig to 1Password"
@@ -483,6 +499,7 @@ to point at $LB_IP.
   canary    -> canary.tuist.dev
   production -> tuist.dev (and any apex aliases)
   preview   -> ExternalDNS reconciles *.preview.tuist.dev from the ingress Service
+  pentest   -> pentest.tuist.dev (plus registry-pentest.tuist.dev and kura-pentest.tuist.dev)
 
 Verify the certificate and ingress on the new cluster (domain cut not needed for this):
   curl -k --resolve "staging.tuist.dev:443:$LB_IP" https://staging.tuist.dev/health
