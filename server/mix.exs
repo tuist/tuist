@@ -14,7 +14,7 @@ defmodule Tuist.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: compilers(Mix.env()),
-      phoenix_live_view: [colocated_js: [node_modules_path: "node_modules"]],
+      phoenix_live_view: [colocated_assets: [node_modules_path: "node_modules"]],
       listeners: [Phoenix.CodeReloader]
     ]
   end
@@ -50,7 +50,7 @@ defmodule Tuist.MixProject do
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_reload, "~> 1.6.1", only: :dev},
-      {:phoenix_live_view, "~> 1.1.0"},
+      {:phoenix_live_view, "~> 1.2.0"},
       {:phoenix_view, "~> 2.0"},
       {:floki, ">= 0.33.0"},
       {:html2markdown, "~> 0.3.1"},
