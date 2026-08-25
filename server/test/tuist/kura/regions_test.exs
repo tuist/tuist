@@ -412,7 +412,7 @@ defmodule Tuist.Kura.RegionsTest do
   end
 
   describe "ap-southeast" do
-    test "is a single-replica bare-metal region on its own OVH node pool" do
+    test "is a bare-metal region on its own OVH node pool" do
       assert %Regions{provisioner: KubernetesController, provisioner_config: config} =
                Regions.get("ap-southeast")
 
@@ -424,9 +424,11 @@ defmodule Tuist.Kura.RegionsTest do
       assert config.gateway == :host_network
       assert config.hetzner_location == nil
 
-      # One box, so one replica. The warm standby the other bare-metal regions
-      # carry only buys gapless deploys on a region with room to hold both.
-      assert config.replicas == 1
+      # Two, like every other managed region. Nothing serves this region while a
+      # replica restarts (Kura is terminal storage; a miss is a 404), so the
+      # standby is what keeps a rolling deploy from costing every account in the
+      # region a cache miss. Sizing gives way to that, not the other way round.
+      assert config.replicas == 2
 
       # No region-wide claim: every instance carries the one its volumes were
       # created at, resolved from its account's plan.
