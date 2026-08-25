@@ -121,6 +121,12 @@ server:
       value: "1"
     - name: TUIST_KURA_PRESSURE_INACTIVE_DAYS
       value: "1"
+    - name: TUIST_KURA_UNUSED_PROBATION_DAYS
+      # Production gives an instance a fortnight to move its first byte. On a
+      # one-day window here the probation path is exercised by the same deploy
+      # and day of quiet as the rest of the cycle, instead of being the one
+      # branch no environment ever reaches.
+      value: "1"
     - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
       value: "0"
     - name: TUIST_KURA_ARCHIVAL_SWEEP_CRON

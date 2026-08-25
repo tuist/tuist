@@ -10,20 +10,19 @@ defmodule Tuist.Kura.Demand do
   rather than deadlocking. General project activity, command events unrelated
   to cache, billing events, and dashboard visits never reach here.
 
-  It is deliberately a proxy for cache traffic rather than a measure of it, and
-  it errs in both directions. `tuist setup cache` installs a LaunchAgent with
-  `RunAtLoad`, so the cache daemon resolves an endpoint on every login: an
-  account whose agent is installed but idle keeps refreshing its clock without
-  anyone building, and may never reach a full inactive window. In the other
-  direction the CLI caches a resolved endpoint for an hour, so most requests
-  during a build never reach here at all.
+  This clock triggers provisioning, and only provisioning. It is a proxy for
+  cache traffic rather than a measure of it, and it errs in both directions.
+  `tuist setup cache` installs a LaunchAgent with `RunAtLoad`, so the cache
+  daemon resolves an endpoint on every login: an account whose agent is
+  installed but idle keeps refreshing its clock without anyone building, and
+  would never reach a full inactive window. In the other direction the CLI
+  caches a resolved endpoint for an hour, so most requests during a build never
+  reach here at all.
 
-  Both are accepted. Holding an idle account warm is the safe error, and the
-  alternative — keeping the clock on `kura_usage_events`, which the instances
-  push for real transfers, while endpoint resolution only triggers provisioning
-  — needs two signals to say what one says now, against a clock measured in
-  days. Fleet sizing should read the archival population as a floor rather than
-  an estimate because of it.
+  Both errors are safe on the provisioning side, where an unnecessary instance
+  is a wasted quota and a missing one is an account with no cache. They are not
+  safe on the archival side, which reads bytes actually moved instead
+  (`Tuist.Kura.Transfers`).
 
   That boundary is a hot path, so `record/1` never touches the database. It
   writes the account id into an ETS buffer; a periodic flush resolves each
@@ -160,6 +159,10 @@ defmodule Tuist.Kura.Demand do
   goes through here rather than paying a round trip each.
 
   Rows are `%{account_id:, service_region:, last_cache_demand_at:}`.
+
+  A row created here also starts its transfer clock
+  (`Tuist.Kura.Transfers`), so an account-region that appears after the seeding
+  backfill has run is still tracked, and still inert for the grace period.
   """
   def upsert_many(rows) when is_list(rows), do: upsert_all(rows)
 
@@ -267,6 +270,7 @@ defmodule Tuist.Kura.Demand do
         row
         |> Map.put(:id, UUIDv7.generate())
         |> Map.update!(:last_cache_demand_at, &DateTime.truncate(&1, :second))
+        |> Map.put(:transfer_tracking_started_at, now)
         |> Map.put(:inserted_at, now)
         |> Map.put(:updated_at, now)
       end)
@@ -279,6 +283,15 @@ defmodule Tuist.Kura.Demand do
             update: [
               set: [
                 last_cache_demand_at: fragment("GREATEST(?, EXCLUDED.last_cache_demand_at)", l.last_cache_demand_at),
+                # Coalesced, not overwritten: the archival sweep reads the
+                # transfer clock and refuses to act until it has been in place
+                # for the tracking grace period, so restarting it on every
+                # resolution would hold every instance warm forever.
+                transfer_tracking_started_at:
+                  fragment(
+                    "COALESCE(?, EXCLUDED.transfer_tracking_started_at)",
+                    l.transfer_tracking_started_at
+                  ),
                 updated_at: fragment("EXCLUDED.updated_at")
               ]
             ]

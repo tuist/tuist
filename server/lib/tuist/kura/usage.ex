@@ -8,6 +8,7 @@ defmodule Tuist.Kura.Usage do
   alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.Kura.Transfers
   alias Tuist.Kura.UsageEvent
   alias Tuist.Projects
 
@@ -26,6 +27,9 @@ defmodule Tuist.Kura.Usage do
 
     if rows != [] do
       IngestRepo.insert_all(UsageEvent, rows)
+      # The archival sweep decides on bytes moved, not on cache-endpoint
+      # lookups, and this is where the bytes are reported.
+      Transfers.record(rows)
     end
 
     {:ok, length(rows)}

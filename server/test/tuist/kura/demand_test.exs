@@ -141,6 +141,27 @@ defmodule Tuist.Kura.DemandTest do
              ) == :eq
     end
 
+    test "starts the transfer clock on a new row, so the archival sweep can eventually read it" do
+      account = air_account()
+
+      {:ok, 1} =
+        Demand.upsert_many([
+          %{account_id: account.id, service_region: "us-east", last_cache_demand_at: DateTime.utc_now()}
+        ])
+
+      assert Demand.get(account.id, "us-east").transfer_tracking_started_at
+    end
+
+    test "does not restart the transfer clock on an existing row" do
+      account = air_account()
+      {:ok, 1} = Demand.upsert(account.id, "us-east", DateTime.add(DateTime.utc_now(), -3600, :second))
+      started_at = Demand.get(account.id, "us-east").transfer_tracking_started_at
+
+      {:ok, 1} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      assert Demand.get(account.id, "us-east").transfer_tracking_started_at == started_at
+    end
+
     test "is a no-op on an empty batch" do
       assert {:ok, 0} = Demand.upsert_many([])
     end

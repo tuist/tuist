@@ -1,16 +1,30 @@
 defmodule Tuist.Kura.Lifecycle do
   @moduledoc """
-  Converges account-region Kura instances with cache demand.
+  Converges account-region Kura instances with cache use.
+
+  Two clocks, because the question "does this account want a cache?" and the
+  question "is this instance earning its quota?" have different answers.
+  `Tuist.Kura.Demand` records cache-endpoint resolution and triggers
+  provisioning: an archived account has no instance and so can push no usage
+  rollup, which makes resolution the only signal it can produce.
+  `Tuist.Kura.Transfers` records bytes moved through an instance, in either
+  direction, and decides archival: `tuist setup cache` installs a LaunchAgent
+  with `RunAtLoad`, so an account whose cache daemon starts at every login
+  refreshes its resolution clock forever without anyone building, and archiving
+  on that clock would never reclaim it.
 
   Every plan that is archived at all follows the same default 90-day lifecycle
   (`Tuist.Environment.kura_inactive_days/0`, shortened outside production so
   the archival half is exercised rather than first running for real against
   customers), and the identity rule converges in both directions:
 
-    * an account with cache demand inside its inactivity window should have
-      exactly one live instance in its service region, and
-    * an account with no cache demand for a complete inactivity window should
-      have none.
+    * an account resolving a cache endpoint inside its inactivity window should
+      have exactly one live instance in its service region, and
+    * an account whose instance has moved no bytes for a complete inactivity
+      window should have none.
+
+  Enterprise is never archived (`archivable_plan?/1`), so in practice every
+  rule below about reclaiming an instance is a rule about Air and Pro.
 
   Two entry points, split by cadence rather than by concern. `reconcile/0`
   runs on every reconciler tick and does everything an account can feel:
@@ -44,24 +58,55 @@ defmodule Tuist.Kura.Lifecycle do
   holding its quota-enforced directory the entire time.
 
   The first cache demand cold-provisions. Demand while active only refreshes
-  `last_cache_demand_at`. A complete inactivity window enters drain-pending,
-  which unpublishes the endpoint and waits out `Kura.drain_seconds/0` before
-  issuing teardown; demand arriving in that window cancels archival and the
-  instance goes straight back to active. A returning account on any plan takes
-  the cold-provision path, on the same row, with no expectation of prior
-  content.
+  `last_cache_demand_at`. A complete inactivity window with no bytes moved
+  enters drain-pending, which unpublishes the endpoint and waits out
+  `Kura.drain_seconds/0` before issuing teardown; a transfer arriving in that
+  window cancels archival and the instance goes straight back to active. That
+  is reachable because the CLI caches a resolved endpoint for an hour, so a
+  client already holding one keeps transferring after the endpoint is
+  unpublished. A returning account on any plan takes the cold-provision path,
+  on the same row, with no expectation of prior content.
 
-  ## Why archival cannot run on empty demand data
+  ## Unused instances
 
-  An archival sweep against an unseeded `last_cache_demand_at` reads every
-  provisioned instance as inactive and archives the fleet on its first run.
-  Three things stand between this loop and that:
+  An instance that has moved no bytes at all since it was put into service is
+  archived on a much shorter window than an inactive one
+  (`Tuist.Environment.kura_unused_probation_days/0`, 14 days by default). The
+  inactivity window is generous because it trades a returning account's cold
+  rebuild against the quota its instance holds; an instance that has never once
+  been used has nothing to rebuild, and reclaiming it quickly is the whole
+  point of measuring transfers instead of lookups.
+
+  Because that archival is decided on a clock provisioning does not read, it
+  has to be remembered. The account still has a daemon resolving endpoints, so
+  the next reconciler tick would read fresh demand and hand the instance
+  straight back, and the loop would archive and re-provision the same
+  account-region forever. `unused_archived_at` records the decision and holds
+  the account-region out of resolution-driven provisioning for an inactivity
+  window, after which it is given another instance and another probation.
+
+  The hold costs a genuinely returning account the difference between its own
+  Kura instance and the stand-in lane it is served meanwhile. That is the trade
+  the whole loop already makes, and it is bounded: an account-region can only
+  be held after an instance it was given moved zero bytes for a fortnight.
+  Drain cancellation follows the transfer clock for the same reason: an account
+  whose daemon looks up an endpoint on every login would otherwise cancel its
+  own drain on the next tick, forever.
+
+  ## Why archival cannot run on empty transfer data
+
+  An archival sweep against an unseeded `last_transfer_at` reads every
+  provisioned instance as unused and archives the fleet on its first run. Four
+  things stand between this loop and that:
 
     * an account-region with no lifecycle row is never archived. Absence of
-      demand data is not evidence of absence of demand.
-    * a lifecycle row younger than the tracking grace period is never
-      archived, so the backfill has a full window to land before any row it
-      wrote can be acted on.
+      data is not evidence of absence of use.
+    * an account-region whose transfer clock has not been started is never
+      archived, and `Tuist.Kura.Workers.BackfillCacheTransfersWorker` starts it
+      from the `kura_usage_events` history rather than from zero.
+    * a lifecycle row, an instance, or a transfer clock younger than the
+      tracking grace period is never archived, so seeding has a full window to
+      land before any row it wrote can be acted on.
     * `keep_warm` holds a named account-region out of archival entirely, for
       the cases where a directory must survive inactivity.
 
@@ -77,9 +122,10 @@ defmodule Tuist.Kura.Lifecycle do
   Air may enter drain-pending at 60 complete inactive days instead of 90, but
   only while the region's forecast enforced warm quota does not fit what is
   installed (`Tuist.Kura.Capacity`). With room, the 90-day target holds for
-  every plan. Under pressure, the least-recently-demanded Air instances go
-  first, and only as many as it takes to fit. No account on any plan is ever
-  archived before 60 complete inactive days.
+  every plan. Under pressure, the least-recently-used Air instances go first,
+  and only as many as it takes to fit. No account on any plan is archived
+  before 60 complete inactive days, unless its instance has never been used at
+  all, which the probation window covers on its own terms.
   """
 
   import Ecto.Query
@@ -127,8 +173,9 @@ defmodule Tuist.Kura.Lifecycle do
   end
 
   @doc """
-  Decides which instances have gone a complete inactive window without cache
-  demand and moves them into drain-pending.
+  Decides which instances have gone a complete inactive window without moving
+  bytes, and which have never moved any at all, and moves them into
+  drain-pending.
 
   Separate from `reconcile/0` and on a daily cadence because the thresholds
   are whole days: scanning every active instance every minute would multiply
@@ -182,6 +229,7 @@ defmodule Tuist.Kura.Lifecycle do
   end
 
   defp sweep_region(%Regions{id: region_id} = region) do
+    release_unused_holds(region)
     reconcile_drain_entries(region, Capacity.under_pressure?(region_id))
   end
 
@@ -267,6 +315,13 @@ defmodule Tuist.Kura.Lifecycle do
         as: :lifecycle,
         where: l.service_region == ^region_id,
         where: l.last_cache_demand_at >= ^default_cutoff,
+        # An instance archived for moving zero bytes is held out of
+        # provisioning for an inactivity window. Its client keeps resolving
+        # endpoints — that is what made the instance unused rather than
+        # inactive — so without the hold this query would hand the instance
+        # back on the next tick and the sweep would take it again a fortnight
+        # later, forever.
+        where: is_nil(l.unused_archived_at) or l.unused_archived_at < ^default_cutoff,
         where: not exists(live_server_exists),
         where: not exists(destroyed_since_demand_exists),
         order_by: [desc: l.last_cache_demand_at, asc: l.id],
@@ -391,18 +446,22 @@ defmodule Tuist.Kura.Lifecycle do
     now = now()
     default_cutoff = DateTime.add(now, -Environment.kura_inactive_days() * 86_400, :second)
     pressure_cutoff = DateTime.add(now, -Environment.kura_pressure_inactive_days() * 86_400, :second)
+    probation_cutoff = probation_cutoff(now)
     tracking_cutoff = DateTime.add(now, -Environment.kura_demand_tracking_grace_days() * 86_400, :second)
 
     region_id
     |> active_instances_with_lifecycle(pressure_cutoff, tracking_cutoff)
-    |> Enum.flat_map(&classify_candidate(&1, pressure?, default_cutoff))
+    |> Enum.flat_map(&classify_candidate(&1, pressure?, default_cutoff, probation_cutoff))
     |> take_pressure_candidates(region_id)
   end
 
-  # One row per active instance whose account-region has demand tracking older
-  # than the grace period and demand older than the shortest window any plan
-  # can use. Keep-warm instances never appear: they hold their allocation
-  # while inactive by definition.
+  # One row per active instance whose account-region has a transfer clock older
+  # than the grace period and either a transfer older than the shortest window
+  # any plan can use, or no transfer at all. Instances that have never
+  # transferred are carried through whatever their age, because the probation
+  # rule that judges them needs the instance's own timestamps, and the set is
+  # bounded by the region's live instances either way. Keep-warm instances
+  # never appear: they hold their allocation while inactive by definition.
   defp active_instances_with_lifecycle(region_id, pressure_cutoff, tracking_cutoff) do
     Repo.all(
       from(s in Server,
@@ -412,24 +471,38 @@ defmodule Tuist.Kura.Lifecycle do
         where: s.status == :active,
         where: s.move_phase == :none,
         where: l.keep_warm == false,
-        where: l.last_cache_demand_at < ^pressure_cutoff,
+        where: l.last_transfer_at < ^pressure_cutoff or is_nil(l.last_transfer_at),
+        where: l.transfer_tracking_started_at < ^tracking_cutoff,
         where: l.inserted_at < ^tracking_cutoff,
         where: s.inserted_at < ^tracking_cutoff,
-        order_by: [asc: l.last_cache_demand_at],
+        order_by: [asc_nulls_first: l.last_transfer_at],
         preload: [account: :subscriptions],
         select: {s, l}
       )
     )
   end
 
-  defp classify_candidate({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}, pressure?, default_cutoff) do
+  defp classify_candidate(
+         {%Server{} = server, %AccountRegionLifecycle{} = lifecycle},
+         pressure?,
+         default_cutoff,
+         probation_cutoff
+       ) do
     plan = Billing.effective_plan(server.account)
 
     cond do
       not archivable_plan?(plan) ->
         []
 
-      DateTime.before?(lifecycle.last_cache_demand_at, default_cutoff) ->
+      unused?(server, lifecycle, probation_cutoff) ->
+        [{server, lifecycle, plan, :unused}]
+
+      # Never used, and still inside its probation window. There is no transfer
+      # to measure an inactive window from either, so it waits.
+      is_nil(lifecycle.last_transfer_at) ->
+        []
+
+      DateTime.before?(lifecycle.last_transfer_at, default_cutoff) ->
         [{server, lifecycle, plan, :inactive}]
 
       # Between 60 and 90 complete inactive days. Only Air is eligible, and
@@ -440,6 +513,57 @@ defmodule Tuist.Kura.Lifecycle do
       true ->
         []
     end
+  end
+
+  # An instance that has moved no bytes since it was put into service, and has
+  # had a complete probation window to do it in. `last_returned_at` is what
+  # makes this a fact about the instance rather than about the row: a cold
+  # return reuses the row, and a transfer from the instance that preceded the
+  # archive says nothing about the one serving now.
+  defp unused?(%Server{} = server, %AccountRegionLifecycle{} = lifecycle, probation_cutoff) do
+    in_service_since = in_service_since(server, lifecycle)
+
+    DateTime.before?(in_service_since, probation_cutoff) and
+      (is_nil(lifecycle.last_transfer_at) or
+         DateTime.before?(lifecycle.last_transfer_at, in_service_since))
+  end
+
+  defp in_service_since(%Server{inserted_at: inserted_at}, %AccountRegionLifecycle{last_returned_at: nil}) do
+    inserted_at
+  end
+
+  defp in_service_since(%Server{inserted_at: inserted_at}, %AccountRegionLifecycle{last_returned_at: returned_at}) do
+    if DateTime.after?(returned_at, inserted_at), do: returned_at, else: inserted_at
+  end
+
+  defp probation_cutoff(now) do
+    DateTime.add(now, -Environment.kura_unused_probation_days() * 86_400, :second)
+  end
+
+  ## Releasing unused holds
+
+  # A plan that is never archived cannot be held out of provisioning by an
+  # archival. An account that upgrades while held would otherwise wait out the
+  # rest of an inactivity window before getting a cache, so the sweep that owns
+  # the archival policy releases the holds the policy no longer covers. The
+  # population is the region's held account-regions, which is bounded by the
+  # instances it archived for going unused.
+  defp release_unused_holds(%Regions{id: region_id}) do
+    hold_cutoff = DateTime.add(now(), -Environment.kura_inactive_days() * 86_400, :second)
+
+    from(l in AccountRegionLifecycle,
+      where: l.service_region == ^region_id,
+      where: l.unused_archived_at >= ^hold_cutoff,
+      preload: [account: :subscriptions]
+    )
+    |> Repo.all()
+    |> Enum.reject(&archivable_plan?(Billing.effective_plan(&1.account)))
+    |> Enum.each(fn lifecycle ->
+      {:ok, _lifecycle} =
+        lifecycle
+        |> AccountRegionLifecycle.phase_changeset(%{unused_archived_at: nil})
+        |> Repo.update()
+    end)
   end
 
   # Pressure archival reclaims only as much as it takes to fit. Instances past
@@ -544,7 +668,7 @@ defmodule Tuist.Kura.Lifecycle do
 
         cancel_drain(server, lifecycle, plan)
 
-      lifecycle.keep_warm or demand_returned?(lifecycle) ->
+      lifecycle.keep_warm or transfer_returned?(lifecycle) ->
         cancel_drain(server, lifecycle, plan)
 
       # A drain-pending row with no clock cannot have waited out its window,
@@ -571,17 +695,27 @@ defmodule Tuist.Kura.Lifecycle do
     :ok
   end
 
-  # Any cache demand recorded after the drain began cancels archival. Entering
-  # the drain required demand older than a full inactivity window, so a
-  # timestamp newer than the drain start can only be a client that came back.
-  defp demand_returned?(%AccountRegionLifecycle{drain_started_at: nil}), do: false
+  # Any transfer recorded after the drain began cancels archival, and it is the
+  # transfer clock rather than the resolution clock for the same reason
+  # archival is: an account whose cache daemon resolves an endpoint on every
+  # login would cancel its own drain on the next tick, every time, and the loop
+  # would spend every sweep unpublishing and republishing the same endpoint.
+  #
+  # The drain window is what makes this reachable at all. Entering the drain
+  # unpublishes the endpoint, but the CLI caches a resolved one for an hour, so
+  # a client already holding it keeps transferring — which is exactly the
+  # in-flight work `Kura.drain_seconds/0` exists to wait out, and exactly the
+  # evidence that this instance is still doing something.
+  defp transfer_returned?(%AccountRegionLifecycle{drain_started_at: nil}), do: false
 
-  defp demand_returned?(%AccountRegionLifecycle{drain_started_at: started_at, last_cache_demand_at: demand_at}) do
-    # At-or-after, not strictly after: both clocks are second-resolution, and
-    # a request arriving in the same second the drain started is a client that
-    # came back. Entering the drain required demand at least a full inactivity
-    # window old, so equality can only mean new demand.
-    DateTime.compare(demand_at, started_at) != :lt
+  defp transfer_returned?(%AccountRegionLifecycle{last_transfer_at: nil}), do: false
+
+  defp transfer_returned?(%AccountRegionLifecycle{drain_started_at: started_at, last_transfer_at: transfer_at}) do
+    # At-or-after, not strictly after: both clocks are second-resolution, and a
+    # transfer landing in the same second the drain started is work in flight.
+    # Entering the drain required the transfer clock to be at least a full
+    # inactivity window old, or absent, so equality can only mean new bytes.
+    DateTime.compare(transfer_at, started_at) != :lt
   end
 
   # `resolve_drain/2` starts the clock before reaching here, so the drain start
@@ -697,7 +831,8 @@ defmodule Tuist.Kura.Lifecycle do
           |> AccountRegionLifecycle.phase_changeset(%{
             archived_at: now(),
             last_reclaimed_bytes: reclaimed_bytes,
-            last_drain_duration_ms: drain_duration_ms
+            last_drain_duration_ms: drain_duration_ms,
+            unused_archived_at: unused_archived_at(server, lifecycle)
           })
           |> Repo.update()
 
@@ -712,6 +847,19 @@ defmodule Tuist.Kura.Lifecycle do
       {:error, reason} ->
         Logger.warning("[Kura.Lifecycle] could not archive instance #{server.id}: #{inspect(reason)}")
         :ok
+    end
+  end
+
+  # Re-decided here rather than carried from the drain entry, because it cannot
+  # have changed in between: a drain-pending instance has an unpublished
+  # endpoint, so nothing can have moved bytes through it. An archival for any
+  # other reason leaves whatever hold the row already carried, which has either
+  # expired or is about to.
+  defp unused_archived_at(%Server{} = server, %AccountRegionLifecycle{} = lifecycle) do
+    if unused?(server, lifecycle, probation_cutoff(now())) do
+      now()
+    else
+      lifecycle.unused_archived_at
     end
   end
 

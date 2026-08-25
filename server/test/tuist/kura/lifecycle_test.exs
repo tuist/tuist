@@ -77,8 +77,12 @@ defmodule Tuist.Kura.LifecycleTest do
     end
   end
 
-  # An account whose demand tracking and instance are old enough to clear the
-  # tracking grace period, with the last cache request `days` ago.
+  # An account whose tracking and instance are old enough to clear the tracking
+  # grace period, with its last cache request and its last transfer `days_ago`.
+  #
+  # Both clocks by default: an account that has been quiet for a window is
+  # normally quiet on both, and the tests that are about the two disagreeing
+  # say so with `transfer_days_ago:` or `transfer: :never`.
   defp with_demand(account, days_ago, opts \\ []) do
     demand_at = ago(days_ago)
 
@@ -87,8 +91,19 @@ defmodule Tuist.Kura.LifecycleTest do
     lifecycle = Demand.get(account.id, @region)
     aged = ago(Keyword.get(opts, :tracked_for_days, 120))
 
+    transfer_at =
+      case Keyword.get(opts, :transfer, :same) do
+        :never -> nil
+        :same -> ago(Keyword.get(opts, :transfer_days_ago, days_ago))
+      end
+
     lifecycle
-    |> Ecto.Changeset.change(%{inserted_at: aged, updated_at: aged})
+    |> Ecto.Changeset.change(%{
+      inserted_at: aged,
+      updated_at: aged,
+      transfer_tracking_started_at: ago(Keyword.get(opts, :transfer_tracked_for_days, 120)),
+      last_transfer_at: transfer_at
+    })
     |> Repo.update!()
   end
 
@@ -99,7 +114,11 @@ defmodule Tuist.Kura.LifecycleTest do
   # pressure arithmetic reads each instance's own claim, so an instance inserted
   # without one would not reserve what its plan reserves in production.
   defp active_instance(account, opts \\ []) do
-    inserted_at = ago_usec(Keyword.get(opts, :age_days, 120))
+    # Older than any demand the tests record by default, so an instance that
+    # has been quiet reads as inactive rather than as never used: the two
+    # archive on different windows and only one of them holds the
+    # account-region out of provisioning afterwards.
+    inserted_at = ago_usec(Keyword.get(opts, :age_days, 400))
     %{claim_size: claim_size} = Regions.storage_profile(AccountPolicies.sizing_plan(account))
 
     %Server{
@@ -128,6 +147,16 @@ defmodule Tuist.Kura.LifecycleTest do
     Lifecycle.sweep()
     assert reload(server).status == :drain_pending
     reload_lifecycle(account)
+  end
+
+  # A transfer landing on the instance now, the way an ingested usage rollup
+  # records one. Reachable mid-drain because the CLI caches a resolved endpoint
+  # for an hour, so a client keeps transferring after the drain unpublishes it.
+  defp transfer_arrives(account) do
+    account
+    |> reload_lifecycle()
+    |> Ecto.Changeset.change(%{last_transfer_at: DateTime.truncate(DateTime.utc_now(), :second)})
+    |> Repo.update!()
   end
 
   # Rewinds the drain clock so the next tick sees the drain window as elapsed.
@@ -249,6 +278,116 @@ defmodule Tuist.Kura.LifecycleTest do
       assert :ok = Lifecycle.sweep()
 
       assert reload(server).status == :active
+    end
+
+    test "archives an instance whose client keeps looking up an endpoint but moves no bytes" do
+      # The whole reason archival reads transfers: `tuist setup cache` installs
+      # a LaunchAgent that resolves an endpoint on every login, so this
+      # account's resolution clock never goes cold and its instance would be
+      # held warm forever.
+      account = account()
+      server = active_instance(account)
+      with_demand(account, 0, transfer: :never)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :drain_pending
+    end
+
+    test "leaves an instance alone while it is still moving bytes, however old its last lookup" do
+      # The other direction of the same split: the CLI caches a resolved
+      # endpoint for an hour, so a busy account can go a long time without
+      # asking again.
+      account = account()
+      server = active_instance(account)
+      with_demand(account, 200, transfer_days_ago: 1)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "archives an instance that has never moved a byte on the probation window" do
+      account = account()
+      server = active_instance(account, age_days: 20)
+      with_demand(account, 0, transfer: :never)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :drain_pending
+    end
+
+    test "leaves a never-used instance alone inside its probation window" do
+      account = account()
+      server = active_instance(account, age_days: 10)
+      with_demand(account, 0, transfer: :never)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "measures probation from the return, not from the row, for a cold-returned instance" do
+      account = account()
+      server = active_instance(account, age_days: 400)
+      with_demand(account, 0, transfer: :never)
+
+      account.id
+      |> Demand.get(@region)
+      |> Ecto.Changeset.change(%{last_returned_at: ago(3)})
+      |> Repo.update!()
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "never archives an account-region whose transfer tracking is younger than the grace period" do
+      account = account()
+      server = active_instance(account)
+      with_demand(account, 200, transfer: :never, transfer_tracked_for_days: 1)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "never archives an account-region whose transfer clock was never started" do
+      account = account()
+      server = active_instance(account)
+      with_demand(account, 200)
+
+      account.id
+      |> Demand.get(@region)
+      |> Ecto.Changeset.change(%{transfer_tracking_started_at: nil})
+      |> Repo.update!()
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "never archives a keep-warm instance that has never moved a byte" do
+      account = account()
+      server = active_instance(account)
+      with_demand(account, 0, transfer: :never)
+      {:ok, _} = Demand.set_keep_warm(account.id, @region, true)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "reports an unused instance under its own reason" do
+      account = account()
+      _server = active_instance(account)
+      with_demand(account, 0, transfer: :never)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :drain_pending]])
+
+      assert :ok = Lifecycle.sweep()
+
+      assert_received {[:tuist, :kura, :lifecycle, :drain_pending], ^ref, %{count: 1}, %{reason: "unused"}}
     end
 
     test "never archives an instance with no recorded demand" do
@@ -438,12 +577,12 @@ defmodule Tuist.Kura.LifecycleTest do
   end
 
   describe "archive cancellation" do
-    test "returns a draining instance to service when demand arrives mid-drain" do
+    test "returns a draining instance to service when a transfer arrives mid-drain" do
       account = account()
       server = active_instance(account)
       start_drain(account, server)
 
-      Demand.record(account.id)
+      transfer_arrives(account)
 
       assert :ok = Lifecycle.reconcile()
 
@@ -458,7 +597,7 @@ defmodule Tuist.Kura.LifecycleTest do
       Repo.insert!(%AccountCacheEndpoint{account_id: account.id, url: server.url, technology: :kura})
       start_drain(account, server)
 
-      Demand.record(account.id)
+      transfer_arrives(account)
       Lifecycle.reconcile()
 
       assert [%AccountCacheEndpoint{url: url}] =
@@ -471,7 +610,7 @@ defmodule Tuist.Kura.LifecycleTest do
       account = account()
       server = active_instance(account)
       start_drain(account, server)
-      Demand.record(account.id)
+      transfer_arrives(account)
 
       ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :archive_cancelled]])
 
@@ -510,6 +649,18 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(server).status == :drain_pending
       assert reload_lifecycle(account).teardown_started_at == nil
       assert reload_lifecycle(account).drain_started_at
+    end
+
+    test "a lookup does not cancel a drain, because a lookup is not use" do
+      account = account()
+      server = active_instance(account)
+      start_drain(account, server)
+
+      Demand.record(account.id)
+
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :drain_pending
     end
 
     test "does not cancel once teardown has been issued" do
@@ -756,6 +907,94 @@ defmodule Tuist.Kura.LifecycleTest do
     end
   end
 
+  describe "unused instances" do
+    setup do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      :ok
+    end
+
+    # An account-region archived for never moving a byte, through the whole
+    # loop: sweep, drain, teardown, archive.
+    defp archive_unused(account) do
+      server = active_instance(account)
+      with_demand(account, 0, transfer: :never)
+      Lifecycle.sweep()
+      assert reload(server).status == :drain_pending
+      elapse_drain(account)
+      Lifecycle.reconcile()
+      assert reload(server).status == :archived
+      server
+    end
+
+    test "records that the archival was for going unused" do
+      account = account()
+      archive_unused(account)
+
+      assert reload_lifecycle(account).unused_archived_at
+    end
+
+    test "are not handed back by the lookups that kept them warm" do
+      # Without the hold this is a cycle rather than an identity rule: the
+      # daemon that never built keeps resolving, so the next tick would return
+      # the instance from archive and the sweep would take it again.
+      account = account()
+      server = archive_unused(account)
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :archived
+    end
+
+    test "are given another instance once the hold expires" do
+      account = account()
+      server = archive_unused(account)
+
+      account
+      |> reload_lifecycle()
+      |> Ecto.Changeset.change(%{unused_archived_at: ago(91)})
+      |> Repo.update!()
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :provisioning
+    end
+
+    test "release the hold when the account moves to a plan that is never archived" do
+      account = account()
+      server = archive_unused(account)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{region: :usa})
+
+      assert :ok = Lifecycle.sweep()
+
+      refute reload_lifecycle(account).unused_archived_at
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :provisioning
+    end
+
+    test "an instance archived for inactivity is not held, so a returning account is served at once" do
+      account = account()
+      server = active_instance(account)
+      start_drain(account, server)
+      elapse_drain(account)
+      Lifecycle.reconcile()
+      assert reload(server).status == :archived
+
+      refute reload_lifecycle(account).unused_archived_at
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :provisioning
+    end
+  end
+
   describe "open rollouts" do
     test "are cancelled when an instance enters drain, so no rollout can act on it" do
       account = account()
@@ -791,7 +1030,7 @@ defmodule Tuist.Kura.LifecycleTest do
       start_drain(account, server)
       assert [%Deployment{status: :cancelled}] = Repo.all(from(d in Deployment, where: d.kura_server_id == ^server.id))
 
-      Demand.record(account.id)
+      transfer_arrives(account)
       Lifecycle.reconcile()
       assert reload(server).status == :active
 
@@ -921,16 +1160,13 @@ defmodule Tuist.Kura.LifecycleTest do
   end
 
   describe "reconcile/0" do
-    test "persists buffered demand before reading it, so a just-served account is not read as inactive" do
+    test "persists buffered demand before reading it, so an account served seconds ago is provisioned" do
       account = account()
-      server = active_instance(account)
-      with_demand(account, 200)
-
       Demand.record(account.id)
 
-      assert :ok = Lifecycle.sweep()
+      assert :ok = Lifecycle.reconcile()
 
-      assert reload(server).status == :active
+      assert [%Server{status: :provisioning}] = servers_for(account)
     end
 
     test "does not provision with no runtime image tag configured" do

@@ -7,6 +7,14 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
   latest qualifying cache request across those projects, not a per-project
   clock.
 
+  Two clocks, because one signal cannot answer both questions the lifecycle
+  asks. `last_cache_demand_at` is cache-endpoint resolution and drives
+  provisioning: it is the only signal an archived account can produce, since an
+  account with no instance cannot push a usage rollup. `last_transfer_at` is
+  bytes actually moved, maintained from `kura_usage_events`, and drives
+  archival: an installed-but-idle cache daemon resolves an endpoint on every
+  login and would otherwise hold an instance warm forever.
+
   The row outlives the `kura_servers` row it describes. That is the point:
   an archived account has no server, and its demand timestamp is what the
   next cache request compares against to decide whether to cold-provision.
@@ -27,6 +35,8 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
   schema "kura_account_region_lifecycles" do
     field :service_region, :string
     field :last_cache_demand_at, :utc_datetime
+    field :last_transfer_at, :utc_datetime
+    field :transfer_tracking_started_at, :utc_datetime
     field :keep_warm, :boolean, default: false
     field :drain_started_at, :utc_datetime
     field :teardown_started_at, :utc_datetime
@@ -34,6 +44,7 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
     field :last_reclaimed_bytes, :integer
     field :last_drain_duration_ms, :integer
     field :last_returned_at, :utc_datetime
+    field :unused_archived_at, :utc_datetime
 
     belongs_to :account, Account
 
@@ -52,7 +63,8 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
       :archived_at,
       :last_reclaimed_bytes,
       :last_drain_duration_ms,
-      :last_returned_at
+      :last_returned_at,
+      :unused_archived_at
     ])
   end
 

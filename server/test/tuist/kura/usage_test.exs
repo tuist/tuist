@@ -5,6 +5,7 @@ defmodule Tuist.Kura.UsageTest do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.Kura.Demand
   alias Tuist.Kura.Usage
   alias Tuist.Kura.UsageEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -102,6 +103,62 @@ defmodule Tuist.Kura.UsageTest do
                ClickHouseRepo.all(from(e in UsageEvent, where: e.account_id == ^account.id))
 
       assert a_id == account.id
+    end
+
+    test "advances the account-region transfer clock the archival sweep reads" do
+      handle = "shipper-#{System.unique_integer([:positive])}"
+      account = AccountsFixtures.organization_fixture(name: handle).account
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      {:ok, 1} =
+        Usage.create_events([
+          %{
+            "event_id" => "wire-transfer",
+            "tenant_id" => handle,
+            "namespace_id" => "ios",
+            "node_id" => "kura-0",
+            "region" => "us-east",
+            "traffic_plane" => "public",
+            "direction" => "ingress",
+            "operation" => "upload",
+            "protocol" => "http",
+            "artifact_kind" => "xcframework",
+            "bytes" => 100,
+            "request_count" => 1,
+            "window_start_unix_seconds" => 1_777_968_000,
+            "window_seconds" => 60
+          }
+        ])
+
+      assert Demand.get(account.id, "us-east").last_transfer_at
+    end
+
+    test "leaves the transfer clock alone for a rollup that moved no bytes" do
+      handle = "idler-#{System.unique_integer([:positive])}"
+      account = AccountsFixtures.organization_fixture(name: handle).account
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      {:ok, 1} =
+        Usage.create_events([
+          %{
+            "event_id" => "wire-no-bytes",
+            "tenant_id" => handle,
+            "namespace_id" => "ios",
+            "node_id" => "kura-0",
+            "region" => "us-east",
+            "traffic_plane" => "public",
+            "direction" => "egress",
+            "operation" => "download",
+            "protocol" => "http",
+            "artifact_kind" => "xcframework",
+            "bytes" => 0,
+            "request_count" => 3,
+            "window_start_unix_seconds" => 1_777_968_000,
+            "window_seconds" => 60
+          }
+        ])
+
+      refute Demand.get(account.id, "us-east").last_transfer_at
     end
 
     test "rejects batches exceeding @max_events_per_batch" do

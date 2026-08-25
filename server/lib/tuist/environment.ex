@@ -404,6 +404,20 @@ defmodule Tuist.Environment do
   def kura_pressure_inactive_days, do: positive_env_integer("TUIST_KURA_PRESSURE_INACTIVE_DAYS", 60)
 
   @doc """
+  Days a Kura instance may move no bytes at all before it is archived.
+
+  Far shorter than the inactivity window because it answers a different
+  question. The inactivity window trades a returning account's cold rebuild
+  against the quota its instance holds, so it is generous. An instance that has
+  never once moved a byte has nothing to rebuild, and the population it
+  reclaims — accounts whose cache daemon resolves an endpoint on every login
+  and then never builds — is only reclaimed on a window this short.
+
+  Read from `TUIST_KURA_UNUSED_PROBATION_DAYS`.
+  """
+  def kura_unused_probation_days, do: positive_env_integer("TUIST_KURA_UNUSED_PROBATION_DAYS", 14)
+
+  @doc """
   Days an account-region's demand must have been tracked before it can be
   archived, however old the recorded demand looks.
 
