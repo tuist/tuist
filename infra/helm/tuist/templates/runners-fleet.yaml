@@ -15,11 +15,26 @@ this chart a MachineTemplate rename is not free.
       "fleetName" .fleetName
       "adoptPoolPrefix" .adoptPoolPrefix
 -}}
+{{- /*
+`with` is right for the sizing fields: 0 is nonsense for all of them
+(a host with no CPU, no memory or no Pod ceiling does not exist), so
+falsy-erasure and "unset" mean the same thing.
+*/ -}}
 {{- with $machine.hostCPU }}{{- $_ := set $spec "hostCPU" . }}{{- end }}
 {{- with $machine.hostMemoryMB }}{{- $_ := set $spec "hostMemoryMB" . }}{{- end }}
 {{- with $machine.maxPods }}{{- $_ := set $spec "maxPods" . }}{{- end }}
 {{- with $machine.guestCapacity }}{{- $_ := set $spec "guestCapacity" . }}{{- end }}
-{{- with $machine.runnerCacheVolumeGiB }}{{- $_ := set $spec "runnerCacheVolumeGiB" . }}{{- end }}
+{{- /*
+The cache quota is the exception and needs PRESENCE, not truthiness: 0
+means "cache volumes off on this host" and `with` would swallow it, so
+a group asking to run cold would silently inherit the fleet's non-zero
+global instead. `hasKey` alone is not enough either — the documented
+placeholder in values.yaml is an explicit null, which is a present key
+with no value. The spec field is a pointer for the same reason.
+*/ -}}
+{{- if and (hasKey $machine "runnerCacheVolumeGiB") (not (kindIs "invalid" $machine.runnerCacheVolumeGiB)) }}
+{{- $_ := set $spec "runnerCacheVolumeGiB" $machine.runnerCacheVolumeGiB }}
+{{- end }}
 {{- toYaml $spec -}}
 {{- end -}}
 {{- if and .Values.capi.enabled .Values.runnersFleet.enabled }}
@@ -84,8 +99,14 @@ spec:
       MachineSet references it by name, so renaming it now would have
       Helm delete the template its own Machines are cloned from and
       wedge the next scale-up with InfrastructureTemplateCloningFailed.
+
       New `machineGroups` below do get hashed names — they have no
-      installed base to strand.
+      installed base to strand — and carry
+      `helm.sh/resource-policy: keep`, which is the half of that
+      pattern that makes it safe: hashing renames the object on a spec
+      change, and the annotation is what stops Helm pruning the
+      superseded one out from under the MachineSet still cloning from
+      it.
       */}}
       {{- include "tuist.runnersFleet.machineSpec" (dict
             "machine" .Values.runnersFleet.machine
@@ -140,6 +161,15 @@ kind: ScalewayAppleSiliconMachineTemplate
 metadata:
   name: {{ $templateName }}
   namespace: {{ $.Release.Namespace }}
+  annotations:
+    # A superseded template stays referenced by the MachineSet that
+    # was cloned from it, which outlives the template under OnDelete.
+    # Without this, editing a group's `machine` block renders a new
+    # name, Helm prunes the old object, and the MachineSet still
+    # holding live Machines can no longer clone — the next
+    # replacement or scale-up fails InfrastructureTemplateCloningFailed
+    # with nothing short of hand-recreating the template to repair it.
+    helm.sh/resource-policy: keep
   labels:
     {{- include "tuist.labels" $ | nindent 4 }}
     app.kubernetes.io/component: runners-fleet

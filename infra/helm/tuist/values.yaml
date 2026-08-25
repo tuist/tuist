@@ -1845,6 +1845,13 @@ runnersFleet:
     # running two guests needs a LARGER quota than a single-guest one
     # just to keep the same number of accounts hot. The provisioning
     # script never resizes, so this only takes effect on a fresh host.
+    #
+    # Unlike the fields above, this one reads on PRESENCE: null (or
+    # omitted) inherits the operator global, while an explicit `0`
+    # disables cache volumes on this SKU and every VM there boots on
+    # the cold path. Staging a new SKU cold and enabling its cache once
+    # validated is how the feature was rolled out originally, so the
+    # two states have to stay distinguishable.
     runnerCacheVolumeGiB: ~
   # Additional host groups, each rendering its own MachineDeployment +
   # MachineTemplate. This is how one fleet spans several Scaleway SKUs

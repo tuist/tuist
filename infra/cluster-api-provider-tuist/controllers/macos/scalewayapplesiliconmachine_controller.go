@@ -1671,14 +1671,18 @@ func guestCapacityFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int 
 	return capacity
 }
 
-// runnerCacheVolumeGiBFor has no "0 means unset" ambiguity to resolve
-// the way the others do: 0 is the meaningful "cache volumes off" value
-// on both sides. A negative spec value is treated as unset so a bad
-// manifest degrades to the fleet default rather than to a nonsense
-// quota that would fail the diskutil call at bootstrap.
+// runnerCacheVolumeGiBFor resolves on PRESENCE, not on truthiness, so
+// an explicit 0 means "cache volumes off on this host" rather than
+// collapsing into "unset" and silently inheriting the fleet default.
+// That is why the spec field is a pointer while its sizing siblings
+// are not: 0 is a value here, and nonsense for them.
+//
+// A negative value is still treated as unset — it cannot be an intent,
+// and degrading to the fleet default beats pushing a quota that would
+// fail the diskutil call at bootstrap.
 func runnerCacheVolumeGiBFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
-	if m.Spec.RunnerCacheVolumeGiB > 0 {
-		return m.Spec.RunnerCacheVolumeGiB
+	if gib := m.Spec.RunnerCacheVolumeGiB; gib != nil && *gib >= 0 {
+		return *gib
 	}
 	return fallback
 }

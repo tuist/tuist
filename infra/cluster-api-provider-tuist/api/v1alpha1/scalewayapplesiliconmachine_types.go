@@ -141,10 +141,20 @@ type ScalewayAppleSiliconMachineSpec struct {
 
 	// RunnerCacheVolumeGiB is the quota (GiB) of the dedicated APFS
 	// volume host bootstrap provisions to hold per-account cache-volume
-	// images. Falls back to the operator's
-	// `--runner-cache-volume-gib` global default when unset; 0
+	// images. Unset (nil) falls back to the operator's
+	// `--runner-cache-volume-gib` global default; an explicit 0
 	// disables cache volumes on this host entirely (every VM boots on
 	// the cold path).
+	//
+	// A pointer, unlike its sibling sizing fields, because 0 is a
+	// meaningful value here and nonsense for them — a host with no CPU
+	// or no Pod ceiling does not exist, but a host with cache volumes
+	// switched off is an ordinary thing to want. With a scalar the two
+	// states collapse and an operator asking a SKU to run cold gets the
+	// fleet default instead, silently. That matters when bringing a new
+	// SKU into a fleet whose global is already non-zero: staging the
+	// host cold first and enabling the cache once it is validated is
+	// how this feature was rolled out in the first place.
 	//
 	// Per-Machine because the right quota is a function of the SKU's
 	// disk, and the SKUs differ by 4x: the 512 GB M2-L has no room
@@ -163,7 +173,7 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// hash: a drifted host re-runs an idempotent script that early-
 	// returns on the already-mounted volume.
 	// +optional
-	RunnerCacheVolumeGiB int `json:"runnerCacheVolumeGiB,omitempty"`
+	RunnerCacheVolumeGiB *int `json:"runnerCacheVolumeGiB,omitempty"`
 
 	// AdoptPoolPrefix is the Scaleway-side name prefix the controller
 	// scans when claiming a Mac mini for this Machine. The controller

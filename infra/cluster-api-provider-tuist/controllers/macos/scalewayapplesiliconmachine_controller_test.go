@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 
@@ -1493,7 +1494,7 @@ func TestHostConfig_HashMatchesWhatIsStampedOnTheMachine(t *testing.T) {
 				m.Spec.HostMemoryMB = 28672
 				m.Spec.MaxPods = 4
 				m.Spec.GuestCapacity = 2
-				m.Spec.RunnerCacheVolumeGiB = 240
+				m.Spec.RunnerCacheVolumeGiB = ptr.To(240)
 				return m
 			}(),
 		},
@@ -1547,7 +1548,7 @@ func TestDesiredHostConfigHash_MovesWithEverySKUField(t *testing.T) {
 		"HostMemoryMB":         func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.HostMemoryMB = 28672 },
 		"MaxPods":              func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.MaxPods = 4 },
 		"GuestCapacity":        func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.GuestCapacity = 2 },
-		"RunnerCacheVolumeGiB": func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.RunnerCacheVolumeGiB = 240 },
+		"RunnerCacheVolumeGiB": func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.RunnerCacheVolumeGiB = ptr.To(240) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			m := &infrav1.ScalewayAppleSiliconMachine{}
@@ -1661,5 +1662,53 @@ func TestReconcileTailscaleEgressService_DeclaresARelayPortPerGuest(t *testing.T
 				}
 			}
 		})
+	}
+}
+
+// The cache quota resolves on presence, so an explicit 0 turns cache volumes
+// off on that host instead of collapsing into "unset" and inheriting a
+// non-zero fleet default. Staging a new SKU cold and enabling its cache once
+// validated depends on that distinction; with a scalar field the operator
+// would silently get 80 GiB on a host it asked to run cold.
+func TestRunnerCacheVolumeGiBFor_DistinguishesExplicitZeroFromUnset(t *testing.T) {
+	const fleetDefault = 80
+
+	for _, tc := range []struct {
+		name string
+		spec *int
+		want int
+	}{
+		{name: "unset inherits the fleet default", spec: nil, want: fleetDefault},
+		{name: "explicit zero disables cache volumes", spec: ptr.To(0), want: 0},
+		{name: "explicit value overrides", spec: ptr.To(240), want: 240},
+		// Not an intent anyone can have, and a negative quota would fail the
+		// diskutil call at bootstrap; degrade to the fleet default instead.
+		{name: "negative degrades to the fleet default", spec: ptr.To(-1), want: fleetDefault},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &infrav1.ScalewayAppleSiliconMachine{}
+			m.Spec.RunnerCacheVolumeGiB = tc.spec
+			if got := runnerCacheVolumeGiBFor(m, fleetDefault); got != tc.want {
+				t.Fatalf("runnerCacheVolumeGiBFor = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// An explicit 0 has to move the fingerprint too. If it hashed the same as
+// unset, a host switched to the cold path would read as already-converged and
+// never receive the launchd config that drops --runner-cache-root.
+func TestDesiredHostConfigHash_MovesWhenCacheVolumesAreExplicitlyDisabled(t *testing.T) {
+	r := &ScalewayAppleSiliconMachineReconciler{
+		FleetConfig:          bootstrap.Config{RunnerCacheVolumeGiB: 80, CacheVolumeMasterCapGiB: 20},
+		DefaultGuestCapacity: 1,
+	}
+	unset := &infrav1.ScalewayAppleSiliconMachine{}
+	disabled := &infrav1.ScalewayAppleSiliconMachine{}
+	disabled.Spec.RunnerCacheVolumeGiB = ptr.To(0)
+
+	if r.desiredHostConfigHash(unset) == r.desiredHostConfigHash(disabled) {
+		t.Fatal("a machine disabling cache volumes hashes the same as one on the fleet default; " +
+			"the host would never be told to stop using them")
 	}
 }
