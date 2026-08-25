@@ -26,6 +26,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: {{ .Values.server.networkPolicy.kuraNamespace | quote }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.server.networkPolicy.kuraPodLabels | nindent 14 }}
       ports:
         - protocol: TCP
           port: http
@@ -48,10 +51,6 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
-    - to:
-        - podSelector:
-            matchLabels:
-              {{- include "tuist.selectorLabels" . | nindent 14 }}
     - to:
         - namespaceSelector:
             matchLabels:

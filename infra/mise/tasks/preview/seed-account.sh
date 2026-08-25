@@ -12,8 +12,12 @@
 #                           Kura runtime. Stored on the account's
 #                           kura_servers row.
 #   RELEASE_NAME            Helm release name; used to find the server pod.
-#   PREVIEW_USER_PASSWORD   Password the seeded user gets. Default:
+#   PREVIEW_USER_PASSWORD   Password for a newly seeded user, or the value
+#                           used by an explicit rotation. Default:
 #                           preview-temp-password.
+#   PREVIEW_ROTATE_USER_PASSWORD
+#                           When truthy, rotate an existing seeded user's
+#                           password and revoke its sessions. Default: 0.
 #   PREVIEW_SEED_CONTENT    When truthy, run server/priv/repo/seeds.exs
 #                           before wiring the Kura endpoint. Default: 0.
 #   SEED_CREDENTIALS_DIRECTORY Optional in-container directory containing
@@ -30,6 +34,7 @@ NAMESPACE="${usage_namespace:-default}"
 PREVIEW_ACCOUNT_HANDLE="${PREVIEW_ACCOUNT_HANDLE:-preview}"
 PREVIEW_USER_EMAIL="${PREVIEW_USER_EMAIL:-${PREVIEW_ACCOUNT_HANDLE}@preview.tuist.dev}"
 PREVIEW_USER_PASSWORD="${PREVIEW_USER_PASSWORD:-preview-temp-password}"
+PREVIEW_ROTATE_USER_PASSWORD="${PREVIEW_ROTATE_USER_PASSWORD:-0}"
 PREVIEW_SEED_CONTENT="${PREVIEW_SEED_CONTENT:-0}"
 SEED_BUILD_RUNS="${SEED_BUILD_RUNS:-200}"
 SEED_TEST_RUNS="${SEED_TEST_RUNS:-150}"
@@ -108,23 +113,35 @@ end
 handle = System.get_env("PREVIEW_ACCOUNT_HANDLE")
 email = System.get_env("PREVIEW_USER_EMAIL")
 password = System.get_env("PREVIEW_USER_PASSWORD")
+rotate_password? = Environment.truthy?(System.get_env("PREVIEW_ROTATE_USER_PASSWORD", "0"))
 endpoint_url = System.get_env("PREVIEW_KURA_URL")
 
+existing_account = Accounts.get_account_by_handle(handle)
+
+user =
+  case Accounts.get_user_by_email(email) do
+    {:error, :not_found} ->
+      if existing_account do
+        Logger.error(
+          "preview-seed: account handle " <> handle <>
+            " already exists but its configured user " <> email <> " does not"
+        )
+
+        System.halt(1)
+      else
+        Logger.info("preview-seed: creating user " <> email)
+        {:ok, user} = Accounts.create_user(email, handle: handle, password: password)
+        user
+      end
+
+    {:ok, user} ->
+      Logger.info("preview-seed: reusing existing user " <> email)
+      user
+  end
+
 account =
-  case Accounts.get_account_by_handle(handle) do
+  case existing_account do
     nil ->
-      user =
-        case Accounts.get_user_by_email(email) do
-          {:error, :not_found} ->
-            Logger.info("preview-seed: creating user " <> email)
-            {:ok, user} = Accounts.create_user(email, handle: handle, password: password)
-            user
-
-          {:ok, user} ->
-            Logger.info("preview-seed: reusing existing user " <> email)
-            user
-        end
-
       Accounts.get_account_from_user(user)
 
     account ->
@@ -139,6 +156,24 @@ if account.name != handle do
   )
 
   System.halt(1)
+end
+
+if account.user_id != user.id do
+  Logger.error(
+    "preview-seed: user " <> email <> " does not own account handle " <> handle
+  )
+
+  System.halt(1)
+end
+
+if rotate_password? do
+  {:ok, _} =
+    Accounts.reset_user_password(user, %{
+      password: password,
+      password_confirmation: password
+    })
+
+  Logger.info("preview-seed: rotated password for " <> email)
 end
 
 Logger.info("preview-seed: wiring Kura endpoint for account handle " <> account.name)
@@ -164,15 +199,17 @@ if [ -n "$SEED_CREDENTIALS_DIRECTORY" ]; then
       export PREVIEW_KURA_URL="$4"
       export PREVIEW_USER_EMAIL="$(cat "$credentials_directory/email")"
       export PREVIEW_USER_PASSWORD="$(cat "$credentials_directory/password")"
-      exec /app/bin/tuist eval "$5"
+      export PREVIEW_ROTATE_USER_PASSWORD="$5"
+      exec /app/bin/tuist eval "$6"
     ' sh "$SEED_CREDENTIALS_DIRECTORY" "$PREVIEW_ACCOUNT_HANDLE" \
-    "$PREVIEW_SEED_CONTENT" "$KURA_ENDPOINT_URL" "$SEED_SCRIPT"
+    "$PREVIEW_SEED_CONTENT" "$KURA_ENDPOINT_URL" "$PREVIEW_ROTATE_USER_PASSWORD" "$SEED_SCRIPT"
 else
   kubectl -n "$NAMESPACE" exec "$SERVER_POD" -c server \
     -- env \
          "PREVIEW_ACCOUNT_HANDLE=$PREVIEW_ACCOUNT_HANDLE" \
          "PREVIEW_USER_EMAIL=$PREVIEW_USER_EMAIL" \
          "PREVIEW_USER_PASSWORD=$PREVIEW_USER_PASSWORD" \
+         "PREVIEW_ROTATE_USER_PASSWORD=$PREVIEW_ROTATE_USER_PASSWORD" \
          "PREVIEW_SEED_CONTENT=$PREVIEW_SEED_CONTENT" \
          "SEED_BUILD_RUNS=$SEED_BUILD_RUNS" \
          "SEED_TEST_RUNS=$SEED_TEST_RUNS" \

@@ -64,6 +64,21 @@ spec:
       value: {{ $controlPlaneURL }}
     - name: KURA_AUTH_TUIST_URL
       value: {{ $controlPlaneURL }}
+    {{- with $instance.controlPlaneCredentials.secretName }}
+    # Explicit environment variables override the controller's optional
+    # shared Secret. Keep this per-instance credential out of the custom
+    # resource so users with read access to KuraInstance cannot retrieve it.
+    - name: KURA_CONTROL_PLANE_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: {{ . | quote }}
+          key: KURA_CONTROL_PLANE_CLIENT_ID
+    - name: KURA_CONTROL_PLANE_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: {{ . | quote }}
+          key: KURA_CONTROL_PLANE_CLIENT_SECRET
+    {{- end }}
   {{- with $instance.nodeSelector }}
   nodeSelector:
     {{- toYaml . | nindent 4 }}
