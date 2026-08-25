@@ -223,8 +223,16 @@ pub mod shed_kind {
     pub const TMP_STAGING: &str = "tmp_staging";
     pub const MEMORY_PRESSURE_WRITE: &str = "memory_pressure_write";
     pub const OUTBOX: &str = "outbox";
+    // The remote-execution surface sheds against the same transient budget the
+    // HTTP kinds above do, so it belongs in the counter that names which limit
+    // refused a request. It carries no HTTP status of its own -- gRPC answers
+    // RESOURCE_EXHAUSTED, which is already the retryable code -- so without a
+    // kind here a node shedding remote-execution traffic is invisible to the
+    // query operators are told to reach for first.
+    pub const REAPI_WRITE_DECODE: &str = "reapi_write_decode";
+    pub const REAPI_MATERIALIZATION: &str = "reapi_materialization";
 
-    pub const ALL: [&str; 7] = [
+    pub const ALL: [&str; 9] = [
         RESPONSE_STREAM,
         MULTIPART_UPLOADS,
         MULTIPART_STORAGE,
@@ -232,6 +240,8 @@ pub mod shed_kind {
         TMP_STAGING,
         MEMORY_PRESSURE_WRITE,
         OUTBOX,
+        REAPI_WRITE_DECODE,
+        REAPI_MATERIALIZATION,
     ];
 }
 

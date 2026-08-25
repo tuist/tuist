@@ -595,7 +595,17 @@ sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
 
 `kind` is one of `response_stream` (egress capacity — the only kind the warning
 rule below is about), `multipart_uploads`, `multipart_storage`, `upload_memory`,
-`tmp_staging`, `memory_pressure_write` or `outbox`. Reach for it before the
+`tmp_staging`, `memory_pressure_write`, `outbox`, `reapi_write_decode` or
+`reapi_materialization`.
+
+The two `reapi_*` kinds carry no HTTP status at all — the remote-execution
+surface answers gRPC `RESOURCE_EXHAUSTED`, which clients already retry — so the
+shed counter is the only place a node turning remote-execution traffic away
+shows up. Expect them on instances with a small memory floor: the transient
+budget is what bounds write concurrency, and a 64 MiB budget admits roughly 14
+concurrent 2 MiB ByteStream writes before shedding the rest. Sustained
+`reapi_write_decode` on a node whose builds still finish is backpressure, not a
+fault; if it is constant, the floor is the lever. Reach for it before the
 older per-subsystem counters: the HTTP status cannot separate these, since 429
 is shared by every shed and `kura_http_requests_total` has no method label, so
 the routes that serve both reads and writes cannot be split by route either.

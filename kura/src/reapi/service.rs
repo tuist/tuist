@@ -209,6 +209,9 @@ impl ReapiService {
                 self.state
                     .metrics
                     .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
+                self.state
+                    .metrics
+                    .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
                 Status::resource_exhausted(format!(
                     "{label} was rejected because the concurrent REAPI response materialization pool is exhausted"
                 ))
@@ -2321,6 +2324,9 @@ impl<'a> MaterializationBudget<'a> {
         self.state
             .metrics
             .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
+        self.state
+            .metrics
+            .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
         Status::resource_exhausted(message)
     }
 

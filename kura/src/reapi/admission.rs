@@ -165,6 +165,8 @@ impl GrpcWriteAdmission {
             .map_err(|_| {
                 self.metrics
                     .record_memory_action("grpc_write_decode_admission_rejected");
+                self.metrics
+                    .record_capacity_shed(crate::metrics::shed_kind::REAPI_WRITE_DECODE);
                 Status::resource_exhausted(
                     "server is limiting concurrent remote-execution write decoding; retry the write",
                 )
@@ -184,6 +186,8 @@ impl GrpcWriteAdmission {
             .map_err(|_| {
                 self.metrics
                     .record_memory_action("bytestream_staging_admission_rejected");
+                self.metrics
+                    .record_capacity_shed(crate::metrics::shed_kind::REAPI_WRITE_DECODE);
                 Status::resource_exhausted(
                     "server is limiting concurrent ByteStream staging; retry the write",
                 )
@@ -500,6 +504,40 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // The remote-execution shed has to reach `kura_capacity_sheds_total`, the
+    // counter operators are told to reach for before the per-subsystem ones.
+    // It answers RESOURCE_EXHAUSTED rather than an HTTP status, so nothing else
+    // in the shed taxonomy would show a node turning writes away.
+    #[test]
+    fn a_shed_write_is_counted_as_a_capacity_shed() {
+        let metrics = crate::metrics::Metrics::new("eu-west".into(), "tenant".into());
+        let mebibyte = 1024 * 1024;
+        let memory = MemoryController::with_runtime_limit(
+            metrics.clone(),
+            256 * mebibyte,
+            64 * mebibyte,
+            96 * mebibyte,
+        );
+        memory.observe(mebibyte);
+
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.clone())
+            .expect("the initial reservation should fit");
+        // Far past the whole transient budget, so admission must refuse it.
+        admission
+            .try_grow_decode(memory.transient_capacity_bytes() * 2, 0)
+            .expect_err("a message larger than the budget must be shed");
+
+        let rendered = metrics.render();
+        assert!(
+            rendered
+                .lines()
+                .any(|line| line.starts_with("kura_capacity_sheds_total")
+                    && line.contains("reapi_write_decode")
+                    && !line.ends_with(" 0")),
+            "the write shed did not reach kura_capacity_sheds_total"
+        );
+    }
 
     // A node whose whole transient budget is smaller than two full staging
     // windows must still accept a large blob. Before the window was bounded by
