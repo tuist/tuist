@@ -11,6 +11,7 @@ defmodule Tuist.CommandEvents do
   alias Tuist.CommandEvents.Event
   alias Tuist.CommandEvents.ModuleCacheOutput
   alias Tuist.IngestRepo
+  alias Tuist.Kura.Demand
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Storage
@@ -224,6 +225,14 @@ defmodule Tuist.CommandEvents do
 
     project = Repo.get!(Project, command_event.project_id)
     account = Repo.get!(Account, project.account_id)
+
+    # A run with cacheable targets is the account saying it wants a cache in a
+    # way an endpoint lookup cannot, because it is reported after the fact
+    # rather than asked for. It is what releases an account-region the archival
+    # loop is holding out of provisioning for going unused.
+    # The target list, not `cacheable_targets_count`: that column is filled by
+    # ClickHouse on insert, so the struct in hand has no value for it.
+    Demand.record_run(account.id, length(command_event.cacheable_targets))
 
     Tuist.PubSub.broadcast(
       command_event,

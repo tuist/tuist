@@ -2,6 +2,8 @@ defmodule Tuist.GradleTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   alias Tuist.Gradle
+  alias Tuist.Kura.Demand
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -97,6 +99,23 @@ defmodule Tuist.GradleTest do
 
       {:ok, build} = Gradle.get_build(build_id)
       assert build.requested_tasks == []
+    end
+
+    test "releases a Kura hold when the build had cacheable tasks" do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      account.id
+      |> Demand.get("us-east")
+      |> Ecto.Changeset.change(%{unused_archived_at: DateTime.truncate(DateTime.utc_now(), :second)})
+      |> Repo.update!()
+
+      GradleFixtures.build_fixture(
+        account_id: account.id,
+        tasks: [%{task_path: ":app:compileKotlin", outcome: "executed", cacheable: true}]
+      )
+
+      refute Demand.get(account.id, "us-east").unused_archived_at
     end
   end
 

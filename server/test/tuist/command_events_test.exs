@@ -2,8 +2,10 @@ defmodule Tuist.CommandEventsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
+  alias Tuist.Kura.Demand
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -63,6 +65,21 @@ defmodule Tuist.CommandEventsTest do
       # Then
       assert String.length(command_event.error_message) == 200
       assert command_event.error_message == error_message
+    end
+
+    test "releases a Kura hold when the run had something worth caching" do
+      account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      account.id
+      |> Demand.get("us-east")
+      |> Ecto.Changeset.change(%{unused_archived_at: DateTime.truncate(DateTime.utc_now(), :second)})
+      |> Repo.update!()
+
+      CommandEventsFixtures.command_event_fixture(project_id: project.id, cacheable_targets: ["A", "B"])
+
+      refute Demand.get(account.id, "us-east").unused_archived_at
     end
 
     test "sends telemetry events" do

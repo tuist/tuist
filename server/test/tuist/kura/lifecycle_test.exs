@@ -947,6 +947,31 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(server).status == :archived
     end
 
+    test "are given another instance as soon as the account actually builds" do
+      # The hold suppresses resolution, and a transfer needs the instance the
+      # account does not have, so without a signal that arrives from ingest an
+      # account that starts building in month two would have no cache and no
+      # way to ask for one.
+      account = account()
+      server = archive_unused(account)
+
+      Demand.record_run(account.id, 12)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :provisioning
+    end
+
+    test "stay held through a run with nothing in it worth caching" do
+      account = account()
+      server = archive_unused(account)
+
+      Demand.record_run(account.id, 0)
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :archived
+    end
+
     test "are given another instance once the hold expires" do
       account = account()
       server = archive_unused(account)

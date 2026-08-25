@@ -111,6 +111,59 @@ defmodule Tuist.Kura.DemandTest do
     end
   end
 
+  describe "record_run/2" do
+    test "releases a hold, so an account that actually builds is not locked out for a window" do
+      account = air_account()
+      {:ok, 1} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+      hold(account)
+
+      assert 1 = Demand.record_run(account.id, 12)
+
+      refute Demand.get(account.id, "us-east").unused_archived_at
+    end
+
+    test "carries the demand clock forward, so the released row is provisioned rather than merely unblocked" do
+      account = air_account()
+      {:ok, 1} = Demand.upsert(account.id, "us-east", DateTime.add(DateTime.utc_now(), -200 * 86_400, :second))
+      hold(account)
+
+      Demand.record_run(account.id, 12)
+
+      assert DateTime.diff(DateTime.utc_now(), Demand.get(account.id, "us-east").last_cache_demand_at, :day) == 0
+    end
+
+    test "ignores a run with nothing to cache, which would not have used an instance" do
+      account = air_account()
+      {:ok, 1} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+      hold(account)
+
+      assert 0 = Demand.record_run(account.id, 0)
+
+      assert Demand.get(account.id, "us-east").unused_archived_at
+    end
+
+    test "leaves an unheld account-region alone, including its demand clock" do
+      account = air_account()
+      earlier = DateTime.truncate(DateTime.add(DateTime.utc_now(), -3600, :second), :second)
+      {:ok, 1} = Demand.upsert(account.id, "us-east", earlier)
+
+      assert 0 = Demand.record_run(account.id, 12)
+
+      assert Demand.get(account.id, "us-east").last_cache_demand_at == earlier
+    end
+
+    test "is a no-op for a non-integer account id" do
+      assert 0 = Demand.record_run(nil, 12)
+    end
+
+    defp hold(account) do
+      account.id
+      |> Demand.get("us-east")
+      |> Ecto.Changeset.change(%{unused_archived_at: DateTime.truncate(DateTime.utc_now(), :second)})
+      |> Repo.update!()
+    end
+  end
+
   describe "upsert_many/1" do
     test "writes a batch in one statement and keeps the latest timestamp per row" do
       first = air_account()

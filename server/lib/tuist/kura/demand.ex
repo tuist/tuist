@@ -24,6 +24,16 @@ defmodule Tuist.Kura.Demand do
   safe on the archival side, which reads bytes actually moved instead
   (`Tuist.Kura.Transfers`).
 
+  There is a second way in, for the one case where the boundary's bias is not
+  safe. `record_run/2` is a completed run that had something to cache. It
+  arrives from ingest after the fact rather than from a client asking anything,
+  so it separates "someone ran a build" from "a daemon woke up on login" — the
+  conflation that makes the boundary over-count in the first place. It is
+  coarser and later than the boundary and does not replace it; what it is for
+  is releasing an account-region that the archival loop has held out of
+  provisioning for going unused, which resolution alone cannot do because
+  suppressing resolution is what the hold does.
+
   That boundary is a hot path, so `record/1` never touches the database. It
   writes the account id into an ETS buffer; a periodic flush resolves each
   distinct account's effective plan and service region once and upserts the
@@ -78,6 +88,52 @@ defmodule Tuist.Kura.Demand do
   end
 
   def record(_account_id), do: :ok
+
+  @doc """
+  Records that the account completed a run with something in it worth caching,
+  and releases any hold keeping its account-regions out of provisioning.
+
+  Called from run ingest rather than from the request boundary, which is the
+  point: a held account-region is one whose lookups the lifecycle has decided
+  not to believe, so the only way for it to say it wants a cache again is a
+  signal that does not depend on being served. A run is that signal — it is
+  reported after the fact, and reported whether or not a cache answered.
+
+  The cacheable count is the predicate, not the run itself. A run with nothing
+  to cache would not have used an instance, so provisioning one on the strength
+  of it would put the account-region straight back into probation, which is the
+  cycle the hold exists to break.
+
+  Only held rows are touched, so this is a single indexed statement that
+  normally matches nothing. The demand clock is carried forward with the
+  release because a run is stronger evidence of wanting a cache than the
+  lookups it supersedes, and a released row with a stale clock would be
+  unblocked without being provisioned.
+  """
+  def record_run(account_id, cacheable_count)
+      when is_integer(account_id) and is_integer(cacheable_count) and cacheable_count > 0 do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    {count, _} =
+      Repo.update_all(
+        from(l in AccountRegionLifecycle,
+          where: l.account_id == ^account_id,
+          where: not is_nil(l.unused_archived_at),
+          update: [
+            set: [
+              unused_archived_at: nil,
+              last_cache_demand_at: fragment("GREATEST(?, ?)", l.last_cache_demand_at, ^now),
+              updated_at: ^now
+            ]
+          ]
+        ),
+        []
+      )
+
+    count
+  end
+
+  def record_run(_account_id, _cacheable_count), do: 0
 
   @doc """
   Drains this node's buffer into `kura_account_region_lifecycles`. Called on

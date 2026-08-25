@@ -3,6 +3,8 @@ defmodule Tuist.BuildsTest do
   use Mimic
 
   alias Tuist.Builds
+  alias Tuist.Kura.Demand
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -41,6 +43,37 @@ defmodule Tuist.BuildsTest do
       assert build.project_id == project_id
       assert build.account_id == account_id
       assert build.status == "success"
+    end
+
+    test "releases a Kura hold when the build had cacheable tasks" do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      account.id
+      |> Demand.get("us-east")
+      |> Ecto.Changeset.change(%{unused_archived_at: DateTime.truncate(DateTime.utc_now(), :second)})
+      |> Repo.update!()
+
+      {:ok, _build} =
+        Builds.create_build(%{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "Mac15,6",
+          scheme: "App",
+          project_id: project.id,
+          account_id: account.id,
+          status: "success",
+          cacheable_tasks_count: 4,
+          issues: [],
+          files: [],
+          targets: []
+        })
+
+      refute Demand.get(account.id, "us-east").unused_archived_at
     end
 
     test "creates a build with machine metrics" do

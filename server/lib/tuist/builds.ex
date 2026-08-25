@@ -16,6 +16,7 @@ defmodule Tuist.Builds do
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.KeyValueStore
+  alias Tuist.Kura.Demand
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
@@ -158,6 +159,11 @@ defmodule Tuist.Builds do
       project = Project |> Repo.get(build.project_id) |> Repo.preload(:account)
 
       if project do
+        # See `Tuist.Kura.Demand.record_run/2`: a build with cacheable tasks
+        # releases an account-region held out of provisioning for going unused,
+        # which its endpoint lookups cannot do.
+        Demand.record_run(project.account_id, build.cacheable_tasks_count)
+
         Tuist.PubSub.broadcast(
           build,
           "#{project.account.name}/#{project.name}",

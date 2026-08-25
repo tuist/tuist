@@ -14,6 +14,7 @@ defmodule Tuist.Gradle do
   alias Tuist.Gradle.CacheEvent
   alias Tuist.Gradle.Task
   alias Tuist.IngestRepo
+  alias Tuist.Kura.Demand
 
   @doc """
   Creates a Gradle build with associated tasks.
@@ -52,6 +53,11 @@ defmodule Tuist.Gradle do
     machine_metrics = Map.get(attrs, :machine_metrics, [])
 
     create_machine_metrics(build_id, machine_metrics, now)
+
+    # See `Tuist.Kura.Demand.record_run/2`: a build with cacheable tasks
+    # releases an account-region held out of provisioning for going unused,
+    # which its endpoint lookups cannot do.
+    Demand.record_run(attrs.account_id, task_counts.cacheable)
 
     {:ok, build_id}
   end

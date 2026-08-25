@@ -82,13 +82,25 @@ defmodule Tuist.Kura.Lifecycle do
   the next reconciler tick would read fresh demand and hand the instance
   straight back, and the loop would archive and re-provision the same
   account-region forever. `unused_archived_at` records the decision and holds
-  the account-region out of resolution-driven provisioning for an inactivity
-  window, after which it is given another instance and another probation.
+  the account-region out of resolution-driven provisioning.
 
-  The hold costs a genuinely returning account the difference between its own
-  Kura instance and the stand-in lane it is served meanwhile. That is the trade
-  the whole loop already makes, and it is bounded: an account-region can only
-  be held after an instance it was given moved zero bytes for a fortnight.
+  A hold that could only be waited out would be a lockout. Suppressing
+  resolution suppresses the only thing an archived account can say, and a
+  transfer needs the instance it does not have, so an account that installs the
+  CLI, does not build for a fortnight, and then starts real work would have no
+  cache and no way to ask for one. `Tuist.Kura.Demand.record_run/2` is the way
+  out: a completed run with something in it worth caching is reported from
+  ingest after the fact, arrives whether or not a cache answered, and releases
+  the hold, so an account that actually builds has an instance on the next tick
+  rather than at the end of a window. An inactivity window is only the ceiling
+  for an account-region that never builds again.
+
+  That the hold needs a second signal at all is the same problem the transfer
+  clock solves from the other side: endpoint resolution conflates a daemon
+  waking up on login with someone running a build. Holding the first is a
+  stopgap until placement is driven by run-attributed demand, which distinguishes
+  them at the source.
+
   Drain cancellation follows the transfer clock for the same reason: an account
   whose daemon looks up an endpoint on every login would otherwise cancel its
   own drain on the next tick, forever.
