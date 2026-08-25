@@ -1,6 +1,7 @@
 /* Self-hosted fonts (loaded before noora to provide font definitions) */
 @import "../app/css/fonts.css";
 @import "noora/noora.css";
+@import "phoenix-colocated/tuist/colocated.css";
 @import "css/shared/tokens.css";
 @import "../shared/css/prose.css";
 @import "../shared/css/code-window.css";
@@ -24,12 +25,6 @@
 @import "css/routes/newsletter.css";
 @import "css/routes/newsletter-verify.css";
 @import "css/components/header-background.css";
-@import "css/components/build-graph-lab.css";
-@import "css/components/cache-transfer-lab.css";
-@import "css/components/incremental-build-lab.css";
-@import "css/components/incrementality-models-lab.css";
-@import "css/components/kura-network-lab.css";
-@import "css/components/sticky-volume-lab.css";
 @import "css/layouts/components/navbar.css";
 @import "css/layouts/components/footer.css";
 @import "css/layouts/components/banner.css";

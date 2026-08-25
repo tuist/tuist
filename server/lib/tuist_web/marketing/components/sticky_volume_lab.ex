@@ -5,6 +5,336 @@ defmodule TuistWeb.Marketing.Components.StickyVolumeLab do
 
   def render(assigns) do
     ~H"""
+    <style :type={TuistWeb.ColocatedCSS}>
+      [data-part="sticky-volume-lab"] {
+        margin: var(--noora-spacing-7) 0;
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="story"] {
+        display: grid;
+        gap: var(--noora-spacing-5);
+        margin: 0;
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="diagram"] {
+        display: block;
+        width: 100%;
+        height: auto;
+        overflow: visible;
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="mobile-steps"] {
+        display: none;
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="lane-label"],
+      [data-part="sticky-volume-lab"] [data-part="event-label"],
+      [data-part="sticky-volume-lab"] [data-part="volume-label"],
+      [data-part="sticky-volume-lab"] [data-part="fork-label"] {
+        fill: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-semibold) var(--noora-font-body-medium);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="commit-label"] {
+        fill: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-semibold) var(--noora-font-body-small);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="annotation"],
+      [data-part="sticky-volume-lab"] [data-part="volume-note"],
+      [data-part="sticky-volume-lab"] [data-part="time-label"] {
+        fill: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="delta-label"] {
+        fill: var(--noora-button-primary-label);
+        font: var(--noora-font-weight-semibold) var(--noora-font-body-small);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="summary"],
+      [data-part="sticky-volume-lab"] [data-part="note"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="lane-guide"],
+      [data-part="sticky-volume-lab"] [data-part="time-axis"] {
+        stroke: currentColor;
+        stroke-width: 1;
+        color: var(--noora-surface-border-primary);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="branch-line"] {
+        stroke: currentColor;
+        stroke-dasharray: var(--noora-spacing-1) var(--noora-spacing-1);
+        stroke-width: 1.5;
+        color: var(--noora-surface-label-secondary);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="commit"],
+      [data-part="sticky-volume-lab"] [data-part="volume"][data-variant="main"] {
+        fill: var(--noora-surface-background-secondary);
+        stroke: var(--noora-surface-border-primary);
+        stroke-width: 2;
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="volume"],
+      [data-part="sticky-volume-lab"] [data-part="fork-label-surface"] {
+        transform-box: fill-box;
+        transform-origin: center;
+        transition:
+          fill 200ms var(--ease-out-cubic),
+          stroke 200ms var(--ease-out-cubic),
+          transform 200ms var(--ease-out-cubic),
+          opacity 200ms var(--ease-out-cubic);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="result-line"] {
+        stroke: currentColor;
+        stroke-width: 2;
+        color: var(--noora-surface-label-secondary);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="volume"][data-variant="feature"] {
+        opacity: 0;
+        fill: var(--noora-purple-100);
+        stroke: var(--noora-button-primary-background);
+        stroke-width: 2;
+      }
+
+      [data-part="sticky-volume-lab"] [data-stage="fork"] [data-part="volume-label"],
+      [data-part="sticky-volume-lab"] [data-stage="fork"] [data-part="volume-note"] {
+        opacity: 0;
+        transition: opacity 200ms var(--ease-out-cubic);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="volume-delta"] {
+        transform-box: fill-box;
+        transform-origin: left center;
+        opacity: 0;
+        fill: var(--noora-button-primary-background);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="delta-label"] {
+        opacity: 0;
+        transition: opacity 200ms var(--ease-out-cubic);
+        fill: var(--noora-button-primary-label);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="fork-line"] {
+        opacity: 0;
+        transition: opacity 200ms var(--ease-out-cubic);
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        color: var(--noora-button-primary-background);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="fork-label-surface"] {
+        opacity: 0;
+        fill: var(--noora-purple-100);
+        stroke: var(--noora-button-primary-background);
+        stroke-width: 1;
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="fork-label"] {
+        opacity: 0;
+        transition: opacity 200ms var(--ease-out-cubic);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="flow"] {
+        opacity: 0;
+        fill: var(--noora-button-primary-background);
+      }
+
+      [data-part="sticky-volume-lab"] [data-stage="branch"] [data-part="event-label"] {
+        opacity: 0;
+        transition: opacity 200ms var(--ease-out-cubic);
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="summary"],
+      [data-part="sticky-volume-lab"] [data-part="note"] {
+        margin: 0;
+      }
+
+      [data-part="sticky-volume-lab"] [data-part="note"] {
+        border-top: 1px solid var(--noora-surface-border-primary);
+        padding-top: var(--noora-spacing-4);
+      }
+
+      [data-part="sticky-volume-lab"][data-step="0"] [data-stage="main"] [data-part="volume"] {
+        fill: var(--noora-purple-100);
+        stroke: var(--noora-button-primary-background);
+      }
+
+      [data-part="sticky-volume-lab"][data-step="1"] [data-part="fork-line"],
+      [data-part="sticky-volume-lab"][data-step="2"] [data-part="fork-line"],
+      [data-part="sticky-volume-lab"][data-step="1"] [data-part="fork-label-surface"],
+      [data-part="sticky-volume-lab"][data-step="2"] [data-part="fork-label-surface"],
+      [data-part="sticky-volume-lab"][data-step="1"] [data-part="fork-label"],
+      [data-part="sticky-volume-lab"][data-step="2"] [data-part="fork-label"],
+      [data-part="sticky-volume-lab"][data-step="1"] [data-part="volume"][data-variant="feature"],
+      [data-part="sticky-volume-lab"][data-step="2"] [data-part="volume"][data-variant="feature"],
+      [data-part="sticky-volume-lab"][data-step="1"] [data-stage="fork"] [data-part="volume-label"],
+      [data-part="sticky-volume-lab"][data-step="2"] [data-stage="fork"] [data-part="volume-label"],
+      [data-part="sticky-volume-lab"][data-step="1"] [data-stage="fork"] [data-part="volume-note"],
+      [data-part="sticky-volume-lab"][data-step="2"] [data-stage="fork"] [data-part="volume-note"] {
+        opacity: 1;
+      }
+
+      [data-part="sticky-volume-lab"][data-step="2"] [data-part="volume-delta"],
+      [data-part="sticky-volume-lab"][data-step="2"] [data-part="delta-label"] {
+        opacity: 1;
+      }
+
+      [data-part="sticky-volume-lab"][data-step="2"] [data-stage="branch"] [data-part="event-label"] {
+        opacity: 1;
+      }
+
+      [data-part="sticky-volume-lab"][data-step="0"] [data-part="flow"][data-flow="main"] {
+        animation: sticky-volume-lab-main-flow 800ms var(--ease-out-cubic) forwards;
+      }
+
+      [data-part="sticky-volume-lab"][data-step="1"] [data-part="flow"][data-flow="fork"] {
+        animation: sticky-volume-lab-fork-flow 800ms var(--ease-out-cubic) forwards;
+      }
+
+      [data-part="sticky-volume-lab"][data-step="2"] [data-part="volume-delta"] {
+        animation: sticky-volume-lab-delta-flow 800ms var(--ease-out-cubic) forwards;
+      }
+
+      [data-part="sticky-volume-lab"][data-step="0"] [data-part="mobile-step"][data-stage="main"],
+      [data-part="sticky-volume-lab"][data-step="1"] [data-part="mobile-step"][data-stage="fork"],
+      [data-part="sticky-volume-lab"][data-step="2"] [data-part="mobile-step"][data-stage="branch"] {
+        transform: translateY(calc(0px - var(--noora-spacing-1)));
+        border-color: var(--noora-button-primary-background);
+        background: var(--noora-purple-100);
+      }
+
+      @keyframes sticky-volume-lab-main-flow {
+        0% {
+          transform: translate(0, 0);
+          opacity: 0;
+        }
+
+        10%,
+        75% {
+          opacity: 1;
+        }
+
+        100% {
+          transform: translate(42px, 0);
+          opacity: 0;
+        }
+      }
+
+      @keyframes sticky-volume-lab-fork-flow {
+        0% {
+          transform: translate(0, 0);
+          opacity: 0;
+        }
+
+        10%,
+        75% {
+          opacity: 1;
+        }
+
+        100% {
+          transform: translate(20px, 59px);
+          opacity: 0;
+        }
+      }
+
+      @keyframes sticky-volume-lab-delta-flow {
+        0% {
+          transform: scaleX(0);
+          opacity: 0;
+        }
+
+        10%,
+        75% {
+          opacity: 1;
+        }
+
+        100% {
+          transform: scaleX(1);
+          opacity: 1;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        [data-part="sticky-volume-lab"] [data-part="flow"] {
+          animation: none !important;
+        }
+
+        [data-part="sticky-volume-lab"] [data-part="fork-line"],
+        [data-part="sticky-volume-lab"] [data-part="fork-label-surface"],
+        [data-part="sticky-volume-lab"] [data-part="fork-label"],
+        [data-part="sticky-volume-lab"] [data-part="volume"][data-variant="feature"],
+        [data-part="sticky-volume-lab"] [data-part="volume-delta"],
+        [data-part="sticky-volume-lab"] [data-part="delta-label"] {
+          opacity: 1;
+        }
+      }
+
+      @media (width < 48rem) {
+        [data-part="sticky-volume-lab"] [data-part="diagram"] {
+          display: none;
+        }
+
+        [data-part="sticky-volume-lab"] [data-part="mobile-steps"] {
+          display: grid;
+          gap: var(--noora-spacing-3);
+          margin: 0;
+          padding: 0;
+          list-style: none;
+        }
+
+        [data-part="sticky-volume-lab"] [data-part="mobile-step"] {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          align-items: start;
+          gap: var(--noora-spacing-3);
+          transition:
+            border-color 200ms var(--ease-out-cubic),
+            background 200ms var(--ease-out-cubic),
+            transform 200ms var(--ease-out-cubic);
+          border: 1px solid var(--noora-surface-border-primary);
+          border-radius: var(--noora-radius-3);
+          background: var(--noora-surface-background-secondary);
+          padding: var(--noora-spacing-3);
+        }
+
+        [data-part="sticky-volume-lab"] [data-part="mobile-step-number"] {
+          display: grid;
+          place-items: center;
+          border: 1px solid var(--noora-surface-border-primary);
+          border-radius: var(--noora-radius-2);
+          background: var(--noora-surface-background-primary);
+          width: var(--noora-spacing-6);
+          height: var(--noora-spacing-6);
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-semibold) var(--noora-font-body-small);
+        }
+
+        [data-part="sticky-volume-lab"] [data-part="mobile-step"] div {
+          display: grid;
+          gap: var(--noora-spacing-1);
+        }
+
+        [data-part="sticky-volume-lab"] [data-part="mobile-step"] strong {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-semibold) var(--noora-font-body-small);
+        }
+
+        [data-part="sticky-volume-lab"] [data-part="mobile-step"] span:not([data-part="mobile-step-number"]) {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        }
+      }
+    </style>
+
     <section
       id={@id}
       data-part="sticky-volume-lab"
