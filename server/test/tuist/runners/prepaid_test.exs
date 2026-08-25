@@ -439,13 +439,29 @@ defmodule Tuist.Runners.PrepaidTest do
                Prepaid.bill_prepaid_minutes(%Account{customer_id: "cus_bill"}, 10_000)
     end
 
-    test "leaves the grant to the invoice when granting up front fails" do
-      # The charge is already on the customer, so failing here must not
-      # swallow it. Returning the error tells ops, and the invoice.paid
-      # path still finds no grant for the item and issues it then.
+    test "withdraws the charge when granting fails" do
+      # Leaving the charge behind would bill the customer for minutes
+      # they never got, and a retry would add a second charge beside the
+      # first. Withdrawing it means a failed sale costs them nothing.
       stub(Stripe.Invoiceitem, :create, fn _params -> {:ok, %{id: "ii_1"}} end)
       stub_account_period(~U[2026-09-01 00:00:00Z])
       stub(CreditGrants, :create, fn _attrs -> {:error, :stripe_down} end)
+
+      expect(Stripe.Invoiceitem, :delete, fn "ii_1" -> {:ok, %{id: "ii_1", deleted: true}} end)
+
+      # The original failure is what ops needs to see, not the cleanup.
+      assert {:error, :stripe_down} =
+               Prepaid.bill_prepaid_minutes(%Account{customer_id: "cus_bill"}, 10_000)
+    end
+
+    test "reports the grant failure even when the charge cannot be withdrawn" do
+      # The invoice.paid worker is the backstop for the charge that got
+      # away, so the useful thing to surface here is still why the grant
+      # failed.
+      stub(Stripe.Invoiceitem, :create, fn _params -> {:ok, %{id: "ii_1"}} end)
+      stub_account_period(~U[2026-09-01 00:00:00Z])
+      stub(CreditGrants, :create, fn _attrs -> {:error, :stripe_down} end)
+      stub(Stripe.Invoiceitem, :delete, fn "ii_1" -> {:error, :also_down} end)
 
       assert {:error, :stripe_down} =
                Prepaid.bill_prepaid_minutes(%Account{customer_id: "cus_bill"}, 10_000)

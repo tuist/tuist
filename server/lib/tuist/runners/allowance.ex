@@ -31,6 +31,9 @@ defmodule Tuist.Runners.Allowance do
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.Trials
 
+  # Platforms with an agreed rate. Linux joins when it has one.
+  @priced_platforms [:macos]
+
   # Must match the first tier of that environment's runner Price. The
   # default is the real allowance; staging lowers both together so the
   # cap and the paid tier can be reached without burning a hundred
@@ -175,9 +178,15 @@ defmodule Tuist.Runners.Allowance do
     }
   end
 
-  # One row per platform that ran anything, shaped like the usage table
-  # it feeds: what the period has used so far, where that lands by the
-  # end of it, what the plan covers, and what the period before it came
+  # One row per platform there is a rate for, whether or not it ran.
+  # An account has an allowance before it runs anything, and a receipt
+  # reading zero says so better than no receipt at all; a platform with
+  # no rate has nothing to put on one, so Linux is left off until it is
+  # priced. Its minutes still count towards the account's total.
+  #
+  # Shaped like the usage table it feeds: what the period has used so
+  # far, where that lands by the end of it, what the plan covers, and
+  # what the period before it came
   # to.
   defp platform_rows(account_id, period_start, period_end, now, total_ms) do
     # The period immediately before this one, the same length, so
@@ -188,9 +197,10 @@ defmodule Tuist.Runners.Allowance do
 
     previous_by_platform = milliseconds_by_platform(account_id, previous_start, previous_end)
 
-    account_id
-    |> milliseconds_by_platform(period_start, now)
-    |> Enum.sort_by(&elem(&1, 0))
+    by_platform = milliseconds_by_platform(account_id, period_start, now)
+
+    @priced_platforms
+    |> Enum.map(fn platform -> {platform, Map.get(by_platform, platform, 0)} end)
     |> Enum.map(fn {platform, ms} ->
       %{
         id: to_string(platform),

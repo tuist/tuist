@@ -260,7 +260,7 @@ defmodule Tuist.Runners.AllowanceTest do
       assert row.projected_minutes >= row.minutes
     end
 
-    test "shows minutes but no money for a platform with no agreed rate", %{account: account} do
+    test "leaves out a platform with no agreed rate", %{account: account} do
       started = DateTime.add(DateTime.utc_now(), -1, :hour)
 
       Repo.insert!(%RunnerSession{
@@ -280,19 +280,25 @@ defmodule Tuist.Runners.AllowanceTest do
         updated_at: DateTime.truncate(DateTime.utc_now(), :second)
       })
 
+      # Linux has no rate, so there is nothing to put on a receipt for
+      # it. Its minutes still count towards the account's total; they
+      # just have no line of their own until Linux is priced.
       assert [row] = Allowance.period_breakdown(account).platforms
 
-      assert row.platform == :linux
-      assert row.minutes == 10
-      # No Linux rate exists, so pricing it would mean inventing one.
-      assert is_nil(row.gross)
-      assert is_nil(row.billed)
-      # The allowance is only meaningful against a platform that has a rate.
-      assert is_nil(row.included_minutes)
+      assert row.platform == :macos
+      assert row.minutes == 0
     end
 
-    test "reports no rows for an account that ran nothing", %{account: account} do
-      assert Allowance.period_breakdown(account).platforms == []
+    test "reports the priced platform for an account that ran nothing", %{account: account} do
+      # An account has an allowance whether or not it has run anything,
+      # and a receipt reading zero says that better than no receipt.
+      assert [row] = Allowance.period_breakdown(account).platforms
+
+      assert row.platform == :macos
+      assert row.minutes == 0
+      assert row.gross == Money.new(0, :USD)
+      assert row.billed == Money.new(0, :USD)
+      assert row.included_minutes == Allowance.free_monthly_minutes()
     end
   end
 end

@@ -107,12 +107,16 @@ defmodule Tuist.Runners.Prepaid do
   grounds that an account which has agreed to prepay and then vanishes
   is rare enough not to justify withholding what it bought.
 
-  `grant_for_paid_invoice/1` remains the path for lines that reach an
-  invoice without a grant, which is what a failure to grant at sale
-  time degrades to. It skips lines already granted, matching the
-  invoice item id the up-front grant recorded as well as the line id,
-  since a line and the invoice item it came from are different objects
-  with different ids.
+  A grant that fails takes its charge back with it, so a sale that does
+  not go through costs the customer nothing rather than billing them
+  for minutes they never got.
+
+  `grant_for_paid_invoice/1` remains the backstop for a prepaid line
+  that reaches an invoice without a grant — a charge whose withdrawal
+  also failed, or a line raised in Stripe directly. It skips lines
+  already granted, matching the invoice item id the up-front grant
+  recorded as well as the line id, since a line and the invoice item it
+  came from are different objects with different ids.
 
   ## Trials are not this
 
@@ -381,9 +385,21 @@ defmodule Tuist.Runners.Prepaid do
              currency: "usd",
              description: "Prepaid runner minutes (#{minutes} on macOS 6 vCPU / 14 GB)",
              metadata: %{@marker_key => Enum.map_join(platforms, ",", &to_string/1)}
-           }),
-         {:ok, _grant} <- grant_billed_item(customer_id, item, quote, platforms) do
-      {:ok, item}
+           }) do
+      case grant_billed_item(customer_id, item, quote, platforms) do
+        {:ok, _grant} ->
+          {:ok, item}
+
+        {:error, reason} ->
+          # The charge goes back with the grant that failed. Leaving it
+          # would bill the customer for minutes they never got, and a
+          # retry would add a second charge beside the first. If the
+          # withdrawal itself fails there is still the invoice.paid
+          # worker, which grants against a prepaid line that reaches an
+          # invoice without one.
+          delete_charge_item(item.id)
+          {:error, reason}
+      end
     end
   end
 
@@ -467,18 +483,19 @@ defmodule Tuist.Runners.Prepaid do
 
   defp delete_charge(grant) do
     case grant_metadata(grant, @line_key) do
-      nil ->
+      nil -> :ok
+      item_id -> delete_charge_item(item_id)
+    end
+  end
+
+  defp delete_charge_item(item_id) do
+    case Stripe.Invoiceitem.delete(item_id) do
+      {:ok, _deleted} ->
         :ok
 
-      item_id ->
-        case Stripe.Invoiceitem.delete(item_id) do
-          {:ok, _deleted} ->
-            :ok
-
-          {:error, reason} ->
-            Logger.info("runners: prepaid charge #{item_id} was not withdrawn: #{inspect(reason)}")
-            :ok
-        end
+      {:error, reason} ->
+        Logger.info("runners: prepaid charge #{item_id} was not withdrawn: #{inspect(reason)}")
+        :ok
     end
   end
 
@@ -488,10 +505,8 @@ defmodule Tuist.Runners.Prepaid do
   # account can spend them the moment they are sold. The charge still
   # rides the next monthly bill.
   #
-  # Failing to grant returns the error rather than swallowing it: the
-  # charge is already on the customer, and leaving no grant for the item
-  # means `grant_for_paid_invoice/1` issues it when the invoice is paid,
-  # which is the behaviour this replaced.
+  # A failure here withdraws the charge it was granted against, so a
+  # sale that does not go through costs the customer nothing.
   defp grant_billed_item(customer_id, item, quote, platforms) do
     with {:ok, price_ids} <- price_ids(platforms) do
       CreditGrants.create(%{
