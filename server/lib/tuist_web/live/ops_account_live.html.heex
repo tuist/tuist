@@ -77,6 +77,7 @@
             </select>
           </div>
           <.text_input
+            id={"kura-assignment-reason-#{length(@kura_assignment_history)}"}
             field={@kura_assignment_form[:reason]}
             label={dgettext("dashboard", "Reason")}
             hint={
@@ -108,7 +109,7 @@
           <.text_cell label={assignment.service_region} />
         </:col>
         <:col :let={assignment} label={dgettext("dashboard", "Reason")}>
-          <.text_cell label={assignment.reason} />
+          <.text_cell label={assignment.reason} title={assignment.reason} />
         </:col>
         <:col :let={assignment} label={dgettext("dashboard", "Assigned by")}>
           <.text_cell label={assignment_actor(assignment)} />
@@ -486,7 +487,7 @@
       )
     }
     header_type="icon"
-    header_size="small"
+    header_size="large"
     on_dismiss="close_restore_kura_assignment"
   >
     <:header_icon><.history /></:header_icon>
@@ -502,7 +503,7 @@
     >
       <input type="hidden" name="assignment[version]" value={@restore_target.version} />
       <.text_input
-        id="restore-assignment-reason"
+        id={"restore-assignment-reason-#{@restore_target.version}"}
         name="assignment[reason]"
         label={dgettext("dashboard", "Reason")}
         placeholder={

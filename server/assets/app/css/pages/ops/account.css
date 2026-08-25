@@ -127,6 +127,28 @@
     }
   }
 
+  /* Both Kura tables are wide enough to scroll horizontally on a laptop — the
+     history carries two full UTC timestamps, the instance list a public URL —
+     and in both the row action (Restore, Destroy) is the last column and the
+     whole point of the table. Pin it to the right edge rather than leaving the
+     only action off-screen until the operator thinks to scroll. */
+  & #kura-assignment-history-table,
+  & #account-kura-table {
+    & th:last-child,
+    & td:last-child {
+      position: sticky;
+      right: 0;
+      background: var(--noora-surface-background-primary);
+    }
+  }
+
+  /* A reason is free text of any length. Cap the column so one long reason
+     ellipses — the full text stays on the cell's title — instead of pushing
+     every other column out. */
+  & #kura-assignment-history-table td:nth-child(3) {
+    max-width: 360px;
+  }
+
   & [data-part="runner-concurrency-description"] {
     margin: var(--noora-spacing-0);
     color: var(--noora-surface-label-secondary);

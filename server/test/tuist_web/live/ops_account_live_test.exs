@@ -336,6 +336,39 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert html =~ "destroy the one in the old region only once that has happened"
     end
 
+    test "clears the reason once an assignment lands and keeps it when one is refused", %{conn: conn, user: user} do
+      BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro)
+
+      {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+      assert html =~ ~s(id="kura-assignment-reason-0")
+
+      # A refused write leaves the operator's reason where it is: nothing landed,
+      # so there is nothing to retype.
+      html =
+        lv
+        |> form("#kura-assignment-form", %{
+          "assignment" => %{"service_region" => "eu-central", "reason" => ""}
+        })
+        |> render_submit()
+
+      assert html =~ "Could not assign a service region"
+      assert html =~ ~s(id="kura-assignment-reason-0")
+
+      html =
+        lv
+        |> form("#kura-assignment-form", %{
+          "assignment" => %{"service_region" => "eu-central", "reason" => "Measured demand is European"}
+        })
+        |> render_submit()
+
+      # The input is browser-owned state, so re-rendering it with the same empty
+      # value produces no diff and the browser keeps whatever was typed — the
+      # next assignment would silently inherit the last one's reason. Keying the
+      # id on the number of assignments replaces the node exactly when one lands.
+      assert html =~ ~s(id="kura-assignment-reason-1")
+      refute html =~ ~s(id="kura-assignment-reason-0")
+    end
+
     test "explains that an Air account can never be assigned instead of offering a form", %{conn: conn, user: user} do
       {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
