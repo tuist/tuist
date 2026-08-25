@@ -7,6 +7,9 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
   alias Boruta.Oauth.Client
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.Kura.EvictionEvent
+  alias Tuist.Kura.SelfHostedClients
+  alias Tuist.Kura.StorageSnapshot
   alias Tuist.Kura.UsageEvent
   alias Tuist.OAuth.Clients
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -190,21 +193,49 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
     assert %{"accepted" => 0} = json_response(conn, 202)
 
     eviction_row =
-      ClickHouseRepo.one(from(e in Tuist.Kura.EvictionEvent, where: e.event_id == ^eviction["event_id"]))
+      ClickHouseRepo.one(from(e in EvictionEvent, where: e.event_id == ^eviction["event_id"]))
 
     assert eviction_row.account_id == account.id
     assert eviction_row.bytes == 536_870_912
 
     snapshot_row =
-      ClickHouseRepo.one(from(s in Tuist.Kura.StorageSnapshot, where: s.event_id == ^snapshot["event_id"]))
+      ClickHouseRepo.one(from(s in StorageSnapshot, where: s.event_id == ^snapshot["event_id"]))
 
     assert snapshot_row.account_id == account.id
     assert snapshot_row.ring_budget_bytes == 26_843_545_600
   end
 
+  test "storage telemetry from a self-hosted credential is discarded, not persisted", %{conn: conn} do
+    account = AccountsFixtures.organization_fixture().account
+    stub(SelfHostedClients, :verify, fn "self-hosted-client", "self-hosted-secret" -> {:ok, account} end)
+    eviction = build_eviction(%{"tenant_id" => account.name})
+    snapshot = build_snapshot(%{"tenant_id" => account.name})
+
+    conn =
+      conn
+      |> put_req_header("authorization", authorization_header("self-hosted-client", "self-hosted-secret"))
+      |> post("/_internal/kura/usage", %{
+        "schema_version" => 1,
+        "node_id" => "kura-0",
+        "region" => "eu-central",
+        "events" => [build_event(%{"tenant_id" => account.name, "event_id" => "self-hosted-usage-#{account.id}"})],
+        "evictions" => [eviction],
+        "storage_snapshots" => [snapshot]
+      })
+
+    # Usage still meters, but the storage arrays never reach ClickHouse:
+    # their fields are customer-controlled while claim sizing reads the
+    # tables as trusted managed-node signal.
+    assert %{"accepted" => 1} = json_response(conn, 202)
+
+    assert ClickHouseRepo.one(from(e in EvictionEvent, where: e.event_id == ^eviction["event_id"])) == nil
+
+    assert ClickHouseRepo.one(from(s in StorageSnapshot, where: s.event_id == ^snapshot["event_id"])) == nil
+  end
+
   test "a self-hosted credential cannot attribute storage telemetry to another tenant", %{conn: conn} do
     account = AccountsFixtures.organization_fixture().account
-    stub(Tuist.Kura.SelfHostedClients, :verify, fn "self-hosted-client", "self-hosted-secret" -> {:ok, account} end)
+    stub(SelfHostedClients, :verify, fn "self-hosted-client", "self-hosted-secret" -> {:ok, account} end)
 
     conn =
       conn

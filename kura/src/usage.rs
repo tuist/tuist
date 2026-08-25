@@ -26,6 +26,11 @@ const USAGE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 // noise, and keeping them off the durable outbox keeps the on-disk format
 // untouched.
 const MAX_UNDELIVERED_EVICTIONS: usize = 8_192;
+// Per-delivery ceiling, well under the control plane's 5,000-events-per-array
+// cap. The queue can legally hold more than the server accepts in one request
+// (its cap is above this), so an uncapped delivery after a few failed cycles
+// would be refused as too large forever, wedging the whole usage channel.
+const MAX_EVICTIONS_PER_DELIVERY: usize = 1_000;
 const STORAGE_SNAPSHOT_INTERVAL: Duration = Duration::from_secs(900);
 
 #[derive(Clone)]
@@ -355,12 +360,16 @@ impl Usage {
         }
     }
 
-    fn undelivered_evictions(&self) -> Vec<SegmentEvictionEvent> {
+    /// The front of the queue, at most `limit` reports: what one delivery may
+    /// carry. The remainder waits for the next delivery cycle rather than
+    /// growing a request past what the control plane accepts.
+    fn undelivered_evictions(&self, limit: usize) -> Vec<SegmentEvictionEvent> {
         self.inner
             .undelivered_evictions
             .lock()
             .expect("undelivered evictions poisoned")
             .iter()
+            .take(limit)
             .cloned()
             .collect()
     }
@@ -540,7 +549,7 @@ async fn deliver_once(state: &SharedState, client: &Client) -> Result<(), String
     );
 
     let rollups = state.store.next_usage_rollups(config.batch_size)?;
-    let evictions = usage.undelivered_evictions();
+    let evictions = usage.undelivered_evictions(MAX_EVICTIONS_PER_DELIVERY);
     let storage_snapshots = if usage.storage_snapshot_due() {
         vec![usage.storage_snapshot_event(
             &state.config.tenant_id,
@@ -905,7 +914,7 @@ mod tests {
                 capacity_eviction("segment-2"),
             ],
         );
-        let first_batch = usage.undelivered_evictions();
+        let first_batch = usage.undelivered_evictions(MAX_EVICTIONS_PER_DELIVERY);
         assert_eq!(first_batch.len(), 2);
 
         // Stashed after the batch was built: a covering delivery must not
@@ -914,7 +923,7 @@ mod tests {
 
         usage.discard_delivered_evictions(first_batch.len());
 
-        let remaining = usage.undelivered_evictions();
+        let remaining = usage.undelivered_evictions(MAX_EVICTIONS_PER_DELIVERY);
         assert_eq!(remaining.len(), 1);
         assert_eq!(remaining[0].segment_id, "segment-3");
     }
@@ -928,9 +937,31 @@ mod tests {
             .collect();
         usage.stash_evictions("acme", evictions);
 
-        let undelivered = usage.undelivered_evictions();
+        let undelivered = usage.undelivered_evictions(MAX_UNDELIVERED_EVICTIONS);
         assert_eq!(undelivered.len(), MAX_UNDELIVERED_EVICTIONS);
         assert_eq!(undelivered[0].segment_id, "segment-3");
+    }
+
+    #[test]
+    fn one_delivery_carries_at_most_the_cap_and_discards_only_its_prefix() {
+        let usage = test_usage(60, 100);
+        let evictions = (0..(MAX_EVICTIONS_PER_DELIVERY + 50))
+            .map(|index| capacity_eviction(&format!("segment-{index}")))
+            .collect();
+        usage.stash_evictions("acme", evictions);
+
+        let batch = usage.undelivered_evictions(MAX_EVICTIONS_PER_DELIVERY);
+        assert_eq!(batch.len(), MAX_EVICTIONS_PER_DELIVERY);
+        assert_eq!(batch[0].segment_id, "segment-0");
+
+        usage.discard_delivered_evictions(batch.len());
+
+        let remaining = usage.undelivered_evictions(MAX_EVICTIONS_PER_DELIVERY);
+        assert_eq!(remaining.len(), 50);
+        assert_eq!(
+            remaining[0].segment_id,
+            format!("segment-{MAX_EVICTIONS_PER_DELIVERY}")
+        );
     }
 
     #[test]

@@ -145,6 +145,23 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert StorageClaims.effective_claim_size(account) == "30Gi"
     end
 
+    test "a stale struct cannot dismiss an already applied proposal", %{account: account} do
+      seed_churn_rollups(account, 14, @today)
+      {:ok, _summary} = ClaimProposals.sweep(@today)
+      proposal = ClaimProposals.open_proposal_for(account)
+
+      # The LiveView holds this struct while automatic sizing applies the
+      # proposal underneath it; the later Dismiss click must lose the race
+      # rather than overwrite the applied resolution.
+      assert {:ok, _result} = Kura.apply_claim_proposal(proposal, "automatic")
+
+      assert ClaimProposals.dismiss(proposal, "ops@tuist.dev") == {:error, :not_open}
+
+      resolved = Repo.get!(ClaimProposal, proposal.id)
+      assert resolved.status == :applied
+      assert resolved.resolved_by == "automatic"
+    end
+
     test "dismissing a resolved proposal is refused", %{account: account} do
       seed_churn_rollups(account, 14, @today)
       {:ok, _summary} = ClaimProposals.sweep(@today)

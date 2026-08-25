@@ -18,7 +18,14 @@ defmodule TuistWeb.Internal.KuraUsageController do
 
         {:ok, {:account, account}} ->
           if events_scoped_to_account?(events ++ evictions ++ storage_snapshots, account) do
-            ingest(conn, events, evictions, storage_snapshots)
+            # Storage telemetry from a self-hosted credential is discarded, not
+            # persisted: every field in it (region included) is
+            # customer-controlled, while claim sizing reads the tables as
+            # trusted managed-node signal. Persisting it would let a
+            # self-hosted node claiming a governed region resize the account's
+            # hosted claim. Usage still ingests, so a node that sends both
+            # keeps its metering.
+            ingest(conn, events, [], [])
           else
             conn
             |> put_status(:forbidden)

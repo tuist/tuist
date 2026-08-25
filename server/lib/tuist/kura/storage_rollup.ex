@@ -7,8 +7,6 @@ defmodule Tuist.Kura.StorageRollup do
 
   use Ecto.Schema
 
-  import Ecto.Changeset
-
   alias Tuist.Accounts.Account
 
   schema "kura_storage_rollups" do
@@ -28,27 +26,5 @@ defmodule Tuist.Kura.StorageRollup do
     belongs_to :account, Account
 
     timestamps(type: :utc_datetime)
-  end
-
-  def changeset(rollup, attrs) do
-    rollup
-    |> cast(attrs, [
-      :account_id,
-      :region,
-      :date,
-      :eviction_count,
-      :evicted_bytes,
-      :evicted_artifact_count,
-      :min_shed_age_seconds,
-      :median_shed_age_seconds,
-      :median_ring_span_seconds,
-      :snapshot_count,
-      :max_occupancy_percent,
-      :max_live_segment_bytes,
-      :last_ring_budget_bytes
-    ])
-    |> validate_required([:account_id, :region, :date])
-    |> foreign_key_constraint(:account_id)
-    |> unique_constraint([:account_id, :region, :date])
   end
 end

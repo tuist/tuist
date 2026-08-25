@@ -21,18 +21,6 @@ defmodule Tuist.Kura.PlacerClaims do
   end
 
   @doc """
-  When sizing last changed the account's claim, or `nil`.
-  `Tuist.Kura.ClaimSizing` evaluates only rollup days after this, so each
-  resize direction waits out its own evidence window before the next.
-  """
-  def last_resized_at(%Account{id: account_id}) do
-    case Repo.get_by(PlacerClaim, account_id: account_id) do
-      nil -> nil
-      %PlacerClaim{updated_at: updated_at} -> updated_at
-    end
-  end
-
-  @doc """
   Writes `claim_size` as the account's sized claim. Runs inside the caller's
   transaction; reaching running instances is the caller's job, exactly like
   the operator override path.

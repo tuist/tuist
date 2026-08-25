@@ -20,11 +20,12 @@ defmodule Tuist.Kura.ClaimProposals do
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimSizing
-  alias Tuist.Kura.PlacerClaims
+  alias Tuist.Kura.PlacerClaim
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StorageClaim
   alias Tuist.Kura.StorageClaims
-  alias Tuist.Kura.StorageRollups
+  alias Tuist.Kura.StorageRollup
   alias Tuist.Repo
 
   @doc """
@@ -33,10 +34,11 @@ defmodule Tuist.Kura.ClaimProposals do
   """
   def sweep(today \\ Date.utc_today(), policy \\ ClaimSizing.default_policy()) do
     accounts = sizeable_accounts()
+    inputs = sweep_inputs(accounts, today, policy)
 
     open =
       accounts
-      |> Enum.map(&converge_account(&1, today, policy))
+      |> Enum.map(&converge_account(&1, inputs, today, policy))
       |> Enum.count(&(&1 == :open))
 
     {:ok, %{evaluated: length(accounts), open: open}}
@@ -59,44 +61,72 @@ defmodule Tuist.Kura.ClaimProposals do
     |> Repo.all()
   end
 
-  def dismiss(%ClaimProposal{status: :open} = proposal, resolved_by) do
-    proposal
-    |> ClaimProposal.resolve_changeset(:dismissed, resolved_by)
-    |> Repo.update()
+  def dismiss(%ClaimProposal{} = proposal, resolved_by) do
+    case resolve_if_open(proposal, :dismissed, resolved_by) do
+      {:ok, dismissed} -> {:ok, dismissed}
+      :not_open -> {:error, :not_open}
+    end
   end
 
-  def dismiss(%ClaimProposal{}, _resolved_by), do: {:error, :not_open}
+  # One set-based query per input kind rather than several queries per
+  # account: the sweep's cost then scales with the result sizes instead of
+  # the account count.
+  defp sweep_inputs(accounts, today, policy) do
+    account_ids = Enum.map(accounts, & &1.id)
+    governed = governed_region_ids()
+    since = Date.add(today, -(policy.shrink_window_days + 1))
 
-  defp converge_account(account, today, policy) do
-    open = open_proposal_for(account)
+    rollups =
+      StorageRollup
+      |> where([rollup], rollup.account_id in ^account_ids)
+      |> where([rollup], rollup.date >= ^since and rollup.region in ^governed)
+      |> order_by([rollup], asc: rollup.date)
+      |> Repo.all()
+      |> Enum.group_by(& &1.account_id)
 
-    case ClaimSizing.evaluate(context(account, today, policy), policy) do
+    placer_claims =
+      PlacerClaim
+      |> where([claim], claim.account_id in ^account_ids)
+      |> Repo.all()
+      |> Map.new(&{&1.account_id, &1})
+
+    open_proposals =
+      ClaimProposal
+      |> where([proposal], proposal.account_id in ^account_ids and proposal.status == :open)
+      |> Repo.all()
+      |> Map.new(&{&1.account_id, &1})
+
+    %{rollups: rollups, placer_claims: placer_claims, open_proposals: open_proposals}
+  end
+
+  defp converge_account(account, inputs, today, policy) do
+    open = Map.get(inputs.open_proposals, account.id)
+    placer_claim = Map.get(inputs.placer_claims, account.id)
+
+    # Sizeable accounts carry no operator override, so the effective claim is
+    # the sized claim or the plan's, resolvable from the batched inputs.
+    current = (placer_claim && placer_claim.claim_size) || StorageClaims.plan_claim_size(account)
+
+    context = %{
+      plan: AccountPolicies.sizing_plan(account),
+      current_claim_size: current,
+      rollups: Map.get(inputs.rollups, account.id, []),
+      last_resized_at: placer_claim && placer_claim.updated_at,
+      today: today
+    }
+
+    case ClaimSizing.evaluate(context, policy) do
       :none ->
         if open, do: supersede(open, "sweep")
         :none
 
       {direction, recommended, evidence} ->
-        record(account, open, direction, recommended, evidence)
+        record(account, open, direction, recommended, evidence, current)
         :open
     end
   end
 
-  defp context(account, today, policy) do
-    governed = governed_region_ids()
-    since = Date.add(today, -(policy.shrink_window_days + 1))
-
-    %{
-      plan: AccountPolicies.sizing_plan(account),
-      current_claim_size: StorageClaims.effective_claim_size(account),
-      rollups: account |> StorageRollups.for_account(since) |> Enum.filter(&(&1.region in governed)),
-      last_resized_at: PlacerClaims.last_resized_at(account),
-      today: today
-    }
-  end
-
-  defp record(account, open, direction, recommended, evidence) do
-    current = StorageClaims.effective_claim_size(account)
-
+  defp record(account, open, direction, recommended, evidence, current) do
     if open && open.direction == direction && open.recommended_claim_size == recommended &&
          open.current_claim_size == current do
       open
@@ -119,9 +149,24 @@ defmodule Tuist.Kura.ClaimProposals do
   end
 
   defp supersede(%ClaimProposal{} = proposal, resolved_by) do
-    proposal
-    |> ClaimProposal.resolve_changeset(:superseded, resolved_by)
-    |> Repo.update!()
+    resolve_if_open(proposal, :superseded, resolved_by)
+  end
+
+  # The caller's struct can be stale: an apply may have resolved the proposal
+  # between the read and this write, and writing through the struct would
+  # overwrite whichever resolution won the race. Resolving is therefore a
+  # conditional update keyed on the row still being open.
+  defp resolve_if_open(%ClaimProposal{id: id}, status, resolved_by) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    ClaimProposal
+    |> where([proposal], proposal.id == ^id and proposal.status == :open)
+    |> select([proposal], proposal)
+    |> Repo.update_all(set: [status: status, resolved_at: now, resolved_by: resolved_by, updated_at: now])
+    |> case do
+      {1, [resolved]} -> {:ok, resolved}
+      {0, _none} -> :not_open
+    end
   end
 
   # Accounts with a non-volumeless instance in a storage-governed region and
@@ -130,14 +175,23 @@ defmodule Tuist.Kura.ClaimProposals do
   defp sizeable_accounts do
     governed = governed_region_ids()
 
-    Server
-    |> where([server], server.region in ^governed)
-    |> where([server], server.status not in ^Tuist.Kura.volumeless_statuses())
-    |> join(:inner, [server], account in Account, on: account.id == server.account_id)
-    |> select([server, account], account)
-    |> distinct(true)
-    |> Repo.all()
-    |> Enum.reject(&StorageClaims.override_for/1)
+    accounts =
+      Server
+      |> where([server], server.region in ^governed)
+      |> where([server], server.status not in ^Tuist.Kura.volumeless_statuses())
+      |> join(:inner, [server], account in Account, on: account.id == server.account_id)
+      |> select([server, account], account)
+      |> distinct(true)
+      |> Repo.all()
+
+    overridden =
+      StorageClaim
+      |> where([claim], claim.account_id in ^Enum.map(accounts, & &1.id))
+      |> select([claim], claim.account_id)
+      |> Repo.all()
+      |> MapSet.new()
+
+    Enum.reject(accounts, &MapSet.member?(overridden, &1.id))
   end
 
   # Governance is a property of the region's configuration, not of which
