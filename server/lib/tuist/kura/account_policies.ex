@@ -20,13 +20,20 @@ defmodule Tuist.Kura.AccountPolicies do
     3. United States East, the deterministic default a dormant account
        receives before its next provisioning demand.
 
-  An assignment is also the only route to a region no preference derives to.
+  An assignment is the only route *here* to a region no preference derives to.
   `accounts.region` is `all | europe | usa`, so nothing resolves to United
   States West or Asia Pacific Southeast on its own; an account is opted into
   either per account, for latency. Asia Pacific has no derivation rule for the
-  same reason United States West has none — there is no `accounts.region` value
-  that names it — so an APAC account is placed there by an operator or served
-  from United States East like any other account that stated no constraint.
+  same reason United States West has none: there is no `accounts.region` value
+  that names it. So an APAC account is pinned there by an operator, or resolves
+  to United States East like any other account that stated no constraint.
+
+  Resolution is not the only way an account gets a server in a region, and this
+  module is not a gate on that. A customer can also add one directly from
+  account settings in any region `Regions.selectable/0` offers, which never
+  consults this module. What resolution decides is where the control plane
+  *places* an account — demand, lifecycle, provisioning — not what the customer
+  is permitted to pick.
 
   Step 2 counts only live instances in public regions, and picks one when there
   are several; `live_service_regions/1` carries the reasoning for both, and for
@@ -231,10 +238,33 @@ defmodule Tuist.Kura.AccountPolicies do
   defp effective_service_region(%Account{region: :all} = account, plan, lookups) when plan in [:pro, :enterprise] do
     case lookups.assignment.(account) do
       %AccountRegionPolicy{service_region: service_region} ->
-        {:ok, service_region}
+        assigned_service_region(service_region)
 
       nil ->
         {:ok, lookups.live_region.(account) || @default_paid_service_region}
+    end
+  end
+
+  # An assignment names a region; the deployment decides whether it is served.
+  # The two are deliberately separate — `AccountRegionPolicy.service_regions/0`
+  # and the table's CHECK constraint admit a region before any hardware exists,
+  # so a placement can be recorded ahead of the box — which means resolution is
+  # where the second gate has to hold. Without it an account assigned to a
+  # region no deployment serves resolves cleanly, records demand under a region
+  # `Lifecycle.lifecycle_regions/0` never iterates, and reports `provisioning:
+  # true` from `Demand.instance_expected?/1` for as long as the assignment
+  # stands, with nothing ever arriving.
+  #
+  # Refused rather than fallen back to the default region: silently relocating
+  # an explicitly assigned account is the one thing an assignment exists to
+  # prevent, and the refusal is counted like every other, so an account waiting
+  # on hardware is visible rather than silently idle. The assignment row is
+  # untouched and starts resolving the moment the region is served.
+  defp assigned_service_region(service_region) do
+    if Regions.available?(service_region) do
+      {:ok, service_region}
+    else
+      {:error, :service_region_unavailable}
     end
   end
 

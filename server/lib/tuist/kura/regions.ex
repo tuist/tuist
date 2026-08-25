@@ -270,15 +270,21 @@ defmodule Tuist.Kura.Regions do
     # fleet's `cache-ap-southeast.tuist.dev` endpoint, so an account moved off
     # the legacy lane keeps the region name it already knows.
     #
-    # There is no derivation into this region, and there is not meant to be.
-    # `accounts.region` is `all | europe | usa`: `europe` derives to eu-central,
-    # `usa` derives to us-east, and `all` defaults to us-east, so nothing here
-    # resolves to Asia Pacific on its own. An account reaches it exactly the way
-    # it reaches us-west — through an explicit versioned assignment
-    # (`AccountPolicies.assign_service_region/4`), opted into per account for
-    # latency. Do not go looking for a storage-region rule that places accounts
-    # here; there is none. Air can never land here either, because Air resolves
-    # from the storage-region preference and never from an assignment.
+    # Nothing DERIVES here, and nothing is meant to. `accounts.region` is
+    # `all | europe | usa`: `europe` derives to eu-central, `usa` derives to
+    # us-east, and `all` defaults to us-east, so no storage-region preference
+    # resolves to Asia Pacific. Do not go looking for the rule that places
+    # accounts here; there is none. Air in particular can never land here,
+    # because Air resolves from the storage-region preference alone.
+    #
+    # Two things do reach it, exactly as they reach us-west. An operator pins an
+    # account's resolved region with an explicit versioned assignment
+    # (`AccountPolicies.assign_service_region/4`), which is the route that
+    # carries plan checks, audit and versioning. And a customer picks the region
+    # directly in account settings once it is served, which goes through
+    # `selectable/0` and creates a server without consulting AccountPolicies at
+    # all. The second is deliberate — this is a public region, not an
+    # operator-only one — so "assignment-only" describes derivation, not access.
     #
     # Gated off everywhere by TUIST_KURA_AVAILABLE_REGIONS until an SGP box is
     # ordered and adopted: the catalog entry, the assignable set, and the fleet

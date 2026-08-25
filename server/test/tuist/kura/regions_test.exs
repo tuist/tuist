@@ -295,7 +295,12 @@ defmodule Tuist.Kura.RegionsTest do
       platform_ingress_keys = %{
         "eu-central" => "kura-eu-central-ingress-nginx",
         "us-east" => "kura-us-east-ingress-nginx",
-        "us-west" => "kura-us-west-ingress-nginx"
+        "us-west" => "kura-us-west-ingress-nginx",
+        # Listed here while the region is still gated off everywhere. A region
+        # whose ingress class no controller declares would have its Ingresses
+        # go unclaimed the moment it was switched on, and nothing else in the
+        # tree ties the two files together.
+        "ap-southeast" => "kura-ap-southeast-ingress-nginx"
       }
 
       for {id, platform_ingress_key} <- platform_ingress_keys do

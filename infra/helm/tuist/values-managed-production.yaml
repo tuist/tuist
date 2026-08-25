@@ -292,7 +292,11 @@ kuraController:
 egressTreeAgent:
   enabled: true
   image: ghcr.io/tuist/egress-tree-agent@sha256:b0e324e95d04cee3a63e536a7a0eb00acebcd365ae475c513741572b50f7a75d
-  nodePools: [kura-dedibox, kura-us-east, kura-us-west]
+  # kura-ap-southeast is listed before its box exists: the agent enforces the
+  # per-tenant egress floors and the node box cap, so a pool missing from this
+  # list gets a cache pod with an unenforced floor rather than a visible error.
+  # A pool with no nodes simply gets no DaemonSet pods.
+  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast]
   betaPodPrefix: "kura-tuist-"
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2

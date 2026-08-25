@@ -38,6 +38,11 @@ dependencies:
     version: 4.11.3
     repository: https://kubernetes.github.io/ingress-nginx
     condition: kura-us-west-ingress-nginx.enabled
+  - name: ingress-nginx
+    alias: kura-ap-southeast-ingress-nginx
+    version: 4.11.3
+    repository: https://kubernetes.github.io/ingress-nginx
+    condition: kura-ap-southeast-ingress-nginx.enabled
   - name: external-dns
     version: 1.15.0
     repository: https://kubernetes-sigs.github.io/external-dns
