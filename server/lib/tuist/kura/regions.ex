@@ -277,21 +277,12 @@ defmodule Tuist.Kura.Regions do
     # accounts here; there is none. Air in particular can never land here,
     # because Air resolves from the storage-region preference alone.
     #
-    # Two things do reach it, exactly as they reach us-west. An operator pins an
-    # account's resolved region with an explicit versioned assignment
-    # (`AccountPolicies.assign_service_region/4`), which is the route that
-    # carries plan checks, audit and versioning. And a customer picks the region
-    # directly in account settings once it is served, which goes through
-    # `selectable/0` and creates a server without consulting AccountPolicies at
-    # all. The second is deliberate — this is a public region, not an
-    # operator-only one — so "assignment-only" describes derivation, not access.
-    #
-    # Served in production only (TUIST_KURA_AVAILABLE_REGIONS), alongside the
-    # ovhFleets.ap-southeast fleet and the kura-ap-southeast ingress controller.
-    # Those three go together: the gate alone makes the region selectable and
-    # iterated by the lifecycle, the fleet alone supplies nodes nothing routes
-    # to, and the controller alone claims Ingresses for a region no one can
-    # reach. Staging and canary have no SGP hardware and do not serve it.
+    # Two things do reach it, exactly as they reach us-west: an operator pinning
+    # an account's resolved region with `AccountPolicies.assign_service_region/4`,
+    # which carries plan checks, audit and versioning; and a customer picking the
+    # region in account settings, which goes through `selectable/0` and never
+    # consults AccountPolicies. The second is deliberate — this is a public
+    # region — so "assignment-only" describes derivation, not access.
     %{
       id: "ap-southeast",
       display_name: "Asia Pacific Southeast",
@@ -300,33 +291,15 @@ defmodule Tuist.Kura.Regions do
       node_pool: "kura-ap-southeast",
       storage_class: "scw-local-nvme",
       gateway: :host_network,
-      # Two replicas, like every other managed region: the standby is what makes
-      # a rolling restart invisible, and that standard is not relaxed for a
-      # satellite region. Nothing serves this region's traffic while a replica
-      # restarts — Kura is terminal storage and a miss is a 404, not an origin
-      # fetch — so a single-replica region would take real cache misses for
-      # every account in it on every runtime rollout. That is a recurring
-      # self-inflicted degradation rather than a rare failure, and "a cache miss
-      # is safe" was never licence for it. (Spec 78's "standard availability
-      # uses one steady instance" says otherwise; that is one of the places the
-      # spec still assumes authoritative object storage behind Kura, and it is
-      # stale. Do not size a region from it.)
+      # Two, like every other managed region. Nothing else serves this region
+      # while a replica restarts — Kura is terminal storage and a miss is a 404,
+      # not an origin fetch — so the standby is what keeps a rolling restart
+      # from costing every account in the region a cache miss.
       #
-      # The replica count is what this region reserves on its box, so it bounds
-      # how many accounts fit. `Capacity.resident_gib/2` is claim x replicas and
-      # each replica requests its full claim as ephemeral-storage, so two
-      # replicas reserve two claims on one disk: an enterprise account costs
-      # 100 GiB here, a pro one 60 GiB. The region's box carries a 2x960 mirror,
-      # which #12522's partitioning leaves ~829 GiB of /data after /boot and a
-      # capped /, and @pressure_fraction puts the archival line at ~705 GiB. So
-      # roughly seven enterprise accounts fit before the region is under
-      # pressure, and eight before kubelet's imagefs eviction threshold.
-      #
-      # Growing that means more disk, and more disk is not simply more spindles:
-      # the OVH provider's `raidLevel()` returns 1 for any group of two or more
-      # disks and never asks for RAID 10, so a four-disk group is built as a
-      # four-way mirror and yields the same usable /data as two. Teach the
-      # provider RAID 10 before ordering an upgrade to absorb more accounts.
+      # It also bounds how many accounts fit: `Capacity.resident_gib/2` is
+      # claim x replicas and each replica requests its full claim as
+      # ephemeral-storage, so an enterprise account reserves 100 GiB of the
+      # region's disk and a pro one 60 GiB.
       replicas: 2,
       # Egress governance on the shared box: the enterprise per-tenant floor
       # (uniform across regions) is bin-packed as the tuist.dev/egress-mbps

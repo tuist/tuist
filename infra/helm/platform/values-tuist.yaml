@@ -141,11 +141,9 @@ kura-us-west-ingress-nginx:
       externalTrafficPolicy: ""
       annotations: {}
 
-# Asia Pacific Southeast (Singapore / OVHcloud SGP). Same host-network shape as
-# the other OVH bare-metal regions. Enabled in lockstep with
-# ovhFleets.ap-southeast and the region's entry in TUIST_KURA_AVAILABLE_REGIONS
-# — this controller is what claims the region's Ingresses, so a region switched
-# on without it has its cache hostnames resolve to nothing.
+# Asia Pacific Southeast (Singapore / OVHcloud SGP). Claims the ap-southeast
+# region's Ingresses; same host-network shape as the other OVH bare-metal
+# regions.
 kura-ap-southeast-ingress-nginx:
   enabled: true
   controller:

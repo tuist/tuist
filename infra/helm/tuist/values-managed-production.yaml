@@ -146,12 +146,6 @@ server:
     # region: this cluster's Elastic Metal node (kuraFleet) hosts the
     # per-account cache pods and dispatch routes the Mac fleet's build
     # cache to it over the Private Network.
-    # ap-southeast (Singapore / OVHcloud SGP) serves APAC accounts that would
-    # otherwise be answered from Virginia, ~200 ms away. It goes live with
-    # ovhFleets.ap-southeast and kura-ap-southeast-ingress-nginx in the platform
-    # chart — all three flip together, because this variable alone makes the
-    # region selectable in account settings and iterated by the lifecycle, and
-    # either without capacity behind it leaves a KuraInstance Pending.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-central,us-east,us-west,ap-southeast,scw-fr-par-runners
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
@@ -293,10 +287,6 @@ kuraController:
 egressTreeAgent:
   enabled: true
   image: ghcr.io/tuist/egress-tree-agent@sha256:b0e324e95d04cee3a63e536a7a0eb00acebcd365ae475c513741572b50f7a75d
-  # kura-ap-southeast is listed before its box is adopted: the agent enforces the
-  # per-tenant egress floors and the node box cap, so a pool missing from this
-  # list gets a cache pod with an unenforced floor rather than a visible error.
-  # A pool with no nodes simply gets no DaemonSet pods.
   nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast]
   betaPodPrefix: "kura-tuist-"
 
@@ -761,60 +751,37 @@ ovhFleets:
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH
-  # Asia Pacific Southeast (Singapore / OVHcloud SGP), for APAC accounts that
-  # would otherwise be served from Virginia — roughly a 200 ms round trip on
-  # every cache request. The legacy cache fleet serves an ap-southeast endpoint,
-  # so this is continuity rather than a new capability.
-  #
-  #
-  # An enabled fleet with no adoptable machine hangs helm --wait (the failure the
-  # dediboxFleet comment above warns about) and wedges every production deploy,
-  # not just this region. So a box must be prepped (mise run baremetal:prep-ovh)
-  # and carrying the displayName prefix below before this is enabled, and if the
-  # pool is ever emptied this must be disabled in the same change.
+  # Asia Pacific Southeast (Singapore / OVHcloud SGP): the node pool backing the
+  # ap-southeast Kura region, which serves APAC accounts that would otherwise be
+  # answered from Virginia.
   ap-southeast:
     enabled: true
     replicas: 1
-    # Same endpoint and same secrets as every other OVH fleet: the endpoint
-    # names the OVHcloud legal entity holding the ACCOUNT, not the box's
-    # geography (ca-east's Quebec box is on ovh-us for the same reason). OVH
-    # sells its APAC datacenters as market variants of the same plans billed
-    # under the US subsidiary, so Singapore needs no second OVH account and no
-    # new 1Password items — api.us.ovhcloud.com's public catalog lists
-    # 26adv02-v7-sgp alongside the US variants. That keeps the "one OVH account
-    # serves every OVH fleet" invariant above true, which matters beyond
-    # tidiness: capi-scaleway-applesilicon.yaml resolves a single endpoint for
-    # the whole reconciler by taking it from whichever OVH fleet is enabled
-    # last, so two enabled fleets on different endpoints would silently point it
-    # at the wrong API.
-    #
-    # A catalog price under our subsidiary is strong evidence the account can
-    # order in SGP, not proof; confirm in the OVH control panel when placing the
-    # order.
+    # The endpoint names the OVHcloud entity holding the account, not the box's
+    # geography — APAC datacenters bill under the US subsidiary, the same way
+    # ca-east's Quebec box does. Every OVH fleet must share one endpoint:
+    # capi-scaleway-applesilicon.yaml resolves a single endpoint for the whole
+    # reconciler from whichever OVH fleet is enabled last, so a divergent one
+    # would silently point it at the wrong API.
     endpoint: ovh-us
     nodePool: kura-ap-southeast
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-ap-southeast
-      # Matched case-insensitively as a SUBSTRING of the box's commercialRange,
-      # which OVH's 2026 range spells with a CPU suffix rather than the year the
-      # older ones carried (Advance-3-2024). A value matching nothing leaves the
-      # box silently unadopted, which reads as a delivery problem rather than a
-      # typo, so this is the range string verbatim. Carried in full so a
-      # differently specced Advance-2 cannot be adopted into this pool by
-      # accident; widen it deliberately if a box ships on another binning.
+      # Matched case-insensitively as a substring of the box's commercialRange,
+      # which OVH's 2026 range spells with a CPU suffix rather than a year. A
+      # value matching nothing adopts nothing, silently, so this is the range
+      # string verbatim — and in full, so a differently specced Advance-2 cannot
+      # land in this pool by accident.
       offer: "ADVANCE-2 | AMD EPYC 4344P"
-      # Prefix-matched (`strings.HasPrefix`), so this claims the box whatever
-      # specific datacenter OVH reports — it is in sgp02.
+      # Prefix-matched, so this claims a box in any sgp* datacenter.
       datacenter: sgp
       os: ubuntu_24.04
       # Node egress budget (Mbps), advertised as tuist.dev/egress-mbps so the
       # scheduler bin-packs the cache pods' guaranteed floors against it. This
-      # is the PUBLIC ceiling (specifications/network `OvhToInternet`), which is
-      # what a cache serves — not the 25 Gbit/s the NIC links at, which is the
-      # vRack side and would over-commit the public path 25x.
-      #
-      # Above it sits a 25 TiB/month egress quota (traffic.outputQuotaSize) that
-      # OVH throttles on. Nothing here enforces or watches it.
+      # is the box's public bandwidth, which is what a cache serves — not the
+      # 25 Gbit/s its NIC links at, which is the vRack side and would
+      # over-commit the public path 25x. A 25 TiB/month egress quota sits above
+      # it that nothing here enforces or watches.
       egressBudgetMbps: 1000
     sshExternalSecret:
       enabled: true

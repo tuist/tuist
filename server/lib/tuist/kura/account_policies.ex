@@ -245,21 +245,15 @@ defmodule Tuist.Kura.AccountPolicies do
     end
   end
 
-  # An assignment names a region; the deployment decides whether it is served.
-  # The two are deliberately separate — `AccountRegionPolicy.service_regions/0`
-  # and the table's CHECK constraint admit a region before any hardware exists,
-  # so a placement can be recorded ahead of the box — which means resolution is
-  # where the second gate has to hold. Without it an account assigned to a
-  # region no deployment serves resolves cleanly, records demand under a region
-  # `Lifecycle.lifecycle_regions/0` never iterates, and reports `provisioning:
-  # true` from `Demand.instance_expected?/1` for as long as the assignment
-  # stands, with nothing ever arriving.
+  # An assignment names a region; `Regions.available?/1` decides whether it is
+  # served. Both gates are needed: an assignment to an unserved region would
+  # otherwise resolve cleanly, record demand under a region
+  # `Lifecycle.lifecycle_regions/0` never iterates, and report `provisioning:
+  # true` from `Demand.instance_expected?/1` indefinitely.
   #
-  # Refused rather than fallen back to the default region: silently relocating
-  # an explicitly assigned account is the one thing an assignment exists to
-  # prevent, and the refusal is counted like every other, so an account waiting
-  # on hardware is visible rather than silently idle. The assignment row is
-  # untouched and starts resolving the moment the region is served.
+  # Refused rather than fallen back to the default region, because silently
+  # relocating an explicitly assigned account is what an assignment exists to
+  # prevent. The row is untouched and resolves once the region is served.
   defp assigned_service_region(service_region) do
     if Regions.available?(service_region) do
       {:ok, service_region}

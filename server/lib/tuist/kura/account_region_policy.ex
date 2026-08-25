@@ -22,10 +22,8 @@ defmodule Tuist.Kura.AccountRegionPolicy do
   # there either, because Air resolves from the storage-region preference and
   # never from an assignment.
   #
-  # `ap-southeast` additionally has no box behind it yet. Being assignable and
-  # being served are separate gates: this list decides what an assignment may
-  # name, and `TUIST_KURA_AVAILABLE_REGIONS` decides what the deployment
-  # actually serves.
+  # Being assignable and being served are separate: this list decides what an
+  # assignment may name, `Regions.available?/1` decides whether it resolves.
   @service_regions ["us-east", "eu-central", "us-west", "ap-southeast"]
 
   @primary_key {:id, UUIDv7, autogenerate: true}

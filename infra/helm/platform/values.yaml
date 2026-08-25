@@ -195,10 +195,8 @@ kura-us-west-ingress-nginx:
     metrics:
       enabled: true
 
-# Asia Pacific Southeast (Singapore). Default off like every other kura gateway;
-# production turns it on in values-tuist.yaml, where the region's fleet and its
-# entry in TUIST_KURA_AVAILABLE_REGIONS live. Staging and canary have no SGP
-# hardware, so it stays off there.
+# Asia Pacific Southeast (Singapore). Off by default like every other kura
+# gateway; the environments that serve the region turn it on.
 kura-ap-southeast-ingress-nginx:
   enabled: false
   controller:
