@@ -966,7 +966,12 @@ runnersFleet:
         # would show.
         hostCPU: 12
         hostMemoryMB: 28672
-        # csi(1) + 2 guests + 1 slot of churn headroom.
+        # 2 guests x 2 — each guest slot can transiently hold its running
+        # Pod plus the predecessor GC has not collected yet, which is
+        # what a live single-guest node was observed doing. No slot for
+        # hcloud-csi-node: it is kept off macOS by a `kubernetes.io/os
+        # NotIn [darwin]` nodeAffinity, verified zero across all 15
+        # macOS Nodes.
         maxPods: 4
         guestCapacity: 2
         # 240 GiB against the M2-L's 80. Not a nicety — at 80 the dual

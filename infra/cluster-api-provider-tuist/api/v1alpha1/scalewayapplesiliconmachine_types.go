@@ -123,19 +123,27 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// (`--max-pods`). Falls back to the operator's
 	// `--tartkubelet-max-pods` global default (2) when unset.
 	//
-	// This is a Kubernetes-level limit counting EVERY Pod on the Node,
-	// not just Tart-VM Pods: the hcloud-csi-node DaemonSet ignores the
-	// macOS taint and permanently holds one slot. So the value is
-	// (guests + 1 host-system Pod + churn headroom), not the guest
-	// count. A single-guest host wants 3; a dual-guest M4 wants 4, so
-	// a replacement Pod can be created before the outgoing one is
-	// fully reaped without tripping "Too many pods".
+	// It counts EVERY Pod bound to the Node, not just Tart-VM Pods,
+	// and a Pod stays bound after it finishes — a terminal Pod holds
+	// its slot until GC collects it. Measured on the live fleet
+	// (2026-08-25): a single-guest host was carrying its Running Pod
+	// plus the previous rollout's Succeeded one. So size this as
+	// guests x 2: each guest slot can transiently hold its running Pod
+	// and one not-yet-collected predecessor. 3 for a single-guest host
+	// (2, plus a spare), 4 for a dual-guest one.
 	//
-	// Apple's macOS SLA caps virtualized macOS instances at 2 per
-	// host, and Tart refuses to start a third VM regardless of what
-	// kubelet schedules — so the SLA is enforced at the
-	// virtualization layer and this value only has to avoid
-	// *under*-provisioning the slot count.
+	// No allowance for host-system Pods. hcloud-csi-node, the usual
+	// suspect, is kept off macOS by a `kubernetes.io/os NotIn [darwin]`
+	// required nodeAffinity — not by the macOS taint, which its blanket
+	// `Exists` tolerations ignore — and nothing else targets these
+	// Nodes.
+	//
+	// This is not where Apple's 2-guest SLA is enforced and does not
+	// need to be: Tart refuses to start a third VM, and
+	// HostCPU/HostMemoryMB bind the guest count before MaxPods does.
+	// The error costs are lopsided — too low stalls a real guest slot
+	// until GC catches up, too high admits nothing extra — so it is
+	// sized for the worst case.
 	// +optional
 	MaxPods int `json:"maxPods,omitempty"`
 

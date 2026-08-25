@@ -1439,20 +1439,33 @@ macosFleet:
     # `memorySize > maximumAllowedMemorySize`).
     # Override per-env if `machine.type` is bumped to a different SKU.
     #
-    # maxPods=3 (not 2): Apple's macOS SLA caps virtualized macOS
-    # instances at 2 per host, but max-pods is a Kubernetes-level
-    # limit that counts every Pod on the Node, not just Tart-VM Pods.
-    # The hcloud-csi-node DaemonSet runs on every Node in the workload
-    # cluster (it doesn't honor the macOS taint) and already consumes
-    # one slot — capping max-pods=2 leaves only one slot for
-    # xcresult-processor and deadlocks the rolling update on every
-    # image bump (maxSurge=1 + maxUnavailable=0 needs a 3rd slot for
-    # the surge: csi(1) + old(1) + new(1) = 3 pods → "Too many pods"
-    # → rollout never converges). max-pods=3 leaves headroom for one
-    # host-system Pod plus the SLA-mandated 2 macOS guests, which is
-    # what the SLA actually allows. Tart itself still refuses to
-    # start a third VM, so the SLA cap is enforced at the
-    # virtualization layer regardless of what kubelet schedules.
+    # maxPods counts EVERY Pod bound to the Node, not just Tart-VM
+    # Pods, and a Pod stays bound after it finishes — a terminal Pod
+    # holds its slot until GC collects it. Measured on the live fleet
+    # (2026-08-25): a single-guest macos-fleet node was carrying its
+    # Running xcresult-processor Pod plus the previous rollout's
+    # Succeeded one. So the ceiling scales as guests x 2, not
+    # guests + system Pods: each guest slot can transiently hold its
+    # running Pod and one not-yet-collected predecessor.
+    #
+    # hcloud-csi-node does NOT consume a slot here, despite an older
+    # comment in this file that said it did. It tolerates everything
+    # (blanket NoSchedule/NoExecute `Exists`, so the macOS taint
+    # genuinely does not stop it) but its required nodeAffinity carries
+    # `kubernetes.io/os NotIn [darwin]`, which does. Verified: zero
+    # hcloud-csi Pods across all 15 macOS Nodes in production.
+    #
+    # This is not the SLA guard and does not have to be. Apple caps a
+    # host at 2 virtualized macOS guests and Tart refuses to start a
+    # third, and hostCPU/hostMemoryMB bind the guest count before
+    # maxPods ever does. The error costs are lopsided — too low stalls
+    # a real guest slot until GC catches up, too high admits nothing
+    # extra — so size it for the worst case and move on.
+    #
+    # 3 for a single-guest host: 1 guest x 2 (running + terminal),
+    # plus one spare. That also keeps the xcresult-processor's rolling
+    # update converging, which needs old(1) + new(1) simultaneously
+    # under maxSurge=1 / maxUnavailable=0.
     hostCPU: 8
     hostMemoryMB: 14336
     maxPods: 3
@@ -1827,10 +1840,17 @@ runnersFleet:
     # thing standing between the fleet and a third guest.
     hostCPU: ~
     hostMemoryMB: ~
-    # Node-level Pod ceiling. Counts EVERY Pod, not just guests:
-    # hcloud-csi-node ignores the macOS taint and holds one slot
-    # permanently. So it is (guests + 1 system Pod + 1 churn slot) —
-    # 3 for a single-guest host, 4 for a dual-guest one.
+    # Node-level Pod ceiling. Counts EVERY Pod bound to the Node, and a
+    # terminal Pod keeps its slot until GC collects it, so size this as
+    # guests x 2 — each guest slot can transiently hold its running Pod
+    # plus one not-yet-collected predecessor. 3 for a single-guest host
+    # (2, plus a spare), 4 for a dual-guest one.
+    #
+    # No allowance for host-system Pods: hcloud-csi-node is kept off
+    # macOS by a `kubernetes.io/os NotIn [darwin]` nodeAffinity (its
+    # tolerations are blanket, so the taint is not what stops it), and
+    # nothing else targets these Nodes. See the long-form note on
+    # `macosFleet.tartKubelet.maxPods`.
     maxPods: ~
     # How many guests this SKU is expected to run. Sizes the per-guest
     # host resources (the VNC relay port range, the disk-pressure

@@ -655,9 +655,20 @@ reflected in `desiredHostConfigHash`:
 | Field | What it sizes |
 | --- | --- |
 | `hostCPU` / `hostMemoryMB` | Node capacity — the actual guest-count control |
-| `maxPods` | Node Pod ceiling. Counts **every** Pod: hcloud-csi-node ignores the macOS taint and holds a slot permanently, so this is (guests + 1 system Pod + 1 churn slot) |
+| `maxPods` | Node Pod ceiling. Counts **every** Pod bound to the Node, and a terminal Pod holds its slot until GC — so it is guests x 2, not guests + system Pods. See below |
 | `guestCapacity` | The per-guest host resources: the VNC relay port range and the disk-pressure goldens floor. Declares intent; creates no capacity |
 | `runnerCacheVolumeGiB` | The per-account cache volume's quota, which tracks the SKU's disk |
+
+`maxPods` is sized as guests x 2 because a Pod stays bound to its Node
+after it finishes: each guest slot can transiently hold its running Pod
+plus a predecessor GC has not collected yet (observed on the live fleet
+2026-08-25 — a single-guest host carrying one Running and one Succeeded
+Pod). It is not where the SLA is enforced, and does not need to be: Tart
+refuses a third VM and `hostCPU`/`hostMemoryMB` bind the guest count
+first. Nothing is reserved for host-system Pods — `hcloud-csi-node`, the
+usual suspect, is kept off macOS by a `kubernetes.io/os NotIn [darwin]`
+required nodeAffinity rather than by the macOS taint, which its blanket
+`Exists` tolerations ignore.
 
 `guestCapacity` exists so those last two resources have one source of
 truth. Both are per-guest and neither is derivable from the others —
