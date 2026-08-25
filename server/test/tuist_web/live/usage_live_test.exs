@@ -9,6 +9,7 @@ defmodule TuistWeb.UsageLiveTest do
   alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Kura.UsageEvent
+  alias Tuist.Runners.Allowance
   alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -43,6 +44,34 @@ defmodule TuistWeb.UsageLiveTest do
       |> log_in_user(user)
 
     %{conn: conn, user: user, account: account}
+  end
+
+  defp trial_breakdown do
+    %{
+      period_start: ~D[2026-08-24],
+      period_end: ~D[2026-09-24],
+      usage_through: ~D[2026-08-25],
+      minutes: 1_000,
+      free_minutes: 100,
+      gross: Money.new(7_500, :USD),
+      billed: Money.new(0, :USD),
+      days: [],
+      by_repository: [],
+      projected_days: [],
+      on_trial: true,
+      platforms: [
+        %{
+          id: "macos",
+          platform: :macos,
+          minutes: 1_000,
+          projected_minutes: 1_000,
+          included_minutes: 100,
+          previous_minutes: 0,
+          gross: Money.new(7_500, :USD),
+          billed: Money.new(0, :USD)
+        }
+      ]
+    }
   end
 
   defp enable_kura(account) do
@@ -104,6 +133,25 @@ defmodule TuistWeb.UsageLiveTest do
       # Matched without the apostrophe, which the render escapes.
       assert has_element?(lv, "[data-kind='trial']")
       assert render(lv) =~ "billed while your trial is running"
+    end
+
+    test "shows what the trial covered rather than a receipt that does not add up", %{conn: conn, account: account} do
+      # Without this the receipt reads "1,000 minutes run, 75.00$" and
+      # then "Billed 0.00$", with nothing saying where the money went.
+      disable_kura(account)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+
+      stub(Allowance, :period_breakdown, fn _account -> trial_breakdown() end)
+      stub(Allowance, :period_breakdown, fn _account, _period -> trial_breakdown() end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      html = render(lv)
+
+      assert html =~ "Covered by your trial"
+      # The full value in, the same value out, nothing left to pay.
+      assert html =~ "75.00"
+      assert html =~ "−75.00"
     end
 
     test "is hidden for an account with neither runners nor usage", %{conn: conn, account: account} do
