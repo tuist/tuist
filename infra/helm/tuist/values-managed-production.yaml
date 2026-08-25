@@ -793,9 +793,20 @@ ovhFleets:
     nodePool: kura-ap-southeast
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-ap-southeast
-      # OVH matches this case-insensitively against the box's CommercialRange,
-      # so the year is part of the offer: the SGP capacity is the 2026 Advance
-      # range, and a bare "advance-2" would also match an Advance-2-2024 box.
+      # UNVERIFIED STRING — confirm on first adoption. The provider matches this
+      # case-insensitively as a SUBSTRING of the box's CommercialRange
+      # (internal/ovh/client.go), so the year belongs in it: a bare "advance-2"
+      # would also adopt an Advance-2-2024 box. But CommercialRange lives on
+      # /dedicated/server/{serviceName}, which only answers for a server the
+      # account already owns — the public catalog exposes the plan code
+      # (26adv02-v7-sgp) and the server family (26adv02), never the range
+      # string. So this spelling is inferred from the Advance-3-2024 /
+      # Rise-1-2024 pattern, not read.
+      #
+      # A mismatch fails SILENTLY: the box is simply never adopted, which reads
+      # as a delivery problem rather than a config typo. When the box lands,
+      # GET /dedicated/server/{name} returns its commercialRange — compare it
+      # against this line first. The fix, if it differs, is this one value.
       offer: advance-2-2026
       datacenter: sgp
       os: ubuntu_24.04
