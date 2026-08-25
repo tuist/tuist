@@ -24,8 +24,10 @@ defmodule TuistWeb.UsageLive do
     # The page used to exist only for accounts with cache traffic. Runner
     # usage is billed the same way and belongs on the same page, so an
     # account with runner time but no cache reaches it too.
+    runners_enabled = FeatureFlags.runners_enabled?(account)
+
     if Authorization.authorize(:account_dashboard_read, current_user, account) != :ok or
-         (not FeatureFlags.kura_enabled?(account) and runner_breakdown.minutes == 0) do
+         (not FeatureFlags.kura_enabled?(account) and runner_breakdown.minutes == 0 and not runners_enabled) do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_usage", "The page you are looking for doesn't exist or has been moved.")
     end
@@ -40,6 +42,7 @@ defmodule TuistWeb.UsageLive do
      |> assign(:head_title, "#{dgettext("dashboard_usage", "Usage")} · #{account.name} · Tuist")
      |> assign(:periods, periods)
      |> assign(:runner_breakdown, runner_breakdown)
+     |> assign(:runners_enabled, runners_enabled)
      |> assign(:prepaid_balance, Prepaid.balance(account))
      |> assign(:kura_enabled, FeatureFlags.kura_enabled?(account))}
   end

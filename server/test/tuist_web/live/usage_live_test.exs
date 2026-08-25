@@ -6,8 +6,10 @@ defmodule TuistWeb.UsageLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Kura.UsageEvent
+  alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.UsageLive
@@ -86,9 +88,40 @@ defmodule TuistWeb.UsageLiveTest do
     IngestRepo.insert_all(UsageEvent, [Map.merge(base, attrs)])
   end
 
+  describe "runner usage on a trial" do
+    test "is shown even though nothing is billed", %{conn: conn, account: account} do
+      # A trial account is metered and reported like any other, and the
+      # page is where it looks to see what it has used. Hiding the
+      # section until the first minute lands leaves it with nothing to
+      # look at during the trial the section exists to support.
+      disable_kura(account)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+      stub(Trials, :on_trial?, fn _account -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      assert has_element?(lv, "[data-part='runner-usage-card']")
+      # Matched without the apostrophe, which the render escapes.
+      assert has_element?(lv, "[data-kind='trial']")
+      assert render(lv) =~ "billed while your trial is running"
+    end
+
+    test "is hidden for an account with neither runners nor usage", %{conn: conn, account: account} do
+      enable_kura(account)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      refute has_element?(lv, "[data-part='runner-usage-card']")
+    end
+  end
+
   describe "Kura feature flag gate" do
     test "raises 404 when Kura is not enabled for the account", %{conn: conn, account: account} do
       disable_kura(account)
+      # Nor runners: the page exists for either, so both have to be off
+      # for it to be missing.
+      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
 
       assert_raise TuistWeb.Errors.NotFoundError, fn ->
         live(conn, ~p"/#{account.name}/usage")

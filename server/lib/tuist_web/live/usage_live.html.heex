@@ -29,7 +29,7 @@
   </div>
 
   <.card
-    :if={@runner_breakdown.minutes > 0}
+    :if={@runner_breakdown.minutes > 0 or @runners_enabled}
     title={dgettext("dashboard_usage", "Runner usage")}
     icon="server"
     data-part="runner-usage-card"
@@ -87,6 +87,9 @@
           y_axis_min={0}
         />
       </div>
+      <p :if={@runner_breakdown.on_trial} data-part="footnote" data-kind="trial">
+        {dgettext("dashboard_usage", "Runner usage isn't billed while your trial is running.")}
+      </p>
       <div data-part="receipts">
         <div :for={row <- @runner_breakdown.platforms} data-part="receipt">
           <div data-part="heading">
@@ -119,9 +122,6 @@
               <dd>{TuistWeb.UsageLive.money_label(row.billed)}</dd>
             </div>
           </dl>
-          <p :if={@runner_breakdown.on_trial} data-part="footnote">
-            {dgettext("dashboard_usage", "Runner usage isn't billed while your trial is running.")}
-          </p>
           <% pace = TuistWeb.UsageLive.pace_label(row) %>
           <p :if={pace} data-part="footnote">{pace}</p>
         </div>
