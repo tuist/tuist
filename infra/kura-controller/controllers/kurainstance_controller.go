@@ -3539,13 +3539,6 @@ func managedCacheEnvDefaults() []corev1.EnvVar {
 		{Name: snapshotCacheMaxBytesEnvVar, Value: "67108864"},
 		{Name: manifestCacheMaxBytesEnvVar, Value: "33554432"},
 		{Name: metadataStoreReadCacheBytesEnvVar, Value: "33554432"},
-		// KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES is deliberately absent.
-		// Pinning it to 32 MiB here (and in values-managed.yaml) came out of
-		// #12117's memory-pressure work, not from any RocksDB requirement, and
-		// with `allow_stall = true` a 32 MiB pool saturates on a single write
-		// burst and blocks every writer inside RocksDB (#12556). Unset, the
-		// process derives memory_limit/32 clamped to [16, 128] MiB, which
-		// scales with the instance instead of being uniform regardless of size.
 	}
 }
 
