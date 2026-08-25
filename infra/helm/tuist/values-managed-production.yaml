@@ -153,11 +153,15 @@ server:
     # region selectable in account settings and iterated by the lifecycle, and
     # either without capacity behind it leaves a KuraInstance Pending.
     #
-    # PRECONDITION for the deploy that carries this: the SGP box
-    # (ns5036444.ip-15-235-229.net) must have finished installing and be
-    # reachable. The OVH machine controller does claim + self-join and never
-    # install — it assumes an adoptable box is already up — so adopting one
-    # mid-install fails the bootstrap instead of waiting for it.
+    # The SGP box (ns5036444.ip-15-235-229.net) was verified ready before this
+    # landed: Ubuntu 24.04 installed, reachable over SSH as ubuntu on the fleet
+    # key with passwordless sudo, and /data a separate 829 GiB XFS filesystem.
+    # That check is the precondition for any box joining this pool, not a
+    # one-off: the OVH machine controller does claim + self-join and never
+    # install — unlike the Dedibox one it does not poll InstallState — so it
+    # fails the bootstrap on a half-installed box rather than waiting for it.
+    # /data reading `noquota` at that point is expected; the self-join remounts
+    # it with prjquota and refuses to join a box where it cannot.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-central,us-east,us-west,ap-southeast,scw-fr-par-runners
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
