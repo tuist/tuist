@@ -875,7 +875,7 @@ macosFleet:
     cidr: 172.16.0.0/22
 
 # Customer-runner Mac mini fleet. 9 M2-L hosts at one guest each plus
-# 1 M4-XL host at two = 11 concurrent customer runs.
+# 2 M4-XL hosts at two = 13 concurrent customer runs.
 #
 # Apple's SLA permits two guests per host and Tart enforces it; whether
 # a host runs two is purely a function of how much CPU/RAM tart-kubelet
@@ -931,8 +931,7 @@ runnersFleet:
   #
   # Growing the group: order N more M4-XL minis named `tuist-pool-*`,
   # bump hostCount, and raise every `xcodeOverrides[*].maxReplicas` below
-  # by 2N. At 1 today because one M4-XL is provisioned; maxReplicas moved
-  # 9 -> 11 in the same change.
+  # by 2N. At 2 today; maxReplicas moved 11 -> 13 in the same change.
   #
   # Two guests per host, at the same 6 vCPU / 14 GB shape the M2-L
   # runs — customers see an identical runner, the host just fits two.
@@ -946,7 +945,7 @@ runnersFleet:
   # these. Growing raw concurrency alone is still cheaper on M2-L.
   machineGroups:
     - name: m4
-      hostCount: 1
+      hostCount: 2
       machine:
         type: M4-XL
         zone: fr-par-1
@@ -1046,18 +1045,19 @@ runnersFleet:
   # fleet allocator, which apportions the fleet's GUEST-slot budget
   # across all macOS pools using the three-tier (floor / load /
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
-  # guarantee; `maxReplicas: 11` lets either pool absorb the whole
+  # guarantee; `maxReplicas: 13` lets either pool absorb the whole
   # fleet under skewed demand and the allocator caps the joint sum
   # so the pools don't double-book.
   #
   # The budget is slots, not minis: the allocator divides the fleet's
   # advertised memory by this shape's 14336 MB, so the 9 M2-L hosts are
-  # 9 slots and the 1 M4-XL is 2, for 11. These ceilings must move with
-  # that number — the allocator never exceeds a pool's maxReplicas, so
-  # leaving them at 9 would let the M4 boot but keep every pool clamped
-  # below the capacity it adds, and the second guest would sit idle.
+  # 9 slots and the 2 M4-XL hosts are 2 each, for 13. These ceilings must
+  # move with that number — the allocator never exceeds a pool's
+  # maxReplicas, so leaving them behind would let an M4 boot but keep
+  # every pool clamped below the capacity it adds, and its second guest
+  # would sit idle.
   #
-  # Floors sum to 1 of the 11-slot budget; the remaining 10 slots are
+  # Floors sum to 1 of the 13-slot budget; the remaining 12 slots are
   # dynamically apportioned by queue depth across the pools. Older
   # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
   #
@@ -1074,27 +1074,27 @@ runnersFleet:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
-        maxReplicas: 11
+        maxReplicas: 13
     "26.5":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 11
+        maxReplicas: 13
     "26.4.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 11
+        maxReplicas: 13
     "26.3":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 11
+        maxReplicas: 13
     "26.0.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 11
+        maxReplicas: 13
   # Resolved at deploy time from the latest `runner-image@` git tag.
   runnerImageSemver: ""
   pools: []
