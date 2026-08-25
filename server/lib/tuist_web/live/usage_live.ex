@@ -371,6 +371,15 @@ defmodule TuistWeb.UsageLive do
   end
 
   @doc """
+  The money a runner trial took off this row, or `nil` when it took
+  none. A zero credit is a line that explains nothing, and an account
+  that was never on a trial has no business being told about one.
+  """
+  def trial_credit(%{trial_covered: nil}), do: nil
+  def trial_credit(%{trial_covered: %Money{amount: 0}}), do: nil
+  def trial_credit(%{trial_covered: covered}), do: covered
+
+  @doc """
   A credit, signed only when there is something to subtract. A bare
   "−0.00" reads as a rounding artefact rather than as nothing owed.
   """

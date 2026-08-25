@@ -102,19 +102,12 @@
               </dt>
               <dd>{TuistWeb.UsageLive.money_label(row.gross)}</dd>
             </div>
-            <div
-              :if={@runner_breakdown.on_trial and row.gross}
-              data-part="line"
-              data-kind="credit"
-            >
+            <% trial_credit = TuistWeb.UsageLive.trial_credit(row) %>
+            <div :if={trial_credit} data-part="line" data-kind="credit">
               <dt>{dgettext("dashboard_usage", "Covered by your trial")}</dt>
-              <dd>{TuistWeb.UsageLive.credit_label(row.gross)}</dd>
+              <dd>{TuistWeb.UsageLive.credit_label(trial_credit)}</dd>
             </div>
-            <div
-              :if={row.included_minutes && not @runner_breakdown.on_trial}
-              data-part="line"
-              data-kind="credit"
-            >
+            <div :if={row.included_minutes} data-part="line" data-kind="credit">
               <dt>
                 {dgettext("dashboard_usage", "%{count} minutes included",
                   count: row.included_minutes

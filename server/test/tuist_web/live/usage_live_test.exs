@@ -54,20 +54,23 @@ defmodule TuistWeb.UsageLiveTest do
       minutes: 1_000,
       free_minutes: 100,
       gross: Money.new(7_500, :USD),
+      trial_covered: Money.new(7_500, :USD),
       billed: Money.new(0, :USD),
       days: [],
       by_repository: [],
       projected_days: [],
-      on_trial: true,
       platforms: [
         %{
           id: "macos",
           platform: :macos,
           minutes: 1_000,
           projected_minutes: 1_000,
-          included_minutes: 100,
+          # Nothing is billable while the trial runs, so the allowance
+          # has no line of its own.
+          included_minutes: nil,
           previous_minutes: 0,
           gross: Money.new(7_500, :USD),
+          trial_covered: Money.new(7_500, :USD),
           billed: Money.new(0, :USD)
         }
       ]
@@ -169,6 +172,7 @@ defmodule TuistWeb.UsageLiveTest do
               included_minutes: nil,
               previous_minutes: 0,
               gross: nil,
+              trial_covered: nil,
               billed: nil
             }
           ]
