@@ -369,6 +369,12 @@ kuraRuntime:
     labels: {}
     nodeSelector: {}
     tolerations: []
+    # Optional credentials for this KuraInstance. The controller's shared
+    # Secret remains the default when this is empty.
+    controlPlaneCredentials:
+      secretName: ""
+    networkPolicy:
+      enabled: false
 
 codebaseSearch:
   enabled: false
@@ -480,6 +486,11 @@ server:
   # server + kuraController from one release and leave this off.
   kuraIntrospection:
     useSharedSecret: false
+    # An explicitly named Secret takes precedence over the shared controller
+    # Secret. This lets an isolated environment use a distinct Kura client
+    # without copying the controller credential into its application
+    # namespace.
+    secretName: ""
   # GitHub App + bot PAT secrets. When `github.managedSecrets: true`, ESO
   # syncs them from 1Password into a dedicated Secret and the Server +
   # Processor Deployments mount the keys as TUIST_GITHUB_APP_* /
@@ -663,6 +674,34 @@ server:
     create: false
     name: ""
     annotations: {}
+  # Existing deployments may give the server Kubernetes API permissions for
+  # runners or database operations. Keep the historical implicit mount as the
+  # default; isolated deployments can explicitly turn it off.
+  automountServiceAccountToken: true
+  # Optional Secret mounted read-only for a one-time account bootstrap. The
+  # server process never reads it; operational tooling can read the files
+  # through an exec command without placing credentials in command arguments.
+  seedAccountCredentials:
+    secretName: ""
+  networkPolicy:
+    enabled: false
+    # Applies a default-deny policy to every pod in the release. The
+    # pentest overlay enables this and supplies narrowly scoped component
+    # policies for the embedded data plane.
+    defaultDenyAllPods: false
+    ingressControllerNamespace: platform
+    ingressControllerPodLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/component: controller
+    dnsNamespace: kube-system
+    observabilityNamespace: observability
+    kuraNamespace: kura
+    # Additional labels for Kura runtime pods allowed to call the server.
+    # Empty preserves the existing namespace-wide behavior.
+    kuraPodLabels: {}
+    # Private Pod and Service ranges excluded from the public HTTP/S egress
+    # rule. Environment overlays should set their cluster's actual ranges.
+    clusterCIDRs: []
   ingress:
     enabled: false
     className: ""
@@ -1013,6 +1052,9 @@ registry:
       app.kubernetes.io/component: controller
     dnsNamespace: kube-system
     observabilityNamespace: observability
+    # Private Pod and Service ranges excluded from the public HTTP/S egress
+    # rule. Environment overlays should set their cluster's actual ranges.
+    clusterCIDRs: []
   resources: {}
   podSecurityContext:
     fsGroup: 990
