@@ -41,13 +41,17 @@
   & > header[data-part="header"] {
     /* pages.css puts every section on the same z-index, so the boxes below
        would paint over the category dropdown escaping this one. While the menu
-       is open the header also has to clear the sticky navbar, so the phone
-       tray's scrim covers the whole viewport. */
+       is open on phones the header also has to clear the sticky navbar, so the
+       tray's scrim covers the whole viewport — phones only, because matching
+       the navbar's z-index as a later sibling paints the header (and the page
+       under it) over the navbar's own mega menus. */
     z-index: var(--noora-z-index-2);
     padding: var(--noora-spacing-10) var(--noora-spacing-8);
 
-    &:has([data-part="trigger"][data-state="open"]) {
-      z-index: var(--noora-z-index-12);
+    @media (max-width: 767px) {
+      &:has([data-part="trigger"][data-state="open"]) {
+        z-index: var(--noora-z-index-12);
+      }
     }
 
     @media (min-width: 1024px) {
