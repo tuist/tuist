@@ -445,10 +445,23 @@ keys into `tuist-pentest`.
 Deploy through **Pentest Deployment** with an `expires_at` timestamp. The
 scheduled cleanup removes the application namespace and its Kura instance
 after that time. Extending an engagement means re-deploying with a later
-timestamp. Review and remove the workload Cluster resource separately when the
-engagement ends so the control plane and persistent volumes are also deleted.
+timestamp.
+
+When the engagement ends, first remove
+`infra/k8s/clusters/cluster-pentest.yaml` in a reviewed change and merge it.
+Then run **Pentest Cluster Retirement** from `main`, typing
+`retire-tuist-pentest` as its confirmation. The workflow uses the protected
+management-cluster environment to delete the workload `Cluster` resource and
+wait for its managed infrastructure to disappear. Removing the source manifest
+first prevents a later management-cluster reconciliation from recreating it.
+Cluster retirement is deliberately manual because it permanently removes the
+control plane and any remaining persistent volumes.
 
 ## 10. Teardown
+
+For `tuist-pentest`, use the **Pentest Cluster Retirement** workflow described
+above instead of the command below. It verifies that the source manifest is no
+longer on `main` before deleting the `Cluster` resource.
 
 ```bash
 KUBECONFIG=~/.kube/tuist-mgmt.yaml kubectl -n org-tuist delete cluster <cluster_name>

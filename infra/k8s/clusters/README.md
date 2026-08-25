@@ -41,8 +41,9 @@ clusters/
 `tuist-pentest` is a dedicated, fixed-duration security-assessment cluster.
 It intentionally has no runner, Mac, processor, or stable-egress pools. Kura
 runs on its own tainted worker pool, while its controller and credentials are
-confined to this cluster. Remove the Cluster resource through the reviewed
-teardown flow when the engagement ends.
+confined to this cluster. When the engagement ends, remove its manifest in a
+reviewed change, then run the **Pentest Cluster Retirement** workflow to delete
+the Cluster resource and its managed infrastructure.
 
 The `md-egress` pool is the HA (≥2 node) stable-egress gateway: the
 production Phoenix server's public egress is SNAT'd through the active
