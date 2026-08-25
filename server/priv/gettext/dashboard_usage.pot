@@ -11,13 +11,13 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:306
+#: lib/tuist_web/live/usage_live.html.heex:307
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:210
-#: lib/tuist_web/live/usage_live.html.heex:315
+#: lib/tuist_web/live/usage_live.html.heex:211
+#: lib/tuist_web/live/usage_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "Requests"
 msgstr ""
@@ -33,14 +33,14 @@ msgstr ""
 msgid "Usage"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:170
-#: lib/tuist_web/live/usage_live.html.heex:309
+#: lib/tuist_web/live/usage_live.html.heex:171
+#: lib/tuist_web/live/usage_live.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "Egress"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:190
-#: lib/tuist_web/live/usage_live.html.heex:312
+#: lib/tuist_web/live/usage_live.html.heex:191
+#: lib/tuist_web/live/usage_live.html.heex:313
 #, elixir-autogen, elixir-format
 msgid "Ingress"
 msgstr ""
@@ -53,17 +53,17 @@ msgstr ""
 msgid "Unknown"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:193
+#: lib/tuist_web/live/usage_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Bytes received by the cache from clients (cache uploads) in the selected window."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:173
+#: lib/tuist_web/live/usage_live.html.heex:174
 #, elixir-autogen, elixir-format
 msgid "Bytes sent from the cache to clients (cache downloads) in the selected window."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:163
+#: lib/tuist_web/live/usage_live.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "Cache traffic"
 msgstr ""
@@ -73,12 +73,12 @@ msgstr ""
 msgid "No cache traffic in this window yet"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:213
+#: lib/tuist_web/live/usage_live.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Number of cache requests served in the selected window."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:272
+#: lib/tuist_web/live/usage_live.html.heex:273
 #, elixir-autogen, elixir-format
 msgid "Traffic by region"
 msgstr ""
@@ -138,49 +138,44 @@ msgstr ""
 msgid "macOS"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:118
+#: lib/tuist_web/live/usage_live.html.heex:119
 #, elixir-autogen, elixir-format
 msgid "%{count} minutes included"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:102
+#: lib/tuist_web/live/usage_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "%{count} minutes run"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:125
+#: lib/tuist_web/live/usage_live.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "Billed this period"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:139
+#: lib/tuist_web/live/usage_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Balance"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:143
+#: lib/tuist_web/live/usage_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "Covers this period"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:152
+#: lib/tuist_web/live/usage_live.html.heex:153
 #, elixir-autogen, elixir-format
 msgid "Drawn down when the period is invoiced, so this is what your balance would cover today."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:147
+#: lib/tuist_web/live/usage_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Left to pay"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:135
+#: lib/tuist_web/live/usage_live.html.heex:136
 #, elixir-autogen, elixir-format
 msgid "Prepaid credit"
-msgstr ""
-
-#: lib/tuist_web/live/usage_live.html.heex:91
-#, elixir-autogen, elixir-format
-msgid "Runner usage isn't billed while your trial is running."
 msgstr ""
 
 #: lib/tuist_web/live/usage_live.html.heex:16
@@ -223,7 +218,7 @@ msgstr ""
 msgid "Current period %{from} – %{to}"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:109
+#: lib/tuist_web/live/usage_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Covered by your trial"
 msgstr ""

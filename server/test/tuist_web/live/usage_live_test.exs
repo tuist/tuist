@@ -130,9 +130,6 @@ defmodule TuistWeb.UsageLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
 
       assert has_element?(lv, "[data-part='runner-usage-card']")
-      # Matched without the apostrophe, which the render escapes.
-      assert has_element?(lv, "[data-kind='trial']")
-      assert render(lv) =~ "billed while your trial is running"
     end
 
     test "shows what the trial covered rather than a receipt that does not add up", %{conn: conn, account: account} do
@@ -152,6 +149,41 @@ defmodule TuistWeb.UsageLiveTest do
       # The full value in, the same value out, nothing left to pay.
       assert html =~ "75.00"
       assert html =~ "−75.00"
+    end
+
+    test "does not deduct from a platform that has no rate yet", %{conn: conn, account: account} do
+      # Linux has no agreed rate, so its value reads as a dash. Taking a
+      # dash off a dash rendered "−—", which is not a number and not an
+      # explanation.
+      disable_kura(account)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+
+      breakdown = %{
+        trial_breakdown()
+        | platforms: [
+            %{
+              id: "linux",
+              platform: :linux,
+              minutes: 90,
+              projected_minutes: 90,
+              included_minutes: nil,
+              previous_minutes: 0,
+              gross: nil,
+              billed: nil
+            }
+          ]
+      }
+
+      stub(Allowance, :period_breakdown, fn _account -> breakdown end)
+      stub(Allowance, :period_breakdown, fn _account, _period -> breakdown end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      html = render(lv)
+
+      assert html =~ "90 minutes run"
+      refute html =~ "−—"
+      refute html =~ "Covered by your trial"
     end
 
     test "is hidden for an account with neither runners nor usage", %{conn: conn, account: account} do

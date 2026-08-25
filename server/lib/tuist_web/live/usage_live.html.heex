@@ -87,9 +87,6 @@
           y_axis_min={0}
         />
       </div>
-      <p :if={@runner_breakdown.on_trial} data-part="footnote" data-kind="trial">
-        {dgettext("dashboard_usage", "Runner usage isn't billed while your trial is running.")}
-      </p>
       <div data-part="receipts">
         <div :for={row <- @runner_breakdown.platforms} data-part="receipt">
           <div data-part="heading">
@@ -105,7 +102,11 @@
               </dt>
               <dd>{TuistWeb.UsageLive.money_label(row.gross)}</dd>
             </div>
-            <div :if={@runner_breakdown.on_trial} data-part="line" data-kind="credit">
+            <div
+              :if={@runner_breakdown.on_trial and row.gross}
+              data-part="line"
+              data-kind="credit"
+            >
               <dt>{dgettext("dashboard_usage", "Covered by your trial")}</dt>
               <dd>{TuistWeb.UsageLive.credit_label(row.gross)}</dd>
             </div>
