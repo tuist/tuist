@@ -47,8 +47,12 @@
     z-index: var(--noora-z-index-2);
     padding: var(--noora-spacing-10) var(--noora-spacing-8);
 
-    &:has([data-part="trigger"][data-state="open"]) {
-      z-index: var(--noora-z-index-12);
+    /* Phones only: matching the navbar's z-index as a later sibling would
+       paint the header over the navbar's own mega menus on desktop. */
+    @media (max-width: 767px) {
+      &:has([data-part="trigger"][data-state="open"]) {
+        z-index: var(--noora-z-index-12);
+      }
     }
 
     @media (min-width: 1024px) {
