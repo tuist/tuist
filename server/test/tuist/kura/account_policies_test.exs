@@ -102,6 +102,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
     end
 
     test "prefers an explicit assignment over the region an account runs in" do
+      serving(["us-east", "eu-central"])
       account = organization_account()
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
       live_instance(account, "us-east")
@@ -119,6 +120,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
     end
 
     test "uses the current explicit assignment for a paid account that allows every region" do
+      serving(["eu-central"])
       account = organization_account()
       actor = AccountsFixtures.user_fixture()
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
@@ -258,6 +260,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
     test "assigns United States West, which no storage-region preference derives to" do
       # `accounts.region` is all | europe | usa; `usa` derives to us-east and
       # `all` defaults to it, so an assignment is the only route to us-west.
+      serving(["us-east", "us-west"])
       account = organization_account()
       actor = AccountsFixtures.user_fixture()
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
@@ -271,6 +274,52 @@ defmodule Tuist.Kura.AccountPoliciesTest do
                {:ok, %{plan: :enterprise, service_region: "us-west"}}
     end
 
+    test "assigns Asia Pacific Southeast, which no storage-region preference derives to" do
+      # Same shape as us-west: `accounts.region` is all | europe | usa, none of
+      # which name Asia Pacific, so an assignment is the only route there. The
+      # assignment is recordable before the Singapore box exists — what
+      # TUIST_KURA_AVAILABLE_REGIONS gates is serving the region, not naming it.
+      account = organization_account()
+      actor = AccountsFixtures.user_fixture()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+
+      assert {:ok, assignment} =
+               AccountPolicies.assign_service_region(
+                 account,
+                 "ap-southeast",
+                 actor,
+                 "Developers are in Singapore; US East is a ~200ms round trip"
+               )
+
+      assert assignment.service_region == "ap-southeast"
+      assert assignment.version == 1
+
+      # Persisted, not just validated: the CHECK constraint on
+      # kura_account_region_policies has to admit the region too.
+      assert %AccountRegionPolicy{service_region: "ap-southeast"} =
+               Repo.get(AccountRegionPolicy, assignment.id)
+
+      assert AccountPolicies.current_service_region_assignment(account).service_region ==
+               "ap-southeast"
+
+      # The second gate. Recording the placement does not make it resolvable:
+      # no deployment serves Singapore yet, so resolution refuses rather than
+      # handing back a region nothing provisions in. Resolving it here would
+      # record demand under a region `Lifecycle.lifecycle_regions/0` never
+      # iterates and report the account as provisioning forever.
+      assert AccountPolicies.resolve(account) == {:error, :service_region_unavailable}
+
+      # And the assignment is untouched by the refusal, so the region starts
+      # resolving the moment the box exists and the gate names it — no
+      # reassignment, no operator action.
+      serving(["us-east", "ap-southeast"])
+
+      assert AccountPolicies.resolve(account) ==
+               {:ok, %{plan: :enterprise, service_region: "ap-southeast"}}
+
+      assert AccountPolicies.current_service_region_assignment(account).version == 1
+    end
+
     test "rejects a region outside the assignable set" do
       account = organization_account()
       actor = AccountsFixtures.user_fixture()
@@ -282,6 +331,65 @@ defmodule Tuist.Kura.AccountPoliciesTest do
                actor,
                "Unsupported placement"
              ) == {:error, :service_region_unavailable}
+    end
+  end
+
+  describe "Asia Pacific Southeast is assignment-only" do
+    test "no storage-region preference derives to it on any plan" do
+      # The point of the region: nothing places an account there implicitly, so
+      # a reader looking for a derivation rule finds this instead. Every
+      # accounts.region value crossed with every plan that resolves at all.
+      for region <- [:all, :europe, :usa],
+          plan <- [:air, :pro, :enterprise] do
+        account = update_region!(organization_account(), region)
+
+        if plan != :air do
+          BillingFixtures.subscription_fixture(account_id: account.id, plan: plan)
+        end
+
+        case AccountPolicies.resolve(account) do
+          {:ok, %{service_region: service_region}} ->
+            refute service_region == "ap-southeast",
+                   "region=#{region} plan=#{plan} derived to ap-southeast"
+
+          {:error, _reason} ->
+            :ok
+        end
+      end
+    end
+
+    test "an account that named a country group cannot be assigned there either" do
+      # A derived placement stays derived. `usa` resolves to us-east, and an
+      # assignment is refused rather than quietly overriding the storage region
+      # the account chose.
+      account = update_region!(organization_account(), :usa)
+      actor = AccountsFixtures.user_fixture()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+
+      assert AccountPolicies.assign_service_region(
+               account,
+               "ap-southeast",
+               actor,
+               "Developers are in Singapore"
+             ) == {:error, :service_region_is_derived}
+
+      assert AccountPolicies.resolve(account) ==
+               {:ok, %{plan: :enterprise, service_region: "us-east"}}
+    end
+
+    test "an Air account cannot reach it, because Air never reads an assignment" do
+      account = organization_account()
+      actor = AccountsFixtures.user_fixture()
+
+      assert AccountPolicies.assign_service_region(
+               account,
+               "ap-southeast",
+               actor,
+               "Developers are in Singapore"
+             ) == {:error, :plan_not_supported}
+
+      assert AccountPolicies.resolve(account) ==
+               {:ok, %{plan: :air, service_region: "us-east"}}
     end
   end
 
@@ -325,6 +433,15 @@ defmodule Tuist.Kura.AccountPoliciesTest do
 
   defp personal_account do
     AccountsFixtures.user_fixture(preload: [:account]).account
+  end
+
+  # An assignment only resolves where the deployment serves the region, so a
+  # test asserting a resolved assignment has to name a deployment that serves
+  # it. Test env otherwise exposes the local controller region alone.
+  defp serving(region_ids) do
+    stub(Environment, :dev?, fn -> false end)
+    stub(Environment, :test?, fn -> false end)
+    stub(Environment, :kura_available_region_ids, fn -> region_ids end)
   end
 
   defp update_region!(account, region) do

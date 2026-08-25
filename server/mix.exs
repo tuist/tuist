@@ -14,6 +14,7 @@ defmodule Tuist.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: compilers(Mix.env()),
+      phoenix_live_view: [colocated_assets: [node_modules_path: "node_modules"]],
       listeners: [Phoenix.CodeReloader]
     ]
   end
@@ -34,8 +35,8 @@ defmodule Tuist.MixProject do
   defp elixirc_paths(_), do: ["lib"]
 
   # Boundary verifies a large module graph and makes content edits slow in dev.
-  defp compilers(:dev), do: Mix.compilers()
-  defp compilers(_env), do: [:boundary] ++ Mix.compilers()
+  defp compilers(:dev), do: [:phoenix_live_view] ++ Mix.compilers()
+  defp compilers(_env), do: [:phoenix_live_view, :boundary] ++ Mix.compilers()
 
   # Specifies your project dependencies.
   #
@@ -49,7 +50,7 @@ defmodule Tuist.MixProject do
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_reload, "~> 1.6.1", only: :dev},
-      {:phoenix_live_view, "~> 1.1.0"},
+      {:phoenix_live_view, "~> 1.2.0"},
       {:phoenix_view, "~> 2.0"},
       {:floki, ">= 0.33.0"},
       {:html2markdown, "~> 0.3.1"},
@@ -89,8 +90,8 @@ defmodule Tuist.MixProject do
       {:mimic, "~> 2.0", only: :test},
       {:ymlr, "~> 5.0"},
       {:open_api_spex, "~> 3.22"},
-      {:oban, "~> 2.20"},
-      {:oban_web, "~> 2.11"},
+      {:oban, "~> 2.21.0"},
+      {:oban_web, "~> 2.12"},
       {:bcrypt_elixir, "~> 3.0"},
       {:stripity_stripe, "~> 3.1"},
       {:ueberauth, "~> 0.10.8"},
@@ -166,6 +167,7 @@ defmodule Tuist.MixProject do
       {:peep, "4.2.1", override: true},
       {:langchain, "~> 0.4"},
       {:mdex, "~> 0.13.3"},
+      {:mdex_katex, "~> 0.2.1"},
       {:lumis, "~> 0.1.2"},
       {:mdex_mermaid, "~> 0.3"},
       {:html_sanitize_ex, "~> 1.4"},

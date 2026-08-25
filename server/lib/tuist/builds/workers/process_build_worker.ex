@@ -22,7 +22,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     max_attempts: 5,
     unique: [
       keys: [:build_id],
-      states: [:available, :scheduled, :executing, :retryable],
+      states: :incomplete,
       period: :infinity
     ]
 

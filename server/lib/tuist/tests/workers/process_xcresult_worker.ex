@@ -24,7 +24,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     max_attempts: 20,
     unique: [
       keys: [:test_run_id, :shard_index],
-      states: [:scheduled, :available, :executing, :retryable],
+      states: :incomplete,
       period: :infinity
     ]
 

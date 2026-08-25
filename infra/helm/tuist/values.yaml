@@ -284,8 +284,15 @@ egressTreeAgent:
   # `enabled: false` and redeploying, or delete the policy object directly
   # (see infra/egress-tree-agent/AGENTS.md).
   enabled: false
-  # Full image reference, pinned (e.g. ghcr.io/tuist/egress-tree-agent@sha256:...).
-  image: ""
+  # The tag is resolved at deploy time from the highest
+  # `egress-tree-agent@<semver>` git tag reachable from the deployed commit
+  # (server-deployment.yml's fleet/runtime resolution step), so a release
+  # rolls forward on the next deploy and there is no in-repo pin to bump.
+  # Empty is a render-time failure — see the template's guard.
+  image:
+    repository: ghcr.io/tuist/egress-tree-agent
+    tag: ""
+    pullPolicy: IfNotPresent
   # Deployed into the kura namespace (kuraController.namespace) by default.
   namespace: ""
   # Backstop sweep only: pod/node watch events drive convergence, so this
@@ -362,6 +369,12 @@ kuraRuntime:
     labels: {}
     nodeSelector: {}
     tolerations: []
+    # Optional credentials for this KuraInstance. The controller's shared
+    # Secret remains the default when this is empty.
+    controlPlaneCredentials:
+      secretName: ""
+    networkPolicy:
+      enabled: false
 
 codebaseSearch:
   enabled: false
@@ -473,6 +486,11 @@ server:
   # server + kuraController from one release and leave this off.
   kuraIntrospection:
     useSharedSecret: false
+    # An explicitly named Secret takes precedence over the shared controller
+    # Secret. This lets an isolated environment use a distinct Kura client
+    # without copying the controller credential into its application
+    # namespace.
+    secretName: ""
   # GitHub App + bot PAT secrets. When `github.managedSecrets: true`, ESO
   # syncs them from 1Password into a dedicated Secret and the Server +
   # Processor Deployments mount the keys as TUIST_GITHUB_APP_* /
@@ -656,6 +674,34 @@ server:
     create: false
     name: ""
     annotations: {}
+  # Existing deployments may give the server Kubernetes API permissions for
+  # runners or database operations. Keep the historical implicit mount as the
+  # default; isolated deployments can explicitly turn it off.
+  automountServiceAccountToken: true
+  # Optional Secret mounted read-only for a one-time account bootstrap. The
+  # server process never reads it; operational tooling can read the files
+  # through an exec command without placing credentials in command arguments.
+  seedAccountCredentials:
+    secretName: ""
+  networkPolicy:
+    enabled: false
+    # Applies a default-deny policy to every pod in the release. The
+    # pentest overlay enables this and supplies narrowly scoped component
+    # policies for the embedded data plane.
+    defaultDenyAllPods: false
+    ingressControllerNamespace: platform
+    ingressControllerPodLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/component: controller
+    dnsNamespace: kube-system
+    observabilityNamespace: observability
+    kuraNamespace: kura
+    # Additional labels for Kura runtime pods allowed to call the server.
+    # Empty preserves the existing namespace-wide behavior.
+    kuraPodLabels: {}
+    # Private Pod and Service ranges excluded from the public HTTP/S egress
+    # rule. Environment overlays should set their cluster's actual ranges.
+    clusterCIDRs: []
   ingress:
     enabled: false
     className: ""
@@ -1006,6 +1052,9 @@ registry:
       app.kubernetes.io/component: controller
     dnsNamespace: kube-system
     observabilityNamespace: observability
+    # Private Pod and Service ranges excluded from the public HTTP/S egress
+    # rule. Environment overlays should set their cluster's actual ranges.
+    clusterCIDRs: []
   resources: {}
   podSecurityContext:
     fsGroup: 990
@@ -1443,23 +1492,50 @@ macosFleet:
     # `memorySize > maximumAllowedMemorySize`).
     # Override per-env if `machine.type` is bumped to a different SKU.
     #
-    # maxPods=3 (not 2): Apple's macOS SLA caps virtualized macOS
-    # instances at 2 per host, but max-pods is a Kubernetes-level
-    # limit that counts every Pod on the Node, not just Tart-VM Pods.
-    # The hcloud-csi-node DaemonSet runs on every Node in the workload
-    # cluster (it doesn't honor the macOS taint) and already consumes
-    # one slot — capping max-pods=2 leaves only one slot for
-    # xcresult-processor and deadlocks the rolling update on every
-    # image bump (maxSurge=1 + maxUnavailable=0 needs a 3rd slot for
-    # the surge: csi(1) + old(1) + new(1) = 3 pods → "Too many pods"
-    # → rollout never converges). max-pods=3 leaves headroom for one
-    # host-system Pod plus the SLA-mandated 2 macOS guests, which is
-    # what the SLA actually allows. Tart itself still refuses to
-    # start a third VM, so the SLA cap is enforced at the
-    # virtualization layer regardless of what kubelet schedules.
+    # maxPods counts EVERY Pod bound to the Node, not just Tart-VM
+    # Pods, and a Pod stays bound after it finishes — a terminal Pod
+    # holds its slot until GC collects it. Measured on the live fleet
+    # (2026-08-25): a single-guest macos-fleet node was carrying its
+    # Running xcresult-processor Pod plus the previous rollout's
+    # Succeeded one. So the ceiling scales as guests x 2, not
+    # guests + system Pods: each guest slot can transiently hold its
+    # running Pod and one not-yet-collected predecessor.
+    #
+    # hcloud-csi-node does NOT consume a slot here, despite an older
+    # comment in this file that said it did. It tolerates everything
+    # (blanket NoSchedule/NoExecute `Exists`, so the macOS taint
+    # genuinely does not stop it) but its required nodeAffinity carries
+    # `kubernetes.io/os NotIn [darwin]`, which does. Verified: zero
+    # hcloud-csi Pods across all 15 macOS Nodes in production.
+    #
+    # This is not the SLA guard and does not have to be. Apple caps a
+    # host at 2 virtualized macOS guests and Tart refuses to start a
+    # third, and hostCPU/hostMemoryMB bind the guest count before
+    # maxPods ever does. The error costs are lopsided — too low stalls
+    # a real guest slot until GC catches up, too high admits nothing
+    # extra — so size it for the worst case and move on.
+    #
+    # The rule is guests x 2 + 1. 3 for a single-guest host: 1 guest x 2
+    # (running + uncollected predecessor), plus one of margin — which on
+    # the macosFleet also happens to be what keeps the xcresult-
+    # processor's rolling update converging, since maxSurge=1 /
+    # maxUnavailable=0 needs old(1) + new(1) at once. A dual-guest host
+    # is 5 by the same rule.
     hostCPU: 8
     hostMemoryMB: 14336
     maxPods: 3
+    # Fleet-wide fallback for how many Tart guests a Mac mini runs, used
+    # when a Machine doesn't set `spec.guestCapacity`. Sizes the
+    # per-guest host resources (the VNC relay port range and the
+    # disk-pressure goldens floor) — it does not itself create or cap
+    # capacity, which comes from hostCPU/hostMemoryMB above and from
+    # Tart refusing a third VM.
+    #
+    # Leave this at 1 and set `guestCapacity` on the multi-guest SKU's
+    # entry in `runnersFleet.machineGroups[]` instead. This operator
+    # bootstraps every macOS fleet in the cluster, so raising the global
+    # over-provisions every single-guest host in all of them.
+    guestCapacity: 1
   # Per-account cache volumes. When gib > 0, bootstrap
   # provisions a quota-bounded APFS volume of that many GiB on each Mac
   # mini to hold per-account cache-volume images, and turns the feature on
@@ -1689,6 +1765,14 @@ macosFleet:
     type: M2-L
     zone: fr-par-1
     os: Tahoe
+    # Per-SKU host sizing, each falling back to the matching
+    # operator-global default when unset. See the identical block under
+    # `runnersFleet.machine` for what they mean and how to size them.
+    hostCPU: ~
+    hostMemoryMB: ~
+    maxPods: ~
+    guestCapacity: ~
+    runnerCacheVolumeGiB: ~
 
 # Customer-runner Mac mini fleet — sibling of macosFleet, hosted by
 # the same cluster-api-provider-tuist operator and
@@ -1699,9 +1783,15 @@ macosFleet:
 # Two-level shape:
 #
 #   * `hostCount` is the CAPI MachineDeployment replica count —
-#     i.e. how many physical Mac mini hosts the operator orders.
-#     Apple's SLA permits up to two VMs per host; v1 runs one per
-#     host, so `hostCount` equals the max concurrent VMs.
+#     i.e. how many physical Mac mini hosts the operator orders of
+#     the default `machine` SKU. `machineGroups[]` adds further
+#     MachineDeployments of OTHER SKUs to the same fleet, each with
+#     its own `hostCount`.
+#
+#     Host count is NOT the concurrency ceiling once the fleet is
+#     mixed. A host admits `hostMemoryMB / podMemoryMB` guests, so a
+#     14336 MB M2-L contributes one slot and a 28672 MB M4-XL
+#     contributes two. Apple's SLA caps any single host at two.
 #
 #   * `pools[]` is the list of RunnerPool CRs. Each entry is one
 #     runner image variant (e.g. Xcode 16 baseline, Xcode-15
@@ -1712,10 +1802,12 @@ macosFleet:
 #     fleet; the dispatch endpoint includes the label in the JIT
 #     mint so the runner registers with it.
 #
-# Sum of `pools[*].replicas` must not exceed `hostCount` while
-# we're at one VM per host. The chart doesn't enforce that today
-# (intentional — we'd rather let a thin overcommit show up as
-# unscheduled Pods than fail a deploy on arithmetic).
+# Sum of `pools[*].replicas` must not exceed the fleet's GUEST
+# capacity (see above — sum over every group of
+# `hostCount * guests-per-host`, not the host count). The chart
+# doesn't enforce that today (intentional — we'd rather let a thin
+# overcommit show up as unscheduled Pods than fail a deploy on
+# arithmetic).
 #
 # Runner availability is gated server-side by the `:runners`
 # feature flag (see server/lib/tuist/runners.ex); there's no
@@ -1749,9 +1841,10 @@ runnersFleet:
   # `helm.sh/resource-policy: keep` so an uninstall doesn't yank in-
   # flight Pods. Per-namespace RBAC + NetworkPolicy live alongside.
   namespace: tuist-runners
-  # Number of Mac mini hosts the CAPI MachineDeployment adopts
-  # from the pool. Sum of `pools[*].replicas` must fit within
-  # `hostCount` (one VM per host today).
+  # Number of Mac mini hosts the default MachineDeployment adopts
+  # from the pool, at the `machine` SKU below. Hosts of other SKUs
+  # come from `machineGroups[]`; the fleet's guest capacity is the
+  # sum across all groups of hosts x guests-per-host.
   hostCount: 0
   # Required. The controller claims a pre-ordered Mac mini whose
   # Scaleway-side name starts with this prefix; there is no
@@ -1785,6 +1878,93 @@ runnersFleet:
     type: M2-L
     zone: fr-par-1
     os: Tahoe
+    # Per-SKU host sizing. Every field below is optional and falls
+    # back to the operator-global default when unset — which is also
+    # what keeps an existing fleet's MachineTemplate unchanged, since
+    # even an inert field would alter the rendered spec.
+    #
+    # hostCPU / hostMemoryMB are what tart-kubelet advertises as the
+    # Node's capacity, so they are what kube-scheduler bin-packs guest
+    # Pods into. Leave the host itself ~2 cores and ~2 GB: asking for
+    # the full SKU on `tart run` fails with
+    # `memorySize > maximumAllowedMemorySize`.
+    #
+    # These two ARE the guest-count control. Size hostMemoryMB as an
+    # exact multiple of the pool's `podMemoryMB` so both dimensions
+    # bind at the same number, rather than leaving CPU as the only
+    # thing standing between the fleet and a third guest.
+    hostCPU: ~
+    hostMemoryMB: ~
+    # Node-level Pod ceiling. Counts EVERY Pod bound to the Node, and a
+    # terminal Pod keeps its slot until GC collects it, so size this as
+    # guests x 2 + 1 — each guest slot can transiently hold its running
+    # Pod plus one not-yet-collected predecessor, and the +1 is margin.
+    # 3 for a single-guest host, 5 for a dual-guest one.
+    #
+    # Keep the margin. hostCPU/hostMemoryMB bind the guest count before
+    # maxPods does, so a higher value admits no extra guest; but a node
+    # sitting at its ceiling rejects Pods with "Too many pods" while the
+    # autoscaler still counts its slots as available.
+    #
+    # No allowance for host-system Pods: hcloud-csi-node is kept off
+    # macOS by a `kubernetes.io/os NotIn [darwin]` nodeAffinity (its
+    # tolerations are blanket, so the taint is not what stops it), and
+    # nothing else targets these Nodes. See the long-form note on
+    # `macosFleet.tartKubelet.maxPods`.
+    maxPods: ~
+    # How many guests this SKU is expected to run. Sizes the per-guest
+    # host resources (the VNC relay port range, the disk-pressure
+    # goldens floor); it does not create or cap capacity, which comes
+    # from hostCPU/hostMemoryMB above and Tart's own SLA enforcement.
+    # Keep it equal to what those two actually admit.
+    guestCapacity: ~
+    # Per-SKU override of `macosFleet.runnerCacheVolume.gib`. The right
+    # quota tracks the SKU's disk, and these differ by 4x. Resident
+    # cache masters scale as `gib/masterCapGib - (liveBranches + 1)`
+    # and a dual-guest host can hold two live branches, so a host
+    # running two guests needs a LARGER quota than a single-guest one
+    # just to keep the same number of accounts hot. The provisioning
+    # script never resizes, so this only takes effect on a fresh host.
+    #
+    # Unlike the fields above, this one reads on PRESENCE: null (or
+    # omitted) inherits the operator global, while an explicit `0`
+    # disables cache volumes on this SKU and every VM there boots on
+    # the cold path. Staging a new SKU cold and enabling its cache once
+    # validated is how the feature was rolled out originally, so the
+    # two states have to stay distinguishable.
+    runnerCacheVolumeGiB: ~
+  # Additional host groups, each rendering its own MachineDeployment +
+  # MachineTemplate. This is how one fleet spans several Scaleway SKUs
+  # — e.g. the M2-L baseline above running one guest per host, plus an
+  # M4-XL group running two.
+  #
+  # Every group joins the SAME capacity domain: its MachineTemplate
+  # carries the fleet's `fleetName`, which becomes the `tuist.dev/fleet`
+  # NODE label that RunnerPool.fleetSelector matches. So every Xcode
+  # pool can schedule onto every group's hosts and the autoscaler sums
+  # one budget across all of them — nothing is pinned to a SKU.
+  #
+  # The Machine OBJECT label is per group, because CAPI selectors are
+  # subset matches and two MachineDeployments sharing it would fight
+  # over each other's MachineSets. Nothing else reads that label.
+  #
+  # Ordering a new SKU into rotation is therefore: pre-order minis of
+  # that type under `adoptPoolPrefix`, add a group, set `hostCount`.
+  #
+  #   machineGroups:
+  #     - name: m4                     # group id; also the MD name suffix
+  #       hostCount: 4
+  #       # adoptPoolPrefix: ""        # defaults to the fleet's
+  #       machine:
+  #         type: M4-XL
+  #         zone: fr-par-1
+  #         os: Tahoe
+  #         hostCPU: 12                # of 14; ~2 for the host
+  #         hostMemoryMB: 28672        # 2 x the 14336 MB pod shape
+  #         maxPods: 5                 # guests x 2 + 1 (see maxPods above)
+  #         guestCapacity: 2
+  #         runnerCacheVolumeGiB: 240
+  machineGroups: []
   # Pod-network policy on the runners namespace. Default-deny
   # ingress, constrained egress (HTTPS to public internet for
   # GitHub + registries, DNS to kube-system). **Scope is the Pod
@@ -1803,8 +1983,14 @@ runnersFleet:
   # macOS shape catalog. Symmetric with `runnersFleetLinux.shapes`:
   # single source of truth for the Profiles dropdown and the server's
   # `:runner_macos_shapes` validation. Injected into the server as
-  # `TUIST_RUNNER_MACOS_SHAPES` (JSON). M2-L is the only Scaleway Apple
-  # Silicon SKU on the fleet today.
+  # `TUIST_RUNNER_MACOS_SHAPES` (JSON).
+  #
+  # A shape is what a CUSTOMER gets, and is deliberately independent of
+  # which SKU the fleet buys: a 6 vCPU / 14 GB guest is the same guest
+  # on an M2-L that fits one and an M4-XL that fits two. Adding a SKU
+  # to `machineGroups` therefore changes capacity, not the catalog —
+  # and `memoryGb` here is the divisor the autoscaler uses to turn a
+  # host's advertised memory into guest slots.
   shapes:
     - vcpus: 6
       memoryGb: 14
@@ -1831,7 +2017,7 @@ runnersFleet:
   # `default: true` shape, no autoscaling).
   #
   # The runners-controller's fleet allocator apportions the
-  # `hostCount` slot budget across every macOS pool sharing this
+  # fleet's guest-slot budget across every macOS pool sharing this
   # fleetSelector using the same three-tier (floor / load /
   # headroom) policy as the Linux pools. `maxReplicas` is per-pool
   # and can be set to the full host budget — the allocator caps

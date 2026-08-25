@@ -12,6 +12,7 @@ server_source_path = Path.expand("..", __DIR__)
 escaped_noora_source_path = Regex.escape(noora_source_path)
 deps_path = Path.expand("../deps", __DIR__)
 node_modules_path = Path.expand("../node_modules", __DIR__)
+build_path = Mix.Project.build_path()
 code_reloader_enabled = System.get_env("TUIST_DEV_DISABLE_CODE_RELOADER") not in ["1", "true"]
 
 # Base watchers for esbuild
@@ -52,7 +53,7 @@ base_live_reload_patterns = [
   ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$",
   ~r"lib/tuist_web/marketing/(controllers|live|components)/.*(ex|heex)$",
   ~r"lib/tuist_web/docs/.*(ex|heex)$",
-  ~r"priv/marketing/blog/*/.*(md)$",
+  ~r"priv/marketing/blog/.*\\.md$",
   ~r"#{escaped_noora_source_path}/lib/noora/.*(ex|heex)$",
   ~r"#{escaped_noora_source_path}/js/.*(js)$",
   ~r"#{escaped_noora_source_path}/css/.*(css)$",
@@ -82,15 +83,19 @@ config :esbuild,
       "--loader:.jpg=dataurl",
       "--loader:.png=dataurl",
       "--loader:.webp=dataurl",
+      "--loader:.woff=file",
+      "--loader:.woff2=file",
+      "--loader:.ttf=file",
       "--target=es2017",
       "--outfile=../../priv/static/marketing/assets/bundle.js",
       "--external:/fonts/*",
       "--external:/images/*",
+      "--alias:@=.",
       "--alias:noora=#{noora_source_path}/js/index.js",
       "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
     ],
     cd: Path.expand("../assets/marketing", __DIR__),
-    env: %{"NODE_PATH" => deps_path}
+    env: %{"NODE_PATH" => "#{deps_path}:#{build_path}"}
   ],
   docs: [
     args: [
@@ -193,3 +198,8 @@ config :tuist,
   generators: [timestamp_type: :utc_datetime],
   api_pipeline_producer_module: OffBroadwayMemory.Producer,
   api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
+
+# One session cookie per dev server. See `@session_options` in
+# `TuistWeb.Endpoint`: cookies ignore the port, so a shared name lets
+# concurrent worktree servers clobber each other's sessions.
+config :tuist, session_cookie_key: "_tuist_key_" <> (System.get_env("TUIST_SERVER_PORT") || "8080")

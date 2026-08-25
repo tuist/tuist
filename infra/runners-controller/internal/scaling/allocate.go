@@ -1,21 +1,24 @@
 package scaling
 
 // PoolDemand is one pool's input to the fleet-capacity allocation.
-// All pools in a single AllocateFleet call share one capacity
-// budget (the contention domain): for Linux that's the schedulable
-// memory across a bare-metal node pool, for macOS the number of
-// available host slots (1 VM per Mac mini).
+// All pools in a single AllocateFleet call share one capacity budget
+// (the contention domain): the schedulable memory across the fleet's
+// nodes, for both Linux bare metal and macOS Mac minis.
 type PoolDemand struct {
 	Name string
 
 	// PerPodCost is what one Pod consumes from the shared budget,
-	// in the same unit as `fleetCapacity`:
-	//   - Linux: per-Pod memory request in bytes (kata microVMs
-	//     pin memory per sandbox; CPU is deliberately
-	//     oversubscribed, so memory is the only bin-packed
-	//     dimension).
-	//   - macOS: always 1 (one Mac mini = one slot = one VM,
-	//     per Apple's Virtualization.framework SLA).
+	// in the same unit as `fleetCapacity` — per-Pod memory request
+	// in bytes on both platforms, because memory is the only
+	// bin-packed dimension on either:
+	//   - Linux: kata microVMs pin memory per sandbox; CPU is
+	//     deliberately oversubscribed. Includes RuntimeClass
+	//     overhead, which is charged at admission.
+	//   - macOS: tart-kubelet advertises the host's usable RAM and
+	//     the guest is sized from the Pod's request, so the
+	//     quotient is how many Tart guests the host admits. Apple's
+	//     Virtualization.framework SLA caps that at 2 regardless,
+	//     and Tart enforces it.
 	PerPodCost int64
 
 	// Floor is `minWarmPoolFloor` — the always-on warm guarantee.
@@ -65,7 +68,7 @@ type PoolDemand struct {
 // proportionally to requested cost and all lower tiers get nothing.
 // Result per pool is in `[load_i, Target_i]`. The algorithm is
 // unit-agnostic: `fleetCapacity` and `PerPodCost` just need to be in
-// the same unit (memory bytes for Linux, host slots for macOS).
+// the same unit (allocatable memory bytes on both platforms today).
 func AllocateFleet(pools []PoolDemand, fleetCapacity int64) map[string]int32 {
 	out := make(map[string]int32, len(pools))
 

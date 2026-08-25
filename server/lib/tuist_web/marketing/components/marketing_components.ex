@@ -11,7 +11,7 @@ defmodule TuistWeb.Marketing.MarketingComponents do
   embed_templates "marketing_layout_components/*"
 
   attr :href, :string, default: nil
-  attr :rest, :global
+  attr :rest, :global, include: ~w(target rel)
   slot :inner_block, required: true
 
   def marketing_link(assigns) do

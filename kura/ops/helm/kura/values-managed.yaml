@@ -87,5 +87,3 @@ config:
 extraEnv:
   - name: KURA_METADATA_STORE_READ_CACHE_BYTES
     value: "33554432"
-  - name: KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES
-    value: "33554432"

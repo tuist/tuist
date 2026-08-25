@@ -110,19 +110,19 @@
         href={~p"/changelog/atom.xml"}
       />
     <% end %>
-    
-<!-- Fonts -->
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
       rel="stylesheet"
     />
-    
-<!-- Analytics -->
+
+    <!-- Analytics -->
     <TuistWeb.LayoutComponents.head_analytics_scripts page_section="marketing" {assigns} />
-    
-<!-- hCaptcha -->
+
+    <!-- hCaptcha -->
     <script nonce={get_csp_nonce()} src="https://js.hcaptcha.com/1/api.js" async defer>
     </script>
     <TuistWeb.LayoutComponents.head_plain_script current_user={@current_user} {assigns} />

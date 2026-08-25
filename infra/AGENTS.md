@@ -39,13 +39,18 @@ Single-replica deploy of the `tuist-ops` app into the production cluster (same c
 ### `k8s/` — CAPI cluster manifests
 Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph stack we operate on Hetzner:
 - `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config).
-- `clusters/cluster-{staging,canary,production,preview}.yaml` — per-env Cluster CRs in topology mode.
+- `clusters/cluster-{staging,canary,production,preview,pentest}.yaml` — per-env Cluster CRs in topology mode.
 - Production Kura regions are node pools in `clusters/cluster-production.yaml`, not separate workload clusters.
 - The preview cluster also hosts Slack-requested preview environments:
   app workloads and preview Kura runtime pods both land on the tainted
   preview worker pool (`role=preview`, with the preview toleration on the
   KuraInstance). The Kura controller itself runs once cluster-wide in the
   `kura` namespace; each preview's `KuraInstance` is created there.
+- `clusters/cluster-pentest.yaml` is the isolated security-assessment cluster.
+  Its Kura controller, credentials, data volumes, and application namespace
+  are not shared with preview or any managed environment. It has no runner or
+  Mac worker pools; `values-pentest.yaml` keeps its embedded data services
+  persistent and places Kura on the dedicated `kura` worker pool.
 - `clusters/README.md` — ClusterClass authoring + caph-upstream porting notes.
 - `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access).
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).

@@ -271,12 +271,36 @@ type Config struct {
 	HostMemoryMB int
 	MaxPods      int
 
+	// MinGoldensKept floors how many golden base VMs tart-kubelet's
+	// disk-pressure reclaim may leave on the host
+	// (`--min-goldens-kept`). 0 uses tart-kubelet's own default of 1.
+	//
+	// A host that runs guests from more than one pool wants at least
+	// one golden per pool: reclaiming to a single golden under
+	// pressure strands the other pool into a full cold image pull
+	// (~10 min) on its next job. Only relevant once a host runs more
+	// than one guest — a single-guest host has one live pool at a
+	// time by construction.
+	MinGoldensKept int
+
 	// VNCRelayHost / VNCRelayPort configure the server-facing runner VNC
 	// relay coordinates that tart-kubelet advertises after a dashboard
 	// session is requested. Managed tailnet clusters set these to the
 	// per-Mac Tailscale egress Service DNS name and port.
 	VNCRelayHost string
 	VNCRelayPort int
+
+	// VNCRelayPortCount is how many contiguous ports from VNCRelayPort
+	// tart-kubelet may bind for relays (`--vnc-relay-port-count`). 0 or
+	// 1 is the single pinned port.
+	//
+	// A pinned relay port is a per-host resource but a relay is a
+	// per-Pod one, so this must be at least the number of guests the
+	// host can run concurrently or the second guest's relay fails to
+	// bind and interactive sessions break on that half of the fleet.
+	// Every port in the range has to be declared on whatever fronts
+	// the host (the per-Mac Tailscale egress Service).
+	VNCRelayPortCount int
 
 	// NodeLabels is the set of labels tart-kubelet stamps on the
 	// Node it registers. The bootstrap layer is generic — fleet
@@ -907,6 +931,12 @@ exit 1
 `, shellQuote(cfg.SSHUser))
 }
 
+// defaultMinGoldensKept mirrors tart-kubelet's own default for
+// --min-goldens-kept. Kept here so the plist renderer can tell "the
+// operator asked for the default" apart from "the operator asked for
+// more", and omit the flag in the first case.
+const defaultMinGoldensKept = 1
+
 func renderLaunchdPlist(cfg Config) string {
 	cpu := cfg.HostCPU
 	if cpu == 0 {
@@ -998,6 +1028,21 @@ func renderLaunchdPlist(cfg Config) string {
 	vncRelayPortArg := ""
 	if cfg.VNCRelayPort > 0 {
 		vncRelayPortArg = fmt.Sprintf("\n    <string>--vnc-relay-port=%d</string>", cfg.VNCRelayPort)
+		// Only rendered above 1 so a single-guest host's plist is
+		// byte-identical to what it rendered before the range existed
+		// and the fleet doesn't drift for a no-op flag.
+		if cfg.VNCRelayPortCount > 1 {
+			vncRelayPortArg += fmt.Sprintf("\n    <string>--vnc-relay-port-count=%d</string>", cfg.VNCRelayPortCount)
+		}
+	}
+	// Same rule, and the threshold is 1 rather than 0 because that is
+	// tart-kubelet's own default: a single-guest host resolves this to
+	// 1, and rendering it explicitly would say nothing while changing
+	// the fleet-wide config hash — drifting every existing mini to push
+	// a flag that does not alter behaviour.
+	minGoldensKeptArg := ""
+	if cfg.MinGoldensKept > defaultMinGoldensKept {
+		minGoldensKeptArg = fmt.Sprintf("\n    <string>--min-goldens-kept=%d</string>", cfg.MinGoldensKept)
 	}
 	// Turn on per-account cache volumes when the fleet provisioned
 	// a runner-cache volume. --runner-cache-root points at the auto-mounted
@@ -1036,7 +1081,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s%[13]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -1050,7 +1095,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg, minGoldensKeptArg)
 }
 
 func shellQuote(s string) string {
