@@ -933,8 +933,16 @@ macosFleet:
     name: tuist-runner-cache
     cidr: 172.16.0.0/22
 
-# Customer-runner Mac mini fleet. 9 M2-L hosts at one guest each plus
-# 2 M4-XL hosts at two = 13 concurrent customer runs.
+# Customer-runner Mac mini fleet. 7 M2-L hosts at one guest each plus
+# 2 M4-XL hosts at two = 11 concurrent customer runs.
+#
+# Sized against measured demand, not host count. macOS job concurrency
+# over the 7 days to 2026-08-25 ran p50 3 / p95 5 / p99 6 with a peak of
+# 8, so 11 keeps a margin above the observed peak while the M4s absorb
+# what the retired M2-Ls used to hold. The M2-L count came down from 9
+# when the second M4 landed: 2 M4 hosts add 4 slots, so keeping all 9
+# M2-Ls would have meant 13 slots against a workload that has never
+# asked for 9.
 #
 # Apple's SLA permits two guests per host and Tart enforces it; whether
 # a host runs two is purely a function of how much CPU/RAM tart-kubelet
@@ -947,7 +955,20 @@ macosFleet:
 # releases can safely bump all enabled managed environments.
 runnersFleet:
   enabled: true
-  hostCount: 9
+  # 7, down from 9, offset by the 4 slots the two M4-XL hosts add.
+  #
+  # Scaling this DOWN does not stop the bill. On Machine deletion the
+  # controller renames the host back into the `tuist-pool-` pool and
+  # reinstalls it — the mini stays alive and keeps billing, deliberately,
+  # so Apple's 24h floor never leaks into a deploy flow. Releasing the
+  # hardware is a separate, operator-owned step in the Scaleway console.
+  # Leave the host parked instead if you want it back as burst capacity.
+  #
+  # CAPI deletes the most-recently-created Machines and this fleet sets
+  # no nodeDrainTimeout, so an evicted Pod is not waited on: retire while
+  # the target hosts hold no owned (job-running) runner Pod, or a
+  # customer job dies with the node.
+  hostCount: 7
   # Pre-ordered pool. Operator orders M2-L hosts in the Scaleway
   # console with names starting with `tuist-pool-` ahead of
   # bringing this block live (Mac mini lead times can stretch
@@ -1104,19 +1125,19 @@ runnersFleet:
   # fleet allocator, which apportions the fleet's GUEST-slot budget
   # across all macOS pools using the three-tier (floor / load /
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
-  # guarantee; `maxReplicas: 13` lets either pool absorb the whole
+  # guarantee; `maxReplicas: 11` lets either pool absorb the whole
   # fleet under skewed demand and the allocator caps the joint sum
   # so the pools don't double-book.
   #
   # The budget is slots, not minis: the allocator divides the fleet's
-  # advertised memory by this shape's 14336 MB, so the 9 M2-L hosts are
-  # 9 slots and the 2 M4-XL hosts are 2 each, for 13. These ceilings must
+  # advertised memory by this shape's 14336 MB, so the 7 M2-L hosts are
+  # 7 slots and the 2 M4-XL hosts are 2 each, for 11. These ceilings must
   # move with that number — the allocator never exceeds a pool's
   # maxReplicas, so leaving them behind would let an M4 boot but keep
   # every pool clamped below the capacity it adds, and its second guest
   # would sit idle.
   #
-  # Floors sum to 1 of the 13-slot budget; the remaining 12 slots are
+  # Floors sum to 1 of the 11-slot budget; the remaining 10 slots are
   # dynamically apportioned by queue depth across the pools. Older
   # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
   #
@@ -1133,27 +1154,27 @@ runnersFleet:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
-        maxReplicas: 13
+        maxReplicas: 11
     "26.5":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 13
+        maxReplicas: 11
     "26.4.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 13
+        maxReplicas: 11
     "26.3":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 13
+        maxReplicas: 11
     "26.0.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 13
+        maxReplicas: 11
   # Resolved at deploy time from the latest `runner-image@` git tag.
   runnerImageSemver: ""
   pools: []
