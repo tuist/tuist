@@ -380,6 +380,29 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
+  Postgres twin of `Tuist.Runners.Jobs.queue_stats_by_fleet/0`: the same
+  rows `queued_count_by_fleet/2` totals for one fleet, but for every
+  fleet at once and carrying the oldest `enqueued_at` alongside the
+  count. Both values come from one scan so the depth and the age the
+  gauges report are always the same queue.
+
+  Returns `%{fleet_name => %{count: n, oldest_enqueued_at: dt}}`. A fleet
+  with nothing queued is absent, not zero — the caller unions this
+  against the live RunnerPool set to decide what to drain.
+  """
+  def queue_stats_by_fleet(%DateTime{} = enqueued_floor) do
+    from(j in WorkflowJob,
+      where: j.status == "queued" and j.enqueued_at > ^enqueued_floor,
+      group_by: j.fleet_name,
+      select: {j.fleet_name, count(j.workflow_job_id), min(j.enqueued_at)}
+    )
+    |> Repo.all()
+    |> Map.new(fn {fleet_name, count, oldest_enqueued_at} ->
+      {fleet_name || "", %{count: count, oldest_enqueued_at: oldest_enqueued_at}}
+    end)
+  end
+
+  @doc """
   Postgres twin of `Tuist.Runners.Jobs.queued_count_by_fleet_and_account/1`.
   """
   def queued_count_by_fleet_and_account(fleet_name, %DateTime{} = enqueued_floor) when is_binary(fleet_name) do

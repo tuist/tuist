@@ -380,6 +380,28 @@ defmodule Tuist.Runners.WorkflowJobsTest do
                other_account.id => 1
              }
     end
+
+    test "queue_stats_by_fleet groups every fleet with its depth and oldest arrival" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      floor = DateTime.add(now, -7 * 86_400, :second)
+      oldest = DateTime.add(now, -3600, :second)
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_110, enqueued_at: oldest))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_111))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_112, fleet: "fleet-b"))
+      # Left the queue, so it counts for neither fleet.
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_113))
+      :ok = WorkflowJobs.transition_claimed(910_113, "pod-1", now)
+      # Older than the floor — unreachable to dispatch, so invisible here too.
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_114, enqueued_at: DateTime.add(now, -8 * 86_400, :second)))
+
+      stats = WorkflowJobs.queue_stats_by_fleet(floor)
+
+      assert %{"fleet-a" => %{count: 2, oldest_enqueued_at: reported}, "fleet-b" => %{count: 1}} = stats
+      assert DateTime.compare(reported, oldest) == :eq
+      refute Map.has_key?(stats, "fleet-c")
+    end
   end
 
   describe "transition outbox" do

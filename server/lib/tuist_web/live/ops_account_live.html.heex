@@ -1,4 +1,20 @@
 <div id="ops-account">
+  <.alert
+    :if={Phoenix.Flash.get(@flash, :error)}
+    id="ops-account-flash-error"
+    type="secondary"
+    status="error"
+    size="small"
+    title={Phoenix.Flash.get(@flash, :error)}
+  />
+  <.alert
+    :if={Phoenix.Flash.get(@flash, :info)}
+    id="ops-account-flash-info"
+    type="secondary"
+    status="success"
+    size="small"
+    title={Phoenix.Flash.get(@flash, :info)}
+  />
   <div data-part="header">
     <h1 data-part="title">{@account.name}</h1>
     <p data-part="subtitle">
@@ -6,21 +22,11 @@
     </p>
   </div>
 
-  <.alert
-    :if={@kura_notice}
-    id="kura-notice"
-    status={elem(@kura_notice, 0)}
-    type="secondary"
-    size="small"
-    title={elem(@kura_notice, 1)}
-    dismissible
-  />
-
   <.card title={dgettext("dashboard", "Kura placement")} icon="world">
     <.card_section>
       <.table id="account-kura-placement-table" rows={[@account]}>
         <:col label={dgettext("dashboard", "Resolved region")}>
-          <.text_cell label={resolved_service_region(@kura_resolution)} />
+          <.text_cell label={resolved_service_region(@kura_resolution, @kura_assignment)} />
         </:col>
         <:col :let={account} label={dgettext("dashboard", "Plan")}>
           <.text_cell label={effective_plan_label(account)} />
@@ -372,6 +378,118 @@
     </.card_section>
   </.card>
 
+  <.card title={dgettext("dashboard", "Runner trial")} icon="hourglass">
+    <.card_section>
+      <p data-part="runner-trial-description">
+        {dgettext(
+          "dashboard",
+          "An account on a runner trial is not billed for runner usage. Usage is still metered and still reported, but the subscription carries no runner item for Stripe to invoice it against. The trial runs until it is cancelled here."
+        )}
+      </p>
+      <.alert
+        :if={@on_runner_trial}
+        id="runner-trial-active-alert"
+        size="large"
+        status="information"
+        title={dgettext("dashboard", "On a runner trial")}
+        description={
+          dgettext(
+            "dashboard",
+            "Cancelling adds the runner items to this account's subscription, which makes its runner usage billable from that moment. Minutes it ran during the trial stay free, including those already recorded in the current billing period."
+          )
+        }
+      />
+      <div data-part="actions">
+        <.button
+          :if={not @on_runner_trial}
+          phx-click="start_runner_trial"
+          variant="primary"
+          label={dgettext("dashboard", "Start runner trial")}
+        />
+        <.button
+          :if={@on_runner_trial}
+          phx-click="cancel_runner_trial"
+          variant="destructive"
+          label={dgettext("dashboard", "Cancel runner trial")}
+        />
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card title={dgettext("dashboard", "Prepaid runner minutes")} icon="asset">
+    <.card_section>
+      <p data-part="prepaid-description">
+        {dgettext(
+          "dashboard",
+          "Setting this replaces what the account holds rather than adding to it, and the minutes are granted straight away so it can run on them. The charge rides its next invoice alongside the rest of the bill. Minutes expire at the end of the billing period they were bought for and do not roll over. The figures are minutes on the macOS 6 vCPU / 14 GB baseline; a larger machine draws them down faster than one minute per minute it runs."
+        )}
+      </p>
+      <.alert
+        :if={not @has_subscription}
+        id="prepaid-no-subscription-alert"
+        size="large"
+        status="warning"
+        title={dgettext("dashboard", "No active subscription")}
+        description={
+          dgettext(
+            "dashboard",
+            "This account has no subscription, so Stripe never generates an invoice for it. A prepaid charge added now would sit unbilled until one exists."
+          )
+        }
+      />
+      <.table
+        :if={@prepaid_balance}
+        id="prepaid-balance-table"
+        rows={@prepaid_balance.grants}
+      >
+        <:col :let={grant} label={dgettext("dashboard", "Source")}>
+          <.text_cell label={prepaid_grant_kind_label(grant.kind)} />
+        </:col>
+        <:col :let={grant} label={dgettext("dashboard", "Minutes remaining")}>
+          <.text_cell label={format_number(grant.available_minutes)} />
+        </:col>
+        <:col :let={grant} label={dgettext("dashboard", "Expires")}>
+          <.text_cell label={prepaid_expiry_label(grant.expires_at)} />
+        </:col>
+      </.table>
+      <p :if={is_nil(@prepaid_balance)} data-part="prepaid-empty">
+        {dgettext("dashboard", "This account has no prepaid runner minutes.")}
+      </p>
+      <.form
+        for={%{}}
+        id="prepaid-minutes-form"
+        phx-change="quote_prepaid_minutes"
+        phx-submit="set_prepaid_minutes"
+      >
+        <.text_input
+          id="prepaid-minutes-input"
+          name="minutes"
+          value={@prepaid_minutes_value}
+          input_type="number"
+          min={0}
+          label={dgettext("dashboard", "Prepaid minutes (macOS 6 vCPU / 14 GB)")}
+        />
+        <dl :if={@prepaid_quote} data-part="prepaid-quote">
+          <div>
+            <dt>{dgettext("dashboard", "Added to next invoice")}</dt>
+            <dd data-part="prepaid-quote-invoiced">{format_money(@prepaid_quote.invoiced)}</dd>
+          </div>
+          <div>
+            <dt>{dgettext("dashboard", "Granted now")}</dt>
+            <dd data-part="prepaid-quote-granted">{format_money(@prepaid_quote.granted)}</dd>
+          </div>
+        </dl>
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Set minutes")}
+          />
+        </div>
+      </.form>
+    </.card_section>
+  </.card>
+
   <.card title={dgettext("dashboard", "Visibility")} icon="eye">
     <.card_section>
       <.table id="account-visibility-table" rows={[@account]}>
@@ -492,8 +610,7 @@
   >
     <:header_icon><.history /></:header_icon>
     <:trigger :let={modal_attrs}>
-      <button id="restore-assignment-trigger" type="button" style="display: none;" {modal_attrs}>
-      </button>
+      <button id="restore-assignment-trigger" type="button" style="display: none;" {modal_attrs}></button>
     </:trigger>
 
     <form
@@ -627,19 +744,6 @@
           value={prefill_address(@upgrade_target_customer, :country)}
         >
           <:item :for={{code, name} <- countries()} value={code} label={name} />
-        </.select>
-      </div>
-
-      <div class="select-field">
-        <.label label={dgettext("dashboard", "Billing cadence")} />
-        <.select
-          id="enterprise-cadence"
-          label={dgettext("dashboard", "Monthly")}
-          name="cadence"
-          value="monthly"
-        >
-          <:item value="monthly" label={dgettext("dashboard", "Monthly")} />
-          <:item value="yearly" label={dgettext("dashboard", "Yearly")} />
         </.select>
       </div>
     </form>

@@ -15,13 +15,16 @@ defmodule Tuist.Kura.AccountRegionPolicy do
 
   # The regions an operator may pin a paid account to.
   #
-  # `us-west` is here and nowhere else: `accounts.region` is `all | europe |
-  # usa`, `usa` derives to `us-east`, and `all` defaults to `us-east`, so no
-  # storage-region preference ever resolves to it. It is opted into per account
-  # for latency rather than derived. Air can never land there either, because
-  # Air resolves from the storage-region preference and never from an
-  # assignment.
-  @service_regions ["us-east", "eu-central", "us-west"]
+  # `us-west` and `ap-southeast` are here and nowhere else: `accounts.region` is
+  # `all | europe | usa`, `usa` derives to `us-east`, and `all` defaults to
+  # `us-east`, so no storage-region preference ever resolves to either. They are
+  # opted into per account for latency rather than derived. Air can never land
+  # there either, because Air resolves from the storage-region preference and
+  # never from an assignment.
+  #
+  # Being assignable and being served are separate: this list decides what an
+  # assignment may name, `Regions.available?/1` decides whether it resolves.
+  @service_regions ["us-east", "eu-central", "us-west", "ap-southeast"]
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "kura_account_region_policies" do

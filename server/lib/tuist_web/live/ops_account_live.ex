@@ -32,6 +32,8 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
+  alias Tuist.Runners.Prepaid
+  alias Tuist.Runners.Trials
   alias Tuist.Utilities.DateFormatter
 
   @impl true
@@ -40,15 +42,20 @@ defmodule TuistWeb.OpsAccountLive do
       {:ok, account} ->
         account = preload_billing(account)
         if connected?(socket), do: Kura.subscribe_to_account(account.id)
+        balance = Prepaid.balance(account)
 
         {:ok,
          socket
          |> assign(:head_title, "#{account.name} · Tuist Ops")
          |> assign(:account, account)
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
+         |> assign(:prepaid_balance, balance)
+         |> assign(:prepaid_minutes_value, held_minutes(balance))
+         |> assign(:on_runner_trial, Trials.on_trial?(account))
+         |> assign(:prepaid_quote, nil)
+         |> assign(:has_subscription, not is_nil(Billing.get_current_active_subscription(account)))
          |> assign(:kura_minimum_claim, Kura.minimum_storage_claim())
          |> assign(:restore_target, nil)
-         |> assign(:kura_notice, nil)
          |> assign_kura(account)
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
@@ -104,6 +111,94 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   @impl true
+  def handle_event("start_runner_trial", _params, socket) do
+    case Trials.start(socket.assigns.account) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, preload_billing(account))
+         |> assign(:on_runner_trial, true)
+         |> put_flash(
+           :info,
+           dgettext(
+             "dashboard",
+             "%{account} is on a runner trial and will not be billed for runner usage until it is cancelled.",
+             account: account.name
+           )
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("dashboard", "Could not start the trial: %{reason}", reason: inspect(reason)))}
+    end
+  end
+
+  @impl true
+  def handle_event("cancel_runner_trial", _params, socket) do
+    case Trials.cancel(socket.assigns.account) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, preload_billing(account))
+         |> assign(:on_runner_trial, false)
+         |> put_flash(
+           :info,
+           dgettext("dashboard", "%{account}'s runner trial is over. Runner usage is billable from now on.",
+             account: account.name
+           )
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard", "Could not cancel the trial: %{reason}", reason: inspect(reason))
+         )}
+    end
+  end
+
+  # Quoted live as ops types, so the money leaving the customer is on
+  # screen before the charge is created rather than inferred from a
+  # minute count.
+  @impl true
+  def handle_event("quote_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    {:noreply, assign(socket, :prepaid_quote, quote_minutes(minutes))}
+  end
+
+  @impl true
+  def handle_event("set_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    case parse_minutes(minutes) do
+      {:ok, minutes} ->
+        account = Accounts.create_customer_when_absent(socket.assigns.account)
+
+        case Prepaid.set_minutes(account, minutes) do
+          {:ok, _result} ->
+            refreshed = Prepaid.balance(account)
+
+            {:noreply,
+             socket
+             |> assign(:account, preload_billing(account))
+             |> assign(:prepaid_balance, refreshed)
+             |> assign(:prepaid_minutes_value, held_minutes(refreshed))
+             |> assign(:prepaid_quote, nil)
+             |> put_flash(:info, set_minutes_message(account, minutes))}
+
+          {:error, reason} ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               dgettext("dashboard", "Could not set prepaid minutes: %{reason}", reason: inspect(reason))
+             )}
+        end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes, or zero to clear."))}
+    end
+  end
+
+  @impl true
   def handle_event("update_kura_storage_claim", %{"account" => params}, socket) do
     account = socket.assigns.account
 
@@ -112,13 +207,13 @@ defmodule TuistWeb.OpsAccountLive do
         {:noreply,
          socket
          |> assign_kura(account)
-         |> kura_notice("success", kura_storage_claim_message(result))}
+         |> put_flash(:info, kura_storage_claim_message(result))}
 
       {:error, changeset} ->
         {:noreply,
          socket
          |> assign(:kura_storage_claim_form, to_form(changeset, as: "account"))
-         |> kura_notice("error", dgettext("dashboard", "Kura disk claim could not be updated."))}
+         |> put_flash(:error, dgettext("dashboard", "Kura disk claim could not be updated."))}
     end
   end
 
@@ -143,13 +238,13 @@ defmodule TuistWeb.OpsAccountLive do
         {:noreply,
          socket
          |> assign_kura(account)
-         |> kura_notice("success", assignment_message(account, assignment))}
+         |> put_flash(:info, assignment_message(account, assignment))}
 
       {:error, reason} ->
         {:noreply,
-         kura_notice(
+         put_flash(
            socket,
-           "error",
+           :error,
            dgettext("dashboard", "Could not assign a service region: %{reason}", reason: assignment_error_message(reason))
          )}
     end
@@ -159,7 +254,7 @@ defmodule TuistWeb.OpsAccountLive do
   def handle_event("open_restore_kura_assignment", %{"version" => version}, socket) do
     case Enum.find(socket.assigns.kura_assignment_history, &(to_string(&1.version) == version)) do
       nil ->
-        {:noreply, kura_notice(socket, "error", dgettext("dashboard", "That assignment no longer exists."))}
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "That assignment no longer exists."))}
 
       %AccountRegionPolicy{} = assignment ->
         {:noreply,
@@ -193,15 +288,15 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:restore_target, nil)
          |> assign_kura(account)
          |> push_event("close-modal", %{id: "restore-assignment-modal"})
-         |> kura_notice("success", assignment_message(account, assignment))}
+         |> put_flash(:info, assignment_message(account, assignment))}
 
       {:error, reason} ->
         {:noreply,
          socket
          |> assign(:restore_target, nil)
          |> push_event("close-modal", %{id: "restore-assignment-modal"})
-         |> kura_notice(
-           "error",
+         |> put_flash(
+           :error,
            dgettext("dashboard", "Could not restore that assignment: %{reason}", reason: assignment_error_message(reason))
          )}
     end
@@ -213,14 +308,13 @@ defmodule TuistWeb.OpsAccountLive do
 
     case {provision_region(params, socket.assigns.kura_provision_regions), socket.assigns.kura_latest_version} do
       {nil, _} ->
-        {:noreply,
-         kura_notice(socket, "error", dgettext("dashboard", "Pick a region this account can be provisioned in."))}
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Pick a region this account can be provisioned in."))}
 
       {_region, nil} ->
         {:noreply,
-         kura_notice(
+         put_flash(
            socket,
-           "error",
+           :error,
            dgettext(
              "dashboard",
              "No Kura runtime image is configured right now. Try again after the next server deploy."
@@ -242,7 +336,7 @@ defmodule TuistWeb.OpsAccountLive do
 
     case Kura.get_server(account.id, id) do
       nil ->
-        {:noreply, kura_notice(socket, "error", dgettext("dashboard", "That Kura instance no longer exists."))}
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "That Kura instance no longer exists."))}
 
       %Server{} = server ->
         case Kura.destroy_server(server) do
@@ -250,8 +344,8 @@ defmodule TuistWeb.OpsAccountLive do
             {:noreply,
              socket
              |> assign_kura(account)
-             |> kura_notice(
-               "success",
+             |> put_flash(
+               :info,
                dgettext(
                  "dashboard",
                  "Destroying the Kura instance in %{region}. It stops serving now; the reconciler removes the backing resource and marks the row destroyed.",
@@ -261,9 +355,9 @@ defmodule TuistWeb.OpsAccountLive do
 
           {:error, reason} ->
             {:noreply,
-             kura_notice(
+             put_flash(
                socket,
-               "error",
+               :error,
                dgettext("dashboard", "Could not destroy the Kura instance: %{reason}", reason: inspect(reason))
              )}
         end
@@ -301,7 +395,7 @@ defmodule TuistWeb.OpsAccountLive do
     if customer_has_billing_details?(customer) do
       # Customer already has name/email/address on Stripe: upgrade in
       # one click without prompting ops to re-enter anything.
-      {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
+      {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{})
 
       {:noreply,
        socket
@@ -431,7 +525,6 @@ defmodule TuistWeb.OpsAccountLive do
     %{
       name: params["name"],
       billing_email: params["billing_email"],
-      cadence: params["cadence"] || "monthly",
       address: %{
         line1: params["address_line1"],
         line2: params["address_line2"],
@@ -442,6 +535,52 @@ defmodule TuistWeb.OpsAccountLive do
       }
     }
   end
+
+  defp quote_minutes(raw) do
+    case parse_minutes(raw) do
+      {:ok, minutes} when minutes > 0 -> Prepaid.quote_minutes(minutes)
+      _ -> nil
+    end
+  end
+
+  defp set_minutes_message(account, 0) do
+    dgettext("dashboard", "%{account} no longer holds any prepaid runner minutes.", account: account.name)
+  end
+
+  defp set_minutes_message(account, minutes) do
+    quoted = Prepaid.quote_minutes(minutes)
+
+    dgettext(
+      "dashboard",
+      "%{account} now holds %{minutes} prepaid runner minutes. %{amount} was added to its next invoice.",
+      minutes: format_number(minutes),
+      amount: format_money(quoted.invoiced),
+      account: account.name
+    )
+  end
+
+  # The field opens on what the account holds, so an operator corrects a
+  # figure rather than working out the difference from the table above.
+  defp held_minutes(nil), do: 0
+
+  defp held_minutes(%{grants: grants}) do
+    grants |> Enum.map(&Map.get(&1, :available_minutes, 0)) |> Enum.sum()
+  end
+
+  defp parse_minutes(raw) when is_binary(raw) do
+    case Integer.parse(String.trim(raw)) do
+      {minutes, ""} when minutes >= 0 -> {:ok, minutes}
+      _ -> :error
+    end
+  end
+
+  defp parse_minutes(_raw), do: :error
+
+  def prepaid_grant_kind_label("trial"), do: dgettext("dashboard", "Trial")
+  def prepaid_grant_kind_label(_kind), do: dgettext("dashboard", "Prepaid")
+
+  def prepaid_expiry_label(nil), do: dgettext("dashboard", "No expiry")
+  def prepaid_expiry_label(%DateTime{} = expires_at), do: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")
 
   defp runner_concurrency_form(account) do
     account
@@ -474,12 +613,6 @@ defmodule TuistWeb.OpsAccountLive do
     |> assign(:kura_plan_claim, Kura.plan_storage_claim(account))
     |> assign(:kura_storage_claim_form, kura_storage_claim_form(account))
   end
-
-  # `put_flash/3` is rendered nowhere in the /ops layout, so a refused write
-  # would report nothing at all and a successful one would rely on the operator
-  # spotting a changed table cell. The outcome of a Kura action is carried on
-  # the page instead, the way the account settings pages carry theirs.
-  defp kura_notice(socket, status, message), do: assign(socket, :kura_notice, {status, message})
 
   # The actor is what makes the row an audit trail rather than a log line, and
   # `list_service_region_history/1` returns the association unloaded.
@@ -573,24 +706,24 @@ defmodule TuistWeb.OpsAccountLive do
         {:noreply,
          socket
          |> assign_kura(socket.assigns.account)
-         |> kura_notice(
-           "success",
+         |> put_flash(
+           :info,
            dgettext("dashboard", "Provisioning a Kura instance in %{region}.", region: server.region)
          )}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply,
-         kura_notice(
+         put_flash(
            socket,
-           "error",
+           :error,
            dgettext("dashboard", "Could not provision a Kura instance: %{reason}", reason: format_errors(changeset))
          )}
 
       {:error, reason} ->
         {:noreply,
-         kura_notice(
+         put_flash(
            socket,
-           "error",
+           :error,
            dgettext("dashboard", "Could not provision a Kura instance: %{reason}", reason: inspect(reason))
          )}
     end
@@ -662,9 +795,22 @@ defmodule TuistWeb.OpsAccountLive do
     )
   end
 
-  def resolved_service_region({:ok, %{service_region: service_region}}), do: region_label(service_region)
+  def resolved_service_region({:ok, %{service_region: service_region}}, _assignment), do: region_label(service_region)
 
-  def resolved_service_region({:error, reason}) do
+  # An assignment may name a region this deployment does not serve yet: the two
+  # gates are separate on purpose, and `AccountPolicies` refuses rather than
+  # falling back to the default, because silently relocating an explicitly
+  # assigned account is what an assignment exists to prevent. Say that, rather
+  # than reporting it as a storage region with no pool behind it.
+  def resolved_service_region({:error, :service_region_unavailable}, %AccountRegionPolicy{} = assignment) do
+    dgettext(
+      "dashboard",
+      "Unresolved — %{region} is assigned but this deployment does not serve it yet. The assignment stands and resolves once the region is brought up.",
+      region: region_label(assignment.service_region)
+    )
+  end
+
+  def resolved_service_region({:error, reason}, _assignment) do
     dgettext("dashboard", "Unresolved — %{reason}", reason: resolution_error_message(reason))
   end
 

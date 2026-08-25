@@ -10,6 +10,7 @@ import Config
 # esbuild
 noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
 node_modules_path = Path.expand("../node_modules", __DIR__)
+build_path = Mix.Project.build_path()
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
@@ -48,15 +49,19 @@ config :esbuild,
       "--loader:.jpg=dataurl",
       "--loader:.png=dataurl",
       "--loader:.webp=dataurl",
+      "--loader:.woff=file",
+      "--loader:.woff2=file",
+      "--loader:.ttf=file",
       "--target=es2017",
       "--outfile=../../priv/static/marketing/assets/bundle.js",
       "--external:/fonts/*",
       "--external:/images/*",
+      "--alias:@=.",
       "--alias:noora=#{noora_static_path}/noora.js",
       "--alias:noora/noora.css=#{noora_static_path}/noora.css"
     ],
     cd: Path.expand("../assets/marketing", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+    env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{build_path}"}
   ],
   docs: [
     args: [
@@ -412,6 +417,15 @@ config :tuist, :blocked_handles, [
 
 config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
 
+# macOS shape catalog. Same role as `:runner_linux_shapes`. M2-L is the
+# only Scaleway Apple Silicon SKU on the fleet today, so only one shape
+# ships here. Managed deploys override at boot from
+# `TUIST_RUNNER_MACOS_SHAPES` (Helm injects from `runnersFleet.shapes`).
+# Baseline machine-minutes every account gets free per billing period.
+# Must match the first tier of the environment's runner Stripe Price;
+# see `Tuist.Runners.Allowance`.
+config :tuist, :runner_free_monthly_minutes, 100
+
 # Runner Profiles shape catalog — the (vCPU, RAM) pairs customers can
 # pick when creating a profile. This is the **dev/test/CI default**;
 # managed deploys override it at boot from `TUIST_RUNNER_LINUX_SHAPES`,
@@ -431,10 +445,6 @@ config :tuist, :runner_linux_shapes, [
   %{vcpus: 16, memory_gb: 32}
 ]
 
-# macOS shape catalog. Same role as `:runner_linux_shapes`. M2-L is the
-# only Scaleway Apple Silicon SKU on the fleet today, so only one shape
-# ships here. Managed deploys override at boot from
-# `TUIST_RUNNER_MACOS_SHAPES` (Helm injects from `runnersFleet.shapes`).
 config :tuist, :runner_macos_shapes, [
   %{vcpus: 6, memory_gb: 14, default: true}
 ]

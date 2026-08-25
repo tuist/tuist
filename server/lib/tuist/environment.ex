@@ -500,6 +500,10 @@ defmodule Tuist.Environment do
       get([:license, :certificate, :base64], secrets)
   end
 
+  def license_verify_key(secrets \\ secrets()) do
+    System.get_env("TUIST_LICENSE_VERIFY_KEY") || get([:license, :verify_key], secrets)
+  end
+
   def use_ipv6?(secrets \\ secrets()) do
     get([:use_ipv6], secrets)
   end
