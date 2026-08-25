@@ -64,8 +64,8 @@
     /* Chart takes the room it needs to be readable; the receipts sit
        beside it at a width that keeps the figures on one line. */
     grid-template-columns: minmax(0, 1fr) 320px;
-    gap: var(--noora-spacing-8);
     align-items: start;
+    gap: var(--noora-spacing-8);
 
     @media (max-width: 1024px) {
       & {
