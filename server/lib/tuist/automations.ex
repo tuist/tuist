@@ -56,7 +56,7 @@ defmodule Tuist.Automations do
   def list_alerts(project_id) do
     Alert
     |> where(project_id: ^project_id)
-    |> order_by(asc: :inserted_at)
+    |> order_by(asc: :inserted_at, asc: :id)
     |> Repo.all()
   end
 

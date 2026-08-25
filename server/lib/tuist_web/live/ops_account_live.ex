@@ -16,18 +16,26 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Kura
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
+  alias Tuist.Runners.Prepaid
+  alias Tuist.Runners.Trials
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     case Accounts.get_account_by_id(parse_id(id)) do
       {:ok, account} ->
         account = preload_billing(account)
+        balance = Prepaid.balance(account)
 
         {:ok,
          socket
          |> assign(:head_title, "#{account.name} · Tuist Ops")
          |> assign(:account, account)
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
+         |> assign(:prepaid_balance, balance)
+         |> assign(:prepaid_minutes_value, held_minutes(balance))
+         |> assign(:on_runner_trial, Trials.on_trial?(account))
+         |> assign(:prepaid_quote, nil)
+         |> assign(:has_subscription, not is_nil(Billing.get_current_active_subscription(account)))
          |> assign(:kura_minimum_claim, Kura.minimum_storage_claim())
          |> assign_kura_storage_claim(account)
          |> assign(:upgrade_target_account, nil)
@@ -84,6 +92,94 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   @impl true
+  def handle_event("start_runner_trial", _params, socket) do
+    case Trials.start(socket.assigns.account) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, preload_billing(account))
+         |> assign(:on_runner_trial, true)
+         |> put_flash(
+           :info,
+           dgettext(
+             "dashboard",
+             "%{account} is on a runner trial and will not be billed for runner usage until it is cancelled.",
+             account: account.name
+           )
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("dashboard", "Could not start the trial: %{reason}", reason: inspect(reason)))}
+    end
+  end
+
+  @impl true
+  def handle_event("cancel_runner_trial", _params, socket) do
+    case Trials.cancel(socket.assigns.account) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, preload_billing(account))
+         |> assign(:on_runner_trial, false)
+         |> put_flash(
+           :info,
+           dgettext("dashboard", "%{account}'s runner trial is over. Runner usage is billable from now on.",
+             account: account.name
+           )
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard", "Could not cancel the trial: %{reason}", reason: inspect(reason))
+         )}
+    end
+  end
+
+  # Quoted live as ops types, so the money leaving the customer is on
+  # screen before the charge is created rather than inferred from a
+  # minute count.
+  @impl true
+  def handle_event("quote_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    {:noreply, assign(socket, :prepaid_quote, quote_minutes(minutes))}
+  end
+
+  @impl true
+  def handle_event("set_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    case parse_minutes(minutes) do
+      {:ok, minutes} ->
+        account = Accounts.create_customer_when_absent(socket.assigns.account)
+
+        case Prepaid.set_minutes(account, minutes) do
+          {:ok, _result} ->
+            refreshed = Prepaid.balance(account)
+
+            {:noreply,
+             socket
+             |> assign(:account, preload_billing(account))
+             |> assign(:prepaid_balance, refreshed)
+             |> assign(:prepaid_minutes_value, held_minutes(refreshed))
+             |> assign(:prepaid_quote, nil)
+             |> put_flash(:info, set_minutes_message(account, minutes))}
+
+          {:error, reason} ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               dgettext("dashboard", "Could not set prepaid minutes: %{reason}", reason: inspect(reason))
+             )}
+        end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes, or zero to clear."))}
+    end
+  end
+
+  @impl true
   def handle_event("update_kura_storage_claim", %{"account" => params}, socket) do
     account = socket.assigns.account
 
@@ -133,7 +229,7 @@ defmodule TuistWeb.OpsAccountLive do
     if customer_has_billing_details?(customer) do
       # Customer already has name/email/address on Stripe: upgrade in
       # one click without prompting ops to re-enter anything.
-      {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
+      {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{})
 
       {:noreply,
        socket
@@ -255,7 +351,6 @@ defmodule TuistWeb.OpsAccountLive do
     %{
       name: params["name"],
       billing_email: params["billing_email"],
-      cadence: params["cadence"] || "monthly",
       address: %{
         line1: params["address_line1"],
         line2: params["address_line2"],
@@ -266,6 +361,52 @@ defmodule TuistWeb.OpsAccountLive do
       }
     }
   end
+
+  defp quote_minutes(raw) do
+    case parse_minutes(raw) do
+      {:ok, minutes} when minutes > 0 -> Prepaid.quote_minutes(minutes)
+      _ -> nil
+    end
+  end
+
+  defp set_minutes_message(account, 0) do
+    dgettext("dashboard", "%{account} no longer holds any prepaid runner minutes.", account: account.name)
+  end
+
+  defp set_minutes_message(account, minutes) do
+    quoted = Prepaid.quote_minutes(minutes)
+
+    dgettext(
+      "dashboard",
+      "%{account} now holds %{minutes} prepaid runner minutes. %{amount} was added to its next invoice.",
+      minutes: format_number(minutes),
+      amount: format_money(quoted.invoiced),
+      account: account.name
+    )
+  end
+
+  # The field opens on what the account holds, so an operator corrects a
+  # figure rather than working out the difference from the table above.
+  defp held_minutes(nil), do: 0
+
+  defp held_minutes(%{grants: grants}) do
+    grants |> Enum.map(&Map.get(&1, :available_minutes, 0)) |> Enum.sum()
+  end
+
+  defp parse_minutes(raw) when is_binary(raw) do
+    case Integer.parse(String.trim(raw)) do
+      {minutes, ""} when minutes >= 0 -> {:ok, minutes}
+      _ -> :error
+    end
+  end
+
+  defp parse_minutes(_raw), do: :error
+
+  def prepaid_grant_kind_label("trial"), do: dgettext("dashboard", "Trial")
+  def prepaid_grant_kind_label(_kind), do: dgettext("dashboard", "Prepaid")
+
+  def prepaid_expiry_label(nil), do: dgettext("dashboard", "No expiry")
+  def prepaid_expiry_label(%DateTime{} = expires_at), do: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")
 
   defp runner_concurrency_form(account) do
     account

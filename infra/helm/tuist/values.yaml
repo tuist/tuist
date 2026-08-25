@@ -284,8 +284,15 @@ egressTreeAgent:
   # `enabled: false` and redeploying, or delete the policy object directly
   # (see infra/egress-tree-agent/AGENTS.md).
   enabled: false
-  # Full image reference, pinned (e.g. ghcr.io/tuist/egress-tree-agent@sha256:...).
-  image: ""
+  # The tag is resolved at deploy time from the highest
+  # `egress-tree-agent@<semver>` git tag reachable from the deployed commit
+  # (server-deployment.yml's fleet/runtime resolution step), so a release
+  # rolls forward on the next deploy and there is no in-repo pin to bump.
+  # Empty is a render-time failure — see the template's guard.
+  image:
+    repository: ghcr.io/tuist/egress-tree-agent
+    tag: ""
+    pullPolicy: IfNotPresent
   # Deployed into the kura namespace (kuraController.namespace) by default.
   namespace: ""
   # Backstop sweep only: pod/node watch events drive convergence, so this
@@ -437,12 +444,15 @@ server:
       name: onepassword
     # Sync either the online Tuist license key or the air-gapped license
     # certificate from the external store. These sources are mutually
-    # exclusive. Leave both item names empty to skip license sync.
+    # exclusive. The optional verify key lets air-gapped certificates signed
+    # by an additional issuer validate during a key rotation.
     license:
       item: ""
       field: password
       certificateItem: ""
       certificateField: password
+      verifyKeyItem: ""
+      verifyKeyField: password
     # Cache-signing grant private key: a PEM Ed25519 key the
     # server signs runner cache grants with. Leave item empty to disable
     # grant minting (dispatch omits the grant; CLI falls back to the MAC
@@ -600,6 +610,7 @@ server:
   license:
     key: ""
     certificateBase64: ""
+    verifyKey: ""
     selfHostingDevelopmentMode: false
   database:
     ssl: false

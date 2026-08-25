@@ -5,94 +5,160 @@
       <span data-part="subtitle">
         {dgettext(
           "dashboard_usage",
-          "Traffic and request volume served by Tuist Cache for this account."
+          "Runner time and cache traffic billed to this account."
         )}
       </span>
     </div>
     <div data-part="date-picker-bar">
       <.dropdown
-        id="usage-project-dropdown"
-        label={TuistWeb.UsageLive.project_label(@project_handle)}
-        secondary_text={dgettext("dashboard_usage", "Project:")}
+        id="usage-period-dropdown"
+        label={TuistWeb.UsageLive.period_label(@selected_period)}
+        secondary_text={dgettext("dashboard_usage", "Billing period:")}
       >
-        <:search :if={length(@projects) > 5}>
-          <input
-            type="text"
-            placeholder={dgettext("dashboard_usage", "Search...")}
-            data-part="search-input"
-          />
-        </:search>
         <.dropdown_item
-          value="any"
-          label={dgettext("dashboard_usage", "Any")}
-          patch={TuistWeb.UsageLive.project_patch(@uri, "any")}
-          data-selected={@project_handle == "any"}
+          :for={period <- @periods}
+          value={TuistWeb.UsageLive.period_param(period)}
+          label={TuistWeb.UsageLive.period_label(period)}
+          patch={TuistWeb.UsageLive.period_patch(@uri, period)}
+          data-selected={period == @selected_period}
         >
-          <:right_icon :if={@project_handle == "any"}><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          :for={project <- @projects}
-          value={project.name}
-          label={project.name}
-          patch={TuistWeb.UsageLive.project_patch(@uri, project.name)}
-          data-selected={@project_handle == project.name}
-        >
-          <:right_icon :if={@project_handle == project.name}><.check /></:right_icon>
+          <:right_icon :if={period == @selected_period}><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
-      <.date_picker
-        id="usage-analytics-date-range-picker"
-        name="usage-date-range"
-        presets={[
-          %{
-            id: "last-24-hours",
-            label: dgettext("dashboard_usage", "Last 24 hours"),
-            period: {24, :hour}
-          },
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_usage", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_usage", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_usage", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_usage", "Custom")}
-        ]}
-        selected_preset={@analytics_preset}
-        period={@analytics_period}
-        on_period_change="analytics_period_changed"
-        max={Date.utc_today()}
-      >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_usage", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel",
-                detail: %{id: "usage-analytics-date-range-picker"}
-              )
-            }
-          />
-          <.button
-            label={dgettext("dashboard_usage", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply",
-                detail: %{id: "usage-analytics-date-range-picker"}
-              )
-            }
-          />
-        </:actions>
-      </.date_picker>
     </div>
   </div>
+
+  <.card
+    :if={@runner_breakdown.minutes > 0 or @runners_enabled}
+    title={dgettext("dashboard_usage", "Runner usage")}
+    icon="server"
+    data-part="runner-usage-card"
+  >
+    <.card_section data-part="runner-usage-card-section">
+      <span data-part="info-label">
+        {dgettext(
+          "dashboard_usage",
+          "Billing period %{from} to %{to}. Minutes are measured on the macOS 6 vCPU / 14 GB baseline; a larger machine uses more than one minute per minute it runs.",
+          from: Timex.format!(@runner_breakdown.period_start, "{Mshort} {D}"),
+          to: Timex.format!(@runner_breakdown.period_end, "{Mshort} {D}, {YYYY}")
+        )}
+      </span>
+      <div data-part="widgets">
+        <.widget
+          id="widget-runner-minutes"
+          title={dgettext("dashboard_usage", "Runner minutes")}
+          description={
+            dgettext("dashboard_usage", "%{count} free each month",
+              count: @runner_breakdown.free_minutes
+            )
+          }
+          value={CldrHelpers.format_number(@runner_breakdown.minutes)}
+        />
+        <.widget
+          id="widget-runner-gross"
+          title={dgettext("dashboard_usage", "Usage value")}
+          description={dgettext("dashboard_usage", "At the standard rate, before the free tier")}
+          value={format_money(@runner_breakdown.gross)}
+        />
+        <.widget
+          id="widget-runner-billed"
+          title={dgettext("dashboard_usage", "Billed")}
+          description={dgettext("dashboard_usage", "What lands on your invoice")}
+          value={format_money(@runner_breakdown.billed)}
+        />
+      </div>
+    </.card_section>
+    <.card_section data-part="runner-usage-card-detail-section">
+      <div data-part="chart">
+        <.chart
+          id="runner-spend-chart"
+          type="bar"
+          extra_options={
+            TuistWeb.UsageLive.runner_chart_options(
+              TuistWeb.UsageLive.runner_chart_dates(@runner_breakdown)
+            )
+          }
+          series={
+            TuistWeb.UsageLive.runner_chart_series(
+              @runner_breakdown.by_repository,
+              @runner_breakdown.projected_days
+            )
+          }
+          y_axis_min={0}
+        />
+      </div>
+      <div data-part="receipts">
+        <div :for={row <- @runner_breakdown.platforms} data-part="receipt">
+          <div data-part="heading">
+            <span data-part="platform">{TuistWeb.UsageLive.platform_label(row.platform)}</span>
+            <span data-part="shape">{TuistWeb.UsageLive.platform_shape(row.platform)}</span>
+          </div>
+          <dl data-part="lines">
+            <div data-part="line">
+              <dt>
+                {dgettext("dashboard_usage", "%{count} minutes run",
+                  count: CldrHelpers.format_number(row.minutes)
+                )}
+              </dt>
+              <dd>{TuistWeb.UsageLive.money_label(row.gross)}</dd>
+            </div>
+            <div
+              :if={@runner_breakdown.on_trial and row.gross}
+              data-part="line"
+              data-kind="credit"
+            >
+              <dt>{dgettext("dashboard_usage", "Covered by your trial")}</dt>
+              <dd>{TuistWeb.UsageLive.credit_label(row.gross)}</dd>
+            </div>
+            <div
+              :if={row.included_minutes && not @runner_breakdown.on_trial}
+              data-part="line"
+              data-kind="credit"
+            >
+              <dt>
+                {dgettext("dashboard_usage", "%{count} minutes included",
+                  count: row.included_minutes
+                )}
+              </dt>
+              <dd>{TuistWeb.UsageLive.included_credit_label(row)}</dd>
+            </div>
+            <div data-part="line" data-kind="total">
+              <dt>{dgettext("dashboard_usage", "Billed this period")}</dt>
+              <dd>{TuistWeb.UsageLive.money_label(row.billed)}</dd>
+            </div>
+          </dl>
+          <% pace = TuistWeb.UsageLive.pace_label(row) %>
+          <p :if={pace} data-part="footnote">{pace}</p>
+        </div>
+        <% coverage = TuistWeb.UsageLive.prepaid_coverage(@prepaid_balance, @runner_breakdown) %>
+        <div :if={coverage} data-part="receipt" data-kind="prepaid">
+          <div data-part="heading">
+            <span data-part="platform">{dgettext("dashboard_usage", "Prepaid credit")}</span>
+          </div>
+          <dl data-part="lines">
+            <div data-part="line">
+              <dt>{dgettext("dashboard_usage", "Balance")}</dt>
+              <dd>{TuistWeb.UsageLive.money_label(coverage.available)}</dd>
+            </div>
+            <div data-part="line" data-kind="credit">
+              <dt>{dgettext("dashboard_usage", "Covers this period")}</dt>
+              <dd>{TuistWeb.UsageLive.credit_label(coverage.covered)}</dd>
+            </div>
+            <div data-part="line" data-kind="total">
+              <dt>{dgettext("dashboard_usage", "Left to pay")}</dt>
+              <dd>{TuistWeb.UsageLive.money_label(coverage.due)}</dd>
+            </div>
+          </dl>
+          <p data-part="footnote">
+            {dgettext(
+              "dashboard_usage",
+              "Drawn down when the period is invoiced, so this is what your balance would cover today."
+            )}
+          </p>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
 
   <.card
     title={dgettext("dashboard_usage", "Cache traffic")}
@@ -193,8 +259,6 @@
             extra_options={
               TuistWeb.UsageLive.traffic_chart_options(
                 current_series.result |> List.first() |> Map.get(:dates),
-                @analytics_preset,
-                @bucket,
                 @analytics_selected_widget
               )
             }

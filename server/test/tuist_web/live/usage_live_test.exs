@@ -6,14 +6,27 @@ defmodule TuistWeb.UsageLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Kura.UsageEvent
+  alias Tuist.Runners.Allowance
+  alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.UsageLive
 
   @render_async_timeout 1_000
 
   setup :set_mimic_from_context
+
+  setup do
+    # Keeps the page off the network: the balance comes from Stripe and
+    # the period from the subscription, neither of which a render test
+    # should depend on.
+    stub(Tuist.Runners.Prepaid, :balance, fn _account -> nil end)
+    stub(Tuist.Billing, :current_billing_period, fn _account -> nil end)
+    :ok
+  end
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
@@ -31,6 +44,34 @@ defmodule TuistWeb.UsageLiveTest do
       |> log_in_user(user)
 
     %{conn: conn, user: user, account: account}
+  end
+
+  defp trial_breakdown do
+    %{
+      period_start: ~D[2026-08-24],
+      period_end: ~D[2026-09-24],
+      usage_through: ~D[2026-08-25],
+      minutes: 1_000,
+      free_minutes: 100,
+      gross: Money.new(7_500, :USD),
+      billed: Money.new(0, :USD),
+      days: [],
+      by_repository: [],
+      projected_days: [],
+      on_trial: true,
+      platforms: [
+        %{
+          id: "macos",
+          platform: :macos,
+          minutes: 1_000,
+          projected_minutes: 1_000,
+          included_minutes: 100,
+          previous_minutes: 0,
+          gross: Money.new(7_500, :USD),
+          billed: Money.new(0, :USD)
+        }
+      ]
+    }
   end
 
   defp enable_kura(account) do
@@ -76,9 +117,91 @@ defmodule TuistWeb.UsageLiveTest do
     IngestRepo.insert_all(UsageEvent, [Map.merge(base, attrs)])
   end
 
+  describe "runner usage on a trial" do
+    test "is shown even though nothing is billed", %{conn: conn, account: account} do
+      # A trial account is metered and reported like any other, and the
+      # page is where it looks to see what it has used. Hiding the
+      # section until the first minute lands leaves it with nothing to
+      # look at during the trial the section exists to support.
+      disable_kura(account)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+      stub(Trials, :on_trial?, fn _account -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      assert has_element?(lv, "[data-part='runner-usage-card']")
+    end
+
+    test "shows what the trial covered rather than a receipt that does not add up", %{conn: conn, account: account} do
+      # Without this the receipt reads "1,000 minutes run, 75.00$" and
+      # then "Billed 0.00$", with nothing saying where the money went.
+      disable_kura(account)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+
+      stub(Allowance, :period_breakdown, fn _account -> trial_breakdown() end)
+      stub(Allowance, :period_breakdown, fn _account, _period -> trial_breakdown() end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      html = render(lv)
+
+      assert html =~ "Covered by your trial"
+      # The full value in, the same value out, nothing left to pay.
+      assert html =~ "75.00"
+      assert html =~ "−75.00"
+    end
+
+    test "does not deduct from a platform that has no rate yet", %{conn: conn, account: account} do
+      # Linux has no agreed rate, so its value reads as a dash. Taking a
+      # dash off a dash rendered "−—", which is not a number and not an
+      # explanation.
+      disable_kura(account)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+
+      breakdown = %{
+        trial_breakdown()
+        | platforms: [
+            %{
+              id: "linux",
+              platform: :linux,
+              minutes: 90,
+              projected_minutes: 90,
+              included_minutes: nil,
+              previous_minutes: 0,
+              gross: nil,
+              billed: nil
+            }
+          ]
+      }
+
+      stub(Allowance, :period_breakdown, fn _account -> breakdown end)
+      stub(Allowance, :period_breakdown, fn _account, _period -> breakdown end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      html = render(lv)
+
+      assert html =~ "90 minutes run"
+      refute html =~ "−—"
+      refute html =~ "Covered by your trial"
+    end
+
+    test "is hidden for an account with neither runners nor usage", %{conn: conn, account: account} do
+      enable_kura(account)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      refute has_element?(lv, "[data-part='runner-usage-card']")
+    end
+  end
+
   describe "Kura feature flag gate" do
     test "raises 404 when Kura is not enabled for the account", %{conn: conn, account: account} do
       disable_kura(account)
+      # Nor runners: the page exists for either, so both have to be off
+      # for it to be missing.
+      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
 
       assert_raise TuistWeb.Errors.NotFoundError, fn ->
         live(conn, ~p"/#{account.name}/usage")
@@ -117,12 +240,16 @@ defmodule TuistWeb.UsageLiveTest do
       :ok
     end
 
-    test "shows the subtitle and project + date filters", %{conn: conn, account: account} do
-      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/usage")
+    test "scopes the page to a billing period rather than a free range", %{conn: conn, account: account} do
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/usage")
 
-      assert html =~ "Traffic and request volume served by Tuist Cache"
-      assert html =~ "Project:"
-      assert html =~ "Last 30 days"
+      assert html =~ "Runner time and cache traffic billed to this account"
+      assert html =~ "Billing period:"
+      # Both the free-range and project controls are gone: the page
+      # reports one period, and everything on it follows that period.
+      refute html =~ "Last 30 days"
+      refute html =~ "Project:"
+      assert has_element?(lv, "#usage-period-dropdown")
     end
 
     test "shows the empty state when there's no Kura traffic", %{conn: conn, account: account} do
@@ -204,6 +331,93 @@ defmodule TuistWeb.UsageLiveTest do
 
       _ = render_async(lv, @render_async_timeout)
       assert has_element?(lv, ~s|[phx-value-widget="egress"][data-selected]|)
+    end
+  end
+
+  describe "runner usage receipt" do
+    test "walks from minutes to money, showing the allowance as a credit", %{conn: conn, user: user} do
+      account = user.account
+      started = DateTime.add(DateTime.utc_now(), -2, :hour)
+
+      Tuist.Repo.insert!(%Tuist.Runners.RunnerSession{
+        account_id: account.id,
+        workflow_job_id: System.unique_integer([:positive]),
+        fleet_name: "tuist-macos",
+        pod_name: "pod-#{System.unique_integer([:positive])}",
+        runner_name: "",
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        billing_multiplier: 10_000,
+        started_at: started,
+        job_started_at: started,
+        job_ended_at: DateTime.add(started, 120 * 60, :second),
+        inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      html = render(lv)
+      assert html =~ "120 minutes run"
+      assert html =~ "100 minutes included"
+      assert html =~ "Billed this period"
+      # The credit reads as money off the bill, not as a bare minute count.
+      assert html =~ "−7.50"
+      # 20 minutes past the allowance at the standard rate.
+      assert html =~ "1.50"
+      assert html =~ "On track for about"
+    end
+  end
+
+  describe "runner_chart_series/2" do
+    test "stacks the projected days onto the same bars as the spend" do
+      # The projection has to share the axis and the stack with the
+      # repositories, otherwise the days ahead land on their own bars
+      # and the period reads as though it restarted.
+      by_repository = [%{date: ~D[2026-08-21], repository: "tuist/tuist", total_ms: 600_000}]
+
+      projected = [
+        %{date: ~D[2026-08-22], total_ms: 600_000},
+        %{date: ~D[2026-08-23], total_ms: 600_000}
+      ]
+
+      assert [spent, projection] = UsageLive.runner_chart_series(by_repository, projected)
+
+      assert projection.name == "Projected"
+      assert projection.stack == spent.stack
+
+      dates = [~D[2026-08-21], ~D[2026-08-22], ~D[2026-08-23]]
+      assert Enum.map(spent.data, &hd/1) == dates
+      assert Enum.map(projection.data, &hd/1) == dates
+
+      # Spend only on the day that happened, projection only on the days
+      # that have not.
+      assert [[_, spend], [_, +0.0], [_, +0.0]] = spent.data
+      assert [[_, +0.0], [_, ahead], [_, ahead]] = projection.data
+      assert spend > 0
+      assert ahead > 0
+    end
+
+    test "labels the axis out to the end of the projection" do
+      # The axis only labels its first and last date. Derived from spend
+      # alone it stopped at today, so a period with days still ahead was
+      # labelled as though it ended this morning.
+      breakdown = %{
+        by_repository: [%{date: ~D[2026-08-21], repository: "tuist/tuist", total_ms: 600_000}],
+        projected_days: [%{date: ~D[2026-08-22], total_ms: 600_000}, %{date: ~D[2026-08-23], total_ms: 600_000}]
+      }
+
+      options = breakdown |> UsageLive.runner_chart_dates() |> UsageLive.runner_chart_options()
+
+      assert options.xAxis.axisLabel.customValues == [~D[2026-08-21], ~D[2026-08-23]]
+    end
+
+    test "has no projected series for a period that is over" do
+      by_repository = [%{date: ~D[2026-08-21], repository: "tuist/tuist", total_ms: 600_000}]
+
+      assert [only] = UsageLive.runner_chart_series(by_repository, [])
+      refute only.name == "Projected"
     end
   end
 end

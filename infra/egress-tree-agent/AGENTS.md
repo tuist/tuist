@@ -181,9 +181,23 @@ growth is the signal.
   GPL-restriction error, that helper needs a license discussion first,
   not a quiet `"GPL"` declaration.
 - Image: `infra/egress-tree-agent/Dockerfile` (alpine + iproute2; the agent
-  shells out to `ip`/`tc`), built by
-  `.github/workflows/egress-tree-agent-image.yml` →
-  `ghcr.io/tuist/egress-tree-agent`. Pin deployments by digest.
+  shells out to `ip`/`tc`) → `ghcr.io/tuist/egress-tree-agent`.
+  `.github/workflows/egress-tree-agent-image.yml` validates PRs and publishes
+  `:sha-<git-sha>` for pre-release iteration.
+- Release + deploy: same shape as the other independently-released infra
+  components (runners-controller, stable-egress-controller). A push to main
+  touching `infra/egress-tree-agent/**` makes `mise run release:check` bump
+  the component (`mise/tasks/release/components.json` +
+  `infra/egress-tree-agent/cliff.toml`, type-only parsers so `feat(infra):`
+  counts); `server-production-deployment.yml`'s `release-egress-tree-agent`
+  job builds `ghcr.io/tuist/egress-tree-agent:<semver>`, `tag-infra-releases`
+  pushes `egress-tree-agent@<semver>` only once that image is confirmed
+  published, and `server-deployment.yml` resolves the highest such tag
+  reachable from the deployed commit into `egressTreeAgent.image.tag`. So
+  there is no in-repo image pin to bump, and the DaemonSet rolls only when
+  the agent itself changed — not on every server deploy. To run an unreleased
+  build, dispatch `server-deployment.yml` with
+  `egress_tree_agent_image_tag: sha-<git-sha>`.
 - Helm: `infra/helm/tuist/templates/egress-tree-agent.yaml`
   (`egressTreeAgent.*` values; privileged DaemonSet on the kura pools). Ships
   with a CiliumClusterwideNetworkPolicy dropping TCP `metricsPort` from

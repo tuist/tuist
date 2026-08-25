@@ -42,6 +42,7 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.FeatureFlags
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
+  alias Tuist.Runners.Allowance
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
@@ -128,6 +129,12 @@ defmodule Tuist.Runners.Dispatch do
   defp webhook_outcome({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
   defp webhook_outcome(_), do: "unknown"
 
+  # Only an account with no paid plan is ever blocked: exceeding the
+  # allowance is precisely what a paid account is billed for.
+  defp check_allowance(account) do
+    if Allowance.exhausted?(account), do: {:error, :allowance_exhausted}, else: :ok
+  end
+
   defp handle_queued(payload, installation_id) do
     handle_queueable(payload, installation_id, &Jobs.enqueue_if_missing/1)
   end
@@ -144,6 +151,7 @@ defmodule Tuist.Runners.Dispatch do
     requested = Map.get(job, "labels", [])
 
     with {:ok, account} <- fetch_enabled_account(installation_id, owner),
+         :ok <- check_allowance(account),
          {:ok, target} <- resolve_dispatch_target(account, requested),
          :ok <- enqueue_fun.(enqueue_attrs(account, target, full_name, job)) do
       Logger.info("runners: enqueued",
@@ -165,6 +173,21 @@ defmodule Tuist.Runners.Dispatch do
         )
 
         {:ignored, :no_account}
+
+      {:error, :allowance_exhausted} ->
+        # Logged loudly and distinctly because nothing tells the
+        # customer: the job simply stays queued on GitHub until it times
+        # out, which looks exactly like a capacity shortage from their
+        # side. This line is the only way to tell the two apart.
+        Logger.info(
+          "runners: free runner allowance of #{Allowance.free_monthly_minutes()} minutes exhausted, " <>
+            "not dispatching; job will stay queued on GitHub until it times out",
+          owner: owner,
+          repo: full_name,
+          workflow_job_id: Map.get(job, "id")
+        )
+
+        {:ignored, :allowance_exhausted}
 
       {:error, :runners_disabled} ->
         Logger.info("runners: runners not enabled for account; ignoring",

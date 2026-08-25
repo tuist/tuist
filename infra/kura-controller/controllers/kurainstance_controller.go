@@ -87,29 +87,28 @@ const (
 	// before the public Services can route cache reads to it.
 	minPrimaryPodAge = 10 * time.Minute
 
-	sharedSecretsName                             = "kura-shared-secrets"
-	otlpTracesEndpointEnvVar                      = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
-	environmentEnvVar                             = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
-	snapshotCacheMaxBytesEnvVar                   = "KURA_SNAPSHOT_CACHE_MAX_BYTES"
-	manifestCacheMaxBytesEnvVar                   = "KURA_MANIFEST_CACHE_MAX_BYTES"
-	metadataStoreReadCacheBytesEnvVar             = "KURA_METADATA_STORE_READ_CACHE_BYTES"
-	metadataStoreWriteBufferPoolBytesEnvVar       = "KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES"
-	sharedSecretsRVAnnotation                     = "kura.tuist.dev/shared-secrets-resource-version"
-	externalDNSHostnameAnnotation                 = "external-dns.alpha.kubernetes.io/hostname"
-	legacyPeerHostAnnotation                      = "kura.tuist.dev/legacy-peer-host"
-	legacyPeerMigrationAnnotation                 = "kura.tuist.dev/legacy-peer-migration-phase"
-	legacyPeerOldAddressesAnnotation              = "kura.tuist.dev/legacy-peer-old-addresses"
-	legacyPeerTargetAddressesAnnotation           = "kura.tuist.dev/legacy-peer-target-addresses"
-	legacyPeerRetireAfterAnnotation               = "kura.tuist.dev/legacy-peer-retire-after"
-	legacyPeerFallbackRepublishAnnotation         = "kura.tuist.dev/legacy-peer-fallback-republish-requested-at"
-	legacyPeerFallbackObservedAnnotation          = "kura.tuist.dev/legacy-peer-fallback-observed-at"
-	unreadyPodsReplacedForImageAnnotation         = "kura.tuist.dev/unready-pods-replaced-for-image"
-	legacyPeerPhaseRepairing                      = "repairing-fallback"
-	legacyPeerPhaseCutoverRequested               = "cutover-requested"
-	legacyPeerPhaseDraining                       = "draining"
-	peerDNSRecordTTLSeconds                 int64 = 300
-	legacyPeerRetirementDelay                     = 2 * time.Duration(peerDNSRecordTTLSeconds) * time.Second
-	hetznerNodeSelectorAnnotation                 = "load-balancer.hetzner.cloud/node-selector"
+	sharedSecretsName                           = "kura-shared-secrets"
+	otlpTracesEndpointEnvVar                    = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+	environmentEnvVar                           = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
+	snapshotCacheMaxBytesEnvVar                 = "KURA_SNAPSHOT_CACHE_MAX_BYTES"
+	manifestCacheMaxBytesEnvVar                 = "KURA_MANIFEST_CACHE_MAX_BYTES"
+	metadataStoreReadCacheBytesEnvVar           = "KURA_METADATA_STORE_READ_CACHE_BYTES"
+	sharedSecretsRVAnnotation                   = "kura.tuist.dev/shared-secrets-resource-version"
+	externalDNSHostnameAnnotation               = "external-dns.alpha.kubernetes.io/hostname"
+	legacyPeerHostAnnotation                    = "kura.tuist.dev/legacy-peer-host"
+	legacyPeerMigrationAnnotation               = "kura.tuist.dev/legacy-peer-migration-phase"
+	legacyPeerOldAddressesAnnotation            = "kura.tuist.dev/legacy-peer-old-addresses"
+	legacyPeerTargetAddressesAnnotation         = "kura.tuist.dev/legacy-peer-target-addresses"
+	legacyPeerRetireAfterAnnotation             = "kura.tuist.dev/legacy-peer-retire-after"
+	legacyPeerFallbackRepublishAnnotation       = "kura.tuist.dev/legacy-peer-fallback-republish-requested-at"
+	legacyPeerFallbackObservedAnnotation        = "kura.tuist.dev/legacy-peer-fallback-observed-at"
+	unreadyPodsReplacedForImageAnnotation       = "kura.tuist.dev/unready-pods-replaced-for-image"
+	legacyPeerPhaseRepairing                    = "repairing-fallback"
+	legacyPeerPhaseCutoverRequested             = "cutover-requested"
+	legacyPeerPhaseDraining                     = "draining"
+	peerDNSRecordTTLSeconds               int64 = 300
+	legacyPeerRetirementDelay                   = 2 * time.Duration(peerDNSRecordTTLSeconds) * time.Second
+	hetznerNodeSelectorAnnotation               = "load-balancer.hetzner.cloud/node-selector"
 
 	peerTLSVolumeName = "peer-tls"
 	peerTLSMountPath  = "/etc/kura/peer-tls"
@@ -3540,7 +3539,6 @@ func managedCacheEnvDefaults() []corev1.EnvVar {
 		{Name: snapshotCacheMaxBytesEnvVar, Value: "67108864"},
 		{Name: manifestCacheMaxBytesEnvVar, Value: "33554432"},
 		{Name: metadataStoreReadCacheBytesEnvVar, Value: "33554432"},
-		{Name: metadataStoreWriteBufferPoolBytesEnvVar, Value: "33554432"},
 	}
 }
 

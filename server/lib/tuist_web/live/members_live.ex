@@ -121,8 +121,7 @@ defmodule TuistWeb.MembersLive do
                         id={"manage-role-trigger-#{member.id}"}
                         type="button"
                         {modal_attrs}
-                      >
-                      </button>
+                      ></button>
                     </:trigger>
                     <.line_divider />
                     <div data-part="change-role">
@@ -199,8 +198,7 @@ defmodule TuistWeb.MembersLive do
                         type="button"
                         style="display: none;"
                         {modal_attrs}
-                      >
-                      </button>
+                      ></button>
                     </:trigger>
                     <:header_icon>
                       <.trash />
