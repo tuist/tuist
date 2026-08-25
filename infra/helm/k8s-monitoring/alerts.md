@@ -1569,24 +1569,42 @@ The mechanism behind the two rules above, and the only one of the three visible
 Kura builds its metadata store with a RocksDB `WriteBufferManager` whose stall
 flag is enabled (`kura/src/store.rs`). Once memtable memory reaches the pool
 size, RocksDB blocks every thread inside its write call until a flush drains
-it. Those write calls run directly on tokio worker threads rather than on the
-blocking pool, so a saturated write buffer parks the runtime itself: the probe
-handlers stop being scheduled even though `/up` reads nothing but process-local
-config and takes no lock. Managed instances pin the pool with
-`KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES`, set in
-`kura/ops/helm/kura/values-managed.yaml` and in the kura-controller, to a value
-below what the process would otherwise derive from its memory limit, and the
-same allocation is shared with the block cache, so memtable growth evicts the
-read cache that the eviction scan depends on.
+it. The stall itself is correct — without it the memtables grow unbounded and
+the pod is OOM-killed instead — so what matters is which thread it blocks.
 
-The largest batch the store writes is CAS segment eviction, which deletes every
-artifact in a 512 MiB segment plus every action-cache entry cascading off those
-blobs in a single batch, and scans that whole segment index synchronously to
-build it. Four restarts across three pods and two node pools on 2026-08-21 each
-followed an eviction by 49 to 63 seconds, which is what three liveness failures
-at `periodSeconds: 20` costs. The cascade size does not predict it: evictions
-cascading 47 and 305 entries stalled the pod exactly as ones cascading 4,555 and
-7,360 did, so treat the eviction itself as the trigger rather than its fanout.
+**Most of this was fixed in #12556 (2026-08-24). What that changed:**
+
+- Segment eviction now commits its write batch on the **blocking pool**, not
+  inline on a tokio worker. A stall costs a blocking-pool thread and the
+  runtime keeps scheduling, so probes answer and request bodies keep draining.
+- The eviction batch is now **committed in chunks** bounded by
+  `SEGMENT_EVICTION_MAX_BATCH_BYTES`, at blob boundaries only. It used to stage
+  a whole 512 MiB segment plus every cascade in one write — measured at 21,749
+  artifacts and 10,377 cascaded entries, ~20 MB of memtable, in a single call.
+- The pool **no longer shares its budget with the block cache**, and
+  `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` is **no longer pinned to 32 MiB**
+  in `values-managed.yaml` or the kura-controller. It derives from the memory
+  limit (128 MiB at 4Gi) like the code always intended. The 32 MiB pin came
+  from #12117's memory-pressure work, not from any RocksDB requirement.
+
+If this rule fires on a build carrying that change, the cause is something
+other than one oversized eviction, and the chunk budget or the derived pool
+size is the thing to re-measure.
+
+**Read the gauge carefully — a flat value is not a steady value.** The
+`kura_rocksdb_*` gauges are published by the snapshot task in `kura/src/app.rs`
+every 5 s via `spawn_blocking`. If the store wedges, that task stops completing
+and every gauge it publishes freezes **to the byte**, so the alert then reports
+the last value before the wedge rather than a live one — true usage is unknown
+and at least that high. On 2026-08-24 write-buffer usage sat at exactly
+40916992 and block-cache usage at exactly 56593822 for 25 minutes. Cross-check
+against `kura_http_inflight_requests` and `up`, which are not published by that
+task: inflight pinned at a flat non-zero value while the pod still scrapes is
+the wedge signature.
+
+Cascade size does not predict the trigger: evictions cascading 47 and 305
+entries stalled the pod exactly as ones cascading 4,555 and 7,360 did, so treat
+the eviction itself as the trigger rather than its fanout.
 
 **The threshold is 0.95 because busy is not the same as stalled.** Over the 24
 hours to 2026-08-21 the idle fleet baseline was 0.063, five healthy pods across
@@ -1604,8 +1622,21 @@ create. `OK` keeps a data-source error from fanning out a warning, which is the
 same intent.
 
 This gauge only exists while the pod is scrapeable, which is precisely the
-window this rule is for: once the stall is underway the series stops arriving
-and the restart rule takes over.
+window this rule is for.
+
+**Do not assume the restart rule takes over.** It often did — the historical
+signature is an eviction line, then 49 to 63 seconds of silence, then a
+liveness kill, which is three failures at `periodSeconds: 20`. But the stall
+can also be *partial*: on 2026-08-24 `kura-tuist-eu-central-1-1` kept serving
+`/metrics` and `/up` from process-local state while every store-touching route
+was parked, so liveness passed, nothing recycled the pod, and it sat wedged and
+Ready in the Service endpoints for 25+ minutes with its restart counter
+unchanged. That is the case this rule exists to catch, and it inverts the usual
+reading: **this rule firing means the pod is wedged and is not being
+restarted**, whereas short excursions during a restart burst stay under the
+`for: 10m` and never fire. The peer's logs are the better live detector — a
+stalled pod is silent, but its peers log `artifact replication upload stalled:
+no body progress for 60000ms` against it every couple of minutes.
 
 ### Worker node pool stuck mid-rollout
 
