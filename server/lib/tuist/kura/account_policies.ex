@@ -22,7 +22,11 @@ defmodule Tuist.Kura.AccountPolicies do
 
   An assignment is also the only route to a region no preference derives to.
   `accounts.region` is `all | europe | usa`, so nothing resolves to United
-  States West on its own; an account is opted into it per account, for latency.
+  States West or Asia Pacific Southeast on its own; an account is opted into
+  either per account, for latency. Asia Pacific has no derivation rule for the
+  same reason United States West has none — there is no `accounts.region` value
+  that names it — so an APAC account is placed there by an operator or served
+  from United States East like any other account that stated no constraint.
 
   Step 2 counts only live instances in public regions, and picks one when there
   are several; `live_service_regions/1` carries the reasoning for both, and for

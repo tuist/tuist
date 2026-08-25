@@ -146,6 +146,11 @@ server:
     # region: this cluster's Elastic Metal node (kuraFleet) hosts the
     # per-account cache pods and dispatch routes the Mac fleet's build
     # cache to it over the Private Network.
+    # ap-southeast (Singapore) is in the catalog and in the assignable set but
+    # deliberately absent from this list: no SGP box is ordered yet, and this
+    # variable is the gate that keeps the server from resolving an account into
+    # a region with no hardware behind it. Add it here in the same change that
+    # enables ovhFleets.ap-southeast, not before.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-central,us-east,us-west,scw-fr-par-runners
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
@@ -748,6 +753,60 @@ ovhFleets:
       # Node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
       # tuist.dev/egress-mbps so the scheduler bin-packs the 750-Mbps-floor pods.
       egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
+  # Asia Pacific Southeast (Singapore / OVHcloud SGP), for APAC accounts that
+  # would otherwise be served from Virginia — roughly a 200 ms round trip on
+  # every cache request. The legacy cache fleet serves an ap-southeast endpoint,
+  # so this is continuity rather than a new capability.
+  #
+  # DELIBERATELY DISABLED. No SGP box has been ordered yet, and an enabled fleet
+  # with no adoptable machine hangs helm --wait (same failure the dediboxFleet
+  # comment above warns about), which would wedge every production deploy rather
+  # than just this region. Flip to true only once a box is delivered, prepped
+  # (mise run baremetal:prep-ovh, including the /data XFS project-quota layout,
+  # which has to be applied at install time), and named with the displayName
+  # prefix below. The region also stays out of TUIST_KURA_AVAILABLE_REGIONS
+  # until then, so the server will not resolve an account into it even if this
+  # fleet comes up first.
+  ap-southeast:
+    enabled: false
+    replicas: 1
+    # Same endpoint and same secrets as every other OVH fleet: the endpoint
+    # names the OVHcloud legal entity holding the ACCOUNT, not the box's
+    # geography (ca-east's Quebec box is on ovh-us for the same reason). OVH
+    # sells its APAC datacenters as market variants of the same plans billed
+    # under the US subsidiary, so Singapore needs no second OVH account and no
+    # new 1Password items — api.us.ovhcloud.com's public catalog lists
+    # 26adv02-v7-sgp alongside the US variants. That keeps the "one OVH account
+    # serves every OVH fleet" invariant above true, which matters beyond
+    # tidiness: capi-scaleway-applesilicon.yaml resolves a single endpoint for
+    # the whole reconciler by taking it from whichever OVH fleet is enabled
+    # last, so two enabled fleets on different endpoints would silently point it
+    # at the wrong API.
+    #
+    # A catalog price under our subsidiary is strong evidence the account can
+    # order in SGP, not proof; confirm in the OVH control panel when placing the
+    # order.
+    endpoint: ovh-us
+    nodePool: kura-ap-southeast
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-ap-southeast
+      # OVH matches this case-insensitively against the box's CommercialRange,
+      # so the year is part of the offer: the SGP capacity is the 2026 Advance
+      # range, and a bare "advance-2" would also match an Advance-2-2024 box.
+      offer: advance-2-2026
+      datacenter: sgp
+      os: ubuntu_24.04
+      # Node egress budget (Mbps): provisional. Unlike the Advance-1 US boxes
+      # this is not measured yet, so it is set to the conservative bare-metal
+      # 1 Gbit/s the other single-NIC regions assume and must be reconciled
+      # against the delivered box's real NIC at adoption, together with
+      # `egress_burst_mbps` for ap-southeast in Tuist.Kura.Regions. Advertised
+      # as tuist.dev/egress-mbps so the scheduler bin-packs the cache pods'
+      # guaranteed floors against it.
+      egressBudgetMbps: 1000
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH

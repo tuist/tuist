@@ -64,7 +64,7 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "sets a uniform enterprise egress floor across the bare-metal regions" do
-      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast"] do
         assert Regions.get(id).provisioner_config.egress_guaranteed_mbps == 25
       end
 
@@ -78,7 +78,7 @@ defmodule Tuist.Kura.RegionsTest do
       # Safe here and not before: a tiered floor sits far below its ceiling, so
       # it is only a scheduling promise until the kubelet's MemoryQoS gate makes
       # it the pod's cgroup memory.min. That gate ships in this same change.
-      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast"] do
         assert Regions.memory_governed?(Regions.get(id))
       end
 
@@ -88,7 +88,7 @@ defmodule Tuist.Kura.RegionsTest do
     test "bin-packs memory ceilings only where a node budget is advertised" do
       # Every managed region runs on a bare-metal pool the CAPI provider patches
       # with a tuist.dev/memory-ceiling-mib budget.
-      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast"] do
         assert Regions.memory_ceiling_bin_packed?(Regions.get(id))
       end
 
@@ -99,7 +99,7 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "sizes the managed regions' storage per tier" do
-      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast"] do
         assert Regions.storage_governed?(Regions.get(id))
       end
 
@@ -330,7 +330,12 @@ defmodule Tuist.Kura.RegionsTest do
         "us-west" => %{country: "US", subdivision: "US-OR"},
         "eu-central" => %{country: "FR", subdivision: "FR-IDF"},
         "ca-east" => %{country: "CA", subdivision: "CA-QC"},
-        "scw-fr-par-runners" => %{country: "FR", subdivision: "FR-IDF"}
+        "scw-fr-par-runners" => %{country: "FR", subdivision: "FR-IDF"},
+        # Singapore is a city-state: its ISO 3166-2 codes are CDC statistical
+        # districts rather than anything a datacenter address resolves to, so
+        # the country alone is the whole location and the subdivision is left
+        # unstated instead of guessed.
+        "ap-southeast" => %{country: "SG", subdivision: nil}
       }
 
       for {id, location} <- locations do
@@ -403,6 +408,63 @@ defmodule Tuist.Kura.RegionsTest do
       end)
 
       assert Regions.available() == []
+    end
+  end
+
+  describe "ap-southeast" do
+    test "is a single-replica bare-metal region on its own OVH node pool" do
+      assert %Regions{provisioner: KubernetesController, provisioner_config: config} =
+               Regions.get("ap-southeast")
+
+      assert Regions.get("ap-southeast").display_name == "Asia Pacific Southeast"
+      assert config.cluster_id == "ap-southeast-1"
+      assert config.ingress_class_name == "kura-ap-southeast"
+      assert config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-ap-southeast"}
+      assert config.storage_class == "scw-local-nvme"
+      assert config.gateway == :host_network
+      assert config.hetzner_location == nil
+
+      # One box, so one replica. The warm standby the other bare-metal regions
+      # carry only buys gapless deploys on a region with room to hold both.
+      assert config.replicas == 1
+
+      # No region-wide claim: every instance carries the one its volumes were
+      # created at, resolved from its account's plan.
+      assert config.storage_size == nil
+    end
+
+    test "takes the conservative burst ceiling until the box's NIC is measured" do
+      assert Regions.get("ap-southeast").provisioner_config.pod_annotations == %{
+               "kubernetes.io/egress-bandwidth" => "500M"
+             }
+    end
+
+    test "is served only where TUIST_KURA_AVAILABLE_REGIONS names it" do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      # Production's list today. The region is in the catalog, so it has to be
+      # the gate that keeps it unserved rather than its absence from the
+      # catalog — there is a fleet definition waiting on hardware behind it.
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-central", "us-east", "us-west", "scw-fr-par-runners"]
+      end)
+
+      refute Regions.available?("ap-southeast")
+      refute "ap-southeast" in Enum.map(Regions.selectable(), & &1.id)
+    end
+
+    test "becomes available and selectable once the gate names it" do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["us-east", "ap-southeast"]
+      end)
+
+      assert Regions.available?("ap-southeast")
+      assert Enum.map(Regions.available(), & &1.id) == ["us-east", "ap-southeast"]
+      assert "ap-southeast" in Enum.map(Regions.selectable(), & &1.id)
     end
   end
 
@@ -536,6 +598,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert Regions.exists?("eu-central")
       assert Regions.exists?("us-east")
       assert Regions.exists?("us-west")
+      assert Regions.exists?("ap-southeast")
       assert Regions.exists?("local-controller")
       refute Regions.exists?("local")
       refute Regions.exists?("nope")
