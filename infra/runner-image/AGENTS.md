@@ -248,6 +248,15 @@ added to catch that failed on `admin`'s unwritable cache instead.
   shell bridge while the single-shot runner VM is alive. It runs as root
   from a LaunchDaemon so terminal access does not depend on an unlocked
   Aqua session, then drops PTY child shells to the `runner` user.
+  `/tmp/tuist-runner-shell-agent.lock` keeps it a singleton, and both uids
+  share that one path, so probe the holder with `ps -p` and never with
+  `kill -0`: from `runner`, `kill -0` fails with EPERM against the live
+  root-owned daemon exactly as it fails with ESRCH against a dead pid.
+  An unreadable pid file or a refused `rm` means the lock is held, not
+  stale; clearing it there starts a second bridge against the same
+  dispatch URL and claim marker. `dispatch-poll.sh`'s
+  `shell_agent_lock_active` implements the same protocol and must stay in
+  step with it.
 - `/Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist` — the
   boot-time LaunchDaemon for the shell supervisor. `dispatch-poll.sh`
   still has a singleton-lock guarded fallback start path for older or

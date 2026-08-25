@@ -12,6 +12,25 @@ defmodule CacheWeb.KeyValueController do
 
   tags(["KeyValue"])
 
+  # Kura, the regional implementation of these cache routes, sheds a read it
+  # cannot admit a response stream for instead of queueing it unboundedly. This
+  # app never returns it, but clients see one contract across both
+  # implementations, and a client that reads the shed as an unknown failure
+  # gives up the retry the server explicitly asked for.
+  @too_many_requests %OpenApiSpex.Response{
+    description: "The server is limiting concurrent artifact response streams; retry after the hint",
+    headers: %{
+      "retry-after" => %OpenApiSpex.Header{
+        description:
+          "Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.",
+        schema: %Schema{type: :string}
+      }
+    },
+    content: %{
+      "application/json" => %OpenApiSpex.MediaType{schema: Error}
+    }
+  }
+
   operation(:get_value,
     summary: "Get a key-value entry",
     operation_id: "getKeyValue",
@@ -40,7 +59,8 @@ defmodule CacheWeb.KeyValueController do
       not_found: {"Entry not found", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       payment_required: {"The account has exhausted its plan's free tier", "application/json", Error},
-      bad_request: {"Bad request", "application/json", Error}
+      bad_request: {"Bad request", "application/json", Error},
+      too_many_requests: @too_many_requests
     }
   )
 

@@ -72,11 +72,19 @@ defmodule Tuist.Kura.DemandTest do
       assert %AccountRegionLifecycle{} = Demand.get(usa.id, "us-east")
     end
 
-    test "skips accounts with no resolvable service region" do
-      # A paid account allowing every region needs a versioned assignment
-      # before Kura can route it, so there is no account-region instance for
-      # its demand to keep warm.
+    test "records a paid account allowing every region against the default" do
       account = paid_account(:pro, :all)
+
+      Demand.record(account.id)
+
+      assert {:ok, 1} = Demand.flush()
+      assert %AccountRegionLifecycle{} = Demand.get(account.id, "us-east")
+    end
+
+    test "skips accounts with no resolvable service region" do
+      # A plan Kura does not serve resolves to no region, so there is no
+      # account-region instance for its demand to keep warm.
+      account = paid_account(:open_source, :all)
 
       Demand.record(account.id)
 

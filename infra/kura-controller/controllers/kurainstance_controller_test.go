@@ -377,14 +377,20 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		t.Fatalf("expected deployment environment, got %q", got)
 	}
 	for name, expected := range map[string]string{
-		snapshotCacheMaxBytesEnvVar:             "67108864",
-		manifestCacheMaxBytesEnvVar:             "33554432",
-		metadataStoreReadCacheBytesEnvVar:       "33554432",
-		metadataStoreWriteBufferPoolBytesEnvVar: "33554432",
+		snapshotCacheMaxBytesEnvVar:       "67108864",
+		manifestCacheMaxBytesEnvVar:       "33554432",
+		metadataStoreReadCacheBytesEnvVar: "33554432",
 	} {
 		if got := env[name]; got != expected {
 			t.Fatalf("expected managed cache default %s=%s, got %q", name, expected, got)
 		}
+	}
+	// The write-buffer pool must stay unset so the process derives it from the
+	// pod's memory limit. Pinning it to 32 MiB is what let a single write burst
+	// saturate a pool built with allow_stall=true and block every writer inside
+	// RocksDB (#12556).
+	if _, pinned := env["KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES"]; pinned {
+		t.Fatal("expected the metadata-store write-buffer pool to be left auto-derived")
 	}
 	peerMountFound := false
 	for _, mount := range container.VolumeMounts {

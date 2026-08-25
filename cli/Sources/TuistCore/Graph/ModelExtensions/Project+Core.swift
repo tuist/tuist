@@ -43,12 +43,12 @@ extension Project {
 
     public func derivedDirectoryPath(for target: Target) -> AbsolutePath {
         let resolvedSwiftPackageManagerScratchDirectory = SwiftPackageManagerPaths.scratchDirectory(
-            containingCheckout: path,
+            containingPackageSource: path,
             knownScratchDirectory: swiftPackageManagerScratchDirectory
         )
         if case .external = type,
            let resolvedSwiftPackageManagerScratchDirectory,
-           SwiftPackageManagerPaths.isPath(path, inCheckoutsOf: resolvedSwiftPackageManagerScratchDirectory)
+           SwiftPackageManagerPaths.isPath(path, inPackageSourcesOf: resolvedSwiftPackageManagerScratchDirectory)
         {
             return resolvedSwiftPackageManagerScratchDirectory
                 .appending(

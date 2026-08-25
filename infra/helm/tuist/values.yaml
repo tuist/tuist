@@ -437,12 +437,15 @@ server:
       name: onepassword
     # Sync either the online Tuist license key or the air-gapped license
     # certificate from the external store. These sources are mutually
-    # exclusive. Leave both item names empty to skip license sync.
+    # exclusive. The optional verify key lets air-gapped certificates signed
+    # by an additional issuer validate during a key rotation.
     license:
       item: ""
       field: password
       certificateItem: ""
       certificateField: password
+      verifyKeyItem: ""
+      verifyKeyField: password
     # Cache-signing grant private key: a PEM Ed25519 key the
     # server signs runner cache grants with. Leave item empty to disable
     # grant minting (dispatch omits the grant; CLI falls back to the MAC
@@ -600,6 +603,7 @@ server:
   license:
     key: ""
     certificateBase64: ""
+    verifyKey: ""
     selfHostingDevelopmentMode: false
   database:
     ssl: false

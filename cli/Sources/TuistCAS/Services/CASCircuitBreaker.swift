@@ -166,6 +166,13 @@
         if let error = error as? SaveCacheCASServiceError, case .contentTooLarge = error {
             return true
         }
+        // Everything else, `.rateLimited` included, counts as a failure. Backpressure
+        // is the deliberate case: the backend is healthy, but the breaker is how this
+        // client stops asking, which is what a server shedding reads is asking for. The
+        // alternative is thousands of calls each waiting out their own `Retry-After`
+        // ladder against a node that has already said it has no capacity. Short-
+        // circuiting to a local build is faster for the build and lighter on the node,
+        // and the cooldown re-probes on its own.
         return false
     }
 #endif

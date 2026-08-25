@@ -35,6 +35,11 @@ defmodule Tuist.ClickHouseCapabilitiesTest do
     def query(_statement), do: {:ok, %{rows: [["25.3.6.10034.altinitystable"]]}}
   end
 
+  defmodule UnsupportedRepo do
+    @moduledoc false
+    def query(_statement), do: {:ok, %{rows: [["24.8.14.39"]]}}
+  end
+
   describe "serial_ids_supported?/1" do
     test "is true when the server has coordination configured" do
       assert ClickHouseCapabilities.serial_ids_supported?(KeeperRepo)
@@ -99,6 +104,20 @@ defmodule Tuist.ClickHouseCapabilitiesTest do
     test "is empty on a server that predates the setting, which deduplicates anyway" do
       assert ClickHouseCapabilities.insert_select_deduplication_settings(LegacyRepo) == []
       assert ClickHouseCapabilities.insert_select_deduplication_settings(RebuiltRepo) == []
+    end
+  end
+
+  describe "assert_supported_version!/1" do
+    test "passes on servers within the supported range" do
+      assert ClickHouseCapabilities.assert_supported_version!(ModernRepo) == :ok
+      assert ClickHouseCapabilities.assert_supported_version!(LegacyRepo) == :ok
+      assert ClickHouseCapabilities.assert_supported_version!(RebuiltRepo) == :ok
+    end
+
+    test "raises on a server below the floor, naming the version it found" do
+      assert_raise RuntimeError, ~r/ClickHouse 24\.8\.14\.39 is older than the minimum/, fn ->
+        ClickHouseCapabilities.assert_supported_version!(UnsupportedRepo)
+      end
     end
   end
 end

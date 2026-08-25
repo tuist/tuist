@@ -94,7 +94,7 @@
       gap: var(--noora-spacing-4);
       margin: var(--noora-spacing-0);
       border: 1px solid var(--noora-surface-border-primary);
-      border-radius: var(--noora-radius-large);
+      border-radius: var(--noora-radius-6);
       padding: var(--noora-spacing-6);
 
       & > legend {
@@ -152,12 +152,12 @@
   }
 
   & [data-part="terminal"] {
-    border-radius: var(--noora-radius-medium);
-    background: var(--noora-surface-background-secondary, #0b0d12);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-secondary);
     padding: var(--noora-spacing-4);
     max-height: 60vh;
     overflow: auto;
-    color: var(--noora-surface-label-on-dark, #e6e6e6);
+    color: var(--noora-surface-label-primary);
     font-size: 12px;
     line-height: 1.5;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -190,7 +190,7 @@
     & > select {
       appearance: auto;
       border: 1px solid var(--noora-surface-border-primary);
-      border-radius: var(--noora-radius-medium);
+      border-radius: var(--noora-radius-3);
       background: var(--noora-surface-background-primary);
       padding: var(--noora-spacing-3) var(--noora-spacing-4);
       width: 100%;
