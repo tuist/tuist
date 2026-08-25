@@ -43,7 +43,7 @@ defmodule TuistWeb.UsageLive do
      |> assign(:periods, periods)
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:runners_enabled, runners_enabled)
-     |> assign(:prepaid_balance, Prepaid.balance(account))
+     |> assign(:prepaid_coverage, prepaid_coverage(Prepaid.balance(account), runner_breakdown))
      |> assign(:kura_enabled, FeatureFlags.kura_enabled?(account))}
   end
 
@@ -65,6 +65,8 @@ defmodule TuistWeb.UsageLive do
 
     usage_end = if DateTime.before?(DateTime.utc_now(), end_dt), do: DateTime.utc_now(), else: end_dt
 
+    runner_breakdown = Allowance.period_breakdown(account, period)
+
     {:noreply,
      socket
      |> assign(:uri, URI.parse(uri))
@@ -73,7 +75,8 @@ defmodule TuistWeb.UsageLive do
      |> assign(:bucket, :day)
      |> assign(:analytics_selected_widget, selected_widget)
      |> assign(:analytics_trend_label, dgettext("dashboard_usage", "since the previous period"))
-     |> assign(:runner_breakdown, Allowance.period_breakdown(account, period))
+     |> assign(:runner_breakdown, runner_breakdown)
+     |> assign(:prepaid_coverage, prepaid_coverage(Prepaid.balance(account), runner_breakdown))
      |> assign_async(
        [:totals, :egress_series, :ingress_series, :requests_series, :per_region],
        fn ->
@@ -358,17 +361,23 @@ defmodule TuistWeb.UsageLive do
   """
   def prepaid_coverage(nil, _breakdown), do: nil
 
-  def prepaid_coverage(%{available: available}, %{platforms: platforms}) do
-    billed =
-      platforms
-      |> Enum.map(& &1.billed)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.reduce(Money.new(0, :USD), &Money.add(&2, &1))
-
+  def prepaid_coverage(%{available: available}, %{billed: billed}) do
     covered = if Money.compare(available, billed) == -1, do: available, else: billed
 
     %{available: available, covered: covered, due: Money.subtract(billed, covered)}
   end
+
+  @doc """
+  What the account owes for the period: the usage charge less whatever
+  its prepaid balance would cover today.
+
+  This is the figure a customer reads first, so it has to be the money
+  rather than the line item the money lands on. The receipt below the
+  widget breaks the same number down into balance, drawdown and
+  remainder.
+  """
+  def amount_due(%{billed: billed}, nil), do: billed
+  def amount_due(_breakdown, %{due: due}), do: due
 
   @doc """
   The money a runner trial took off this row, or `nil` when it took

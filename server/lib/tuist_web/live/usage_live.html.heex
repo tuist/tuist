@@ -63,8 +63,10 @@
         <.widget
           id="widget-runner-billed"
           title={dgettext("dashboard_usage", "Billed")}
-          description={dgettext("dashboard_usage", "What lands on your invoice")}
-          value={format_money(@runner_breakdown.billed)}
+          description={dgettext("dashboard_usage", "What you'll owe for this period")}
+          value={
+            format_money(TuistWeb.UsageLive.amount_due(@runner_breakdown, @prepaid_coverage))
+          }
         />
       </div>
     </.card_section>
@@ -123,23 +125,22 @@
           <% pace = TuistWeb.UsageLive.pace_label(row) %>
           <p :if={pace} data-part="footnote">{pace}</p>
         </div>
-        <% coverage = TuistWeb.UsageLive.prepaid_coverage(@prepaid_balance, @runner_breakdown) %>
-        <div :if={coverage} data-part="receipt" data-kind="prepaid">
+        <div :if={@prepaid_coverage} data-part="receipt" data-kind="prepaid">
           <div data-part="heading">
             <span data-part="platform">{dgettext("dashboard_usage", "Prepaid credit")}</span>
           </div>
           <dl data-part="lines">
             <div data-part="line">
               <dt>{dgettext("dashboard_usage", "Balance")}</dt>
-              <dd>{TuistWeb.UsageLive.money_label(coverage.available)}</dd>
+              <dd>{TuistWeb.UsageLive.money_label(@prepaid_coverage.available)}</dd>
             </div>
             <div data-part="line" data-kind="credit">
               <dt>{dgettext("dashboard_usage", "Covers this period")}</dt>
-              <dd>{TuistWeb.UsageLive.credit_label(coverage.covered)}</dd>
+              <dd>{TuistWeb.UsageLive.credit_label(@prepaid_coverage.covered)}</dd>
             </div>
             <div data-part="line" data-kind="total">
               <dt>{dgettext("dashboard_usage", "Left to pay")}</dt>
-              <dd>{TuistWeb.UsageLive.money_label(coverage.due)}</dd>
+              <dd>{TuistWeb.UsageLive.money_label(@prepaid_coverage.due)}</dd>
             </div>
           </dl>
           <p data-part="footnote">

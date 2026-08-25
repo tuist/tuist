@@ -10,6 +10,7 @@ defmodule TuistWeb.UsageLiveTest do
   alias Tuist.IngestRepo
   alias Tuist.Kura.UsageEvent
   alias Tuist.Runners.Allowance
+  alias Tuist.Runners.Prepaid
   alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -23,7 +24,7 @@ defmodule TuistWeb.UsageLiveTest do
     # Keeps the page off the network: the balance comes from Stripe and
     # the period from the subscription, neither of which a render test
     # should depend on.
-    stub(Tuist.Runners.Prepaid, :balance, fn _account -> nil end)
+    stub(Prepaid, :balance, fn _account -> nil end)
     stub(Tuist.Billing, :current_billing_period, fn _account -> nil end)
     :ok
   end
@@ -72,6 +73,35 @@ defmodule TuistWeb.UsageLiveTest do
           gross: Money.new(7_500, :USD),
           trial_covered: Money.new(7_500, :USD),
           billed: Money.new(0, :USD)
+        }
+      ]
+    }
+  end
+
+  defp billed_breakdown do
+    %{
+      period_start: ~D[2026-08-24],
+      period_end: ~D[2026-09-24],
+      usage_through: ~D[2026-08-25],
+      minutes: 1_000,
+      free_minutes: 100,
+      gross: Money.new(7_500, :USD),
+      trial_covered: Money.new(0, :USD),
+      billed: Money.new(6_750, :USD),
+      days: [],
+      by_repository: [],
+      projected_days: [],
+      platforms: [
+        %{
+          id: "macos",
+          platform: :macos,
+          minutes: 1_000,
+          projected_minutes: 1_000,
+          included_minutes: 100,
+          previous_minutes: 0,
+          gross: Money.new(7_500, :USD),
+          trial_covered: Money.new(0, :USD),
+          billed: Money.new(6_750, :USD)
         }
       ]
     }
@@ -197,6 +227,43 @@ defmodule TuistWeb.UsageLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
 
       refute has_element?(lv, "[data-part='runner-usage-card']")
+    end
+  end
+
+  describe "runner usage with prepaid credit" do
+    setup %{account: account} do
+      disable_kura(account)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+      stub(Allowance, :period_breakdown, fn _account -> billed_breakdown() end)
+      stub(Allowance, :period_breakdown, fn _account, _period -> billed_breakdown() end)
+      :ok
+    end
+
+    test "shows what is left to pay once the credit is drawn down", %{conn: conn, account: account} do
+      # The widget read "what lands on your invoice" and gave the usage
+      # charge, while the receipt an inch below said nothing was left to
+      # pay. Both figures were on screen and they disagreed.
+      stub(Prepaid, :balance, fn _account -> %{available: Money.new(22_500, :USD)} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      assert has_element?(lv, "#widget-runner-billed", "0.00")
+      refute has_element?(lv, "#widget-runner-billed", "67.50")
+    end
+
+    test "shows the shortfall when the balance does not cover the period", %{conn: conn, account: account} do
+      # 67.50$ of usage against a 20.00$ balance.
+      stub(Prepaid, :balance, fn _account -> %{available: Money.new(2_000, :USD)} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      assert has_element?(lv, "#widget-runner-billed", "47.50")
+    end
+
+    test "shows the usage charge itself for an account with no credit", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      assert has_element?(lv, "#widget-runner-billed", "67.50")
     end
   end
 
