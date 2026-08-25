@@ -405,8 +405,14 @@ defmodule TuistWeb.UsageLive do
   """
   def included_credit_label(%{included_minutes: nil}), do: "—"
 
-  def included_credit_label(%{gross: gross, billed: billed}) when not is_nil(gross) do
-    "−" <> CldrHelpers.format_money(Money.subtract(gross, billed))
+  def included_credit_label(%{gross: gross, trial_covered: trial_covered, billed: billed}) when not is_nil(gross) do
+    # What a trial covered has a credit line of its own, so the allowance
+    # only ever takes money off what was left billable after it. Reading
+    # this off gross would subtract the trial twice.
+    gross
+    |> Money.subtract(trial_covered)
+    |> Money.subtract(billed)
+    |> credit_label()
   end
 
   def included_credit_label(_row), do: "—"

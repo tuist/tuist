@@ -267,6 +267,49 @@ defmodule TuistWeb.UsageLiveTest do
     end
   end
 
+  describe "runner usage after a trial ends mid-period" do
+    test "credits the trial and the allowance separately", %{conn: conn, account: account} do
+      # The allowance line was rendered as gross minus billed, which is
+      # the trial's credit and the allowance's added together. A period
+      # part-covered by a trial therefore subtracted the trial twice and
+      # the receipt stopped adding up.
+      disable_kura(account)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+
+      breakdown = %{
+        billed_breakdown()
+        | trial_covered: Money.new(3_000, :USD),
+          billed: Money.new(3_750, :USD),
+          platforms: [
+            %{
+              id: "macos",
+              platform: :macos,
+              minutes: 1_000,
+              projected_minutes: 1_000,
+              included_minutes: 100,
+              previous_minutes: 0,
+              gross: Money.new(7_500, :USD),
+              trial_covered: Money.new(3_000, :USD),
+              billed: Money.new(3_750, :USD)
+            }
+          ]
+      }
+
+      stub(Allowance, :period_breakdown, fn _account -> breakdown end)
+      stub(Allowance, :period_breakdown, fn _account, _period -> breakdown end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      html = render(lv)
+
+      # 75.00$ run, 30.00$ of it covered by the trial, 7.50$ of the rest
+      # covered by the allowance, 37.50$ billed.
+      assert html =~ "−30.00"
+      assert html =~ "−7.50"
+      assert html =~ "37.50"
+    end
+  end
+
   describe "Kura feature flag gate" do
     test "raises 404 when Kura is not enabled for the account", %{conn: conn, account: account} do
       disable_kura(account)
