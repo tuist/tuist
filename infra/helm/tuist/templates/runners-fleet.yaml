@@ -8,12 +8,21 @@ this chart a MachineTemplate rename is not free.
 */ -}}
 {{- define "tuist.runnersFleet.machineSpec" -}}
 {{- $machine := .machine | default dict -}}
+{{- /*
+`toString` on the string-typed fields restores what the pre-helper form
+got from `| quote`. A values file is safe either way — YAML already
+hands `type: "26"` over as a Go string and toYaml re-quotes it — but
+`--set runnersFleet.machine.type=26` coerces to an integer, which toYaml
+emits bare and the CRD's `type: string` then rejects at apply time.
+Nothing in the deploy workflow sets these keys, so this is belt and
+braces; it leaves today's render byte-identical.
+*/ -}}
 {{- $spec := dict
-      "type" ($machine.type | default "M2-L")
-      "zone" ($machine.zone | default "fr-par-1")
-      "os" ($machine.os | default "Tahoe")
-      "fleetName" .fleetName
-      "adoptPoolPrefix" .adoptPoolPrefix
+      "type" ($machine.type | default "M2-L" | toString)
+      "zone" ($machine.zone | default "fr-par-1" | toString)
+      "os" ($machine.os | default "Tahoe" | toString)
+      "fleetName" (.fleetName | toString)
+      "adoptPoolPrefix" (.adoptPoolPrefix | toString)
 -}}
 {{- /*
 `with` is right for the sizing fields: 0 is nonsense for all of them

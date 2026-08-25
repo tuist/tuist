@@ -347,19 +347,15 @@ func (r *AutoscalerReconciler) fleetCapacity(ctx context.Context, pool *tuistv1.
 // container), so its cost is the Pod's memory request and nothing
 // else — the same request kube-scheduler bin-packs against the Node's
 // allocatable.
+// A zero cost is NOT an error here. It is reported to the caller, which
+// drops that one pool from the allocation instead of failing the whole
+// call — see gatherFleetDemands. An error from this function freezes
+// every pool in the capacity domain, which is the right response to an
+// unreadable RuntimeClass (scaling without known admission overhead
+// could overcommit the fleet) and much too broad for one pool with a
+// bad number in its own spec.
 func (r *AutoscalerReconciler) perPodCost(ctx context.Context, pool *tuistv1.RunnerPool) (int64, error) {
 	cost := int64(pool.Spec.PodMemoryMB) * 1024 * 1024
-
-	// A costless Pod would consume none of the shared budget, so the
-	// allocator would hand this pool its whole target and still believe
-	// the fleet was empty — every sibling then gets squeezed against
-	// capacity that is already spoken for. The CRD defaults
-	// podMemoryMB, so reaching here means the field was explicitly
-	// zeroed; refuse rather than allocate on a number that cannot be
-	// true. Callers route this to "leave replicas unchanged".
-	if cost <= 0 {
-		return 0, fmt.Errorf("%w: pool %q declares no podMemoryMB", errPodCostUnavailable, pool.Name)
-	}
 
 	if pool.Spec.RuntimeClass == "" {
 		return cost, nil
@@ -425,6 +421,33 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 		cost, err := r.perPodCost(ctx, p)
 		if err != nil {
 			return nil, fmt.Errorf("calculate per-Pod cost for %q: %w", p.Name, err)
+		}
+
+		// A costless Pod would consume none of the shared budget, so
+		// the allocator would grant this pool its whole target while
+		// still believing the fleet empty, and its siblings would then
+		// be squeezed against capacity that is already spoken for.
+		//
+		// Drop just this pool rather than failing the batch. Returning
+		// an error here would take the errPodCostUnavailable path in
+		// allocate and freeze EVERY pool sharing the OS + fleetSelector
+		// at its current replica count, visible only as a log line — one
+		// mis-set pool would quietly stop the whole fleet responding to
+		// queue depth. A dropped pool falls back to its own per-pool
+		// target (desiredForPool finds no allocation for it), which is
+		// the same treatment a pool with autoscaling off already gets.
+		//
+		// The cost is checked after RuntimeClass overhead is folded in,
+		// so a Linux pool that legitimately derives its whole cost from
+		// kata's podFixed memory is unaffected. Reaching zero means both
+		// are absent, which the CRD's podMemoryMB default makes hard to
+		// do by accident.
+		if cost <= 0 {
+			logger := log.FromContext(ctx)
+			logger.Error(errPodCostUnavailable,
+				"pool declares no per-Pod cost; excluding it from fleet allocation and leaving it on its per-pool target",
+				"pool", p.Name, "podMemoryMB", p.Spec.PodMemoryMB, "runtimeClass", p.Spec.RuntimeClass)
+			continue
 		}
 
 		demands = append(demands, scaling.PoolDemand{

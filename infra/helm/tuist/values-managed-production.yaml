@@ -900,11 +900,24 @@ runnersFleet:
   # both and the autoscaler sums one budget — but its own
   # MachineDeployment because the SKU differs.
   #
-  # One M4-XL today. Adoption filters on (type, zone, os), so this group
-  # can only ever claim an M4-XL out of the shared `tuist-pool-` prefix
-  # and cannot take an M2-L another group is waiting on. Growing it is:
-  # order N more M4-XL minis named `tuist-pool-*`, bump hostCount, and
-  # raise every `xcodeOverrides[*].maxReplicas` below by 2N.
+  # PRECONDITION: hostCount must never exceed the number of M4-XL minis
+  # already parked under `tuist-pool-` in fr-par-1 with their reinstall
+  # finished. Adoption is SKU-exact — the controller passes this group's
+  # `type` straight into AdoptFromPool — so it cannot fall back to an
+  # M2-L another group is waiting on. With no adoptable host the Machine
+  # sits on `NoAvailableHost` and the MachineDeployment stays at 0/1;
+  # because the chart deploys under `--atomic --wait --timeout 60m`,
+  # that is an hour of hung deploy followed by a production rollback.
+  # Same trap as the kura cold-start note in
+  # infra/cluster-api-provider-tuist/AGENTS.md.
+  #
+  # Order of operations, every time: park the minis FIRST, then raise
+  # hostCount, then deploy. Never the reverse. Growing it is: order N
+  # more M4-XL minis named `tuist-pool-*`, bump hostCount, and raise
+  # every `xcodeOverrides[*].maxReplicas` below by 2N.
+  #
+  # At 1 because one M4-XL is provisioned; maxReplicas moved 9 -> 11 in
+  # the same change.
   #
   # Two guests per host, at the same 6 vCPU / 14 GB shape the M2-L
   # runs — customers see an identical runner, the host just fits two.
@@ -966,13 +979,26 @@ runnersFleet:
         # would show.
         hostCPU: 12
         hostMemoryMB: 28672
-        # 2 guests x 2 — each guest slot can transiently hold its running
-        # Pod plus the predecessor GC has not collected yet, which is
-        # what a live single-guest node was observed doing. No slot for
-        # hcloud-csi-node: it is kept off macOS by a `kubernetes.io/os
-        # NotIn [darwin]` nodeAffinity, verified zero across all 15
-        # macOS Nodes.
-        maxPods: 4
+        # 2 guests x 2 + 1: each guest slot can transiently hold its
+        # running Pod plus the predecessor GC has not collected yet
+        # (observed on a live single-guest node), and the +1 keeps the
+        # same slot of margin the single-guest hosts get at 3 rather
+        # than parking the M4 exactly at its ceiling in precisely that
+        # worst case.
+        #
+        # Margin is free here and its absence is not. hostCPU 12 and
+        # hostMemoryMB 28672 both bind the guest count at 2, so a higher
+        # maxPods admits no extra guest; but at the ceiling the node
+        # rejects Pods with "Too many pods" while
+        # macosFleetAllocatableMemory still counts both its slots as
+        # available, so the allocator keeps targeting a node that cannot
+        # take them until GC catches up (bounded, ~60s per
+        # pod_lifecycle_controller.go, but pointless to invite).
+        #
+        # No slot for hcloud-csi-node: it is kept off macOS by a
+        # `kubernetes.io/os NotIn [darwin]` nodeAffinity, verified zero
+        # across all 15 macOS Nodes.
+        maxPods: 5
         guestCapacity: 2
         # 240 GiB against the M2-L's 80. Not a nicety — at 80 the dual
         # guest host would hold FEWER hot accounts than a single-guest

@@ -659,13 +659,20 @@ reflected in `desiredHostConfigHash`:
 | `guestCapacity` | The per-guest host resources: the VNC relay port range and the disk-pressure goldens floor. Declares intent; creates no capacity |
 | `runnerCacheVolumeGiB` | The per-account cache volume's quota, which tracks the SKU's disk |
 
-`maxPods` is sized as guests x 2 because a Pod stays bound to its Node
-after it finishes: each guest slot can transiently hold its running Pod
-plus a predecessor GC has not collected yet (observed on the live fleet
-2026-08-25 — a single-guest host carrying one Running and one Succeeded
-Pod). It is not where the SLA is enforced, and does not need to be: Tart
-refuses a third VM and `hostCPU`/`hostMemoryMB` bind the guest count
-first. Nothing is reserved for host-system Pods — `hcloud-csi-node`, the
+`maxPods` is sized as guests x 2 + 1 because a Pod stays bound to its
+Node after it finishes: each guest slot can transiently hold its running
+Pod plus a predecessor GC has not collected yet (observed on the live
+fleet 2026-08-25 — a single-guest host carrying one Running and one
+Succeeded Pod), and the +1 is margin. So 3 for a single-guest host, 5
+for a dual-guest one.
+
+Keep that margin. It is not where the SLA is enforced and does not need
+to be — Tart refuses a third VM and `hostCPU`/`hostMemoryMB` bind the
+guest count first, so a higher value admits no extra guest. But a node
+sitting exactly at its ceiling rejects Pods with `Too many pods` while
+`macosFleetAllocatableMemory` still counts its slots as available, so
+the autoscaler keeps targeting a node that cannot take them until GC
+catches up. Nothing is reserved for host-system Pods — `hcloud-csi-node`, the
 usual suspect, is kept off macOS by a `kubernetes.io/os NotIn [darwin]`
 required nodeAffinity rather than by the macOS taint, which its blanket
 `Exists` tolerations ignore.

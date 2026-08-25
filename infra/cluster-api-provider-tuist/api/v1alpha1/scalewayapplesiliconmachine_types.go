@@ -128,9 +128,15 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// its slot until GC collects it. Measured on the live fleet
 	// (2026-08-25): a single-guest host was carrying its Running Pod
 	// plus the previous rollout's Succeeded one. So size this as
-	// guests x 2: each guest slot can transiently hold its running Pod
-	// and one not-yet-collected predecessor. 3 for a single-guest host
-	// (2, plus a spare), 4 for a dual-guest one.
+	// guests x 2 + 1: each guest slot can transiently hold its running
+	// Pod and one not-yet-collected predecessor, and the +1 is margin.
+	// 3 for a single-guest host, 5 for a dual-guest one.
+	//
+	// Keep the margin. HostCPU/HostMemoryMB bind the guest count before
+	// MaxPods does, so a higher value admits no extra guest; but a node
+	// sitting exactly at its ceiling rejects Pods with "Too many pods"
+	// while the autoscaler still counts its slots as available, so it
+	// keeps targeting a node that cannot take them until GC catches up.
 	//
 	// No allowance for host-system Pods. hcloud-csi-node, the usual
 	// suspect, is kept off macOS by a `kubernetes.io/os NotIn [darwin]`

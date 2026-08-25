@@ -823,3 +823,102 @@ func TestAutoscaler_MacosFleetGrantsHeadroomWhenSlotsAvailable(t *testing.T) {
 		t.Errorf("a Replicas = %d, want 5 (full speculative buffer granted)", gotA.Spec.Replicas)
 	}
 }
+
+// A pool with no per-Pod cost must not take its siblings down with it.
+// perPodCost returning an error freezes every pool in the capacity
+// domain at its current replicas — correct for an unreadable
+// RuntimeClass, far too broad for one pool with a bad number in its own
+// spec. The costless pool is dropped from the allocation; its siblings
+// keep allocating normally.
+func TestAutoscaler_CostlessPoolDoesNotFreezeItsSiblings(t *testing.T) {
+	const fleet = "runners-macos"
+	healthy := macosFleetPool("macos-healthy", fleet, 1, 1, 5)
+	broken := macosFleetPool("macos-broken", fleet, 3, 1, 5)
+	broken.Spec.PodMemoryMB = 0
+
+	nodes := []client.Object{
+		macosNodeWithGuests("mac-1", fleet, 1),
+		macosNodeWithGuests("mac-2", fleet, 2),
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	objs := append([]client.Object{healthy, broken}, nodes...)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objs...).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	signalsByFleet := map[string]scaling.Signals{
+		"macos-healthy": {Fleet: "macos-healthy", Claimed: 0, Queued: 0, P95ConcurrentLastHour: 2},
+		"macos-broken":  {Fleet: "macos-broken", Claimed: 0, Queued: 0, P95ConcurrentLastHour: 0},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(signalsByFleet[r.URL.Query().Get("fleet")])
+	}))
+	defer server.Close()
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	_ = os.WriteFile(tokenPath, []byte("test-token"), 0o600)
+	sc := scaling.NewClient(server.URL)
+	sc.TokenPath = tokenPath
+
+	r := &AutoscalerReconciler{
+		Client:        fakeClient,
+		Scheme:        scheme,
+		SignalsClient: sc,
+		PollInterval:  time.Millisecond,
+	}
+
+	reconcileOnce(t, r, "macos-healthy")
+
+	got := &tuistv1.RunnerPool{}
+	if err := fakeClient.Get(context.Background(),
+		client.ObjectKey{Name: "macos-healthy", Namespace: "tuist-runners"}, got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+
+	// 3 slots, sibling excluded, so the healthy pool gets its full
+	// per-pool target (p95 2 + floor 1 = 3). Frozen-at-current would
+	// have left it on the 1 it started with.
+	if got.Spec.Replicas != 3 {
+		t.Fatalf("healthy pool Replicas = %d, want 3; a sibling with no podMemoryMB froze the whole capacity domain",
+			got.Spec.Replicas)
+	}
+}
+
+// Kata's podFixed overhead is a legitimate source of per-Pod cost, so a
+// Linux pool declaring podMemoryMB: 0 alongside a RuntimeClass still has
+// a real cost and must keep allocating. The zero check runs after the
+// overhead is folded in for exactly this reason.
+func TestAutoscaler_PerPodCostCountsRuntimeClassOverheadOnZeroRequest(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 0, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+
+	rc := &nodev1.RuntimeClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "kata-qemu"},
+		Handler:    "kata-qemu",
+		Overhead: &nodev1.Overhead{
+			PodFixed: corev1.ResourceList{
+				corev1.ResourceMemory: *resource.NewQuantity(256*1024*1024, resource.BinarySI),
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(pool, rc).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	cost, err := r.perPodCost(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("perPodCost: %v", err)
+	}
+	if want := int64(256 * 1024 * 1024); cost != want {
+		t.Fatalf("perPodCost = %d, want the RuntimeClass overhead %d", cost, want)
+	}
+}

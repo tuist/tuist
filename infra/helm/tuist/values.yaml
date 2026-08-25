@@ -1462,10 +1462,12 @@ macosFleet:
     # a real guest slot until GC catches up, too high admits nothing
     # extra — so size it for the worst case and move on.
     #
-    # 3 for a single-guest host: 1 guest x 2 (running + terminal),
-    # plus one spare. That also keeps the xcresult-processor's rolling
-    # update converging, which needs old(1) + new(1) simultaneously
-    # under maxSurge=1 / maxUnavailable=0.
+    # The rule is guests x 2 + 1. 3 for a single-guest host: 1 guest x 2
+    # (running + uncollected predecessor), plus one of margin — which on
+    # the macosFleet also happens to be what keeps the xcresult-
+    # processor's rolling update converging, since maxSurge=1 /
+    # maxUnavailable=0 needs old(1) + new(1) at once. A dual-guest host
+    # is 5 by the same rule.
     hostCPU: 8
     hostMemoryMB: 14336
     maxPods: 3
@@ -1842,9 +1844,14 @@ runnersFleet:
     hostMemoryMB: ~
     # Node-level Pod ceiling. Counts EVERY Pod bound to the Node, and a
     # terminal Pod keeps its slot until GC collects it, so size this as
-    # guests x 2 — each guest slot can transiently hold its running Pod
-    # plus one not-yet-collected predecessor. 3 for a single-guest host
-    # (2, plus a spare), 4 for a dual-guest one.
+    # guests x 2 + 1 — each guest slot can transiently hold its running
+    # Pod plus one not-yet-collected predecessor, and the +1 is margin.
+    # 3 for a single-guest host, 5 for a dual-guest one.
+    #
+    # Keep the margin. hostCPU/hostMemoryMB bind the guest count before
+    # maxPods does, so a higher value admits no extra guest; but a node
+    # sitting at its ceiling rejects Pods with "Too many pods" while the
+    # autoscaler still counts its slots as available.
     #
     # No allowance for host-system Pods: hcloud-csi-node is kept off
     # macOS by a `kubernetes.io/os NotIn [darwin]` nodeAffinity (its
@@ -1901,7 +1908,7 @@ runnersFleet:
   #         os: Tahoe
   #         hostCPU: 12                # of 14; ~2 for the host
   #         hostMemoryMB: 28672        # 2 x the 14336 MB pod shape
-  #         maxPods: 4                 # csi + 2 guests + churn
+  #         maxPods: 5                 # guests x 2 + 1 (see maxPods above)
   #         guestCapacity: 2
   #         runnerCacheVolumeGiB: 240
   machineGroups: []
