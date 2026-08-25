@@ -301,11 +301,15 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       test_case_id = UUIDv7.generate()
       RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "legacy_reliability")
 
-      RunsFixtures.test_case_run_fixture(
-        project_id: project.id,
-        test_case_id: test_case_id,
-        status: "failure"
-      )
+      # Enough runs to clear the scoped sample floor, all failing, so the rate is
+      # 0% and only the comparison direction decides whether this fires.
+      for _ <- 1..10 do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: "failure"
+        )
+      end
 
       alert =
         AutomationsFixtures.automation_alert_fixture(
@@ -1322,11 +1326,12 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
     test "a reliability alert ignores failures that only happened off the default branch" do
       project = ProjectsFixtures.project_fixture()
 
-      # Passes on the default branch, fails on a pull-request branch. Measured
-      # over every branch this test case is 50% reliable and trips a 90%
-      # threshold; measured on the trunk it is 100% and does not.
-      run_test_case(project, "main", "success")
-      run_test_case(project, "feature/wip", "failure")
+      # Ten passing trunk runs clear the sample floor and put this test case at
+      # 100% on the default branch. The four failures on a pull-request branch
+      # would drag it to 71% measured across every branch, under the 90%
+      # threshold.
+      for _ <- 1..10, do: run_test_case(project, "main", "success")
+      for _ <- 1..4, do: run_test_case(project, "feature/wip", "failure")
 
       {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
 
@@ -1339,22 +1344,50 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
 
       assert %{triggered: []} = FlakyTestsMonitor.evaluate_by_reliability_rate(scoped)
 
-      # The failure is still on record; it is the scoping that excluded it, not
-      # the run having gone missing. The all-branch aggregate holds both runs and
-      # would put this test case at 50%, under the 90% threshold.
+      # The failures are still on record; it is the scoping that excluded them,
+      # not the runs having gone missing.
       assert aggregate_runs("test_case_run_daily_stats_per_case", project.id, test_case.id) ==
-               {2, 1}
+               {14, 10}
 
       assert aggregate_runs("test_case_run_daily_stats_per_case_default_branch", project.id, test_case.id) ==
-               {1, 1}
+               {10, 10}
+    end
+
+    test "a reliability alert does not act on a trunk sample too small to describe" do
+      project = ProjectsFixtures.project_fixture()
+
+      # One failing trunk run is 0% reliable, which trips any threshold. The
+      # calendar window has no natural minimum, so without the sample floor this
+      # would quarantine a test on a single run — and every project starts here,
+      # since nothing backfills the scoped aggregate.
+      run_test_case(project, "main", "failure")
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d"}
+        )
+
+      assert %{triggered: []} = FlakyTestsMonitor.evaluate_by_reliability_rate(alert)
+      assert FlakyTestsMonitor.measurable_test_case_ids(alert, [test_case.id]) == []
+
+      # It becomes measurable, and fires, once the window holds enough runs.
+      for _ <- 1..9, do: run_test_case(project, "main", "failure")
+
+      assert FlakyTestsMonitor.measurable_test_case_ids(alert, [test_case.id]) == [test_case.id]
+      assert %{triggered: [triggered_id]} = FlakyTestsMonitor.evaluate_by_reliability_rate(alert)
+      assert triggered_id == test_case.id
     end
 
     test "a project whose default branch is master scopes to master, not to main" do
       project = ProjectsFixtures.project_fixture()
       {:ok, project} = Tuist.Projects.update_project(project, %{default_branch: "master"})
 
-      run_test_case(project, "master", "success")
-      run_test_case(project, "main", "failure")
+      for _ <- 1..10, do: run_test_case(project, "master", "success")
+      for _ <- 1..4, do: run_test_case(project, "main", "failure")
 
       scoped =
         AutomationsFixtures.automation_alert_fixture(
@@ -1450,7 +1483,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
     test "a scoped alert measures a test case once it has run on the default branch" do
       project = ProjectsFixtures.project_fixture()
 
-      run_test_case(project, "main", "success")
+      for _ <- 1..10, do: run_test_case(project, "main", "success")
       {[on_branch], _meta} = Tests.list_test_cases(project.id, %{})
 
       alert =

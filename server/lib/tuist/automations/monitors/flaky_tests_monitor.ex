@@ -108,6 +108,21 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   @all_branches_daily_table "test_case_run_daily_stats_per_case"
   @all_branches_recent_window_table "test_case_runs_recent_window_per_case"
 
+  # A calendar window has no natural minimum the way a rolling window does: it
+  # will happily compute a rate off whatever landed in it. That was tolerable
+  # while reliability read every branch, where a 30-day window holds a test
+  # case's whole run history. Scoping to the trunk cuts each sample to a
+  # fraction of that — the default branch is 13.3% of runs on the production
+  # project this was measured against — and the aggregate also starts empty,
+  # since nothing backfills it.
+  #
+  # Ten is where one failure sits exactly on the common 90% threshold rather
+  # than under it, so a single bad run cannot by itself quarantine a test. Below
+  # the floor a test case is not measured at all, which is the same answer the
+  # rolling path gives an unfilled window, and `measurable_test_case_ids/2`
+  # keeps recovery from reading that silence as the condition clearing.
+  @min_scoped_samples 10
+
   @doc """
   Which runs an alert measures.
 
@@ -153,8 +168,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     end
   end
 
+  # Applies the same floor the trigger query does, so "measurable" means one
+  # thing on both paths. A test case with runs but not enough of them is no more
+  # recoverable than one with none.
   defp measured_in_calendar_window(alert, seconds, test_case_ids) do
-    cutoff = window_cutoff_date(alert.project_id, :default_branch, seconds)
+    cutoff = window_cutoff_date(seconds)
 
     ClickHouseRepo.all(
       from(daily in {@default_branch_daily_table, TestCaseRunDailyStatsPerCase},
@@ -162,7 +180,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
         where: daily.date >= ^cutoff,
         where: daily.test_case_id in ^test_case_ids,
         group_by: daily.test_case_id,
-        having: fragment("countMerge(run_count) > 0"),
+        having: fragment("countMerge(run_count) >= ?", ^@min_scoped_samples),
         select: daily.test_case_id
       )
     )
@@ -176,6 +194,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     |> rolling_measurements(:default_branch, matching_flag(alert.monitor_type), size, test_case_ids)
     |> Enum.map(&elem(&1, 0))
   end
+
+  defp apply_sample_floor(query, :all_branches), do: query
+
+  defp apply_sample_floor(query, :default_branch),
+    do: having(query, fragment("countMerge(run_count) >= ?", ^@min_scoped_samples))
 
   defp daily_stats_source(:default_branch), do: @default_branch_daily_table
   defp daily_stats_source(:all_branches), do: @all_branches_daily_table
@@ -197,10 +220,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
           source
           |> flakiness_rate_last_days_query(
             project_id,
-            window_cutoff_date(project_id, scope, seconds),
+            window_cutoff_date(seconds),
             threshold,
             comparison
           )
+          |> apply_sample_floor(scope)
           |> filter_test_case_ids(test_case_ids)
           |> ClickHouseRepo.all()
 
@@ -225,10 +249,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
           source
           |> flaky_run_count_last_days_query(
             project_id,
-            window_cutoff_date(project_id, scope, seconds),
+            window_cutoff_date(seconds),
             threshold,
             comparison
           )
+          |> apply_sample_floor(scope)
           |> filter_test_case_ids(test_case_ids)
           |> ClickHouseRepo.all()
 
@@ -261,10 +286,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
           source
           |> reliability_rate_last_days_query(
             project_id,
-            window_cutoff_date(project_id, scope, seconds),
+            window_cutoff_date(seconds),
             threshold,
             comparison
           )
+          |> apply_sample_floor(scope)
           |> filter_test_case_ids(test_case_ids)
           |> ClickHouseRepo.all()
 
@@ -313,37 +339,10 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # cutoff to the start of the day. A 30-day window evaluated mid-day picks
   # up a few hours of additional data on day -30 — acceptable for
   # threshold-based alerts and well within the noise of test-run timing.
-  #
-  # A default-branch-scoped alert is clamped to the oldest date its aggregate
-  # holds for the project. That table was seeded over a trailing window rather
-  # than all history, so a longer configured window would otherwise read the
-  # seam as "no runs" and report a rate off a partially seeded range — which for
-  # reliability reads as a collapse rather than as missing data. Measuring the
-  # window that exists is narrower than the user asked for and says so; the
-  # clamp lifts on its own as the view fills forward.
-  defp window_cutoff_date(project_id, scope, window_seconds) do
-    requested =
-      DateTime.utc_now()
-      |> DateTime.add(-window_seconds, :second)
-      |> DateTime.to_date()
-
-    case scope do
-      :all_branches -> requested
-      :default_branch -> clamp_to_available_history(project_id, requested)
-    end
-  end
-
-  defp clamp_to_available_history(project_id, requested) do
-    query =
-      from(daily in {@default_branch_daily_table, TestCaseRunDailyStatsPerCase},
-        where: daily.project_id == ^project_id,
-        select: min(daily.date)
-      )
-
-    case ClickHouseRepo.one(query) do
-      %Date{} = floor_date -> if Date.after?(floor_date, requested), do: floor_date, else: requested
-      _no_rows -> requested
-    end
+  defp window_cutoff_date(window_seconds) do
+    DateTime.utc_now()
+    |> DateTime.add(-window_seconds, :second)
+    |> DateTime.to_date()
   end
 
   # Ecto's `fragment(...)` macro requires a literal first argument to prevent
