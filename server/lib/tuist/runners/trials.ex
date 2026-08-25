@@ -32,6 +32,14 @@ defmodule Tuist.Runners.Trials do
   the amount accrued before they existed. Without it the default
   proration can invoice exactly the minutes the trial was covering.
 
+  That holds for whole days, and the day the trial ends needs one thing
+  more. Usage is reported as one meter event per UTC day, stamped at the
+  day's end, which postdates the item a mid-day cancellation adds — so
+  an unsplit day is invoiced entire. `Billing.usage_windows/3` therefore
+  treats `runner_trial_ended_at` as a service-period boundary and cuts
+  that day in two, leaving the trial's own minutes in an event stamped
+  before the item existed.
+
   On `billing_mode=classic` this is belt and braces, since adding a
   meter-priced item mid-cycle already bills only from the date it was
   added. On `flexible`, where Stripe otherwise prices usage at whatever

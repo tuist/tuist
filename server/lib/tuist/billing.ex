@@ -190,6 +190,11 @@ defmodule Tuist.Billing do
   row is no longer active or trialing, yet its final cycle is exactly the
   one being reported.
 
+  The end of a runner trial is a boundary for the same reason. It adds
+  the runner item part-way through a day, and an unsplit day is stamped
+  after that item exists, so Stripe bills the whole day including the
+  minutes the trial still covered. See `trial_boundaries/1`.
+
   Returns `{:ok, windows}`, or `{:error, reason}` when Stripe cannot be
   reached. An unknown boundary is not the same as no boundary: on a
   renewal or cancellation day, treating it as none would permanently
@@ -201,12 +206,27 @@ defmodule Tuist.Billing do
   def usage_windows(%Account{} = account, %DateTime{} = period_start, %DateTime{} = period_end) do
     case service_period_boundaries(account) do
       {:ok, boundaries} ->
-        {:ok, split_window(period_start, period_end, boundaries)}
+        {:ok, split_window(period_start, period_end, boundaries ++ trial_boundaries(account))}
 
       {:error, reason} ->
         {:error, reason}
     end
   end
+
+  # A runner trial ends by adding the runner item to the subscription
+  # mid-day. The day's usage is reported as a single event stamped at the
+  # day's end, which postdates the item, so Stripe invoices the whole day
+  # — including the minutes the trial was still covering when they ran.
+  # Cutting the day here gives those minutes an event of their own,
+  # stamped before the item existed, which is what makes the guarantee in
+  # `Tuist.Runners.Trials` hold on the day a trial ends and not only on
+  # the days before it.
+  #
+  # Read locally rather than from Stripe: it is our own record of when
+  # the account stopped being on a trial, and the subscription carries no
+  # trace of when its runner item was added.
+  defp trial_boundaries(%Account{runner_trial_ended_at: nil}), do: []
+  defp trial_boundaries(%Account{runner_trial_ended_at: ended_at}), do: [ended_at]
 
   defp split_window(period_start, period_end, boundaries) do
     cuts =
