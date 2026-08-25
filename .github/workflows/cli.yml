@@ -114,8 +114,9 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.cache/swifterpm
-          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
+            ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-
             ${{ runner.os }}-swifterpm-
       - name: Inspect swifterpm store (after restore)
         run: |
@@ -135,7 +136,12 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions --cached-directory-materialization symlink
+        run: |
+          env -u GITHUB_RUN_ID -u GITHUB_RUN_NUMBER -u GITHUB_RUN_ATTEMPT \
+              -u GITHUB_SHA -u GITHUB_WORKFLOW_SHA -u GITHUB_ACTION \
+              -u GITHUB_ENV -u GITHUB_PATH -u GITHUB_OUTPUT -u GITHUB_STATE \
+              -u GITHUB_STEP_SUMMARY -u RUNNER_NAME -u RUNNER_TRACKING_ID \
+              tuist install --force-resolved-versions
       - name: Inspect swifterpm store (after install)
         run: |
           du -sh ~/.cache/swifterpm 2>/dev/null || true
@@ -171,8 +177,9 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: ~/.cache/swifterpm
-          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
+            ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-
             ${{ runner.os }}-swifterpm-
       - uses: jdx/mise-action@v4.0.1
         with:
@@ -219,8 +226,9 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: ~/.cache/swifterpm
-          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
+            ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-
             ${{ runner.os }}-swifterpm-
       - uses: jdx/mise-action@v4.0.1
         with:
@@ -269,8 +277,9 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: ~/.cache/swifterpm
-          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
+            ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-
             ${{ runner.os }}-swifterpm-
       - uses: jdx/mise-action@v4.0.1
         with:
@@ -316,8 +325,9 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: ~/.cache/swifterpm
-          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
+            ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-
             ${{ runner.os }}-swifterpm-
       - uses: jdx/mise-action@v4.0.1
         with:
@@ -372,8 +382,9 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: ~/.cache/swifterpm
-          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
+            ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-
             ${{ runner.os }}-swifterpm-
       - uses: jdx/mise-action@v4.0.1
         with:
@@ -425,8 +436,9 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: ~/.cache/swifterpm
-          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
+            ${{ runner.os }}-swifterpm-${{ hashFiles('Package.resolved') }}-
             ${{ runner.os }}-swifterpm-
       - uses: jdx/mise-action@v4.0.1
         with:
