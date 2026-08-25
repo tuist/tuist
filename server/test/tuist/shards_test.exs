@@ -218,6 +218,107 @@ defmodule Tuist.ShardsTest do
       refute Enum.any?(regular.download_urls, &String.ends_with?(&1, "/modules/NewTests.aar"))
     end
 
+    test "collapses to a single catch-all shard that discards its own suite assignment" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      # Only "AppTests" has suite history, and only one suite of it. "NewTests" is built and
+      # uploaded but has never reported a module run, so it resolves no suites at all.
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [%{name: "LoginSuite", status: "success", duration: 10_000}]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "single-shard-collapse",
+        modules: ["AppTests", "NewTests"],
+        granularity: "suite",
+        shard_max: 4
+      }
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+      stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
+
+      result = Shards.create_shard_plan(project, params)
+
+      # A single resolvable unit caps the shard count at 1, even though 4 were allowed.
+      assert result.shard_count == 1
+
+      assert result.shard_assignments == [
+               %{"index" => 0, "test_targets" => ["AppTests/LoginSuite"], "estimated_duration_ms" => 10_000}
+             ]
+
+      # The plan records the assignment...
+      assert planned_suite_durations(result.plan) == %{"AppTests/LoginSuite" => 10_000}
+
+      # ...but with one shard, index 0 is also the catch-all, so the shard endpoint hands back no
+      # selection whatsoever: no -only-testing (suites/modules empty) and no -skip-testing (there
+      # are no earlier shards whose suites it would exclude).
+      assert {:ok, shard} =
+               Shards.get_shard(project, account, "single-shard-collapse", 0, suite_catch_all?: true)
+
+      assert shard.suites == %{}
+      assert shard.modules == []
+      assert shard.skip == []
+    end
+
+    test "emits an explicit selection for the same suite once a second unit exists" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      # Identical to the test above except that a second suite has history, so two units resolve.
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 10_000},
+              %{name: "SignupSuite", status: "success", duration: 10_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "two-unit-plan",
+        modules: ["AppTests", "NewTests"],
+        granularity: "suite",
+        shard_max: 4
+      }
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+      stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
+
+      result = Shards.create_shard_plan(project, params)
+      assert result.shard_count == 2
+
+      # Shard 0 is now a regular shard, so it selects its assigned suite with -only-testing instead
+      # of running unfiltered. Which of the two suites lands here is up to the bin packer.
+      assert {:ok, shard} = Shards.get_shard(project, account, "two-unit-plan", 0, suite_catch_all?: true)
+      assert %{"AppTests" => [selected]} = shard.suites
+      assert selected in ["LoginSuite", "SignupSuite"]
+    end
+
     test "does not append a catch-all shard for module granularity" do
       project = ProjectsFixtures.project_fixture()
 
