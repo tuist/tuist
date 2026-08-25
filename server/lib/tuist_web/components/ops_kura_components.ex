@@ -14,6 +14,8 @@ defmodule TuistWeb.OpsKuraComponents do
   Dispatches an operator verb from a LiveView `operate` event. Returns
   the verb result; unknown actions error rather than defaulting.
   """
+  def operate(nil, _action, _actor, _reason), do: {:error, :no_rollout}
+
   def operate(_rollout, action, _actor, _reason) when action in [nil, ""] do
     {:error, :no_action_selected}
   end
@@ -110,6 +112,8 @@ defmodule TuistWeb.OpsKuraComponents do
   outcome, not an internal error.
   """
   def operate_error_message(:no_action_selected, _action), do: "Choose an action to apply."
+
+  def operate_error_message(:no_rollout, _action), do: "There is no rollout to operate on."
 
   def operate_error_message(reason, action), do: "Could not #{action} the rollout: #{inspect(reason)}"
 

@@ -384,6 +384,13 @@ spec:
             - name: TUIST_KURA_ROLLOUT_EXPEDITE_TAG
               value: {{ .Values.kuraRuntime.rollout.expediteTag | quote }}
             {{- end }}
+            {{- if .Values.kuraRuntime.rollout.opsSlackWebhookSecret.name }}
+            - name: TUIST_OPS_SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kuraRuntime.rollout.opsSlackWebhookSecret.name | quote }}
+                  key: {{ .Values.kuraRuntime.rollout.opsSlackWebhookSecret.key | quote }}
+            {{- end }}
             - name: TUIST_KURA_TUIST_BASE_URL
               value: {{ printf "http://%s.%s.svc.cluster.local:%v" (include "tuist.componentName" (dict "root" . "component" "server")) .Release.Namespace (.Values.server.service.port | default 80) | quote }}
             {{- $redisUrl := include "tuist.redisUrl" . }}

@@ -33,6 +33,12 @@ const (
 	// volume. Promoting on readiness alone is what turns a warm move into a cold
 	// one.
 	backfillCycleComplete = "complete"
+
+	// backfillCycleDegraded is the runtime's "budget exhausted through real
+	// failures" mode. It is explicitly non-terminal — retries advance it to
+	// complete — so the rollout gate treats it as a soak reset rather than a
+	// hard stop.
+	backfillCycleDegraded = "degraded"
 )
 
 // evacuateMarkedNodes moves this instance's pods off nodes marked for

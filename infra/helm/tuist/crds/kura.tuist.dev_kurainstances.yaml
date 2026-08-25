@@ -230,6 +230,11 @@ spec:
                     backfillingPeers:
                       type: integer
                       format: int64
+                    backfillDegraded:
+                      type: boolean
+                    backfillBudgetExhaustedPeers:
+                      type: integer
+                      format: int64
                     outboxMessages:
                       type: integer
                       format: int64

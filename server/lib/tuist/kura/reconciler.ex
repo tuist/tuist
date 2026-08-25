@@ -89,7 +89,7 @@ defmodule Tuist.Kura.Reconciler do
       # hands the node the target tag outside its account's wave. A
       # freshly enabled account's node is created one step later in the
       # same tick and joins its wave on the next one.
-      schedule_runtime_rollout()
+      schedule_runtime_rollout_safely()
       RunnerCache.reconcile()
       # Converge account-region instances with cache demand next, for the same
       # reason: an account that just asked for cache enters the provisioning
@@ -106,6 +106,21 @@ defmodule Tuist.Kura.Reconciler do
 
       :ok
     end
+  end
+
+  # Rollout scheduling is the first step of the tick, so a raise here would
+  # skip every step after it — including the observation projection that
+  # server status is derived from. A stalled rollout is visible on
+  # /ops/kura; a stalled reconciler is not, so the rollout is contained
+  # rather than allowed to take the control plane down with it.
+  defp schedule_runtime_rollout_safely do
+    schedule_runtime_rollout()
+  rescue
+    error ->
+      Logger.error("[Kura.Reconciler] runtime rollout scheduling raised: #{Exception.message(error)}")
+
+      Sentry.capture_exception(error, stacktrace: __STACKTRACE__)
+      :ok
   end
 
   # Version scheduling has two paths (spec #79): the rollout

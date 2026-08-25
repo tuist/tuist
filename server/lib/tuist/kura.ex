@@ -28,6 +28,7 @@ defmodule Tuist.Kura do
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.Rollouts
   alias Tuist.Kura.Server
   alias Tuist.Kura.StorageClaims
   alias Tuist.Repo
@@ -487,7 +488,7 @@ defmodule Tuist.Kura do
   # instead of jumping straight to whatever tag the caller resolved. See
   # `Tuist.Kura.Rollouts.provisioning_image_tag/2`.
   defp inherit_rollout_image_tag(%{account_id: account_id, image_tag: image_tag} = attrs) when is_binary(image_tag) do
-    %{attrs | image_tag: Tuist.Kura.Rollouts.provisioning_image_tag(account_id, image_tag)}
+    %{attrs | image_tag: Rollouts.provisioning_image_tag(account_id, image_tag)}
   end
 
   defp inherit_rollout_image_tag(attrs), do: attrs
@@ -1406,6 +1407,14 @@ defmodule Tuist.Kura do
   history is visible in /ops alongside the retry.
   """
   def retry_server(%Server{status: :failed, current_image_tag: nil} = server, image_tag) when is_binary(image_tag) do
+    # A retry re-provisions from scratch, so it inherits the account's
+    # rollout wave state exactly like a fresh server does in
+    # `create_server/1`: the baseline tag until the account's wave
+    # completes, the target after. Resolved here rather than at each call
+    # site — the dashboard's Retry actions pass the configured runtime tag,
+    # which during a paused rollout is the tag flagged suspect.
+    image_tag = Rollouts.provisioning_image_tag(server.account_id, image_tag)
+
     with {:ok, region} <- Regions.fetch(server.region),
          {:ok, server} <- retry_server_transaction(server, region, image_tag) do
       server = Repo.preload(server, :deployments, force: true)
@@ -1720,16 +1729,29 @@ defmodule Tuist.Kura do
   """
   def create_deployment(%Server{} = server, image_tag, opts \\ []) when is_binary(image_tag) do
     with {:ok, region} <- Regions.fetch(server.region) do
-      Repo.transaction(fn ->
-        locked_server = lock_server_or_rollback(server)
+      # No `Repo.rollback/1` on the expected error paths, unlike the other
+      # deployment writers here. Callers run this inside a transaction of
+      # their own — `Tuist.Kura.Rollouts` mints deployments while holding
+      # the rollout row lock — and a nested rollback is not isolated: it
+      # aborts the outer transaction, so the caller's `{:error, reason}`
+      # arm never runs and its next statement raises, taking the rest of
+      # the reconcile tick with it. Nothing is written before the guards,
+      # so returning the error leaves the caller's transaction intact and
+      # releases the row lock when it commits.
+      case Repo.transaction(fn -> insert_locked_deployment(server, region, image_tag, opts) end) do
+        {:ok, inner} -> inner
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
 
-        with :ok <- ensure_no_open_deployment(locked_server.id),
-             {:ok, deployment} <- insert_deployment(locked_server, region, image_tag, opts) do
-          deployment
-        else
-          {:error, reason} -> Repo.rollback(reason)
-        end
-      end)
+  defp insert_locked_deployment(server, region, image_tag, opts) do
+    with %Server{} = locked_server <- lock_server(server.id, server.account_id),
+         :ok <- ensure_no_open_deployment(locked_server.id) do
+      insert_deployment(locked_server, region, image_tag, opts)
+    else
+      nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
     end
   end
 

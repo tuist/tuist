@@ -41,6 +41,8 @@ defmodule Tuist.Kura.RolloutsTest do
         serving: true,
         ring_consistent: true,
         backfilling_peers: 0,
+        backfill_degraded: false,
+        backfill_budget_exhausted_peers: 0,
         outbox_messages: 10,
         fd_timeout_count: 0,
         peer_connection_failures: 0,
@@ -156,6 +158,30 @@ defmodule Tuist.Kura.RolloutsTest do
       assert second.image_tag == "0.7.0"
     end
 
+    test "a server with an open install deployment does not abort the tick" do
+      # The rollout mints deployments while holding the rollout row lock, and
+      # `Kura.create_deployment/3` rolls back when the server already has one
+      # open. Without a savepoint that rollback aborts the outer transaction
+      # and every later step of the reconcile tick raises, so this server is
+      # left deliberately `:provisioning` with its install deployment open.
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: @baseline_tag})
+
+      assert Repo.get_by(Deployment, kura_server_id: server.id).status == :pending
+
+      assert :ok = Rollouts.sync()
+
+      # Scoped with no deployment of its own; `mint_missing_deployments/1`
+      # picks it up once the install closes.
+      rollout = Rollouts.active_rollout()
+      rollout_server = rollout_server(rollout, server)
+      assert rollout_server
+      assert is_nil(rollout_server.deployment_id)
+    end
+
     test "servers in retired regions are not scoped into the rollout" do
       %{server: server} = create_active_server()
 
@@ -240,6 +266,25 @@ defmodule Tuist.Kura.RolloutsTest do
       reloaded = Repo.get!(Rollout, rollout.id)
       assert reloaded.status == :paused
       assert reloaded.pause_reason == "memory_pressure_critical"
+    end
+
+    test "an expedited rollout that never converges pauses at the deadline" do
+      create_active_server()
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      assert rollout.mode == :expedited
+      assert rollout.wave_started_at
+
+      # Nothing converges (a deployment that never finishes). Without a clock
+      # the rollout would sit :running forever and the promotion gate would
+      # time out with nothing to point at.
+      rollout = back_date(rollout, :wave_started_at, 61 * 60)
+      assert :ok = Rollouts.sync()
+
+      rollout = Repo.get!(Rollout, rollout.id)
+      assert rollout.status == :paused
+      assert rollout.pause_reason == "wave_deadline_exceeded"
     end
 
     test "pauses on a terminal deployment failure" do
@@ -371,15 +416,21 @@ defmodule Tuist.Kura.RolloutsTest do
       assert rollout.pause_reason == "memory_pressure_critical"
     end
 
-    test "critical memory pressure pauses even for soak-ineligible servers" do
+    test "a soak-ineligible server's pre-existing sickness cannot pause the rollout" do
       %{account: canary_account, server: canary_server} = create_active_server()
+      # A second, healthy account so the wave still carries gate evidence.
+      create_active_server()
 
       stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
 
-      # Unhealthy at wave-schedule time: the server is excluded from the
-      # comparative soak.
-      stub(Provisioner, :rollout_health, fn _server ->
-        {:ok, healthy_health(%{ready: false, serving: false})}
+      # Already at critical pressure when the wave schedules, which is one of
+      # the conditions that makes a server soak-ineligible.
+      stub(Provisioner, :rollout_health, fn server ->
+        if server.id == canary_server.id do
+          {:ok, healthy_health(%{memory_pressure_state: 2})}
+        else
+          {:ok, healthy_health()}
+        end
       end)
 
       assert :ok = Rollouts.sync()
@@ -388,16 +439,14 @@ defmodule Tuist.Kura.RolloutsTest do
 
       {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
 
-      # The safety stop still applies to ungated servers.
-      stub(Provisioner, :rollout_health, fn _server ->
-        {:ok, healthy_health(%{memory_pressure_state: 2})}
-      end)
-
       assert :ok = Rollouts.sync()
 
+      # Sickness that pre-dates the wave is not attributed to the new image.
+      # Re-raising it here paused the rollout with no verb able to clear it,
+      # since resume only re-attempts servers that have not converged.
       rollout = Repo.get!(Rollout, rollout.id)
-      assert rollout.status == :paused
-      assert rollout.pause_reason == "memory_pressure_critical"
+      assert rollout.status == :running
+      assert is_nil(rollout.pause_reason)
     end
 
     test "a server reclaimed by the demand-driven lifecycle drops out of the wave" do
@@ -497,6 +546,102 @@ defmodule Tuist.Kura.RolloutsTest do
       rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
       assert :ok = Rollouts.sync()
       assert Repo.get!(Rollout, rollout.id).current_wave == 0
+    end
+  end
+
+  describe "the health gate arithmetic" do
+    setup do
+      stub(Tuist.Environment, :kura_rollout_pacing, fn -> "progressive" end)
+      :ok
+    end
+
+    # Drives one converged, soak-eligible server to the point where the gate
+    # is the only thing deciding, then reports whether the wave advanced.
+    # Each call mints its own rollout (a fresh target tag supersedes the
+    # previous one) so several verdicts can be taken in a single test.
+    defp gate_verdict(baseline_health, post_health) do
+      target = "0.6.#{System.unique_integer([:positive])}"
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> target end)
+
+      %{account: account, server: server} = create_active_server()
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(account.name)] end)
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, baseline_health} end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      assert rollout.image_tag == target
+      assert rollout_server(rollout, server).soak_eligible
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, server.id), target)
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, post_health} end)
+
+      assert :ok = Rollouts.sync()
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+
+      rollout = Repo.get!(Rollout, rollout.id)
+      if rollout.current_wave > 0, do: :passed, else: :held
+    end
+
+    test "outbox within the tolerance band passes and beyond it holds" do
+      # baseline 100 -> band is 100 + max(ceil(100/10), 50) = 150.
+      assert gate_verdict(healthy_health(%{outbox_messages: 100}), healthy_health(%{outbox_messages: 150})) ==
+               :passed
+
+      assert gate_verdict(healthy_health(%{outbox_messages: 100}), healthy_health(%{outbox_messages: 151})) ==
+               :held
+    end
+
+    test "failure counters tolerate the rollout's own reconnect churn" do
+      # A rollout restarts every pod, so a handful of new peer errors is
+      # expected; sustained growth past the band is not.
+      assert gate_verdict(
+               healthy_health(%{peer_connection_failures: 0}),
+               healthy_health(%{peer_connection_failures: 25})
+             ) == :passed
+
+      assert gate_verdict(
+               healthy_health(%{peer_connection_failures: 0}),
+               healthy_health(%{peer_connection_failures: 26})
+             ) == :held
+    end
+
+    test "a counter that went backwards after a restart is not a regression" do
+      assert gate_verdict(
+               healthy_health(%{fd_timeout_count: 90}),
+               healthy_health(%{fd_timeout_count: 3})
+             ) == :passed
+    end
+
+    test "a counter the aggregate never reported is not compared" do
+      # A runtime predating the counter reports nothing, so the baseline is
+      # unknown; the first reading from a newer runtime must not read as a
+      # regression from a baseline that was never measured.
+      assert gate_verdict(
+               healthy_health(%{peer_connection_failures: nil}),
+               healthy_health(%{peer_connection_failures: 40})
+             ) == :passed
+    end
+
+    test "each absolute condition holds the wave" do
+      for {label, overrides} <- [
+            {:not_ready, %{ready: false}},
+            {:not_serving, %{serving: false}},
+            {:ring_skew, %{ring_consistent: false}},
+            {:backfill_degraded, %{backfill_degraded: true}},
+            {:backfill_budget, %{backfill_budget_exhausted_peers: 2}},
+            {:pods_unsampled, %{sampled_pods: 0, expected_pods: 1}},
+            {:sample_stale, %{sampled_at: DateTime.add(DateTime.utc_now(), -10 * 60, :second)}}
+          ] do
+        assert gate_verdict(healthy_health(), healthy_health(overrides)) == :held,
+               "expected #{label} to hold the wave"
+      end
+    end
+
+    test "backfill merely in flight does not hold the wave" do
+      # Expected work after a rollout restarts a pod, and indistinguishable
+      # from a stalled node, so it is not a signal on its own.
+      assert gate_verdict(healthy_health(), healthy_health(%{backfilling_peers: 3})) == :passed
     end
   end
 

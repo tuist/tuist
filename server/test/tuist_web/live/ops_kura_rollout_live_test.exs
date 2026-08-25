@@ -11,6 +11,7 @@ defmodule TuistWeb.OpsKuraRolloutLiveTest do
   alias Tuist.Kura.Rollouts
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.Errors.NotFoundError
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])
@@ -103,8 +104,14 @@ defmodule TuistWeb.OpsKuraRolloutLiveTest do
   end
 
   test "raises not found for an unknown rollout", %{conn: conn} do
-    assert_raise TuistWeb.Errors.NotFoundError, fn ->
+    assert_raise NotFoundError, fn ->
       live(conn, ~p"/ops/kura/rollouts/#{Ecto.UUID.generate()}")
+    end
+  end
+
+  test "raises not found rather than a cast error for a malformed id", %{conn: conn} do
+    assert_raise NotFoundError, fn ->
+      live(conn, ~p"/ops/kura/rollouts/not-a-uuid")
     end
   end
 end

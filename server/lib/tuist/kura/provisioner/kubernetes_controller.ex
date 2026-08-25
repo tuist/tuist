@@ -211,14 +211,30 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       serving: health["serving"] == true,
       ring_consistent: health["ringConsistent"] == true,
       backfilling_peers: integer_field(health, "backfillingPeers"),
+      backfill_degraded: health["backfillDegraded"] == true,
+      backfill_budget_exhausted_peers: integer_field(health, "backfillBudgetExhaustedPeers"),
       outbox_messages: integer_field(health, "outboxMessages"),
-      fd_timeout_count: integer_field(health, "fdTimeoutCount"),
-      peer_connection_failures: integer_field(health, "peerConnectionFailures"),
+      fd_timeout_count: counter_field(health, "fdTimeoutCount"),
+      peer_connection_failures: counter_field(health, "peerConnectionFailures"),
       memory_pressure_state: integer_field(health, "memoryPressureState"),
       sampled_pods: integer_field(health, "sampledPods"),
       expected_pods: integer_field(health, "expectedPods"),
       sampled_at: datetime_field(health, "sampledAt")
     }
+  end
+
+  # The cumulative failure counters are read as `nil` when the aggregate does
+  # not carry them, not as 0. They are the two fields the gate compares a
+  # server against its own pre-upgrade baseline, and a runtime too old to
+  # emit one reports the same absence as a runtime reporting none — recording
+  # that as a baseline of 0 would make the first error after the upgrade read
+  # as a regression from a baseline that was never measured. A `nil` baseline
+  # simply skips the comparison until there is one to make.
+  defp counter_field(health, key) do
+    case Map.get(health, key) do
+      value when is_integer(value) -> value
+      _ -> nil
+    end
   end
 
   defp integer_field(health, key) do

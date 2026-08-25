@@ -447,7 +447,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (pod) (rate(kura_peer_connection_failures_total{cluster=~\"tuist-$env\"}[5m]))",
+            "expr": "sum by (pod) (rate(kura_peer_connection_failures_total_total{cluster=~\"tuist-$env\"}[5m]))",
             "legendFormat": "{{pod}}",
             "refId": "A"
           }

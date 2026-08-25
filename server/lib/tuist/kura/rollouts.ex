@@ -95,6 +95,11 @@ defmodule Tuist.Kura.Rollouts do
   # don't flap the gate on a handful of in-flight messages.
   @outbox_regression_floor 50
 
+  # Tolerance floor for the cumulative failure counters (fd wait timeouts,
+  # peer-connection failures), which are compared against a pre-upgrade
+  # baseline the same way.
+  @failure_regression_floor 25
+
   @usage_window_days 7
 
   # Bounded per tick: scoping runs inside the rollout's `FOR UPDATE`
@@ -103,7 +108,7 @@ defmodule Tuist.Kura.Rollouts do
   # read against the Kubernetes API plus an insert. A whole final wave in
   # one pass would hold the lock through hundreds of round trips — long
   # enough to block the operator verbs, exactly when someone is most
-  # likely to reach for pause. The reconciler ticks every 30s, so the
+  # likely to reach for pause. The reconciler ticks every minute, so the
   # remainder is picked up promptly.
   @scope_batch_size 50
 
@@ -117,6 +122,8 @@ defmodule Tuist.Kura.Rollouts do
   enabled.
   """
   def sync do
+    reset_tick_health_cache()
+
     case configured_image_tag() do
       nil ->
         :ok
@@ -140,7 +147,21 @@ defmodule Tuist.Kura.Rollouts do
 
   ## Lookups
 
-  def get_rollout(id), do: Repo.get(Rollout, id)
+  @doc """
+  Fetches a rollout by id, or nil. A malformed id reads as absent rather
+  than raising: the id comes from the URL, and `Repo.get/2` on a
+  `binary_id` primary key raises `Ecto.Query.CastError` for anything that
+  is not a UUID, which the ops view would surface as a 500 instead of the
+  not-found page it means.
+  """
+  def get_rollout(id) when is_binary(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} -> Repo.get(Rollout, uuid)
+      :error -> nil
+    end
+  end
+
+  def get_rollout(_id), do: nil
 
   @doc "The single non-terminal (running or paused) rollout, or nil."
   def active_rollout do
@@ -483,7 +504,7 @@ defmodule Tuist.Kura.Rollouts do
         MapSet.member?(canary_handles, String.downcase(name))
       end)
 
-    usage = Usage.recent_request_counts_by_account(Enum.map(rest, &elem(&1, 0)), @usage_window_days)
+    usage = recent_usage_by_account(Enum.map(rest, &elem(&1, 0)))
     on_oldest = accounts_on_oldest_image(previous)
 
     rest =
@@ -521,6 +542,20 @@ defmodule Tuist.Kura.Rollouts do
 
     {_count, _} = Repo.insert_all(RolloutWaveAssignment, rows)
     :ok
+  end
+
+  # Usage only decides wave ORDERING, so ClickHouse being unavailable must
+  # not stop a rollout from being minted — it would make the analytics
+  # store a hard dependency of the Kura control plane. Without it the
+  # accounts fall back to id order: waves still carry the canary first and
+  # still gate on health, they just lose the lower-traffic-first ordering.
+  defp recent_usage_by_account(account_ids) do
+    Usage.recent_request_counts_by_account(account_ids, @usage_window_days)
+  rescue
+    error ->
+      Logger.warning("[Kura.Rollouts] usage lookup failed, ordering waves by account id: #{Exception.message(error)}")
+
+      %{}
   end
 
   defp fraction_count(0, _fraction), do: 0
@@ -573,6 +608,14 @@ defmodule Tuist.Kura.Rollouts do
 
   defp advance_expedited(rollout) do
     assign_missing_accounts(rollout)
+    # Expedited rollouts have no waves, but they still need a clock: without
+    # one a deployment that never finishes (an image that will not pull, a
+    # pod that never goes Ready) leaves the rollout `:running` forever with
+    # no pause and an empty `pause_reason`. Canary runs expedited and the
+    # production promotion gate waits for its record to complete, so that
+    # silence surfaces as a CI timeout saying "still running" while the
+    # rollout record says nothing is wrong.
+    rollout = stamp_wave_started(rollout)
     scope_servers(rollout, max_wave(rollout))
     mint_missing_deployments(rollout)
     mark_convergences(rollout)
@@ -590,6 +633,9 @@ defmodule Tuist.Kura.Rollouts do
 
       all_converged?(rollout) ->
         complete_rollout(rollout)
+
+      deadline_exceeded?(rollout) ->
+        pause_rollout(rollout, {:wave_deadline_exceeded, %{wave: rollout.current_wave}})
 
       true ->
         :ok
@@ -810,6 +856,7 @@ defmodule Tuist.Kura.Rollouts do
     |> where([rs, _s, d], is_nil(rs.deployment_id) or d.status == :cancelled)
     |> where([_rs, s, _d], s.status not in ^@terminal_server_statuses and s.move_phase == :none)
     |> preload([rs, s, _d], kura_server: s)
+    |> limit(@scope_batch_size)
     |> Repo.all()
     |> Enum.each(fn rollout_server ->
       case mint_deployment(rollout, rollout_server.kura_server) do
@@ -838,7 +885,7 @@ defmodule Tuist.Kura.Rollouts do
   end
 
   defp capture_baseline(server) do
-    case Provisioner.rollout_health(server) do
+    case tick_rollout_health(server) do
       {:ok, health} when is_map(health) ->
         baseline = %{
           outbox_messages: health.outbox_messages,
@@ -858,15 +905,15 @@ defmodule Tuist.Kura.Rollouts do
   end
 
   # Mirrors every absolute condition the post-upgrade gate checks
-  # (ring consistency and backfill in flight included): a server failing
-  # any of them before its wave schedules would read that pre-existing
-  # sickness as a regression the new image caused — backfill already
-  # running would reset the soak clock, or exhaust the wave deadline,
-  # on work that started before the upgrade — so it is excluded from the
-  # comparative soak.
+  # (ring consistency and backfill trouble included): a server failing any
+  # of them before its wave schedules would read that pre-existing sickness
+  # as a regression the new image caused — a mesh whose backfill was
+  # already degraded would reset the soak clock, or exhaust the wave
+  # deadline, on trouble that started before the upgrade — so it is
+  # excluded from the comparative soak.
   defp baseline_healthy?(health) do
     health.ready and health.serving and health.ring_consistent and
-      health.backfilling_peers == 0 and
+      not health.backfill_degraded and health.backfill_budget_exhausted_peers == 0 and
       health.sampled_pods >= health.expected_pods and
       health.memory_pressure_state < 2 and fresh_sample?(health)
   end
@@ -943,6 +990,13 @@ defmodule Tuist.Kura.Rollouts do
       RolloutServer
       |> join(:inner, [rs], s in assoc(rs, :kura_server))
       |> where([rs], rs.kura_rollout_id == ^rollout.id and not is_nil(rs.converged_at))
+      # Soak-eligible only: `@rollout_server_statuses` deliberately scopes
+      # `:failed` servers so a fix reaches them, and one that was already
+      # failed when its wave scheduled is soak-ineligible. Without this it
+      # pauses the rollout the moment it converges, blaming the new image
+      # for breakage that pre-dated it — and no verb clears it, since
+      # `resume/3` only re-attempts servers that have not converged.
+      |> where([rs], rs.soak_eligible)
       |> where([_rs, s], s.status == :failed)
       |> select([rs, s], %{server_id: s.id, region: s.region})
       |> limit(1)
@@ -997,15 +1051,17 @@ defmodule Tuist.Kura.Rollouts do
         rollout
       end
 
-    deadline_exceeded? =
-      rollout.wave_started_at &&
-        DateTime.diff(now(), rollout.wave_started_at, :second) >= @wave_deadline_seconds
-
-    if deadline_exceeded? do
+    if deadline_exceeded?(rollout) do
       pause_rollout(rollout, {:wave_deadline_exceeded, %{wave: rollout.current_wave}})
     else
       :ok
     end
+  end
+
+  defp deadline_exceeded?(%Rollout{wave_started_at: nil}), do: false
+
+  defp deadline_exceeded?(%Rollout{wave_started_at: started_at}) do
+    DateTime.diff(now(), started_at, :second) >= @wave_deadline_seconds
   end
 
   defp soak_seconds(0), do: @canary_soak_seconds
@@ -1020,19 +1076,36 @@ defmodule Tuist.Kura.Rollouts do
   # pass, `{:unhealthy, details}` for a soak-clock reset, or
   # `{:critical, details}` for an immediate pause.
   defp gate_failure(rollout) do
-    failures =
+    converged =
       RolloutServer
       |> join(:inner, [rs], s in assoc(rs, :kura_server))
       |> where([rs], rs.kura_rollout_id == ^rollout.id and not is_nil(rs.converged_at))
       |> where([_rs, s], s.status not in ^@terminal_server_statuses)
       |> preload([rs, s], kura_server: s)
       |> Repo.all()
-      |> Enum.flat_map(fn rollout_server ->
+
+    failures =
+      Enum.flat_map(converged, fn rollout_server ->
         case server_gate_failure(rollout_server) do
           nil -> []
           {severity, reason} -> [{severity, gate_failure_details(rollout_server, reason)}]
         end
       end)
+
+    # A wave may not pass on convergence alone. Every soak-ineligible server
+    # waives the comparative gate, so a fleet where the controller has never
+    # published `status.rolloutHealth` — an old controller, a CRD skew —
+    # makes every server ineligible and every check vacuous: the rollout
+    # would report success to /ops/kura and to the CI promotion gate with
+    # nothing behind it. Requiring evidence from at least one server keeps a
+    # single sick server from blocking (the others still carry the gate)
+    # while refusing to call a rollout healthy on no evidence at all.
+    failures =
+      if failures == [] and converged != [] and not Enum.any?(converged, & &1.soak_eligible) do
+        [{:unhealthy, gate_failure_details(hd(converged), :health_unavailable)}]
+      else
+        failures
+      end
 
     # A critical signal (memory pressure) pauses immediately even when
     # another server merely fails the soak, so scan all failures before
@@ -1050,7 +1123,7 @@ defmodule Tuist.Kura.Rollouts do
   end
 
   defp server_gate_failure(%RolloutServer{soak_eligible: true} = rollout_server) do
-    case Provisioner.rollout_health(rollout_server.kura_server) do
+    case tick_rollout_health(rollout_server.kura_server) do
       {:ok, health} when is_map(health) -> health_gate_failure(rollout_server, health)
       {:ok, nil} -> {:unhealthy, :health_unavailable}
       {:error, _reason} -> {:unhealthy, :health_unreadable}
@@ -1063,12 +1136,17 @@ defmodule Tuist.Kura.Rollouts do
   # safety stop, not a comparison, and an unreadable aggregate simply
   # cannot veto here (these servers are what the gate must never stand
   # in front of).
-  defp server_gate_failure(%RolloutServer{soak_eligible: false} = rollout_server) do
-    case Provisioner.rollout_health(rollout_server.kura_server) do
-      {:ok, %{memory_pressure_state: pressure}} when pressure >= 2 -> {:critical, :memory_pressure_critical}
-      _ -> nil
-    end
-  end
+  # A soak-ineligible server was already sick when its wave scheduled, so
+  # no signal it reports can be attributed to the new image — including
+  # critical memory pressure, which is one of the conditions that makes a
+  # server ineligible in the first place. Re-raising it here paused the
+  # rollout on sickness that pre-dated it, and no verb could clear it:
+  # `resume/3` only re-attempts servers that have not converged, so the
+  # signal survived resume, expedite and every later tick. Memory pressure
+  # on these servers is still visible on the Kura dashboards and alerts,
+  # which is where pre-existing sickness belongs. Convergence is still
+  # required of them; only the comparative gate is waived.
+  defp server_gate_failure(%RolloutServer{soak_eligible: false}), do: nil
 
   defp health_gate_failure(rollout_server, health) do
     rollout_server
@@ -1092,23 +1170,47 @@ defmodule Tuist.Kura.Rollouts do
       {not health.ready, {:unhealthy, :not_ready}},
       {not health.serving, {:unhealthy, :not_serving}},
       {not health.ring_consistent, {:unhealthy, :ring_skew}},
-      {health.backfilling_peers > 0, {:unhealthy, :backfill_in_flight}},
+      # Backfill IN FLIGHT is not a regression: a rollout restarts every pod
+      # and a fresh process re-enters its initial cycle, so peers with
+      # outstanding passes are the expected state right after convergence.
+      # Gating on that reset the soak clock on the rollout's own work and
+      # could not see the case it was meant for either — a node stalled by
+      # memory admission reports outstanding passes indefinitely, exactly
+      # like a healthy one. The runtime's own trouble signals say catch-up
+      # is failing to progress: `degraded` is "budget exhausted through real
+      # failures" and is non-terminal (retries advance it to complete), so
+      # both are soak resets rather than hard stops.
+      {health.backfill_degraded, {:unhealthy, :backfill_degraded}},
+      {health.backfill_budget_exhausted_peers > 0, {:unhealthy, :backfill_budget_exhausted}},
       {counter_regressed?(health.outbox_messages, outbox_threshold), {:unhealthy, :outbox_regressed}},
-      {counter_grew?(health.fd_timeout_count, rollout_server.baseline_fd_timeout_count),
+      {counter_regressed?(health.fd_timeout_count, failure_threshold(rollout_server.baseline_fd_timeout_count)),
        {:unhealthy, :fd_timeouts_regressed}},
-      {counter_grew?(health.peer_connection_failures, rollout_server.baseline_peer_connection_failures),
-       {:unhealthy, :peer_connection_failures_regressed}}
+      {counter_regressed?(
+         health.peer_connection_failures,
+         failure_threshold(rollout_server.baseline_peer_connection_failures)
+       ), {:unhealthy, :peer_connection_failures_regressed}}
     ]
   end
 
-  defp counter_regressed?(_current, nil), do: false
-  defp counter_regressed?(current, threshold), do: current > threshold
+  # A rollout restarts every pod by definition, and peers reconnecting
+  # across that restart produce a bounded handful of errors that say
+  # nothing about the new image. These counters are cumulative, so
+  # comparing them strictly (`current > baseline`) would read that churn
+  # as a regression and reset the soak clock every tick until the wave hit
+  # its deadline. The band is the same shape as the outbox one: proportional
+  # for a server that already sees failures, with a floor so a quiet
+  # baseline is not tripped by the rollout's own reconnects. Sustained
+  # failure climbs past either quickly.
+  defp failure_threshold(nil), do: nil
+  defp failure_threshold(baseline), do: baseline + max(ceil(baseline / 10), @failure_regression_floor)
 
-  # Counter resets (controller restart, pod replacement) read as a
-  # decrease; a decrease is never growth, so it passes — matching the
-  # standalone gate's clamping.
-  defp counter_grew?(_current, nil), do: false
-  defp counter_grew?(current, baseline), do: current > baseline
+  # A nil baseline means the aggregate never reported the counter (a
+  # runtime predating it), and a nil reading means it still does not:
+  # neither is evidence of a regression. Counter resets (controller
+  # restart, pod replacement) read as a decrease, which is never growth.
+  defp counter_regressed?(_current, nil), do: false
+  defp counter_regressed?(nil, _threshold), do: false
+  defp counter_regressed?(current, threshold), do: current > threshold
 
   defp complete_wave(rollout) do
     record_event(rollout, "wave_completed", "system", nil, %{wave: rollout.current_wave})
@@ -1171,6 +1273,8 @@ defmodule Tuist.Kura.Rollouts do
   not. A paused rollout schedules nothing further.
   """
   def pause(%Rollout{} = rollout, actor, reason) when is_binary(actor) do
+    reset_tick_health_cache()
+
     with_locked_rollout(rollout.id, fn
       %Rollout{status: :running} = rollout ->
         rollout =
@@ -1202,6 +1306,8 @@ defmodule Tuist.Kura.Rollouts do
   release re-triggered scheduling.
   """
   def resume(%Rollout{} = rollout, actor, reason) when is_binary(actor) do
+    reset_tick_health_cache()
+
     with_locked_rollout(rollout.id, fn
       %Rollout{status: :paused} = rollout ->
         reattempt_non_converged(rollout)
@@ -1235,6 +1341,8 @@ defmodule Tuist.Kura.Rollouts do
   previously completed in this environment.
   """
   def expedite(%Rollout{} = rollout, actor, reason) when is_binary(actor) do
+    reset_tick_health_cache()
+
     with_locked_rollout(rollout.id, fn
       %Rollout{status: status} = rollout when status in [:running, :paused] ->
         if status == :paused, do: reattempt_non_converged(rollout)
@@ -1271,6 +1379,8 @@ defmodule Tuist.Kura.Rollouts do
   (re-pin the previous tag and expedite).
   """
   def abort(%Rollout{} = rollout, actor, reason) when is_binary(actor) do
+    reset_tick_health_cache()
+
     with_locked_rollout(rollout.id, fn
       %Rollout{status: status} = rollout when status in [:running, :paused] ->
         rollout = rollout |> Rollout.update_changeset(%{status: :aborted}) |> Repo.update!()
@@ -1350,6 +1460,31 @@ defmodule Tuist.Kura.Rollouts do
   end
 
   ## Shared plumbing
+
+  # One reading per server per tick. `gate_failure/1` runs from both
+  # `open_current_wave/1` and `evaluate_wave/1`, and each reading is a live
+  # Kubernetes GET taken while holding the rollout row lock — the same lock
+  # `pause`/`resume`/`abort`/`expedite` need — so re-reading doubled the
+  # round trips an operator waits behind. Scoped to the tick (or the verb)
+  # that seeded it: a rollout's health must not be judged on a reading from
+  # a previous tick.
+  @tick_health_cache_key :tuist_kura_rollout_tick_health
+
+  defp reset_tick_health_cache, do: Process.delete(@tick_health_cache_key)
+
+  defp tick_rollout_health(server) do
+    cache = Process.get(@tick_health_cache_key, %{})
+
+    case Map.fetch(cache, server.id) do
+      {:ok, cached} ->
+        cached
+
+      :error ->
+        health = Provisioner.rollout_health(server)
+        Process.put(@tick_health_cache_key, Map.put(cache, server.id, health))
+        health
+    end
+  end
 
   defp with_locked_rollout(rollout_id, fun) do
     {:ok, result} =

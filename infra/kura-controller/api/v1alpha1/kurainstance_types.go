@@ -198,17 +198,24 @@ type KuraInstanceSpec struct {
 //   - SampledAt is the OLDEST per-pod sample, so a pod whose report is a
 //     frozen snapshot reads as stale instead of silently passing.
 type KuraInstanceRolloutHealth struct {
-	Ready                  bool         `json:"ready"`
-	Serving                bool         `json:"serving"`
-	RingConsistent         bool         `json:"ringConsistent"`
-	BackfillingPeers       int64        `json:"backfillingPeers"`
-	OutboxMessages         int64        `json:"outboxMessages"`
-	FDTimeoutCount         int64        `json:"fdTimeoutCount"`
-	PeerConnectionFailures int64        `json:"peerConnectionFailures"`
-	MemoryPressureState    int64        `json:"memoryPressureState"`
-	SampledPods            int32        `json:"sampledPods"`
-	ExpectedPods           int32        `json:"expectedPods"`
-	SampledAt              *metav1.Time `json:"sampledAt,omitempty"`
+	Ready            bool  `json:"ready"`
+	Serving          bool  `json:"serving"`
+	RingConsistent   bool  `json:"ringConsistent"`
+	BackfillingPeers int64 `json:"backfillingPeers"`
+	// BackfillDegraded is true when any pod reports its initial backfill
+	// cycle as degraded, and BackfillBudgetExhaustedPeers sums the peers
+	// blocked by real failures. Backfill merely being in flight is expected
+	// after a rollout restarts a pod, so these — not BackfillingPeers — are
+	// what says catch-up is failing to progress.
+	BackfillDegraded             bool         `json:"backfillDegraded"`
+	BackfillBudgetExhaustedPeers int64        `json:"backfillBudgetExhaustedPeers"`
+	OutboxMessages               int64        `json:"outboxMessages"`
+	FDTimeoutCount               int64        `json:"fdTimeoutCount"`
+	PeerConnectionFailures       int64        `json:"peerConnectionFailures"`
+	MemoryPressureState          int64        `json:"memoryPressureState"`
+	SampledPods                  int32        `json:"sampledPods"`
+	ExpectedPods                 int32        `json:"expectedPods"`
+	SampledAt                    *metav1.Time `json:"sampledAt,omitempty"`
 }
 
 type KuraInstanceStatus struct {

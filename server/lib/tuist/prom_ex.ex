@@ -80,7 +80,6 @@ defmodule Tuist.PromEx do
         Tuist.License.PromExPlugin,
         Tuist.Kura.PromExPlugin,
         Tuist.Runners.PromExPlugin,
-        Tuist.Kura.PromExPlugin,
         Tuist.Kura.Rollouts.PromExPlugin,
         Tuist.Registry.Swift.PromExPlugin,
         TuistCommon.HTTP.TransportPromExPlugin,

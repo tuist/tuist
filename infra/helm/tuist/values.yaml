@@ -278,6 +278,15 @@ kuraRuntime:
     # workflow's kura_expedite input — never committed — and matched
     # against exactly this tag so it cannot leak onto a later rollout.
     expediteTag: ""
+    # Webhook the rollout lifecycle posts to (start, pause with the failing
+    # signal, completion, supersede, expedite). Context only — Grafana is the
+    # paging authority — so an unset secret leaves the notifications off
+    # rather than failing anything. Point it at a Secret carrying the URL;
+    # it is deliberately not a plain value, since a webhook URL is a
+    # credential.
+    opsSlackWebhookSecret:
+      name: ""
+      key: ops-slack-webhook-url
   # An optional per-release KuraInstance, rendered into `instance.namespace`
   # (the cluster-wide namespace the controller watches). Off by default:
   # managed environments provision Kura through the server's reconciler, which

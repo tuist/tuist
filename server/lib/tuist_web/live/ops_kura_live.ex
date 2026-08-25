@@ -34,7 +34,13 @@ defmodule TuistWeb.OpsKuraLive do
   end
 
   @impl true
-  def handle_event("operate", %{"action" => action, "reason" => reason}, socket) do
+  # Tolerant of a submit that arrives without one of the fields: the form
+  # marks both required, but a missing key must not take the LiveView down
+  # with a FunctionClauseError. `operate/4` rejects an empty action, and a
+  # nil rollout (a fresh environment has none) is rejected there too.
+  def handle_event("operate", params, socket) do
+    action = Map.get(params, "action", "")
+    reason = Map.get(params, "reason", "")
     actor = socket.assigns.current_user.email
 
     socket =

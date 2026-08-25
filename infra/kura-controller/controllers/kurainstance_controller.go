@@ -214,6 +214,12 @@ type runtimeStatus struct {
 	// replica destroys the peer the next one would refill from, so "ready" is
 	// not enough to justify the next move.
 	BackfillInitialCycle string `json:"backfill_initial_cycle"`
+	// BackfillBudgetExhaustedRealPeers counts peers whose backfill passes are
+	// blocked by real failures, as opposed to the benign capability variant.
+	// With the cycle mode it says backfill is in TROUBLE rather than merely
+	// in flight, which is what the rollout gate needs: a rollout restarts
+	// every pod, so backfill running afterwards is expected work.
+	BackfillBudgetExhaustedRealPeers int64 `json:"backfill_budget_exhausted_real_peers"`
 }
 
 // podRuntimeSample is one pod's last observed /status/rollout report plus
@@ -1958,6 +1964,7 @@ func (r *KuraInstanceReconciler) aggregateRolloutHealth(
 	var ringMembers int
 	var ringFingerprints []string
 	ringConsistent := true
+	backfillDegraded := false
 	allReady := true
 	allServing := true
 	for i := range pods {
@@ -1984,6 +1991,10 @@ func (r *KuraInstanceReconciler) aggregateRolloutHealth(
 		allReady = allReady && sample.status.Ready
 		allServing = allServing && sample.status.State == "serving"
 		health.BackfillingPeers += sample.status.BackfillingPeers
+		health.BackfillBudgetExhaustedPeers += sample.status.BackfillBudgetExhaustedRealPeers
+		if sample.status.BackfillInitialCycle == backfillCycleDegraded {
+			backfillDegraded = true
+		}
 		health.OutboxMessages += sample.status.OutboxMessages
 		health.FDTimeoutCount += int64(sample.clampedFDTimeouts())
 		health.PeerConnectionFailures += int64(sample.clampedPeerFailures())
@@ -2005,11 +2016,17 @@ func (r *KuraInstanceReconciler) aggregateRolloutHealth(
 	// The conjunctions require every expected pod to have a report: a pod
 	// that exists but cannot be sampled, or a replica that never came up,
 	// reads as unhealthy rather than silently narrowing the aggregate to
-	// the pods that happened to answer.
-	sampledAll := health.SampledPods == expected && int32(len(pods)) >= expected
+	// the pods that happened to answer. `>=` rather than `==` because a
+	// scale-down leaves the retired ordinal answering /status/rollout for a
+	// while, and counting more reports than replicas is not a reason to call
+	// a healthy instance unready — which is how the Elixir gate would read
+	// it, resetting the soak clock for the whole drain window. It also
+	// matches how that gate writes the same comparison.
+	sampledAll := health.SampledPods >= expected
 	health.Ready = sampledAll && allReady
 	health.Serving = sampledAll && allServing
 	health.RingConsistent = sampledAll && ringConsistent
+	health.BackfillDegraded = backfillDegraded
 	if !oldest.IsZero() {
 		t := metav1.NewTime(oldest.UTC())
 		health.SampledAt = &t

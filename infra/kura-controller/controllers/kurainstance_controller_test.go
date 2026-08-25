@@ -3516,3 +3516,79 @@ func TestRuntimeStatusDecodesTheBackfillWireContract(t *testing.T) {
 		t.Fatalf("expected the rest of the rollout contract to decode, got %+v", status)
 	}
 }
+
+func TestAggregateRolloutHealthToleratesExtraPodsDuringScaleDown(t *testing.T) {
+	// A scale-down leaves the retired ordinal answering /status/rollout for a
+	// while. Requiring an exact count made every conjunction false while it
+	// lingered, which the rollout gate reads as :not_ready and which resets
+	// the soak clock for the whole drain window.
+	const name = "kura-tuist-eu-1"
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(2))},
+	}
+	pods := []corev1.Pod{
+		*kuraPod(name, "kura", 0, true),
+		*kuraPod(name, "kura", 1, true),
+		*kuraPod(name, "kura", 2, true),
+	}
+	healthy := runtimeStatus{
+		Ready: true, State: "serving", RingMembers: 3,
+		RingFingerprint: "aaaa000011112222", BackfillInitialCycle: "complete",
+	}
+	reconciler := &KuraInstanceReconciler{
+		RuntimeStatusClient: fakeRuntimeStatusClient{
+			statuses: map[string]runtimeStatus{
+				name + "-0": healthy,
+				name + "-1": healthy,
+				name + "-2": healthy,
+			},
+		},
+	}
+
+	reconciler.sampleRuntimeStatuses(context.Background(), instance, pods)
+	health := reconciler.aggregateRolloutHealth(instance, pods)
+
+	if !health.Ready || !health.Serving || !health.RingConsistent {
+		t.Fatalf("expected healthy conjunctions with an extra pod reporting, got %+v", health)
+	}
+}
+
+func TestAggregateRolloutHealthSurfacesBackfillTrouble(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(2))},
+	}
+	pods := []corev1.Pod{
+		*kuraPod(name, "kura", 0, true),
+		*kuraPod(name, "kura", 1, true),
+	}
+	reconciler := &KuraInstanceReconciler{
+		RuntimeStatusClient: fakeRuntimeStatusClient{
+			statuses: map[string]runtimeStatus{
+				// In flight but healthy: expected work after a rollout restarts
+				// a pod, and not a signal on its own.
+				name + "-0": {Ready: true, State: "serving", BackfillingPeers: 2, BackfillInitialCycle: "pending"},
+				// In trouble: budget exhausted through real failures.
+				name + "-1": {
+					Ready: true, State: "serving", BackfillInitialCycle: "degraded",
+					BackfillBudgetExhaustedRealPeers: 3,
+				},
+			},
+		},
+	}
+
+	reconciler.sampleRuntimeStatuses(context.Background(), instance, pods)
+	health := reconciler.aggregateRolloutHealth(instance, pods)
+
+	if !health.BackfillDegraded {
+		t.Fatal("expected a degraded cycle on any pod to surface")
+	}
+	if health.BackfillBudgetExhaustedPeers != 3 {
+		t.Fatalf("expected summed real budget exhaustion, got %d", health.BackfillBudgetExhaustedPeers)
+	}
+	if health.BackfillingPeers != 2 {
+		t.Fatalf("expected in-flight peers to still be reported, got %d", health.BackfillingPeers)
+	}
+}
