@@ -12,14 +12,24 @@ defmodule Tuist.IngestRepo.Migrations.AddIsDefaultBranchToTestCaseRuns do
   reinsert carries the original row's value forward so a corrected run keeps
   the classification it was written with.
 
-  This ships ahead of anything that reads it, on purpose. Managed migrations
-  complete before workload pods roll, so for the length of a deploy the
-  previous release is still writing rows without this column and ClickHouse
-  fills them with the `false` default. A materialized view keyed on the column
-  in this same release would record those runs as off-default and never revisit
-  them. Landing the column and its writer first means the column is already
-  being populated correctly by the time a later release builds an aggregate on
-  it.
+  The aggregates keyed on this column ship in the same release, which leaves one
+  gap worth naming. Managed migrations complete before workload pods roll, so
+  between the moment those views are created and the moment the last pod of the
+  previous release terminates, runs are still being written by code that does not
+  set this column and ClickHouse fills it with the `false` default. Those runs are
+  seen by the views and filtered straight back out, and nothing revisits them.
+
+  The gap is one pod rollout wide and it closes on its own. The aggregates are
+  only ever read over a trailing window — a calendar window for `last_days`
+  alerts, the latest N runs for `rolling` ones — so the affected rows stop being
+  read once the window has moved past them. Until then a default-branch figure
+  is short by whatever was ingested during the rollout.
+
+  Closing it properly is not available inside one release: any view keyed on a
+  column the outgoing pods do not write has this window, whatever order the
+  objects are created in. Splitting the column and its readers across two
+  releases removes it, at the cost of shipping a dead column and waiting for a
+  deploy before any of this is usable.
 
   Existing rows keep the column default of `false`, and nothing backfills them.
   The aggregate that will consume this covers history by comparing `git_branch`

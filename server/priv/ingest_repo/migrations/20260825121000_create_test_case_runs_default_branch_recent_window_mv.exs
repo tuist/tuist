@@ -57,6 +57,12 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsDefaultBranchRecentWindo
   it means every existing rolling reliability alert stops evaluating until the
   window refills, which for a low-frequency project is weeks.
 
+  Runs ingested during this release's own pod rollout are the one thing the seed
+  does not cover: the outgoing pods do not set `is_default_branch`, so the view
+  filters them out and the seed's boundary is already behind them. See
+  `20260818140000` for why that window cannot be closed inside one release and
+  why it heals as the read window moves past it.
+
   The seed is bounded to a trailing `@backfill_window_days` window and carries
   the per-project ranges, the 1 GiB ceiling and the halving-by-date retry from
   `20260818130000`. A window that is still not filled by what the seed found is

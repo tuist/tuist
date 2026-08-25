@@ -52,6 +52,12 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunDailyStatsPerCaseDefaultB
   window measures over what exists rather than reporting a rate off a partially
   seeded range. The clamp lifts on its own as the view fills forward.
 
+  Runs ingested during this release's own pod rollout are the one thing the seed
+  does not cover: the outgoing pods do not set `is_default_branch`, so the view
+  filters them out and the seed's boundary is already behind them. See
+  `20260818140000` for why that window cannot be closed inside one release and
+  why it heals as the read window moves past it.
+
   The memory discipline, the per-project ranges and the halving-by-date retry
   are carried over from `20260818130000` unchanged; the reasoning there applies
   here for the same reasons.
