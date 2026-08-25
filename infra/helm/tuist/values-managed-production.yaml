@@ -900,24 +900,39 @@ runnersFleet:
   # both and the autoscaler sums one budget — but its own
   # MachineDeployment because the SKU differs.
   #
-  # PRECONDITION: hostCount must never exceed the number of M4-XL minis
-  # already parked under `tuist-pool-` in fr-par-1 with their reinstall
-  # finished. Adoption is SKU-exact — the controller passes this group's
-  # `type` straight into AdoptFromPool — so it cannot fall back to an
-  # M2-L another group is waiting on. With no adoptable host the Machine
-  # sits on `NoAvailableHost` and the MachineDeployment stays at 0/1;
-  # because the chart deploys under `--atomic --wait --timeout 60m`,
-  # that is an hour of hung deploy followed by a production rollback.
-  # Same trap as the kura cold-start note in
-  # infra/cluster-api-provider-tuist/AGENTS.md.
+  # Park the minis BEFORE raising hostCount. Adoption is SKU-exact — the
+  # controller passes this group's `type` straight into AdoptFromPool —
+  # so a host that is missing, still reinstalling, or not named
+  # `tuist-pool-*` cannot be claimed, and it cannot fall back to an M2-L
+  # another group is waiting on. The Machine then sits on
+  # `NoAvailableHost` and this MachineDeployment stays at 0/1.
   #
-  # Order of operations, every time: park the minis FIRST, then raise
-  # hostCount, then deploy. Never the reverse. Growing it is: order N
-  # more M4-XL minis named `tuist-pool-*`, bump hostCount, and raise
-  # every `xcodeOverrides[*].maxReplicas` below by 2N.
+  # On THIS fleet that costs capacity, not the deploy. `helm --wait`
+  # tracks built-in workload kinds, not MachineDeployment or RunnerPool,
+  # and the runners fleet renders no Helm-managed workload pinned to its
+  # nodes — runner Pods come from the runners-controller. So the upgrade
+  # completes and the two slots simply never appear, which shows up as
+  # the MD at 0/1 and a `NoAvailableHost` event rather than as a failure.
+  # `maxReplicas` over-promising in the meantime is harmless: the
+  # allocator derives capacity from the memory Ready nodes actually
+  # advertise and caps there, so it is a ceiling, not a target.
   #
-  # At 1 because one M4-XL is provisioned; maxReplicas moved 9 -> 11 in
-  # the same change.
+  # Do NOT generalise that to the sibling fleets. macosFleet pins the
+  # xcresult-processor Deployment to its nodes with a nodeSelector, so an
+  # unadoptable host there leaves a Deployment unschedulable and really
+  # does wedge `helm --wait` for the full `--timeout 60m` before
+  # `--atomic` rolls production back. That is the case the orphan-reclaim
+  # comment in controllers/macos/orphan_reclaimer.go and the kura
+  # cold-start note in cluster-api-provider-tuist/AGENTS.md describe;
+  # kura-fleet, ovh-fleet and dedibox-fleet have the same shape.
+  #
+  # The other reason to park first is money: Scaleway bills a mini under
+  # Apple's 24h floor whether or not this controller ever adopts it.
+  #
+  # Growing the group: order N more M4-XL minis named `tuist-pool-*`,
+  # bump hostCount, and raise every `xcodeOverrides[*].maxReplicas` below
+  # by 2N. At 1 today because one M4-XL is provisioned; maxReplicas moved
+  # 9 -> 11 in the same change.
   #
   # Two guests per host, at the same 6 vCPU / 14 GB shape the M2-L
   # runs — customers see an identical runner, the host just fits two.
