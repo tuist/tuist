@@ -236,11 +236,11 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   end
 
   # No test modules means xcodebuild finished without running anything: the
-  # selection resolved to zero tests. Xcode reports that as a completed run with
-  # `totalTestCount: 0` and no issues, so it is not a processing failure. The
-  # Swift parser's own status would be "skipped", derived vacuously from an
-  # empty test-case list, which reads as a deliberate skip.
-  defp run_status(_parsed_data, []), do: "no_tests"
+  # selection resolved to zero tests. Xcode reports that as a passing run with
+  # `totalTestCount: 0` and no issues, so this mirrors it. The Swift parser's
+  # own status would be "skipped", derived vacuously from an empty test-case
+  # list, which reads as a deliberate skip instead.
+  defp run_status(_parsed_data, []), do: "success"
   defp run_status(parsed_data, _test_modules), do: parsed_data["status"] || "success"
 
   # The xcresult `platform` field uses display strings ("iOS Simulator",

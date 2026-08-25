@@ -26,11 +26,10 @@ defmodule TuistWeb.ShardsLive do
           field: :status,
           display_name: dgettext("dashboard_tests", "Status"),
           type: :option,
-          options: ["success", "failure", "no_tests", "in_progress"],
+          options: ["success", "failure", "in_progress"],
           options_display_names: %{
             "success" => dgettext("dashboard_tests", "Passed"),
             "failure" => dgettext("dashboard_tests", "Failed"),
-            "no_tests" => dgettext("dashboard_tests", "No tests"),
             "in_progress" => dgettext("dashboard_tests", "In Progress")
           },
           operator: :==,

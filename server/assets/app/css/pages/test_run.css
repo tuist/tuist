@@ -58,18 +58,11 @@
             color: var(--noora-icon-warning-label);
           }
         }
-        & > [data-part="badge-neutral"] {
-          background: var(--noora-surface-background-secondary);
-          & > [data-part="icon"] {
-            color: var(--noora-surface-label-secondary);
-          }
-        }
 
         & > [data-part="badge-success"],
         & > [data-part="badge-failure"],
         & > [data-part="badge-warning"],
         & > [data-part="badge-processing"],
-        & > [data-part="badge-neutral"],
         & > [data-part="badge-flaky"] {
           border-radius: var(--noora-radius-4);
           & > [data-part="icon"] {

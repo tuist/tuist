@@ -44,11 +44,6 @@
             <.alert_hexagon />
           </div>
         </div>
-        <div :if={@run.status == "no_tests"} data-part="badge-neutral">
-          <div data-part="icon">
-            <.slash />
-          </div>
-        </div>
         <h1 data-part="label">
           {if(@run.scheme in [nil, ""],
             do: dgettext("dashboard_tests", "Unknown"),
@@ -276,13 +271,6 @@
                 :if={@run.status == "failed_processing"}
                 label={dgettext("dashboard_tests", "Failed processing")}
                 color="warning"
-                style="fill"
-                size="large"
-              />
-              <.badge
-                :if={@run.status == "no_tests"}
-                label={dgettext("dashboard_tests", "No tests")}
-                color="neutral"
                 style="fill"
                 size="large"
               />

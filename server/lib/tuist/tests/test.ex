@@ -101,15 +101,7 @@ defmodule Tuist.Tests.Test do
       :ran_at,
       :build_system
     ])
-    |> validate_inclusion(:status, [
-      "success",
-      "failure",
-      "skipped",
-      "no_tests",
-      "in_progress",
-      "processing",
-      "failed_processing"
-    ])
+    |> validate_inclusion(:status, ["success", "failure", "skipped", "in_progress", "processing", "failed_processing"])
     |> validate_inclusion(:build_system, ["xcode", "gradle"])
     |> validate_inclusion(:ci_provider, Tuist.Tests.valid_ci_providers())
   end

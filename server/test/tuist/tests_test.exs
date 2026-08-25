@@ -2109,68 +2109,6 @@ defmodule Tuist.TestsTest do
       assert error.message =~ "ChatTests.swift:107"
     end
 
-    test "merges to no_tests only when no shard ran anything" do
-      project = ProjectsFixtures.project_fixture()
-      account = AccountsFixtures.user_fixture(preload: [:account]).account
-      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
-
-      shard_attrs = fn shard_index, status ->
-        %{
-          id: UUIDv7.generate(),
-          project_id: project.id,
-          account_id: account.id,
-          duration: 500,
-          status: status,
-          model_identifier: "Mac15,6",
-          macos_version: "14.0",
-          xcode_version: "15.0",
-          git_branch: "main",
-          git_commit_sha: "abc123",
-          ran_at: NaiveDateTime.utc_now(),
-          is_ci: true,
-          shard_plan_id: plan.id,
-          shard_index: shard_index
-        }
-      end
-
-      {:ok, _} = Tests.create_test(shard_attrs.(0, "no_tests"))
-      {:ok, merged} = Tests.create_test(shard_attrs.(1, "no_tests"))
-
-      assert {:ok, merged_run} = Tests.get_test(merged.id)
-      assert merged_run.status == "no_tests"
-    end
-
-    test "merges to success when one shard ran tests and another ran none" do
-      project = ProjectsFixtures.project_fixture()
-      account = AccountsFixtures.user_fixture(preload: [:account]).account
-      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
-
-      shard_attrs = fn shard_index, status ->
-        %{
-          id: UUIDv7.generate(),
-          project_id: project.id,
-          account_id: account.id,
-          duration: 500,
-          status: status,
-          model_identifier: "Mac15,6",
-          macos_version: "14.0",
-          xcode_version: "15.0",
-          git_branch: "main",
-          git_commit_sha: "abc123",
-          ran_at: NaiveDateTime.utc_now(),
-          is_ci: true,
-          shard_plan_id: plan.id,
-          shard_index: shard_index
-        }
-      end
-
-      {:ok, _} = Tests.create_test(shard_attrs.(0, "no_tests"))
-      {:ok, merged} = Tests.create_test(shard_attrs.(1, "success"))
-
-      assert {:ok, merged_run} = Tests.get_test(merged.id)
-      assert merged_run.status == "success"
-    end
-
     test "collapses a run error reported by every shard into one" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
