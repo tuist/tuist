@@ -63,7 +63,7 @@
 
 .cache-transfer-lab__legend-swatch {
   display: inline-block;
-  border-radius: var(--noora-radius-small);
+  border-radius: var(--noora-radius-2);
   width: var(--noora-spacing-3);
   height: var(--noora-spacing-3);
 }
@@ -151,7 +151,7 @@
 
   .cache-transfer-lab__mobile-bar {
     display: flex;
-    border-radius: var(--noora-radius-small);
+    border-radius: var(--noora-radius-2);
     background: var(--noora-neutral-light-300);
     height: var(--noora-spacing-3);
     overflow: hidden;

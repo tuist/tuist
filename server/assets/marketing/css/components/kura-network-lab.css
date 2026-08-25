@@ -58,6 +58,13 @@
 }
 
 [data-part="kura-network-lab"] [data-part="globe-labels"] {
+  --cobe-visible-us-east-cache: 0;
+  --cobe-visible-germany-developer: 0;
+  --cobe-visible-japan-developer: 0;
+  --cobe-visible-us-east-kura: 0;
+  --cobe-visible-eu-central-kura: 0;
+  --cobe-visible-ap-northeast-kura: 0;
+
   pointer-events: none;
 }
 
@@ -73,7 +80,7 @@
     opacity 150ms var(--ease-out-cubic),
     filter 150ms var(--ease-out-cubic);
   border: 1px solid var(--noora-surface-border-primary);
-  border-radius: var(--noora-radius-medium);
+  border-radius: var(--noora-radius-3);
   background: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-1) var(--noora-spacing-2);
   color: var(--noora-surface-label-primary);
@@ -134,33 +141,33 @@
 }
 
 [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="us-east-cache"] {
-  opacity: var(--cobe-visible-us-east-cache, 0);
-  filter: blur(calc((1 - var(--cobe-visible-us-east-cache, 0)) * var(--noora-spacing-2)));
+  opacity: var(--cobe-visible-us-east-cache);
+  filter: blur(calc((1 - var(--cobe-visible-us-east-cache)) * var(--noora-spacing-2)));
 }
 
 [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="germany-developer"] {
-  opacity: var(--cobe-visible-germany-developer, 0);
-  filter: blur(calc((1 - var(--cobe-visible-germany-developer, 0)) * var(--noora-spacing-2)));
+  opacity: var(--cobe-visible-germany-developer);
+  filter: blur(calc((1 - var(--cobe-visible-germany-developer)) * var(--noora-spacing-2)));
 }
 
 [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="japan-developer"] {
-  opacity: var(--cobe-visible-japan-developer, 0);
-  filter: blur(calc((1 - var(--cobe-visible-japan-developer, 0)) * var(--noora-spacing-2)));
+  opacity: var(--cobe-visible-japan-developer);
+  filter: blur(calc((1 - var(--cobe-visible-japan-developer)) * var(--noora-spacing-2)));
 }
 
 [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="us-east-kura"] {
-  opacity: var(--cobe-visible-us-east-kura, 0);
-  filter: blur(calc((1 - var(--cobe-visible-us-east-kura, 0)) * var(--noora-spacing-2)));
+  opacity: var(--cobe-visible-us-east-kura);
+  filter: blur(calc((1 - var(--cobe-visible-us-east-kura)) * var(--noora-spacing-2)));
 }
 
 [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="eu-central-kura"] {
-  opacity: var(--cobe-visible-eu-central-kura, 0);
-  filter: blur(calc((1 - var(--cobe-visible-eu-central-kura, 0)) * var(--noora-spacing-2)));
+  opacity: var(--cobe-visible-eu-central-kura);
+  filter: blur(calc((1 - var(--cobe-visible-eu-central-kura)) * var(--noora-spacing-2)));
 }
 
 [data-part="kura-network-lab"] [data-part="globe-labels"] [data-label-for="ap-northeast-kura"] {
-  opacity: var(--cobe-visible-ap-northeast-kura, 0);
-  filter: blur(calc((1 - var(--cobe-visible-ap-northeast-kura, 0)) * var(--noora-spacing-2)));
+  opacity: var(--cobe-visible-ap-northeast-kura);
+  filter: blur(calc((1 - var(--cobe-visible-ap-northeast-kura)) * var(--noora-spacing-2)));
 }
 
 [data-part="kura-network-lab"][data-scenario="us-east-only"] [data-scenario-label="global-mesh"],
