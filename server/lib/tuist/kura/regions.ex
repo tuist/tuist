@@ -292,10 +292,32 @@ defmodule Tuist.Kura.Regions do
       node_pool: "kura-ap-southeast",
       storage_class: "scw-local-nvme",
       gateway: :host_network,
-      # One box, so one replica: the second replica elsewhere is a warm standby
-      # for gapless rolling deploys, and it only buys that on a region carrying
-      # enough capacity to hold both. A single-box region takes the deploy blip
-      # instead, which a cache absorbs — a miss is a rebuild, not a failure.
+      # One replica, and this is the value that keeps the box off the eviction
+      # line — not a disk option. `Capacity.resident_gib/2` is claim x replicas
+      # and each replica requests its full claim as ephemeral-storage, so the
+      # replica count is what the region reserves. Against the expected initial
+      # population (6 enterprise + 2 pro) on the Advance-2's 2x960 GB mirror,
+      # which #12522's partitioning leaves ~829 GiB of /data after /boot and a
+      # capped /:
+      #
+      #   replicas: 2 -> 6x50x2 + 2x30x2 = 720 GiB, 87% of /data
+      #   replicas: 1 -> 6x50   + 2x30   = 360 GiB, 43% of /data
+      #
+      # 87% launches the region past @pressure_fraction (0.85) and at kubelet's
+      # imagefs.available<15% eviction line on day one, with room for one more
+      # enterprise account. 43% leaves room for about six more before pressure.
+      # The alternative that buys the same headroom is a 4x960 storage upgrade
+      # at $100/month, which this value makes unnecessary — so read the two
+      # together before changing either.
+      #
+      # The trade is understood. A second replica buys gapless rolling deploys
+      # (the Service fails over to a warm standby while the primary restarts),
+      # not durability: controller pod affinity co-locates both replicas on the
+      # same box, so box loss takes both either way. A satellite region trades
+      # the deploy blip for the disk, which a cache absorbs — Kura is terminal
+      # storage and a miss is a rebuild by the client, not a failure. Matches
+      # spec 78's standard availability, and the runner-cache regions and
+      # local-controller already run at one replica.
       replicas: 1,
       # Egress governance on the shared box: the enterprise per-tenant floor
       # (uniform across regions) is bin-packed as the tuist.dev/egress-mbps
