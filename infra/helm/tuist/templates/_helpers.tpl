@@ -528,8 +528,10 @@ License env vars. Resolves to one mutually exclusive source:
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
 {{- $useEsoKey := ne (.Values.server.externalSecrets.license.item | default "") "" -}}
 {{- $useEsoCertificate := ne (.Values.server.externalSecrets.license.certificateItem | default "") "" -}}
+{{- $useEsoVerifyKey := ne (.Values.server.externalSecrets.license.verifyKeyItem | default "") "" -}}
 {{- $useInlineKey := ne (.Values.server.license.key | default "") "" -}}
 {{- $useInlineCertificate := ne (.Values.server.license.certificateBase64 | default "") "" -}}
+{{- $useInlineVerifyKey := ne (.Values.server.license.verifyKey | default "") "" -}}
 {{- if and $useEsoKey $useEsoCertificate -}}
 {{- fail "server.externalSecrets.license.item and server.externalSecrets.license.certificateItem are mutually exclusive; pick one license source." -}}
 {{- end -}}
@@ -555,6 +557,13 @@ License env vars. Resolves to one mutually exclusive source:
     secretKeyRef:
       name: {{ ternary $esoSecret $appSecret $useEsoCertificate | quote }}
       key: server-license-certificate-base64
+{{- end }}
+{{- if or $useEsoVerifyKey $useInlineVerifyKey }}
+- name: TUIST_LICENSE_VERIFY_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ ternary $esoSecret $appSecret $useEsoVerifyKey | quote }}
+      key: server-license-verify-key
 {{- end }}
 {{- end -}}
 
