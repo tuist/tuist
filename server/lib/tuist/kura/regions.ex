@@ -318,23 +318,33 @@ defmodule Tuist.Kura.Regions do
       # 2 pro) that is 6x50x2 + 2x30x2 = 720 GiB. The Advance-2's INCLUDED
       # 2x960 GB mirror leaves ~829 GiB of /data once #12522's partitioning
       # carves /boot and a capped / out first, which puts the region at 87% on
-      # day one — past @pressure_fraction (0.85) and at kubelet's
-      # imagefs.available<15% eviction line before it serves a request. The
-      # 4x960 option is what buys the headroom, and it buys it only if the
-      # install yields more than one disk's worth of /data: the OVH provider's
-      # `raidLevel()` returns 1 for any group of two or more disks and never
-      # asks for RAID 10, so a 4-disk group is requested as a 4-way mirror,
-      # which lands back at ~829 GiB and buys nothing. Confirm the delivered
-      # box's /data at adoption rather than assuming the upgrade took.
+      # day one — past @pressure_fraction (0.85), whose line sits at ~705 GiB,
+      # and at kubelet's imagefs.available<15% eviction threshold before it
+      # serves a request.
+      #
+      # THAT IS THE DELIVERED BOX, not a hypothetical. The sizing discussion
+      # assumed a 4x960 upgrade would absorb this, but
+      # ns5036444.ip-15-235-229.net reports one disk group of 2x960 GB NVMe
+      # (specifications/hardware), so the headroom was never bought. Either the
+      # upgrade is still to be ordered, the region opens with fewer accounts
+      # than planned, or the claim ladder gives. Resolve it before the region is
+      # switched on rather than discovering it as eviction.
+      #
+      # Note for whoever orders an upgrade: a 4-disk group would not simply
+      # double /data. The OVH provider's `raidLevel()` returns 1 for any group
+      # of two or more disks and never asks for RAID 10, so four disks are
+      # requested as a 4-way mirror — one disk's worth, landing back at ~829 GiB
+      # and buying nothing. That needs fixing first.
       replicas: 2,
       # Egress governance on the shared box: the enterprise per-tenant floor
       # (uniform across regions) is bin-packed as the tuist.dev/egress-mbps
-      # request; egress_burst_mbps is the Cilium burst ceiling. The ceiling is
-      # the conservative bare-metal value rather than the Advance-1 regions'
-      # 1500, because the delivered box's NIC is not measured yet — it is the
-      # side that under-commits a shared NIC, and it moves once the box is
-      # adopted and `ovhFleets.ap-southeast.machine.egressBudgetMbps` is
-      # reconciled against what it actually has.
+      # request; egress_burst_mbps is the Cilium burst ceiling. 500 is half the
+      # box's real public ceiling and is now MEASURED rather than assumed: the
+      # NIC links at 25 Gbit/s but the box's public bandwidth is 1 Gbit/s
+      # (specifications/network `OvhToInternet`), and public egress is what a
+      # cache serves. The 25 Gbit figure is the vRack/private side — sizing from
+      # it would over-commit the public path 25x. Same shape as ca-east, which
+      # is the other ~1 Gbit region.
       egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 500,
       # OVHcloud SGP, Singapore. No subdivision: Singapore is a city-state whose

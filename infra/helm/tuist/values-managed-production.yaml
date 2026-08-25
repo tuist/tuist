@@ -767,11 +767,13 @@ ovhFleets:
   # every cache request. The legacy cache fleet serves an ap-southeast endpoint,
   # so this is continuity rather than a new capability.
   #
-  # DELIBERATELY DISABLED. The box is on order, which is not the same as
-  # adoptable: an enabled fleet with no ADOPTABLE machine hangs helm --wait (the
-  # failure the dediboxFleet comment above warns about), which would wedge every
-  # production deploy rather than just this region. Flip to true only once a box
-  # is delivered, prepped
+  # DELIBERATELY DISABLED. The box (ns5036444.ip-15-235-229.net) is DELIVERED and
+  # powered on, but not adoptable yet: it reports os "none_64" (no OS installed)
+  # and its displayName is still OVH's default, so the adoptDisplayNamePrefix
+  # below matches nothing. An enabled fleet with no ADOPTABLE machine hangs
+  # helm --wait (the failure the dediboxFleet comment above warns about), which
+  # would wedge every production deploy rather than just this region. Flip to
+  # true only once a box is delivered, prepped
   # (mise run baremetal:prep-ovh, including the /data XFS project-quota layout,
   # which has to be applied at install time), and named with the displayName
   # prefix below. The region also stays out of TUIST_KURA_AVAILABLE_REGIONS
@@ -800,30 +802,35 @@ ovhFleets:
     nodePool: kura-ap-southeast
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-ap-southeast
-      # UNVERIFIED STRING — confirm on first adoption. The provider matches this
-      # case-insensitively as a SUBSTRING of the box's CommercialRange
-      # (internal/ovh/client.go), so the year belongs in it: a bare "advance-2"
-      # would also adopt an Advance-2-2024 box. But CommercialRange lives on
-      # /dedicated/server/{serviceName}, which only answers for a server the
-      # account already owns — the public catalog exposes the plan code
-      # (26adv02-v7-sgp) and the server family (26adv02), never the range
-      # string. So this spelling is inferred from the Advance-3-2024 /
-      # Rise-1-2024 pattern, not read.
+      # READ FROM THE BOX, not inferred: GET /dedicated/server/
+      # ns5036444.ip-15-235-229.net reports commercialRange
+      # "ADVANCE-2 | AMD EPYC 4344P". The 2026 range dropped the year the older
+      # ones carried (Advance-3-2024, Rise-1-2024) for a CPU suffix, so the
+      # "advance-2-2026" this line used to guess matched nothing — the provider
+      # tests `strings.Contains(lower(commercialRange), lower(offer))`, and that
+      # guess would have left the box silently unadopted, looking like a
+      # delivery problem rather than a typo.
       #
-      # A mismatch fails SILENTLY: the box is simply never adopted, which reads
-      # as a delivery problem rather than a config typo. When the box lands,
-      # GET /dedicated/server/{name} returns its commercialRange — compare it
-      # against this line first. The fix, if it differs, is this one value.
-      offer: advance-2-2026
+      # Carried in full rather than as a bare "advance-2" so a differently
+      # specced Advance-2 cannot be adopted into this pool by accident. If a
+      # second SGP box ships on another CPU binning, widen this deliberately
+      # rather than being surprised by it.
+      offer: "ADVANCE-2 | AMD EPYC 4344P"
+      # Prefix-matched (`strings.HasPrefix`), so this claims the box whatever
+      # specific datacenter OVH reports — it is in sgp02.
       datacenter: sgp
       os: ubuntu_24.04
-      # Node egress budget (Mbps): provisional. Unlike the Advance-1 US boxes
-      # this is not measured yet, so it is set to the conservative bare-metal
-      # 1 Gbit/s the other single-NIC regions assume and must be reconciled
-      # against the delivered box's real NIC at adoption, together with
-      # `egress_burst_mbps` for ap-southeast in Tuist.Kura.Regions. Advertised
-      # as tuist.dev/egress-mbps so the scheduler bin-packs the cache pods'
-      # guaranteed floors against it.
+      # Node egress budget (Mbps): MEASURED. The box's NIC links at 25 Gbit/s
+      # (specifications/network `connection`) but its public bandwidth is
+      # `OvhToInternet` 1000 Mbps, and public egress is what a cache serves, so
+      # 1000 is the real ceiling to bin-pack the pods' guaranteed floors
+      # against. The 25 Gbit figure is the vRack/private side; do not size from
+      # it. Advertised as tuist.dev/egress-mbps.
+      #
+      # Separately, the box carries a 25 TiB/month egress quota
+      # (traffic.outputQuotaSize, resets monthly, isThrottled false today). That
+      # is not enforced here and nothing watches it yet — a Singapore satellite
+      # is unlikely to approach it soon, but it is a real ceiling above this one.
       egressBudgetMbps: 1000
     sshExternalSecret:
       enabled: true
