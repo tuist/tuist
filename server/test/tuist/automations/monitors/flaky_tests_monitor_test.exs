@@ -1272,4 +1272,265 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       Map.new(overrides)
     )
   end
+
+  describe "branch_scope/1" do
+    test "reliability defaults to the default branch and flakiness to every branch" do
+      project = ProjectsFixtures.project_fixture()
+
+      reliability =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d"}
+        )
+
+      flakiness =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{"threshold" => 10, "window_type" => "last_days", "window" => "30d"}
+        )
+
+      assert FlakyTestsMonitor.branch_scope(reliability) == :default_branch
+      assert FlakyTestsMonitor.branch_scope(flakiness) == :all_branches
+    end
+
+    test "an explicit branch_scope overrides the per-monitor default in both directions" do
+      project = ProjectsFixtures.project_fixture()
+
+      opted_out =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{
+            "threshold" => 90,
+            "window_type" => "last_days",
+            "window" => "30d",
+            "branch_scope" => "all_branches"
+          }
+        )
+
+      opted_in =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 10,
+            "window_type" => "last_days",
+            "window" => "30d",
+            "branch_scope" => "default_branch"
+          }
+        )
+
+      assert FlakyTestsMonitor.branch_scope(opted_out) == :all_branches
+      assert FlakyTestsMonitor.branch_scope(opted_in) == :default_branch
+    end
+
+    test "alerts that read different buckets are not collapsed into one rolling query" do
+      project = ProjectsFixtures.project_fixture()
+
+      base = %{"threshold" => 90, "window_type" => "rolling", "rolling_window_size" => 10}
+
+      scoped =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: Map.put(base, "branch_scope", "default_branch")
+        )
+
+      unscoped =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: Map.put(base, "branch_scope", "all_branches")
+        )
+
+      refute FlakyTestsMonitor.rolling_group_key(scoped) == FlakyTestsMonitor.rolling_group_key(unscoped)
+    end
+  end
+
+  describe "default-branch scoping" do
+    test "a reliability alert ignores failures that only happened off the default branch" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Passes on the default branch, fails on a pull-request branch. Measured
+      # over every branch this test case is 50% reliable and trips a 90%
+      # threshold; measured on the trunk it is 100% and does not.
+      run_test_case(project, "main", "success")
+      run_test_case(project, "feature/wip", "failure")
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+
+      scoped =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d"}
+        )
+
+      unscoped =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{
+            "threshold" => 90,
+            "window_type" => "last_days",
+            "window" => "30d",
+            "branch_scope" => "all_branches"
+          }
+        )
+
+      assert %{triggered: []} = FlakyTestsMonitor.evaluate_by_reliability_rate(scoped)
+      assert %{triggered: [triggered_id]} = FlakyTestsMonitor.evaluate_by_reliability_rate(unscoped)
+      assert triggered_id == test_case.id
+    end
+
+    test "a project whose default branch is master scopes to master, not to main" do
+      project = ProjectsFixtures.project_fixture()
+      {:ok, project} = Tuist.Projects.update_project(project, %{default_branch: "master"})
+
+      run_test_case(project, "master", "success")
+      run_test_case(project, "main", "failure")
+
+      scoped =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d"}
+        )
+
+      assert %{triggered: []} = FlakyTestsMonitor.evaluate_by_reliability_rate(scoped)
+    end
+
+    test "a rolling reliability window counts only default-branch runs toward being filled" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Two default-branch runs and four off-branch ones. A window of three is
+      # filled across every branch but not on the trunk, so the scoped alert has
+      # nothing it is willing to measure yet.
+      for _ <- 1..2, do: run_test_case(project, "main", "success")
+      for _ <- 1..4, do: run_test_case(project, "feature/wip", "failure")
+
+      scoped =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{"threshold" => 90, "window_type" => "rolling", "rolling_window_size" => 3}
+        )
+
+      assert %{triggered: []} = FlakyTestsMonitor.evaluate_by_reliability_rate(scoped)
+
+      run_test_case(project, "main", "success")
+
+      assert %{triggered: []} = FlakyTestsMonitor.evaluate_by_reliability_rate(scoped)
+    end
+
+    test "flakiness keeps measuring every branch unless the alert opts in" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "flakes_on_prs")
+
+      # The only run this test case has flaked on a pull-request branch. A
+      # default-branch-scoped alert would see nothing; flakiness is not scoped,
+      # so it sees the flake wherever it happened.
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "feature/wip",
+        status: "failure",
+        is_flaky: true
+      )
+
+      unscoped =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{"threshold" => 50, "window_type" => "last_days", "window" => "30d"}
+        )
+
+      opted_in =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 50,
+            "window_type" => "last_days",
+            "window" => "30d",
+            "branch_scope" => "default_branch"
+          }
+        )
+
+      assert %{triggered: [^test_case_id]} = FlakyTestsMonitor.evaluate(unscoped)
+      assert %{triggered: []} = FlakyTestsMonitor.evaluate(opted_in)
+    end
+  end
+
+  describe "measurable_test_case_ids/2" do
+    test "an unscoped alert measures everything it is asked about" do
+      project = ProjectsFixtures.project_fixture()
+      ids = [UUIDv7.generate(), UUIDv7.generate()]
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{"threshold" => 10, "window_type" => "last_days", "window" => "30d"}
+        )
+
+      assert FlakyTestsMonitor.measurable_test_case_ids(alert, ids) == ids
+    end
+
+    test "a scoped alert cannot measure a test case with no default-branch runs" do
+      project = ProjectsFixtures.project_fixture()
+
+      run_test_case(project, "feature/wip", "failure")
+      {[off_branch_only], _meta} = Tests.list_test_cases(project.id, %{})
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d"}
+        )
+
+      assert FlakyTestsMonitor.measurable_test_case_ids(alert, [off_branch_only.id]) == []
+    end
+
+    test "a scoped alert measures a test case once it has run on the default branch" do
+      project = ProjectsFixtures.project_fixture()
+
+      run_test_case(project, "main", "success")
+      {[on_branch], _meta} = Tests.list_test_cases(project.id, %{})
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d"}
+        )
+
+      assert FlakyTestsMonitor.measurable_test_case_ids(alert, [on_branch.id]) == [on_branch.id]
+    end
+  end
+
+  defp run_test_case(project, git_branch, status, opts \\ []) do
+    {:ok, run} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        git_branch: git_branch,
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "M",
+            status: status,
+            duration: 1000,
+            test_cases: [
+              Enum.into(opts, %{name: "subject", status: status, duration: 100})
+            ]
+          }
+        ]
+      )
+
+    run
+  end
 end

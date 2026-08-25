@@ -820,4 +820,81 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       refute Alert.recovery_ledger?("legacy_unknown")
     end
   end
+
+  describe "branch_scope" do
+    test "accepts both scopes on a metric monitor" do
+      project = ProjectsFixtures.project_fixture()
+
+      for scope <- Alert.branch_scopes() do
+        changeset =
+          Alert.changeset(
+            %Alert{},
+            valid_attrs(project, %{
+              "trigger_config" => %{
+                "threshold" => 10,
+                "window_type" => "last_days",
+                "window" => "30d",
+                "branch_scope" => scope
+              }
+            })
+          )
+
+        assert changeset.valid?, "expected #{scope} to be accepted"
+      end
+    end
+
+    test "rejects an unknown scope" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "branch_scope" => "release_branches"
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert %{trigger_config: [message]} = errors_on(changeset)
+      assert message =~ "branch_scope must be one of"
+    end
+
+    test "rejects a scope on a monitor that has no window to narrow" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "test_updated",
+            "trigger_config" => %{"events" => ["marked_flaky"], "branch_scope" => "default_branch"}
+          })
+        )
+
+      refute changeset.valid?
+      assert %{trigger_config: messages} = errors_on(changeset)
+      assert Enum.any?(messages, &(&1 =~ "branch_scope is not supported"))
+    end
+
+    test "omitting it stays valid, the monitor supplies the default" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "reliability_rate",
+            "trigger_config" => %{"threshold" => 90, "window_type" => "last_days", "window" => "30d"}
+          })
+        )
+
+      assert changeset.valid?
+      refute Map.has_key?(Ecto.Changeset.get_field(changeset, :trigger_config), "branch_scope")
+    end
+  end
 end

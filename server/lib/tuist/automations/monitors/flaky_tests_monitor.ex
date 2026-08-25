@@ -98,22 +98,116 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     max_memory_usage: 1024 * 1024 * 1024
   ]
 
+  # Parallel aggregates carrying only runs on the project's default branch. They
+  # are separate tables rather than a dimension on the shared ones because a
+  # branch dimension multiplies those tables 14-86x on production projects, and a
+  # boolean cannot be added to an existing sort key without every row already
+  # written claiming the wrong value. See the two migrations for the numbers.
+  @default_branch_daily_table "test_case_run_daily_stats_per_case_default_branch"
+  @default_branch_recent_window_table "test_case_runs_default_branch_recent_window_per_case"
+  @all_branches_daily_table "test_case_run_daily_stats_per_case"
+  @all_branches_recent_window_table "test_case_runs_recent_window_per_case"
+
+  @doc """
+  Which runs an alert measures.
+
+  Reliability answers "is this test trustworthy", which is a question about the
+  trunk, so it defaults to the default branch. Flakiness answers "does this test
+  waste developers' time", which is true wherever it happens, so it stays on
+  every branch unless the alert opts in.
+
+  A project with no default branch configured has no trunk to scope to, and the
+  aggregate holds nothing for it, so it reads every branch whatever the alert
+  asks for.
+  """
+  def branch_scope(%{trigger_config: %{"branch_scope" => "default_branch"}}), do: :default_branch
+  def branch_scope(%{trigger_config: %{"branch_scope" => "all_branches"}}), do: :all_branches
+  def branch_scope(%{monitor_type: "reliability_rate"}), do: :default_branch
+  def branch_scope(_alert), do: :all_branches
+
+  @doc """
+  The subset of `test_case_ids` this alert can currently measure.
+
+  Recovery treats "not in the triggered set" as "the condition cleared", which
+  is only true of a test case that was actually measured. Under default-branch
+  scoping that stops being a safe assumption: a quarantined test whose runs move
+  entirely onto pull-request branches disappears from the triggered set because
+  there is nothing left to measure, and recovery would read that as proof it got
+  better and un-quarantine it.
+
+  Unscoped alerts are deliberately not filtered. Their existing behaviour, that a
+  test case with fewer runs than its window stops being measured and lets
+  recovery re-arm, is documented at `window_filled_expr/1` and is not this
+  change's to alter.
+  """
+  def measurable_test_case_ids(_alert, []), do: []
+
+  def measurable_test_case_ids(alert, test_case_ids) do
+    case branch_scope(alert) do
+      :all_branches ->
+        test_case_ids
+
+      :default_branch ->
+        case window_mode(alert.trigger_config) do
+          {:last_days, seconds} -> measured_in_calendar_window(alert, seconds, test_case_ids)
+          {:rolling, size} -> measured_in_rolling_window(alert, size, test_case_ids)
+        end
+    end
+  end
+
+  defp measured_in_calendar_window(alert, seconds, test_case_ids) do
+    cutoff = window_cutoff_date(alert.project_id, :default_branch, seconds)
+
+    ClickHouseRepo.all(
+      from(daily in {@default_branch_daily_table, TestCaseRunDailyStatsPerCase},
+        where: daily.project_id == ^alert.project_id,
+        where: daily.date >= ^cutoff,
+        where: daily.test_case_id in ^test_case_ids,
+        group_by: daily.test_case_id,
+        having: fragment("countMerge(run_count) > 0"),
+        select: daily.test_case_id
+      )
+    )
+  end
+
+  # A rolling window is measurable exactly when it is filled, which is the same
+  # predicate the trigger query applies, so this reuses the measurement path and
+  # keeps the two from drifting apart.
+  defp measured_in_rolling_window(alert, size, test_case_ids) do
+    alert.project_id
+    |> rolling_measurements(:default_branch, matching_flag(alert.monitor_type), size, test_case_ids)
+    |> Enum.map(&elem(&1, 0))
+  end
+
+  defp daily_stats_source(:default_branch), do: @default_branch_daily_table
+  defp daily_stats_source(:all_branches), do: @all_branches_daily_table
+
+  defp recent_window_table(:default_branch), do: @default_branch_recent_window_table
+  defp recent_window_table(:all_branches), do: @all_branches_recent_window_table
+
   def evaluate(alert, test_case_ids \\ nil) do
     trigger_config = alert.trigger_config
     threshold = trigger_config["threshold"] || 10
     comparison = parse_comparison(trigger_config["comparison"])
     project_id = alert.project_id
+    scope = branch_scope(alert)
+    source = daily_stats_source(scope)
 
     triggered_test_case_ids =
       case window_mode(trigger_config) do
         {:last_days, seconds} ->
-          project_id
-          |> flakiness_rate_last_days_query(window_cutoff_date(seconds), threshold, comparison)
+          source
+          |> flakiness_rate_last_days_query(
+            project_id,
+            window_cutoff_date(project_id, scope, seconds),
+            threshold,
+            comparison
+          )
           |> filter_test_case_ids(test_case_ids)
           |> ClickHouseRepo.all()
 
         {:rolling, size} ->
-          rolling_triggered_test_case_ids(project_id, "flakiness_rate", size, threshold, comparison, test_case_ids)
+          rolling_triggered_test_case_ids(project_id, scope, "flakiness_rate", size, threshold, comparison, test_case_ids)
       end
 
     %{triggered: triggered_test_case_ids}
@@ -124,17 +218,32 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     threshold = trigger_config["threshold"] || 1
     comparison = parse_comparison(trigger_config["comparison"])
     project_id = alert.project_id
+    scope = branch_scope(alert)
+    source = daily_stats_source(scope)
 
     triggered_test_case_ids =
       case window_mode(trigger_config) do
         {:last_days, seconds} ->
-          project_id
-          |> flaky_run_count_last_days_query(window_cutoff_date(seconds), threshold, comparison)
+          source
+          |> flaky_run_count_last_days_query(
+            project_id,
+            window_cutoff_date(project_id, scope, seconds),
+            threshold,
+            comparison
+          )
           |> filter_test_case_ids(test_case_ids)
           |> ClickHouseRepo.all()
 
         {:rolling, size} ->
-          rolling_triggered_test_case_ids(project_id, "flaky_run_count", size, threshold, comparison, test_case_ids)
+          rolling_triggered_test_case_ids(
+            project_id,
+            scope,
+            "flaky_run_count",
+            size,
+            threshold,
+            comparison,
+            test_case_ids
+          )
       end
 
     %{triggered: triggered_test_case_ids}
@@ -145,26 +254,41 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     threshold = trigger_config["threshold"] || 90
     comparison = parse_comparison(trigger_config["comparison"], "lt")
     project_id = alert.project_id
+    scope = branch_scope(alert)
+    source = daily_stats_source(scope)
 
     triggered_test_case_ids =
       case window_mode(trigger_config) do
         {:last_days, seconds} ->
-          project_id
-          |> reliability_rate_last_days_query(window_cutoff_date(seconds), threshold, comparison)
+          source
+          |> reliability_rate_last_days_query(
+            project_id,
+            window_cutoff_date(project_id, scope, seconds),
+            threshold,
+            comparison
+          )
           |> filter_test_case_ids(test_case_ids)
           |> ClickHouseRepo.all()
 
         {:rolling, size} ->
-          rolling_triggered_test_case_ids(project_id, "reliability_rate", size, threshold, comparison, test_case_ids)
+          rolling_triggered_test_case_ids(
+            project_id,
+            scope,
+            "reliability_rate",
+            size,
+            threshold,
+            comparison,
+            test_case_ids
+          )
       end
 
     %{triggered: triggered_test_case_ids}
   end
 
-  def rolling_group_key(%{monitor_type: monitor_type, trigger_config: trigger_config})
+  def rolling_group_key(%{monitor_type: monitor_type, trigger_config: trigger_config} = alert)
       when monitor_type in ["flakiness_rate", "flaky_run_count", "reliability_rate"] do
     case window_mode(trigger_config) do
-      {:rolling, size} -> {:rolling, matching_flag(monitor_type), size}
+      {:rolling, size} -> {:rolling, branch_scope(alert), matching_flag(monitor_type), size}
       {:last_days, _seconds} -> nil
     end
   end
@@ -174,8 +298,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   def evaluate_rolling_alerts([], _test_case_ids), do: %{}
 
   def evaluate_rolling_alerts([alert | _alerts] = alerts, test_case_ids) do
-    {:rolling, column, size} = rolling_group_key(alert)
-    measurements = rolling_measurements(alert.project_id, column, size, test_case_ids)
+    {:rolling, scope, column, size} = rolling_group_key(alert)
+    measurements = rolling_measurements(alert.project_id, scope, column, size, test_case_ids)
 
     Map.new(alerts, fn alert ->
       triggered_test_case_ids =
@@ -191,17 +315,44 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # cutoff to the start of the day. A 30-day window evaluated mid-day picks
   # up a few hours of additional data on day -30 — acceptable for
   # threshold-based alerts and well within the noise of test-run timing.
-  defp window_cutoff_date(window_seconds) do
-    DateTime.utc_now()
-    |> DateTime.add(-window_seconds, :second)
-    |> DateTime.to_date()
+  #
+  # A default-branch-scoped alert is clamped to the oldest date its aggregate
+  # holds for the project. That table was seeded over a trailing window rather
+  # than all history, so a longer configured window would otherwise read the
+  # seam as "no runs" and report a rate off a partially seeded range — which for
+  # reliability reads as a collapse rather than as missing data. Measuring the
+  # window that exists is narrower than the user asked for and says so; the
+  # clamp lifts on its own as the view fills forward.
+  defp window_cutoff_date(project_id, scope, window_seconds) do
+    requested =
+      DateTime.utc_now()
+      |> DateTime.add(-window_seconds, :second)
+      |> DateTime.to_date()
+
+    case scope do
+      :all_branches -> requested
+      :default_branch -> clamp_to_available_history(project_id, requested)
+    end
+  end
+
+  defp clamp_to_available_history(project_id, requested) do
+    query =
+      from(daily in {@default_branch_daily_table, TestCaseRunDailyStatsPerCase},
+        where: daily.project_id == ^project_id,
+        select: min(daily.date)
+      )
+
+    case ClickHouseRepo.one(query) do
+      %Date{} = floor_date -> if Date.after?(floor_date, requested), do: floor_date, else: requested
+      _no_rows -> requested
+    end
   end
 
   # Ecto's `fragment(...)` macro requires a literal first argument to prevent
   # SQL-injection routes, so each comparison gets its own clause instead of
   # an interpolated operator.
-  defp flakiness_rate_last_days_query(project_id, cutoff_date, threshold, "gte") do
-    from(daily in TestCaseRunDailyStatsPerCase,
+  defp flakiness_rate_last_days_query(source, project_id, cutoff_date, threshold, "gte") do
+    from(daily in {source, TestCaseRunDailyStatsPerCase},
       where: daily.project_id == ^project_id,
       where: daily.date >= ^cutoff_date,
       group_by: daily.test_case_id,
@@ -214,8 +365,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  defp flakiness_rate_last_days_query(project_id, cutoff_date, threshold, "gt") do
-    from(daily in TestCaseRunDailyStatsPerCase,
+  defp flakiness_rate_last_days_query(source, project_id, cutoff_date, threshold, "gt") do
+    from(daily in {source, TestCaseRunDailyStatsPerCase},
       where: daily.project_id == ^project_id,
       where: daily.date >= ^cutoff_date,
       group_by: daily.test_case_id,
@@ -228,8 +379,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  defp flakiness_rate_last_days_query(project_id, cutoff_date, threshold, "lt") do
-    from(daily in TestCaseRunDailyStatsPerCase,
+  defp flakiness_rate_last_days_query(source, project_id, cutoff_date, threshold, "lt") do
+    from(daily in {source, TestCaseRunDailyStatsPerCase},
       where: daily.project_id == ^project_id,
       where: daily.date >= ^cutoff_date,
       group_by: daily.test_case_id,
@@ -242,8 +393,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  defp flakiness_rate_last_days_query(project_id, cutoff_date, threshold, "lte") do
-    from(daily in TestCaseRunDailyStatsPerCase,
+  defp flakiness_rate_last_days_query(source, project_id, cutoff_date, threshold, "lte") do
+    from(daily in {source, TestCaseRunDailyStatsPerCase},
       where: daily.project_id == ^project_id,
       where: daily.date >= ^cutoff_date,
       group_by: daily.test_case_id,
@@ -256,8 +407,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  defp flaky_run_count_last_days_query(project_id, cutoff_date, threshold, "gte") do
-    from(daily in TestCaseRunDailyStatsPerCase,
+  defp flaky_run_count_last_days_query(source, project_id, cutoff_date, threshold, "gte") do
+    from(daily in {source, TestCaseRunDailyStatsPerCase},
       where: daily.project_id == ^project_id,
       where: daily.date >= ^cutoff_date,
       group_by: daily.test_case_id,
@@ -266,8 +417,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  defp flaky_run_count_last_days_query(project_id, cutoff_date, threshold, "gt") do
-    from(daily in TestCaseRunDailyStatsPerCase,
+  defp flaky_run_count_last_days_query(source, project_id, cutoff_date, threshold, "gt") do
+    from(daily in {source, TestCaseRunDailyStatsPerCase},
       where: daily.project_id == ^project_id,
       where: daily.date >= ^cutoff_date,
       group_by: daily.test_case_id,
@@ -276,8 +427,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  defp flaky_run_count_last_days_query(project_id, cutoff_date, threshold, "lt") do
-    from(daily in TestCaseRunDailyStatsPerCase,
+  defp flaky_run_count_last_days_query(source, project_id, cutoff_date, threshold, "lt") do
+    from(daily in {source, TestCaseRunDailyStatsPerCase},
       where: daily.project_id == ^project_id,
       where: daily.date >= ^cutoff_date,
       group_by: daily.test_case_id,
@@ -286,8 +437,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  defp flaky_run_count_last_days_query(project_id, cutoff_date, threshold, "lte") do
-    from(daily in TestCaseRunDailyStatsPerCase,
+  defp flaky_run_count_last_days_query(source, project_id, cutoff_date, threshold, "lte") do
+    from(daily in {source, TestCaseRunDailyStatsPerCase},
       where: daily.project_id == ^project_id,
       where: daily.date >= ^cutoff_date,
       group_by: daily.test_case_id,
@@ -296,8 +447,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  defp reliability_rate_last_days_query(project_id, cutoff_date, threshold, "gte") do
-    from(daily in TestCaseRunDailyStatsPerCase,
+  defp reliability_rate_last_days_query(source, project_id, cutoff_date, threshold, "gte") do
+    from(daily in {source, TestCaseRunDailyStatsPerCase},
       where: daily.project_id == ^project_id,
       where: daily.date >= ^cutoff_date,
       group_by: daily.test_case_id,
@@ -310,8 +461,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  defp reliability_rate_last_days_query(project_id, cutoff_date, threshold, "gt") do
-    from(daily in TestCaseRunDailyStatsPerCase,
+  defp reliability_rate_last_days_query(source, project_id, cutoff_date, threshold, "gt") do
+    from(daily in {source, TestCaseRunDailyStatsPerCase},
       where: daily.project_id == ^project_id,
       where: daily.date >= ^cutoff_date,
       group_by: daily.test_case_id,
@@ -324,8 +475,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  defp reliability_rate_last_days_query(project_id, cutoff_date, threshold, "lt") do
-    from(daily in TestCaseRunDailyStatsPerCase,
+  defp reliability_rate_last_days_query(source, project_id, cutoff_date, threshold, "lt") do
+    from(daily in {source, TestCaseRunDailyStatsPerCase},
       where: daily.project_id == ^project_id,
       where: daily.date >= ^cutoff_date,
       group_by: daily.test_case_id,
@@ -338,8 +489,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  defp reliability_rate_last_days_query(project_id, cutoff_date, threshold, "lte") do
-    from(daily in TestCaseRunDailyStatsPerCase,
+  defp reliability_rate_last_days_query(source, project_id, cutoff_date, threshold, "lte") do
+    from(daily in {source, TestCaseRunDailyStatsPerCase},
       where: daily.project_id == ^project_id,
       where: daily.date >= ^cutoff_date,
       group_by: daily.test_case_id,
@@ -373,8 +524,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # interpolated because they are chosen from fixed in-module allowlists (or are
   # validated integers via `size`), so there is no query-injection vector.
   # `project_id` and `threshold` flow through bound parameters.
-  defp rolling_triggered_test_case_ids(project_id, monitor_type, size, threshold, comparison, test_case_ids) do
-    source = recent_runs_source(matching_flag(monitor_type), size)
+  defp rolling_triggered_test_case_ids(project_id, scope, monitor_type, size, threshold, comparison, test_case_ids) do
+    source = recent_runs_source(scope, matching_flag(monitor_type), size)
 
     rolling_triggered_test_case_ids_from_recent_runs(
       source,
@@ -387,10 +538,10 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  defp rolling_measurements(_project_id, _column, _size, []), do: []
+  defp rolling_measurements(_project_id, _scope, _column, _size, []), do: []
 
-  defp rolling_measurements(project_id, column, size, test_case_ids) do
-    source = recent_runs_source(column, size)
+  defp rolling_measurements(project_id, scope, column, size, test_case_ids) do
+    source = recent_runs_source(scope, column, size)
     rolling_measurements_from_recent_runs(source, project_id, size, test_case_ids)
   end
 
@@ -480,13 +631,13 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # run timestamp in its sorted state, so the reader only needs a linear pass to
   # collapse duplicates. `flag` selects which of the two bits packed into each
   # entry the monitor measures.
-  defp recent_runs_source(_flag, size) when size > @max_active_rolling_window_size do
+  defp recent_runs_source(_scope, _flag, size) when size > @max_active_rolling_window_size do
     raise ArgumentError, "rolling trigger windows must be at most #{@max_active_rolling_window_size}"
   end
 
-  defp recent_runs_source(flag, _size) do
+  defp recent_runs_source(scope, flag, _size) do
     {
-      "test_case_runs_recent_window_per_case",
+      recent_window_table(scope),
       "groupArraySortedMerge(#{@recent_runs_bucket_size})(recent_runs)",
       flag
     }
