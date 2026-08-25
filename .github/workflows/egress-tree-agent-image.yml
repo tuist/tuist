@@ -4,8 +4,12 @@ name: Egress Tree Agent Image
 # that enforces the kura per-tenant egress floors/ceilings and the node box
 # cap through a shared per-node HTB tree (infra/egress-tree-agent/).
 #
-# Steady-state image promotion is owned by the deployment pipeline; this
-# workflow only handles pre-release iteration via `:sha-<git-sha>` tags.
+# Steady-state image promotion is owned by the release + deploy pipeline
+# (server-production-deployment.yml's `release-egress-tree-agent` builds the
+# `<semver>` image and tags `egress-tree-agent@<semver>`; server-deployment.yml
+# resolves that tag into `egressTreeAgent.image.tag`). This workflow validates
+# PRs and handles pre-release iteration via `:sha-<git-sha>` tags, which
+# server-deployment.yml's `egress_tree_agent_image_tag` input can pin.
 
 on:
   push:
