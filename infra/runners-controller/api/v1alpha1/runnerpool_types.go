@@ -30,9 +30,12 @@ type RunnerPoolSpec struct {
 
 	// Replicas is the count of Pods the controller maintains. The
 	// chart's `runnersFleet.pools[].replicas` flows straight into
-	// this field. Across all pools in a namespace, the sum should
-	// fit within the host fleet's capacity (one VM per host at v1;
-	// Apple's SLA permits up to two).
+	// this field. Across all pools in a namespace, the sum should fit
+	// within the host fleet's guest capacity — which is NOT the host
+	// count on a mixed-SKU fleet: a Mac mini admits
+	// `allocatable memory / podMemoryMB` guests, so one M2-L
+	// contributes one slot and one M4-XL contributes two. Apple's SLA
+	// caps any single host at two.
 	// +kubebuilder:default=0
 	Replicas int32 `json:"replicas,omitempty"`
 

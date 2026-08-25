@@ -93,6 +93,78 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// +optional
 	HostMemoryMB int `json:"hostMemoryMB,omitempty"`
 
+	// GuestCapacity is how many Tart guests this host is expected to
+	// run concurrently. Falls back to the operator's
+	// `--tartkubelet-guest-capacity` global default (1) when unset.
+	//
+	// This is the SKU's INTENT, not an enforcement point. What
+	// actually bounds the guest count is (a) kube-scheduler fitting
+	// Pods into HostCPU/HostMemoryMB and (b) Tart refusing to start a
+	// third VM per Apple's SLA. GuestCapacity exists because several
+	// host-level resources are sized per guest and would otherwise
+	// each need their own field:
+	//
+	//   * the VNC relay port range — a pinned relay port is per-host
+	//     but a relay is per-Pod, so a second guest needs a second
+	//     port (and the per-Mac egress Service has to declare it).
+	//   * the disk-pressure goldens floor — a host running guests from
+	//     two pools wants one golden per pool, or reclaiming under
+	//     pressure strands a pool into a full cold image pull.
+	//
+	// Keep it consistent with HostCPU/HostMemoryMB: the value should be
+	// what those two actually admit at the fleet's Pod shape. Setting
+	// it higher does not create capacity, it only over-provisions the
+	// per-guest resources above; setting it lower silently degrades the
+	// second guest (no relay port, a golden it has to re-pull).
+	// +optional
+	GuestCapacity int `json:"guestCapacity,omitempty"`
+
+	// MaxPods is the Pod ceiling tart-kubelet advertises on its Node
+	// (`--max-pods`). Falls back to the operator's
+	// `--tartkubelet-max-pods` global default (2) when unset.
+	//
+	// This is a Kubernetes-level limit counting EVERY Pod on the Node,
+	// not just Tart-VM Pods: the hcloud-csi-node DaemonSet ignores the
+	// macOS taint and permanently holds one slot. So the value is
+	// (guests + 1 host-system Pod + churn headroom), not the guest
+	// count. A single-guest host wants 3; a dual-guest M4 wants 4, so
+	// a replacement Pod can be created before the outgoing one is
+	// fully reaped without tripping "Too many pods".
+	//
+	// Apple's macOS SLA caps virtualized macOS instances at 2 per
+	// host, and Tart refuses to start a third VM regardless of what
+	// kubelet schedules — so the SLA is enforced at the
+	// virtualization layer and this value only has to avoid
+	// *under*-provisioning the slot count.
+	// +optional
+	MaxPods int `json:"maxPods,omitempty"`
+
+	// RunnerCacheVolumeGiB is the quota (GiB) of the dedicated APFS
+	// volume host bootstrap provisions to hold per-account cache-volume
+	// images. Falls back to the operator's
+	// `--runner-cache-volume-gib` global default when unset; 0
+	// disables cache volumes on this host entirely (every VM boots on
+	// the cold path).
+	//
+	// Per-Machine because the right quota is a function of the SKU's
+	// disk, and the SKUs differ by 4x: the 512 GB M2-L has no room
+	// above ~80 GiB once the ~85 GB goldens and a job VM's transient
+	// CoW growth are accounted for, while a 2 TB M4 can hold several
+	// times that. Resident masters scale as
+	// `gib / masterCapGib - (liveBranches + 1)`, and a dual-guest host
+	// can have two live branches, so a host that runs two VMs needs a
+	// LARGER quota than a single-guest host just to hold the same
+	// number of accounts hot.
+	//
+	// The provisioning script never resizes an existing volume (see
+	// renderRunnerCacheVolumeScript), so changing this on a live host
+	// is inert until that host is replaced. That is why it is safe to
+	// vary per Machine even though it participates in the host-config
+	// hash: a drifted host re-runs an idempotent script that early-
+	// returns on the already-mounted volume.
+	// +optional
+	RunnerCacheVolumeGiB int `json:"runnerCacheVolumeGiB,omitempty"`
+
 	// AdoptPoolPrefix is the Scaleway-side name prefix the controller
 	// scans when claiming a Mac mini for this Machine. The controller
 	// has no auto-order path, so a prefix must resolve from somewhere:

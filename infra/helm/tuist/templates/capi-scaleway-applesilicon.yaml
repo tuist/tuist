@@ -344,6 +344,15 @@ spec:
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 3 }}
+            # Fleet-wide fallback for a Machine that does not set
+            # spec.guestCapacity. Sizes the per-guest host resources (the
+            # VNC relay port range, the disk-pressure goldens floor); it
+            # neither creates nor caps capacity, which comes from
+            # hostCPU/hostMemoryMB and Tart's own SLA enforcement. Leave
+            # at 1 and set spec.guestCapacity on the multi-guest SKU's
+            # MachineTemplate — raising it here would over-provision
+            # every single-guest host in every fleet this operator owns.
+            - --tartkubelet-guest-capacity={{ .Values.macosFleet.tartKubelet.guestCapacity | default 1 }}
             {{- with .Values.macosFleet.runnerCacheVolume }}
             {{- if .gib }}
             # Per-account cache volumes: bootstrap provisions a

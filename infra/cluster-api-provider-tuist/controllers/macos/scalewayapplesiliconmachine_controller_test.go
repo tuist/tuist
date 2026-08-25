@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -1478,6 +1480,23 @@ func TestHostConfig_HashMatchesWhatIsStampedOnTheMachine(t *testing.T) {
 				return m
 			}(),
 		},
+		{
+			// A dual-guest SKU overrides every field the larger mini changes
+			// at once. Same hazard as above, wider: four resolvers now feed
+			// hostConfig, and any one of them missing from
+			// desiredHostConfigHash reproduces the converged-to-a-config-it-
+			// never-received bug for that field alone.
+			name: "per-machine dual-guest SKU",
+			machine: func() *infrav1.ScalewayAppleSiliconMachine {
+				m := &infrav1.ScalewayAppleSiliconMachine{}
+				m.Spec.HostCPU = 12
+				m.Spec.HostMemoryMB = 28672
+				m.Spec.MaxPods = 4
+				m.Spec.GuestCapacity = 2
+				m.Spec.RunnerCacheVolumeGiB = 240
+				return m
+			}(),
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			pushed := r.hostConfig(tc.machine, perHost)
@@ -1503,5 +1522,144 @@ func TestDesiredHostConfigHash_MovesWithPerMachineOverride(t *testing.T) {
 	if r.desiredHostConfigHash(base) == r.desiredHostConfigHash(overridden) {
 		t.Fatal("a machine overriding HostCPU hashes the same as one on the fleet default; " +
 			"the override is not reaching the fingerprint")
+	}
+}
+
+// Every per-Machine SKU field has to move the fingerprint on its own. A field
+// resolved in hostConfig but absent from the hash pushes fine once and can
+// then never be changed again: the host reads as converged and the drift loop
+// has nothing to compare against.
+func TestDesiredHostConfigHash_MovesWithEverySKUField(t *testing.T) {
+	r := &ScalewayAppleSiliconMachineReconciler{
+		FleetConfig: bootstrap.Config{
+			HostCPU:              8,
+			HostMemoryMB:         14336,
+			MaxPods:              3,
+			RunnerCacheVolumeGiB: 80,
+			VNCRelayPort:         DashboardVNCRelayPort,
+		},
+		DefaultGuestCapacity: 1,
+	}
+	base := &infrav1.ScalewayAppleSiliconMachine{}
+
+	for name, set := range map[string]func(*infrav1.ScalewayAppleSiliconMachineSpec){
+		"HostCPU":              func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.HostCPU = 12 },
+		"HostMemoryMB":         func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.HostMemoryMB = 28672 },
+		"MaxPods":              func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.MaxPods = 4 },
+		"GuestCapacity":        func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.GuestCapacity = 2 },
+		"RunnerCacheVolumeGiB": func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.RunnerCacheVolumeGiB = 240 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := &infrav1.ScalewayAppleSiliconMachine{}
+			set(&m.Spec)
+			if r.desiredHostConfigHash(base) == r.desiredHostConfigHash(m) {
+				t.Fatalf("a machine overriding %s hashes the same as one on the fleet default; "+
+					"the override is not reaching the fingerprint", name)
+			}
+		})
+	}
+}
+
+// The existing single-guest fleet must not drift when this operator ships.
+// GuestCapacity resolves to 1 for every Machine that does not set it, and the
+// plist renderer omits both guest-sized flags at that value, so the config a
+// live M2-L receives is byte-identical to what it already runs. If this ever
+// fails, deploying the operator silently rolls launchd on every mini in every
+// macOS fleet.
+func TestDesiredHostConfigHash_UnchangedForSingleGuestMachines(t *testing.T) {
+	fleet := bootstrap.Config{
+		TartKubeletBinary:       []byte("tart-kubelet-binary"),
+		HostCPU:                 8,
+		HostMemoryMB:            14336,
+		MaxPods:                 3,
+		RunnerCacheVolumeGiB:    80,
+		CacheVolumeMasterCapGiB: 20,
+		CacheVolumeCASGiB:       11,
+		VNCRelayPort:            DashboardVNCRelayPort,
+	}
+	r := &ScalewayAppleSiliconMachineReconciler{FleetConfig: fleet, DefaultGuestCapacity: 1}
+
+	// What the operator hashed before guest capacity existed: the fleet config
+	// as-is, with neither guest-sized field set.
+	if want, have := bootstrap.HostConfigHash(fleet), r.desiredHostConfigHash(&infrav1.ScalewayAppleSiliconMachine{}); want != have {
+		t.Fatalf("single-guest hash = %s, want the pre-existing %s; "+
+			"shipping this operator would drift every mini in the fleet", have, want)
+	}
+}
+
+// The relay port is pinned per host but a relay is per Pod, so the egress
+// Service has to front one port per guest. Without this the second guest on a
+// dual-guest mini binds a port the ProxyGroup does not forward — the relay
+// comes up, tart-kubelet advertises it on the Pod annotation, and the
+// dashboard session times out with nothing obviously wrong on the host.
+func TestReconcileTailscaleEgressService_DeclaresARelayPortPerGuest(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		guests    int
+		wantPorts map[string]int32
+	}{
+		{
+			name:      "single guest keeps the historical single port",
+			guests:    1,
+			wantPorts: map[string]int32{"vnc-relay": DashboardVNCRelayPort},
+		},
+		{
+			name:   "dual guest fronts both ports",
+			guests: 2,
+			wantPorts: map[string]int32{
+				"vnc-relay":   DashboardVNCRelayPort,
+				"vnc-relay-2": DashboardVNCRelayPort + 1,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newReconciler(t)
+			r.EgressProxyGroup = "macmini-egress"
+			r.EgressNamespace = "tailscale-operator"
+			r.EgressMagicDNSSuffix = "taild6d7bb.ts.net"
+			r.DefaultGuestCapacity = 1
+
+			machine := &infrav1.ScalewayAppleSiliconMachine{
+				ObjectMeta: metav1.ObjectMeta{Name: "macmini-1"},
+				Spec: infrav1.ScalewayAppleSiliconMachineSpec{
+					FleetName:     "tuist-runners-fleet",
+					GuestCapacity: tc.guests,
+				},
+			}
+			if err := r.reconcileTailscaleEgressService(context.Background(), machine); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			got := &corev1.Service{}
+			if err := r.Client.Get(context.Background(),
+				types.NamespacedName{Namespace: "tailscale-operator", Name: "macmini-1"}, got); err != nil {
+				t.Fatalf("get created service: %v", err)
+			}
+
+			relayPorts := map[string]int32{}
+			for _, p := range got.Spec.Ports {
+				if strings.HasPrefix(p.Name, "vnc-relay") {
+					relayPorts[p.Name] = p.Port
+				}
+			}
+			if !reflect.DeepEqual(relayPorts, tc.wantPorts) {
+				t.Errorf("relay ports = %v, want %v", relayPorts, tc.wantPorts)
+			}
+
+			// The scrape and SSH ports are what makes the mini reachable at
+			// all; a relay range that displaced one of them would take the
+			// fleet's metrics or its drift-update path down with it.
+			for _, name := range []string{"node-exporter", "tart-kubelet", "pod-metrics", "ssh"} {
+				found := false
+				for _, p := range got.Spec.Ports {
+					if p.Name == name {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("port %q missing from the egress Service", name)
+				}
+			}
+		})
 	}
 }
