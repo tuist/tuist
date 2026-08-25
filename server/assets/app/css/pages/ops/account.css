@@ -71,6 +71,62 @@
     max-width: 480px;
   }
 
+  /* Kura placement: the assignment form and the notes around it. Same
+     treatment as the disk claim form above so the editable cards on this
+     page read alike, and the same width cap — a region picker and a
+     one-line reason are both short. */
+  & [data-part="kura-placement-description"],
+  & [data-part="kura-placement-refusal"],
+  & [data-part="kura-provision-description"],
+  & [data-part="kura-provision-refusal"] {
+    margin: var(--noora-spacing-0);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  /* A refusal is why the form below it is missing, so it reads as a
+     bordered note rather than as more prose. */
+  & [data-part="kura-placement-refusal"],
+  & [data-part="kura-provision-refusal"] {
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-6);
+    padding: var(--noora-spacing-5);
+  }
+
+  & #kura-assignment-form,
+  & #kura-provision-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    max-width: 480px;
+
+    & .select-field {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+
+      /* A native <select>, not Noora's <.select>: Noora's doesn't
+         serialize through a form submit. Styled to roughly match the
+         text inputs it sits next to. */
+      & > select {
+        appearance: auto;
+        border: 1px solid var(--noora-surface-border-primary);
+        border-radius: var(--noora-radius-3);
+        background: var(--noora-surface-background-primary);
+        padding: var(--noora-spacing-3) var(--noora-spacing-4);
+        width: 100%;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-body-medium);
+      }
+    }
+
+    & [data-part="hint"] {
+      margin: var(--noora-spacing-0);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+  }
+
   & [data-part="runner-concurrency-description"] {
     margin: var(--noora-spacing-0);
     color: var(--noora-surface-label-secondary);
@@ -169,50 +225,13 @@
   }
 }
 
-/* Add Kura server modal — Noora portals it out of #ops-account, so
-   styles live at the top level and target the form class. Mirrors the
-   enterprise-upgrade form: vertical stack, consistent gap, and pairs
-   each <.label> with the field below it. */
-.add-server-form {
+/* Restore-assignment modal — portaled out of #ops-account like the
+   enterprise-upgrade modal, so its form is styled at the top level. One
+   required reason field; the submit button lives in the modal footer and
+   reaches the form through its `form` attribute. */
+.restore-assignment-form {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-4);
   min-width: 420px;
-
-  & .select-field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-2);
-
-    /* Plain <select> elements (not Noora's <.select>) inside the form
-       — Noora's select doesn't serialize through the form submit, so
-       we use a native select and style it to roughly match. */
-    & > select {
-      appearance: auto;
-      border: 1px solid var(--noora-surface-border-primary);
-      border-radius: var(--noora-radius-3);
-      background: var(--noora-surface-background-primary);
-      padding: var(--noora-spacing-3) var(--noora-spacing-4);
-      width: 100%;
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-body-medium);
-    }
-  }
-
-  & [data-part="hint"] {
-    margin: var(--noora-spacing-0);
-    color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-body-small);
-  }
-
-  /* Cancel + Provision row pinned to the bottom-right. We render the
-     buttons inline at the end of the form (instead of using Noora's
-     <:footer> slot) because the modal portals its footer to a
-     separate DOM subtree, which orphans the inputs from the form. */
-  & > [data-part="actions"] {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--noora-spacing-3);
-    margin-top: var(--noora-spacing-2);
-  }
 }

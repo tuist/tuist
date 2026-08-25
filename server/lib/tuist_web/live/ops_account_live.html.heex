@@ -6,7 +6,147 @@
     </p>
   </div>
 
-  <.card title={dgettext("dashboard", "Kura")} icon="server">
+  <.alert
+    :if={@kura_notice}
+    id="kura-notice"
+    status={elem(@kura_notice, 0)}
+    type="secondary"
+    size="small"
+    title={elem(@kura_notice, 1)}
+    dismissible
+  />
+
+  <.card title={dgettext("dashboard", "Kura placement")} icon="world">
+    <.card_section>
+      <.table id="account-kura-placement-table" rows={[@account]}>
+        <:col label={dgettext("dashboard", "Resolved region")}>
+          <.text_cell label={resolved_service_region(@kura_resolution)} />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Plan")}>
+          <.text_cell label={effective_plan_label(account)} />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Storage region")}>
+          <.text_cell label={storage_region_label(account.region)} />
+        </:col>
+        <:col label={dgettext("dashboard", "Explicit assignment")}>
+          <%= case @kura_assignment do %>
+            <% nil -> %>
+              <.text_cell label={dgettext("dashboard", "None")} />
+            <% assignment -> %>
+              <.text_cell
+                label={region_label(assignment.service_region)}
+                sublabel={
+                  dgettext("dashboard", "Version %{version}",
+                    version: to_string(assignment.version)
+                  )
+                }
+              />
+          <% end %>
+        </:col>
+      </.table>
+    </.card_section>
+
+    <.card_section>
+      <p data-part="kura-placement-description">
+        {dgettext(
+          "dashboard",
+          "An assignment is the only way to place a paid account that allows every storage region, and the only route to a region no storage preference derives to. It does not move anything on its own: the lifecycle provisions an instance in the new region on the next cache demand, and the old region's instance keeps serving until it is destroyed. Destroy it only once the new one exists — a destroy is honoured only while it is newer than the account's last recorded cache demand, so demand recorded after it re-provisions the instance in the region you just cleared."
+        )}
+      </p>
+
+      <%= if @kura_assignment_refusal do %>
+        <p data-part="kura-placement-refusal">
+          {assignment_refusal_message(@kura_assignment_refusal, @account)}
+        </p>
+      <% else %>
+        <.form
+          for={@kura_assignment_form}
+          id="kura-assignment-form"
+          phx-submit="assign_kura_service_region"
+        >
+          <div class="select-field">
+            <.label label={dgettext("dashboard", "Service region")} required />
+            <select id="kura-assignment-region" name="assignment[service_region]" required>
+              <option
+                :for={service_region <- AccountRegionPolicy.service_regions()}
+                value={service_region}
+                selected={service_region == @kura_assignment_form[:service_region].value}
+              >
+                {region_label(service_region)}
+              </option>
+            </select>
+          </div>
+          <.text_input
+            field={@kura_assignment_form[:reason]}
+            label={dgettext("dashboard", "Reason")}
+            hint={
+              dgettext(
+                "dashboard",
+                "Kept on the assignment and shown in the history below. Write what a reviewer would need months from now."
+              )
+            }
+            required
+            show_required
+          />
+          <div data-part="actions">
+            <.button
+              type="submit"
+              variant="primary"
+              label={dgettext("dashboard", "Assign region")}
+            />
+          </div>
+        </.form>
+      <% end %>
+    </.card_section>
+
+    <.card_section>
+      <.table id="kura-assignment-history-table" rows={@kura_assignment_history}>
+        <:col :let={assignment} label={dgettext("dashboard", "Version")}>
+          <.text_cell label={to_string(assignment.version)} />
+        </:col>
+        <:col :let={assignment} label={dgettext("dashboard", "Region")}>
+          <.text_cell label={assignment.service_region} />
+        </:col>
+        <:col :let={assignment} label={dgettext("dashboard", "Reason")}>
+          <.text_cell label={assignment.reason} />
+        </:col>
+        <:col :let={assignment} label={dgettext("dashboard", "Assigned by")}>
+          <.text_cell label={assignment_actor(assignment)} />
+        </:col>
+        <:col :let={assignment} label={dgettext("dashboard", "Assigned at")}>
+          <.text_cell label={assignment_timestamp(assignment.inserted_at)} />
+        </:col>
+        <:col :let={assignment} label={dgettext("dashboard", "Superseded at")}>
+          <.text_cell label={assignment_timestamp(assignment.superseded_at)} />
+        </:col>
+        <:col :let={assignment} label={dgettext("dashboard", "Actions")}>
+          <div data-part="actions">
+            <.button
+              :if={assignment.superseded_at && is_nil(@kura_assignment_refusal)}
+              variant="secondary"
+              label={dgettext("dashboard", "Restore")}
+              phx-click="open_restore_kura_assignment"
+              phx-value-version={assignment.version}
+            />
+          </div>
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="history"
+            title={dgettext("dashboard", "No explicit assignment")}
+            subtitle={
+              dgettext(
+                "dashboard",
+                "This account resolves from its plan, its storage region, and where it already runs."
+              )
+            }
+          />
+        </:empty_state>
+      </.table>
+    </.card_section>
+  </.card>
+
+  <.card title={dgettext("dashboard", "Kura instances")} icon="server">
     <.card_section>
       <.table id="account-kura-table" rows={@kura_servers}>
         <:col :let={server} label={dgettext("dashboard", "Region")}>
@@ -43,7 +183,96 @@
               </.link>
           <% end %>
         </:col>
+        <:col :let={server} label={dgettext("dashboard", "Actions")}>
+          <div data-part="actions">
+            <.button
+              :if={server.status != :destroying}
+              variant="secondary"
+              label={dgettext("dashboard", "Destroy")}
+              phx-click="destroy_kura_instance"
+              phx-value-id={server.id}
+              data-confirm={
+                dgettext(
+                  "dashboard",
+                  "Destroy the %{status} Kura instance in %{region}? This tears down the backing resource and removes its URL from the account's cache endpoints. Assign the replacement region first: cache demand recorded after this destroy re-provisions the instance right here.",
+                  region: server.region,
+                  status: instance_status_label(server.status)
+                )
+              }
+            />
+          </div>
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="server"
+            title={dgettext("dashboard", "No Kura instances")}
+            subtitle={
+              dgettext(
+                "dashboard",
+                "The lifecycle provisions one in the account's resolved region on its next cache demand, or add one below."
+              )
+            }
+          />
+        </:empty_state>
       </.table>
+    </.card_section>
+
+    <.card_section>
+      <p data-part="kura-provision-description">
+        {dgettext(
+          "dashboard",
+          "Provisioning by hand is the same thing the demand-driven lifecycle does on its own, brought forward. Assign the service region first: an instance in a region the account no longer resolves to keeps running and holding its allocation until it is destroyed."
+        )}
+      </p>
+
+      <%= if @kura_provision_regions == [] do %>
+        <p data-part="kura-provision-refusal">
+          {dgettext(
+            "dashboard",
+            "This account already holds an instance in every region it can be provisioned in. Destroy one to free its region."
+          )}
+        </p>
+      <% else %>
+        <.form
+          for={@kura_provision_form}
+          id="kura-provision-form"
+          phx-submit="provision_kura_instance"
+        >
+          <div class="select-field">
+            <.label label={dgettext("dashboard", "Region")} required />
+            <select id="kura-provision-region" name="instance[region]" required>
+              <option
+                :for={region <- @kura_provision_regions}
+                value={region.id}
+                selected={region.id == @kura_provision_form[:region].value}
+              >
+                {region.display_name}
+              </option>
+            </select>
+          </div>
+          <p data-part="hint">
+            <%= case @kura_latest_version do %>
+              <% nil -> %>
+                {dgettext(
+                  "dashboard",
+                  "No Kura runtime image is configured right now, so nothing can be provisioned until the next server deploy."
+                )}
+              <% version -> %>
+                {dgettext("dashboard", "New instances start on Kura %{version}.",
+                  version: version.version
+                )}
+            <% end %>
+          </p>
+          <div data-part="actions">
+            <.button
+              type="submit"
+              variant="primary"
+              label={dgettext("dashboard", "Provision instance")}
+              disabled={is_nil(@kura_latest_version)}
+            />
+          </div>
+        </.form>
+      <% end %>
     </.card_section>
     <.card_section>
       <p data-part="kura-storage-claim-description">
@@ -240,6 +469,73 @@
       </div>
     </.card_section>
   </.card>
+
+  <.modal
+    :if={@restore_target}
+    id="restore-assignment-modal"
+    title={
+      dgettext("dashboard", "Restore version %{version}",
+        version: to_string(@restore_target.version)
+      )
+    }
+    description={
+      dgettext(
+        "dashboard",
+        "Re-applies %{region} as a new current version. Nothing in the history is rewritten, and the running instances are left where they are.",
+        region: @restore_target.service_region
+      )
+    }
+    header_type="icon"
+    header_size="small"
+    on_dismiss="close_restore_kura_assignment"
+  >
+    <:header_icon><.history /></:header_icon>
+    <:trigger :let={modal_attrs}>
+      <button id="restore-assignment-trigger" type="button" style="display: none;" {modal_attrs}>
+      </button>
+    </:trigger>
+
+    <form
+      id="restore-assignment-form"
+      phx-submit="restore_kura_assignment"
+      class="restore-assignment-form"
+    >
+      <input type="hidden" name="assignment[version]" value={@restore_target.version} />
+      <.text_input
+        id="restore-assignment-reason"
+        name="assignment[reason]"
+        label={dgettext("dashboard", "Reason")}
+        placeholder={
+          dgettext("dashboard", "Why this account goes back to %{region}",
+            region: @restore_target.service_region
+          )
+        }
+        required
+        show_required
+      />
+    </form>
+
+    <:footer>
+      <.modal_footer>
+        <:action>
+          <.button
+            label={dgettext("dashboard", "Cancel")}
+            variant="secondary"
+            type="button"
+            phx-click="close_restore_kura_assignment"
+          />
+        </:action>
+        <:action>
+          <.button
+            label={dgettext("dashboard", "Restore region")}
+            variant="primary"
+            type="submit"
+            form="restore-assignment-form"
+          />
+        </:action>
+      </.modal_footer>
+    </:footer>
+  </.modal>
 
   <.modal
     :if={@upgrade_target_account}

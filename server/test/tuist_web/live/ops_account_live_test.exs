@@ -8,6 +8,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Kura
+  alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
@@ -281,5 +282,220 @@ defmodule TuistWeb.OpsAccountLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
     render_hook(lv, "cancel_plan", %{})
+  end
+
+  describe "Kura placement" do
+    test "shows the resolved region and offers every assignable one", %{conn: conn, user: user} do
+      BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro)
+
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ "Kura placement"
+      # A paid account allowing every storage region and holding no instance
+      # falls through to the deterministic default, which is the state the
+      # assignment exists to correct.
+      assert html =~ "US East (us-east)"
+      assert html =~ "kura-assignment-form"
+
+      # The picker is driven by `AccountRegionPolicy.service_regions/0`, which
+      # is the only route to a region no storage preference derives to.
+      assert html =~ "US West (us-west)"
+      assert html =~ "EU Central (eu-central)"
+    end
+
+    test "assigns a service region with the operator's own reason", %{conn: conn, user: user} do
+      BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html =
+        lv
+        |> form("#kura-assignment-form", %{
+          "assignment" => %{
+            "service_region" => "eu-central",
+            "reason" => "99.8 percent of cache endpoint picks are eu-central over 90 days"
+          }
+        })
+        |> render_submit()
+
+      assignment = AccountPolicies.current_service_region_assignment(user.account)
+      assert assignment.service_region == "eu-central"
+      assert assignment.version == 1
+      assert assignment.assigned_by_user_id == user.id
+      assert assignment.reason == "99.8 percent of cache endpoint picks are eu-central over 90 days"
+
+      # The card the operator is looking at moves with the write: the account
+      # now resolves to the assigned region, and the reason and actor land in
+      # the audit trail below it.
+      assert html =~ "EU Central (eu-central)"
+      assert html =~ "99.8 percent of cache endpoint picks are eu-central over 90 days"
+      assert html =~ user.email
+
+      # And the write says what it deliberately did not do, since a destroy
+      # that lands before the redirected demand is undone by that demand.
+      assert html =~ "destroy the one in the old region only once that has happened"
+    end
+
+    test "explains that an Air account can never be assigned instead of offering a form", %{conn: conn, user: user} do
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ "Only Pro and Enterprise accounts can be assigned a service region"
+      refute html =~ "kura-assignment-form"
+    end
+
+    test "explains that an account whose storage region decides placement cannot be overridden", %{
+      conn: conn,
+      user: user
+    } do
+      BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :enterprise)
+      {:ok, _account} = Accounts.update_account(user.account, %{region: :usa})
+
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ "service region is derived from that and must not be overridden here"
+      refute html =~ "kura-assignment-form"
+    end
+
+    test "distinguishes a plan with no Kura pool from a plan that cannot be assigned", %{conn: conn, user: user} do
+      BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :open_source)
+
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      # `:plan_not_supported` comes back from both `resolve/1` and the
+      # assignment check and means something different in each: Open Source has
+      # no pool at all, where Air merely cannot be pinned.
+      assert html =~ "Unresolved"
+      assert html =~ "this account is on a plan no Kura pool serves"
+      assert html =~ "and this one is on Open Source"
+      refute html =~ "kura-assignment-form"
+    end
+
+    test "restores a superseded assignment as a new version with a fresh reason", %{conn: conn, user: user} do
+      BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro)
+
+      {:ok, first} =
+        AccountPolicies.assign_service_region(user.account, "us-east", user, "Initial placement")
+
+      {:ok, _second} =
+        AccountPolicies.assign_service_region(user.account, "eu-central", user, "Regional move")
+
+      {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      # Only the superseded row can be restored; re-applying the current one
+      # would append a version that changes nothing.
+      assert html =~ "Restore"
+
+      html = render_click(lv, "open_restore_kura_assignment", %{"version" => to_string(first.version)})
+      assert html =~ "Restore version 1"
+
+      # The form itself lives in the modal's portal, which LiveViewTest does not
+      # select through, so the submit is driven by its event the way the other
+      # modal-backed pages drive theirs.
+      render_submit(lv, "restore_kura_assignment", %{
+        "assignment" => %{
+          "version" => to_string(first.version),
+          "reason" => "Rolling back the regional move"
+        }
+      })
+
+      restored = AccountPolicies.current_service_region_assignment(user.account)
+      assert restored.version == 3
+      assert restored.service_region == "us-east"
+      assert restored.reason == "Rolling back the regional move"
+
+      # Nothing is rewritten: every earlier version is still in the trail.
+      assert length(AccountPolicies.list_service_region_history(user.account)) == 3
+    end
+
+    test "reports a refused restore rather than failing silently", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html = render_click(lv, "open_restore_kura_assignment", %{"version" => "42"})
+
+      assert html =~ "That assignment no longer exists."
+    end
+  end
+
+  describe "Kura instances" do
+    setup do
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.2" end)
+      :ok
+    end
+
+    test "provisions an instance in a region the account does not already hold", %{conn: conn, user: user} do
+      {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ "No Kura instances"
+
+      html =
+        lv
+        |> form("#kura-provision-form", %{"instance" => %{"region" => "local-controller"}})
+        |> render_submit()
+
+      assert [%Server{region: "local-controller", status: :provisioning}] =
+               Kura.list_servers_for_account(user.account.id)
+
+      assert html =~ "Provisioning a Kura instance in local-controller."
+
+      # A region the account now holds is off the picker: the partial
+      # uniqueness index counts the row as owning it, so a second instance
+      # there would only fail to insert.
+      refute html =~ "kura-provision-form"
+      assert html =~ "already holds an instance in every region it can be provisioned in"
+    end
+
+    test "refuses a region that is not on the picker", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      # `Kura.create_server/1` accepts every region in `Regions.available/0`,
+      # which is wider than what this card offers, and the params are
+      # client-controlled.
+      html = render_submit(lv, "provision_kura_instance", %{"instance" => %{"region" => "scw-fr-par-runners"}})
+
+      assert html =~ "Pick a region this account can be provisioned in."
+      assert Kura.list_servers_for_account(user.account.id) == []
+    end
+
+    test "destroys an instance and says what the destroy did", %{conn: conn, user: user} do
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: user.account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      # The confirmation names both the region and the status the operator is
+      # about to tear down, and the ordering the lifecycle imposes.
+      assert html =~ "Destroy the provisioning Kura instance in local-controller?"
+      assert html =~ "cache demand recorded after this destroy re-provisions the instance right here"
+
+      html = render_click(lv, "destroy_kura_instance", %{"id" => server.id})
+
+      assert Repo.get!(Server, server.id).status == :destroying
+      assert html =~ "Destroying the Kura instance in local-controller."
+    end
+
+    test "reports a destroy of an instance that is already gone", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html = render_click(lv, "destroy_kura_instance", %{"id" => Ecto.UUID.generate()})
+
+      assert html =~ "That Kura instance no longer exists."
+    end
+
+    test "refuses to provision while no runtime image is configured", %{conn: conn, user: user} do
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> nil end)
+
+      {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ "No Kura runtime image is configured right now"
+
+      html = render_submit(lv, "provision_kura_instance", %{"instance" => %{"region" => "local-controller"}})
+
+      assert html =~ "No Kura runtime image is configured right now"
+      assert Kura.list_servers_for_account(user.account.id) == []
+    end
   end
 end
