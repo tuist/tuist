@@ -13,11 +13,16 @@ defmodule Tuist.Kura.ClaimSizing do
 
   Everything here is policy configuration with hysteresis: growth needs a
   sustained streak of churning days, shrinking needs a much longer streak of
-  near-empty days, steps are clamped to at most double or halve, targets are
-  bounded by the per-plan ceiling and the validated minimum claim, and a
-  cooldown spaces consecutive resizes. Purity is what makes the shadow phase
-  free: the sweep evaluates every account and stores the output, and acting
-  on it is a separate decision.
+  near-empty days, steps are clamped to at most double or halve, and targets
+  are bounded by the per-plan ceiling and the validated minimum claim.
+  Consecutive resizes are paced by the evidence itself rather than a flat
+  cooldown: only days after the last resize count, both because they are the
+  only days that measure the ring the current claim actually bought, and so
+  each direction waits exactly its own window. A still-undersized ring can
+  grow again after 14 post-resize churn days, while a shrink always needs 90
+  post-resize idle days, and flapping stays structurally blocked. Purity is
+  what makes the shadow phase free: the sweep evaluates every account and
+  stores the output, and acting on it is a separate decision.
   """
 
   alias Tuist.Kura.Regions
@@ -33,7 +38,6 @@ defmodule Tuist.Kura.ClaimSizing do
     shrink_window_days: 90,
     shrink_occupancy_percent: 40,
     shrink_target_occupancy_percent: 60,
-    min_days_between_resizes: 30,
     max_step_factor: 2.0
   }
 
@@ -49,7 +53,7 @@ defmodule Tuist.Kura.ClaimSizing do
     * `:rollups` - `Tuist.Kura.StorageRollup` rows (or maps with the same
       keys) covering the policy windows
     * `:last_resized_at` - when sizing last changed this account's claim, or
-      `nil`
+      `nil`; only rollups from days after it are evaluated
     * `:today` - the evaluation date
 
   Returns `{:grow | :shrink, recommended_claim_size, evidence}` or `:none`.
@@ -59,23 +63,31 @@ defmodule Tuist.Kura.ClaimSizing do
   data to agree.
   """
   def evaluate(context, policy \\ @default_policy) do
-    with {:ok, current_bytes} <- Regions.parse_storage_quantity(context.current_claim_size),
-         false <- in_cooldown?(context, policy) do
-      context.rollups
-      |> Enum.group_by(& &1.region)
-      |> Enum.map(fn {region, rollups} ->
-        evaluate_region(region, rollups, current_bytes, context, policy)
-      end)
-      |> merge_verdicts(current_bytes, context, policy)
-    else
-      _ -> :none
+    case Regions.parse_storage_quantity(context.current_claim_size) do
+      {:ok, current_bytes} ->
+        context.rollups
+        |> reject_pre_resize(context.last_resized_at)
+        |> Enum.group_by(& &1.region)
+        |> Enum.map(fn {region, rollups} ->
+          evaluate_region(region, rollups, current_bytes, context, policy)
+        end)
+        |> merge_verdicts(current_bytes, context, policy)
+
+      :error ->
+        :none
     end
   end
 
-  defp in_cooldown?(%{last_resized_at: nil}, _policy), do: false
+  # Only days after the last resize can qualify a window: earlier days measured
+  # the ring the previous claim bought, so their spans and occupancy describe a
+  # budget that no longer exists. This is also what paces consecutive resizes,
+  # each direction by exactly its own window instead of a flat cooldown. The
+  # resize day itself is excluded because its rollup mixes both rings.
+  defp reject_pre_resize(rollups, nil), do: rollups
 
-  defp in_cooldown?(%{last_resized_at: last_resized_at, today: today}, policy) do
-    Date.diff(today, DateTime.to_date(last_resized_at)) < policy.min_days_between_resizes
+  defp reject_pre_resize(rollups, last_resized_at) do
+    resize_date = DateTime.to_date(last_resized_at)
+    Enum.reject(rollups, &(Date.compare(&1.date, resize_date) != :gt))
   end
 
   defp evaluate_region(region, rollups, current_bytes, context, policy) do

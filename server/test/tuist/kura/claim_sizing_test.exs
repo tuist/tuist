@@ -132,21 +132,26 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert ClaimSizing.evaluate(context) == :none
     end
 
-    test "a recent resize cools the account down" do
+    test "days at or before the last resize cannot qualify a window" do
+      # The resize sits mid-window: the churn before it measured the old
+      # ring, so only 9 post-resize days remain and the streak is short.
       context =
         context(
           rollups: churn_days(14, @today),
-          last_resized_at: DateTime.new!(Date.add(@today, -10), ~T[00:00:00], "Etc/UTC")
+          last_resized_at: DateTime.new!(Date.add(@today, -10), ~T[12:00:00], "Etc/UTC")
         )
 
       assert ClaimSizing.evaluate(context) == :none
     end
 
-    test "the cooldown expires" do
+    test "a still-undersized ring grows again once a full window postdates the resize" do
+      # 14 churning days strictly after the resize day: the evidence window
+      # itself is the pacing, so a claim that is still too small does not
+      # wait out a flat cooldown.
       context =
         context(
           rollups: churn_days(14, @today),
-          last_resized_at: DateTime.new!(Date.add(@today, -31), ~T[00:00:00], "Etc/UTC")
+          last_resized_at: DateTime.new!(Date.add(@today, -14), ~T[12:00:00], "Etc/UTC")
         )
 
       assert {:grow, "50Gi", _evidence} = ClaimSizing.evaluate(context)
@@ -205,6 +210,16 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
     test "a window shorter than 90 days withholds the proposal" do
       assert ClaimSizing.evaluate(context(rollups: idle_days(89, @today))) == :none
+    end
+
+    test "a shrink needs its whole window after the last resize" do
+      rollups = idle_days(90, @today)
+
+      recent = context(rollups: rollups, last_resized_at: DateTime.new!(Date.add(@today, -30), ~T[12:00:00], "Etc/UTC"))
+      assert ClaimSizing.evaluate(recent) == :none
+
+      settled = context(rollups: rollups, last_resized_at: DateTime.new!(Date.add(@today, -91), ~T[12:00:00], "Etc/UTC"))
+      assert {:shrink, "15Gi", _evidence} = ClaimSizing.evaluate(settled)
     end
   end
 

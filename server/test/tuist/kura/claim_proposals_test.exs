@@ -177,8 +177,9 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert resolved.status == :applied
       assert resolved.resolved_by == "ops@tuist.dev"
 
-      # The fresh resize cools the account down, so the next sweep proposes
-      # nothing even though the churn rollups are still in the window.
+      # The next sweep proposes nothing even though the churn rollups are
+      # still present: days at or before the resize measured the old ring
+      # and cannot qualify a window.
       assert {:ok, %{open: 0}} = ClaimProposals.sweep(@today)
     end
 

@@ -21,8 +21,9 @@ defmodule Tuist.Kura.PlacerClaims do
   end
 
   @doc """
-  When sizing last changed the account's claim, or `nil`. The resize cooldown
-  in `Tuist.Kura.ClaimSizing` is measured from this.
+  When sizing last changed the account's claim, or `nil`.
+  `Tuist.Kura.ClaimSizing` evaluates only rollup days after this, so each
+  resize direction waits out its own evidence window before the next.
   """
   def last_resized_at(%Account{id: account_id}) do
     case Repo.get_by(PlacerClaim, account_id: account_id) do
