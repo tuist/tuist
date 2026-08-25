@@ -245,6 +245,10 @@ defmodule Tuist.Kura.AccountPolicies do
     end
   end
 
+  defp effective_service_region(%Account{}, :open_source, _lookups), do: {:error, :plan_not_supported}
+
+  defp effective_service_region(%Account{}, _plan, _lookups), do: {:error, :service_region_unavailable}
+
   # An assignment names a region; `Regions.available?/1` decides whether it is
   # served. Both gates are needed: an assignment to an unserved region would
   # otherwise resolve cleanly, record demand under a region
@@ -261,10 +265,6 @@ defmodule Tuist.Kura.AccountPolicies do
       {:error, :service_region_unavailable}
     end
   end
-
-  defp effective_service_region(%Account{}, :open_source, _lookups), do: {:error, :plan_not_supported}
-
-  defp effective_service_region(%Account{}, _plan, _lookups), do: {:error, :service_region_unavailable}
 
   # The region an account is already being served from, or `nil` when it has no
   # live instance.
