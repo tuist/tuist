@@ -286,10 +286,11 @@ defmodule Tuist.Kura.Regions do
     # all. The second is deliberate — this is a public region, not an
     # operator-only one — so "assignment-only" describes derivation, not access.
     #
-    # Gated off everywhere by TUIST_KURA_AVAILABLE_REGIONS until an SGP box is
-    # ordered and adopted: the catalog entry, the assignable set, and the fleet
-    # definition all land ahead of the hardware, and the gate is what keeps a
-    # region with no box behind it from being resolvable.
+    # Gated off everywhere by TUIST_KURA_AVAILABLE_REGIONS until the SGP box is
+    # ADOPTED — it is on order, which is not the same thing. The catalog entry,
+    # the assignable set, and the fleet definition all land ahead of the box
+    # joining the pool, and the gate is what keeps a region nothing can
+    # provision in from being resolvable.
     %{
       id: "ap-southeast",
       display_name: "Asia Pacific Southeast",

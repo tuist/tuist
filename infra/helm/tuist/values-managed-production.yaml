@@ -147,10 +147,12 @@ server:
     # per-account cache pods and dispatch routes the Mac fleet's build
     # cache to it over the Private Network.
     # ap-southeast (Singapore) is in the catalog and in the assignable set but
-    # deliberately absent from this list: no SGP box is ordered yet, and this
-    # variable is the gate that keeps the server from resolving an account into
-    # a region with no hardware behind it. Add it here in the same change that
-    # enables ovhFleets.ap-southeast, not before.
+    # deliberately absent from this list. The SGP box is on order; what this
+    # variable gates on is the box being ADOPTED — delivered, prepped, and
+    # joined as a node in the kura-ap-southeast pool — not ordered. Until then
+    # the server would resolve accounts into a region nothing can provision in.
+    # Add it here in the same change that enables ovhFleets.ap-southeast, not
+    # before.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-central,us-east,us-west,scw-fr-par-runners
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
@@ -292,7 +294,7 @@ kuraController:
 egressTreeAgent:
   enabled: true
   image: ghcr.io/tuist/egress-tree-agent@sha256:b0e324e95d04cee3a63e536a7a0eb00acebcd365ae475c513741572b50f7a75d
-  # kura-ap-southeast is listed before its box exists: the agent enforces the
+  # kura-ap-southeast is listed before its box is adopted: the agent enforces the
   # per-tenant egress floors and the node box cap, so a pool missing from this
   # list gets a cache pod with an unenforced floor rather than a visible error.
   # A pool with no nodes simply gets no DaemonSet pods.
@@ -765,10 +767,11 @@ ovhFleets:
   # every cache request. The legacy cache fleet serves an ap-southeast endpoint,
   # so this is continuity rather than a new capability.
   #
-  # DELIBERATELY DISABLED. No SGP box has been ordered yet, and an enabled fleet
-  # with no adoptable machine hangs helm --wait (same failure the dediboxFleet
-  # comment above warns about), which would wedge every production deploy rather
-  # than just this region. Flip to true only once a box is delivered, prepped
+  # DELIBERATELY DISABLED. The box is on order, which is not the same as
+  # adoptable: an enabled fleet with no ADOPTABLE machine hangs helm --wait (the
+  # failure the dediboxFleet comment above warns about), which would wedge every
+  # production deploy rather than just this region. Flip to true only once a box
+  # is delivered, prepped
   # (mise run baremetal:prep-ovh, including the /data XFS project-quota layout,
   # which has to be applied at install time), and named with the displayName
   # prefix below. The region also stays out of TUIST_KURA_AVAILABLE_REGIONS

@@ -197,7 +197,8 @@ kura-us-west-ingress-nginx:
 
 # Asia Pacific Southeast (Singapore). Off everywhere today: the region is in the
 # Kura catalog but no environment serves it yet (it is absent from every
-# TUIST_KURA_AVAILABLE_REGIONS) and no SGP box has been ordered. The controller
+# TUIST_KURA_AVAILABLE_REGIONS) and the SGP box, though on order, is not yet
+# adopted into the kura-ap-southeast pool. The controller
 # exists here so the ingress class its Ingresses name has something to handle
 # them the moment the region is switched on; enable it in the same change that
 # enables ovhFleets.ap-southeast and adds the region to the gate.
