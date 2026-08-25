@@ -1,0 +1,97 @@
+/* Marketing-wide Noora dropdown defaults: the dashboard's open/close
+   animation (same recipe as the breadcrumbs project switcher), applied to
+   every dropdown on the redesigned marketing pages.
+
+   zag sets `hidden` + `data-state="closed"` on the content the instant it
+   closes, and dropdown.css hides `.noora-dropdown-content` when not open —
+   both force `display: none` immediately and kill the exit transition. The
+   positioner (which zag never hides) is the single presence gate via
+   `allow-discrete`, so keep the content rendered and let opacity/transform
+   animate out underneath it. */
+[id^="marketing-"] .noora-dropdown {
+  & > [data-part="positioner"] {
+    transition: display 150ms allow-discrete;
+  }
+
+  & .noora-dropdown-content {
+    display: block;
+    opacity: 0;
+    transform: translateY(-0.25rem);
+    transition:
+      opacity 150ms var(--ease-out-cubic),
+      transform 150ms var(--ease-out-cubic);
+  }
+
+  & > [data-part="trigger"][data-state="open"] + [data-part="positioner"] > [data-part="content"] {
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+      opacity 200ms var(--ease-out-cubic),
+      transform 200ms var(--ease-out-cubic);
+
+    @starting-style {
+      opacity: 0;
+      transform: translateY(-0.25rem);
+    }
+  }
+
+  /* zag focuses the menu container on open; when the last input wasn't a
+     pointer (e.g. right after a window resize) browsers mark that
+     programmatic focus :focus-visible and the site-wide ring wraps the
+     whole menu. The container isn't a keyboard target — items carry their
+     own roving focus — so keep the ring off it. */
+  & .noora-dropdown-content:focus-visible {
+    outline: none;
+  }
+
+  /* One chevron that rotates on open, instead of Noora's two-icon
+     display swap. */
+  & [data-part="indicator"] {
+    & [data-part="indicator-up"] {
+      display: none;
+    }
+
+    & [data-part="indicator-down"] {
+      display: inline-flex;
+      transition: rotate 200ms var(--ease-out-cubic);
+    }
+
+    &[data-state="open"] [data-part="indicator-down"] {
+      display: inline-flex;
+      rotate: 180deg;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    & > [data-part="positioner"],
+    & .noora-dropdown-content,
+    & > [data-part="trigger"][data-state="open"] + [data-part="positioner"] > [data-part="content"],
+    & [data-part="indicator"] [data-part="indicator-down"] {
+      transition: none;
+    }
+  }
+}
+
+/* Phone tray variant shared by the filter/plan selects (blog, changelog,
+   pricing): the menu slides up from the bottom edge instead of fading in
+   place, and the tray gets breathing room around the items. */
+@media (max-width: 767px) {
+  [id^="marketing-"] .noora-dropdown[data-part="category-select"],
+  [id^="marketing-"] .noora-dropdown[data-part="plan-select"] {
+    & .noora-dropdown-content {
+      box-sizing: border-box;
+      transform: translateY(100%);
+      padding: var(--noora-spacing-4) var(--noora-spacing-4)
+        max(var(--noora-spacing-6), env(safe-area-inset-bottom));
+    }
+
+    & > [data-part="trigger"][data-state="open"] + [data-part="positioner"] > [data-part="content"] {
+      transform: translateY(0);
+
+      @starting-style {
+        opacity: 0;
+        transform: translateY(100%);
+      }
+    }
+  }
+}
