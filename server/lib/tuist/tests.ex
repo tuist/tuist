@@ -840,6 +840,9 @@ defmodule Tuist.Tests do
     cond do
       "failed_processing" in latest_statuses -> "failed_processing"
       "failure" in latest_statuses -> "failure"
+      # Only a run where no shard ran anything is a no-tests run; one shard
+      # finding nothing while another runs tests is an ordinary success.
+      Enum.all?(latest_statuses, &(&1 == "no_tests")) -> "no_tests"
       true -> "success"
     end
   end

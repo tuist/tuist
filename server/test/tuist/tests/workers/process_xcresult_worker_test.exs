@@ -193,6 +193,32 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       assert :ok == ProcessXcresultWorker.perform(oban_job(args))
     end
 
+    test "reports a bundle with no test modules as no_tests", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+
+      # xcodebuild finished but the selection resolved to zero tests, so the
+      # bundle carries a plan name and a duration and nothing else. The parser
+      # calls that "skipped" vacuously, from an empty test-case list.
+      expect_local_parse(%{
+        "test_plan_name" => "AppTests",
+        "status" => "skipped",
+        "duration" => 63_127,
+        "test_modules" => [],
+        "run_destinations" => [],
+        "errors" => []
+      })
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.status == "no_tests"
+        assert attrs.test_modules == []
+        assert attrs.duration == 63_127
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+    end
+
     test "passes failure status through unchanged", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
       expect_local_parse(parsed_data_with_failure())

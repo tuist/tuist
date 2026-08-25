@@ -887,6 +887,7 @@ defmodule Tuist.VCS do
       "failure" -> "❌"
       "success" -> "✅"
       "skipped" -> "⏭️"
+      "no_tests" -> "➖"
       "in_progress" -> "⏳"
       "processing" -> "⏳"
       "failed_processing" -> "⚠️"

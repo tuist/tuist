@@ -250,7 +250,7 @@ defmodule TuistWeb.API.TestsController do
            status: %Schema{
              type: :string,
              description: "The status of the test run.",
-             enum: ["success", "failure", "skipped", "processing", "failed_processing"]
+             enum: ["success", "failure", "skipped", "no_tests", "processing", "failed_processing"]
            },
            git_commit_sha: %Schema{
              type: :string,
@@ -346,7 +346,7 @@ defmodule TuistWeb.API.TestsController do
                        status: %Schema{
                          type: :string,
                          description: "The status of the test suite.",
-                         enum: ["success", "failure", "skipped", "processing", "failed_processing"]
+                         enum: ["success", "failure", "skipped", "no_tests", "processing", "failed_processing"]
                        },
                        duration: %Schema{
                          type: :integer,
@@ -373,7 +373,7 @@ defmodule TuistWeb.API.TestsController do
                        status: %Schema{
                          type: :string,
                          description: "The status of the test case.",
-                         enum: ["success", "failure", "skipped", "processing", "failed_processing"]
+                         enum: ["success", "failure", "skipped", "no_tests", "processing", "failed_processing"]
                        },
                        duration: %Schema{
                          type: :integer,
