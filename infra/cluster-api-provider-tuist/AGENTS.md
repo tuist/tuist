@@ -646,6 +646,68 @@ Two new ScalewayAppleSiliconMachines are created → operator orders
 two Mac minis from Scaleway → ~5 min later `kubectl get nodes` shows
 them Ready.
 
+### Multi-guest hosts and mixed-SKU fleets
+
+Apple's macOS SLA permits two virtualized macOS guests per host, and
+Tart enforces it. Whether a host actually runs two is a sizing
+decision, not a code path: tart-kubelet advertises `hostCPU` /
+`hostMemoryMB` as the Node's capacity and kube-scheduler fits guest
+Pods into it, so a host admits `hostMemoryMB / podMemoryMB` guests.
+Size `hostMemoryMB` as an exact multiple of the pool's Pod memory
+request so both dimensions bind at the same number — leaving CPU as
+the only thing standing between the fleet and a third guest makes the
+cap an accident of the current Pod shape.
+
+Five spec fields are per-Machine so one operator can run a
+heterogeneous fleet, all resolved in `hostConfig` and therefore all
+reflected in `desiredHostConfigHash`:
+
+| Field | What it sizes |
+| --- | --- |
+| `hostCPU` / `hostMemoryMB` | Node capacity — the actual guest-count control |
+| `maxPods` | Node Pod ceiling. Counts **every** Pod bound to the Node, and a terminal Pod holds its slot until GC — so it is guests x 2, not guests + system Pods. See below |
+| `guestCapacity` | The per-guest host resources: the VNC relay port range and the disk-pressure goldens floor. Declares intent; creates no capacity |
+| `runnerCacheVolumeGiB` | The per-account cache volume's quota, which tracks the SKU's disk |
+
+`maxPods` is sized as guests x 2 + 1 because a Pod stays bound to its
+Node after it finishes: each guest slot can transiently hold its running
+Pod plus a predecessor GC has not collected yet (observed on the live
+fleet 2026-08-25 — a single-guest host carrying one Running and one
+Succeeded Pod), and the +1 is margin. So 3 for a single-guest host, 5
+for a dual-guest one.
+
+Keep that margin. It is not where the SLA is enforced and does not need
+to be — Tart refuses a third VM and `hostCPU`/`hostMemoryMB` bind the
+guest count first, so a higher value admits no extra guest. But a node
+sitting exactly at its ceiling rejects Pods with `Too many pods` while
+`macosFleetAllocatableMemory` still counts its slots as available, so
+the autoscaler keeps targeting a node that cannot take them until GC
+catches up. Nothing is reserved for host-system Pods — `hcloud-csi-node`, the
+usual suspect, is kept off macOS by a `kubernetes.io/os NotIn [darwin]`
+required nodeAffinity rather than by the macOS taint, which its blanket
+`Exists` tolerations ignore.
+
+`guestCapacity` exists so those last two resources have one source of
+truth. Both are per-guest and neither is derivable from the others —
+`maxPods` folds in system Pods, and `hostMemoryMB / podMemoryMB` is not
+knowable host-side, since the host does not know the pool's Pod shape.
+
+A single-guest host resolves `guestCapacity` to 1, which is already
+tart-kubelet's default for both derived values, and the plist renderer
+omits a flag at its default — so adding a multi-guest SKU to a fleet
+does **not** drift the single-guest hosts already in it. There is a
+test pinning that (`TestDesiredHostConfigHash_UnchangedForSingleGuestMachines`);
+if it fails, deploying the operator silently rolls launchd on every
+mini in every macOS fleet.
+
+The VNC relay is the one thing that genuinely breaks without this. Its
+port is pinned per host (so the per-Mac Tailscale egress Service can
+declare it) while a relay is per *Pod*, so a second guest needs a
+second port and the Service has to front it. The chart expresses a
+mixed fleet through `runnersFleet.machineGroups[]` — see the comments
+in `infra/helm/tuist/templates/runners-fleet.yaml` for why each group
+gets its own Machine-object label but shares the fleet's Node label.
+
 ### Scale down
 ```bash
 kubectl scale machinedeployment <fleet-name> --replicas=1
