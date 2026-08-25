@@ -4,7 +4,7 @@ category: "engineering"
 tags: ["engineering", "build-systems", "incremental-builds", "remote-caching", "remote-execution"]
 excerpt: "Why build graphs, incremental builds, remote caching, and remote execution decide whether a build feels fast."
 author: pepicrft
-og_image_path: /marketing/images/blog/2026/08/19/og.png
+og_image_path: /marketing/images/blog/2026/08/25/og.png
 live: true
 ---
 
