@@ -1,7 +1,7 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     sync::{Arc, Mutex},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use axum::http::header::AUTHORIZATION;
@@ -11,11 +11,22 @@ use serde::{Deserialize, Serialize};
 use tokio::time::{MissedTickBehavior, interval, sleep};
 use tracing::warn;
 
-use crate::{config::UsageConfig, metrics::Metrics, state::SharedState};
+use crate::{
+    config::UsageConfig,
+    metrics::Metrics,
+    state::SharedState,
+    store::{CapacityEviction, StorageSnapshotData},
+};
 
 const USAGE_PATH: &str = "/_internal/kura/usage";
 const USAGE_CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
 const USAGE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+// Eviction reports awaiting a successful delivery. In memory only: the claim
+// sizing policy reads weeks of aggregates, so reports lost to a restart are
+// noise, and keeping them off the durable outbox keeps the on-disk format
+// untouched.
+const MAX_UNDELIVERED_EVICTIONS: usize = 8_192;
+const STORAGE_SNAPSHOT_INTERVAL: Duration = Duration::from_secs(900);
 
 #[derive(Clone)]
 pub struct Usage {
@@ -28,6 +39,8 @@ struct UsageInner {
     region: String,
     metrics: Metrics,
     buckets: Mutex<HashMap<UsageBucketKey, UsageBucket>>,
+    undelivered_evictions: Mutex<VecDeque<SegmentEvictionEvent>>,
+    last_snapshot_at: Mutex<Option<Instant>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -48,12 +61,52 @@ pub struct UsageRollup {
     pub request_count: u64,
 }
 
+/// One ring-rotation eviction as it crosses the wire. `reason` is always
+/// `"capacity"` today; it exists so a future non-capacity eviction cannot be
+/// mistaken for churn by an older control plane.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct SegmentEvictionEvent {
+    pub event_id: String,
+    pub tenant_id: String,
+    pub node_id: String,
+    pub region: String,
+    pub segment_id: String,
+    pub reason: String,
+    pub evicted_at_unix_ms: u64,
+    pub segment_created_at_unix_ms: u64,
+    pub newest_content_at_unix_ms: u64,
+    pub artifact_count: u64,
+    pub bytes: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct StorageSnapshot {
+    pub event_id: String,
+    pub tenant_id: String,
+    pub node_id: String,
+    pub region: String,
+    pub captured_at_unix_ms: u64,
+    pub ring_budget_bytes: u64,
+    pub desired_segment_count: u64,
+    pub live_segment_count: u64,
+    pub live_segment_bytes: u64,
+    pub oldest_segment_created_at_unix_ms: Option<u64>,
+    pub newest_content_at_unix_ms: Option<u64>,
+}
+
+// The eviction and snapshot fields are additive: skipping them when empty
+// keeps the payload byte-identical to the pre-existing shape, and a control
+// plane that predates them ignores unknown keys.
 #[derive(Clone, Debug, Serialize)]
 struct UsageBatch {
     schema_version: u8,
     node_id: String,
     region: String,
     events: Vec<UsageRollup>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    evictions: Vec<SegmentEvictionEvent>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    storage_snapshots: Vec<StorageSnapshot>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -91,6 +144,8 @@ impl Usage {
                 region: metrics.region().to_owned(),
                 metrics,
                 buckets: Mutex::new(HashMap::new()),
+                undelivered_evictions: Mutex::new(VecDeque::new()),
+                last_snapshot_at: Mutex::new(None),
             }),
         }))
     }
@@ -277,6 +332,90 @@ impl Usage {
         }
     }
 
+    fn stash_evictions(&self, tenant_id: &str, evictions: Vec<CapacityEviction>) {
+        if evictions.is_empty() {
+            return;
+        }
+        let mut undelivered = self
+            .inner
+            .undelivered_evictions
+            .lock()
+            .expect("undelivered evictions poisoned");
+        for eviction in evictions {
+            while undelivered.len() >= MAX_UNDELIVERED_EVICTIONS {
+                undelivered.pop_front();
+                self.inner.metrics.record_capacity_eviction_report_dropped();
+            }
+            undelivered.push_back(eviction_event(
+                tenant_id,
+                &self.inner.node_id,
+                &self.inner.region,
+                eviction,
+            ));
+        }
+    }
+
+    fn undelivered_evictions(&self) -> Vec<SegmentEvictionEvent> {
+        self.inner
+            .undelivered_evictions
+            .lock()
+            .expect("undelivered evictions poisoned")
+            .iter()
+            .cloned()
+            .collect()
+    }
+
+    /// Drops the front `count` reports after a delivery covering them
+    /// succeeded. Reports stashed since the covered batch was built sit behind
+    /// them and survive for the next delivery.
+    fn discard_delivered_evictions(&self, count: usize) {
+        let mut undelivered = self
+            .inner
+            .undelivered_evictions
+            .lock()
+            .expect("undelivered evictions poisoned");
+        let covered = count.min(undelivered.len());
+        undelivered.drain(..covered);
+    }
+
+    fn storage_snapshot_due(&self) -> bool {
+        self.inner
+            .last_snapshot_at
+            .lock()
+            .expect("last snapshot poisoned")
+            .is_none_or(|at| at.elapsed() >= STORAGE_SNAPSHOT_INTERVAL)
+    }
+
+    fn mark_snapshot_delivered(&self) {
+        *self
+            .inner
+            .last_snapshot_at
+            .lock()
+            .expect("last snapshot poisoned") = Some(Instant::now());
+    }
+
+    fn storage_snapshot_event(
+        &self,
+        tenant_id: &str,
+        data: StorageSnapshotData,
+        captured_at_unix_seconds: u64,
+    ) -> StorageSnapshot {
+        let window = captured_at_unix_seconds / STORAGE_SNAPSHOT_INTERVAL.as_secs().max(1);
+        StorageSnapshot {
+            event_id: format!("snapshot:{}:{}", self.inner.node_id, window),
+            tenant_id: tenant_id.to_owned(),
+            node_id: self.inner.node_id.clone(),
+            region: self.inner.region.clone(),
+            captured_at_unix_ms: captured_at_unix_seconds * 1_000,
+            ring_budget_bytes: data.ring_budget_bytes,
+            desired_segment_count: data.desired_segment_count,
+            live_segment_count: data.live_segment_count,
+            live_segment_bytes: data.live_segment_bytes,
+            oldest_segment_created_at_unix_ms: data.oldest_segment_created_at_ms,
+            newest_content_at_unix_ms: data.newest_content_at_ms,
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn current_rollups_for_tests(&self) -> Vec<UsageRollup> {
         let buckets = self.inner.buckets.lock().expect("usage buckets poisoned");
@@ -394,8 +533,25 @@ async fn deliver_once(state: &SharedState, client: &Client) -> Result<(), String
         .usage
         .as_ref()
         .ok_or_else(|| "usage config missing".to_string())?;
+    let usage = state.usage.as_ref().expect("usage should exist");
+    usage.stash_evictions(
+        &state.config.tenant_id,
+        state.store.take_pending_capacity_evictions(),
+    );
+
     let rollups = state.store.next_usage_rollups(config.batch_size)?;
-    if rollups.is_empty() {
+    let evictions = usage.undelivered_evictions();
+    let storage_snapshots = if usage.storage_snapshot_due() {
+        vec![usage.storage_snapshot_event(
+            &state.config.tenant_id,
+            state.store.storage_snapshot(),
+            unix_seconds(),
+        )]
+    } else {
+        Vec::new()
+    };
+
+    if rollups.is_empty() && evictions.is_empty() && storage_snapshots.is_empty() {
         return Ok(());
     }
 
@@ -409,20 +565,18 @@ async fn deliver_once(state: &SharedState, client: &Client) -> Result<(), String
         .collect::<Vec<_>>();
     let url = format!("{}{}", config.control_plane_url, USAGE_PATH);
     let auth = STANDARD.encode(format!("{}:{}", config.client_id, config.client_secret));
+    let delivered_evictions = evictions.len();
+    let delivered_snapshot = !storage_snapshots.is_empty();
     let response = client
         .post(url)
         .header(AUTHORIZATION.as_str(), format!("Basic {auth}"))
         .json(&UsageBatch {
             schema_version: 1,
-            node_id: state
-                .usage
-                .as_ref()
-                .expect("usage should exist")
-                .inner
-                .node_id
-                .clone(),
+            node_id: usage.inner.node_id.clone(),
             region: state.config.region.clone(),
             events,
+            evictions,
+            storage_snapshots,
         })
         .send()
         .await
@@ -430,9 +584,37 @@ async fn deliver_once(state: &SharedState, client: &Client) -> Result<(), String
 
     if response.status().is_success() {
         state.store.delete_usage_rollups(&keys)?;
+        usage.discard_delivered_evictions(delivered_evictions);
+        if delivered_snapshot {
+            usage.mark_snapshot_delivered();
+        }
         Ok(())
     } else {
         Err(format!("server returned {}", response.status()))
+    }
+}
+
+fn eviction_event(
+    tenant_id: &str,
+    node_id: &str,
+    region: &str,
+    eviction: CapacityEviction,
+) -> SegmentEvictionEvent {
+    SegmentEvictionEvent {
+        // A segment evicts once, so node + segment is a natural idempotency
+        // key: a redelivered batch collapses in the control plane's
+        // ReplacingMergeTree exactly like a retried usage rollup.
+        event_id: format!("evict:{node_id}:{}", eviction.segment_id),
+        tenant_id: tenant_id.to_owned(),
+        node_id: node_id.to_owned(),
+        region: region.to_owned(),
+        segment_id: eviction.segment_id,
+        reason: "capacity".to_owned(),
+        evicted_at_unix_ms: eviction.evicted_at_ms,
+        segment_created_at_unix_ms: eviction.segment_created_at_ms,
+        newest_content_at_unix_ms: eviction.newest_content_at_ms,
+        artifact_count: eviction.artifact_count,
+        bytes: eviction.bytes,
     }
 }
 
@@ -677,5 +859,144 @@ mod tests {
         let buckets = usage.inner.buckets.lock().unwrap();
         assert!(!buckets.contains_key(&acme_key));
         assert!(buckets.contains_key(&globex_key));
+    }
+
+    fn capacity_eviction(segment_id: &str) -> CapacityEviction {
+        CapacityEviction {
+            segment_id: segment_id.to_owned(),
+            segment_created_at_ms: 1_000,
+            newest_content_at_ms: 2_000,
+            evicted_at_ms: 90_000,
+            artifact_count: 3,
+            bytes: 512,
+        }
+    }
+
+    #[test]
+    fn eviction_event_maps_fields_and_derives_a_stable_id() {
+        let event = eviction_event(
+            "acme",
+            "node-1.kura.local",
+            "eu-central",
+            capacity_eviction("segment-1"),
+        );
+
+        assert_eq!(event.event_id, "evict:node-1.kura.local:segment-1");
+        assert_eq!(event.tenant_id, "acme");
+        assert_eq!(event.node_id, "node-1.kura.local");
+        assert_eq!(event.region, "eu-central");
+        assert_eq!(event.segment_id, "segment-1");
+        assert_eq!(event.reason, "capacity");
+        assert_eq!(event.evicted_at_unix_ms, 90_000);
+        assert_eq!(event.segment_created_at_unix_ms, 1_000);
+        assert_eq!(event.newest_content_at_unix_ms, 2_000);
+        assert_eq!(event.artifact_count, 3);
+        assert_eq!(event.bytes, 512);
+    }
+
+    #[test]
+    fn stashed_evictions_survive_a_failed_delivery_and_leave_after_a_covered_one() {
+        let usage = test_usage(60, 100);
+
+        usage.stash_evictions(
+            "acme",
+            vec![
+                capacity_eviction("segment-1"),
+                capacity_eviction("segment-2"),
+            ],
+        );
+        let first_batch = usage.undelivered_evictions();
+        assert_eq!(first_batch.len(), 2);
+
+        // Stashed after the batch was built: a covering delivery must not
+        // discard it.
+        usage.stash_evictions("acme", vec![capacity_eviction("segment-3")]);
+
+        usage.discard_delivered_evictions(first_batch.len());
+
+        let remaining = usage.undelivered_evictions();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].segment_id, "segment-3");
+    }
+
+    #[test]
+    fn stash_evictions_caps_the_queue_by_dropping_oldest() {
+        let usage = test_usage(60, 100);
+
+        let evictions = (0..(MAX_UNDELIVERED_EVICTIONS + 3))
+            .map(|index| capacity_eviction(&format!("segment-{index}")))
+            .collect();
+        usage.stash_evictions("acme", evictions);
+
+        let undelivered = usage.undelivered_evictions();
+        assert_eq!(undelivered.len(), MAX_UNDELIVERED_EVICTIONS);
+        assert_eq!(undelivered[0].segment_id, "segment-3");
+    }
+
+    #[test]
+    fn storage_snapshot_is_due_initially_and_backs_off_after_a_delivery() {
+        let usage = test_usage(60, 100);
+
+        assert!(usage.storage_snapshot_due());
+        usage.mark_snapshot_delivered();
+        assert!(!usage.storage_snapshot_due());
+    }
+
+    #[test]
+    fn storage_snapshot_event_ids_are_stable_within_an_interval_window() {
+        let usage = test_usage(60, 100);
+        let data = StorageSnapshotData {
+            ring_budget_bytes: 5 * 512 * 1024 * 1024,
+            desired_segment_count: 5,
+            live_segment_count: 3,
+            live_segment_bytes: 1024,
+            oldest_segment_created_at_ms: Some(1_000),
+            newest_content_at_ms: Some(2_000),
+        };
+        let interval_secs = STORAGE_SNAPSHOT_INTERVAL.as_secs();
+
+        let first = usage.storage_snapshot_event("acme", data.clone(), interval_secs * 7);
+        let same_window = usage.storage_snapshot_event("acme", data.clone(), interval_secs * 7 + 1);
+        let next_window = usage.storage_snapshot_event("acme", data.clone(), interval_secs * 8);
+
+        assert_eq!(first.event_id, "snapshot:node-1.kura.local:7");
+        assert_eq!(first.event_id, same_window.event_id);
+        assert_ne!(first.event_id, next_window.event_id);
+        assert_eq!(first.tenant_id, "acme");
+        assert_eq!(first.region, "test-region");
+        assert_eq!(first.captured_at_unix_ms, interval_secs * 7 * 1_000);
+        assert_eq!(first.ring_budget_bytes, data.ring_budget_bytes);
+        assert_eq!(first.live_segment_bytes, 1024);
+        assert_eq!(first.oldest_segment_created_at_unix_ms, Some(1_000));
+        assert_eq!(first.newest_content_at_unix_ms, Some(2_000));
+    }
+
+    #[test]
+    fn usage_batch_omits_storage_fields_when_empty() {
+        let batch = UsageBatch {
+            schema_version: 1,
+            node_id: "node-1.kura.local".to_owned(),
+            region: "test-region".to_owned(),
+            events: Vec::new(),
+            evictions: Vec::new(),
+            storage_snapshots: Vec::new(),
+        };
+
+        let json = serde_json::to_string(&batch).expect("batch should serialize");
+        assert!(!json.contains("evictions"));
+        assert!(!json.contains("storage_snapshots"));
+
+        let populated = UsageBatch {
+            evictions: vec![eviction_event(
+                "acme",
+                "node-1.kura.local",
+                "test-region",
+                capacity_eviction("segment-1"),
+            )],
+            ..batch
+        };
+        let json = serde_json::to_string(&populated).expect("batch should serialize");
+        assert!(json.contains("\"evictions\""));
+        assert!(json.contains("evict:node-1.kura.local:segment-1"));
     }
 }
