@@ -362,6 +362,8 @@ kuraRuntime:
     labels: {}
     nodeSelector: {}
     tolerations: []
+    networkPolicy:
+      enabled: false
 
 codebaseSearch:
   enabled: false
@@ -652,6 +654,27 @@ server:
     create: false
     name: ""
     annotations: {}
+  # Existing deployments may give the server Kubernetes API permissions for
+  # runners or database operations. Keep the historical implicit mount as the
+  # default; isolated deployments can explicitly turn it off.
+  automountServiceAccountToken: true
+  # Optional Secret mounted read-only for a one-time account bootstrap. The
+  # server process never reads it; operational tooling can read the files
+  # through an exec command without placing credentials in command arguments.
+  seedAccountCredentials:
+    secretName: ""
+  networkPolicy:
+    enabled: false
+    ingressControllerNamespace: platform
+    ingressControllerPodLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/component: controller
+    dnsNamespace: kube-system
+    observabilityNamespace: observability
+    kuraNamespace: kura
+    # Private Pod and Service ranges excluded from the public HTTP/S egress
+    # rule. Environment overlays should set their cluster's actual ranges.
+    clusterCIDRs: []
   ingress:
     enabled: false
     className: ""
@@ -1002,6 +1025,9 @@ registry:
       app.kubernetes.io/component: controller
     dnsNamespace: kube-system
     observabilityNamespace: observability
+    # Private Pod and Service ranges excluded from the public HTTP/S egress
+    # rule. Environment overlays should set their cluster's actual ranges.
+    clusterCIDRs: []
   resources: {}
   podSecurityContext:
     fsGroup: 990

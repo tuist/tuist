@@ -1,7 +1,7 @@
 # Tuist ClusterClass + Cluster CRs
 
 Self-hosted Kubernetes manifests for the Tuist workload clusters
-(staging / canary / production / preview), reconciled by our own
+(staging / canary / production / preview / pentest), reconciled by our own
 management cluster running CAPI + caph. Production Kura regions are
 dedicated node pools inside the production workload cluster.
 
@@ -24,7 +24,8 @@ clusters/
 ├── cluster-staging.yaml       per-env Cluster CRs in topology mode
 ├── cluster-canary.yaml
 ├── cluster-production.yaml
-└── cluster-preview.yaml
+├── cluster-preview.yaml
+└── cluster-pentest.yaml
 ```
 
 ## Target shape per cluster
@@ -35,6 +36,13 @@ clusters/
 | `tuist-canary` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: bare-metal Robot (`pool=runners-linux`) |
 | `tuist` (production) | 3× cpx22 | md-0: 3× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 2× AX162-R bare-metal Robot in `fsn1` (`pool=runners-linux`) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
+| `tuist-pentest` | 3× cpx22 | md-0: 2× cpx32 (`pool=general`); kura: 1× cpx32 (`pool=kura`, tainted) |
+
+`tuist-pentest` is a dedicated, fixed-duration security-assessment cluster.
+It intentionally has no runner, Mac, processor, or stable-egress pools. Kura
+runs on its own tainted worker pool, while its controller and credentials are
+confined to this cluster. Remove the Cluster resource through the reviewed
+teardown flow when the engagement ends.
 
 The `md-egress` pool is the HA (≥2 node) stable-egress gateway: the
 production Phoenix server's public egress is SNAT'd through the active

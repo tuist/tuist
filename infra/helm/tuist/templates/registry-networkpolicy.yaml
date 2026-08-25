@@ -46,6 +46,13 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+    # The registry reads and writes objects through the release's embedded
+    # object store. Scope that internal path to this Helm release rather than
+    # opening the registry to every namespace.
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "tuist.selectorLabels" . | nindent 14 }}
     {{- with .Values.registry.networkPolicy.observabilityNamespace }}
     - to:
         - namespaceSelector:
@@ -60,6 +67,10 @@ spec:
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
+            {{- with .Values.registry.networkPolicy.clusterCIDRs }}
+            except:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
       ports:
         - protocol: TCP
           port: 80
