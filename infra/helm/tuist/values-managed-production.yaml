@@ -172,7 +172,7 @@ server:
     # per-account cache pods and dispatch routes the Mac fleet's build
     # cache to it over the Private Network.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central,us-east,us-west,scw-fr-par-runners
+      value: eu-central,us-east,us-west,ap-southeast,scw-fr-par-runners
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -311,7 +311,7 @@ kuraController:
 # betaPodPrefix keeps the first enforcement step on kura-tuist-* pods.
 egressTreeAgent:
   enabled: true
-  nodePools: [kura-dedibox, kura-us-east, kura-us-west]
+  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast]
   betaPodPrefix: "kura-tuist-"
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
@@ -772,6 +772,41 @@ ovhFleets:
       # Node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
       # tuist.dev/egress-mbps so the scheduler bin-packs the 750-Mbps-floor pods.
       egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
+  # Asia Pacific Southeast (Singapore / OVHcloud SGP): the node pool backing the
+  # ap-southeast Kura region, which serves APAC accounts that would otherwise be
+  # answered from Virginia.
+  ap-southeast:
+    enabled: true
+    replicas: 1
+    # The endpoint names the OVHcloud entity holding the account, not the box's
+    # geography — APAC datacenters bill under the US subsidiary, the same way
+    # ca-east's Quebec box does. Every OVH fleet must share one endpoint:
+    # capi-scaleway-applesilicon.yaml resolves a single endpoint for the whole
+    # reconciler from whichever OVH fleet is enabled last, so a divergent one
+    # would silently point it at the wrong API.
+    endpoint: ovh-us
+    nodePool: kura-ap-southeast
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-ap-southeast
+      # Matched case-insensitively as a substring of the box's commercialRange,
+      # which OVH's 2026 range spells with a CPU suffix rather than a year. A
+      # value matching nothing adopts nothing, silently, so this is the range
+      # string verbatim — and in full, so a differently specced Advance-2 cannot
+      # land in this pool by accident.
+      offer: "ADVANCE-2 | AMD EPYC 4344P"
+      # Prefix-matched, so this claims a box in any sgp* datacenter.
+      datacenter: sgp
+      os: ubuntu_24.04
+      # Node egress budget (Mbps), advertised as tuist.dev/egress-mbps so the
+      # scheduler bin-packs the cache pods' guaranteed floors against it. This
+      # is the box's public bandwidth, which is what a cache serves — not the
+      # 25 Gbit/s its NIC links at, which is the vRack side and would
+      # over-commit the public path 25x. A 25 TiB/month egress quota sits above
+      # it that nothing here enforces or watches.
+      egressBudgetMbps: 1000
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH

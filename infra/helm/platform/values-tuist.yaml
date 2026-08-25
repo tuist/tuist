@@ -140,3 +140,28 @@ kura-us-west-ingress-nginx:
       type: ClusterIP
       externalTrafficPolicy: ""
       annotations: {}
+
+# Asia Pacific Southeast (Singapore / OVHcloud SGP). Claims the ap-southeast
+# region's Ingresses; same host-network shape as the other OVH bare-metal
+# regions.
+kura-ap-southeast-ingress-nginx:
+  enabled: true
+  controller:
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
+    config:
+      use-proxy-protocol: "false"
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-ap-southeast
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}
