@@ -495,7 +495,7 @@ node-local volume is lost and the host key rotates, so the next claim re-TOFUs i
 
 ### Disk layout, and why it is an install-time decision
 
-Every install these kinds start lays down a mirrored root plus a **separate XFS
+Every install these kinds start lays down a redundant root plus a **separate XFS
 `/data`**, and the self-join then mounts `/data` with `prjquota` and refuses to
 join a box where it cannot (`dataProjectQuotaScript` in
 `controllers/linux/linux_cloudinit.go`).
@@ -523,8 +523,18 @@ the box crosses kubelet's eviction line and takes down every tenant on it.
 
 The layout comes from the box's real disk groups (`ovh.PlanStorage`,
 `GET /dedicated/server/{name}/specifications/hardware`), so one code path covers
-every shape in the fleet: `/boot` + a capped `/` + `/data` filling the rest,
-mirrored, on the box's LARGEST disk group.
+every shape in the fleet: `/boot` + a capped `/` + `/data` filling the rest, on
+the box's LARGEST disk group.
+
+The RAID level comes from that group's disk count (`DiskGroup.raidLevel`): RAID
+10 on an even group of four or more disks, RAID 1 on two or three, none on one.
+This decides usable capacity, not just redundancy. A layout installed at RAID 1
+mirrors across every disk the partitioning covers, so a four-disk group installed
+that way carries ONE disk of `/data` and the extra disks buy nothing. Order a box
+with the larger disk option and it is RAID 10 that turns those disks into space.
+Odd counts above three fall back to RAID 1 rather than parity: RAID 5/6 is a
+different durability and rebuild trade to pick deliberately, and no box in the
+fleet has that shape.
 
 It is deliberately ONE storage entry. OVH documents storage customization for a
 single disk group per install, so a box with a small OS mirror plus a larger data
