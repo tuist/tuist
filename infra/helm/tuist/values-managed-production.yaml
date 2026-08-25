@@ -152,16 +152,6 @@ server:
     # chart — all three flip together, because this variable alone makes the
     # region selectable in account settings and iterated by the lifecycle, and
     # either without capacity behind it leaves a KuraInstance Pending.
-    #
-    # The SGP box (ns5036444.ip-15-235-229.net) was verified ready before this
-    # landed: Ubuntu 24.04 installed, reachable over SSH as ubuntu on the fleet
-    # key with passwordless sudo, and /data a separate 829 GiB XFS filesystem.
-    # That check is the precondition for any box joining this pool, not a
-    # one-off: the OVH machine controller does claim + self-join and never
-    # install — unlike the Dedibox one it does not poll InstallState — so it
-    # fails the bootstrap on a half-installed box rather than waiting for it.
-    # /data reading `noquota` at that point is expected; the self-join remounts
-    # it with prjquota and refuses to join a box where it cannot.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-central,us-east,us-west,ap-southeast,scw-fr-par-runners
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
@@ -776,23 +766,12 @@ ovhFleets:
   # every cache request. The legacy cache fleet serves an ap-southeast endpoint,
   # so this is continuity rather than a new capability.
   #
-  # ENABLED. The box (ns5036444.ip-15-235-229.net) is delivered, prepped
-  # (mise run baremetal:prep-ovh) and named tuist-kura-ovh-production-ap-southeast,
-  # so the reconciler claims it and self-joins it into the kura-ap-southeast pool.
   #
-  # An enabled fleet with no ADOPTABLE machine hangs helm --wait (the failure the
+  # An enabled fleet with no adoptable machine hangs helm --wait (the failure the
   # dediboxFleet comment above warns about) and wedges every production deploy,
-  # not just this region — so if this box is ever released, disable the fleet in
-  # the same change rather than leaving it enabled against an empty pool. The box
-  # must also be finished installing before the deploy that enables this lands:
-  # the OVH controller does claim + self-join and never install, so it fails the
-  # bootstrap on a half-installed box rather than waiting for it. Prep is
-  # (mise run baremetal:prep-ovh
-  # (mise run baremetal:prep-ovh, including the /data XFS project-quota layout,
-  # which has to be applied at install time), and named with the displayName
-  # prefix below. The region also stays out of TUIST_KURA_AVAILABLE_REGIONS
-  # until then, so the server will not resolve an account into it even if this
-  # fleet comes up first.
+  # not just this region. So a box must be prepped (mise run baremetal:prep-ovh)
+  # and carrying the displayName prefix below before this is enabled, and if the
+  # pool is ever emptied this must be disabled in the same change.
   ap-southeast:
     enabled: true
     replicas: 1
@@ -816,35 +795,26 @@ ovhFleets:
     nodePool: kura-ap-southeast
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-ap-southeast
-      # READ FROM THE BOX, not inferred: GET /dedicated/server/
-      # ns5036444.ip-15-235-229.net reports commercialRange
-      # "ADVANCE-2 | AMD EPYC 4344P". The 2026 range dropped the year the older
-      # ones carried (Advance-3-2024, Rise-1-2024) for a CPU suffix, so the
-      # "advance-2-2026" this line used to guess matched nothing — the provider
-      # tests `strings.Contains(lower(commercialRange), lower(offer))`, and that
-      # guess would have left the box silently unadopted, looking like a
-      # delivery problem rather than a typo.
-      #
-      # Carried in full rather than as a bare "advance-2" so a differently
-      # specced Advance-2 cannot be adopted into this pool by accident. If a
-      # second SGP box ships on another CPU binning, widen this deliberately
-      # rather than being surprised by it.
+      # Matched case-insensitively as a SUBSTRING of the box's commercialRange,
+      # which OVH's 2026 range spells with a CPU suffix rather than the year the
+      # older ones carried (Advance-3-2024). A value matching nothing leaves the
+      # box silently unadopted, which reads as a delivery problem rather than a
+      # typo, so this is the range string verbatim. Carried in full so a
+      # differently specced Advance-2 cannot be adopted into this pool by
+      # accident; widen it deliberately if a box ships on another binning.
       offer: "ADVANCE-2 | AMD EPYC 4344P"
       # Prefix-matched (`strings.HasPrefix`), so this claims the box whatever
       # specific datacenter OVH reports — it is in sgp02.
       datacenter: sgp
       os: ubuntu_24.04
-      # Node egress budget (Mbps): MEASURED. The box's NIC links at 25 Gbit/s
-      # (specifications/network `connection`) but its public bandwidth is
-      # `OvhToInternet` 1000 Mbps, and public egress is what a cache serves, so
-      # 1000 is the real ceiling to bin-pack the pods' guaranteed floors
-      # against. The 25 Gbit figure is the vRack/private side; do not size from
-      # it. Advertised as tuist.dev/egress-mbps.
+      # Node egress budget (Mbps), advertised as tuist.dev/egress-mbps so the
+      # scheduler bin-packs the cache pods' guaranteed floors against it. This
+      # is the PUBLIC ceiling (specifications/network `OvhToInternet`), which is
+      # what a cache serves — not the 25 Gbit/s the NIC links at, which is the
+      # vRack side and would over-commit the public path 25x.
       #
-      # Separately, the box carries a 25 TiB/month egress quota
-      # (traffic.outputQuotaSize, resets monthly, isThrottled false today). That
-      # is not enforced here and nothing watches it yet — a Singapore satellite
-      # is unlikely to approach it soon, but it is a real ceiling above this one.
+      # Above it sits a 25 TiB/month egress quota (traffic.outputQuotaSize) that
+      # OVH throttles on. Nothing here enforces or watches it.
       egressBudgetMbps: 1000
     sshExternalSecret:
       enabled: true
