@@ -23,7 +23,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
   def render(%{new_design: true} = assigns), do: blog_post_new(assigns)
   def render(assigns), do: blog_post(assigns)
 
-  def mount(_params, session, socket) do
+  def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign(:csp_nonce, get_csp_nonce())
