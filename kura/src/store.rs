@@ -326,6 +326,7 @@ pub struct AcceleratedArtifactFile {
     pub offset: u64,
     pub size: u64,
     pub content_type: String,
+    pub version_ms: u64,
 }
 
 impl AsyncRead for ArtifactReader {
@@ -1555,6 +1556,7 @@ impl Store {
                 offset,
                 size: manifest.size,
                 content_type: manifest.content_type.clone(),
+                version_ms: manifest.version_ms,
             }));
         }
 
@@ -1566,6 +1568,7 @@ impl Store {
                 offset: 0,
                 size: manifest.size,
                 content_type: manifest.content_type.clone(),
+                version_ms: manifest.version_ms,
             }));
         }
 
@@ -7524,6 +7527,7 @@ mod tests {
             memory_soft_limit_bytes: 128 * 1024 * 1024,
             memory_hard_limit_bytes: 256 * 1024 * 1024,
             memory_floor_bytes: None,
+            anon_cache_fit: None,
             snapshot_cache_max_bytes: 32 * 1024 * 1024,
             manifest_cache_max_bytes: 8 * 1024 * 1024,
             max_keyvalue_bytes: 512 * 1024,
@@ -10255,6 +10259,57 @@ mod tests {
             .expect("artifact should still be served");
         assert_ne!(fresh.segment_id, stale.segment_id);
         assert_eq!(drain_reader(reader).await, b"hello");
+    }
+
+    /// A resume reads from partway into a segment that already holds other
+    /// artifacts, so the read has to add the request's offset to the segment
+    /// offset. Getting that wrong yields a plausible-looking body from the
+    /// wrong place, which a resuming client would silently append.
+    #[tokio::test]
+    async fn a_ranged_read_starts_at_the_offset_within_the_artifact_not_the_segment() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-before",
+                "application/octet-stream",
+                b"padding-that-shifts-the-next-artifact",
+            )
+            .await
+            .expect("failed to persist leading artifact");
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-ranged",
+                "application/octet-stream",
+                b"0123456789",
+            )
+            .await
+            .expect("failed to persist artifact");
+
+        let (_, tail) = store
+            .open_artifact_reader_range_tolerating_promotion(&manifest, 6, None)
+            .await
+            .expect("ranged open should succeed")
+            .expect("artifact should be readable");
+        assert_eq!(drain_reader(tail).await, b"6789");
+
+        let (_, window) = store
+            .open_artifact_reader_range_tolerating_promotion(&manifest, 2, Some(3))
+            .await
+            .expect("ranged open should succeed")
+            .expect("artifact should be readable");
+        assert_eq!(drain_reader(window).await, b"234");
+
+        let (_, last) = store
+            .open_artifact_reader_range_tolerating_promotion(&manifest, 9, Some(1))
+            .await
+            .expect("ranged open should succeed")
+            .expect("artifact should be readable");
+        assert_eq!(drain_reader(last).await, b"9");
     }
 
     #[tokio::test]

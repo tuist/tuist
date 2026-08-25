@@ -129,6 +129,16 @@ public struct LoadCacheCASService: LoadCacheCASServicing {
                     retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
                 )
             }
+        // Neither service sends a `Range`, so a ranged answer is not a reply to
+        // the request that was made. Its body is a fragment, and returning it
+        // as the artifact would store a truncated one under a key that claims
+        // to be whole, so it is refused. Declared on the operation because kura
+        // honours ranges on this route; used by resume, which works below this
+        // layer on the raw response.
+        case .partialContent:
+            throw LoadCacheCASServiceError.unknownError(206)
+        case .rangeNotSatisfiable:
+            throw LoadCacheCASServiceError.unknownError(416)
         case let .undocumented(statusCode: statusCode, _):
             throw LoadCacheCASServiceError.unknownError(statusCode)
         }

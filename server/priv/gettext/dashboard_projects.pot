@@ -110,7 +110,7 @@ msgid "Bundle install size"
 msgstr ""
 
 #: lib/tuist_web/live/project_automations_live.html.heex:25
-#: lib/tuist_web/live/project_bundle_settings_live.ex:23
+#: lib/tuist_web/live/project_bundle_settings_live.ex:25
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:25
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:32
 #: lib/tuist_web/live/project_notifications_live.html.heex:25
@@ -143,6 +143,7 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.html.heex:898
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:190
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:350
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:494
 #: lib/tuist_web/live/project_notifications_live.html.heex:168
 #: lib/tuist_web/live/project_notifications_live.html.heex:495
 #: lib/tuist_web/live/project_notifications_live.html.heex:840
@@ -234,7 +235,7 @@ msgstr ""
 msgid "General access"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:213
+#: lib/tuist_web/live/project_bundle_settings_live.ex:323
 #: lib/tuist_web/live/project_notifications_live.ex:781
 #: lib/tuist_web/live/xcode_overview_live.html.heex:701
 #, elixir-autogen, elixir-format
@@ -452,7 +453,7 @@ msgstr ""
 
 #: lib/tuist_web/live/project_automation_live.ex:24
 #: lib/tuist_web/live/project_automations_live.ex:24
-#: lib/tuist_web/live/project_bundle_settings_live.ex:15
+#: lib/tuist_web/live/project_bundle_settings_live.ex:17
 #: lib/tuist_web/live/project_notifications_live.ex:26
 #: lib/tuist_web/live/project_settings_live.ex:15
 #: lib/tuist_web/live/projects_live.ex:495
@@ -844,7 +845,7 @@ msgstr ""
 msgid "Bundle size"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:214
+#: lib/tuist_web/live/project_bundle_settings_live.ex:324
 #: lib/tuist_web/live/project_notifications_live.ex:782
 #, elixir-autogen, elixir-format
 msgid "Download size"
@@ -940,12 +941,12 @@ msgstr ""
 msgid "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:221
+#: lib/tuist_web/live/project_bundle_settings_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:229
+#: lib/tuist_web/live/project_bundle_settings_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
@@ -1676,4 +1677,107 @@ msgstr ""
 #: lib/tuist_web/live/project_automation_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Show more"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:502
+#, elixir-autogen, elixir-format
+msgid "Add"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:450
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:462
+#, elixir-autogen, elixir-format
+msgid "Add approver"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:280
+#, elixir-autogen, elixir-format
+msgid "Anyone"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:284
+#, elixir-autogen, elixir-format
+msgid "Anyone with write access to the repository."
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:402
+#, elixir-autogen, elixir-format
+msgid "Approvals"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:447
+#, elixir-autogen, elixir-format
+msgid "Approvers"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:404
+#, elixir-autogen, elixir-format
+msgid "Choose who can accept a bundle size increase that exceeded a threshold."
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:250
+#, elixir-autogen, elixir-format
+msgid "Connect the Tuist GitHub App to this project first, so the username can be checked against GitHub."
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:270
+#, elixir-autogen, elixir-format
+msgid "Enter a valid GitHub username that isn't already on the list."
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:474
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:517
+#, elixir-autogen, elixir-format
+msgid "GitHub username"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:257
+#, elixir-autogen, elixir-format
+msgid "No GitHub user with that username."
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:538
+#, elixir-autogen, elixir-format
+msgid "No approvers"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:540
+#, elixir-autogen, elixir-format
+msgid "Nobody can accept a size increase until a GitHub username is added"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:288
+#, elixir-autogen, elixir-format
+msgid "Only the GitHub usernames you add below."
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:281
+#, elixir-autogen, elixir-format
+msgid "Selected GitHub users"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:272
+#: lib/tuist_web/live/project_bundle_settings_live.ex:277
+#, elixir-autogen, elixir-format
+msgid "The approver could not be added."
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:452
+#, elixir-autogen, elixir-format
+msgid "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:415
+#, elixir-autogen, elixir-format
+msgid "Who can accept"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:265
+#, elixir-autogen, elixir-format
+msgid "Couldn't reach GitHub to check that username. Try again in a moment."
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:261
+#, elixir-autogen, elixir-format
+msgid "That is not a valid GitHub username."
 msgstr ""

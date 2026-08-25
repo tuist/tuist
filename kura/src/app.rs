@@ -134,12 +134,36 @@ async fn run_with_config(
         Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
         vec![config.tmp_dir.clone(), config.data_dir.clone()],
     )?;
+    // Report the anon budget once tracing exists. Config parsing derives it, but
+    // that runs before any subscriber does, and a budget that came out smaller
+    // than the caches asked for is the difference between a node that serves and
+    // one that is Ready and rejects everything.
+    if let Some(fit) = config.anon_cache_fit {
+        tracing::warn!(
+            requested_bytes = fit.requested_bytes,
+            fitted_bytes = fit.fitted_bytes,
+            allowance_bytes = fit.allowance_bytes,
+            memory_floor_bytes = config.memory_floor_bytes,
+            "shrank the metadata-store, manifest and snapshot caches to fit the memory floor"
+        );
+    }
+    let anon_admission_budget_bytes = config.anon_admission_budget_bytes();
+    tracing::info!(
+        memory_floor_bytes = config.memory_floor_bytes,
+        memory_limit_bytes = config.memory_limit_bytes,
+        anon_admission_budget_bytes,
+        rocksdb_block_cache_bytes = config.rocksdb_block_cache_bytes,
+        rocksdb_write_buffer_manager_bytes = config.rocksdb_write_buffer_manager_bytes,
+        manifest_cache_max_bytes = config.manifest_cache_max_bytes,
+        snapshot_cache_max_bytes = config.snapshot_cache_max_bytes,
+        "resolved anonymous memory budget"
+    );
     let memory = MemoryController::with_anon_budget(
         metrics.clone(),
         config.memory_limit_bytes,
         config.memory_soft_limit_bytes,
         config.memory_hard_limit_bytes,
-        config.anon_admission_budget_bytes(),
+        anon_admission_budget_bytes,
     );
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,
