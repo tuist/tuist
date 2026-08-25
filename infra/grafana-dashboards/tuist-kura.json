@@ -343,7 +343,7 @@
               "transformations": []
             }
           },
-          "description": "HTTP 5xx responses per second.",
+          "description": "HTTP 5xx responses per second. Capacity backpressure is served as 429 and is not counted here, so this panel means a genuine server fault — see Read Shed Ratio for the capacity signal.",
           "id": 29,
           "links": [],
           "title": "Error Rate (5xx)",
@@ -3940,6 +3940,96 @@
           }
         }
       },
+      "panel-61": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "(sum((rate(kura_capacity_sheds_total_total{cluster=~\"$cluster\", instance=~\"$instance\", kind=\"response_stream\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=\"429\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))\n/\nclamp_min((sum((rate(kura_capacity_sheds_total_total{cluster=~\"$cluster\", instance=~\"$instance\", kind=\"response_stream\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=\"429\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) + (sum((rate(kura_artifact_reads_total_total{cluster=~\"$cluster\", instance=~\"$instance\", result=\"ok\", producer!=\"reapi\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or (sum((rate(kura_capacity_sheds_total_total{cluster=~\"$cluster\", instance=~\"$instance\", kind=\"response_stream\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=\"429\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) * 0), 0.01)",
+                        "instant": true,
+                        "legendFormat": "shed",
+                        "range": false
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Share of the reads that wanted bytes shed because no response-stream permit was available. Selects kura_capacity_sheds_total{kind=\"response_stream\"} rather than a bare 429: every public capacity shed — multipart, temporary staging, upload memory, the critical-memory gate and the replication outbox — also answers 429, so a write-side burst would otherwise inflate a panel that claims to show read pressure. The or arm falls back to counting bare 429s on pods running an image that predates the metric, which is correct there because writes shed 503 on those. The denominator is successful artifact reads plus sheds, not HTTP 200s: the request counter has no method label, so its 200s also cover Nx and Metro writes, repeat Gradle uploads and status polls. REAPI reads are excluded because they never carry an HTTP status. Read it against Error Rate (5xx), which now only counts real server faults.",
+          "id": 61,
+          "links": [],
+          "title": "Read Shed Ratio",
+          "vizConfig": {
+            "group": "stat",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "orange",
+                        "value": 0.01
+                      },
+                      {
+                        "color": "red",
+                        "value": 0.1
+                      }
+                    ]
+                  },
+                  "unit": "percentunit"
+                },
+                "overrides": []
+              },
+              "options": {
+                "colorMode": "background",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              }
+            },
+            "version": "13.2.0-28013533988"
+          }
+        }
+      },
       "panel-9001": {
         "kind": "Panel",
         "spec": {
@@ -4417,6 +4507,19 @@
                         "height": 4,
                         "width": 6,
                         "x": 12,
+                        "y": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-61"
+                        },
+                        "height": 4,
+                        "width": 6,
+                        "x": 18,
                         "y": 8
                       }
                     },

@@ -262,7 +262,7 @@ public enum Servers {
     public enum Server1 {
         public static func url() throws -> Foundation.URL {
             try Foundation.URL(
-                validatingOpenAPIServerURL: "http://localhost:8930",
+                validatingOpenAPIServerURL: "http://localhost:8189",
                 variables: []
             )
         }
@@ -270,7 +270,7 @@ public enum Servers {
     @available(*, deprecated, renamed: "Servers.Server1.url")
     public static func server1() throws -> Foundation.URL {
         try Foundation.URL(
-            validatingOpenAPIServerURL: "http://localhost:8930",
+            validatingOpenAPIServerURL: "http://localhost:8189",
             variables: []
         )
     }
@@ -434,12 +434,28 @@ public enum Operations {
             public var query: Operations.downloadXcodeArtifact.Input.Query
             /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/header`.
             public struct Headers: Sendable, Hashable {
+                /// A single byte range, as `bytes=<first>-`, to resume an interrupted download
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/header/range`.
+                public var range: Swift.String?
+                /// The `ETag` the interrupted download started from. The range is honoured only while it still matches, and the whole artifact is returned otherwise, so a resume cannot splice two versions together.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/header/if-range`.
+                public var if_hyphen_range: Swift.String?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadXcodeArtifact.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - range: A single byte range, as `bytes=<first>-`, to resume an interrupted download
+                ///   - if_hyphen_range: The `ETag` the interrupted download started from. The range is honoured only while it still matches, and the whole artifact is returned otherwise, so a resume cannot splice two versions together.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadXcodeArtifact.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    range: Swift.String? = nil,
+                    if_hyphen_range: Swift.String? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadXcodeArtifact.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.range = range
+                    self.if_hyphen_range = if_hyphen_range
                     self.accept = accept
                 }
             }
@@ -507,6 +523,87 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct PartialContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/206/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// The range served, as `bytes <first>-<last>/<total>`
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/206/headers/content-range`.
+                    public var content_hyphen_range: Swift.String?
+                    /// The representation served, to be echoed in `If-Range` when resuming
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/206/headers/etag`.
+                    public var etag: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - content_hyphen_range: The range served, as `bytes <first>-<last>/<total>`
+                    ///   - etag: The representation served, to be echoed in `If-Range` when resuming
+                    public init(
+                        content_hyphen_range: Swift.String? = nil,
+                        etag: Swift.String? = nil
+                    ) {
+                        self.content_hyphen_range = content_hyphen_range
+                        self.etag = etag
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadXcodeArtifact.Output.PartialContent.Headers
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/206/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/206/content/application\/octet-stream`.
+                    case binary(OpenAPIRuntime.HTTPBody)
+                    /// The associated value of the enum case if `self` is `.binary`.
+                    ///
+                    /// - Throws: An error if `self` is not `.binary`.
+                    /// - SeeAlso: `.binary`.
+                    public var binary: OpenAPIRuntime.HTTPBody {
+                        get throws {
+                            switch self {
+                            case let .binary(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadXcodeArtifact.Output.PartialContent.Body
+                /// Creates a new `PartialContent`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadXcodeArtifact.Output.PartialContent.Headers = .init(),
+                    body: Operations.downloadXcodeArtifact.Output.PartialContent.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The requested range of the artifact
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(downloadXcodeArtifact)/responses/206`.
+            ///
+            /// HTTP response code: `206 partialContent`.
+            case partialContent(Operations.downloadXcodeArtifact.Output.PartialContent)
+            /// The associated value of the enum case if `self` is `.partialContent`.
+            ///
+            /// - Throws: An error if `self` is not `.partialContent`.
+            /// - SeeAlso: `.partialContent`.
+            public var partialContent: Operations.downloadXcodeArtifact.Output.PartialContent {
+                get throws {
+                    switch self {
+                    case let .partialContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "partialContent",
                             response: self
                         )
                     }
@@ -716,6 +813,78 @@ public enum Operations {
                     }
                 }
             }
+            public struct RangeNotSatisfiable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/416/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// The artifact's length, as `bytes */<total>`
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/416/headers/content-range`.
+                    public var content_hyphen_range: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - content_hyphen_range: The artifact's length, as `bytes */<total>`
+                    public init(content_hyphen_range: Swift.String? = nil) {
+                        self.content_hyphen_range = content_hyphen_range
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadXcodeArtifact.Output.RangeNotSatisfiable.Headers
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/416/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/416/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadXcodeArtifact.Output.RangeNotSatisfiable.Body
+                /// Creates a new `RangeNotSatisfiable`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadXcodeArtifact.Output.RangeNotSatisfiable.Headers = .init(),
+                    body: Operations.downloadXcodeArtifact.Output.RangeNotSatisfiable.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The requested range lies entirely outside the artifact
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(downloadXcodeArtifact)/responses/416`.
+            ///
+            /// HTTP response code: `416 rangeNotSatisfiable`.
+            case rangeNotSatisfiable(Operations.downloadXcodeArtifact.Output.RangeNotSatisfiable)
+            /// The associated value of the enum case if `self` is `.rangeNotSatisfiable`.
+            ///
+            /// - Throws: An error if `self` is not `.rangeNotSatisfiable`.
+            /// - SeeAlso: `.rangeNotSatisfiable`.
+            public var rangeNotSatisfiable: Operations.downloadXcodeArtifact.Output.RangeNotSatisfiable {
+                get throws {
+                    switch self {
+                    case let .rangeNotSatisfiable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "rangeNotSatisfiable",
+                            response: self
+                        )
+                    }
+                }
+            }
             public struct UnprocessableContent: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/422/content`.
                 @frozen public enum Body: Sendable, Hashable {
@@ -762,6 +931,78 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+                    public init(retry_hyphen_after: Swift.String? = nil) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadXcodeArtifact.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadXcodeArtifact.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadXcodeArtifact.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.downloadXcodeArtifact.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The server is limiting concurrent artifact response streams; retry after the hint
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(downloadXcodeArtifact)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.downloadXcodeArtifact.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.downloadXcodeArtifact.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
                             response: self
                         )
                     }
@@ -2070,6 +2311,78 @@ public enum Operations {
                     }
                 }
             }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/gradle/{cache_key}/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/gradle/{cache_key}/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+                    public init(retry_hyphen_after: Swift.String? = nil) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadGradleArtifact.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/cache/gradle/{cache_key}/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/gradle/{cache_key}/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadGradleArtifact.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadGradleArtifact.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.downloadGradleArtifact.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The server is limiting concurrent artifact response streams; retry after the hint
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/gradle/{cache_key}/get(downloadGradleArtifact)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.downloadGradleArtifact.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.downloadGradleArtifact.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -3363,6 +3676,78 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+                    public init(retry_hyphen_after: Swift.String? = nil) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getKeyValue.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getKeyValue.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getKeyValue.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.getKeyValue.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The server is limiting concurrent artifact response streams; retry after the hint
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getKeyValue)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getKeyValue.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getKeyValue.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
                             response: self
                         )
                     }
@@ -4831,12 +5216,28 @@ public enum Operations {
             public var query: Operations.downloadModuleCacheArtifact.Input.Query
             /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/header`.
             public struct Headers: Sendable, Hashable {
+                /// A single byte range, as `bytes=<first>-`, to resume an interrupted download
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/header/range`.
+                public var range: Swift.String?
+                /// The `ETag` the interrupted download started from. The range is honoured only while it still matches, and the whole artifact is returned otherwise, so a resume cannot splice two versions together.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/header/if-range`.
+                public var if_hyphen_range: Swift.String?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadModuleCacheArtifact.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - range: A single byte range, as `bytes=<first>-`, to resume an interrupted download
+                ///   - if_hyphen_range: The `ETag` the interrupted download started from. The range is honoured only while it still matches, and the whole artifact is returned otherwise, so a resume cannot splice two versions together.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadModuleCacheArtifact.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    range: Swift.String? = nil,
+                    if_hyphen_range: Swift.String? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadModuleCacheArtifact.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.range = range
+                    self.if_hyphen_range = if_hyphen_range
                     self.accept = accept
                 }
             }
@@ -4904,6 +5305,87 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct PartialContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/206/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// The range served, as `bytes <first>-<last>/<total>`
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/206/headers/content-range`.
+                    public var content_hyphen_range: Swift.String?
+                    /// The representation served, to be echoed in `If-Range` when resuming
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/206/headers/etag`.
+                    public var etag: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - content_hyphen_range: The range served, as `bytes <first>-<last>/<total>`
+                    ///   - etag: The representation served, to be echoed in `If-Range` when resuming
+                    public init(
+                        content_hyphen_range: Swift.String? = nil,
+                        etag: Swift.String? = nil
+                    ) {
+                        self.content_hyphen_range = content_hyphen_range
+                        self.etag = etag
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadModuleCacheArtifact.Output.PartialContent.Headers
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/206/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/206/content/application\/octet-stream`.
+                    case binary(OpenAPIRuntime.HTTPBody)
+                    /// The associated value of the enum case if `self` is `.binary`.
+                    ///
+                    /// - Throws: An error if `self` is not `.binary`.
+                    /// - SeeAlso: `.binary`.
+                    public var binary: OpenAPIRuntime.HTTPBody {
+                        get throws {
+                            switch self {
+                            case let .binary(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadModuleCacheArtifact.Output.PartialContent.Body
+                /// Creates a new `PartialContent`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadModuleCacheArtifact.Output.PartialContent.Headers = .init(),
+                    body: Operations.downloadModuleCacheArtifact.Output.PartialContent.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The requested range of the artifact
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/{id}/get(downloadModuleCacheArtifact)/responses/206`.
+            ///
+            /// HTTP response code: `206 partialContent`.
+            case partialContent(Operations.downloadModuleCacheArtifact.Output.PartialContent)
+            /// The associated value of the enum case if `self` is `.partialContent`.
+            ///
+            /// - Throws: An error if `self` is not `.partialContent`.
+            /// - SeeAlso: `.partialContent`.
+            public var partialContent: Operations.downloadModuleCacheArtifact.Output.PartialContent {
+                get throws {
+                    switch self {
+                    case let .partialContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "partialContent",
                             response: self
                         )
                     }
@@ -5113,6 +5595,78 @@ public enum Operations {
                     }
                 }
             }
+            public struct RangeNotSatisfiable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/416/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// The artifact's length, as `bytes */<total>`
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/416/headers/content-range`.
+                    public var content_hyphen_range: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - content_hyphen_range: The artifact's length, as `bytes */<total>`
+                    public init(content_hyphen_range: Swift.String? = nil) {
+                        self.content_hyphen_range = content_hyphen_range
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadModuleCacheArtifact.Output.RangeNotSatisfiable.Headers
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/416/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/416/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadModuleCacheArtifact.Output.RangeNotSatisfiable.Body
+                /// Creates a new `RangeNotSatisfiable`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadModuleCacheArtifact.Output.RangeNotSatisfiable.Headers = .init(),
+                    body: Operations.downloadModuleCacheArtifact.Output.RangeNotSatisfiable.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The requested range lies entirely outside the artifact
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/{id}/get(downloadModuleCacheArtifact)/responses/416`.
+            ///
+            /// HTTP response code: `416 rangeNotSatisfiable`.
+            case rangeNotSatisfiable(Operations.downloadModuleCacheArtifact.Output.RangeNotSatisfiable)
+            /// The associated value of the enum case if `self` is `.rangeNotSatisfiable`.
+            ///
+            /// - Throws: An error if `self` is not `.rangeNotSatisfiable`.
+            /// - SeeAlso: `.rangeNotSatisfiable`.
+            public var rangeNotSatisfiable: Operations.downloadModuleCacheArtifact.Output.RangeNotSatisfiable {
+                get throws {
+                    switch self {
+                    case let .rangeNotSatisfiable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "rangeNotSatisfiable",
+                            response: self
+                        )
+                    }
+                }
+            }
             public struct UnprocessableContent: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/422/content`.
                 @frozen public enum Body: Sendable, Hashable {
@@ -5159,6 +5713,78 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+                    public init(retry_hyphen_after: Swift.String? = nil) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadModuleCacheArtifact.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/module/{id}/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadModuleCacheArtifact.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadModuleCacheArtifact.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.downloadModuleCacheArtifact.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The server is limiting concurrent artifact response streams; retry after the hint
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/{id}/get(downloadModuleCacheArtifact)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.downloadModuleCacheArtifact.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.downloadModuleCacheArtifact.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
                             response: self
                         )
                     }

@@ -52,7 +52,8 @@ independent workqueues:
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
 
-  The capacity unit and per-Pod cost depend on OS:
+  The capacity unit is allocatable memory bytes on both platforms; only
+  what the per-Pod cost includes differs:
 
   - Linux: budget = sum of allocatable memory across nodes labeled
     `node.cluster.x-k8s.io/pool=<FleetSelector>` (scaled by
@@ -66,10 +67,27 @@ independent workqueues:
     failures still use the independent per-pool target so a transient
     read failure cannot freeze scale-up for queued work. Memory is the
     only dimension — Kata pins it per microVM and CPU is oversubscribed.
-  - macOS: budget = count of nodes labeled `tuist.dev/fleet=<FleetSelector>`
-    + `kubernetes.io/os=darwin`; cost = 1 per Pod (one VM per Mac
-    mini under the Virtualization.framework SLA). The allocator
-    apportions the host budget across competing Xcode pools.
+  - macOS: budget = sum of allocatable memory across nodes labeled
+    `tuist.dev/fleet=<FleetSelector>` + `kubernetes.io/os=darwin`,
+    unscaled; cost = `spec.podMemoryMB` (no RuntimeClass — the guest is
+    a Tart VM, not a sandboxed container). The quotient is the fleet's
+    guest-slot budget, which the allocator apportions across competing
+    Xcode pools.
+
+    No reserve fraction here, unlike Linux: `hostMemoryMB` is a number
+    the operator picks for tart-kubelet to advertise, already net of
+    what Apple's Virtualization.framework holds back, and macOS runs no
+    memory-requesting DaemonSets on these Nodes. Scaling it again would
+    double-count that reserve and strand a whole guest slot.
+
+    **Slots are not hosts.** One `tuist.dev/fleet` value can span
+    several MachineDeployments — that is how a mixed-SKU fleet is
+    expressed — so an M2-L advertising 14336 MB contributes one slot
+    while an M4-XL advertising 28672 MB contributes two. This is the
+    same division kube-scheduler performs when it places the Pod, which
+    is the point: the allocator agrees with the scheduler by
+    construction rather than via a second number kept in sync by hand.
+    Apple's SLA caps any single host at 2 guests and Tart enforces it.
 
   Only nodes that report `Ready=True`, remain schedulable, and have no
   memory, disk, or process identifier pressure contribute to either

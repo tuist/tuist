@@ -85,7 +85,6 @@
 
   & [data-part="description"] {
     font: var(--noora-font-body-medium);
-    line-height: var(--noora-body-medium-line-height);
   }
 
   & [data-part="dismiss-icon"] {

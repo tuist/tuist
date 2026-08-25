@@ -262,6 +262,59 @@ defmodule Tuist.Kura.Regions do
       # OVHcloud BHS, Beauharnois, Quebec.
       country: "CA",
       subdivision: "CA-QC"
+    },
+    # Asia Pacific Southeast (Singapore / OVHcloud SGP) on OVH bare metal: the
+    # `kura-ap-southeast` node pool (an `ovhFleets` entry), local-NVMe storage,
+    # and a hostNetwork regional gateway bound to the box's public IP — the same
+    # bare-metal shape as the other OVH regions. The id matches the legacy cache
+    # fleet's `cache-ap-southeast.tuist.dev` endpoint, so an account moved off
+    # the legacy lane keeps the region name it already knows.
+    #
+    # Nothing DERIVES here, and nothing is meant to. `accounts.region` is
+    # `all | europe | usa`: `europe` derives to eu-central, `usa` derives to
+    # us-east, and `all` defaults to us-east, so no storage-region preference
+    # resolves to Asia Pacific. Do not go looking for the rule that places
+    # accounts here; there is none. Air in particular can never land here,
+    # because Air resolves from the storage-region preference alone.
+    #
+    # Two things do reach it, exactly as they reach us-west: an operator pinning
+    # an account's resolved region with `AccountPolicies.assign_service_region/4`,
+    # which carries plan checks, audit and versioning; and a customer picking the
+    # region in account settings, which goes through `selectable/0` and never
+    # consults AccountPolicies. The second is deliberate — this is a public
+    # region — so "assignment-only" describes derivation, not access.
+    %{
+      id: "ap-southeast",
+      display_name: "Asia Pacific Southeast",
+      cluster_id: "ap-southeast-1",
+      ingress_class_name: "kura-ap-southeast",
+      node_pool: "kura-ap-southeast",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      # Two, like every other managed region. Nothing else serves this region
+      # while a replica restarts — Kura is terminal storage and a miss is a 404,
+      # not an origin fetch — so the standby is what keeps a rolling restart
+      # from costing every account in the region a cache miss.
+      #
+      # It also bounds how many accounts fit: `Capacity.resident_gib/2` is
+      # claim x replicas and each replica requests its full claim as
+      # ephemeral-storage, so an enterprise account reserves 100 GiB of the
+      # region's disk and a pro one 60 GiB.
+      replicas: 2,
+      # Egress governance on the shared box: the enterprise per-tenant floor
+      # (uniform across regions) is bin-packed as the tuist.dev/egress-mbps
+      # request; egress_burst_mbps is the Cilium burst ceiling, half the box's
+      # public bandwidth. Public is the number that matters: the NIC links at
+      # 25 Gbit/s, but that is the vRack side, and a cache serves the 1 Gbit/s
+      # public path. Same shape as ca-east, the other ~1 Gbit region.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 500,
+      # OVHcloud SGP, Singapore. No subdivision: Singapore is a city-state whose
+      # ISO 3166-2 codes are the five CDC statistical districts rather than
+      # anything a datacenter address resolves to, so the country code already
+      # locates the node as precisely as the pair can. Stating a district would
+      # be the guess this field exists to avoid (see `node_location/1`).
+      country: "SG"
     }
   ]
   # Private runner-cache regions. Both share the same model: a single-

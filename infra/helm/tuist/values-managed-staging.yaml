@@ -35,6 +35,17 @@ kuraController:
   telemetry:
     deploymentEnvironment: staging
 
+# Shared per-node egress HTB tree on the kura bare-metal pools. Both staging
+# boxes advertise tuist.dev/egress-mbps (1000), and the staging regions set
+# egress_burst_mbps, so the controller renders the tuist.dev/egress-class pod
+# annotation the agent consumes. The image tag is resolved at deploy time
+# from the highest reachable egress-tree-agent@<semver> tag; pin an in-flight
+# `sha-<git-sha>` build with server-deployment.yml's egress_tree_agent_image_tag
+# input.
+egressTreeAgent:
+  enabled: true
+  nodePools: [kura-dedibox, kura-ca-east]
+
 registry:
   publicHost: registry-staging.tuist.dev
   serverUrl: https://staging.tuist.dev
@@ -72,6 +83,10 @@ server:
       value: https://registry-staging.tuist.dev/swift
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
+    # Must equal the first tier of the runner Price above (2 minutes).
+    # Production leaves this unset and takes the 100 minute default.
+    - name: TUIST_RUNNER_FREE_MONTHLY_MINUTES
+      value: "2"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
@@ -177,10 +192,28 @@ server:
   # JSON-encodes this into TUIST_STRIPE_PRICES.
   stripe:
     prices:
-      # Reporting-only until a Price id is filled in. The Meters exist in
-      # Stripe and receive real usage, but an empty Price id means no
-      # subscription can carry a runner item, so nothing can be charged.
-      # Filling an id in is what turns billing on, per platform.
+      # macOS is billable here so runner billing can be exercised end to
+      # end before production sees it. The Price is graduated: the first
+      # 120000 compute-unit milliseconds (2 minutes on the 6 vCPU / 14 GB
+      # baseline) are free, and beyond that each millisecond costs
+      # 0.000125 cents, which is $0.075 per baseline machine-minute.
+      #
+      # Two minutes rather than production's hundred so the free tier and
+      # the dispatch cap can both be reached in one short job instead of
+      # burning an hour and a half of real Mac time. It must stay in step
+      # with TUIST_RUNNER_FREE_MONTHLY_MINUTES below: this Price decides
+      # what is charged, that env var decides when dispatch stops, and
+      # moving one without the other either cuts accounts off before they
+      # can be charged or charges them after they were cut off.
+      #
+      # Tiers are in raw meter units rather than minutes because Stripe
+      # refuses `tiers` and `transform_quantity` together, so an invoice
+      # line reads in milliseconds. The dashboard renders minutes.
+      #
+      # Linux stays reporting-only: its Meter exists and receives usage,
+      # but with no agreed rate there is no Price to point at, and an
+      # empty id means no subscription can carry a Linux runner item, so
+      # nothing can be charged for it.
       #
       # Never blank an id that has already gone live: a plan change would
       # then stop recognising that subscription item as a runner item and
@@ -188,7 +221,7 @@ server:
       # by removing the item, not by emptying this map.
       runners:
         runner_linux_compute_unit_milliseconds: ""
-        runner_macos_compute_unit_milliseconds: ""
+        runner_macos_compute_unit_milliseconds: "price_1U6UUkLlKoN51ecznSpfuCBI"
       air:
         usage: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
         flat_monthly: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
@@ -704,7 +737,7 @@ runnersFleet:
   # needs to deviate from it.
   #
   # Every active profile runs through the runners-controller's
-  # fleet allocator, which apportions the `hostCount` slot budget
+  # fleet allocator, which apportions the fleet's guest-slot budget
   # across all macOS pools in this fleet using the same three-tier
   # (floor / load / headroom) policy that backs the Linux pools.
   # `minWarmPoolFloor` is the always-on warm guarantee; sum across

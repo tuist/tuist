@@ -80,6 +80,9 @@ on:
       runners_controller_image_tag:
         description: Pre-built runners-controller image tag to pin (e.g. `sha-040775324f48`); wins over the resolved `runners-controller@*` semver. Same pre-release-flag use as capi_image_tag.
         required: false
+      egress_tree_agent_image_tag:
+        description: Pre-built egress-tree-agent image tag to pin (e.g. `sha-537c990cae68`, built by egress-tree-agent-image.yml); wins over the resolved `egress-tree-agent@*` semver. Use to validate an in-flight BPF/HTB change on staging before tagging a release.
+        required: false
   workflow_call:
     inputs:
       environment:
@@ -170,6 +173,15 @@ on:
           use as capi_image_tag.
         required: false
         type: string
+      egress_tree_agent_image_tag:
+        description: >-
+          Pre-built egress-tree-agent image tag to pin (e.g.
+          `sha-537c990cae68`, built by egress-tree-agent-image.yml). When
+          unset, the deploy job resolves the latest `egress-tree-agent@*`
+          semver tag. Use to validate an in-flight BPF/HTB change on
+          staging before tagging a release.
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -182,6 +194,7 @@ env:
   REGISTRY_IMAGE_NAME: tuist/registry
   CODEBASE_SEARCH_IMAGE_NAME: tuist/codebase-search
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
+  EGRESS_TREE_AGENT_IMAGE_NAME: tuist/egress-tree-agent
   KURA_RUNTIME_IMAGE_NAME: tuist/kura
   HELM_CHART_PATH: infra/helm/tuist
   HELM_RELEASE_NAME: tuist
@@ -690,6 +703,7 @@ jobs:
       MACOS_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.macos_runner_image_tag }}
       CAPI_IMAGE_TAG_INPUT: ${{ inputs.capi_image_tag }}
       RUNNERS_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.runners_controller_image_tag }}
+      EGRESS_TREE_AGENT_IMAGE_TAG_INPUT: ${{ inputs.egress_tree_agent_image_tag }}
       KURA_CONTROLLER_NAMESPACE: kura
     steps:
       - uses: actions/checkout@v4
@@ -700,8 +714,9 @@ jobs:
           fetch-depth: 0
       - name: Resolve fleet and runtime image versions from git tags
         # The version of each fleet/runtime image (xcresult-processor, CAPI
-        # provider, runners-controller, Kura runtime, macOS + Linux runner
-        # images) is the highest `<component>@<semver>` tag reachable from
+        # provider, runners-controller, egress-tree-agent, Kura runtime,
+        # macOS + Linux runner images) is the highest `<component>@<semver>`
+        # tag reachable from
         # the deployed commit, so a release that cuts a new tag rolls forward
         # on the next deploy. `--merged` makes a re-promote of an older SHA
         # resolve the versions as they were at that commit.
@@ -760,6 +775,7 @@ jobs:
             echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@' 'tuist/tuist-linux-runner')"
             echo "CAPI_TAG=$(resolve 'capi-scaleway@' 'tuist/capi-provider-scaleway-applesilicon')"
             echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@' 'tuist/tuist-runners-controller')"
+            echo "EGRESS_TREE_AGENT_TAG=$(resolve 'egress-tree-agent@' "$EGRESS_TREE_AGENT_IMAGE_NAME")"
           } >> "$GITHUB_ENV"
       - uses: jdx/mise-action@v3.2.0
         with:
@@ -814,6 +830,37 @@ jobs:
 
           echo "KURA_CONTROLLER_IMAGE_TAG=$controller_tag" >> "$GITHUB_ENV"
           echo "Kura controller: ${controller_source} image tag ${controller_tag}"
+      - name: Resolve egress-tree-agent image tag
+        # The git-tag resolution above returns nothing for a commit that
+        # predates the first `egress-tree-agent@` release — a re-promote or
+        # rollback of an older SHA, most of all. The chart refuses to render
+        # the privileged DaemonSet without a tag, so an empty resolution
+        # would fail the whole deploy over a component that did not change.
+        # Fall back to whatever the cluster is already running, the same way
+        # the Kura controller and codebase search tags are preserved. Still
+        # empty (no DaemonSet, i.e. the agent is disabled here) leaves the
+        # chart default and the template simply doesn't render.
+        run: |
+          set -euo pipefail
+
+          if [ -n "${EGRESS_TREE_AGENT_IMAGE_TAG_INPUT:-}" ] || [ -n "${EGRESS_TREE_AGENT_TAG:-}" ]; then
+            exit 0
+          fi
+
+          current_image="$(
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" get daemonsets \
+              -l app.kubernetes.io/component=egress-tree-agent \
+              -o jsonpath='{.items[0].spec.template.spec.containers[?(@.name=="agent")].image}' \
+              2>/dev/null || true
+          )"
+          image_prefix="${REGISTRY}/${EGRESS_TREE_AGENT_IMAGE_NAME}:"
+          if [[ "$current_image" != "$image_prefix"* ]]; then
+            echo "egress-tree-agent: no released tag and no running DaemonSet; leaving the chart default."
+            exit 0
+          fi
+
+          echo "EGRESS_TREE_AGENT_TAG=${current_image#"$image_prefix"}" >> "$GITHUB_ENV"
+          echo "egress-tree-agent: preserving deployed image tag ${current_image#"$image_prefix"}"
       - name: Resolve codebase search image tag
         run: |
           set -euo pipefail
@@ -1058,6 +1105,13 @@ jobs:
             runners_controller_image_tag="${RUNNERS_CONTROLLER_TAG:-}"
           fi
           add_set "runnersController.image.tag" "$runners_controller_image_tag"
+          egress_tree_agent_image_tag="${EGRESS_TREE_AGENT_IMAGE_TAG_INPUT:-}"
+          if [ -n "$egress_tree_agent_image_tag" ]; then
+            echo "Overriding resolved egress-tree-agent tag with input ${egress_tree_agent_image_tag}"
+          else
+            egress_tree_agent_image_tag="${EGRESS_TREE_AGENT_TAG:-}"
+          fi
+          add_set "egressTreeAgent.image.tag" "$egress_tree_agent_image_tag"
 
           registry_probe_tag="${REGISTRY_IMAGE_TAG:-registry-render-probe}"
           registry_render="$(mktemp)"

@@ -15,7 +15,7 @@ defmodule Tuist.Kura.Workers.ArchiveInactiveInstancesWorker do
     unique: [
       fields: [:worker],
       period: :infinity,
-      states: [:available, :scheduled, :executing, :retryable]
+      states: :incomplete
     ]
 
   alias Tuist.Kura.Lifecycle

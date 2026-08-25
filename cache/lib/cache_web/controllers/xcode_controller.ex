@@ -20,36 +20,113 @@ defmodule CacheWeb.XcodeController do
 
   tags(["Xcode"])
 
+  # Kura, the regional implementation of these cache routes, sheds a read it
+  # cannot admit a response stream for instead of queueing it unboundedly. This
+  # app never returns it, but clients see one contract across both
+  # implementations, and a client that reads the shed as an unknown failure
+  # gives up the retry the server explicitly asked for.
+  @too_many_requests %OpenApiSpex.Response{
+    description: "The server is limiting concurrent artifact response streams; retry after the hint",
+    headers: %{
+      "retry-after" => %OpenApiSpex.Header{
+        description:
+          "Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.",
+        schema: %OpenApiSpex.Schema{type: :string}
+      }
+    },
+    content: %{
+      "application/json" => %OpenApiSpex.MediaType{schema: Error}
+    }
+  }
+
+  # Kura serves these reads directly and honours a single `bytes=` range on
+  # them, so a download that dies partway can ask for the tail instead of the
+  # whole artifact again. This app answers from nginx via `x-accel-redirect`,
+  # which serves ranges itself, so both implementations satisfy the contract
+  # even though neither resolves the header in Elixir. Declaring it here is what
+  # lets the generated client issue a typed range request and read a 206 or a
+  # 416 as the documented outcomes they are, rather than as undocumented
+  # responses it has to guess at.
+  @range_parameters [
+    range: [
+      in: :header,
+      schema: %OpenApiSpex.Schema{type: :string},
+      required: false,
+      description: "A single byte range, as `bytes=<first>-`, to resume an interrupted download"
+    ],
+    "if-range": [
+      in: :header,
+      schema: %OpenApiSpex.Schema{type: :string},
+      required: false,
+      description:
+        "The `ETag` the interrupted download started from. The range is honoured only while it still matches, and the whole artifact is returned otherwise, so a resume cannot splice two versions together."
+    ]
+  ]
+
+  @partial_content %OpenApiSpex.Response{
+    description: "The requested range of the artifact",
+    headers: %{
+      "content-range" => %OpenApiSpex.Header{
+        description: "The range served, as `bytes <first>-<last>/<total>`",
+        schema: %OpenApiSpex.Schema{type: :string}
+      },
+      "etag" => %OpenApiSpex.Header{
+        description: "The representation served, to be echoed in `If-Range` when resuming",
+        schema: %OpenApiSpex.Schema{type: :string}
+      }
+    },
+    content: %{
+      "application/octet-stream" => %OpenApiSpex.MediaType{}
+    }
+  }
+
+  @range_not_satisfiable %OpenApiSpex.Response{
+    description: "The requested range lies entirely outside the artifact",
+    headers: %{
+      "content-range" => %OpenApiSpex.Header{
+        description: "The artifact's length, as `bytes */<total>`",
+        schema: %OpenApiSpex.Schema{type: :string}
+      }
+    },
+    content: %{
+      "application/json" => %OpenApiSpex.MediaType{schema: Error}
+    }
+  }
+
   operation(:download,
     summary: "Download a Xcode cache artifact",
     operation_id: "downloadXcodeArtifact",
-    parameters: [
-      id: [
-        in: :path,
-        schema: SafePathComponent.schema(),
-        required: true,
-        description: "The artifact identifier"
-      ],
-      account_handle: [
-        in: :query,
-        schema: SafePathComponent.schema(),
-        required: true,
-        description: "The handle of the account"
-      ],
-      project_handle: [
-        in: :query,
-        schema: SafePathComponent.schema(),
-        required: true,
-        description: "The handle of the project"
-      ]
-    ],
+    parameters:
+      [
+        id: [
+          in: :path,
+          schema: SafePathComponent.schema(),
+          required: true,
+          description: "The artifact identifier"
+        ],
+        account_handle: [
+          in: :query,
+          schema: SafePathComponent.schema(),
+          required: true,
+          description: "The handle of the account"
+        ],
+        project_handle: [
+          in: :query,
+          schema: SafePathComponent.schema(),
+          required: true,
+          description: "The handle of the project"
+        ]
+      ] ++ @range_parameters,
     responses: %{
       ok: {"Artifact content", "application/octet-stream", nil},
+      partial_content: @partial_content,
+      requested_range_not_satisfiable: @range_not_satisfiable,
       not_found: {"Artifact not found", "application/json", Error},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
-      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error}
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error},
+      too_many_requests: @too_many_requests
     }
   )
 

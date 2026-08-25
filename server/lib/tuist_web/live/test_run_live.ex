@@ -62,14 +62,6 @@ defmodule TuistWeb.TestRunLive do
 
     project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
-    # A run that was processed across multiple retries (e.g. before a fix) can
-    # carry duplicate identical destination rows, since create_run_destinations
-    # inserts a fresh row per attempt. Collapse them to distinct devices.
-    run = %{
-      run
-      | run_destinations: Enum.uniq_by(run.run_destinations, &{&1.name, &1.platform, &1.os_version})
-    }
-
     ci_run_url = Tests.test_ci_run_url(run)
     ci_context = test_ci_context(run, socket.assigns.selected_account, ci_run_url)
     run = Map.put(run, :project, project)

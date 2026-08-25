@@ -24,8 +24,13 @@ use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field};
 
 use crate::{
-    artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
+    artifact::{
+        manifest::ArtifactManifest,
+        producer::ArtifactProducer,
+        range::{RangeOutcome, RangeRequest, ServedRange, entity_tag, resolve_conditional_range},
+    },
     auth::{AccessDecision, RequestContext},
+    backpressure,
     bandwidth::BandwidthLimiter,
     constants::{
         BACKFILL_BODIES_BATCH_BYTES, MAX_BACKFILL_BODIES_ENTRIES,
@@ -36,10 +41,10 @@ use crate::{
     },
     io::is_fd_pool_exhausted_error,
     memory::{
-        MemoryPressure, ResponseStreamAdmissionPatience, ResponseStreamMemoryPermit,
-        ResponseTransportGuard,
+        MemoryController, MemoryPressure, ResponseStreamAdmissionPatience,
+        ResponseStreamMemoryPermit, ResponseTransportGuard,
     },
-    metrics::Metrics,
+    metrics::{Metrics, shed_kind},
     multipart::error::MultipartError,
     peer_tls::InternalPeerIdentity,
     replication::replication_targets,
@@ -1035,6 +1040,17 @@ async fn reject_draining_public_requests(
     response
 }
 
+/// Turns away public writes at the door when the node is already known to be
+/// out of room, so a saturated pod spends nothing on a body it will not keep.
+///
+/// This is a fast path, **not** an admission guarantee. The outbox arm compares
+/// the current depth against the cap as a single slot, while each store write
+/// then reserves one slot per replication target atomically
+/// (`Store::reserve_outbox_slots`). A write admitted here still loses when the
+/// remaining room is smaller than the target count, or when another write wins
+/// the race. Every persistence path therefore has to map `is_outbox_full_error`
+/// to a shed of its own; leaving one on 503 puts a healthy saturated node back
+/// on the 5xx alert.
 async fn reject_overloaded_public_writes(
     State(state): State<SharedState>,
     req: Request,
@@ -1048,11 +1064,19 @@ async fn reject_overloaded_public_writes(
             state
                 .metrics
                 .record_memory_action("write_rejected_critical");
-            return overloaded_response("server is shedding writes due to memory pressure");
+            return capacity_shed_response(
+                &state.metrics,
+                "memory_pressure_write",
+                "server is shedding writes due to memory pressure",
+            );
         }
         if state.store.outbox_depth() >= state.config.outbox_max_depth {
             state.metrics.record_memory_action("write_rejected_outbox");
-            return overloaded_response("server is shedding writes while replication catches up");
+            return capacity_shed_response(
+                &state.metrics,
+                "outbox",
+                "server is shedding writes while replication catches up",
+            );
         }
     }
 
@@ -1093,13 +1117,46 @@ fn is_write_method(method: &axum::http::Method) -> bool {
     )
 }
 
-fn overloaded_response(message: &str) -> Response {
-    let mut response = error_response(StatusCode::SERVICE_UNAVAILABLE, message);
-    response.headers_mut().insert(
-        axum::http::header::RETRY_AFTER,
-        HeaderValue::from_static("1"),
+/// Sheds a public request the node is declining because one of its capacity
+/// limits is full: active multipart uploads, incomplete multipart storage,
+/// upload memory, or the replication outbox.
+///
+/// The node is healthy and the same request succeeds once the limit drains, so
+/// this is 429 rather than a 5xx. A 5xx here is indistinguishable from a store
+/// fault on the same route, and pages as one: on 2026-08-24 a single container
+/// life on `kura-tuist-scw-fr-par-0` answered 568 module-route requests with
+/// the multipart shed and 218 with a success, and the shed was read as a
+/// broken store.
+fn capacity_shed_response(metrics: &Metrics, kind: &str, message: &str) -> Response {
+    metrics.record_capacity_shed(kind);
+    let mut response = error_response(StatusCode::TOO_MANY_REQUESTS, message);
+    retry_after(
+        &mut response,
+        backpressure::retry_after_seconds(backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS),
     );
     response
+}
+
+/// The 503 counterpart, for the two cases 429 would misdescribe: peer
+/// replication writes, which carry no client-facing error signal and whose
+/// source already treats 503 plus `Retry-After` as backpressure, and genuine
+/// resource exhaustion (file descriptors, disk), which is a fault a responder
+/// has to be paged for rather than backpressure a client should retry through.
+fn overloaded_response(message: &str) -> Response {
+    let mut response = error_response(StatusCode::SERVICE_UNAVAILABLE, message);
+    retry_after(
+        &mut response,
+        backpressure::retry_after_seconds(backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS),
+    );
+    response
+}
+
+fn retry_after(response: &mut Response, seconds: u64) {
+    if let Ok(value) = HeaderValue::from_str(&seconds.to_string()) {
+        response
+            .headers_mut()
+            .insert(axum::http::header::RETRY_AFTER, value);
+    }
 }
 
 async fn authorize_request(State(state): State<SharedState>, req: Request, next: Next) -> Response {
@@ -1565,7 +1622,7 @@ async fn get_keyvalue(
                     state
                         .metrics
                         .record_memory_action("keyvalue_response_materialization_rejected");
-                    return response_stream_unavailable();
+                    return response_stream_shed(&state.metrics, &state.memory);
                 }
             };
             state
@@ -1609,7 +1666,11 @@ async fn get_keyvalue(
     }
 }
 
-async fn get_nx(AxumPath(hash): AxumPath<String>, State(state): State<SharedState>) -> Response {
+async fn get_nx(
+    AxumPath(hash): AxumPath<String>,
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+) -> Response {
     let usage = UsageContext {
         tenant_id: state.config.tenant_id.clone(),
         namespace_id: NX_NAMESPACE_ID.to_owned(),
@@ -1623,6 +1684,7 @@ async fn get_nx(AxumPath(hash): AxumPath<String>, State(state): State<SharedStat
         None,
         None,
         Some(usage),
+        request_range(&headers),
     )
     .await
 }
@@ -1658,6 +1720,7 @@ async fn put_nx(
 async fn get_metro(
     AxumPath(cache_key): AxumPath<String>,
     State(state): State<SharedState>,
+    headers: HeaderMap,
 ) -> Response {
     let usage = UsageContext {
         tenant_id: state.config.tenant_id.clone(),
@@ -1672,6 +1735,7 @@ async fn get_metro(
         None,
         None,
         Some(usage),
+        request_range(&headers),
     )
     .await
 }
@@ -1780,6 +1844,16 @@ async fn put_keyvalue(
             );
             StatusCode::NO_CONTENT.into_response()
         }
+        Err(error) if is_outbox_full_error(&error) => {
+            state
+                .metrics
+                .record_artifact_write(ArtifactProducer::Xcode, "error", 0);
+            capacity_shed_response(
+                &state.metrics,
+                "outbox",
+                "server is shedding writes while replication catches up",
+            )
+        }
         Err(error) => {
             state
                 .metrics
@@ -1796,6 +1870,7 @@ async fn get_xcode(
     AxumPath(id): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
+    headers: HeaderMap,
 ) -> Response {
     let namespace = match NamespaceQuery::from_params(&params) {
         Ok(namespace) => namespace,
@@ -1813,6 +1888,7 @@ async fn get_xcode(
         Some(&id),
         analytics,
         Some(usage),
+        request_range(&headers),
     )
     .await
 }
@@ -1853,6 +1929,7 @@ async fn get_gradle(
     AxumPath(cache_key): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
+    headers: HeaderMap,
 ) -> Response {
     let namespace = match NamespaceQuery::from_params(&params) {
         Ok(namespace) => namespace,
@@ -1870,6 +1947,7 @@ async fn get_gradle(
         Some(&cache_key),
         analytics,
         Some(usage),
+        request_range(&headers),
     )
     .await
 }
@@ -1924,7 +2002,14 @@ async fn head_module(
         )
         .await
     {
-        Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        Ok(true) => {
+            let mut response = StatusCode::NO_CONTENT.into_response();
+            response.headers_mut().insert(
+                axum::http::header::ACCEPT_RANGES,
+                HeaderValue::from_static("bytes"),
+            );
+            response
+        }
         Ok(false) => StatusCode::NOT_FOUND.into_response(),
         Err(error) => error_response(
             StatusCode::SERVICE_UNAVAILABLE,
@@ -1936,6 +2021,7 @@ async fn head_module(
 async fn get_module(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
+    headers: HeaderMap,
 ) -> Response {
     let query = match ModuleQuery::from_params(&params) {
         Ok(query) => query,
@@ -1951,6 +2037,7 @@ async fn get_module(
         None,
         None,
         Some(usage),
+        request_range(&headers),
     )
     .await
 }
@@ -1984,9 +2071,11 @@ async fn start_module_upload(
             &query.name,
         ) {
             Ok(upload_id) => Json(serde_json::json!({ "upload_id": upload_id })).into_response(),
-            Err(error) if is_multipart_capacity_error(&error) => {
-                overloaded_response("server is limiting active multipart uploads")
-            }
+            Err(error) if is_multipart_capacity_error(&error) => capacity_shed_response(
+                &state.metrics,
+                "multipart_uploads",
+                "server is limiting active multipart uploads",
+            ),
             Err(error) => error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to start upload: {error}"),
@@ -2027,13 +2116,18 @@ async fn upload_module_part(
             return error_response(StatusCode::PAYLOAD_TOO_LARGE, "Part exceeds 10MB limit");
         }
         Err(BodyReadError::TmpDirFull(error)) => {
-            return error_response(
-                StatusCode::SERVICE_UNAVAILABLE,
-                format!("Temporary storage budget exhausted: {error}"),
+            return capacity_shed_response(
+                &state.metrics,
+                "tmp_staging",
+                &format!("Temporary storage budget exhausted: {error}"),
             );
         }
         Err(BodyReadError::MemoryPressure) => {
-            return overloaded_response("server is applying upload memory backpressure");
+            return capacity_shed_response(
+                &state.metrics,
+                "upload_memory",
+                "server is applying upload memory backpressure",
+            );
         }
         Err(BodyReadError::Io(error)) => {
             return io_error_response(
@@ -2065,7 +2159,11 @@ async fn upload_module_part(
         }
         Err(MultipartError::CapacityExceeded) => {
             state.metrics.record_multipart_part("capacity_exceeded");
-            overloaded_response("server is limiting incomplete multipart storage")
+            capacity_shed_response(
+                &state.metrics,
+                "multipart_storage",
+                "server is limiting incomplete multipart storage",
+            )
         }
         Err(MultipartError::Other(error)) => {
             state.metrics.record_multipart_part("error");
@@ -2078,9 +2176,11 @@ async fn upload_module_part(
             state.metrics.record_multipart_part("parts_mismatch");
             error_response(StatusCode::BAD_REQUEST, "Parts mismatch")
         }
-        Err(MultipartError::MemoryPressure) => {
-            overloaded_response("server is applying upload memory backpressure")
-        }
+        Err(MultipartError::MemoryPressure) => capacity_shed_response(
+            &state.metrics,
+            "upload_memory",
+            "server is applying upload memory backpressure",
+        ),
     };
     temp.remove_and_disarm(&state.io).await;
     response
@@ -2133,14 +2233,22 @@ async fn complete_module_upload(
             StatusCode::UNPROCESSABLE_ENTITY,
             "Total upload size exceeds 2GB limit",
         ),
-        Err(MultipartError::CapacityExceeded) => {
-            overloaded_response("server is limiting incomplete multipart storage")
-        }
-        Err(MultipartError::MemoryPressure) => {
-            overloaded_response("server is applying upload memory backpressure")
-        }
+        Err(MultipartError::CapacityExceeded) => capacity_shed_response(
+            &state.metrics,
+            "multipart_storage",
+            "server is limiting incomplete multipart storage",
+        ),
+        Err(MultipartError::MemoryPressure) => capacity_shed_response(
+            &state.metrics,
+            "upload_memory",
+            "server is applying upload memory backpressure",
+        ),
         Err(MultipartError::Other(error)) if is_outbox_full_error(&error) => {
-            overloaded_response("server is shedding writes while replication catches up")
+            capacity_shed_response(
+                &state.metrics,
+                "outbox",
+                "server is shedding writes while replication catches up",
+            )
         }
         Err(MultipartError::Other(error)) => io_error_response(
             format!("Failed to complete multipart upload: {error}"),
@@ -2168,9 +2276,11 @@ async fn clean_namespace(
             state.notify.notify_one();
             StatusCode::NO_CONTENT.into_response()
         }
-        Err(error) if is_outbox_full_error(&error) => {
-            overloaded_response("server is shedding writes while replication catches up")
-        }
+        Err(error) if is_outbox_full_error(&error) => capacity_shed_response(
+            &state.metrics,
+            "outbox",
+            "server is shedding writes while replication catches up",
+        ),
         Err(error) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Failed to clean cache: {error}"),
@@ -2260,7 +2370,7 @@ async fn internal_backfill_artifact(
         .try_acquire_background_response_stream_memory(requested_bytes, "backfill")
     {
         Ok(permit) => permit,
-        Err(_) => return response_stream_unavailable(),
+        Err(_) => return peer_response_stream_unavailable(&state.memory),
     };
 
     match state
@@ -2366,9 +2476,9 @@ fn backfill_unavailable_response(error: &str, message: &str) -> Response {
         .into_response();
     // Retry-After marks the response as retryable backpressure to the peer
     // pass's response classifier (`classify_backfill_response`).
-    response.headers_mut().insert(
-        axum::http::header::RETRY_AFTER,
-        HeaderValue::from_static("1"),
+    retry_after(
+        &mut response,
+        backpressure::retry_after_seconds(backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS),
     );
     response
 }
@@ -2468,7 +2578,7 @@ async fn internal_backfill_bodies(State(state): State<SharedState>, request: Req
             state
                 .metrics
                 .record_backfill_bodies_peer_request(&peer_label, "backpressure");
-            return response_stream_unavailable();
+            return peer_response_stream_unavailable(&state.memory);
         }
     };
     let file = match state.io.open_file(&spool.path).await {
@@ -2943,6 +3053,7 @@ async fn internal_delete_namespace(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn get_artifact(
     state: SharedState,
     producer: ArtifactProducer,
@@ -2951,6 +3062,7 @@ async fn get_artifact(
     analytics_key: Option<&str>,
     analytics: Option<ProjectAnalyticsContext<'_>>,
     usage: Option<UsageContext>,
+    range_request: RangeRequest<'_>,
 ) -> Response {
     match state
         .store
@@ -2958,23 +3070,50 @@ async fn get_artifact(
         .await
     {
         Ok(Some(manifest)) => {
-            let response = serve_file(&state, StatusCode::OK, &manifest).await;
+            // Resolved after the fetch so a 416's `Content-Range` only ever
+            // discloses the size of an artifact the caller is already allowed
+            // to read.
+            let etag = entity_tag(manifest.version_ms, manifest.size);
+            let range = match resolve_conditional_range(range_request, &etag, manifest.size) {
+                RangeOutcome::Full => ServedRange::full(manifest.size),
+                RangeOutcome::Partial(range) => range,
+                RangeOutcome::Unsatisfiable => {
+                    state
+                        .metrics
+                        .record_artifact_read(producer, "range_not_satisfiable", 0);
+                    return range_not_satisfiable_response(manifest.size);
+                }
+            };
+            // A streaming response's status is decided when the stream is
+            // built, long before a byte reaches the client, so metering here
+            // would book an artifact the client may never receive and book it
+            // again when the client returns for the part it missed. The
+            // attribution rides on the body instead and is committed once the
+            // bytes have actually been delivered, which is what the
+            // accelerated plane has always done.
+            let attribution = DownloadAttribution {
+                state: state.clone(),
+                producer,
+                usage: usage.clone(),
+                analytics: analytics.as_ref().map(|context| {
+                    (
+                        context.tenant_id.to_owned(),
+                        context.namespace_id.to_owned(),
+                    )
+                }),
+                analytics_key: analytics_key.unwrap_or(key).to_owned(),
+            };
+            let response = serve_file(&state, &manifest, range, attribution).await;
             if response.status().is_success() {
-                state
-                    .metrics
-                    .record_artifact_read(producer, "ok", manifest.size);
-                record_usage_event(&state, producer, "download", usage.as_ref(), manifest.size);
-                record_project_scoped_cache_event(
-                    &state,
-                    producer,
-                    "download",
-                    analytics,
-                    analytics_key.unwrap_or(key),
-                    manifest.size,
-                );
+                // Nothing to record: the body commits the read, usage and
+                // analytics when it completes.
             } else if response.status() == StatusCode::NOT_FOUND {
                 state.metrics.record_artifact_read(producer, "not_found", 0);
-            } else {
+            } else if response.status() != StatusCode::TOO_MANY_REQUESTS {
+                // A shed is admission, not a read outcome: no read was attempted,
+                // and counting it as an error puts capacity back into the signal
+                // this route's error rate is read from. The accelerated path
+                // records nothing for the same reason.
                 state.metrics.record_artifact_read(producer, "error", 0);
             }
             response
@@ -3035,13 +3174,18 @@ async fn put_blob_artifact(
             );
         }
         Err(BodyReadError::TmpDirFull(error)) => {
-            return error_response(
-                StatusCode::SERVICE_UNAVAILABLE,
-                format!("Temporary storage budget exhausted: {error}"),
+            return capacity_shed_response(
+                &state.metrics,
+                "tmp_staging",
+                &format!("Temporary storage budget exhausted: {error}"),
             );
         }
         Err(BodyReadError::MemoryPressure) => {
-            return overloaded_response("server is applying upload memory backpressure");
+            return capacity_shed_response(
+                &state.metrics,
+                "upload_memory",
+                "server is applying upload memory backpressure",
+            );
         }
         Err(BodyReadError::Io(error)) => {
             return io_error_response(
@@ -3094,6 +3238,14 @@ async fn put_blob_artifact(
             );
             spec.success_status.into_response()
         }
+        Err(error) if is_outbox_full_error(&error) => {
+            state.metrics.record_artifact_write(producer, "error", 0);
+            capacity_shed_response(
+                &state.metrics,
+                "outbox",
+                "server is shedding writes while replication catches up",
+            )
+        }
         Err(error) => {
             state.metrics.record_artifact_write(producer, "error", 0);
             io_error_response(
@@ -3101,6 +3253,50 @@ async fn put_blob_artifact(
                 StatusCode::SERVICE_UNAVAILABLE,
             )
         }
+    }
+}
+
+/// What a download books once its body has actually delivered its bytes.
+///
+/// Carried by the response stream rather than recorded when the response is
+/// constructed, because on the streaming plane those two moments are far
+/// apart: the status is set as soon as the stream exists, and the transfer can
+/// still die at any point after that.
+struct DownloadAttribution {
+    state: SharedState,
+    producer: ArtifactProducer,
+    usage: Option<UsageContext>,
+    analytics: Option<(String, String)>,
+    analytics_key: String,
+}
+
+impl DownloadAttribution {
+    fn commit(&self, bytes: u64) {
+        self.state
+            .metrics
+            .record_artifact_read(self.producer, "ok", bytes);
+        record_usage_event(
+            &self.state,
+            self.producer,
+            "download",
+            self.usage.as_ref(),
+            bytes,
+        );
+        let analytics =
+            self.analytics
+                .as_ref()
+                .map(|(tenant_id, namespace_id)| ProjectAnalyticsContext {
+                    tenant_id,
+                    namespace_id,
+                });
+        record_project_scoped_cache_event(
+            &self.state,
+            self.producer,
+            "download",
+            analytics,
+            &self.analytics_key,
+            bytes,
+        );
     }
 }
 
@@ -3181,13 +3377,14 @@ fn record_project_scoped_cache_event(
 
 async fn serve_file(
     state: &SharedState,
-    status: StatusCode,
     manifest: &ArtifactManifest,
+    range: ServedRange,
+    attribution: DownloadAttribution,
 ) -> Response {
     match state.store.try_mmap_artifact_bytes(manifest).await {
         Ok(Some(bytes)) => {
             state.metrics.record_artifact_serving_path("mmap");
-            let requested_bytes = response_stream_chunk_bytes(manifest.size).saturating_mul(4);
+            let requested_bytes = response_stream_chunk_bytes(range.length).saturating_mul(4);
             let permit = match state
                 .memory
                 .try_acquire_mmap_response_stream_memory(requested_bytes, "http")
@@ -3198,24 +3395,36 @@ async fn serve_file(
                 // smaller degraded pool. Waiting here first would only delay
                 // that fallback by a full admission timeout.
                 None => {
-                    return serve_file_reader(state, status, manifest).await;
+                    return serve_file_reader(state, manifest, range, attribution).await;
                 }
             };
-            let stream = instrument_artifact_stream(state, manifest, bytes_chunks(bytes), true);
+            // The mapping covers the whole artifact; the response carries only
+            // the requested window of it. `Bytes::slice` is a view, so no copy
+            // and no second mapping.
+            let start = (range.start as usize).min(bytes.len());
+            let end = start.saturating_add(range.length as usize).min(bytes.len());
+            let stream = instrument_artifact_stream(
+                state,
+                manifest,
+                bytes_chunks(bytes.slice(start..end)),
+                true,
+                range.length,
+                Some(attribution),
+            );
             let mut response = Response::new(Body::from_stream(stream));
-            *response.status_mut() = status;
-            apply_artifact_response_headers(&mut response, manifest);
+            *response.status_mut() = artifact_response_status(range);
+            apply_artifact_response_headers(&mut response, manifest, range);
             attach_response_stream_permit(&mut response, permit);
             response
         }
-        Ok(None) => serve_file_reader(state, status, manifest).await,
+        Ok(None) => serve_file_reader(state, manifest, range, attribution).await,
         Err(error) => {
             tracing::warn!(
                 artifact_id = %manifest.artifact_id,
                 %error,
                 "mmap artifact serving failed; falling back to streaming reader"
             );
-            serve_file_reader(state, status, manifest).await
+            serve_file_reader(state, manifest, range, attribution).await
         }
     }
 }
@@ -3230,12 +3439,17 @@ async fn serve_file(
 /// retries on its own schedule.
 async fn serve_file_reader(
     state: &SharedState,
-    status: StatusCode,
     manifest: &ArtifactManifest,
+    range: ServedRange,
+    attribution: DownloadAttribution,
 ) -> Response {
     state.metrics.record_artifact_serving_path("streaming");
-    let inline_bytes = if manifest.inline { manifest.size } else { 0 };
-    let stream_chunk_bytes = response_stream_chunk_bytes(manifest.size);
+    // An inline artifact is materialized into the reader, but only the
+    // requested window of it, so a resume reserves its tail rather than the
+    // whole body. That is what keeps a large artifact's resume admissible
+    // under a budget its from-scratch re-send would be shed under.
+    let inline_bytes = if manifest.inline { range.length } else { 0 };
+    let stream_chunk_bytes = response_stream_chunk_bytes(range.length);
     let requested_bytes = usize::try_from(
         u64::try_from(stream_chunk_bytes.saturating_mul(4))
             .unwrap_or(u64::MAX)
@@ -3268,7 +3482,7 @@ async fn serve_file_reader(
                 .await
             {
                 Ok(permit) => (permit, RESPONSE_STREAM_MIN_CHUNK_BYTES),
-                Err(_) => return response_stream_unavailable(),
+                Err(_) => return response_stream_shed(&state.metrics, &state.memory),
             }
         }
     };
@@ -3279,15 +3493,22 @@ async fn serve_file_reader(
     // always describe the bytes being streamed.
     match state
         .store
-        .open_artifact_reader_range_tolerating_promotion(manifest, 0, None)
+        .open_artifact_reader_range_tolerating_promotion(manifest, range.start, Some(range.length))
         .await
     {
         Ok(Some((manifest, reader))) => {
             let stream = ReaderStream::with_capacity(reader, stream_chunk_bytes);
-            let stream = instrument_artifact_stream(state, &manifest, stream, true);
+            let stream = instrument_artifact_stream(
+                state,
+                &manifest,
+                stream,
+                true,
+                range.length,
+                Some(attribution),
+            );
             let mut response = Response::new(Body::from_stream(stream));
-            *response.status_mut() = status;
-            apply_artifact_response_headers(&mut response, &manifest);
+            *response.status_mut() = artifact_response_status(range);
+            apply_artifact_response_headers(&mut response, &manifest, range);
             attach_response_stream_permit(&mut response, permit);
             response
         }
@@ -3302,15 +3523,34 @@ async fn serve_file_reader(
     }
 }
 
-fn response_stream_unavailable() -> Response {
+/// Sheds a public read that could not be admitted a response stream.
+///
+/// Backpressure rather than a fault: the node is healthy and the same request
+/// succeeds once a permit frees, so a 5xx here would be indistinguishable from
+/// an unreachable auth backend or a failed transfer. Both admission outcomes
+/// land here, including the queue-full one that gives up before waiting at
+/// all, which is another reason not to describe it as the service being
+/// unavailable.
+fn response_stream_shed(metrics: &Metrics, memory: &MemoryController) -> Response {
+    metrics.record_capacity_shed(shed_kind::RESPONSE_STREAM);
+    let mut response = error_response(
+        StatusCode::TOO_MANY_REQUESTS,
+        "The server is limiting concurrent artifact response streams; retry shortly".to_string(),
+    );
+    retry_after(&mut response, memory.response_stream_retry_after_seconds());
+    response
+}
+
+/// The peer counterpart, on the background pool. It stays 503: internal routes
+/// are outside the public error signal this split exists to clean up, and the
+/// requester already treats a 503 carrying `Retry-After` as budget-exempt
+/// backpressure (`classify_backfill_response`).
+fn peer_response_stream_unavailable(memory: &MemoryController) -> Response {
     let mut response = error_response(
         StatusCode::SERVICE_UNAVAILABLE,
         "The server is limiting concurrent artifact response streams; retry shortly".to_string(),
     );
-    response.headers_mut().insert(
-        axum::http::header::RETRY_AFTER,
-        HeaderValue::from_static("1"),
-    );
+    retry_after(&mut response, memory.response_stream_retry_after_seconds());
     response
 }
 
@@ -3319,6 +3559,8 @@ fn instrument_artifact_stream<S>(
     manifest: &ArtifactManifest,
     stream: S,
     hold_public_inflight: bool,
+    expected_bytes: u64,
+    attribution: Option<DownloadAttribution>,
 ) -> InstrumentedArtifactStream<S>
 where
     S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
@@ -3330,6 +3572,8 @@ where
         manifest.producer,
         stream,
         request_guard,
+        expected_bytes,
+        attribution,
     )
 }
 
@@ -3340,7 +3584,15 @@ struct InstrumentedArtifactStream<S> {
     _request_guard: Option<InflightGuard>,
     started_at: Instant,
     yielded_bytes: u64,
+    // What the response promised in its `Content-Length`. A body is complete
+    // when it has yielded this much, whether or not anything polls it again:
+    // Hyper stops polling once the promised length is on the wire, so the
+    // terminal `None` that would otherwise mark completion never arrives.
+    expected_bytes: u64,
     recorded: bool,
+    // Booked only on a body that delivered in full, so an abandoned transfer
+    // meters nothing and the client's follow-up meters only what it receives.
+    attribution: Option<DownloadAttribution>,
 }
 
 impl<S> InstrumentedArtifactStream<S> {
@@ -3349,6 +3601,8 @@ impl<S> InstrumentedArtifactStream<S> {
         producer: ArtifactProducer,
         stream: S,
         request_guard: Option<InflightGuard>,
+        expected_bytes: u64,
+        attribution: Option<DownloadAttribution>,
     ) -> Self {
         Self {
             inner: stream,
@@ -3357,8 +3611,15 @@ impl<S> InstrumentedArtifactStream<S> {
             _request_guard: request_guard,
             started_at: Instant::now(),
             yielded_bytes: 0,
+            expected_bytes,
             recorded: false,
+            attribution,
         }
+    }
+
+    /// Whether every promised byte reached the response body.
+    fn delivered_in_full(&self) -> bool {
+        self.yielded_bytes >= self.expected_bytes
     }
 
     fn record_once(&mut self, result: &str) {
@@ -3373,6 +3634,11 @@ impl<S> InstrumentedArtifactStream<S> {
             self.yielded_bytes,
             self.started_at.elapsed(),
         );
+        if result == "ok"
+            && let Some(attribution) = self.attribution.take()
+        {
+            attribution.commit(self.yielded_bytes);
+        }
     }
 }
 
@@ -3425,7 +3691,17 @@ where
 
 impl<S> Drop for InstrumentedArtifactStream<S> {
     fn drop(&mut self) {
-        self.record_once("aborted");
+        // Reached without a terminal `None` in two very different situations:
+        // the body delivered everything and Hyper simply stopped polling, or
+        // the peer went away mid-transfer. Only the second is waste, and
+        // conflating them made `result="aborted"` a label for "served by the
+        // streaming path" rather than for a transfer nobody received.
+        let result = if self.delivered_in_full() {
+            "ok"
+        } else {
+            "aborted"
+        };
+        self.record_once(result);
     }
 }
 
@@ -3456,7 +3732,38 @@ fn bytes_chunks(bytes: Bytes) -> BytesChunks {
     BytesChunks { bytes, offset: 0 }
 }
 
-fn apply_artifact_response_headers(response: &mut Response, manifest: &ArtifactManifest) {
+fn request_range(headers: &HeaderMap) -> RangeRequest<'_> {
+    RangeRequest::new(
+        header_str(headers, axum::http::header::RANGE),
+        header_str(headers, axum::http::header::IF_RANGE),
+    )
+}
+
+fn header_str(headers: &HeaderMap, name: axum::http::header::HeaderName) -> Option<&str> {
+    headers.get(name).and_then(|value| value.to_str().ok())
+}
+
+fn artifact_response_status(range: ServedRange) -> StatusCode {
+    if range.partial {
+        StatusCode::PARTIAL_CONTENT
+    } else {
+        StatusCode::OK
+    }
+}
+
+fn apply_artifact_response_headers(
+    response: &mut Response,
+    manifest: &ArtifactManifest,
+    range: ServedRange,
+) {
+    // The validator a resume echoes back in `If-Range`. On the full response
+    // as well as the partial one: a client can only name the representation it
+    // started from if the server told it before the transfer died.
+    if let Ok(etag) = HeaderValue::from_str(&entity_tag(manifest.version_ms, manifest.size)) {
+        response
+            .headers_mut()
+            .insert(axum::http::header::ETAG, etag);
+    }
     response.headers_mut().insert(
         axum::http::header::CONTENT_TYPE,
         HeaderValue::from_str(&manifest.content_type)
@@ -3464,9 +3771,40 @@ fn apply_artifact_response_headers(response: &mut Response, manifest: &ArtifactM
     );
     response.headers_mut().insert(
         axum::http::header::CONTENT_LENGTH,
-        HeaderValue::from_str(&manifest.size.to_string())
+        HeaderValue::from_str(&range.length.to_string())
             .unwrap_or_else(|_| HeaderValue::from_static("0")),
     );
+    // Advertised on the full response as well, so a client that has to retry
+    // knows resume is on offer before it needs it.
+    response.headers_mut().insert(
+        axum::http::header::ACCEPT_RANGES,
+        HeaderValue::from_static("bytes"),
+    );
+    if let Some(content_range) = range
+        .content_range(manifest.size)
+        .and_then(|value| HeaderValue::from_str(&value).ok())
+    {
+        response
+            .headers_mut()
+            .insert(axum::http::header::CONTENT_RANGE, content_range);
+    }
+}
+
+fn range_not_satisfiable_response(size: u64) -> Response {
+    let mut response = error_response(
+        StatusCode::RANGE_NOT_SATISFIABLE,
+        format!("Requested range is not satisfiable for a {size}-byte artifact"),
+    );
+    response.headers_mut().insert(
+        axum::http::header::ACCEPT_RANGES,
+        HeaderValue::from_static("bytes"),
+    );
+    if let Ok(content_range) = HeaderValue::from_str(&format!("bytes */{size}")) {
+        response
+            .headers_mut()
+            .insert(axum::http::header::CONTENT_RANGE, content_range);
+    }
+    response
 }
 
 fn draining_response(version: Version) -> Response {
@@ -3515,6 +3853,25 @@ mod tests {
         test_support::{response_text, test_context},
         utils::{artifact_storage_id, blob_key},
     };
+
+    fn retry_after_hint(response: &Response) -> u64 {
+        response
+            .headers()
+            .get(axum::http::header::RETRY_AFTER)
+            .expect("backpressure must be marked retryable")
+            .to_str()
+            .expect("ascii retry-after")
+            .parse()
+            .expect("numeric retry-after")
+    }
+
+    fn assert_retryable_hint(response: &Response, ceiling_seconds: u64) {
+        let seconds = retry_after_hint(response);
+        assert!(
+            (backpressure::MIN_RETRY_AFTER_SECONDS..=ceiling_seconds).contains(&seconds),
+            "retry-after {seconds} outside 1..={ceiling_seconds}"
+        );
+    }
 
     fn test_usage_config() -> UsageConfig {
         UsageConfig {
@@ -3951,10 +4308,7 @@ mod tests {
             .expect("request failed");
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(
-            response.headers().get(axum::http::header::RETRY_AFTER),
-            Some(&HeaderValue::from_static("1")),
-        );
+        assert_retryable_hint(&response, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
     }
 
     #[tokio::test]
@@ -5326,10 +5680,7 @@ mod tests {
             .expect("request failed");
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(
-            response.headers().get(axum::http::header::RETRY_AFTER),
-            Some(&HeaderValue::from_static("1")),
-        );
+        assert_retryable_hint(&response, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
     }
 
     #[tokio::test]
@@ -5363,10 +5714,7 @@ mod tests {
             .expect("request failed");
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(
-            response.headers().get(axum::http::header::RETRY_AFTER),
-            Some(&HeaderValue::from_static("1")),
-        );
+        assert_retryable_hint(&response, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
         let rendered = context.state.metrics.render();
         assert!(rendered.lines().any(|line| {
             line.starts_with("kura_backfill_bodies_peer_requests_total")
@@ -5975,17 +6323,26 @@ mod tests {
             .await
             .expect("get request failed");
 
-        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(
-            response.headers().get(axum::http::header::RETRY_AFTER),
-            Some(&HeaderValue::from_static("1"))
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_retryable_hint(
+            &response,
+            backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS,
+        );
+        let metrics = context.state.metrics.render();
+        assert!(metrics.contains("outcome=\"degraded_memory_unavailable\""));
+        assert!(
+            metrics.lines().any(|line| {
+                line.starts_with("kura_http_requests_total")
+                    && line.contains("route=\"/api/cache/cas/{id}\"")
+                    && line.contains("status=\"429\"")
+            }),
+            "the shed must be counted as backpressure on the read route"
         );
         assert!(
-            context
-                .state
-                .metrics
-                .render()
-                .contains("outcome=\"degraded_memory_unavailable\"")
+            !metrics.lines().any(|line| {
+                line.starts_with("kura_http_exceptions_total") && line.contains("server_error")
+            }),
+            "a capacity shed must not be counted as a server error"
         );
     }
 
@@ -6576,6 +6933,160 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_multipart_upload_cap_sheds_with_backpressure_not_a_server_error() {
+        let context = test_context(|config| config.multipart_max_active_uploads = 1).await;
+        let app = router(context.state.clone());
+
+        let start = |hash: &str| {
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash={hash}\
+                     &name=Module.framework&cache_category=builds"
+                ))
+                .body(Body::empty())
+                .expect("failed to build start request")
+        };
+
+        let admitted = app
+            .clone()
+            .oneshot(start("hash-1"))
+            .await
+            .expect("first start request failed");
+        assert_eq!(admitted.status(), StatusCode::OK);
+
+        let shed = app
+            .oneshot(start("hash-2"))
+            .await
+            .expect("second start request failed");
+
+        assert_eq!(shed.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_retryable_hint(&shed, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
+
+        let metrics = context.state.metrics.render();
+        assert!(
+            metrics.lines().any(|line| {
+                line.starts_with("kura_http_requests_total")
+                    && line.contains("route=\"/api/cache/module/start\"")
+                    && line.contains("status=\"429\"")
+            }),
+            "the shed must be counted as backpressure on the upload route: {metrics}"
+        );
+        assert!(
+            !metrics.lines().any(|line| {
+                line.starts_with("kura_http_exceptions_total")
+                    && line.contains("route=\"/api/cache/module/start\"")
+            }),
+            "a full upload cap is not a server fault: {metrics}"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_outbox_that_cannot_seat_every_target_sheds_rather_than_faulting() {
+        // The public-write middleware only checks that the outbox is not
+        // already at its cap. Each store write then atomically reserves one
+        // slot *per replication target*, so a write admitted by the pre-check
+        // still loses when the remaining room is smaller than the target
+        // count. Two targets against a cap of one reproduces that gap
+        // deterministically; concurrency reaches the same branch by racing.
+        //
+        // `public_router`, not `router`: the gap only exists downstream of
+        // `reject_overloaded_public_writes`, and `combined_router` does not
+        // layer it. Going through the middleware is what makes this a test of
+        // the persistence branches rather than of the handlers in isolation --
+        // on `router` it would stay green even if the middleware regressed to
+        // answering 503.
+        let context = test_context(|config| {
+            config.outbox_max_depth = 1;
+            config.peers = vec![
+                "http://127.0.0.1:7101".into(),
+                "http://127.0.0.1:7102".into(),
+            ];
+        })
+        .await;
+        let app = public_router(context.state.clone());
+
+        assert!(
+            context.state.store.outbox_depth() < context.state.config.outbox_max_depth,
+            "the pre-check must admit this write, or the test is not exercising the gap"
+        );
+
+        let keyvalue = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/api/cache/keyvalue?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"cas_id":"cas-outbox","entries":[{"value":"hello"}]}"#,
+                    ))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("keyvalue put failed");
+
+        assert_eq!(keyvalue.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_retryable_hint(&keyvalue, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
+
+        let blob = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/outbox-blob?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from("payload"))
+                    .expect("failed to build post request"),
+            )
+            .await
+            .expect("blob post failed");
+
+        assert_eq!(blob.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_retryable_hint(&blob, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
+
+        let metrics = context.state.metrics.render();
+        assert!(
+            metrics
+                .lines()
+                .any(|line| line.starts_with("kura_capacity_sheds_total")
+                    && line.contains("kind=\"outbox\"")),
+            "the shed must be attributable to the outbox, not to egress pressure: {metrics}"
+        );
+        assert!(
+            !metrics.lines().any(|line| {
+                line.starts_with("kura_http_exceptions_total") && line.contains("server_error")
+            }),
+            "a full outbox is not a server fault: {metrics}"
+        );
+    }
+
+    #[tokio::test]
+    async fn public_writes_shed_with_backpressure_under_critical_memory_pressure() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .memory
+            .observe(context.state.memory.hard_limit_bytes() + 1);
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(
+                        "/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=hash-1\
+                         &name=Module.framework&cache_category=builds",
+                    )
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_retryable_hint(&response, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
+    }
+
+    #[tokio::test]
     async fn multipart_module_routes_emit_usage_events() {
         let context = test_context(|config| {
             config.usage = Some(test_usage_config());
@@ -6890,6 +7401,8 @@ mod tests {
             ArtifactProducer::Xcode,
             stream,
             Some(context.state.start_http_request(HttpTrafficClass::Public)),
+            1,
+            None,
         );
 
         assert_eq!(context.state.runtime.public_http_inflight(), 1);
@@ -6898,13 +7411,51 @@ mod tests {
     }
 
     #[test]
-    fn response_stream_admission_failure_is_retryable() {
-        let response = response_stream_unavailable();
+    fn response_stream_admission_failure_spreads_retry_after() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let memory = MemoryController::new(metrics.clone(), 100, 200);
+        let values: std::collections::HashSet<u64> = (0..64)
+            .map(|_| retry_after_hint(&response_stream_shed(&metrics, &memory)))
+            .collect();
+
+        assert!(
+            values.len() > 1,
+            "a constant retry-after wakes every shed client on the same instant: {values:?}"
+        );
+        assert!(
+            values
+                .iter()
+                .all(|seconds| (backpressure::MIN_RETRY_AFTER_SECONDS
+                    ..=backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS)
+                    .contains(seconds)),
+            "{values:?}"
+        );
+    }
+
+    #[test]
+    fn public_response_stream_admission_failure_is_rate_limited() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let memory = MemoryController::new(metrics.clone(), 100, 200);
+        let response = response_stream_shed(&metrics, &memory);
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(!response.status().is_server_error());
+        assert_retryable_hint(
+            &response,
+            backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS,
+        );
+    }
+
+    #[test]
+    fn peer_response_stream_admission_failure_is_retryable() {
+        let memory =
+            MemoryController::new(Metrics::new("eu-west".into(), "tenant".into()), 100, 200);
+        let response = peer_response_stream_unavailable(&memory);
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(
-            response.headers().get(axum::http::header::RETRY_AFTER),
-            Some(&HeaderValue::from_static("1"))
+        assert_retryable_hint(
+            &response,
+            backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS,
         );
     }
 
@@ -6944,6 +7495,309 @@ mod tests {
         });
 
         (format!("http://{address}"), handle)
+    }
+
+    /// A response body that hyper stops polling once `Content-Length` is
+    /// satisfied never yields the terminal `None`, so the only record comes
+    /// from `Drop`. It has still delivered every byte it promised, and calling
+    /// that an abort makes `result="aborted"` mean "served by the streaming
+    /// path" rather than "the client did not get its artifact".
+    #[tokio::test]
+    async fn a_body_dropped_after_delivering_every_byte_is_recorded_as_ok() {
+        let context = test_context(|_| {}).await;
+        let chunks = vec![
+            Ok(Bytes::from_static(b"0123")),
+            Ok(Bytes::from_static(b"456789")),
+        ];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            10,
+            None,
+        );
+
+        // Drain exactly the promised bytes, then drop without polling again.
+        assert!(stream.next().await.is_some());
+        assert!(stream.next().await.is_some());
+        drop(stream);
+
+        let rendered = context.state.metrics.render();
+        assert!(
+            rendered.contains(r#"producer="module",result="ok""#),
+            "a fully delivered body must record ok, got:\n{rendered}"
+        );
+        assert!(
+            !rendered.contains(r#"producer="module",result="aborted""#),
+            "a fully delivered body must not record aborted, got:\n{rendered}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_body_dropped_before_delivering_every_byte_is_recorded_as_aborted() {
+        let context = test_context(|_| {}).await;
+        let chunks = vec![
+            Ok(Bytes::from_static(b"0123")),
+            Ok(Bytes::from_static(b"456789")),
+        ];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            10,
+            None,
+        );
+
+        // The client goes away after the first chunk.
+        assert!(stream.next().await.is_some());
+        drop(stream);
+
+        let rendered = context.state.metrics.render();
+        assert!(
+            rendered.contains(r#"producer="module",result="aborted""#),
+            "a short body must record aborted, got:\n{rendered}"
+        );
+        // Only the bytes that were actually put on the wire count as waste.
+        assert!(
+            rendered.contains(
+                r#"kura_artifact_egress_bytes_total_total{producer="module",result="aborted"} 4"#
+            ),
+            "aborted egress must report the 4 bytes it yielded, got:\n{rendered}"
+        );
+    }
+
+    fn download_attribution(context: &crate::test_support::TestContext) -> DownloadAttribution {
+        DownloadAttribution {
+            state: context.state.clone(),
+            producer: ArtifactProducer::Module,
+            usage: Some(UsageContext {
+                tenant_id: context.state.config.tenant_id.clone(),
+                namespace_id: "ios".to_owned(),
+            }),
+            analytics: None,
+            analytics_key: "builds/hash/Module.framework".to_owned(),
+        }
+    }
+
+    fn metered_download_bytes(context: &crate::test_support::TestContext) -> u64 {
+        context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests()
+            .iter()
+            .filter(|rollup| rollup.operation == "download")
+            .map(|rollup| rollup.bytes)
+            .sum()
+    }
+
+    /// A response's status is set when its stream is built, so metering there
+    /// books an artifact the client may never receive. It must be booked from
+    /// the body instead.
+    #[tokio::test]
+    async fn a_body_that_dies_mid_transfer_meters_no_download() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let chunks = vec![
+            Ok(Bytes::from_static(b"0123")),
+            Ok(Bytes::from_static(b"456789")),
+        ];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            10,
+            Some(download_attribution(&context)),
+        );
+
+        assert!(stream.next().await.is_some());
+        drop(stream);
+
+        assert_eq!(
+            metered_download_bytes(&context),
+            0,
+            "an abandoned transfer must not be metered"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_completed_body_meters_exactly_the_bytes_it_delivered() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        // The tail a resumed download asks for, not the whole artifact.
+        let chunks = vec![Ok(Bytes::from_static(b"6789"))];
+        let mut stream = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Module,
+            futures_util::stream::iter(chunks),
+            None,
+            4,
+            Some(download_attribution(&context)),
+        );
+
+        assert!(stream.next().await.is_some());
+        drop(stream);
+
+        assert_eq!(metered_download_bytes(&context), 4);
+    }
+
+    /// Puts an artifact and reads it back with `Range`. At this size the
+    /// response comes back through the mapped-file path; `serve_file_reader`'s
+    /// own ranged open is covered by the store's segment-offset test.
+    async fn seed_ranged_artifact(app: &Router, body: &[u8]) {
+        let put = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/v1/cache/ranged-key")
+                    .body(Body::from(body.to_vec()))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put.status(), StatusCode::OK);
+    }
+
+    async fn ranged_get(app: &Router, range: &str) -> Response {
+        app.clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/cache/ranged-key")
+                    .header("range", range)
+                    .body(Body::empty())
+                    .expect("failed to build ranged get request"),
+            )
+            .await
+            .expect("ranged get request failed")
+    }
+
+    #[tokio::test]
+    async fn a_ranged_artifact_read_returns_only_the_requested_tail() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let body: Vec<u8> = (0..4096_u32).map(|index| index as u8).collect();
+        seed_ranged_artifact(&app, &body).await;
+
+        let response = ranged_get(&app, "bytes=4000-").await;
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(
+            response
+                .headers()
+                .get("content-range")
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes 4000-4095/4096")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("content-length")
+                .and_then(|value| value.to_str().ok()),
+            Some("96")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("accept-ranges")
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes")
+        );
+        assert_eq!(response_bytes(response).await, body[4000..].to_vec());
+    }
+
+    #[tokio::test]
+    async fn a_closed_range_returns_exactly_that_window() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let body: Vec<u8> = (0..4096_u32).map(|index| index as u8).collect();
+        seed_ranged_artifact(&app, &body).await;
+
+        let response = ranged_get(&app, "bytes=10-19").await;
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(
+            response
+                .headers()
+                .get("content-range")
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes 10-19/4096")
+        );
+        assert_eq!(response_bytes(response).await, body[10..20].to_vec());
+    }
+
+    #[tokio::test]
+    async fn an_unranged_artifact_read_still_advertises_resume() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let body: Vec<u8> = (0..4096_u32).map(|index| index as u8).collect();
+        seed_ranged_artifact(&app, &body).await;
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/cache/ranged-key")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get("accept-ranges")
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes")
+        );
+        // A full response must not claim to be partial.
+        assert!(response.headers().get("content-range").is_none());
+        assert_eq!(response_bytes(response).await, body);
+    }
+
+    #[tokio::test]
+    async fn a_range_past_the_end_is_refused_so_a_resume_cannot_corrupt_the_file() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let body: Vec<u8> = (0..4096_u32).map(|index| index as u8).collect();
+        seed_ranged_artifact(&app, &body).await;
+
+        let response = ranged_get(&app, "bytes=99999-").await;
+        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+        assert_eq!(
+            response
+                .headers()
+                .get("content-range")
+                .and_then(|value| value.to_str().ok()),
+            Some("bytes */4096")
+        );
+    }
+
+    #[tokio::test]
+    async fn resuming_from_a_partial_download_reassembles_the_whole_artifact() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let body: Vec<u8> = (0..4096_u32).map(|index| index as u8).collect();
+        seed_ranged_artifact(&app, &body).await;
+
+        // What a client that lost its connection at 1500 bytes does next.
+        let head = ranged_get(&app, "bytes=0-1499").await;
+        assert_eq!(head.status(), StatusCode::PARTIAL_CONTENT);
+        let mut assembled = response_bytes(head).await;
+        assert_eq!(assembled.len(), 1500);
+
+        let tail = ranged_get(&app, &format!("bytes={}-", assembled.len())).await;
+        assert_eq!(tail.status(), StatusCode::PARTIAL_CONTENT);
+        assembled.extend(response_bytes(tail).await);
+
+        assert_eq!(assembled, body);
     }
 
     async fn capture_request(

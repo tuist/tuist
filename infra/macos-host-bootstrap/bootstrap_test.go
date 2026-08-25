@@ -1241,3 +1241,75 @@ func findFunc(t *testing.T, file *ast.File, name string) *ast.FuncDecl {
 	t.Fatalf("no function %s in bootstrap.go", name)
 	return nil
 }
+
+// A single-guest host must render exactly what it rendered before the
+// multi-guest flags existed. Both fields resolve to 1 on such a host, which
+// is already tart-kubelet's default, so emitting them would buy nothing and
+// cost a fleet-wide hash change — i.e. a drift push to every existing mini
+// for a no-op.
+func TestRenderLaunchdPlist_OmitsMultiGuestFlagsForSingleGuestHost(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:          "n1",
+		SSHUser:           "m1",
+		VNCRelayPort:      5900,
+		VNCRelayPortCount: 1,
+		MinGoldensKept:    1,
+	})
+	if strings.Contains(out, "--vnc-relay-port-count") {
+		t.Fatalf("expected --vnc-relay-port-count omitted for a single-guest host\n%s", out)
+	}
+	if strings.Contains(out, "--min-goldens-kept") {
+		t.Fatalf("expected --min-goldens-kept omitted when it equals tart-kubelet's default\n%s", out)
+	}
+}
+
+func TestRenderLaunchdPlist_RendersMultiGuestFlags(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:          "n1",
+		SSHUser:           "m1",
+		VNCRelayPort:      5900,
+		VNCRelayPortCount: 2,
+		MinGoldensKept:    2,
+	})
+	if !strings.Contains(out, "<string>--vnc-relay-port=5900</string>") {
+		t.Fatalf("expected the relay base port in plist\n%s", out)
+	}
+	if !strings.Contains(out, "<string>--vnc-relay-port-count=2</string>") {
+		t.Fatalf("expected --vnc-relay-port-count for a dual-guest host\n%s", out)
+	}
+	if !strings.Contains(out, "<string>--min-goldens-kept=2</string>") {
+		t.Fatalf("expected --min-goldens-kept for a dual-guest host\n%s", out)
+	}
+}
+
+// The relay port range only means anything alongside a pinned base port; an
+// ephemeral relay has the whole ephemeral range to itself.
+func TestRenderLaunchdPlist_OmitsRelayPortCountWithoutBasePort(t *testing.T) {
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1", VNCRelayPortCount: 2})
+	if strings.Contains(out, "--vnc-relay-port") {
+		t.Fatalf("expected no relay port flags at all when no base port is pinned\n%s", out)
+	}
+}
+
+// Both multi-guest fields have to move the fleet fingerprint, or a host
+// promoted to two guests would read as already-converged and never receive
+// the launchd config that gives its second guest a relay port and its second
+// pool a golden.
+func TestHostConfigHash_ChangesWithGuestSizedFields(t *testing.T) {
+	base := Config{
+		NodeName:          "n1",
+		SSHUser:           "m1",
+		TartKubeletBinary: []byte("bin"),
+		VNCRelayPort:      5900,
+	}
+	for name, mutate := range map[string]func(*Config){
+		"VNCRelayPortCount": func(c *Config) { c.VNCRelayPortCount = 2 },
+		"MinGoldensKept":    func(c *Config) { c.MinGoldensKept = 2 },
+	} {
+		changed := base
+		mutate(&changed)
+		if HostConfigHash(base) == HostConfigHash(changed) {
+			t.Errorf("HostConfigHash must change when %s does", name)
+		}
+	}
+}

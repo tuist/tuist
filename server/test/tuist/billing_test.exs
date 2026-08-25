@@ -23,13 +23,11 @@ defmodule Tuist.BillingTest do
         },
         "pro" => %{
           "usage" => ["pro.usage"],
-          "flat_monthly" => ["pro.flat.monthly"],
-          "flat_yearly" => ["pro.flat.yearly"]
+          "flat_monthly" => ["pro.flat.monthly"]
         },
         "enterprise" => %{
           "usage" => ["enterprise.usage"],
-          "flat_monthly" => ["enterprise.flat.monthly"],
-          "flat_yearly" => ["enterprise.flat.yearly"]
+          "flat_monthly" => ["enterprise.flat.monthly"]
         },
         "runners" => %{}
       }
@@ -316,24 +314,6 @@ defmodule Tuist.BillingTest do
       assert Billing.get_current_active_subscription(account).plan == :enterprise
     end
 
-    test "when it's a new enterprise yearly subscription" do
-      # Given
-      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
-      account = Accounts.get_account_from_user(user)
-
-      # When
-      Billing.on_subscription_change(%{
-        id: "sub_some-id",
-        status: "active",
-        customer: "customer_id",
-        default_payment_method: nil,
-        items: %{data: [%{price: %{id: "enterprise.flat.yearly"}}]}
-      })
-
-      # Then
-      assert Billing.get_current_active_subscription(account).plan == :enterprise
-    end
-
     test "when a user cancels a subscription" do
       # Given
       user = AccountsFixtures.user_fixture(customer_id: "customer_id")
@@ -554,6 +534,35 @@ defmodule Tuist.BillingTest do
       end)
 
       %{account: Accounts.get_account_from_user(user)}
+    end
+
+    test "adding runner items never invoices usage recorded before they existed", %{account: account} do
+      # A trial's whole promise is that its minutes are free. Stripe's
+      # default proration can bill usage already recorded in the open
+      # period when the item is added, which would charge for exactly the
+      # minutes the trial covered.
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        subscription_id: "sub_ending_trial",
+        plan: :pro,
+        status: "active"
+      )
+
+      stub(Stripe.Subscription, :retrieve, fn "sub_ending_trial" ->
+        {:ok, %Stripe.Subscription{items: %{data: []}}}
+      end)
+
+      parent = self()
+
+      stub(Stripe.Subscription, :update, fn "sub_ending_trial", params ->
+        send(parent, {:params, params})
+        {:ok, %{}}
+      end)
+
+      assert {:ok, _} = Billing.sync_runner_subscription_items(account)
+
+      assert_received {:params, params}
+      assert params.proration_behavior == "none"
     end
 
     test "keeps an existing runner item instead of deleting and re-adding it", %{account: account} do
@@ -1572,7 +1581,7 @@ defmodule Tuist.BillingTest do
                                                   %{id: "pro.flat.monthly", deleted: true},
                                                   %{id: "pro.usage", deleted: true},
                                                   %{price: "enterprise.usage"},
-                                                  %{price: "enterprise.flat.yearly", quantity: 0}
+                                                  %{price: "enterprise.flat.monthly", quantity: 0}
                                                 ],
                                                 collection_method: "send_invoice",
                                                 days_until_due: 30
@@ -1583,11 +1592,13 @@ defmodule Tuist.BillingTest do
            status: "active",
            customer: "customer_id",
            default_payment_method: nil,
-           items: %{data: [%{price: %{id: "enterprise.flat.yearly"}}]}
+           items: %{data: [%{price: %{id: "enterprise.flat.monthly"}}]}
          }}
       end)
 
-      # When
+      # When — a caller still asking for yearly gets monthly anyway. The
+      # yearly price is being retired, and enterprises are invoiced off
+      # to the side rather than through it.
       {:ok, _} =
         Billing.upgrade_to_enterprise(account, %{
           name: "Acme",

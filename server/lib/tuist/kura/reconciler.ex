@@ -49,7 +49,7 @@ defmodule Tuist.Kura.Reconciler do
     unique: [
       fields: [:worker],
       period: :infinity,
-      states: [:available, :scheduled, :executing, :retryable]
+      states: :incomplete
     ]
 
   import Ecto.Query

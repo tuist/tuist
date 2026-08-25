@@ -88,29 +88,28 @@ const (
 	// before the public Services can route cache reads to it.
 	minPrimaryPodAge = 10 * time.Minute
 
-	sharedSecretsName                             = "kura-shared-secrets"
-	otlpTracesEndpointEnvVar                      = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
-	environmentEnvVar                             = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
-	snapshotCacheMaxBytesEnvVar                   = "KURA_SNAPSHOT_CACHE_MAX_BYTES"
-	manifestCacheMaxBytesEnvVar                   = "KURA_MANIFEST_CACHE_MAX_BYTES"
-	metadataStoreReadCacheBytesEnvVar             = "KURA_METADATA_STORE_READ_CACHE_BYTES"
-	metadataStoreWriteBufferPoolBytesEnvVar       = "KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES"
-	sharedSecretsRVAnnotation                     = "kura.tuist.dev/shared-secrets-resource-version"
-	externalDNSHostnameAnnotation                 = "external-dns.alpha.kubernetes.io/hostname"
-	legacyPeerHostAnnotation                      = "kura.tuist.dev/legacy-peer-host"
-	legacyPeerMigrationAnnotation                 = "kura.tuist.dev/legacy-peer-migration-phase"
-	legacyPeerOldAddressesAnnotation              = "kura.tuist.dev/legacy-peer-old-addresses"
-	legacyPeerTargetAddressesAnnotation           = "kura.tuist.dev/legacy-peer-target-addresses"
-	legacyPeerRetireAfterAnnotation               = "kura.tuist.dev/legacy-peer-retire-after"
-	legacyPeerFallbackRepublishAnnotation         = "kura.tuist.dev/legacy-peer-fallback-republish-requested-at"
-	legacyPeerFallbackObservedAnnotation          = "kura.tuist.dev/legacy-peer-fallback-observed-at"
-	unreadyPodsReplacedForImageAnnotation         = "kura.tuist.dev/unready-pods-replaced-for-image"
-	legacyPeerPhaseRepairing                      = "repairing-fallback"
-	legacyPeerPhaseCutoverRequested               = "cutover-requested"
-	legacyPeerPhaseDraining                       = "draining"
-	peerDNSRecordTTLSeconds                 int64 = 300
-	legacyPeerRetirementDelay                     = 2 * time.Duration(peerDNSRecordTTLSeconds) * time.Second
-	hetznerNodeSelectorAnnotation                 = "load-balancer.hetzner.cloud/node-selector"
+	sharedSecretsName                           = "kura-shared-secrets"
+	otlpTracesEndpointEnvVar                    = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+	environmentEnvVar                           = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
+	snapshotCacheMaxBytesEnvVar                 = "KURA_SNAPSHOT_CACHE_MAX_BYTES"
+	manifestCacheMaxBytesEnvVar                 = "KURA_MANIFEST_CACHE_MAX_BYTES"
+	metadataStoreReadCacheBytesEnvVar           = "KURA_METADATA_STORE_READ_CACHE_BYTES"
+	sharedSecretsRVAnnotation                   = "kura.tuist.dev/shared-secrets-resource-version"
+	externalDNSHostnameAnnotation               = "external-dns.alpha.kubernetes.io/hostname"
+	legacyPeerHostAnnotation                    = "kura.tuist.dev/legacy-peer-host"
+	legacyPeerMigrationAnnotation               = "kura.tuist.dev/legacy-peer-migration-phase"
+	legacyPeerOldAddressesAnnotation            = "kura.tuist.dev/legacy-peer-old-addresses"
+	legacyPeerTargetAddressesAnnotation         = "kura.tuist.dev/legacy-peer-target-addresses"
+	legacyPeerRetireAfterAnnotation             = "kura.tuist.dev/legacy-peer-retire-after"
+	legacyPeerFallbackRepublishAnnotation       = "kura.tuist.dev/legacy-peer-fallback-republish-requested-at"
+	legacyPeerFallbackObservedAnnotation        = "kura.tuist.dev/legacy-peer-fallback-observed-at"
+	unreadyPodsReplacedForImageAnnotation       = "kura.tuist.dev/unready-pods-replaced-for-image"
+	legacyPeerPhaseRepairing                    = "repairing-fallback"
+	legacyPeerPhaseCutoverRequested             = "cutover-requested"
+	legacyPeerPhaseDraining                     = "draining"
+	peerDNSRecordTTLSeconds               int64 = 300
+	legacyPeerRetirementDelay                   = 2 * time.Duration(peerDNSRecordTTLSeconds) * time.Second
+	hetznerNodeSelectorAnnotation               = "load-balancer.hetzner.cloud/node-selector"
 
 	peerTLSVolumeName = "peer-tls"
 	peerTLSMountPath  = "/etc/kura/peer-tls"
@@ -123,7 +122,12 @@ const (
 
 type KuraInstanceReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	// APIReader reads straight from the apiserver, bypassing the informer
+	// cache. The egress classid allocation scan must see every claim already
+	// written — a cached List can lag a just-completed Update and hand two
+	// accounts the same minor.
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
 
 	// GRPCClusterIssuer, when non-empty, makes the controller request a
 	// cert-manager Certificate per instance with this ClusterIssuer for the
@@ -456,6 +460,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePodDisruptionBudget(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileEgressClassID(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
@@ -3171,6 +3178,9 @@ func podAnnotations(instance *kurav1alpha1.KuraInstance, sharedSecretsResourceVe
 	annotations["prometheus.io/scrape"] = "true"
 	annotations["prometheus.io/port-name"] = "http"
 	annotations["prometheus.io/path"] = "/metrics"
+	if value, ok := egressClassPodAnnotation(instance); ok {
+		annotations[egressClassAnnotation] = value
+	}
 	if sharedSecretsResourceVersion != "" {
 		annotations[sharedSecretsRVAnnotation] = sharedSecretsResourceVersion
 	}
@@ -3209,6 +3219,188 @@ func sharedSecretsEnvFrom() []corev1.EnvFromSource {
 			Optional:             ptr(true),
 		},
 	}}
+}
+
+// egressBandwidthAnnotation is the standard per-pod egress annotation the
+// server's reconciler renders from a region's egress_burst_mbps ("<n>M").
+// Cilium's bandwidth manager paces the wire-bound leg from it; here it is
+// also the source of the tenant's ceiling in the shared per-node tree.
+const egressBandwidthAnnotation = "kubernetes.io/egress-bandwidth"
+
+// egressClassIDAnnotation persists an account's shared-tree HTB classid on
+// its KuraInstances ("1:<hex minor>"). The id must never change for a live
+// account — the egress-tree-agent's per-node class and every pod's stamp key
+// off it — so it is allocated once and carried as CR metadata rather than
+// derived on the fly.
+const egressClassIDAnnotation = "kura.tuist.dev/egress-class-id"
+
+// egressClassAnnotation is the pod annotation infra/egress-tree-agent
+// consumes: JSON {"classid","floor_mbps","burst_mbps"}. Inert until an agent
+// runs on the pod's node.
+const egressClassAnnotation = "tuist.dev/egress-class"
+
+// Minor range for tenant classes in the shared tree. Starts well above the
+// tree's structural classes (root qdisc handle 1:, root class 1:1) and stays
+// under the 0xFFFF handle ceiling.
+const (
+	egressClassIDMinorMin uint16 = 0x100
+	egressClassIDMinorMax uint16 = 0xFFFE
+)
+
+// egressBurstMbpsValue parses the egress-bandwidth annotation's integer
+// Mbit/s. The bool is false when the annotation is absent or does not parse;
+// the value is machine-rendered by the server, so a malformed one simply
+// yields no ceiling (the tenant class then caps at the node budget).
+func egressBurstMbpsValue(instance *kurav1alpha1.KuraInstance) (int64, bool) {
+	raw, ok := instance.Spec.PodAnnotations[egressBandwidthAnnotation]
+	if !ok {
+		return 0, false
+	}
+	digits, hadSuffix := strings.CutSuffix(raw, "M")
+	if !hadSuffix {
+		return 0, false
+	}
+	parsed, err := strconv.ParseInt(digits, 10, 64)
+	if err != nil || parsed <= 0 {
+		return 0, false
+	}
+	return parsed, true
+}
+
+// instanceNeedsEgressClass mirrors "this instance's traffic is shaped":
+// either a per-pod ceiling (the egress-bandwidth annotation) or a floor is
+// configured. Cloud regions with neither never get a class.
+func instanceNeedsEgressClass(instance *kurav1alpha1.KuraInstance) bool {
+	_, shaped := instance.Spec.PodAnnotations[egressBandwidthAnnotation]
+	return shaped || instance.Spec.EgressGuaranteedMbps > 0
+}
+
+func parseEgressClassID(value string) (uint16, bool) {
+	rest, ok := strings.CutPrefix(value, "1:")
+	if !ok {
+		return 0, false
+	}
+	minor, err := strconv.ParseUint(rest, 16, 16)
+	if err != nil || uint16(minor) < egressClassIDMinorMin || uint16(minor) > egressClassIDMinorMax {
+		return 0, false
+	}
+	return uint16(minor), true
+}
+
+func formatEgressClassID(minor uint16) string {
+	return fmt.Sprintf("1:%x", minor)
+}
+
+// egressClassIDCandidate is the deterministic starting point of an account's
+// id probe, so re-allocation lands on the same id as long as it is free.
+func egressClassIDCandidate(account string) uint16 {
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(account))
+	span := uint32(egressClassIDMinorMax-egressClassIDMinorMin) + 1
+	return egressClassIDMinorMin + uint16(hash.Sum32()%span)
+}
+
+// allocateEgressClassID linearly probes from the account's hash candidate to
+// the first unclaimed minor.
+func allocateEgressClassID(account string, used map[uint16]bool) (uint16, error) {
+	span := uint32(egressClassIDMinorMax-egressClassIDMinorMin) + 1
+	candidate := uint32(egressClassIDCandidate(account) - egressClassIDMinorMin)
+	for i := uint32(0); i < span; i++ {
+		minor := egressClassIDMinorMin + uint16((candidate+i)%span)
+		if !used[minor] {
+			return minor, nil
+		}
+	}
+	return 0, fmt.Errorf("egress classid space exhausted for account %s", account)
+}
+
+// reconcileEgressClassID gives a shaped instance its account's stable class
+// id. All instances of an account share one id (the id keys the tenant's
+// class on every node), so allocation looks across the namespace's
+// KuraInstances: adopt the account's existing claim if any, else probe from
+// the account-hash candidate.
+//
+// The scan reads through APIReader, not the cached client: reconciles run
+// serially (MaxConcurrentReconciles is the default 1), but the informer
+// cache updates asynchronously after Update, so a cached List during a
+// back-to-back allocation burst could miss the previous instance's fresh
+// claim and duplicate its minor. A quorum read always sees the completed
+// Update. The deterministic duplicate rule (smallest account handle keeps a
+// doubly-claimed id, smallest minor wins within an account) still makes any
+// duplicate from outside this loop — say a hand-edited annotation —
+// self-heal instead of flapping.
+func (r *KuraInstanceReconciler) reconcileEgressClassID(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if !instanceNeedsEgressClass(instance) {
+		return nil
+	}
+
+	instances := &kurav1alpha1.KuraInstanceList{}
+	if err := r.APIReader.List(ctx, instances, client.InNamespace(instance.Namespace)); err != nil {
+		return err
+	}
+	used := map[uint16]bool{}
+	owner := map[uint16]string{}
+	for i := range instances.Items {
+		other := &instances.Items[i]
+		minor, ok := parseEgressClassID(other.Annotations[egressClassIDAnnotation])
+		if !ok {
+			continue
+		}
+		used[minor] = true
+		if current, taken := owner[minor]; !taken || other.Spec.AccountHandle < current {
+			owner[minor] = other.Spec.AccountHandle
+		}
+	}
+
+	account := instance.Spec.AccountHandle
+	var desired uint16
+	for minor, owningAccount := range owner {
+		if owningAccount == account && (desired == 0 || minor < desired) {
+			desired = minor
+		}
+	}
+	if desired == 0 {
+		allocated, err := allocateEgressClassID(account, used)
+		if err != nil {
+			return err
+		}
+		desired = allocated
+	}
+
+	if instance.Annotations[egressClassIDAnnotation] == formatEgressClassID(desired) {
+		return nil
+	}
+	if instance.Annotations == nil {
+		instance.Annotations = map[string]string{}
+	}
+	instance.Annotations[egressClassIDAnnotation] = formatEgressClassID(desired)
+	return r.Update(ctx, instance)
+}
+
+// egressClassPodAnnotation renders the agent's pod annotation. Absent until
+// the class id is allocated (the reconcile order guarantees allocation runs
+// first) and on unshaped instances. Burst 0 means "no per-tenant ceiling":
+// the agent then caps the class at the node budget only.
+func egressClassPodAnnotation(instance *kurav1alpha1.KuraInstance) (string, bool) {
+	if !instanceNeedsEgressClass(instance) {
+		return "", false
+	}
+	minor, ok := parseEgressClassID(instance.Annotations[egressClassIDAnnotation])
+	if !ok {
+		return "", false
+	}
+	burst, _ := egressBurstMbpsValue(instance)
+	payload := struct {
+		ClassID   string `json:"classid"`
+		FloorMbps int64  `json:"floor_mbps"`
+		BurstMbps int64  `json:"burst_mbps"`
+	}{
+		ClassID:   formatEgressClassID(minor),
+		FloorMbps: int64(instance.Spec.EgressGuaranteedMbps),
+		BurstMbps: burst,
+	}
+	encoded, _ := json.Marshal(payload)
+	return string(encoded), true
 }
 
 // egressMbpsResource is the integer extended resource a shared bare-metal node
@@ -3589,7 +3781,6 @@ func managedCacheEnvDefaults() []corev1.EnvVar {
 		{Name: snapshotCacheMaxBytesEnvVar, Value: "67108864"},
 		{Name: manifestCacheMaxBytesEnvVar, Value: "33554432"},
 		{Name: metadataStoreReadCacheBytesEnvVar, Value: "33554432"},
-		{Name: metadataStoreWriteBufferPoolBytesEnvVar, Value: "33554432"},
 	}
 }
 

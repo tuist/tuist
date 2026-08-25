@@ -315,18 +315,76 @@ func TestPlanStorageAlwaysFormatsDataAsXFS(t *testing.T) {
 	}
 }
 
-// A mirror is only a mirror if the layout asks for one. OVH defaults an absent
-// raidLevel to 1, but the plan states it so a disk loss on these boxes stays a
-// degraded array rather than a lost cache region.
-func TestPlanStorageMirrorsEveryPartition(t *testing.T) {
-	plan, err := PlanStorage([]DiskGroup{group(1, 2, 1920)})
-	if err != nil {
-		t.Fatalf("PlanStorage: %v", err)
-	}
-	for _, part := range plan[0].Partitioning.Layout {
-		if part.RaidLevel != 1 {
-			t.Fatalf("partition %s raidLevel = %d, want 1", part.MountPoint, part.RaidLevel)
+// A RAID level is only applied if the layout asks for one. OVH defaults an
+// absent raidLevel to 1, but the plan states it on every partition so a disk
+// loss on these boxes stays a degraded array rather than a lost cache region,
+// and so a group large enough to stripe mirrored pairs is not silently
+// installed as a mirror across all of its disks.
+func TestPlanStorageRaidLevelFollowsDiskCount(t *testing.T) {
+	for _, tc := range []struct {
+		disks int64
+		want  int64
+	}{
+		{disks: 1, want: 0},
+		{disks: 2, want: 1},
+		{disks: 3, want: 1},
+		{disks: 4, want: 10},
+		{disks: 5, want: 1},
+		{disks: 6, want: 10},
+		{disks: 7, want: 1},
+		{disks: 8, want: 10},
+	} {
+		plan, err := PlanStorage([]DiskGroup{group(1, tc.disks, 960)})
+		if err != nil {
+			t.Fatalf("PlanStorage(%d disks): %v", tc.disks, err)
 		}
+		if got := plan[0].Partitioning.Disks; got != tc.disks {
+			t.Fatalf("%d-disk group: partitioning disks = %d, want every disk in the group", tc.disks, got)
+		}
+		for _, part := range plan[0].Partitioning.Layout {
+			if part.RaidLevel != tc.want {
+				t.Fatalf("%d-disk group: partition %s raidLevel = %d, want %d",
+					tc.disks, part.MountPoint, part.RaidLevel, tc.want)
+			}
+		}
+	}
+}
+
+// The reason the whole rule exists, asserted on the wire: a four-disk group
+// installed as RAID 1 mirrors across ALL FOUR disks, so a box ordered with the
+// 4-disk storage option comes up with one disk's worth of /data and the extra
+// two disks buy nothing. RAID 10 over the same four is what makes them usable
+// capacity. disks: 4 alongside raidLevel: 10 is the internally consistent pair:
+// the whole group participates, striped over two mirrored pairs.
+func TestStartInstallRequestsRaid10ForAFourDiskGroup(t *testing.T) {
+	api := &fakeAPI{get: map[string]any{
+		"/dedicated/server/srv/specifications/hardware": hardwareSpec{DiskGroups: []DiskGroup{group(1, 4, 960)}},
+	}}
+	c := &Client{API: api}
+	if err := c.StartInstall(context.Background(), "srv", InstallParams{
+		TemplateName: "ubuntu2404-server_64",
+		Hostname:     "host1",
+		SSHKey:       "ssh-ed25519 AAAA...",
+	}); err != nil {
+		t.Fatalf("StartInstall: %v", err)
+	}
+	if len(api.posts) != 1 || api.posts[0].url != "/dedicated/server/srv/reinstall" {
+		t.Fatalf("expected one POST to /dedicated/server/srv/reinstall, got %+v", api.posts)
+	}
+	body, ok := api.posts[0].body.(map[string]any)
+	if !ok {
+		t.Fatalf("reinstall body is not an object: %+v", api.posts[0].body)
+	}
+	wire, err := json.Marshal(body["storage"])
+	if err != nil {
+		t.Fatalf("marshal storage: %v", err)
+	}
+	want := `[{"diskGroupId":1,"partitioning":{"disks":4,"layout":[` +
+		`{"fileSystem":"ext4","mountPoint":"/boot","size":1024,"raidLevel":10},` +
+		`{"fileSystem":"ext4","mountPoint":"/","size":65536,"raidLevel":10},` +
+		`{"fileSystem":"xfs","mountPoint":"/data","size":0,"raidLevel":10}]}}]`
+	if string(wire) != want {
+		t.Fatalf("storage block =\n%s\nwant\n%s", wire, want)
 	}
 }
 

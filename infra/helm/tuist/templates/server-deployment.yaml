@@ -44,6 +44,7 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+      automountServiceAccountToken: {{ .Values.server.automountServiceAccountToken }}
       terminationGracePeriodSeconds: {{ .Values.server.terminationGracePeriodSeconds }}
       {{- include "tuist.podScheduling" . | nindent 6 }}
       {{- with .Values.server.affinity }}
@@ -62,6 +63,12 @@ spec:
         - name: server
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          {{- with .Values.server.seedAccountCredentials.secretName }}
+          volumeMounts:
+            - name: seed-account-credentials
+              mountPath: /var/run/tuist/seed-account
+              readOnly: true
+          {{- end }}
           command:
             - /app/bin/tuist
             - start
@@ -466,4 +473,11 @@ spec:
                 command: ["sh", "-c", "sleep 10"]
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
+      {{- with .Values.server.seedAccountCredentials.secretName }}
+      volumes:
+        - name: seed-account-credentials
+          secret:
+            secretName: {{ . }}
+            optional: true
+      {{- end }}
 {{- end }}

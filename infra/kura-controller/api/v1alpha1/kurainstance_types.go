@@ -93,6 +93,11 @@ type KuraInstanceSpec struct {
 	// unreclaimable rather than advisory. Size it from the instance's idle
 	// footprint, not its peak: over-reserving here is what exhausts a box's
 	// schedulable memory. Zero falls back to defaultMemoryFloorMib.
+	//
+	// The CRD constrains this to 0 or >= 176 MiB. Kura fits its anon caches
+	// inside the floor at startup and refuses a floor that cannot also hold its
+	// process baseline and a minimum admission reserve, so a smaller value
+	// crash-loops the pod instead of running it small.
 	MemoryFloorMib int32 `json:"memoryFloorMib,omitempty"`
 
 	// MemoryCeilingMib is the memory, in MiB, this instance may reach at peak.

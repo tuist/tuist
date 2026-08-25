@@ -417,22 +417,36 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  The region Air instances run in. `us-east` unless
-  `TUIST_KURA_AIR_REGION` names another.
+  The region Air instances run in for an account's storage region.
 
-  Air carries no storage-residency guarantee to uphold, so where the free
-  tier runs is a deployment decision rather than a policy one. Paid regions
-  are not configurable for the opposite reason: a paid account restricted to
-  Europe or the USA chose that, and no deployment setting may move it.
+  An account that states no storage region ("All regions") has no residency
+  constraint to uphold, so where its free tier runs is a deployment decision:
+  `us-east` unless `TUIST_KURA_AIR_REGION` names another.
+
+  An account that chose Europe has stated one. "Storage region" in account
+  settings names module cache binaries, which is what a Kura instance holds, so
+  such an account is never placed in the United States: it runs in whichever
+  region `TUIST_KURA_AIR_EUROPE_REGION` names, and is refused while nothing
+  names one. That variable is unset everywhere today, which is why those
+  accounts are refused now, and setting it is what turns Air in Europe on.
+
+  Paid regions are not configurable for the opposite reason: a paid account
+  restricted to Europe or the USA chose that, and no deployment setting may
+  move it.
 
   Staging has no `us-east` pool, so without this every Air account there
   resolves to a region whose instances can never schedule, and the Air-only
   pressure rule cannot be exercised at all.
   """
-  def kura_air_region do
-    case System.get_env("TUIST_KURA_AIR_REGION") do
-      nil -> "us-east"
-      "" -> "us-east"
+  def kura_air_region(:europe), do: air_region_env("TUIST_KURA_AIR_EUROPE_REGION", nil)
+
+  def kura_air_region(storage_region) when storage_region in [:all, :usa],
+    do: air_region_env("TUIST_KURA_AIR_REGION", "us-east")
+
+  defp air_region_env(variable, default) do
+    case System.get_env(variable) do
+      nil -> default
+      "" -> default
       region -> region
     end
   end
@@ -549,6 +563,10 @@ defmodule Tuist.Environment do
   def license_certificate_base64(secrets \\ secrets()) do
     System.get_env("TUIST_LICENSE_CERTIFICATE_BASE64") ||
       get([:license, :certificate, :base64], secrets)
+  end
+
+  def license_verify_key(secrets \\ secrets()) do
+    System.get_env("TUIST_LICENSE_VERIFY_KEY") || get([:license, :verify_key], secrets)
   end
 
   def use_ipv6?(secrets \\ secrets()) do
