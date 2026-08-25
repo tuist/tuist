@@ -218,6 +218,100 @@ defmodule Tuist.ShardsTest do
       refute Enum.any?(regular.download_urls, &String.ends_with?(&1, "/modules/NewTests.aar"))
     end
 
+    test "does not plan a suite the built products skip, even when history still has it" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppUITests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "OnboardingFlowTests", status: "success", duration: 6_000},
+              %{name: "CheckoutFlowTests", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "skipped-history-1",
+        modules: ["AppUITests"],
+        skipped_test_suites: ["AppUITests/OnboardingFlowTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      # The test plan disabled the suite, so the built products cannot run it. Resolving the module
+      # from history would resurrect it and hand a shard work that executes nothing.
+      assert planned_targets(result) == MapSet.new(["AppUITests/CheckoutFlowTests"])
+    end
+
+    test "does not plan a suite the built products both select and skip" do
+      project = ProjectsFixtures.project_fixture()
+
+      params = %{
+        reference: "skipped-selected-1",
+        modules: ["AppUITests"],
+        test_suites: ["AppUITests/OnboardingFlowTests", "AppUITests/CheckoutFlowTests"],
+        skipped_test_suites: ["AppUITests/OnboardingFlowTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      assert planned_targets(result) == MapSet.new(["AppUITests/CheckoutFlowTests"])
+    end
+
+    test "leaves a module whose every selected suite is skipped to the catch-all rather than history" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppUITests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "OnboardingFlowTests", status: "success", duration: 6_000},
+              %{name: "CheckoutFlowTests", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "skipped-selected-2",
+        modules: ["AppUITests"],
+        test_suites: ["AppUITests/OnboardingFlowTests"],
+        skipped_test_suites: ["AppUITests/OnboardingFlowTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      # The products limit the module to a suite that is then skipped, so it runs nothing. History
+      # must not step in: CheckoutFlowTests is outside what the products would run.
+      assert planned_targets(result) == MapSet.new([])
+    end
+
     test "does not append a catch-all shard for module granularity" do
       project = ProjectsFixtures.project_fixture()
 

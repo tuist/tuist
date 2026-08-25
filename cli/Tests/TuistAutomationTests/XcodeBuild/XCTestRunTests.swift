@@ -105,6 +105,71 @@
             #expect(xcTestRun.parallelizableTestModules == ["ParallelTests"])
         }
 
+        // MARK: - Skipped tests
+
+        @Test
+        func decode_v2_parsesSkippedTestSuiteIdentifiers() throws {
+            let plist = try makePlist([
+                "TestConfigurations": [
+                    [
+                        "TestTargets": [
+                            [
+                                "BlueprintName": "AppUITests",
+                                "SkipTestIdentifiers": ["OnboardingFlowTests", "SettingsFlowTests/testExample"],
+                            ],
+                        ],
+                    ],
+                ],
+            ])
+
+            let xcTestRun = try PropertyListDecoder().decode(XCTestRun.self, from: plist)
+
+            // A skip naming a whole suite takes it out of the run. A skip naming a single test
+            // doesn't, because the suite holding it may still have tests left to run.
+            #expect(xcTestRun.skippedTestSuiteIdentifiers() == ["AppUITests/OnboardingFlowTests"])
+        }
+
+        @Test
+        func decode_v2_skippedSuitesAreExcludedFromSelectedSuites() throws {
+            let plist = try makePlist([
+                "TestConfigurations": [
+                    [
+                        "TestTargets": [
+                            [
+                                "BlueprintName": "AppUITests",
+                                "OnlyTestIdentifiers": ["OnboardingFlowTests", "CheckoutFlowTests/testExample()"],
+                                "SkipTestIdentifiers": ["OnboardingFlowTests"],
+                            ],
+                        ],
+                    ],
+                ],
+            ])
+
+            let xcTestRun = try PropertyListDecoder().decode(XCTestRun.self, from: plist)
+
+            // xcodebuild applies the skips after the selection, so a selected suite that is also
+            // skipped runs nothing.
+            #expect(xcTestRun.selectedTestSuiteIdentifiers() == ["AppUITests/CheckoutFlowTests"])
+            #expect(xcTestRun.skippedTestSuiteIdentifiers() == ["AppUITests/OnboardingFlowTests"])
+        }
+
+        @Test
+        func decode_v2_noSkippedIdentifiers() throws {
+            let plist = try makePlist([
+                "TestConfigurations": [
+                    [
+                        "TestTargets": [
+                            ["BlueprintName": "AppUITests"],
+                        ],
+                    ],
+                ],
+            ])
+
+            let xcTestRun = try PropertyListDecoder().decode(XCTestRun.self, from: plist)
+
+            #expect(xcTestRun.skippedTestSuiteIdentifiers().isEmpty)
+        }
+
         // MARK: - Format v1 (Legacy top-level keys)
 
         @Test
