@@ -58,6 +58,8 @@ defmodule Tuist do
       AtlasWorkloadIdentity,
       Kubernetes.Client,
       Kura,
+      Kura.AccountPolicies,
+      Kura.AccountRegionPolicy,
       Kura.Deployment,
       Kura.Server,
       Kura.Usage,
