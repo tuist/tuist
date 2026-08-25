@@ -2143,6 +2143,89 @@ defmodule Tuist.TestsTest do
       assert error.module_name == "AboutUserTests"
     end
 
+    test "persists run destinations reported by a shard that merges into an existing run" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard_attrs = fn shard_index, extra ->
+        Map.merge(
+          %{
+            id: UUIDv7.generate(),
+            project_id: project.id,
+            account_id: account.id,
+            duration: 500,
+            status: "success",
+            model_identifier: "Mac15,6",
+            macos_version: "14.0",
+            xcode_version: "15.0",
+            git_branch: "main",
+            git_commit_sha: "abc123",
+            ran_at: NaiveDateTime.utc_now(),
+            is_ci: true,
+            shard_plan_id: plan.id,
+            shard_index: shard_index
+          },
+          extra
+        )
+      end
+
+      # The placeholder row the CLI uploads lands before the xcresult worker
+      # parses anything, so the merge branch is the one every sharded run takes
+      # by the time destinations are known.
+      {:ok, first_test} = Tests.create_test(shard_attrs.(0, %{status: "processing"}))
+
+      {:ok, _} =
+        Tests.create_test(
+          shard_attrs.(1, %{
+            run_destinations: [%{name: "iPhone SE Test", platform: "ios_simulator", os_version: "26.1"}]
+          })
+        )
+
+      assert [destination] =
+               ClickHouseRepo.all(from(d in TestRunDestination, where: d.test_run_id == ^first_test.id))
+
+      assert destination.name == "iPhone SE Test"
+      assert destination.platform == "ios_simulator"
+      assert destination.os_version == "26.1"
+    end
+
+    test "collapses a run destination reported by every shard into one" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      run_destinations = [%{name: "iPhone SE Test", platform: "ios_simulator", os_version: "26.1"}]
+
+      shard_attrs = fn shard_index ->
+        %{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: shard_index,
+          run_destinations: run_destinations
+        }
+      end
+
+      {:ok, first_test} = Tests.create_test(shard_attrs.(0))
+      {:ok, _} = Tests.create_test(shard_attrs.(1))
+
+      {:ok, run} = Tests.get_test(first_test.id, preload: [:run_destinations])
+
+      assert [%TestRunDestination{name: "iPhone SE Test", platform: "ios_simulator", os_version: "26.1"}] =
+               run.run_destinations
+    end
+
     test "uses the shard-run mapping instead of scanning test runs for later shards" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
