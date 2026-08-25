@@ -58,6 +58,22 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunDailyStatsPerCaseDefaultB
   `20260818140000` for why that window cannot be closed inside one release and
   why it heals as the read window moves past it.
 
+  ## Deploy cost
+
+  The seed issues one insert per project per partition, with a throttle ahead of
+  each. 372 projects had runs in the trailing 90 days when this was written, so
+  the window is what decides how long the migration holds the release: 30 days
+  spans one partition outside the few days a month it straddles two, where 90
+  would span four.
+
+  Batching the projects into one query per partition, by joining an array of
+  `(project_id, branch)` pairs, is the obvious way to cut that further and is
+  deliberately not done. The per-project range is what keeps each query inside
+  the ceiling below; `20260818130000` records that widening these inserts is
+  exactly what exhausted production memory before, and a migration that runs
+  faster until it OOMs on the largest project is a worse trade than one that
+  takes a few extra minutes.
+
   The memory discipline, the per-project ranges and the halving-by-date retry
   are carried over from `20260818130000` unchanged; the reasoning there applies
   here for the same reasons.
@@ -73,7 +89,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunDailyStatsPerCaseDefaultB
   @disable_migration_lock true
 
   @table "test_case_run_daily_stats_per_case_default_branch"
-  @backfill_window_days 90
+  @backfill_window_days 30
   @attempt_throttle_ms 250
   @range_attempts 2
   @max_memory_usage 1_073_741_824
@@ -160,7 +176,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunDailyStatsPerCaseDefaultB
     end)
     |> case do
       {:ok, %{rows: rows}, _apps} -> Map.new(rows, fn [id, branch] -> {id, branch} end)
-      {:ok, result, _apps} -> Map.new(result.rows, fn [id, branch] -> {id, branch} end)
     end
   end
 

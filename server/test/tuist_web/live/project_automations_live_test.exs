@@ -570,4 +570,94 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert {:ok, ^other} = Automations.get_alert(other.id)
     end
   end
+
+  describe "branch scope" do
+    test "editing an automation preserves a scope set outside the dashboard", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # The regression this guards: the form rebuilds trigger_config from its own
+      # assigns, so a key it does not know about is dropped on save. For a team
+      # that deliberately opted reliability out of default-branch scoping, an
+      # unrelated dashboard edit would silently opt them back in.
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{
+            "threshold" => 90,
+            "comparison" => "lt",
+            "window_type" => "last_days",
+            "window" => "30d",
+            "branch_scope" => "all_branches"
+          }
+        )
+
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "edit_automation", %{"id" => automation.id})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Renamed"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [saved] = Automations.list_alerts(project.id)
+      assert saved.name == "Renamed"
+      assert saved.trigger_config["branch_scope"] == "all_branches"
+    end
+
+    test "an automation that never chose a scope keeps deferring to the monitor default", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{"threshold" => 90, "comparison" => "lt", "window_type" => "last_days", "window" => "30d"}
+        )
+
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "edit_automation", %{"id" => automation.id})
+      render_hook(lv, "save_automation", %{})
+
+      assert [saved] = Automations.list_alerts(project.id)
+      refute Map.has_key?(saved.trigger_config, "branch_scope")
+    end
+
+    test "the scope control writes the chosen value", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Trunk flakiness"})
+      render_hook(lv, "update_create_automation_form_branch_scope", %{"data" => "default_branch"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.monitor_type == "flakiness_rate"
+      assert automation.trigger_config["branch_scope"] == "default_branch"
+    end
+
+    test "the summary describes reliability as trunk-scoped rather than across branches", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "reliability_rate",
+        trigger_config: %{"threshold" => 90, "comparison" => "lt", "window_type" => "last_days", "window" => "30d"}
+      )
+
+      {:ok, _lv, html} = open(conn, organization, project)
+
+      assert html =~ "on the default branch"
+      refute html =~ "across branches"
+    end
+  end
 end

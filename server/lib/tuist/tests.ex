@@ -3714,6 +3714,16 @@ defmodule Tuist.Tests do
     test_case_ids = corrections |> Enum.map(& &1.test_case_id) |> Enum.uniq()
     test_case_run_ids = Enum.map(corrections, & &1.test_case_run_id)
 
+    # Recomputed rather than carried forward from the row being corrected.
+    # Aggregates seeded before this column existed classified their rows by
+    # comparing `git_branch` against the project's default branch, but the source
+    # rows themselves still hold the column's `false` default. Copying that value
+    # into the correction would hand the branch-filtered views a row they discard,
+    # so a run seeded as default-branch would never be seen to become flaky and
+    # the aggregate would sit on its pre-correction state indefinitely.
+    default_branch = project_default_branch(project_id)
+    default_branch_match_expr = default_branch_match_expr(default_branch)
+
     sql = """
     INSERT INTO test_case_runs (
       id,
@@ -3754,7 +3764,7 @@ defmodule Tuist.Tests do
       account_id,
       ran_at,
       git_branch,
-      is_default_branch,
+      #{default_branch_match_expr},
       git_commit_sha,
       status,
       true,
@@ -3782,12 +3792,15 @@ defmodule Tuist.Tests do
 
     IngestRepo.query!(
       sql,
-      %{
-        project_id: project_id,
-        test_case_ids: test_case_ids,
-        git_commit_sha: git_commit_sha,
-        test_case_run_ids: test_case_run_ids
-      },
+      correction_params(
+        %{
+          project_id: project_id,
+          test_case_ids: test_case_ids,
+          git_commit_sha: git_commit_sha,
+          test_case_run_ids: test_case_run_ids
+        },
+        default_branch
+      ),
       settings: [
         insert_deduplication_token: "test-case-run-flaky-correction:#{flaky_correction_batch_id(test_case_run_ids)}",
         deduplicate_insert_select: "force_enable",
@@ -3795,6 +3808,20 @@ defmodule Tuist.Tests do
       ]
     )
   end
+
+  # A project with no default branch configured has no trunk for a run to be on,
+  # which is the same answer `default_branch?/2` gives at ingestion. Rendering the
+  # literal keeps the parameter off the query entirely rather than binding an
+  # empty string, which a run with no branch recorded would otherwise match.
+  defp default_branch_match_expr(default_branch) when is_binary(default_branch) and default_branch != "",
+    do: "git_branch = {default_branch:String}"
+
+  defp default_branch_match_expr(_default_branch), do: "false"
+
+  defp correction_params(params, default_branch) when is_binary(default_branch) and default_branch != "",
+    do: Map.put(params, :default_branch, default_branch)
+
+  defp correction_params(params, _default_branch), do: params
 
   defp report_test_case_run_multiplicity(project_id, git_commit_sha, corrections) do
     test_case_ids = corrections |> Enum.map(& &1.test_case_id) |> Enum.uniq()

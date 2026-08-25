@@ -8,6 +8,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.Repo
   alias Tuist.Shards.ShardRun
   alias Tuist.Tests
   alias Tuist.Tests.Test
@@ -17,6 +18,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunByCommit
   alias Tuist.Tests.TestCaseRunByTestRun
+  alias Tuist.Tests.TestCaseRunFlakyCorrection
   alias Tuist.Tests.TestCaseState
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker
@@ -1675,7 +1677,7 @@ defmodule Tuist.TestsTest do
       assert {:ok, _test} = Tests.create_test(test_attrs)
 
       # Then — one Oban job per (subscribed endpoint, new test case).
-      jobs = Tuist.Repo.all(Oban.Job)
+      jobs = Repo.all(Oban.Job)
       assert length(jobs) == 2
       assert Enum.all?(jobs, &(&1.args["webhook_endpoint_id"] == subscribed.id))
       assert Enum.all?(jobs, &(&1.args["event_type"] == "test_case.created"))
@@ -5278,6 +5280,73 @@ defmodule Tuist.TestsTest do
 
       assert corrected_run.is_flaky
       assert corrected_run.is_default_branch == true
+    end
+
+    test "a correction reclassifies a run the column predates instead of copying its stale value" do
+      # A run written before `is_default_branch` existed carries the column's
+      # `false` default even though its branch is the default one. The aggregates
+      # seeded such rows by comparing `git_branch`, so if a correction copied the
+      # stale column forward the branch-filtered views would discard it and the
+      # run would never be seen to become flaky.
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "#{System.unique_integer([:positive])}"
+      test_case_id = UUIDv7.generate()
+      run_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "legacy")
+
+      RunsFixtures.test_case_run_fixture(
+        id: run_id,
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: project.default_branch,
+        git_commit_sha: commit_sha,
+        is_ci: true,
+        status: "failure",
+        is_flaky: false,
+        is_default_branch: false
+      )
+
+      Repo.insert!(%TestCaseRunFlakyCorrection{
+        test_case_run_id: run_id,
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_commit_sha: commit_sha,
+        state: "pending",
+        inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+
+      # When
+      assert :ok = Tests.apply_test_case_run_flaky_corrections([run_id])
+      RunsFixtures.optimize_test_case_runs()
+
+      # Then
+      # The correction is a second physical row for the same logical run, which is
+      # what `report_test_case_run_multiplicity/3` bounds at two; the later one is
+      # the correction.
+      {runs, _meta} =
+        Tests.list_test_case_runs(%{filters: [%{field: :test_case_id, op: :==, value: test_case_id}]})
+
+      corrected_run = Enum.max_by(runs, & &1.inserted_at, NaiveDateTime)
+
+      assert corrected_run.is_flaky
+      assert corrected_run.is_default_branch == true
+
+      # The row being reclassified is only half of it: the point is that the
+      # branch-filtered aggregate now sees the correction rather than sitting on
+      # its pre-correction state.
+      %{rows: [[flaky_run_count]]} =
+        IngestRepo.query!(
+          """
+          SELECT sumMerge(flaky_run_count)
+          FROM test_case_run_daily_stats_per_case_default_branch
+          WHERE project_id = {project_id:Int64} AND test_case_id = {test_case_id:UUID}
+          """,
+          %{project_id: project.id, test_case_id: test_case_id}
+        )
+
+      assert flaky_run_count >= 1
     end
 
     defp run_on_branch(project, git_branch) do

@@ -81,7 +81,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsDefaultBranchRecentWindo
 
   @table "test_case_runs_default_branch_recent_window_per_case"
   @bucket_size 2000
-  @backfill_window_days 90
+  @backfill_window_days 30
   @attempt_throttle_ms 250
   @range_attempts 2
   @max_memory_usage 1_073_741_824
@@ -102,7 +102,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsDefaultBranchRecentWindo
     SETTINGS merge_max_block_size = 256
     """)
 
-    {boundary, window_start} = backfill_bounds()
+    {boundary, window_start, window_end} = backfill_bounds()
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     IngestRepo.query!("""
@@ -119,7 +119,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsDefaultBranchRecentWindo
     GROUP BY project_id, test_case_id
     """)
 
-    backfill(boundary, window_start)
+    backfill(boundary, window_start, window_end)
   end
 
   def down do
@@ -135,17 +135,20 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsDefaultBranchRecentWindo
   end
 
   defp backfill_bounds do
-    {:ok, %{rows: [[boundary, window_start]]}} =
+    {:ok, %{rows: [[boundary, window_start, window_end]]}} =
       IngestRepo.query(
         """
-        SELECT now64(6) AS boundary, toDate(boundary) - {days:UInt16} AS window_start
+        SELECT
+          now64(6) AS boundary,
+          toDate(boundary) - {days:UInt16} AS window_start,
+          toDate(boundary) AS window_end
         """,
         %{days: @backfill_window_days}
       )
 
-    Logger.info("Backfilling #{@table} from #{window_start}, up to #{boundary}")
+    Logger.info("Backfilling #{@table} over #{window_start}..#{window_end}, up to #{boundary}")
 
-    {boundary, window_start}
+    {boundary, window_start, window_end}
   end
 
   defp default_branches do
@@ -156,14 +159,13 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsDefaultBranchRecentWindo
     end)
     |> case do
       {:ok, %{rows: rows}, _apps} -> Map.new(rows, fn [id, branch] -> {id, branch} end)
-      {:ok, result, _apps} -> Map.new(result.rows, fn [id, branch] -> {id, branch} end)
     end
   end
 
   # The aggregate keeps the newest entries whatever order they arrive in, so
   # partitions are walked oldest-first here rather than newest-first: the state
   # is bounded by the bucket, not by what it saw first.
-  defp backfill(boundary, window_start) do
+  defp backfill(boundary, window_start, window_end) do
     branches = default_branches()
 
     Logger.info("Seeding #{@table} for #{map_size(branches)} projects with a default branch")
@@ -184,6 +186,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsDefaultBranchRecentWindo
           project_id,
           Map.fetch!(branches, project_id),
           window_start,
+          window_end,
           boundary
         )
       end)
@@ -234,12 +237,13 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsDefaultBranchRecentWindo
          project_id,
          branch,
          from_date,
+         to_date,
          boundary,
          attempts \\ @range_attempts
        ) do
     Process.sleep(@attempt_throttle_ms)
 
-    insert_range(partition, project_id, branch, from_date, boundary)
+    insert_range(partition, project_id, branch, from_date, to_date, boundary)
   rescue
     e in Ch.Error ->
       cond do
@@ -248,22 +252,44 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsDefaultBranchRecentWindo
 
         attempts > 1 ->
           Logger.warning(
-            "ClickHouse could not fit project #{project_id} from #{from_date}; " <>
+            "ClickHouse could not fit #{describe(project_id, from_date, to_date)}; " <>
               "retrying in 5s (#{attempts - 1} attempts left)"
           )
 
           Process.sleep(:timer.seconds(5))
-          backfill_range(partition, project_id, branch, from_date, boundary, attempts - 1)
+
+          backfill_range(
+            partition,
+            project_id,
+            branch,
+            from_date,
+            to_date,
+            boundary,
+            attempts - 1
+          )
+
+        Date.compare(from_date, to_date) == :lt ->
+          midpoint = Date.add(from_date, div(Date.diff(to_date, from_date), 2))
+
+          Logger.warning(
+            "ClickHouse could not fit #{describe(project_id, from_date, to_date)}; splitting at #{midpoint}"
+          )
+
+          backfill_range(partition, project_id, branch, from_date, midpoint, boundary)
+          backfill_range(partition, project_id, branch, Date.add(midpoint, 1), to_date, boundary)
 
         true ->
           Logger.warning(
-            "ClickHouse could not fit project #{project_id} from #{from_date}; " <>
-              "skipping it, its windows converge as the view fills forward"
+            "ClickHouse could not fit #{describe(project_id, from_date, to_date)}, " <>
+              "the smallest range there is; skipping it"
           )
       end
   end
 
-  defp insert_range(partition, project_id, branch, from_date, boundary) do
+  defp describe(project_id, from_date, to_date),
+    do: "project #{project_id} over #{from_date}..#{to_date}"
+
+  defp insert_range(partition, project_id, branch, from_date, to_date, boundary) do
     IngestRepo.query!(
       """
       INSERT INTO #{@table} (project_id, test_case_id, recent_runs)
@@ -278,6 +304,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsDefaultBranchRecentWindo
         AND inserted_at < {boundary:DateTime64(6)}
         AND project_id = {project_id:Int64}
         AND toDate(inserted_at) >= {from_date:Date}
+        AND toDate(inserted_at) <= {to_date:Date}
         AND git_branch = {branch:String}
         AND test_case_id IS NOT NULL
       GROUP BY project_id, test_case_id
@@ -292,6 +319,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsDefaultBranchRecentWindo
         project_id: project_id,
         branch: branch,
         from_date: from_date,
+        to_date: to_date,
         boundary: boundary
       },
       timeout: 1_200_000

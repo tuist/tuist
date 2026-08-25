@@ -8,6 +8,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   alias Tuist.Authorization
   alias Tuist.Automations
   alias Tuist.Automations.Alerts.Alert
+  alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.Environment
   alias Tuist.Slack
   alias TuistWeb.SlackOAuthController
@@ -63,6 +64,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_comparison: "gte")
     |> assign(create_automation_form_threshold: "10")
     |> assign(create_automation_form_window_type: "last_days")
+    |> assign(create_automation_form_branch_scope: nil)
     |> assign(create_automation_form_window: "30d")
     |> assign(create_automation_form_rolling_window_size: "75")
     |> assign(create_automation_form_events: ["marked_flaky"])
@@ -78,6 +80,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   @comparisons ~w(gte gt lt lte)
   @window_types ~w(last_days rolling)
+  @branch_scopes ~w(all_branches default_branch)
+  @branch_scoped_metrics ~w(flakiness_rate flaky_run_count reliability_rate)
 
   # These defaults encode the metric's unhealthy direction: flakiness should
   # rise above the threshold, while reliability should fall below it.
@@ -121,6 +125,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       comparison: parse_comparison(automation.trigger_config["comparison"]),
       threshold: to_string(automation.trigger_config["threshold"] || ""),
       window_type: parse_window_type(automation.trigger_config["window_type"]),
+      branch_scope: parse_branch_scope(automation.trigger_config["branch_scope"]),
       window: automation.trigger_config["window"] || "30d",
       rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 75),
       events: parse_events(automation.trigger_config["events"]),
@@ -147,6 +152,12 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   defp parse_window_type(window_type) when window_type in @window_types, do: window_type
   defp parse_window_type(_), do: "last_days"
+
+  # `nil` rather than a concrete scope when the key is absent, so an automation
+  # that never set one keeps deferring to the monitor's per-metric default
+  # instead of having this form freeze today's default into its config.
+  defp parse_branch_scope(branch_scope) when branch_scope in @branch_scopes, do: branch_scope
+  defp parse_branch_scope(_), do: nil
 
   defp parse_states(states) when is_list(states) do
     Enum.filter(states, &(&1 in ["enabled", "muted", "skipped"]))
@@ -180,6 +191,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
         |> assign(create_automation_form_comparison: form.comparison)
         |> assign(create_automation_form_threshold: form.threshold)
         |> assign(create_automation_form_window_type: form.window_type)
+        |> assign(create_automation_form_branch_scope: form.branch_scope)
         |> assign(create_automation_form_window: form.window)
         |> assign(create_automation_form_rolling_window_size: form.rolling_window_size)
         |> assign(create_automation_form_events: form.events)
@@ -263,6 +275,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event("update_create_automation_form_window", %{"value" => value}, socket) do
     {:noreply, assign(socket, create_automation_form_window: value)}
+  end
+
+  def handle_event("update_create_automation_form_branch_scope", %{"data" => branch_scope}, socket) do
+    if branch_scope in @branch_scopes do
+      {:noreply, assign(socket, create_automation_form_branch_scope: branch_scope)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("update_create_automation_form_window_type", %{"data" => window_type}, socket) do
@@ -568,6 +588,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       assigns.create_automation_form_rolling_window_size
     )
     |> maybe_put_states(assigns.create_automation_form_trigger_states)
+    |> maybe_put_branch_scope(metric, assigns.create_automation_form_branch_scope)
   end
 
   defp recovery_config_for("test_updated", _assigns), do: %{}
@@ -580,6 +601,12 @@ defmodule TuistWeb.ProjectAutomationsLive do
     )
     |> maybe_put_states(assigns.create_automation_form_recovery_states)
   end
+
+  defp maybe_put_branch_scope(config, metric, branch_scope)
+       when branch_scope in @branch_scopes and metric in @branch_scoped_metrics,
+       do: Map.put(config, "branch_scope", branch_scope)
+
+  defp maybe_put_branch_scope(config, _metric, _branch_scope), do: config
 
   defp build_trigger_config(threshold, comparison, "rolling", _window, rolling_window_size) do
     %{
@@ -750,43 +777,96 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def action_row_summary(_), do: ""
 
-  def automation_summary(%{monitor_type: "flakiness_rate", trigger_config: trigger_config}) do
-    threshold = format_threshold(trigger_config["threshold"] || 0)
-    symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
+  def branch_scoped_monitor_type?(metric), do: metric in @branch_scoped_metrics
 
-    dgettext(
-      "dashboard_projects",
-      "When flakiness rate %{symbol} %{threshold}% over %{window}",
-      symbol: symbol,
-      threshold: threshold,
-      window: window_summary(trigger_config)
-    )
+  # An automation that has not chosen a scope shows the one the monitor would
+  # apply, so the control never reads as "unset" for a rule that is in fact
+  # already narrowed.
+  def effective_branch_scope(nil, metric),
+    do: to_string(FlakyTestsMonitor.branch_scope(%{monitor_type: metric, trigger_config: %{}}))
+
+  def effective_branch_scope(branch_scope, _metric), do: branch_scope
+
+  def branch_scope_label(branch_scope, metric) do
+    case effective_branch_scope(branch_scope, metric) do
+      "default_branch" -> dgettext("dashboard_projects", "The default branch")
+      _every -> dgettext("dashboard_projects", "Every branch")
+    end
   end
 
-  def automation_summary(%{monitor_type: "flaky_run_count", trigger_config: trigger_config}) do
+  def automation_summary(%{monitor_type: "flakiness_rate", trigger_config: trigger_config} = alert) do
     threshold = format_threshold(trigger_config["threshold"] || 0)
     symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
 
-    dgettext(
-      "dashboard_projects",
-      "When flaky runs %{symbol} %{threshold} over %{window}",
-      symbol: symbol,
-      threshold: threshold,
-      window: window_summary(trigger_config)
-    )
+    case FlakyTestsMonitor.branch_scope(alert) do
+      :default_branch ->
+        dgettext(
+          "dashboard_projects",
+          "When flakiness rate on the default branch %{symbol} %{threshold}% over %{window}",
+          symbol: symbol,
+          threshold: threshold,
+          window: window_summary(trigger_config)
+        )
+
+      :all_branches ->
+        dgettext(
+          "dashboard_projects",
+          "When flakiness rate %{symbol} %{threshold}% over %{window}",
+          symbol: symbol,
+          threshold: threshold,
+          window: window_summary(trigger_config)
+        )
+    end
   end
 
-  def automation_summary(%{monitor_type: "reliability_rate", trigger_config: trigger_config}) do
+  def automation_summary(%{monitor_type: "flaky_run_count", trigger_config: trigger_config} = alert) do
     threshold = format_threshold(trigger_config["threshold"] || 0)
     symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
 
-    dgettext(
-      "dashboard_projects",
-      "When test reliability across branches %{symbol} %{threshold}% over %{window}",
-      symbol: symbol,
-      threshold: threshold,
-      window: window_summary(trigger_config)
-    )
+    case FlakyTestsMonitor.branch_scope(alert) do
+      :default_branch ->
+        dgettext(
+          "dashboard_projects",
+          "When flaky runs on the default branch %{symbol} %{threshold} over %{window}",
+          symbol: symbol,
+          threshold: threshold,
+          window: window_summary(trigger_config)
+        )
+
+      :all_branches ->
+        dgettext(
+          "dashboard_projects",
+          "When flaky runs %{symbol} %{threshold} over %{window}",
+          symbol: symbol,
+          threshold: threshold,
+          window: window_summary(trigger_config)
+        )
+    end
+  end
+
+  def automation_summary(%{monitor_type: "reliability_rate", trigger_config: trigger_config} = alert) do
+    threshold = format_threshold(trigger_config["threshold"] || 0)
+    symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
+
+    case FlakyTestsMonitor.branch_scope(alert) do
+      :default_branch ->
+        dgettext(
+          "dashboard_projects",
+          "When test reliability on the default branch %{symbol} %{threshold}% over %{window}",
+          symbol: symbol,
+          threshold: threshold,
+          window: window_summary(trigger_config)
+        )
+
+      :all_branches ->
+        dgettext(
+          "dashboard_projects",
+          "When test reliability across all branches %{symbol} %{threshold}% over %{window}",
+          symbol: symbol,
+          threshold: threshold,
+          window: window_summary(trigger_config)
+        )
+    end
   end
 
   def automation_summary(%{monitor_type: "test_updated", trigger_config: trigger_config}) do
