@@ -31,6 +31,7 @@ import { CustomersDitherLine } from "./hooks/customers-dither-line.js";
 import { DitherBlocks } from "./hooks/dither-blocks.js";
 import { LogoContextMenu } from "./hooks/logo-context-menu.js";
 import { BlogViewPreference } from "./hooks/blog-view-preference.js";
+import { PricingPlanSelect } from "./hooks/pricing-plan-select.js";
 
 const Hooks = {
   PlatformBackground,
@@ -66,6 +67,7 @@ const Hooks = {
   CounterAnimation,
   KaTeX,
   BlogViewPreference,
+  PricingPlanSelect,
 };
 
 export { Hooks };
