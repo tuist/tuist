@@ -208,7 +208,17 @@ pub const SEGMENT_EVICTION_YIELD_ROWS: usize = 256;
 // against a pool that is 32 MiB on managed instances. That saturated the pool
 // and stalled every writer inside RocksDB (#12556).
 //
-// So the batch is committed at blob boundaries and never inside a cascade.
+// So the batch is committed in chunks. Splitting inside a blob's cascade is
+// legal too, which is the part that is easy to get wrong: #12152's invariant is
+// ONE-DIRECTIONAL. It forbids an *entry* outliving its blob, not a blob
+// outliving its entries. `evict_segment` therefore commits a blob's cascaded
+// entries first and stages the blob's own rows only afterwards, so a chunk
+// boundary can fall anywhere without ever publishing a blob deletion ahead of
+// an entry that references it. Checking the budget only between blobs, as the
+// first version of this did, left the real ceiling at `budget + one blob's
+// entire cascade` — unbounded in exactly the dimension that saturated the pool,
+// since a common output blob is referenced by very many action results.
+//
 // 2 MiB of payload is roughly 4-6 MiB of memtable once tombstone overhead is
 // counted, which stays clear of even the 16 MiB floor the pool clamps to. The
 // commits are `sync = false`, so the extra ones cost a memtable insert and a

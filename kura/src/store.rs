@@ -133,11 +133,18 @@ pub struct Store {
     /// constant read inline so tests can drive the chunk boundary without
     /// staging the megabytes of rows it would otherwise take to cross it.
     eviction_batch_budget_bytes: usize,
-    /// Thread the last eviction chunk was committed on. Test-only: the whole
-    /// point of `commit_eviction_chunk` is that the commit does not run on the
-    /// caller's thread, and that is otherwise unobservable from outside.
+    /// What the eviction commits actually did. Test-only: the commit runs
+    /// behind an opaque FFI call inside a closure that captures no `&self`, so
+    /// neither the thread it lands on nor the size of each committed chunk is
+    /// observable from outside.
     #[cfg(test)]
-    eviction_commit_thread: Arc<StdMutex<Option<std::thread::ThreadId>>>,
+    eviction_commits: Arc<StdMutex<EvictionCommitLog>>,
+    /// Notified with the thread each request-path write commits on. Test-only,
+    /// for the same reason as `eviction_commits`: the write is an opaque FFI
+    /// call inside a closure that captures no `&self`.
+    #[cfg(test)]
+    #[allow(clippy::type_complexity)]
+    write_thread_observer: Arc<StdMutex<Option<Arc<dyn Fn(std::thread::ThreadId) + Send + Sync>>>>,
     /// Bumped whenever a namespace's action cache changes, so a snapshot index
     /// that came back EMPTY can tell "nothing to show" from "out of date". An
     /// empty index is otherwise indistinguishable from a stale one and has to be
@@ -781,14 +788,32 @@ impl PersistArtifactOutcome {
     }
 }
 
+/// What `Store::commit_eviction_chunk` did, recorded for tests only.
+#[cfg(test)]
+#[derive(Default)]
+struct EvictionCommitLog {
+    threads: Vec<std::thread::ThreadId>,
+    chunk_bytes: Vec<usize>,
+}
+
 /// Bookkeeping for the action-cache entries one segment eviction cascades.
 ///
-/// `seen` de-duplicates across every blob in the segment, so an entry that two
-/// evicted blobs both reference is staged once. The `pending_*` fields hold
-/// only what has been staged since the last commit: eviction commits in chunks,
-/// and each chunk must invalidate exactly the cache keys it made unreachable
-/// rather than the whole segment's worth. `total` is the segment-wide count,
-/// kept separately because the pending list is drained on every commit.
+/// Everything here is scoped to the *current chunk* and reset on every commit.
+/// `seen` de-duplicates entries that two blobs in the same chunk both
+/// reference, so the second reference does not stage a redundant delete.
+///
+/// It deliberately does **not** de-duplicate across the whole segment, which is
+/// what it did when a segment was one batch. Once the eviction commits in
+/// chunks, an entry removed by an early chunk can be republished against a
+/// different blob in the same segment before that blob is reached; a
+/// segment-wide `seen` skips it there and leaves it pointing at a blob this
+/// eviction is deleting — the strand #12152 closed. Per-chunk scoping makes the
+/// later blob re-examine it and re-validate it against its current
+/// `ActionResult`. Nothing is double-counted by the reset: an entry an earlier
+/// chunk really did delete no longer has a manifest, so the lookup below skips
+/// it before it reaches `record`.
+///
+/// `total` is the segment-wide count, kept separately because the rest resets.
 #[derive(Default)]
 struct CascadeProgress {
     seen: HashSet<String>,
@@ -983,7 +1008,9 @@ impl Store {
             segment_write_lock: Mutex::new(()),
             eviction_batch_budget_bytes: SEGMENT_EVICTION_MAX_BATCH_BYTES,
             #[cfg(test)]
-            eviction_commit_thread: Arc::new(StdMutex::new(None)),
+            eviction_commits: Arc::new(StdMutex::new(EvictionCommitLog::default())),
+            #[cfg(test)]
+            write_thread_observer: Arc::new(StdMutex::new(None)),
             action_cache_generations: StdMutex::new(HashMap::new()),
             segment_fsync_count: Arc::new(AtomicU64::new(0)),
             pending_seq: AtomicU64::new(0),
@@ -1446,7 +1473,12 @@ impl Store {
         let mut batch = WriteBatch::default();
         let manifest =
             self.stage_segment_manifest(&mut batch, spec, artifact_id, existing, location, size)?;
-        self.write_batch_sync(batch, "manifest batch")?;
+        self.write_batch_with_durability_off_runtime(
+            batch,
+            "manifest batch",
+            ApplyDurability::Sync,
+        )
+        .await?;
         outbox_reservation.commit();
         self.note_segment_manifest_committed(&manifest, &location.segment_id)
             .await?;
@@ -2166,7 +2198,12 @@ impl Store {
             segment_artifact_index_key(&location.segment_id, &current.artifact_id).as_bytes(),
             [],
         );
-        self.write_batch_sync(batch, "refreshed manifest")?;
+        self.write_batch_with_durability_off_runtime(
+            batch,
+            "refreshed manifest",
+            ApplyDurability::Sync,
+        )
+        .await?;
         // The promoted entry keeps its original version, which the max-only
         // stat semantics absorb without dragging the destination segment's
         // seal-time max down.
@@ -2241,7 +2278,12 @@ impl Store {
             bytes,
         )?;
 
-        self.write_batch_sync(batch, "keyvalue batch")?;
+        self.write_batch_with_durability_off_runtime(
+            batch,
+            "keyvalue batch",
+            ApplyDurability::Sync,
+        )
+        .await?;
         outbox_reservation.commit();
         self.note_inline_manifest_committed(&manifest, wrote_action_cache_index);
 
@@ -2982,15 +3024,10 @@ impl Store {
             // Everything below is synchronous RocksDB work, so without this the
             // whole segment's scan runs in one poll and parks a runtime worker.
             yield_scanned_row(&mut scanned_rows).await;
-            // Commit only here, at a blob boundary, and never part-way through a
-            // cascade: #12152's invariant is that an action-cache entry never
-            // outlives the blob it references, which requires the blob and its
-            // own cascaded entries to share a batch but says nothing about two
-            // different blobs. Every chunk is therefore self-consistent on its
-            // own, and a crash between chunks is safe because the segment stays
-            // in the ring state (and its file on disk) until the whole loop is
-            // done, so a restart re-runs the eviction and the `Some(_) | None`
-            // arm below absorbs whatever the previous attempt already removed.
+            // A crash between chunks is safe: the segment stays in the ring
+            // state, and its file on disk, until this whole loop is done, so a
+            // restart re-runs the eviction and the `Some(_) | None` arm below
+            // absorbs whatever the previous attempt already removed.
             if batch.size_in_bytes() >= self.eviction_batch_budget_bytes {
                 self.commit_eviction_chunk(
                     std::mem::take(&mut batch),
@@ -3006,6 +3043,32 @@ impl Store {
 
             match self.manifest_from_db(&artifact_id)? {
                 Some(manifest) if manifest.segment_id.as_deref() == Some(segment_id) => {
+                    // Cascade first, and let it commit chunks of its own: this
+                    // blob is going away, so every action-cache entry that
+                    // references it must go too, and per-blob fanout is
+                    // unbounded (a common output blob is referenced by very
+                    // many action results). Staging a whole cascade before
+                    // checking the budget is what let one blob carry the batch
+                    // far past it.
+                    //
+                    // Splitting here is legal because #12152's invariant is
+                    // one-directional: it forbids an *entry* outliving its
+                    // blob, not a blob outliving its entries. Entries committed
+                    // ahead of the blob leave, at worst, a blob with no
+                    // referrers — which this eviction removes moments later,
+                    // and which a crash in between leaves for the re-run.
+                    if cascade_active && manifest.producer == ArtifactProducer::Reapi {
+                        self.stage_action_cache_cascade_for_blob(
+                            &mut batch,
+                            &artifact_id,
+                            &mut cascade,
+                            &mut removed_artifact_ids,
+                            &mut scanned_rows,
+                        )
+                        .await?;
+                    }
+                    // The blob's own rows go last, so they can only land in a
+                    // chunk committed after every entry referencing it is gone.
                     batch.delete_cf(self.cf(ROCKSDB_CF_MANIFESTS), artifact_id.as_bytes());
                     batch.delete_cf(
                         self.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
@@ -3014,19 +3077,6 @@ impl Store {
                     );
                     batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
                     self.stage_backfill_index_delete(&mut batch, &manifest);
-                    // Cascade: this blob is going away, so every action-cache
-                    // entry that references it must go with it, in this same
-                    // atomic batch, or the entry is stranded pointing at a blob
-                    // that no longer exists. Only REAPI blobs can be referenced.
-                    if cascade_active && manifest.producer == ArtifactProducer::Reapi {
-                        self.stage_action_cache_cascade_for_blob(
-                            &mut batch,
-                            &artifact_id,
-                            &mut cascade,
-                            &mut scanned_rows,
-                        )
-                        .await?;
-                    }
                     *removed_artifacts.entry(manifest.producer).or_default() += 1;
                     removed_artifact_ids.push(artifact_id);
                 }
@@ -3090,17 +3140,38 @@ impl Store {
         removed_artifact_ids: &mut Vec<String>,
         cascade: &mut CascadeProgress,
     ) -> Result<(), String> {
+        // An empty batch still carries a 12-byte header, so `size_in_bytes()`
+        // is never zero and a small budget can trip the check before anything
+        // is staged. Skip the write rather than spend a WAL append on nothing;
+        // the invalidations below are no-ops when nothing is pending.
+        if batch.is_empty() {
+            return Ok(());
+        }
+
         let payload = batch.data().to_vec();
+        // Invalidate before the commit as well as after. `spawn_blocking` work
+        // is never cancelled, but the future awaiting it can be dropped — and
+        // eviction runs on the request path, under an axum handler whose client
+        // may disconnect. The write would still land while the post-commit
+        // invalidation never ran, leaving the manifest cache serving rows the
+        // store no longer has and snapshots advertising cascaded entries: the
+        // `CAS error: missing object` class again. Clearing early is safe in
+        // the other direction, because a miss just re-reads a row that is still
+        // there, and it costs only a re-read if the commit then fails.
+        self.invalidate_committed_eviction(removed_artifact_ids, cascade);
         let db = Arc::clone(&self.db);
         #[cfg(test)]
-        let committed_on = Arc::clone(&self.eviction_commit_thread);
+        let commits = Arc::clone(&self.eviction_commits);
+        #[cfg(test)]
+        let chunk_bytes = payload.len();
         tokio::task::spawn_blocking(move || {
             #[cfg(test)]
             {
-                *committed_on
+                let mut commits = commits
                     .lock()
-                    .expect("eviction commit thread lock should not be poisoned") =
-                    Some(std::thread::current().id());
+                    .expect("eviction commit log lock should not be poisoned");
+                commits.threads.push(std::thread::current().id());
+                commits.chunk_bytes.push(chunk_bytes);
             }
             db.write(WriteBatch::from_data(&payload))
         })
@@ -3108,20 +3179,32 @@ impl Store {
         .map_err(|error| format!("segment eviction commit task failed: {error}"))?
         .map_err(|error| format!("failed to evict segment metadata: {error}"))?;
 
-        // Only after the commit: until it lands, a cached manifest is still a
-        // correct answer, and dropping it early would just re-read the row.
-        self.remove_manifest_cache_keys(removed_artifact_ids);
+        // Again after the commit, which is what closes the window where a
+        // concurrent read repopulated the cache from rows that were still
+        // present a moment ago. This is the pass that clears the pending state.
+        self.invalidate_committed_eviction(removed_artifact_ids, cascade);
         removed_artifact_ids.clear();
-        if !cascade.pending_entries.is_empty() {
-            self.remove_manifest_cache_keys(&cascade.pending_entries);
-            cascade.pending_entries.clear();
-        }
-        // A cached snapshot must rebuild so it drops the entries the cascade
-        // removed; the reconcile reads the now-pruned index CF.
-        for namespace_id in cascade.pending_namespaces.drain() {
-            self.bump_action_cache_generation(&namespace_id);
-        }
+        cascade.pending_entries.clear();
+        cascade.pending_namespaces.clear();
+        // Dedup is per-chunk; see `CascadeProgress`.
+        cascade.seen.clear();
         Ok(())
+    }
+
+    /// Drops the manifest-cache keys one eviction chunk makes unreachable and
+    /// bumps the action-cache generation of every namespace it touched, so a
+    /// cached snapshot rebuilds against the pruned index. Idempotent, because
+    /// `commit_eviction_chunk` runs it on both sides of the commit.
+    fn invalidate_committed_eviction(
+        &self,
+        removed_artifact_ids: &[String],
+        cascade: &CascadeProgress,
+    ) {
+        self.remove_manifest_cache_keys(removed_artifact_ids);
+        self.remove_manifest_cache_keys(&cascade.pending_entries);
+        for namespace_id in &cascade.pending_namespaces {
+            self.bump_action_cache_generation(namespace_id);
+        }
     }
 
     /// Cascade-delete the action-cache entries that reference `blob_artifact_id`
@@ -3154,6 +3237,7 @@ impl Store {
         batch: &mut WriteBatch,
         blob_artifact_id: &str,
         cascade: &mut CascadeProgress,
+        removed_artifact_ids: &mut Vec<String>,
         scanned_rows: &mut usize,
     ) -> Result<(), String> {
         let prefix = action_cache_blob_ref_prefix(blob_artifact_id);
@@ -3201,6 +3285,14 @@ impl Store {
             }
             self.stage_action_cache_entry_delete(batch, &entry_manifest, &entry_bytes);
             cascade.record(&entry_manifest.namespace_id, entry_id);
+            // Bound the batch inside the cascade, not just between blobs. The
+            // caller stages this blob's own rows only after this returns, so
+            // committing here can never publish a blob deletion ahead of an
+            // entry that references it.
+            if batch.size_in_bytes() >= self.eviction_batch_budget_bytes {
+                self.commit_eviction_chunk(std::mem::take(batch), removed_artifact_ids, cascade)
+                    .await?;
+            }
         }
         Ok(())
     }
@@ -3920,11 +4012,12 @@ impl Store {
         if batch.is_empty() {
             return Ok(false);
         }
-        self.write_batch_with_durability(
+        self.write_batch_with_durability_off_runtime(
             batch,
             "backfill group batch",
             ApplyDurability::DeferredBatch,
-        )?;
+        )
+        .await?;
         for record in committed {
             match record {
                 CommittedGroupRecord::Segmented {
@@ -4131,7 +4224,12 @@ impl Store {
             )?;
         }
 
-        self.write_batch_sync(batch, "delete namespace batch")?;
+        self.write_batch_with_durability_off_runtime(
+            batch,
+            "delete namespace batch",
+            ApplyDurability::Sync,
+        )
+        .await?;
         outbox_reservation.commit();
         self.remove_manifest_cache_keys(&removed_artifact_ids);
 
@@ -4349,8 +4447,13 @@ impl Store {
                 upload_id.as_bytes(),
                 upload_bytes,
             );
-            self.write_batch_sync(batch, "multipart upload replacement")
-                .map_err(MultipartError::Other)?;
+            self.write_batch_with_durability_off_runtime(
+                batch,
+                "multipart upload replacement",
+                ApplyDurability::Sync,
+            )
+            .await
+            .map_err(MultipartError::Other)?;
             Ok(())
         }
         .await;
@@ -4578,7 +4681,12 @@ impl Store {
         if upload_exists {
             let mut batch = WriteBatch::default();
             batch.delete_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), upload_id.as_bytes());
-            self.write_batch_sync(batch, "multipart upload deletion")?;
+            self.write_batch_with_durability_off_runtime(
+                batch,
+                "multipart upload deletion",
+                ApplyDurability::Sync,
+            )
+            .await?;
             release_atomic_slots(&self.multipart_uploads, 1);
         }
 
@@ -6249,9 +6357,74 @@ impl Store {
                     .fetch_add(1, Ordering::Relaxed);
             }
         }
+        #[cfg(test)]
+        if let Some(observer) = self
+            .write_thread_observer
+            .lock()
+            .expect("write observer lock should not be poisoned")
+            .clone()
+        {
+            observer(std::thread::current().id());
+        }
         self.db
             .write_opt(batch, &write_options)
             .map_err(|error| format!("failed to write {label}: {error}"))
+    }
+
+    /// Request-path sibling of [`Self::write_batch_with_durability`] that
+    /// commits on the blocking pool.
+    ///
+    /// Getting segment eviction off the worker threads is not by itself enough
+    /// (#12587): `allow_stall = true` blocks *whichever* thread is inside
+    /// RocksDB, so once the pool is saturated every writer that still runs
+    /// inline parks a worker, and enough concurrent writers park the runtime
+    /// even though no eviction is involved.
+    ///
+    /// The callers that matter are the ones already `async` — the artifact and
+    /// action-cache write paths, promotion, and multipart — because those are
+    /// what run at request concurrency. The remaining callers of the sync
+    /// funnel are backfill, GC and startup work: low-concurrency, off the
+    /// serving path, and converting them would mean making a chain of sync
+    /// functions async for no change in the failure this addresses.
+    async fn write_batch_with_durability_off_runtime(
+        &self,
+        batch: WriteBatch,
+        label: &'static str,
+        durability: ApplyDurability,
+    ) -> Result<(), String> {
+        // `WriteBatch` is not `Send`, so the batch crosses as its serialized
+        // representation — the same encoding RocksDB writes to the WAL, with
+        // column-family targeting preserved. See `commit_eviction_chunk`.
+        let payload = batch.data().to_vec();
+        let db = Arc::clone(&self.db);
+        let mut write_options = WriteOptions::default();
+        match durability {
+            ApplyDurability::Sync => {
+                write_options.set_sync(true);
+                self.wal_sync_write_count.fetch_add(1, Ordering::Relaxed);
+            }
+            ApplyDurability::DeferredBatch => {
+                write_options.set_sync(false);
+                self.wal_deferred_write_count
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        #[cfg(test)]
+        let observer = self
+            .write_thread_observer
+            .lock()
+            .expect("write observer lock should not be poisoned")
+            .clone();
+        tokio::task::spawn_blocking(move || {
+            #[cfg(test)]
+            if let Some(observer) = observer {
+                observer(std::thread::current().id());
+            }
+            db.write_opt(WriteBatch::from_data(&payload), &write_options)
+        })
+        .await
+        .map_err(|error| format!("{label} write task failed: {error}"))?
+        .map_err(|error| format!("failed to write {label}: {error}"))
     }
 
     /// The deferred batch's phase-4 durability barrier: one synced WAL flush
@@ -11056,6 +11229,415 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn one_high_fanout_blob_cannot_blow_past_the_chunk_budget() {
+        // Review finding (#12587): the budget is checked *before* a blob is
+        // staged, and a blob's cascade is unbounded, so the real ceiling was
+        // `budget + one blob's entire cascade` rather than the budget. That
+        // matters because per-blob fanout is genuinely unbounded — a common
+        // output blob (an empty file, a shared header) is referenced by very
+        // many action results — which is the same shape that saturated the
+        // pool in the first place.
+        //
+        // Splitting inside a cascade is legal, and this is the reasoning the
+        // original chunking missed: #12152's invariant is one-directional. It
+        // forbids an entry outliving its blob, not a blob outliving its
+        // entries. Committing a blob's entries *before* the blob leaves, at
+        // worst, an orphaned blob mid-eviction — which this very eviction is
+        // about to delete anyway.
+        const ENTRIES: u8 = 60;
+
+        let (_temp_dir, _config, mut store) = temp_store();
+        store.eviction_batch_budget_bytes = 4096;
+        let store = Arc::new(store);
+
+        let digest = reapi_digest(1, 5);
+        let manifest = persist_reapi_blob(&store, "fanout", &digest, b"hello").await;
+        for marker in 0..ENTRIES {
+            persist_action_cache_entry(
+                &store,
+                "fanout",
+                marker,
+                &action_result_referencing(&[&digest]),
+                1,
+            )
+            .await;
+        }
+        let segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("blob should be segment-backed");
+
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("failed to evict segment");
+
+        let chunk_bytes = store
+            .eviction_commits
+            .lock()
+            .expect("eviction commit log lock should not be poisoned")
+            .chunk_bytes
+            .clone();
+        let largest = chunk_bytes.iter().copied().max().unwrap_or_default();
+        // One chunk may still overshoot by the last entry staged before the
+        // check plus the blob's own rows; what it may not do is carry the whole
+        // cascade. Twice the budget is comfortably above the former and far
+        // below the latter.
+        assert!(
+            largest <= store.eviction_batch_budget_bytes * 2,
+            "a single chunk reached {largest} bytes against a {} byte budget, so \
+             one blob's cascade is still committed as one batch",
+            store.eviction_batch_budget_bytes
+        );
+    }
+
+    #[tokio::test]
+    async fn a_republished_entry_is_not_skipped_by_an_earlier_chunks_dedup() {
+        // Review finding (#12587): `CascadeProgress::seen` de-duplicated across
+        // the whole segment, which was right when the segment was one batch. It
+        // is wrong once the eviction commits in chunks — an entry removed by an
+        // early chunk and then republished against a *different* blob in the
+        // same segment is skipped when that blob is reached, and survives
+        // pointing at a blob this eviction is deleting. Exactly the strand
+        // #12152 closed.
+        //
+        // The eviction is driven by hand rather than raced against a probe
+        // task. The hazard needs the republish to land strictly between the
+        // chunk that deletes the entry and the scan reaching the second blob,
+        // and a concurrent probe only hits that window by luck — it stopped
+        // hitting it as soon as the request-path writes gained an await.
+        // Stepping the future makes the ordering the test's, not the
+        // scheduler's.
+        //
+        // The scan order also matters and is not creation order: the segment
+        // index is walked by artifact id, so the entry is pinned to the blob
+        // scanned first and the republish aimed at the one scanned last.
+        let (_temp_dir, _config, mut store) = temp_store();
+        store.eviction_batch_budget_bytes = 1;
+        let store = Arc::new(store);
+
+        let digests = [reapi_digest(1, 5), reapi_digest(2, 5)];
+        let mut blobs = Vec::new();
+        for (index, digest) in digests.iter().enumerate() {
+            let manifest = persist_reapi_blob(
+                &store,
+                "republish",
+                digest,
+                format!("body{index}").as_bytes(),
+            )
+            .await;
+            blobs.push((manifest.artifact_id, digest.clone()));
+        }
+        let segment_id = store
+            .manifest(&blobs[0].0)
+            .expect("failed to load manifest")
+            .expect("blob should exist")
+            .segment_id
+            .expect("blob should be segment-backed");
+
+        let prefix = segment_artifact_index_prefix(&segment_id);
+        let mut scan_order = Vec::new();
+        for item in store.db.iterator_cf(
+            store.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
+            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
+        ) {
+            let (index_key, _) = item.expect("failed to iterate segment index");
+            if !index_key.starts_with(prefix.as_bytes()) {
+                break;
+            }
+            scan_order.push(
+                std::str::from_utf8(&index_key[prefix.len()..])
+                    .expect("valid segment index key")
+                    .to_owned(),
+            );
+        }
+        let first_scanned = scan_order
+            .first()
+            .expect("segment should hold blobs")
+            .clone();
+        let last_scanned = scan_order
+            .last()
+            .expect("segment should hold blobs")
+            .clone();
+        assert_ne!(
+            first_scanned, last_scanned,
+            "both blobs must share the segment being evicted"
+        );
+        let digest_of = |artifact_id: &str| {
+            blobs
+                .iter()
+                .find(|(id, _)| id == artifact_id)
+                .map(|(_, digest)| digest.clone())
+                .expect("every scanned row should be one of the blobs")
+        };
+
+        let entry = persist_action_cache_entry(
+            &store,
+            "republish",
+            0,
+            &action_result_referencing(&[&digest_of(&first_scanned)]),
+            1,
+        )
+        .await;
+        let entry_id = entry.artifact_id.clone();
+
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        let mut eviction = Box::pin(store.evict_segment(&segment_id));
+
+        // Step until the chunk carrying the entry's deletion has landed.
+        let mut entry_removed = false;
+        for _ in 0..10_000 {
+            if std::pin::Pin::new(&mut eviction)
+                .poll(&mut context)
+                .is_ready()
+            {
+                break;
+            }
+            if store
+                .manifest_from_db(&entry_id)
+                .expect("failed to read manifest")
+                .is_none()
+            {
+                entry_removed = true;
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        assert!(
+            entry_removed,
+            "the eviction finished before removing the entry, so this asserts nothing"
+        );
+        assert!(
+            store
+                .manifest_from_db(&last_scanned)
+                .expect("failed to read manifest")
+                .is_some(),
+            "the republish target was already evicted, so this asserts nothing"
+        );
+
+        // Republish the same entry onto the blob the scan has not reached yet.
+        persist_action_cache_entry(
+            &store,
+            "republish",
+            0,
+            &action_result_referencing(&[&digest_of(&last_scanned)]),
+            2,
+        )
+        .await;
+        assert!(
+            store
+                .manifest_from_db(&entry_id)
+                .expect("failed to read manifest")
+                .is_some(),
+            "the republish did not land, so this asserts nothing"
+        );
+
+        for _ in 0..10_000 {
+            if std::pin::Pin::new(&mut eviction)
+                .poll(&mut context)
+                .is_ready()
+            {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        drop(eviction);
+
+        assert!(
+            store
+                .manifest_from_db(&last_scanned)
+                .expect("failed to read manifest")
+                .is_none(),
+            "the republish target should have been evicted"
+        );
+        assert!(
+            store
+                .manifest_from_db(&entry_id)
+                .expect("failed to read manifest")
+                .is_none(),
+            "the republished entry survived its blob: an earlier chunk's dedup \
+             skipped it, leaving it pointing at a blob this eviction removed"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_eviction_still_drops_the_caches_for_what_it_committed() {
+        // Review finding (#12587): `spawn_blocking` work is never cancelled,
+        // but the future awaiting it can be dropped — and eviction runs on the
+        // request path, under a handler whose client may disconnect. Invalidate
+        // only after the await and the write still lands while the manifest
+        // cache keeps serving rows the store no longer has, which is the
+        // `CAS error: missing object` class #12152 closed.
+        //
+        // The cancellation point is exact rather than timed: the future is
+        // polled by hand until a commit closure has recorded itself, then
+        // dropped on the spot, so the drop always lands with a commit in
+        // flight instead of wherever a timeout happened to fall.
+        let (_temp_dir, _config, mut store) = temp_store();
+        store.eviction_batch_budget_bytes = 1;
+        let store = Arc::new(store);
+
+        let mut artifact_ids = Vec::new();
+        for index in 0..6 {
+            let digest = reapi_digest(index as u8, 5);
+            let manifest = persist_reapi_blob(
+                &store,
+                "cancelled",
+                &digest,
+                format!("body{index}").as_bytes(),
+            )
+            .await;
+            let entry = persist_action_cache_entry(
+                &store,
+                "cancelled",
+                index as u8,
+                &action_result_referencing(&[&digest]),
+                1,
+            )
+            .await;
+            // Entries as well as blobs: the cascade commits an entry chunk
+            // before the blob's own rows, so the first landed chunk is an
+            // entry deletion and watching only blobs would miss it.
+            artifact_ids.push(manifest.artifact_id);
+            artifact_ids.push(entry.artifact_id);
+        }
+        let segment_id = store
+            .manifest(&artifact_ids[0])
+            .expect("failed to load manifest")
+            .expect("blob should exist")
+            .segment_id
+            .expect("blob should be segment-backed");
+
+        // Warm the manifest cache so there is something to go stale.
+        for artifact_id in &artifact_ids {
+            store
+                .manifest(artifact_id)
+                .expect("failed to load manifest")
+                .expect("blob should exist");
+        }
+
+        let mut eviction = Box::pin(store.evict_segment(&segment_id));
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        let mut committed = false;
+        for _ in 0..10_000 {
+            if std::pin::Pin::new(&mut eviction)
+                .poll(&mut context)
+                .is_ready()
+            {
+                break;
+            }
+            if !store
+                .eviction_commits
+                .lock()
+                .expect("eviction commit log lock should not be poisoned")
+                .chunk_bytes
+                .is_empty()
+            {
+                committed = true;
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        drop(eviction);
+        assert!(
+            committed,
+            "no chunk was committed before the drop, so this asserts nothing"
+        );
+
+        // The detached commit is still finishing on its blocking thread.
+        let mut evicted = Vec::new();
+        for _ in 0..10_000 {
+            evicted = artifact_ids
+                .iter()
+                .filter(|artifact_id| {
+                    store
+                        .manifest_from_db(artifact_id)
+                        .expect("failed to read manifest")
+                        .is_none()
+                })
+                .cloned()
+                .collect();
+            if !evicted.is_empty() {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        assert!(
+            !evicted.is_empty(),
+            "the detached commit never landed, so this asserts nothing"
+        );
+
+        // Peek rather than `manifest()`, which would repopulate what it reads.
+        let cache = store
+            .manifest_cache
+            .lock()
+            .expect("manifest cache lock should not be poisoned");
+        for artifact_id in &evicted {
+            assert!(
+                !cache.entries.contains_key(artifact_id),
+                "the eviction was cancelled mid-commit, so {artifact_id} was \
+                 deleted from the store while the manifest cache kept serving it"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn request_path_writes_also_commit_off_the_runtime_worker() {
+        // Review finding (#12587): getting eviction off the worker threads is
+        // not enough on its own. `allow_stall = true` blocks whichever thread
+        // is inside RocksDB, so once the pool is saturated every writer still
+        // running inline parks a worker, and enough concurrent writers park the
+        // runtime with no eviction involved at all.
+        //
+        // Same reasoning as the eviction commit: `#[tokio::test]` is a
+        // current-thread runtime, so an inline write would land on this very
+        // thread. Persisting an artifact and an action-cache entry covers the
+        // two hottest write paths.
+        let (_temp_dir, _config, store) = temp_store();
+        let runtime_thread = std::thread::current().id();
+        let observed = Arc::new(StdMutex::new(Vec::new()));
+
+        {
+            let observed = Arc::clone(&observed);
+            let previous = store
+                .write_thread_observer
+                .lock()
+                .expect("write observer lock should not be poisoned")
+                .replace(Arc::new(move |thread| {
+                    observed
+                        .lock()
+                        .expect("observed lock should not be poisoned")
+                        .push(thread);
+                }));
+            assert!(previous.is_none());
+        }
+
+        let digest = reapi_digest(1, 5);
+        persist_reapi_blob(&store, "offloaded", &digest, b"hello").await;
+        persist_action_cache_entry(
+            &store,
+            "offloaded",
+            0,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+
+        let observed = observed
+            .lock()
+            .expect("observed lock should not be poisoned");
+        assert!(
+            !observed.is_empty(),
+            "no request-path write was observed, so this asserts nothing"
+        );
+        assert!(
+            observed.iter().all(|thread| *thread != runtime_thread),
+            "a request-path write committed inline on the thread driving the \
+             runtime, so a saturated write-buffer pool would park it"
+        );
+    }
+
+    #[tokio::test]
     async fn evict_segment_commits_off_the_thread_that_drives_the_runtime() {
         // The layer that makes the 2026-08-24 stall survivable (#12556). The
         // metadata store runs `allow_stall = true`, so a saturated write-buffer
@@ -11087,13 +11669,18 @@ mod tests {
             .await
             .expect("failed to evict segment");
 
-        let committed_on = store
-            .eviction_commit_thread
+        let threads = store
+            .eviction_commits
             .lock()
-            .expect("eviction commit thread lock should not be poisoned")
-            .expect("the eviction should have committed at least one chunk");
-        assert_ne!(
-            committed_on, runtime_thread,
+            .expect("eviction commit log lock should not be poisoned")
+            .threads
+            .clone();
+        assert!(
+            !threads.is_empty(),
+            "the eviction should have committed at least one chunk"
+        );
+        assert!(
+            threads.iter().all(|thread| *thread != runtime_thread),
             "the eviction committed inline on the thread driving the runtime, so \
              a write-buffer stall inside RocksDB would park the runtime itself"
         );
