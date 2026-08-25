@@ -406,6 +406,26 @@ defmodule TuistWeb.OpsAccountLiveTest do
       end
     end
 
+    test "says the balance was cleared rather than quoting a charge", %{conn: conn, user: user} do
+      # Zero invoices nothing, so quoting a minute's worth told the
+      # operator 0.06$ had been added to a bill that gained no line.
+      stub(Prepaid, :set_minutes, fn _account, _minutes -> {:ok, :cleared} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      lv
+      |> form("#prepaid-minutes-form", %{"minutes" => "0"})
+      |> render_submit()
+
+      # Read off the flash itself: the page carries rates elsewhere, so
+      # asserting against the whole render proves nothing.
+      flash = lv |> element("#ops-account-flash-info") |> render()
+
+      assert flash =~ "no longer holds any prepaid runner minutes"
+      refute flash =~ "next invoice"
+      refute flash =~ "0.06"
+    end
+
     test "clears the balance when set to zero", %{conn: conn, user: user} do
       # Zero is a figure to set, not a malformed one: it is how an
       # account's minutes are taken away.

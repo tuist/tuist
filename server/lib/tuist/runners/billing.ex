@@ -348,11 +348,12 @@ defmodule Tuist.Runners.Billing do
   repository that triggered the job and nothing else, so that is the
   finest attribution the data supports without inventing a mapping.
   """
-  def compute_milliseconds_per_repository(account_id, %DateTime{} = period_start, %DateTime{} = period_end)
+  def compute_milliseconds_per_repository(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
       when is_integer(account_id) do
     overlapping =
       account_id
       |> sessions_overlapping(period_start, period_end)
+      |> scope(opts)
       |> select([s], %{
         started_at: s.job_started_at,
         effective_end: s.job_ended_at,
@@ -564,7 +565,15 @@ defmodule Tuist.Runners.Billing do
     |> maybe_eq(:repository, Keyword.get(opts, :repository))
     |> maybe_eq(:workflow_name, Keyword.get(opts, :workflow_name))
     |> maybe_platform(Keyword.get(opts, :platform))
+    |> maybe_platforms(Keyword.get(opts, :platforms))
   end
+
+  # The platform column rather than the fleet-name prefixes
+  # `maybe_platform/2` matches on, for callers that hold a list of
+  # platforms rather than one name typed by a user.
+  defp maybe_platforms(query, nil), do: query
+
+  defp maybe_platforms(query, platforms) when is_list(platforms), do: where(query, [s], s.platform in ^platforms)
 
   defp maybe_eq(query, _field, nil), do: query
   defp maybe_eq(query, _field, ""), do: query

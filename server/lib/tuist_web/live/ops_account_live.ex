@@ -155,7 +155,6 @@ defmodule TuistWeb.OpsAccountLive do
 
         case Prepaid.set_minutes(account, minutes) do
           {:ok, _result} ->
-            quoted = Prepaid.quote_minutes(max(minutes, 1))
             refreshed = Prepaid.balance(account)
 
             {:noreply,
@@ -164,16 +163,7 @@ defmodule TuistWeb.OpsAccountLive do
              |> assign(:prepaid_balance, refreshed)
              |> assign(:prepaid_minutes_value, held_minutes(refreshed))
              |> assign(:prepaid_quote, nil)
-             |> put_flash(
-               :info,
-               dgettext(
-                 "dashboard",
-                 "%{account} now holds %{minutes} prepaid runner minutes. %{amount} was added to its next invoice.",
-                 minutes: format_number(minutes),
-                 amount: format_money(quoted.invoiced),
-                 account: account.name
-               )
-             )}
+             |> put_flash(:info, set_minutes_message(account, minutes))}
 
           {:error, reason} ->
             {:noreply,
@@ -377,6 +367,22 @@ defmodule TuistWeb.OpsAccountLive do
       {:ok, minutes} when minutes > 0 -> Prepaid.quote_minutes(minutes)
       _ -> nil
     end
+  end
+
+  defp set_minutes_message(account, 0) do
+    dgettext("dashboard", "%{account} no longer holds any prepaid runner minutes.", account: account.name)
+  end
+
+  defp set_minutes_message(account, minutes) do
+    quoted = Prepaid.quote_minutes(minutes)
+
+    dgettext(
+      "dashboard",
+      "%{account} now holds %{minutes} prepaid runner minutes. %{amount} was added to its next invoice.",
+      minutes: format_number(minutes),
+      amount: format_money(quoted.invoiced),
+      account: account.name
+    )
   end
 
   # The field opens on what the account holds, so an operator corrects a

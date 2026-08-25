@@ -130,9 +130,12 @@ defmodule Tuist.Runners.Allowance do
     usage_end = if DateTime.before?(now, period_end), do: now, else: period_end
     free_ms = free_monthly_minutes() * 60_000
 
+    # Money is only ever put on usage there is a rate for. Linux runs
+    # are reported but cannot be invoiced, so pricing them at the macOS
+    # rate would show an account a bill no invoice can carry.
     per_day =
       account_id
-      |> RunnerBilling.compute_milliseconds_per_bucket(period_start, usage_end, :day)
+      |> RunnerBilling.compute_milliseconds_per_bucket(period_start, usage_end, :day, platforms: @priced_platforms)
       |> Enum.sort_by(fn {date, _ms} -> Date.to_erl(date) end)
 
     {days, _remaining} =
@@ -153,7 +156,11 @@ defmodule Tuist.Runners.Allowance do
         {day, remaining_free - covered}
       end)
 
-    total_ms = per_day |> Enum.map(&elem(&1, 1)) |> Enum.sum()
+    priced_ms = per_day |> Enum.map(&elem(&1, 1)) |> Enum.sum()
+
+    # Every minute the account ran, priced or not: it did use them, and
+    # the minute count is what it is judged against.
+    total_ms = RunnerBilling.compute_milliseconds(account_id, period_start, usage_end)
 
     %{
       period_start: DateTime.to_date(period_start),
@@ -161,19 +168,22 @@ defmodule Tuist.Runners.Allowance do
       usage_through: DateTime.to_date(usage_end),
       minutes: div(total_ms, 60_000),
       free_minutes: free_monthly_minutes(),
-      gross: Prepaid.on_demand_cost_for_milliseconds(total_ms),
+      gross: Prepaid.on_demand_cost_for_milliseconds(priced_ms),
       billed:
         if(on_trial,
           do: Money.new(0, :USD),
-          else: Prepaid.on_demand_cost_for_milliseconds(max(total_ms - free_ms, 0))
+          else: Prepaid.on_demand_cost_for_milliseconds(max(priced_ms - free_ms, 0))
         ),
       days: Enum.reject(days, &(&1.minutes == 0 and &1.gross == Money.new(0, :USD))),
-      by_repository: RunnerBilling.compute_milliseconds_per_repository(account_id, period_start, usage_end),
-      projected_days: projected_days(total_ms, period_start, period_end, usage_end),
+      by_repository:
+        RunnerBilling.compute_milliseconds_per_repository(account_id, period_start, usage_end,
+          platforms: @priced_platforms
+        ),
+      projected_days: projected_days(priced_ms, period_start, period_end, usage_end),
       on_trial: on_trial,
       platforms:
         account_id
-        |> platform_rows(period_start, period_end, usage_end, total_ms)
+        |> platform_rows(period_start, period_end, usage_end, priced_ms)
         |> zero_billed_on_trial(on_trial)
     }
   end

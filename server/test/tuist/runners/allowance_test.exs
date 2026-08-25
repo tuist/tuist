@@ -260,6 +260,40 @@ defmodule Tuist.Runners.AllowanceTest do
       assert row.projected_minutes >= row.minutes
     end
 
+    test "puts no money on usage from a platform with no rate", %{account: account} do
+      # Linux minutes past the allowance were being priced at the macOS
+      # rate and reported as money billed, against a macOS row reading
+      # zero. No invoice can carry them: Linux has no Price.
+      # Started early enough that the whole run falls inside the window.
+      started = DateTime.add(DateTime.utc_now(), -4, :hour)
+
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: System.unique_integer([:positive]),
+        fleet_name: "tuist-linux",
+        pod_name: "pod-#{System.unique_integer([:positive])}",
+        runner_name: "",
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8,
+        billing_multiplier: 10_000,
+        started_at: started,
+        job_started_at: started,
+        job_ended_at: DateTime.add(started, 160 * 60, :second),
+        inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+
+      breakdown = Allowance.period_breakdown(account)
+
+      # Reported, because the account did run them.
+      assert breakdown.minutes == 160
+      # Not priced, because there is no rate to price them at.
+      assert breakdown.gross == Money.new(0, :USD)
+      assert breakdown.billed == Money.new(0, :USD)
+      assert breakdown.days == []
+    end
+
     test "leaves out a platform with no agreed rate", %{account: account} do
       started = DateTime.add(DateTime.utc_now(), -1, :hour)
 
