@@ -42,7 +42,7 @@ PY
       -H "content-type: application/octet-stream" \
       --data-binary "@${artifact_path}" || return 1
 
-    The variable response should eq 503
+    The variable response should eq 429
 
     capture_into response_body cat "${SUITE_TMP_DIR}/response.txt" || return 1
     The variable response_body should include 'Temporary storage budget exhausted'

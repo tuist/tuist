@@ -11,7 +11,6 @@ defmodule Tuist.Projects do
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
   alias Tuist.Automations
-  alias Tuist.Automations.Alerts.Alert
   alias Tuist.Base64
   alias Tuist.CommandEvents
   alias Tuist.Projects.Project
@@ -337,9 +336,7 @@ defmodule Tuist.Projects do
   end
 
   defp seed_default_alert(%Project{id: project_id}) do
-    %Alert{}
-    |> Alert.changeset(Automations.default_alert_attrs(project_id))
-    |> Repo.insert()
+    Automations.create_alert(Automations.default_alert_attrs(project_id), source: "system")
   end
 
   def delete_project(%Project{} = project) do

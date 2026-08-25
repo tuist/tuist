@@ -218,6 +218,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
         assert params.output.summary =~ "Strict"
         assert length(params.actions) == 1
         assert hd(params.actions).identifier == "accept_bundle_size"
+        assert params.external_id == bundle.id
         {:ok, %{"id" => 1}}
       end)
 

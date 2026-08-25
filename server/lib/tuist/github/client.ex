@@ -98,6 +98,34 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
+  def get_user_by_username(%{username: username, installation: installation}) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/users/#{username}"
+
+    case github_request(&Req.get/1, url: url, installation: installation, api_url: api_url) do
+      {:ok, %{"id" => id, "login" => login}} ->
+        {:ok, %VCS.User{id: to_string(id), username: login}}
+
+      {:ok, _} ->
+        {:error, :not_found}
+
+      # `github_request/2` flattens every non-2xx into a message. Only a 404
+      # says the account does not exist. A 5xx, a secondary rate limit, an
+      # expired installation token or a transport failure all mean the
+      # question could not be asked, which is a different thing to tell the
+      # caller than "no such user".
+      {:error, message} when is_binary(message) ->
+        if String.starts_with?(message, "Unexpected status code: 404") do
+          {:error, :not_found}
+        else
+          {:error, :unavailable}
+        end
+
+      _ ->
+        {:error, :unavailable}
+    end
+  end
+
   def get_comments(%{repository_full_handle: repository_full_handle, issue_id: issue_id, installation: installation}) do
     api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
@@ -299,7 +327,7 @@ defmodule Tuist.GitHub.Client do
 
     json =
       params
-      |> Map.take([:name, :head_sha, :status, :conclusion, :output, :actions, :details_url])
+      |> Map.take([:name, :head_sha, :status, :conclusion, :output, :actions, :details_url, :external_id])
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
       |> Map.new()
 

@@ -27,11 +27,16 @@ public enum GetCacheValueServiceError: LocalizedError {
     case unauthorized(String)
     case freeTierExhausted(String)
     case badRequest(String)
+    /// The server admitted no response stream for the read and asked for a retry.
+    case rateLimited(String, retryAfterSeconds: Int?)
 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS value could not be retrieved due to an unknown Tuist response of \(statusCode)."
+        case let .rateLimited(message, retryAfterSeconds):
+            guard let retryAfterSeconds else { return message }
+            return "\(message) (retry after \(retryAfterSeconds)s)"
         case let .unauthorized(message), let .badRequest(message), let .freeTierExhausted(message):
             return message
         }
@@ -103,6 +108,14 @@ public struct GetCacheValueService: GetCacheValueServicing {
             }
         case .notFound:
             return nil
+        case let .tooManyRequests(tooManyRequests):
+            switch tooManyRequests.body {
+            case let .json(error):
+                throw GetCacheValueServiceError.rateLimited(
+                    error.message,
+                    retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+                )
+            }
         case let .undocumented(statusCode: statusCode, _):
             throw GetCacheValueServiceError.unknownError(statusCode)
         }

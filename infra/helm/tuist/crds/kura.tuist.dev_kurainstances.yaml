@@ -126,6 +126,14 @@ spec:
                 memoryFloorMib:
                   type: integer
                   format: int32
+                  # Kura refuses to start on a floor it cannot fit its process
+                  # baseline (96 MiB), its minimum anon caches (48 MiB) and a
+                  # minimum admission reserve (32 MiB) inside, so a floor under
+                  # 176 MiB is a CrashLoopBackOff rather than a small instance.
+                  # Zero still means "use the controller default".
+                  x-kubernetes-validations:
+                    - rule: "self == 0 || self >= 176"
+                      message: "memoryFloorMib must be 0 (controller default) or at least 176, the smallest floor Kura can start on"
                 # Memory ceiling (MiB) — the pod's limits.memory, which is what
                 # Kura sizes its admission pools from at startup.
                 memoryCeilingMib:

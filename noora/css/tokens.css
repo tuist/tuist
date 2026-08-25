@@ -990,7 +990,7 @@
 
   --noora-font-color-primary: light-dark(
     var(--noora-neutral-light-1100),
-    var(-noora-neutral-light-100)
+    var(--noora-neutral-light-100)
   );
   --noora-font-color-secondary: light-dark(
     var(--noora-neutral-light-1000),
@@ -1001,8 +1001,8 @@
     var(--noora-neutral-light-900)
   );
   --noora-font-color-information: light-dark(
-    var(--noora-neutral-azure-500),
-    var(--noora-neutral-azure-300)
+    var(--noora-azure-500),
+    var(--noora-azure-300)
   );
   --noora-font-color-success: light-dark(
     var(--noora-green-600),

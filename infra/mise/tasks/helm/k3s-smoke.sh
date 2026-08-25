@@ -34,14 +34,36 @@ fi
 
 created_cluster=0
 
+apiserver_ready() {
+    "$KUBECTL_BIN" api-resources >/dev/null 2>&1
+}
+
+wait_for_apiserver() {
+    local deadline=$((SECONDS + 120))
+
+    while ((SECONDS < deadline)); do
+        if apiserver_ready && [[ -n "$("$KUBECTL_BIN" get nodes -o name 2>/dev/null)" ]]; then
+            return 0
+        fi
+        sleep 2
+    done
+
+    echo "The Kubernetes API server did not start serving its API group list within 120s." >&2
+    return 1
+}
+
 collect_diagnostics() {
     local exit_code=$?
     rm -f "$rendered"
 
     if [[ "$exit_code" -ne 0 ]]; then
-        "$KUBECTL_BIN" -n "$NAMESPACE" get all,pvc || true
-        "$KUBECTL_BIN" -n "$NAMESPACE" get events --sort-by=.lastTimestamp || true
-        "$KUBECTL_BIN" -n "$NAMESPACE" describe pods || true
+        if apiserver_ready; then
+            "$KUBECTL_BIN" -n "$NAMESPACE" get all,pvc || true
+            "$KUBECTL_BIN" -n "$NAMESPACE" get events --sort-by=.lastTimestamp || true
+            "$KUBECTL_BIN" -n "$NAMESPACE" describe pods || true
+        else
+            echo "Skipping cluster diagnostics: the Kubernetes API server is unreachable." >&2
+        fi
     fi
 
     if [[ "$created_cluster" == "1" && "$KEEP_CLUSTER" != "1" ]]; then
@@ -71,6 +93,7 @@ if [[ "$USE_CURRENT_CONTEXT" != "1" ]]; then
     KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
 fi
 
+wait_for_apiserver
 "$KUBECTL_BIN" wait --for=condition=Ready nodes --all --timeout=120s
 node_versions="$("$KUBECTL_BIN" get nodes -o jsonpath='{range .items[*]}{.status.nodeInfo.kubeletVersion}{"\n"}{end}')"
 if ! grep -qi "k3s" <<< "$node_versions"; then

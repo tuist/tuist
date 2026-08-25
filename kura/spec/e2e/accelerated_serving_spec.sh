@@ -70,4 +70,53 @@ Describe 'accelerated artifact serving'
     The variable first_match should eq "match"
     The variable second_match should eq "match"
   End
+
+  # A download cut short mid-body must be resumable from where it stopped
+  # rather than restarted, which is the whole point of Range on this path.
+  It 'resumes an interrupted download from a byte offset instead of restarting'
+    marker="$(new_marker)"
+    artifact_id="resumable-${marker}"
+    url="${KURA_US_URL}/api/cache/cas/${artifact_id}?tenant_id=default"
+
+    payload="${SUITE_TMP_DIR}/resume-payload-${marker}.bin"
+    head -c 262144 /dev/urandom >"${payload}"
+
+    put_status="$(status_only -X POST "${url}" \
+      -H "content-type: application/octet-stream" \
+      --data-binary "@${payload}")"
+    The variable put_status should eq 204
+
+    capture_into ready_status wait_for_status "${url}" 200 || return 1
+    The variable ready_status should eq 200
+
+    head_part="${SUITE_TMP_DIR}/resume-head-${marker}.bin"
+    tail_part="${SUITE_TMP_DIR}/resume-tail-${marker}.bin"
+    assembled="${SUITE_TMP_DIR}/resume-assembled-${marker}.bin"
+
+    # Stand in for a transfer that died at 100000 bytes.
+    head -c 100000 "${payload}" >"${head_part}"
+
+    resume_status="$(curl -sS --http1.1 -o "${tail_part}" -w "%{http_code}" \
+      -H "range: bytes=100000-" "${url}")"
+    The variable resume_status should eq 206
+
+    content_range="$(curl -sS --http1.1 -o /dev/null -D - \
+      -H "range: bytes=100000-" "${url}" | tr -d '\r' | grep -i '^content-range:' | head -1)"
+    The variable content_range should eq "content-range: bytes 100000-262143/262144"
+
+    cat "${head_part}" "${tail_part}" >"${assembled}"
+    resumed_match="$(cmp -s "${payload}" "${assembled}" && echo match || echo differ)"
+    The variable resumed_match should eq "match"
+
+    # The full response has to say resume is available, or a client never
+    # learns it can retry this way.
+    accept_ranges="$(curl -sS --http1.1 -o /dev/null -D - "${url}" \
+      | tr -d '\r' | grep -i '^accept-ranges:' | head -1)"
+    The variable accept_ranges should eq "accept-ranges: bytes"
+
+    # A range entirely past the end must be refused, not widened to a 200: a
+    # client appending a full body to a partial file would corrupt it.
+    unsatisfiable_status="$(status_only -H "range: bytes=999999-" "${url}")"
+    The variable unsatisfiable_status should eq 416
+  End
 End

@@ -60,6 +60,25 @@ const KURA_METADATA_STORE_MAX_BACKGROUND_JOBS: &str = "KURA_METADATA_STORE_MAX_B
 // rounded up so the derived admission budget errs small rather than committing
 // anon the floor does not cover.
 const PROCESS_ANON_BASELINE_BYTES: u64 = 96 * 1024 * 1024;
+
+// Lower bounds for the four anon caches the floor fit may shrink. Each is the
+// lower clamp its own ceiling-derived default already uses, so a fitted
+// instance lands inside the size range an untiered instance could already have
+// been given rather than somewhere new. The snapshot cache has no such clamp of
+// its own (its default floor is one byte), so it takes the manifest cache's.
+const MIN_ROCKSDB_BLOCK_CACHE_BYTES: usize = 16 * 1024 * 1024;
+const MIN_ROCKSDB_WRITE_BUFFER_POOL_BYTES: usize = 16 * 1024 * 1024;
+const MIN_MANIFEST_CACHE_BYTES: usize = 8 * 1024 * 1024;
+const MIN_SNAPSHOT_CACHE_BYTES: usize = 8 * 1024 * 1024;
+
+// What the fit holds back from the caches for admission itself. A quarter of
+// the floor, but never less than this: one response stream reserves up to four
+// encoded chunks (~2 MiB), and the REAPI materialization limit is half the
+// transient pool, so a pool below this cannot serve a handful of concurrent
+// readers or reach the 8 MiB response budget the REAPI paths are written
+// against. It bounds the caches rather than allocating anything, so on a floor
+// with room to spare it never binds.
+const MIN_ANON_ADMISSION_RESERVE_BYTES: u64 = 32 * 1024 * 1024;
 const KURA_MEMORY_FLOOR_BYTES: &str = "KURA_MEMORY_FLOOR_BYTES";
 const KURA_METADATA_STORE_READ_CACHE_BYTES: &str = "KURA_METADATA_STORE_READ_CACHE_BYTES";
 const KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES: &str =
@@ -159,6 +178,10 @@ pub struct Config {
     /// nothing publishes it (self-hosted, local runs, a controller too old to
     /// set it), which keeps the ceiling-derived sizing.
     pub memory_floor_bytes: Option<u64>,
+    /// Set when the anon caches had to be shrunk to fit under
+    /// `memory_floor_bytes`. `None` means they already fit, which is every
+    /// instance whose floor is generous relative to its ceiling.
+    pub anon_cache_fit: Option<AnonCacheFit>,
     pub snapshot_cache_max_bytes: usize,
     pub manifest_cache_max_bytes: usize,
     pub max_keyvalue_bytes: usize,
@@ -376,6 +399,174 @@ impl DerivedRuntimeDefaults {
     }
 }
 
+/// The outcome of fitting the anon caches to the pod's memory floor.
+///
+/// Carried on the config so `run_with_config` can report it once tracing is up:
+/// the fit runs during parsing, which is before any subscriber exists.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AnonCacheFit {
+    /// What the caches would have held before fitting, caches only.
+    pub requested_bytes: u64,
+    /// What they hold after it.
+    pub fitted_bytes: u64,
+    /// The ceiling they were fitted to.
+    pub allowance_bytes: u64,
+}
+
+enum AnonCacheFitOutcome {
+    /// The configured caches already fit under the floor.
+    Fits,
+    Fitted {
+        sizes: [usize; ANON_CACHE_COUNT],
+        fit: AnonCacheFit,
+    },
+    /// Even at their minimum sizes the caches cannot fit, which means the floor
+    /// is too small to run Kura at all rather than too small for these caches.
+    Impossible {
+        allowance_bytes: u64,
+        minimum_bytes: u64,
+    },
+}
+
+const ANON_CACHE_COUNT: usize = 4;
+
+const ANON_CACHE_MINIMUMS: [usize; ANON_CACHE_COUNT] = [
+    MIN_ROCKSDB_BLOCK_CACHE_BYTES,
+    MIN_ROCKSDB_WRITE_BUFFER_POOL_BYTES,
+    MIN_MANIFEST_CACHE_BYTES,
+    MIN_SNAPSHOT_CACHE_BYTES,
+];
+
+/// How many bytes of the floor the caches may hold between them.
+///
+/// The floor is the only memory the pod is guaranteed (the orchestrator maps it
+/// onto cgroup v2 `memory.min`), and anon above it is what the kernel can only
+/// OOM-kill. Everything anonymous therefore has to fit inside it: the process
+/// baseline, these caches, and the admission budget that serves requests. This
+/// is what is left for the caches once the other two are set aside.
+///
+/// `reserve_bytes` is what admission keeps. A quarter of the floor is the
+/// preferred share; a floor too small to give that up falls back to the hard
+/// minimum before the fit gives up altogether, so the caches surrender their
+/// last bytes before a runnable instance is refused.
+fn anon_cache_allowance_bytes(floor_bytes: u64, reserve_bytes: u64) -> u64 {
+    floor_bytes
+        .saturating_sub(PROCESS_ANON_BASELINE_BYTES)
+        .saturating_sub(reserve_bytes)
+}
+
+/// Shrinks the anon caches until they fit under the floor's allowance.
+///
+/// Cache sizes are derived from the memory *ceiling* (or pinned outright by the
+/// orchestrator), while the admission budget is derived from the *floor*. On an
+/// instance whose ceiling is several times its floor, nothing relates the two,
+/// and caches sized for the ceiling can consume the whole floor — leaving
+/// admission a budget of zero, which reads downstream as a node that is Ready
+/// and serves nothing. Fitting them here keeps
+/// [`Config::anon_admission_budget_bytes`] positive by construction, so its
+/// subtraction stays exactly what it says it is.
+///
+/// Shrinks proportionally rather than by priority, so a cache the operator
+/// deliberately enlarged keeps its share of what room there is. An entry that
+/// reaches its own minimum stops shrinking and the remainder is retaken from
+/// the rest, which is why this iterates instead of scaling once.
+fn fit_anon_caches_to_floor(
+    floor_bytes: u64,
+    caches: [usize; ANON_CACHE_COUNT],
+) -> AnonCacheFitOutcome {
+    // A cache already configured below its own minimum is never grown to reach
+    // it, so it cannot be part of what the floor is required to cover either.
+    // Charging the fixed minimums instead would refuse a floor that comfortably
+    // fits what the operator actually asked for.
+    let minimums = effective_anon_cache_minimums(caches);
+    let minimum_bytes = sum_cache_bytes(&minimums);
+    // Resolve the allowance before anything is measured against it. A floor
+    // that cannot spare a quarter of itself gives admission back down to its
+    // hard minimum before the fit refuses, because refusing one that could have
+    // run is an outage where a smaller cache would have done. The fast path
+    // below has to test against that same resolved allowance: sizes produced
+    // under the fallback would otherwise never settle at `Fits`, and the fit
+    // would report a shrink of zero bytes on every restart.
+    let allowance_bytes = {
+        let preferred_reserve = (floor_bytes / 4).max(MIN_ANON_ADMISSION_RESERVE_BYTES);
+        let preferred = anon_cache_allowance_bytes(floor_bytes, preferred_reserve);
+        if minimum_bytes > preferred {
+            anon_cache_allowance_bytes(floor_bytes, MIN_ANON_ADMISSION_RESERVE_BYTES)
+        } else {
+            preferred
+        }
+    };
+    let requested_bytes = sum_cache_bytes(&caches);
+    if requested_bytes <= allowance_bytes {
+        return AnonCacheFitOutcome::Fits;
+    }
+    if minimum_bytes > allowance_bytes {
+        return AnonCacheFitOutcome::Impossible {
+            allowance_bytes,
+            minimum_bytes,
+        };
+    }
+
+    let mut sizes = caches;
+    // Each pass either lands under the allowance or pins at least one entry at
+    // its minimum, so it cannot run longer than there are entries.
+    for _ in 0..=ANON_CACHE_COUNT {
+        let total = sum_cache_bytes(&sizes);
+        if total <= allowance_bytes {
+            break;
+        }
+        let flexible_bytes: u64 = sizes
+            .iter()
+            .zip(minimums)
+            .filter(|(size, minimum)| **size > *minimum)
+            .map(|(size, _)| *size as u64)
+            .fold(0, u64::saturating_add);
+        if flexible_bytes == 0 {
+            break;
+        }
+        let pinned_bytes = total.saturating_sub(flexible_bytes);
+        let flexible_target = allowance_bytes.saturating_sub(pinned_bytes);
+        for (size, minimum) in sizes.iter_mut().zip(minimums) {
+            if *size > minimum {
+                let scaled = (*size as u64).saturating_mul(flexible_target) / flexible_bytes;
+                *size = (scaled as usize).max(minimum);
+            }
+        }
+    }
+
+    AnonCacheFitOutcome::Fitted {
+        sizes,
+        fit: AnonCacheFit {
+            requested_bytes,
+            fitted_bytes: sum_cache_bytes(&sizes),
+            allowance_bytes,
+        },
+    }
+}
+
+/// Sums cache sizes without wrapping.
+///
+/// The metadata store's block cache and write-buffer pool have no upper bound
+/// of their own, so an absurd override reaches this. A wrapping sum panics in
+/// debug and, in release, can wrap to a small enough total that the fit reports
+/// it already fits — passing the oversized cache straight through to the budget
+/// this exists to protect.
+fn sum_cache_bytes(sizes: &[usize]) -> u64 {
+    sizes
+        .iter()
+        .map(|&bytes| bytes as u64)
+        .fold(0, u64::saturating_add)
+}
+
+/// The minimum each cache is held at, bounded by what it was actually given.
+fn effective_anon_cache_minimums(caches: [usize; ANON_CACHE_COUNT]) -> [usize; ANON_CACHE_COUNT] {
+    let mut minimums = ANON_CACHE_MINIMUMS;
+    for (minimum, cache) in minimums.iter_mut().zip(caches) {
+        *minimum = (*minimum).min(cache);
+    }
+    minimums
+}
+
 impl Config {
     /// The anonymous-memory budget admission may commit, derived from the pod's
     /// memory floor.
@@ -393,10 +584,26 @@ impl Config {
     /// (measured at ~150 MiB total on an idle instance, of which the caches are
     /// the larger part).
     ///
+    /// The block cache and the write-buffer pool are counted as two separate
+    /// allocations because that is now what they are. They used to overlap —
+    /// the write-buffer manager charged memtable growth to the block cache — so
+    /// subtracting both over-counted. Since #12556 the manager holds its own
+    /// budget, which makes this arithmetic right and also means raising
+    /// `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` genuinely narrows what
+    /// admission may hand out. That is the intended trade: a smaller admission
+    /// budget sheds load with a retryable `503`, where a pool too small to
+    /// absorb a write burst stalls every writer inside RocksDB instead.
+    ///
     /// The snapshot cache counts for the same reason the manifest cache does:
     /// it fills to its own ceiling and is never admitted through this budget,
     /// so every byte of `KURA_SNAPSHOT_CACHE_MAX_BYTES` is anon this budget
     /// must not hand out twice.
+    ///
+    /// The four cache sizes this subtracts from are fitted to the floor first
+    /// (see [`fit_anon_caches_to_floor`]), so the remainder is positive by
+    /// construction. Without that the subtraction saturates to zero on any
+    /// instance whose ceiling is several times its floor, since the caches are
+    /// sized from the ceiling and this is charged against the floor.
     ///
     /// `None` when nothing published a floor, which leaves the ceiling-derived
     /// sizing in place.
@@ -757,7 +964,7 @@ impl Config {
                 ));
             }
         }
-        let snapshot_cache_max_bytes = optional_parsed_value(
+        let mut snapshot_cache_max_bytes = optional_parsed_value(
             &mut lookup,
             KURA_SNAPSHOT_CACHE_MAX_BYTES,
             &mut invalid,
@@ -788,7 +995,7 @@ impl Config {
             (8 * BYTES_PER_MIB) as usize,
             (64 * BYTES_PER_MIB) as usize,
         );
-        let manifest_cache_max_bytes = optional_parsed_value(
+        let mut manifest_cache_max_bytes = optional_parsed_value(
             &mut lookup,
             KURA_MANIFEST_CACHE_MAX_BYTES,
             &mut invalid,
@@ -863,7 +1070,7 @@ impl Config {
                 "{KURA_METADATA_STORE_MAX_BACKGROUND_JOBS} must be greater than 0"
             ));
         }
-        let rocksdb_block_cache_bytes = optional_parsed_value(
+        let mut rocksdb_block_cache_bytes = optional_parsed_value(
             &mut lookup,
             KURA_METADATA_STORE_READ_CACHE_BYTES,
             &mut invalid,
@@ -879,7 +1086,7 @@ impl Config {
                 "{KURA_METADATA_STORE_READ_CACHE_BYTES} must be greater than 0"
             ));
         }
-        let rocksdb_write_buffer_manager_bytes = optional_parsed_value(
+        let mut rocksdb_write_buffer_manager_bytes = optional_parsed_value(
             &mut lookup,
             KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES,
             &mut invalid,
@@ -895,7 +1102,7 @@ impl Config {
                 "{KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES} must be greater than 0"
             ));
         }
-        let rocksdb_write_buffer_size_bytes = optional_parsed_value(
+        let mut rocksdb_write_buffer_size_bytes = optional_parsed_value(
             &mut lookup,
             KURA_METADATA_STORE_WRITE_BUFFER_BYTES,
             &mut invalid,
@@ -915,7 +1122,7 @@ impl Config {
                 "{KURA_METADATA_STORE_WRITE_BUFFER_BYTES} must be less than or equal to {KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES}"
             ));
         }
-        let rocksdb_max_write_buffer_number = optional_parsed_value(
+        let mut rocksdb_max_write_buffer_number = optional_parsed_value(
             &mut lookup,
             KURA_METADATA_STORE_MAX_WRITE_BUFFERS,
             &mut invalid,
@@ -1458,6 +1665,52 @@ impl Config {
             }
         }
 
+        // Fit the anon caches to the floor before the config is sealed. This runs
+        // last because it has to see the final values, operator overrides
+        // included: the orchestrator pins all four on managed instances, and
+        // those pinned sizes are exactly the ones that can overrun a small
+        // floor. Shrinking the write-buffer pool cascades into the per-buffer
+        // size and the buffer count, which the pool bounds.
+        let mut anon_cache_fit = None;
+        if let Some(floor_bytes) = memory_floor_bytes {
+            match fit_anon_caches_to_floor(
+                floor_bytes,
+                [
+                    rocksdb_block_cache_bytes,
+                    rocksdb_write_buffer_manager_bytes,
+                    manifest_cache_max_bytes,
+                    snapshot_cache_max_bytes,
+                ],
+            ) {
+                AnonCacheFitOutcome::Fits => {}
+                AnonCacheFitOutcome::Fitted { sizes, fit } => {
+                    [
+                        rocksdb_block_cache_bytes,
+                        rocksdb_write_buffer_manager_bytes,
+                        manifest_cache_max_bytes,
+                        snapshot_cache_max_bytes,
+                    ] = sizes;
+                    rocksdb_write_buffer_size_bytes =
+                        rocksdb_write_buffer_size_bytes.min(rocksdb_write_buffer_manager_bytes);
+                    rocksdb_max_write_buffer_number = rocksdb_max_write_buffer_number.min(
+                        clamp_usize(
+                            rocksdb_write_buffer_manager_bytes
+                                / rocksdb_write_buffer_size_bytes.max(1),
+                            2,
+                            8,
+                        ) as i32,
+                    );
+                    anon_cache_fit = Some(fit);
+                }
+                AnonCacheFitOutcome::Impossible {
+                    allowance_bytes,
+                    minimum_bytes,
+                } => invalid.push(format!(
+                    "{KURA_MEMORY_FLOOR_BYTES} of {floor_bytes} bytes leaves {allowance_bytes} bytes for the metadata-store, manifest and snapshot caches, which need at least {minimum_bytes} bytes between them; raise the floor"
+                )),
+            }
+        }
+
         if !missing.is_empty() || !invalid.is_empty() {
             let mut errors = Vec::new();
             if !missing.is_empty() {
@@ -1499,6 +1752,7 @@ impl Config {
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
             memory_floor_bytes,
+            anon_cache_fit,
             snapshot_cache_max_bytes,
             manifest_cache_max_bytes,
             max_keyvalue_bytes,
@@ -1749,6 +2003,470 @@ mod tests {
             merged.insert((*key).to_owned(), (*value).to_owned());
         }
         Config::from_lookup_with_resources(|key| merged.get(key).cloned(), TEST_HOST_RESOURCES)
+    }
+
+    /// A managed instance of the given memory profile: the floor and ceiling
+    /// the Kubernetes controller renders, plus the four cache sizes it pins on
+    /// every managed pod regardless of profile.
+    fn managed_profile_config(floor_mib: u64, ceiling_mib: u64) -> Result<Config, String> {
+        let mut merged = base_values();
+        for (key, value) in [
+            (
+                KURA_MEMORY_FLOOR_BYTES,
+                (floor_mib * BYTES_PER_MIB).to_string(),
+            ),
+            (KURA_SNAPSHOT_CACHE_MAX_BYTES, "67108864".to_owned()),
+            (KURA_MANIFEST_CACHE_MAX_BYTES, "33554432".to_owned()),
+            (KURA_METADATA_STORE_READ_CACHE_BYTES, "33554432".to_owned()),
+            (
+                KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES,
+                "33554432".to_owned(),
+            ),
+        ] {
+            merged.insert(key.to_owned(), value);
+        }
+        Config::from_lookup_with_resources(
+            |key| merged.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 65536,
+                memory_limit_bytes: ceiling_mib * BYTES_PER_MIB,
+                cpu_count: 8,
+            },
+        )
+    }
+
+    const MIB: usize = BYTES_PER_MIB as usize;
+
+    fn anon_cache_bytes(config: &Config) -> u64 {
+        (config.rocksdb_block_cache_bytes as u64)
+            + config.rocksdb_write_buffer_manager_bytes as u64
+            + config.manifest_cache_max_bytes as u64
+            + config.snapshot_cache_max_bytes as u64
+    }
+
+    // The standard profile (`server/lib/tuist/kura/regions.ex`) is what Air and
+    // every unrecognised plan get, and its floor is small enough that the
+    // controller-pinned caches used to consume all of it. A zero budget is not a
+    // degraded node: every response stream, upload and REAPI materialization is
+    // admitted against it, so the pod reports Ready and serves nothing.
+    #[test]
+    fn the_standard_memory_profile_keeps_an_admission_budget() {
+        let config = managed_profile_config(256, 768).expect("standard profile must be runnable");
+        let budget = config
+            .anon_admission_budget_bytes()
+            .expect("a published floor derives a budget");
+        assert!(
+            budget >= MIN_ANON_ADMISSION_RESERVE_BYTES,
+            "standard profile budget was {budget} bytes"
+        );
+        assert!(config.anon_cache_fit.is_some());
+    }
+
+    // The profiles whose floors already cover their caches must come through
+    // byte-identical, so the fit cannot reshape an instance that was working.
+    #[test]
+    fn profiles_with_room_to_spare_are_left_alone() {
+        for (floor_mib, ceiling_mib) in [(512, 3072), (1024, 4096), (2048, 4096)] {
+            let config = managed_profile_config(floor_mib, ceiling_mib).expect("config");
+            assert_eq!(
+                config.anon_cache_fit, None,
+                "profile {floor_mib}/{ceiling_mib} was fitted"
+            );
+            assert_eq!(config.rocksdb_block_cache_bytes, 32 * 1024 * 1024);
+            assert_eq!(config.rocksdb_write_buffer_manager_bytes, 32 * 1024 * 1024);
+            assert_eq!(config.manifest_cache_max_bytes, 32 * 1024 * 1024);
+            assert_eq!(config.snapshot_cache_max_bytes, 64 * 1024 * 1024);
+        }
+    }
+
+    // Kura's own defaults scale with the ceiling, so an instance whose ceiling
+    // is several times its floor overruns the floor without the controller
+    // pinning anything at all. The fit has to cover that case too, or the
+    // budget depends on an orchestrator that happens to publish smaller caches.
+    #[test]
+    fn ceiling_derived_defaults_are_fitted_to_a_smaller_floor() {
+        let mut merged = base_values();
+        merged.insert(
+            KURA_MEMORY_FLOOR_BYTES.to_owned(),
+            (512 * BYTES_PER_MIB).to_string(),
+        );
+        let config = Config::from_lookup_with_resources(
+            |key| merged.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 65536,
+                memory_limit_bytes: 3072 * BYTES_PER_MIB,
+                cpu_count: 8,
+            },
+        )
+        .expect("config");
+        assert!(config.anon_cache_fit.is_some());
+        assert!(
+            config
+                .anon_admission_budget_bytes()
+                .expect("floor published")
+                >= MIN_ANON_ADMISSION_RESERVE_BYTES
+        );
+    }
+
+    // Every managed profile fits with room above the minimums, so the clamp only
+    // shows itself when one cache is large enough to squeeze the rest onto their
+    // floors. Asserting equality there is what gives this test the power to fail
+    // if the clamp is dropped; a `>=` against an unclamped fit passes either way.
+    #[test]
+    fn the_fit_holds_every_cache_at_or_above_its_minimum() {
+        let sizes = match fit_anon_caches_to_floor(
+            256 * BYTES_PER_MIB,
+            [17 * MIB, 17 * MIB, 9 * MIB, 200 * MIB],
+        ) {
+            AnonCacheFitOutcome::Fitted { sizes, .. } => sizes,
+            _ => panic!("caches well over the allowance must be fitted"),
+        };
+        assert_eq!(sizes[0], MIN_ROCKSDB_BLOCK_CACHE_BYTES);
+        assert_eq!(sizes[1], MIN_ROCKSDB_WRITE_BUFFER_POOL_BYTES);
+        assert_eq!(sizes[2], MIN_MANIFEST_CACHE_BYTES);
+        assert!(sizes[3] > MIN_SNAPSHOT_CACHE_BYTES);
+
+        let config = managed_profile_config(256, 768).expect("config");
+        assert!(config.rocksdb_block_cache_bytes >= MIN_ROCKSDB_BLOCK_CACHE_BYTES);
+        assert!(config.rocksdb_write_buffer_manager_bytes >= MIN_ROCKSDB_WRITE_BUFFER_POOL_BYTES);
+        assert!(config.manifest_cache_max_bytes >= MIN_MANIFEST_CACHE_BYTES);
+        assert!(config.snapshot_cache_max_bytes >= MIN_SNAPSHOT_CACHE_BYTES);
+    }
+
+    // The per-buffer size and the buffer count are both bounded by the pool, so
+    // shrinking the pool without them would leave a config the metadata store
+    // rejects at open.
+    #[test]
+    fn shrinking_the_write_buffer_pool_cascades() {
+        let config = managed_profile_config(256, 768).expect("config");
+        assert!(config.anon_cache_fit.is_some());
+        assert!(
+            config.rocksdb_write_buffer_size_bytes <= config.rocksdb_write_buffer_manager_bytes
+        );
+        assert!(config.rocksdb_max_write_buffer_number >= 2);
+        assert!(
+            (config.rocksdb_max_write_buffer_number as usize)
+                * config.rocksdb_write_buffer_size_bytes
+                <= config.rocksdb_write_buffer_manager_bytes
+                    + config.rocksdb_write_buffer_size_bytes
+        );
+    }
+
+    // Shrinking is proportional, so an operator who deliberately enlarged one
+    // cache keeps its share of whatever room the floor leaves. Ordering alone
+    // does not say that: a policy that drained the three small caches to their
+    // minimums and left the rest to the snapshot cache would also come out
+    // ordered. The ratio is the property, so compare it by cross-multiplying
+    // (integer division makes an equality on the quotient too brittle).
+    #[test]
+    fn the_fit_shrinks_the_caches_in_proportion() {
+        let config = managed_profile_config(256, 768).expect("config");
+        // The controller pins the snapshot cache at twice the other three.
+        assert_eq!(
+            config.snapshot_cache_max_bytes / config.manifest_cache_max_bytes,
+            2
+        );
+        for (fitted, requested) in [
+            (config.rocksdb_block_cache_bytes, 32 * MIB),
+            (config.rocksdb_write_buffer_manager_bytes, 32 * MIB),
+            (config.manifest_cache_max_bytes, 32 * MIB),
+            (config.snapshot_cache_max_bytes, 64 * MIB),
+        ] {
+            let scaled = (config.snapshot_cache_max_bytes as u64) * (requested as u64);
+            let reference = (fitted as u64) * (64 * MIB as u64);
+            let tolerance = (64 * MIB as u64) * 4;
+            assert!(
+                scaled.abs_diff(reference) <= tolerance,
+                "cache fitted to {fitted} from {requested} is off the shared ratio"
+            );
+        }
+    }
+
+    // A floor too small for the process baseline plus the minimum caches cannot
+    // run Kura at all. Refusing at parse time is the honest answer: booting
+    // would produce the Ready-but-serving-nothing node this fit exists to
+    // prevent, and the message names the one knob that fixes it.
+    #[test]
+    fn a_floor_too_small_to_run_is_refused() {
+        let mut merged = base_values();
+        merged.insert(
+            KURA_MEMORY_FLOOR_BYTES.to_owned(),
+            (128 * BYTES_PER_MIB).to_string(),
+        );
+        let error = Config::from_lookup_with_resources(
+            |key| merged.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 65536,
+                memory_limit_bytes: 768 * BYTES_PER_MIB,
+                cpu_count: 8,
+            },
+        )
+        .expect_err("a 128 MiB floor cannot run Kura");
+        assert!(error.contains(KURA_MEMORY_FLOOR_BYTES), "{error}");
+        assert!(error.contains("raise the floor"), "{error}");
+    }
+
+    // No floor published means no floor-derived sizing, which is what a
+    // self-hosted install or a controller too old to set it gets.
+    #[test]
+    fn an_unpublished_floor_leaves_the_caches_alone() {
+        let config = config_from(&[]).expect("config");
+        assert_eq!(config.memory_floor_bytes, None);
+        assert_eq!(config.anon_cache_fit, None);
+        assert_eq!(config.anon_admission_budget_bytes(), None);
+    }
+
+    #[test]
+    fn the_fit_lands_within_the_allowance_it_reports() {
+        let config = managed_profile_config(256, 768).expect("config");
+        let fit = config.anon_cache_fit.expect("fitted");
+        assert_eq!(anon_cache_bytes(&config), fit.fitted_bytes);
+        assert!(fit.fitted_bytes <= fit.allowance_bytes);
+        assert!(fit.fitted_bytes < fit.requested_bytes);
+    }
+
+    // Between a floor that cannot spare a quarter of itself and one too small to
+    // run at all sits a band that only boots because the fit hands admission
+    // back down to its hard minimum. No managed profile lands here, so nothing
+    // else covers the branch that keeps such a floor runnable.
+    #[test]
+    fn a_floor_too_small_for_the_preferred_reserve_still_runs() {
+        let caches = [32 * MIB, 32 * MIB, 32 * MIB, 64 * MIB];
+        let floor_bytes = 180 * BYTES_PER_MIB;
+        let sizes = match fit_anon_caches_to_floor(floor_bytes, caches) {
+            AnonCacheFitOutcome::Fitted { sizes, .. } => sizes,
+            AnonCacheFitOutcome::Fits => panic!("caches over the allowance must be fitted"),
+            AnonCacheFitOutcome::Impossible { .. } => {
+                panic!("a floor that can run on the minimum reserve must not be refused")
+            }
+        };
+        // The caches gave up everything above the reserve, so admission lands on
+        // exactly the minimum the fallback exists to preserve.
+        assert_eq!(
+            floor_bytes - PROCESS_ANON_BASELINE_BYTES - sum_cache_bytes(&sizes),
+            MIN_ANON_ADMISSION_RESERVE_BYTES
+        );
+    }
+
+    // The fallback allowance is also what a second fit has to measure against.
+    // Checking the preferred allowance instead leaves a config fitted through
+    // the fallback reporting a shrink of zero bytes on every restart.
+    #[test]
+    fn a_fallback_reserve_fit_settles() {
+        let sizes = match fit_anon_caches_to_floor(
+            180 * BYTES_PER_MIB,
+            [32 * MIB, 32 * MIB, 32 * MIB, 64 * MIB],
+        ) {
+            AnonCacheFitOutcome::Fitted { sizes, .. } => sizes,
+            _ => panic!("expected a fitted config"),
+        };
+        match fit_anon_caches_to_floor(180 * BYTES_PER_MIB, sizes) {
+            AnonCacheFitOutcome::Fits => {}
+            AnonCacheFitOutcome::Fitted { sizes: again, .. } => {
+                panic!("a fitted config was fitted again: {sizes:?} -> {again:?}")
+            }
+            AnonCacheFitOutcome::Impossible { .. } => panic!("a fitted config became impossible"),
+        }
+    }
+
+    // One cache large enough to pin the others at their minimums cannot be
+    // resolved by scaling once: the bytes freed by the entries that stopped
+    // shrinking have to be retaken from the one that did not.
+    #[test]
+    fn the_fit_redistributes_after_an_entry_pins_at_its_minimum() {
+        let allowance = 256 * BYTES_PER_MIB
+            - PROCESS_ANON_BASELINE_BYTES
+            - (256 * BYTES_PER_MIB / 4).max(MIN_ANON_ADMISSION_RESERVE_BYTES);
+        let (sizes, fit) = match fit_anon_caches_to_floor(
+            256 * BYTES_PER_MIB,
+            [17 * MIB, 17 * MIB, 9 * MIB, 200 * MIB],
+        ) {
+            AnonCacheFitOutcome::Fitted { sizes, fit } => (sizes, fit),
+            _ => panic!("expected a fitted config"),
+        };
+        // A single proportional pass would have scaled every entry by the same
+        // ratio and left the three small ones under their minimums; clamping
+        // them back up would then have overshot the allowance.
+        assert_eq!(sizes[0], MIN_ROCKSDB_BLOCK_CACHE_BYTES);
+        assert_eq!(sizes[1], MIN_ROCKSDB_WRITE_BUFFER_POOL_BYTES);
+        assert_eq!(sizes[2], MIN_MANIFEST_CACHE_BYTES);
+        assert_eq!(fit.fitted_bytes, sum_cache_bytes(&sizes));
+        // The snapshot cache absorbed the shortfall rather than the fit giving up.
+        assert_eq!(fit.fitted_bytes, allowance);
+    }
+
+    // The metadata-store caches have no upper bound of their own. A wrapping sum
+    // panics in debug and, in release, wraps small enough to report that an
+    // absurd cache already fits — passing it straight through to the budget the
+    // fit exists to protect.
+    #[test]
+    fn an_absurd_cache_override_is_fitted_rather_than_overflowing() {
+        let mut merged = base_values();
+        for (key, value) in [
+            (KURA_MEMORY_FLOOR_BYTES, (256 * BYTES_PER_MIB).to_string()),
+            (KURA_METADATA_STORE_READ_CACHE_BYTES, usize::MAX.to_string()),
+            (
+                KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES,
+                usize::MAX.to_string(),
+            ),
+        ] {
+            merged.insert(key.to_owned(), value);
+        }
+        let config = Config::from_lookup_with_resources(
+            |key| merged.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 65536,
+                memory_limit_bytes: 768 * BYTES_PER_MIB,
+                cpu_count: 8,
+            },
+        )
+        .expect("an absurd cache must be fitted, not rejected or overflowed");
+        assert_eq!(
+            config.rocksdb_block_cache_bytes,
+            MIN_ROCKSDB_BLOCK_CACHE_BYTES
+        );
+        assert_eq!(
+            config.rocksdb_write_buffer_manager_bytes,
+            MIN_ROCKSDB_WRITE_BUFFER_POOL_BYTES
+        );
+        assert!(
+            config
+                .anon_admission_budget_bytes()
+                .expect("floor published")
+                >= MIN_ANON_ADMISSION_RESERVE_BYTES
+        );
+    }
+
+    // A cache is never grown to reach its minimum, so the floor is not required
+    // to cover one either. Charging the fixed minimums regardless refuses an
+    // operator running small caches on a floor that fits them with the reserve
+    // intact — an outage on a configuration that would have served.
+    #[test]
+    fn caches_below_their_minimums_are_not_charged_the_minimums() {
+        let floor_bytes = 170 * BYTES_PER_MIB;
+        let caches = [2 * MIB, 2 * MIB, 2 * MIB, 100 * MIB];
+        let sizes = match fit_anon_caches_to_floor(floor_bytes, caches) {
+            AnonCacheFitOutcome::Fitted { sizes, .. } => sizes,
+            AnonCacheFitOutcome::Fits => panic!("caches over the allowance must be fitted"),
+            AnonCacheFitOutcome::Impossible { minimum_bytes, .. } => panic!(
+                "refused for needing {minimum_bytes} bytes, more than the {} it was given",
+                sum_cache_bytes(&caches)
+            ),
+        };
+        // The three small caches keep what they were given rather than being
+        // charged (or raised to) a minimum they never asked for.
+        assert_eq!(sizes[0], 2 * MIB);
+        assert_eq!(sizes[1], 2 * MIB);
+        assert_eq!(sizes[2], 2 * MIB);
+        // Charged the fixed 48 MiB instead, this floor has no allowance that
+        // covers it and the instance is refused; charged the 8 MiB these caches
+        // actually need, it runs with more than the reserve to spare.
+        assert!(
+            floor_bytes - PROCESS_ANON_BASELINE_BYTES - sum_cache_bytes(&sizes)
+                >= MIN_ANON_ADMISSION_RESERVE_BYTES
+        );
+    }
+
+    // Fitting twice must be a no-op, or a config round-tripped through the
+    // parser would shrink a little more each time.
+    #[test]
+    fn the_fit_is_idempotent() {
+        let config = managed_profile_config(256, 768).expect("config");
+        match fit_anon_caches_to_floor(
+            config.memory_floor_bytes.expect("floor"),
+            [
+                config.rocksdb_block_cache_bytes,
+                config.rocksdb_write_buffer_manager_bytes,
+                config.manifest_cache_max_bytes,
+                config.snapshot_cache_max_bytes,
+            ],
+        ) {
+            AnonCacheFitOutcome::Fits => {}
+            other => panic!(
+                "a fitted config was fitted again: {:?}",
+                match other {
+                    AnonCacheFitOutcome::Fitted { sizes, .. } => format!("{sizes:?}"),
+                    _ => "impossible".to_owned(),
+                }
+            ),
+        }
+    }
+
+    // The property that matters is round-tripping the whole parser, not just the
+    // sizing function: the Fitted branch also re-derives the per-buffer size and
+    // the buffer count, so a config re-parsed from its own fitted values has to
+    // come back unchanged in those too.
+    #[test]
+    fn a_fitted_config_reparses_unchanged() {
+        let fitted = managed_profile_config(256, 768).expect("config");
+        let mut merged = base_values();
+        for (key, value) in [
+            (KURA_MEMORY_FLOOR_BYTES, (256 * BYTES_PER_MIB).to_string()),
+            (
+                KURA_SNAPSHOT_CACHE_MAX_BYTES,
+                fitted.snapshot_cache_max_bytes.to_string(),
+            ),
+            (
+                KURA_MANIFEST_CACHE_MAX_BYTES,
+                fitted.manifest_cache_max_bytes.to_string(),
+            ),
+            (
+                KURA_METADATA_STORE_READ_CACHE_BYTES,
+                fitted.rocksdb_block_cache_bytes.to_string(),
+            ),
+            (
+                KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES,
+                fitted.rocksdb_write_buffer_manager_bytes.to_string(),
+            ),
+            (
+                KURA_METADATA_STORE_WRITE_BUFFER_BYTES,
+                fitted.rocksdb_write_buffer_size_bytes.to_string(),
+            ),
+            (
+                KURA_METADATA_STORE_MAX_WRITE_BUFFERS,
+                fitted.rocksdb_max_write_buffer_number.to_string(),
+            ),
+        ] {
+            merged.insert(key.to_owned(), value);
+        }
+        let reparsed = Config::from_lookup_with_resources(
+            |key| merged.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 65536,
+                memory_limit_bytes: 768 * BYTES_PER_MIB,
+                cpu_count: 8,
+            },
+        )
+        .expect("a fitted config must re-parse");
+        assert_eq!(reparsed.anon_cache_fit, None);
+        assert_eq!(
+            reparsed.snapshot_cache_max_bytes,
+            fitted.snapshot_cache_max_bytes
+        );
+        assert_eq!(
+            reparsed.manifest_cache_max_bytes,
+            fitted.manifest_cache_max_bytes
+        );
+        assert_eq!(
+            reparsed.rocksdb_block_cache_bytes,
+            fitted.rocksdb_block_cache_bytes
+        );
+        assert_eq!(
+            reparsed.rocksdb_write_buffer_manager_bytes,
+            fitted.rocksdb_write_buffer_manager_bytes
+        );
+        assert_eq!(
+            reparsed.rocksdb_write_buffer_size_bytes,
+            fitted.rocksdb_write_buffer_size_bytes
+        );
+        assert_eq!(
+            reparsed.rocksdb_max_write_buffer_number,
+            fitted.rocksdb_max_write_buffer_number
+        );
+        assert_eq!(
+            reparsed.anon_admission_budget_bytes(),
+            fitted.anon_admission_budget_bytes()
+        );
     }
 
     #[test]
