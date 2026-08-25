@@ -1,0 +1,485 @@
+<% signed_in? = not is_nil(TuistWeb.Authentication.current_user(assigns))
+
+plans = [
+  %{
+    id: "air",
+    name: dgettext("marketing", "Air"),
+    description: dgettext("marketing", "Get started with no credit card required"),
+    price: dgettext("marketing", "Free"),
+    price_extra: nil,
+    cta_label:
+      if(signed_in?,
+        do: dgettext("marketing", "Current plan"),
+        else: dgettext("marketing", "Get started")
+      ),
+    cta_href: ~p"/users/register",
+    cta_variant: "secondary",
+    popular: false,
+    traits: [
+      dgettext("marketing", "Free under tier limits"),
+      dgettext("marketing", "All features, no credit card required"),
+      dgettext("marketing", "Community support via forum")
+    ]
+  },
+  %{
+    id: "pro",
+    name: dgettext("marketing", "Pro"),
+    description: dgettext("marketing", "Usage-based pricing after free tier"),
+    price: "$0",
+    price_extra: dgettext("marketing", "and up"),
+    cta_label:
+      if(signed_in?,
+        do: dgettext("marketing", "Upgrade now"),
+        else: dgettext("marketing", "Upgrade on the go")
+      ),
+    cta_href: ~p"/users/register",
+    cta_variant: "primary",
+    popular: true,
+    traits: [
+      dgettext("marketing", "Pay nothing if below free tier limits"),
+      dgettext("marketing", "Pay only for what you use per feature"),
+      dgettext("marketing", "Standard support via Slack and email")
+    ]
+  },
+  %{
+    id: "enterprise",
+    name: dgettext("marketing", "Enterprise"),
+    description: dgettext("marketing", "Create your plan or self-host your instance"),
+    price: dgettext("marketing", "Custom"),
+    price_extra: nil,
+    cta_label: dgettext("marketing", "Contact us"),
+    cta_href: "https://cal.tuist.dev/team/tuist/tuist",
+    cta_variant: "secondary",
+    popular: false,
+    traits: [
+      dgettext("marketing", "Tailored agreement for specific needs"),
+      dgettext("marketing", "Self-host your instance of Tuist"),
+      dgettext("marketing", "Priority support via Slack channel")
+    ]
+  }
+]
+
+features = [
+  %{
+    name: dgettext("marketing", "Base price"),
+    description: nil,
+    hint: nil,
+    values: [
+      dgettext("marketing", "Free"),
+      %{
+        price: "$0 " <> dgettext("marketing", "and up"),
+        description: dgettext("marketing", "Price per unit above free tier")
+      },
+      %{
+        price: dgettext("marketing", "Custom"),
+        description: dgettext("marketing", "Usage/seat based pricing")
+      }
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Cache"),
+    description:
+      dgettext(
+        "marketing",
+        "Speed up clean compilations by using binaries for graph targets (including external dependencies)."
+      ),
+    hint: dgettext("marketing", "How do we calculate units?"),
+    hint_text:
+      dgettext(
+        "marketing",
+        "A Tuist command execution that interacts with the server to pull module binaries. As an estimate, this is roughly equivalent to the number of clean builds on CI, plus local project generations that aren't cached locally."
+      ),
+    values: [
+      "200",
+      %{value: "200", description: "+ $0.5 " <> dgettext("marketing", "per additional unit")},
+      dgettext("marketing", "Custom")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Tests"),
+    description:
+      dgettext(
+        "marketing",
+        "Speed up test runs by skipping test suites (test targets) whose tests are not impacted by the changes."
+      ),
+    hint: dgettext("marketing", "How do we calculate units?"),
+    hint_text:
+      dgettext(
+        "marketing",
+        "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
+      ),
+    values: [
+      "200",
+      %{value: "200", description: "+ $0.5 " <> dgettext("marketing", "per additional unit")},
+      dgettext("marketing", "Custom")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Generated Projects"),
+    description:
+      dgettext(
+        "marketing",
+        "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Previews"),
+    description:
+      dgettext(
+        "marketing",
+        "Preview your project apps in simulator or devices with one click/command."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Registry"),
+    description:
+      dgettext(
+        "marketing",
+        "Download only what you need — faster, lighter builds locally and on CI."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Build Insights"),
+    description:
+      dgettext(
+        "marketing",
+        "Explore what is making your builds slow and speed up your builds."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Bundle Insights"),
+    description:
+      dgettext(
+        "marketing",
+        "Track and reduce app size by spotting duplicate assets and bloated resources."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Self-hosting Tuist instance"),
+    description:
+      dgettext(
+        "marketing",
+        "Host Tuist server on your own infrastructure for complete control and data sovereignty."
+      ),
+    hint: nil,
+    values: [:unavailable, :unavailable, :available]
+  },
+  %{
+    name: dgettext("marketing", "Tailored legal terms"),
+    description:
+      dgettext(
+        "marketing",
+        "Custom legal agreements and terms of service tailored to your organization's needs."
+      ),
+    hint: nil,
+    values: [:unavailable, :unavailable, :available]
+  },
+  %{
+    name: dgettext("marketing", "Support"),
+    description: dgettext("marketing", "Get help when you need it through various support channels."),
+    hint: nil,
+    values: [
+      %{
+        level: dgettext("marketing", "Community support"),
+        description: dgettext("marketing", "via Discourse forum")
+      },
+      %{
+        level: dgettext("marketing", "Standard support"),
+        description: dgettext("marketing", "via Slack and email")
+      },
+      %{
+        level: dgettext("marketing", "Priority support"),
+        description: dgettext("marketing", "via Slack and email")
+      }
+    ]
+  }
+] %>
+<%!-- Redesigned pricing page (styles in css/new/routes/pricing.css). --%>
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-pricing">
+    <header data-part="header">
+      <h1 data-part="title">
+        {dgettext("marketing", "Start for free, pay as you go")}
+      </h1>
+      <p data-part="subtitle">
+        {dgettext(
+          "marketing",
+          "Get started with Tuist at no cost, and only invest more when you're ready for higher limits or personalized support."
+        )}
+      </p>
+    </header>
+
+    <section data-part="pricing" aria-labelledby="pricing-plans-title">
+      <div data-part="plans">
+        <div data-part="text">
+          <span data-part="eyebrow">{dgettext("marketing", "Plans")}</span>
+          <h2 data-part="title" id="pricing-plans-title">{dgettext("marketing", "Pricing plans")}</h2>
+        </div>
+        <div data-part="grid">
+          <article :for={plan <- plans} data-part="plan" data-plan={plan.id} data-popular={plan.popular}>
+            <div data-part="head">
+              <h3 data-part="name">{plan.name}</h3>
+              <.badge :if={plan.popular} label={dgettext("marketing", "Popular")} color="primary" style="light-fill" />
+            </div>
+            <p data-part="description">{plan.description}</p>
+            <div data-part="price">
+              <span data-part="value">{plan.price}</span>
+              <span :if={plan.price_extra} data-part="extra">{plan.price_extra}</span>
+            </div>
+            <ul data-part="traits">
+              <li :for={trait <- plan.traits} data-part="trait">
+                <.system_check />
+                <span>{trait}</span>
+              </li>
+            </ul>
+            <.button variant={plan.cta_variant} size="large" label={plan.cta_label} href={plan.cta_href} />
+          </article>
+        </div>
+      </div>
+
+      <div data-part="compare">
+        <div data-part="text">
+          <span data-part="eyebrow">{dgettext("marketing", "Features")}</span>
+          <h2 data-part="title" id="pricing-compare-title">
+            {dgettext("marketing", "Compare features across plans")}
+          </h2>
+          <p data-part="description">
+            {dgettext(
+              "marketing",
+              "You're only charged for the features you use, based on your usage, and only after you exceed a free threshold."
+            )}
+          </p>
+        </div>
+        <%!-- Tab/mobile collapse the table to a single plan column, picked
+        here. Renders as a bottom tray with a modal scrim on phones, same
+        pattern as the blog and customers filters (see pricing.css).
+
+        The markup mirrors Noora's dropdown but is hand-rolled: the Noora
+        component teleports its label and menu with LiveView portals, which
+        only mount inside connected LiveViews — on this dead view the
+        trigger rendered empty. Open state lives in data-state on the
+        trigger, which Noora's CSS already keys on. --%>
+        <div
+          id="pricing-plan-select"
+          class="noora-dropdown"
+          data-part="plan-select"
+          data-size="large"
+          phx-hook="PricingPlanSelect"
+          phx-update="ignore"
+        >
+          <button type="button" data-part="trigger" data-state="closed" aria-expanded="false">
+            <div data-part="label-wrapper">
+              <span data-part="label">
+                <span id="pricing-plan-select-label-target">{dgettext("marketing", "Air")}</span>
+              </span>
+            </div>
+            <div data-part="indicator">
+              <div data-part="indicator-down"><.chevron_down /></div>
+              <div data-part="indicator-up"><.chevron_up /></div>
+            </div>
+          </button>
+          <div data-part="positioner">
+            <div class="noora-dropdown-content" data-part="content">
+              <.dropdown_item :for={plan <- plans} value={plan.id} label={plan.name} />
+            </div>
+          </div>
+        </div>
+        <div data-part="table-frame">
+        <table data-part="table">
+          <thead data-part="head">
+            <tr data-part="row">
+              <td data-part="cell-blank"></td>
+              <th
+                :for={{plan, index} <- Enum.with_index(plans)}
+                data-part="cell-plan"
+                data-popular={plan.popular}
+                data-plan-index={index}
+                class={if index == 0, do: "active"}
+                scope="col"
+              >
+                {plan.name}
+              </th>
+            </tr>
+          </thead>
+          <tbody data-part="body">
+            <tr :for={feature <- features} data-part="row">
+              <th data-part="cell-feature" scope="row">
+                <div data-part="feature-name">{feature.name}</div>
+                <div :if={feature.description} data-part="feature-description">
+                  {feature.description}
+                </div>
+                <.tooltip
+                  :if={not is_nil(feature.hint) and not is_nil(feature[:hint_text])}
+                  id={"#{feature.name}-hint"}
+                  size="large"
+                  description={feature.hint_text}
+                  title={dgettext("marketing", "Hits")}
+                >
+                  <:trigger :let={attrs}>
+                    <span {attrs}>
+                      <.hint_text label={feature.hint} />
+                    </span>
+                  </:trigger>
+                </.tooltip>
+              </th>
+              <td
+                :for={{value, index} <- Enum.with_index(feature.values)}
+                data-part="cell-value"
+                data-plan-index={index}
+                class={if index == 0, do: "active"}
+                data-available={
+                  cond do
+                    value == :available -> true
+                    value == :unavailable -> false
+                    true -> nil
+                  end
+                }
+              >
+                <%= cond do %>
+                  <% value == :available -> %>
+                    <.system_check />
+                  <% value == :unavailable -> %>
+                    <.math_x />
+                  <% is_map(value) and Map.has_key?(value, :price) -> %>
+                    <div data-part="value">{value.price}</div>
+                    <div data-part="description">{value.description}</div>
+                  <% is_map(value) and Map.has_key?(value, :value) -> %>
+                    <div data-part="value">{value.value}</div>
+                    <div data-part="description">{value.description}</div>
+                  <% is_map(value) and Map.has_key?(value, :level) -> %>
+                    <div data-part="value">{value.level}</div>
+                    <div data-part="description">{value.description}</div>
+                  <% true -> %>
+                    {value}
+                <% end %>
+              </td>
+            </tr>
+            <tr data-part="row">
+              <td data-part="cell-feature"></td>
+              <td
+                :for={{plan, index} <- Enum.with_index(plans)}
+                data-part="cell-cta"
+                data-plan-index={index}
+                class={if index == 0, do: "active"}
+              >
+                <.button variant={plan.cta_variant} size="large" label={plan.cta_label} href={plan.cta_href} />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <div data-part="faq">
+        <div data-part="text">
+          <span data-part="eyebrow">{dgettext("marketing", "FAQs")}</span>
+          <h2 data-part="title" id="pricing-faq-title">
+            {dgettext("marketing", "Frequently asked questions")}
+          </h2>
+        </div>
+        <div data-part="questions">
+          <details :for={{question, answer} <- @faqs} data-part="question">
+            <summary data-part="summary">
+              <span data-part="label">{question}</span>
+              <span
+                data-part="chevron"
+                class="noora-neutral-button"
+                data-size="medium"
+                data-icon-only
+                aria-hidden="true"
+              ><.chevron_down /></span>
+            </summary>
+            <div data-part="answer">{raw(answer)}</div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <%!-- CTA framed by dithered divider bands, same recipe as the home
+    and cache pages' closing CTA. --%>
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="pricing-cta-divider-top-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="22.1"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+
+    <section data-part="cta" aria-labelledby="cta-title">
+      <span data-part="eyebrow">{dgettext("marketing", "Hola! Hello! Hallo! Olá! Namaste!")}</span>
+      <h2 id="cta-title">{dgettext("marketing", "Unlock your team's full potential")}</h2>
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+      </nav>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="pricing-cta-divider-bottom-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="29.6"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>
