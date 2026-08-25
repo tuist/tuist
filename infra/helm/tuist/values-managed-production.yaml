@@ -932,9 +932,38 @@ runnersFleet:
         # but that would make the cap an accident of the current shape:
         # a future 4-vCPU macOS shape would let memory admit four and
         # leave maxPods — which also counts system Pods — as the only
-        # thing between the fleet and an SLA violation. The ~36 GB not
-        # advertised is not wasted; it is page cache for two guests'
-        # CoW disk writes.
+        # thing between the fleet and an SLA violation.
+        #
+        # Advertising only 28 of 64 GB looks like a lot left on the
+        # table. It isn't reclaimable, and the measurements say it also
+        # isn't wanted. Over 3,251 macOS jobs in the 14 days to
+        # 2026-08-25 (runner_job_machine_metrics, in-guest
+        # active+wired+compressed):
+        #
+        #   peak RSS   p50 7.6 GiB · p90 8.8 GiB · p99 10.0 GiB
+        #              max ever 10.2 GiB, ZERO jobs above 85% of 14 GiB
+        #   peak CPU   p50 100% · 78% of jobs peg all 6 vCPUs
+        #              whole-job average CPU p50 47%, p90 71%
+        #
+        # So the guests are CPU-bound and nowhere near memory-bound —
+        # the 14 GiB ceiling has never been approached, let alone hit.
+        # Bigger guests would move idle RAM from the host into the
+        # guest and buy nothing. More guests is not an option either:
+        # Apple's SLA caps a host at 2 and Tart enforces it, and 6 vCPU
+        # x 2 already takes 12 of 14 cores.
+        #
+        # hostMemoryMB is a scheduling PROMISE, not an allocation, so
+        # the unadvertised ~36 GB is not idle — macOS spends it on the
+        # unified buffer cache, which on this SKU backs two guests' CoW
+        # disk images and a 240 GiB cache volume on a 2 TB disk. That is
+        # the best available use of it.
+        #
+        # If the M4's headroom is ever worth monetizing, the data says
+        # sell CORES, not RAM: a larger-CPU shape would measurably help
+        # 78% of jobs, a larger-memory one would help none of them.
+        # Caveat on the numbers: 15s sampling can miss a sub-15s spike,
+        # though compressed pages are counted so sustained pressure
+        # would show.
         hostCPU: 12
         hostMemoryMB: 28672
         # csi(1) + 2 guests + 1 slot of churn headroom.
