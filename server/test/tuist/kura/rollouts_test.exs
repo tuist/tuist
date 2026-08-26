@@ -111,7 +111,9 @@ defmodule Tuist.Kura.RolloutsTest do
       assert rollout.image_tag == @target_tag
       assert rollout.mode == :expedited
       assert rollout.status == :running
-      assert rollout.baseline_image_tag == nil
+      # No previous rollout to chain from, so the baseline is read off the
+      # fleet — which is still on the pre-rollout image at creation.
+      assert rollout.baseline_image_tag == @baseline_tag
 
       rollout_server = rollout_server(rollout, server)
       assert rollout_server.wave >= 0
@@ -824,6 +826,26 @@ defmodule Tuist.Kura.RolloutsTest do
       # regress to A. The never-upgraded account stays on A.
       assert Rollouts.provisioning_image_tag(upgraded_account.id, "0.7.0") == @target_tag
       assert Rollouts.provisioning_image_tag(pending_account.id, "0.7.0") == @baseline_tag
+    end
+
+    test "a paused first rollout pins an account with no server to the fleet baseline" do
+      # The first rollout has no previous rollout to inherit a baseline
+      # from, and an account with no server has no mesh tag to match, so
+      # both of the earlier fallbacks are empty. Without a fleet-derived
+      # baseline this handed out the paused, suspect target.
+      %{server: fleet_server} = create_active_server()
+      assert Repo.get!(Server, fleet_server.id).current_image_tag == @baseline_tag
+
+      stub(Tuist.FeatureFlags, :kura_rollout_orchestration_enabled?, fn -> true end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      {:ok, _} = Rollouts.pause(rollout, "op@tuist.dev", "target looks suspect")
+
+      user = AccountsFixtures.user_fixture()
+      fresh_account = Accounts.get_account_from_user(user)
+
+      assert Rollouts.provisioning_image_tag(fresh_account.id, @target_tag) == @baseline_tag
     end
 
     test "returns the default when orchestration is disabled" do

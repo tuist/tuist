@@ -485,9 +485,29 @@ defmodule Tuist.Kura.Rollouts do
   # target if it completed, else the last stable tag it was itself rolling
   # away from. Nil only before the first rollout ever, where new servers
   # simply provision on the configured tag.
-  defp baseline_image_tag(nil), do: nil
+  defp baseline_image_tag(nil), do: fleet_current_image_tag()
   defp baseline_image_tag(%Rollout{status: :completed, image_tag: tag}), do: tag
-  defp baseline_image_tag(%Rollout{baseline_image_tag: tag}), do: tag
+  defp baseline_image_tag(%Rollout{baseline_image_tag: tag}), do: tag || fleet_current_image_tag()
+
+  # The first rollout in an environment has no previous rollout to chain a
+  # baseline from, so it reads what the fleet is actually running — which,
+  # at creation, is still the pre-rollout image on every server. Without
+  # it `baseline_image_tag` stayed nil and a paused first rollout handed
+  # the suspect target to any account with no server to infer a tag from
+  # (a brand-new account, or one whose servers never completed an
+  # install): the one case the paused pinning exists to prevent. Nil only
+  # on a fleet with no servers at all, where there is no prior image and
+  # nothing to protect.
+  defp fleet_current_image_tag do
+    Server
+    |> where([s], s.status in ^@rollout_server_statuses and s.move_phase == :none)
+    |> where([s], not is_nil(s.current_image_tag))
+    |> group_by([s], s.current_image_tag)
+    |> order_by([s], desc: count(s.id), asc: s.current_image_tag)
+    |> limit(1)
+    |> select([s], s.current_image_tag)
+    |> Repo.one()
+  end
 
   # Deterministic account-grouped wave assignment, frozen at creation.
   # Wave 0: Tuist-owned accounts only. Waves 1..3: remaining accounts by
