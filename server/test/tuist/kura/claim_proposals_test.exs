@@ -8,6 +8,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.PlacerClaims
+  alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Kura.StorageClaims
   alias Tuist.Kura.StorageRollup
@@ -129,6 +130,29 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert proposal.current_claim_size == "8Gi"
       assert proposal.recommended_claim_size == "16Gi"
       assert proposal.evidence["signal"] == "shed_age_below_retention_floor"
+    end
+
+    test "measures against what the instance is pinned at, not the plan's default", %{
+      account: account,
+      server: server
+    } do
+      # Instances keep the claim they were built at, so lowering a plan
+      # constant leaves running instances above it. Baselining on the plan
+      # would read this 50Gi instance as 8Gi and call a move to 16Gi a grow,
+      # which on apply shrinks the volume and throws the cache away.
+      server |> Ecto.Changeset.change(%{storage_claim_size: "50Gi"}) |> Repo.update!()
+      seed_churn_rollups(account, 14, @today)
+
+      {:ok, _summary} = ClaimProposals.sweep(@today)
+      proposal = ClaimProposals.open_proposal_for(account)
+
+      assert proposal.current_claim_size == "50Gi"
+
+      assert {:ok, current} = Regions.parse_storage_quantity(proposal.current_claim_size)
+      assert {:ok, recommended} = Regions.parse_storage_quantity(proposal.recommended_claim_size)
+
+      assert recommended > current,
+             "a grow proposal must not recommend less than the instance already holds"
     end
 
     test "a second sweep refreshes the open proposal instead of stacking another", %{account: account} do

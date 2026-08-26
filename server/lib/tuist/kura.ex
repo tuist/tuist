@@ -393,7 +393,7 @@ defmodule Tuist.Kura do
             {:stale, proposal}
 
           StorageClaims.override_for(account) != nil or
-              StorageClaims.effective_claim_size(account) != proposal.current_claim_size ->
+              ClaimProposals.measured_claim_size(account) != proposal.current_claim_size ->
             {:stale, proposal |> ClaimProposal.resolve_changeset(:superseded, "stale_on_apply") |> Repo.update!()}
 
           true ->

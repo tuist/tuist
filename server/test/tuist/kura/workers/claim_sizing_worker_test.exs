@@ -64,8 +64,8 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
     %{account: account}
   end
 
-  test "writes proposals but applies nothing while the automatic flag is off", %{account: account} do
-    stub(Tuist.FeatureFlags, :kura_claim_sizing_automatic?, fn -> false end)
+  test "writes proposals but applies nothing while sizing is paused", %{account: account} do
+    stub(FunWithFlags, :enabled?, fn :kura_claim_sizing_paused -> true end)
 
     assert :ok = perform_job(ClaimSizingWorker, %{})
 
@@ -73,8 +73,10 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
     assert PlacerClaims.claim_for(account) == nil
   end
 
-  test "applies open proposals when the automatic flag is on", %{account: account} do
-    stub(Tuist.FeatureFlags, :kura_claim_sizing_automatic?, fn -> true end)
+  test "applies open proposals by default, with no flag set", %{account: account} do
+    # FunWithFlags reports an unset flag as disabled, which is what an
+    # untouched deployment looks like: sizing acts without being turned on.
+    stub(FunWithFlags, :enabled?, fn :kura_claim_sizing_paused -> false end)
 
     assert :ok = perform_job(ClaimSizingWorker, %{})
 
@@ -83,7 +85,7 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
   end
 
   test "the unattended budget is spent per hour, not per pass", %{account: account} do
-    stub(Tuist.FeatureFlags, :kura_claim_sizing_automatic?, fn -> true end)
+    stub(FunWithFlags, :enabled?, fn :kura_claim_sizing_paused -> false end)
 
     # Five automatic applies already this hour: the fleet's unattended budget
     # is gone, so a pass that would otherwise apply does nothing. This is what
@@ -112,7 +114,7 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
   end
 
   test "operator applies do not consume the unattended budget", %{account: account} do
-    stub(Tuist.FeatureFlags, :kura_claim_sizing_automatic?, fn -> true end)
+    stub(FunWithFlags, :enabled?, fn :kura_claim_sizing_paused -> false end)
 
     now = DateTime.truncate(DateTime.utc_now(), :second)
 

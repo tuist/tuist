@@ -40,14 +40,14 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the claim sizing sweep may apply its own proposals. Off means
-  shadow/supervised: the sweep still writes proposals and operators can
-  confirm them from the ops account page, but nothing resizes on its own.
-  The global graduation switch between the rollout phases, deliberately not
-  per-account — the per-account off switch is the operator claim override.
+  Whether automatic Kura claim sizing is paused fleet-wide. Sizing applies its
+  own proposals by default, so this is the stop button rather than an opt-in:
+  enabling it leaves the sweep writing proposals for operators to confirm by
+  hand. Deliberately global — the per-account off switch is the operator
+  claim override.
   """
-  def kura_claim_sizing_automatic? do
-    FunWithFlags.enabled?(:kura_claim_sizing_automatic)
+  def kura_claim_sizing_paused? do
+    FunWithFlags.enabled?(:kura_claim_sizing_paused)
   end
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do

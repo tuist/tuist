@@ -32,14 +32,20 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
     {:ok, _count} = StorageRollups.refresh(Date.add(today, -@refresh_trailing_days), today)
     {:ok, _summary} = ClaimProposals.sweep(today)
 
-    if FeatureFlags.kura_claim_sizing_automatic?() do
-      apply_within_budget()
-    end
+    apply_within_budget()
 
     :ok
   end
 
   defp apply_within_budget do
+    if FeatureFlags.kura_claim_sizing_paused?() do
+      :ok
+    else
+      drain_budget()
+    end
+  end
+
+  defp drain_budget do
     spent =
       DateTime.utc_now()
       |> DateTime.add(-3600, :second)
