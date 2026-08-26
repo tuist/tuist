@@ -44,6 +44,27 @@ defmodule Tuist.Kura.ClaimSizingTest do
     end
   end
 
+  # Churn at a given fraction of the plan's retention floor, which is what
+  # picks the confirmation tier. The span stays coherent with the shed age:
+  # content cannot be shed younger than the segment holding it is old.
+  defp churn_at(count, end_day, shed_seconds, span_seconds) do
+    churn_days(count, end_day,
+      median_shed_age_seconds: shed_seconds,
+      median_ring_span_seconds: span_seconds
+    )
+  end
+
+  # Pro floor is 3 days. 2.7 days of shedding is just under it: a marginal
+  # reading that only the longest tier accepts.
+  defp marginal_churn(count, end_day), do: churn_at(count, end_day, 233_280, 3 * @day_seconds)
+
+  # 12 hours against a 3-day floor: a sixth of the floor, the middle tier.
+  defp moderate_churn(count, end_day), do: churn_at(count, end_day, 43_200, div(3 * @day_seconds, 2))
+
+  # 30 minutes against a 3-day floor: the ring is churning artifacts it just
+  # stored, which is the tier that must not wait.
+  defp severe_churn(count, end_day), do: churn_at(count, end_day, 1_800, 3_600)
+
   defp idle_days(count, end_day, attrs \\ []) do
     for offset <- (count - 1)..0//-1 do
       rollup(
@@ -76,40 +97,77 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
   describe "evaluate/2 growth" do
     test "proposes growth after a sustained streak of churn under the retention floor" do
-      # Pro floor is 3 days; the ring holds 1.5 days, so the projection asks
-      # for 2x with headroom on top, and the step and ceiling clamps bite.
-      context = context(rollups: churn_days(14, @today))
+      # Pro floor is 3 days and the shedding sits just under it, so only the
+      # longest tier accepts it. The ring holds 3 days, so the projection is
+      # the floor plus headroom.
+      context = context(rollups: marginal_churn(14, @today))
 
-      assert {:grow, "50Gi", evidence} = ClaimSizing.evaluate(context)
+      assert {:grow, "38Gi", evidence} = ClaimSizing.evaluate(context)
       assert evidence["region"] == "us-east"
       assert evidence["window_days"] == 14
-      assert evidence["median_shed_age_seconds"] == 12 * 3_600
+      assert evidence["median_shed_age_seconds"] == 233_280
       assert evidence["retention_floor_seconds"] == 3 * @day_seconds
+      assert evidence["qualifying_threshold_seconds"] == 3 * @day_seconds
     end
 
     test "the streak may end yesterday, so a quiet partial day does not break it" do
-      rollups = churn_days(14, Date.add(@today, -1)) ++ [rollup(@today, snapshot_count: 4, max_occupancy_percent: 95)]
+      rollups =
+        marginal_churn(14, Date.add(@today, -1)) ++ [rollup(@today, snapshot_count: 4, max_occupancy_percent: 95)]
 
-      assert {:grow, "50Gi", _evidence} = ClaimSizing.evaluate(context(rollups: rollups))
+      assert {:grow, "38Gi", _evidence} = ClaimSizing.evaluate(context(rollups: rollups))
     end
 
     test "one day without evictions inside the window withholds the proposal" do
       rollups =
         14
-        |> churn_days(@today)
+        |> marginal_churn(@today)
         |> List.replace_at(7, rollup(Date.add(@today, -6), snapshot_count: 96, max_occupancy_percent: 95))
 
       assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
     end
 
-    test "a streak shorter than the window withholds the proposal" do
-      assert ClaimSizing.evaluate(context(rollups: churn_days(13, @today))) == :none
+    test "a marginal streak shorter than the longest window withholds the proposal" do
+      assert ClaimSizing.evaluate(context(rollups: marginal_churn(13, @today))) == :none
     end
 
     test "shed age at or above the floor is not churn" do
       rollups = churn_days(14, @today, median_shed_age_seconds: 4 * @day_seconds)
 
       assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
+    end
+
+    test "severe shedding acts on two days instead of serving out the long window" do
+      # 30 minutes against a 3-day floor: the ring is churning artifacts it
+      # just stored, and every further day of confirmation is a day the
+      # account rebuilds what it already built.
+      context = context(rollups: severe_churn(2, @today))
+
+      assert {:grow, "50Gi", evidence} = ClaimSizing.evaluate(context)
+      assert evidence["window_days"] == 2
+      assert evidence["qualifying_threshold_seconds"] == round(0.1 * 3 * @day_seconds)
+    end
+
+    test "a single severe day is not enough" do
+      # Rollups are day-grain, so one day cannot separate a sustained pattern
+      # from an afternoon's import burst.
+      assert ClaimSizing.evaluate(context(rollups: severe_churn(1, @today))) == :none
+    end
+
+    test "moderate shedding waits out the middle tier" do
+      # A sixth of the floor: past the severe tier's threshold, so two days
+      # cannot carry it, but it does not serve the full fortnight either.
+      assert ClaimSizing.evaluate(context(rollups: moderate_churn(4, @today))) == :none
+
+      assert {:grow, "50Gi", evidence} = ClaimSizing.evaluate(context(rollups: moderate_churn(5, @today)))
+      assert evidence["window_days"] == 5
+      assert evidence["qualifying_threshold_seconds"] == round(0.34 * 3 * @day_seconds)
+    end
+
+    test "a marginal reading cannot borrow a shorter tier" do
+      # Two and five days of shedding just under the floor stay unproven:
+      # only severity buys a shorter window.
+      assert ClaimSizing.evaluate(context(rollups: marginal_churn(2, @today))) == :none
+      assert ClaimSizing.evaluate(context(rollups: marginal_churn(5, @today))) == :none
     end
 
     test "air grows within its narrow band" do
@@ -127,17 +185,18 @@ defmodule Tuist.Kura.ClaimSizingTest do
     end
 
     test "an account already at its plan ceiling gets no proposal" do
-      context = context(plan: :enterprise, current_claim_size: "50Gi", rollups: churn_days(14, @today))
+      context = context(plan: :enterprise, current_claim_size: "50Gi", rollups: severe_churn(14, @today))
 
       assert ClaimSizing.evaluate(context) == :none
     end
 
     test "days at or before the last resize cannot qualify a window" do
       # The resize sits mid-window: the churn before it measured the old
-      # ring, so only 9 post-resize days remain and the streak is short.
+      # ring, so only 9 post-resize days remain and the marginal streak is
+      # short of its tier.
       context =
         context(
-          rollups: churn_days(14, @today),
+          rollups: marginal_churn(14, @today),
           last_resized_at: DateTime.new!(Date.add(@today, -10), ~T[12:00:00], "Etc/UTC")
         )
 
@@ -145,13 +204,24 @@ defmodule Tuist.Kura.ClaimSizingTest do
     end
 
     test "a still-undersized ring grows again once a full window postdates the resize" do
-      # 14 churning days strictly after the resize day: the evidence window
-      # itself is the pacing, so a claim that is still too small does not
-      # wait out a flat cooldown.
+      # 14 marginal churning days strictly after the resize day: the evidence
+      # window itself is the pacing, not a flat cooldown.
       context =
         context(
-          rollups: churn_days(14, @today),
+          rollups: marginal_churn(14, @today),
           last_resized_at: DateTime.new!(Date.add(@today, -14), ~T[12:00:00], "Etc/UTC")
+        )
+
+      assert {:grow, "38Gi", _evidence} = ClaimSizing.evaluate(context)
+    end
+
+    test "a still-churning ring grows again two days after a resize" do
+      # The severity ladder paces consecutive steps too: an account whose
+      # claim is still far too small after a resize corrects in days.
+      context =
+        context(
+          rollups: severe_churn(2, @today),
+          last_resized_at: DateTime.new!(Date.add(@today, -2), ~T[12:00:00], "Etc/UTC")
         )
 
       assert {:grow, "50Gi", _evidence} = ClaimSizing.evaluate(context)
@@ -226,7 +296,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
   describe "evaluate/2 across regions" do
     test "a growing region wins over a shrinking one" do
       rollups =
-        churn_days(14, @today) ++ Enum.map(idle_days(90, @today), &Map.put(&1, :region, "eu-central"))
+        moderate_churn(14, @today) ++ Enum.map(idle_days(90, @today), &Map.put(&1, :region, "eu-central"))
 
       assert {:grow, "50Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
       assert evidence["region"] == "us-east"
