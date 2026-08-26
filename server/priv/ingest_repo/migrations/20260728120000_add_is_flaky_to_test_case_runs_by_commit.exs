@@ -9,6 +9,7 @@ defmodule Tuist.IngestRepo.Migrations.AddIsFlakyToTestCaseRunsByCommit do
   """
   use Ecto.Migration
 
+  alias Tuist.ClickHouseCapabilities
   alias Tuist.IngestRepo
 
   require Logger
@@ -90,6 +91,9 @@ defmodule Tuist.IngestRepo.Migrations.AddIsFlakyToTestCaseRunsByCommit do
         %{table: @source_table}
       )
 
+    deduplication_settings =
+      ClickHouseCapabilities.insert_select_deduplication_settings(IngestRepo)
+
     for [partition] <- partitions do
       Logger.info("Backfilling flaky rows from partition #{partition} into #{@canonical_table}")
 
@@ -105,13 +109,14 @@ defmodule Tuist.IngestRepo.Migrations.AddIsFlakyToTestCaseRunsByCommit do
           """,
           %{partition: String.to_integer(partition)},
           timeout: 1_200_000,
-          settings: [
-            insert_deduplication_token: "test-case-runs-by-commit-is-flaky-backfill:#{partition}",
-            deduplicate_insert_select: "force_enable",
-            max_threads: 1,
-            max_memory_usage: @backfill_max_memory_usage,
-            max_bytes_before_external_sort: @backfill_external_sort_threshold
-          ]
+          settings:
+            [
+              insert_deduplication_token:
+                "test-case-runs-by-commit-is-flaky-backfill:#{partition}",
+              max_threads: 1,
+              max_memory_usage: @backfill_max_memory_usage,
+              max_bytes_before_external_sort: @backfill_external_sort_threshold
+            ] ++ deduplication_settings
         )
       end)
     end

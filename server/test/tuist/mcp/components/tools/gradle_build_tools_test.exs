@@ -104,6 +104,18 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
       assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} = result
       assert text =~ "Gradle build not found"
     end
+
+    test "accepts a dashboard URL in place of the build ID", %{conn: conn, user: user, project: project} do
+      build_id = GradleFixtures.build_fixture(project_id: project.id, account_id: user.account.id)
+
+      result =
+        GetGradleBuild.call(conn, %{
+          "build_run_id" => "https://tuist.dev/#{user.account.name}/#{project.name}/gradle/builds/#{build_id}"
+        })
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      assert JSON.decode!(text)["id"] == build_id
+    end
   end
 
   describe "list_gradle_build_tasks" do
@@ -146,6 +158,23 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
 
       assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} = result
       assert text =~ "Gradle build not found"
+    end
+
+    test "lists tasks for the ID extracted from a dashboard URL", %{conn: conn, user: user, project: project} do
+      build_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          account_id: user.account.id,
+          tasks: [%{task_path: ":app:compileKotlin", outcome: "executed", cacheable: true, duration_ms: 12_000}]
+        )
+
+      result =
+        ListGradleBuildTasks.call(conn, %{
+          "build_run_id" => "https://tuist.dev/#{user.account.name}/#{project.name}/gradle/builds/#{build_id}"
+        })
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      assert Enum.map(JSON.decode!(text)["tasks"], & &1["task_path"]) == [":app:compileKotlin"]
     end
   end
 end

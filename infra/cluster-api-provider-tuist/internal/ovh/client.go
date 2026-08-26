@@ -17,6 +17,12 @@
 //     is an operator-driven, end-of-life action). Release therefore lives in
 //     the controller as "drop the Node + identity" with the physical server
 //     left intact, so there is no DeleteServer here.
+//
+// Every install goes out with an explicit storage block (see PlanStorage): a
+// redundant root plus a separate XFS /data, at the RAID level the box's disk
+// count supports. Partitioning is an install-time decision (a box adopted on
+// OVH's default single-root layout cannot grow a /data without another wipe),
+// and /data is what makes a per-account cache quota enforceable at all.
 package ovh
 
 import (
@@ -249,6 +255,208 @@ func (c *Client) ResolveTemplate(ctx context.Context, serviceName, osLabel strin
 	return "", fmt.Errorf("no OVH install template matching label %q for server %s", osLabel, serviceName)
 }
 
+// Partition sizing for the installed layout, in MiB (the unit
+// dedicated.server.reinstall.storage.partitioning.Layout.size is declared in).
+const (
+	// bootPartitionMiB matches the size OVH's own partitioning guide uses for a
+	// mirrored /boot.
+	bootPartitionMiB = 1024
+
+	// rootPartitionMiB caps / on a single-disk-group box so the rest of the
+	// group's usable capacity can become /data. The node keeps almost nothing
+	// on root: the self-join relocates containerd's image store and bind-mounts
+	// the kubelet root onto /data, so this holds the base OS and its logs.
+	rootPartitionMiB = 64 * 1024
+
+	// fillRemainingMiB is the size value OVH reads as "give this partition the
+	// rest of the disk group". At most one partition per layout may use it.
+	fillRemainingMiB = 0
+)
+
+// Filesystems and mount points the installed layout uses.
+const (
+	// DataMountPoint is the separate filesystem every Kura cache directory
+	// lives on. The self-join binds /opt/local-path-provisioner (the
+	// local-path StorageClass root) and the kubelet root onto it, so a cache
+	// PV is a directory on THIS filesystem, not on root.
+	DataMountPoint = "/data"
+
+	// dataFileSystem is XFS because that is the only filesystem in
+	// dedicated.server.reinstall.storage.partitioning.layout.FileSystemEnum
+	// with project quotas we can enforce per cache directory. A per-account
+	// byte ceiling is the whole point of carving /data out in the first place:
+	// without it one account's instance fills the box, crosses kubelet's
+	// eviction line, and takes down every other tenant sharing it.
+	dataFileSystem = "xfs"
+
+	// rootFileSystem stays ext4: nothing on root is quota'd, and ext4 is what
+	// OVH's templates are exercised against.
+	rootFileSystem = "ext4"
+)
+
+// DiskGroup is the subset of a /dedicated/server/{name}/specifications/hardware
+// diskGroups entry the layout planner reads. A box reports one group per set of
+// physically identical disks, which is what distinguishes the two shapes in the
+// fleet: the single-mirror boxes report one group, the split OS/data boxes
+// report two.
+type DiskGroup struct {
+	DiskGroupID   int64        `json:"diskGroupId"`
+	NumberOfDisks int64        `json:"numberOfDisks"`
+	DiskSize      unitAndValue `json:"diskSize"`
+	DiskType      string       `json:"diskType"`
+	Description   string       `json:"description"`
+}
+
+// unitAndValue is OVH's complexType.UnitAndValue<long>.
+type unitAndValue struct {
+	Unit  string `json:"unit"`
+	Value int64  `json:"value"`
+}
+
+// capacityMiB is the group's total raw capacity, used only to order groups
+// against each other. Unrecognized units are compared as-is: every group on one
+// server reports the same unit, so the ordering still holds.
+func (g DiskGroup) capacityMiB() int64 {
+	size := g.DiskSize.Value
+	switch strings.ToLower(strings.TrimSpace(g.DiskSize.Unit)) {
+	case "tb", "to", "t":
+		size *= 1024 * 1024
+	case "gb", "go", "g":
+		size *= 1024
+	}
+	disks := g.NumberOfDisks
+	if disks <= 0 {
+		disks = 1
+	}
+	return size * disks
+}
+
+// raidLevel is the software RAID level every partition of the group's layout is
+// installed at. RAID 10 on an EVEN group of four or more disks, RAID 1 on two
+// or three, no RAID on one.
+//
+// The distinction is the group's usable capacity, not just its redundancy. A
+// layout installed at RAID 1 mirrors across ALL the disks the partitioning
+// covers, so a four-disk group installed that way yields ONE disk of usable
+// space: ordering a box with twice the disks buys nothing. RAID 10 stripes over
+// mirrored pairs instead, so the same four disks yield two disks of space at
+// the same single-disk-failure tolerance. Below four there is nothing to stripe
+// and RAID 1 is the only mirror available.
+//
+// An ODD count above three (5, 7) falls back to RAID 1 rather than reaching for
+// RAID 5 or 6: parity is a different durability, write-cost and rebuild story
+// that should be chosen deliberately for a shape that exists, no box in the
+// fleet has one, and a rejected payload is discovered by wiping a machine.
+//
+// 10 is a value dedicated.server.reinstall.storage.partitioning.layout accepts
+// for soft RAID (its RaidLevelEnum is 0/1/5/6/7/10), so this is a level the
+// install honours rather than one it fails on.
+func (g DiskGroup) raidLevel() int64 {
+	if g.NumberOfDisks >= 4 && g.NumberOfDisks%2 == 0 {
+		return 10
+	}
+	if g.NumberOfDisks >= 2 {
+		return 1
+	}
+	return 0
+}
+
+// Partition is one entry of a storage group's partitioning layout.
+type Partition struct {
+	FileSystem string `json:"fileSystem"`
+	MountPoint string `json:"mountPoint"`
+	// SizeMiB is the partition size; 0 fills the rest of the disk group. Never
+	// omitempty: 0 is a meaningful value, not an absent one.
+	SizeMiB int64 `json:"size"`
+	// RaidLevel is the software RAID level. Never omitempty for the same
+	// reason: 0 is RAID 0, and OVH defaults an absent value to 1.
+	RaidLevel int64 `json:"raidLevel"`
+}
+
+// Partitioning is the layout applied to one disk group.
+type Partitioning struct {
+	// Disks is how many of the group's disks the layout is built across. OVH
+	// defaults it to the whole group; it is sent explicitly because the layout's
+	// RaidLevel is derived from the same count, and the two only describe a
+	// valid array together. A RAID 10 layout needs all four of a four-disk group
+	// to have its two mirrored pairs, so a Disks that disagreed with the count
+	// raidLevel was chosen from would ask for an array that cannot be built.
+	Disks  int64       `json:"disks,omitempty"`
+	Layout []Partition `json:"layout"`
+}
+
+// StorageGroup is one element of the reinstall payload's storage array: the
+// disk group to act on and how to partition it.
+type StorageGroup struct {
+	DiskGroupID  int64        `json:"diskGroupId,omitempty"`
+	Partitioning Partitioning `json:"partitioning"`
+}
+
+// DiskGroups reads the server's physical disk groups. Returns the groups in the
+// order OVH reports them.
+func (c *Client) DiskGroups(ctx context.Context, serviceName string) ([]DiskGroup, error) {
+	var spec struct {
+		DiskGroups []DiskGroup `json:"diskGroups"`
+	}
+	if err := c.API.GetWithContext(ctx, "/dedicated/server/"+serviceName+"/specifications/hardware", &spec); err != nil {
+		return nil, fmt.Errorf("get hardware specifications for %s: %w", serviceName, err)
+	}
+	return spec.DiskGroups, nil
+}
+
+// PlanStorage derives the reinstall storage block from a server's disk groups:
+// one redundant group carrying /boot, a capped /, and a separate XFS /data
+// filling what is left. It is a pure function of the reported hardware so the
+// same code covers every shape in the fleet without an offer-keyed table,
+// including the RAID level, which the group's disk count decides (raidLevel).
+//
+// Deliberately a SINGLE storage entry, on the largest disk group. OVH documents
+// storage customization for one disk group per install, so a box with a small OS
+// mirror plus a larger data mirror gets its whole layout on the larger mirror and
+// leaves the smaller one untouched, rather than the two-entry payload that shape
+// invites. Two entries would be either rejected or silently reduced to the first,
+// and the silent case installs a box with no /data at all: recoverable, since the
+// self-join then refuses to bring it up, but only after a wipe and a ~30 minute
+// install. Spending an idle OS mirror to stay inside what the API documents is
+// the better trade, and it costs no cache capacity, which all lives on the larger
+// group either way. Using the second group needs either a verified multi-group
+// flow or post-install assembly of the untouched disks; neither is here.
+//
+// Returning an error rather than an empty layout is the other half: an install
+// that falls back to OVH's default single-root layout comes up with the cache on
+// root and no enforceable per-account ceiling, which is exactly the state this is
+// here to prevent, and correcting it costs a full reinstall.
+func PlanStorage(groups []DiskGroup) ([]StorageGroup, error) {
+	var chosen *DiskGroup
+	for i := range groups {
+		g := groups[i]
+		if g.NumberOfDisks <= 0 {
+			continue
+		}
+		// Ties break on the lower disk-group id so the plan is stable across
+		// calls for a box whose groups are the same size.
+		if chosen == nil || g.capacityMiB() > chosen.capacityMiB() ||
+			(g.capacityMiB() == chosen.capacityMiB() && g.DiskGroupID < chosen.DiskGroupID) {
+			chosen = &g
+		}
+	}
+	if chosen == nil {
+		return nil, errors.New("no usable disk group reported: refusing to install without a separate /data")
+	}
+
+	return []StorageGroup{{
+		DiskGroupID: chosen.DiskGroupID,
+		Partitioning: Partitioning{
+			Disks: chosen.NumberOfDisks,
+			Layout: []Partition{
+				{FileSystem: rootFileSystem, MountPoint: "/boot", SizeMiB: bootPartitionMiB, RaidLevel: chosen.raidLevel()},
+				{FileSystem: rootFileSystem, MountPoint: "/", SizeMiB: rootPartitionMiB, RaidLevel: chosen.raidLevel()},
+				{FileSystem: dataFileSystem, MountPoint: DataMountPoint, SizeMiB: fillRemainingMiB, RaidLevel: chosen.raidLevel()},
+			},
+		},
+	}}, nil
+}
+
 // InstallParams is the desired OS install for a server.
 type InstallParams struct {
 	// TemplateName is the resolved OVH OS template (e.g. ubuntu2404-server_64),
@@ -267,13 +475,29 @@ type InstallParams struct {
 // operatingSystem + customizations (hostname + inline SSH key). The install runs
 // asynchronously (~20-40 min); poll InstallState before bootstrapping. The API
 // token must grant POST /dedicated/server/*/reinstall.
+//
+// It always reads the box's disk groups and sends an explicit storage block, so
+// no caller can install one of these boxes on OVH's default single-root layout.
+// Partitioning is an install-time decision: a box that comes up without a
+// separate /data cannot grow one without another wipe, and every cache
+// directory on it would sit on root with nothing bounding what one account
+// writes.
 func (c *Client) StartInstall(ctx context.Context, serviceName string, p InstallParams) error {
+	groups, err := c.DiskGroups(ctx, serviceName)
+	if err != nil {
+		return err
+	}
+	storage, err := PlanStorage(groups)
+	if err != nil {
+		return fmt.Errorf("plan storage for %s: %w", serviceName, err)
+	}
 	body := map[string]any{
 		"operatingSystem": p.TemplateName,
 		"customizations": map[string]any{
 			"hostname": p.Hostname,
 			"sshKey":   p.SSHKey,
 		},
+		"storage": storage,
 	}
 	if err := c.API.PostWithContext(ctx, "/dedicated/server/"+serviceName+"/reinstall", body, nil); err != nil {
 		return fmt.Errorf("start reinstall on %s: %w", serviceName, err)

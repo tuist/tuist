@@ -18,19 +18,30 @@ public protocol LoadCacheCASServicing: Sendable {
 
 public enum LoadCacheCASServiceError: LocalizedError {
     case unknownError(Int)
+    /// The server admitted no response stream for the read and asked for a retry.
+    /// The object exists and the node is healthy, so the circuit breaker treats it
+    /// as its own condition rather than as an unavailable backend.
+    case rateLimited(String, retryAfterSeconds: Int?)
     case unauthorized(String)
     case forbidden(String)
+    case freeTierExhausted(String)
     case badRequest(String)
+    case unprocessableContent(String)
     case notFound(String)
 
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS artifact could not be loaded due to an unknown Tuist response of \(statusCode)."
+        case let .rateLimited(message, retryAfterSeconds):
+            guard let retryAfterSeconds else { return message }
+            return "\(message) (retry after \(retryAfterSeconds)s)"
         case let .unauthorized(message),
              let .forbidden(message),
+             let .freeTierExhausted(message),
              let .notFound(message),
-             let .badRequest(message):
+             let .badRequest(message),
+             let .unprocessableContent(message):
             return message
         }
     }
@@ -68,7 +79,7 @@ public struct LoadCacheCASService: LoadCacheCASServicing {
         )
         let handles = try fullHandleService.parse(fullHandle)
 
-        let response = try await client.downloadCASArtifact(
+        let response = try await client.downloadXcodeArtifact(
             .init(
                 path: .init(id: casId),
                 query: .init(
@@ -95,16 +106,39 @@ public struct LoadCacheCASService: LoadCacheCASServicing {
             case let .json(error):
                 throw LoadCacheCASServiceError.forbidden(error.message)
             }
-        case let .badRequest(badRequest):
-            switch badRequest.body {
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
             case let .json(error):
-                throw LoadCacheCASServiceError.badRequest(error.message)
+                throw LoadCacheCASServiceError.freeTierExhausted(error.message)
             }
         case let .notFound(notFound):
             switch notFound.body {
             case let .json(error):
                 throw LoadCacheCASServiceError.notFound(error.message)
             }
+        case let .unprocessableContent(unprocessableContent):
+            switch unprocessableContent.body {
+            case let .json(error):
+                throw LoadCacheCASServiceError.unprocessableContent(error.message)
+            }
+        case let .tooManyRequests(tooManyRequests):
+            switch tooManyRequests.body {
+            case let .json(error):
+                throw LoadCacheCASServiceError.rateLimited(
+                    error.message,
+                    retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+                )
+            }
+        // Neither service sends a `Range`, so a ranged answer is not a reply to
+        // the request that was made. Its body is a fragment, and returning it
+        // as the artifact would store a truncated one under a key that claims
+        // to be whole, so it is refused. Declared on the operation because kura
+        // honours ranges on this route; used by resume, which works below this
+        // layer on the raw response.
+        case .partialContent:
+            throw LoadCacheCASServiceError.unknownError(206)
+        case .rangeNotSatisfiable:
+            throw LoadCacheCASServiceError.unknownError(416)
         case let .undocumented(statusCode: statusCode, _):
             throw LoadCacheCASServiceError.unknownError(statusCode)
         }

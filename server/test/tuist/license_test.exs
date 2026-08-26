@@ -46,10 +46,15 @@ defmodule Tuist.LicenseTest do
 
     test "returns nil when API returns nil data" do
       validation_url = License.get_validation_url()
+      keygen_validation_url = License.get_keygen_validation_url()
       license_key = UUIDv7.generate()
 
-      stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
-        {:ok, %{status: 200, body: %{"data" => nil}}}
+      stub(Req, :post, fn
+        ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok, %{status: 200, body: %{"data" => nil}}}
+
+        ^keygen_validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok, %{status: 200, body: %{"data" => nil}}}
       end)
 
       result = License.resolve_license(license_key)
@@ -86,30 +91,113 @@ defmodule Tuist.LicenseTest do
       assert license.id == "1234"
     end
 
-    test "returns error when the server responds with error status" do
+    test "falls back to Keygen when Atlas does not recognize the license" do
       validation_url = License.get_validation_url()
+      keygen_validation_url = License.get_keygen_validation_url()
+      expiry = DateTime.utc_now() |> DateTime.shift(day: 1) |> Timex.format!("{RFC3339}")
       license_key = UUIDv7.generate()
 
-      stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
-        {:ok, %{status: 500}}
+      stub(Req, :post, fn
+        ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok, %{status: 200, body: %{"data" => nil}}}
+
+        ^keygen_validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok,
+           %{
+             status: 200,
+             body: %{
+               "data" => %{
+                 "id" => "1234",
+                 "attributes" => %{"expiry" => expiry}
+               },
+               "meta" => %{"valid" => true}
+             }
+           }}
       end)
 
-      result = License.resolve_license(license_key)
+      {:ok, license} = License.resolve_license(license_key)
 
-      assert {:error, "The server to validate the license responded with a 500 status code."} = result
+      assert license.valid == true
+      assert license.id == "1234"
     end
 
-    test "returns error when the Req errors" do
+    test "falls back to Keygen when Atlas responds with an error status" do
       validation_url = License.get_validation_url()
+      keygen_validation_url = License.get_keygen_validation_url()
+      expiry = DateTime.utc_now() |> DateTime.shift(day: 1) |> Timex.format!("{RFC3339}")
       license_key = UUIDv7.generate()
 
-      stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
-        {:error, "req error."}
+      stub(Req, :post, fn
+        ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok, %{status: 500}}
+
+        ^keygen_validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok,
+           %{
+             status: 200,
+             body: %{
+               "data" => %{
+                 "id" => "1234",
+                 "attributes" => %{"expiry" => expiry}
+               },
+               "meta" => %{"valid" => true}
+             }
+           }}
+      end)
+
+      {:ok, license} = License.resolve_license(license_key)
+
+      assert license.valid == true
+      assert license.id == "1234"
+    end
+
+    test "returns an error when Keygen also responds with an error status" do
+      validation_url = License.get_validation_url()
+      keygen_validation_url = License.get_keygen_validation_url()
+      license_key = UUIDv7.generate()
+
+      stub(Req, :post, fn
+        ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok, %{status: 500}}
+
+        ^keygen_validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok, %{status: 500}}
       end)
 
       result = License.resolve_license(license_key)
 
-      assert {:error, "\"req error.\""} = result
+      assert {:error, "The server to validate the license responded with a 500 status code."} =
+               result
+    end
+
+    test "falls back to Keygen when the Atlas request errors" do
+      validation_url = License.get_validation_url()
+      keygen_validation_url = License.get_keygen_validation_url()
+      expiry = DateTime.utc_now() |> DateTime.shift(day: 1) |> Timex.format!("{RFC3339}")
+      license_key = UUIDv7.generate()
+
+      stub(Req, :post, fn
+        ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:error, "atlas error"}
+
+        ^keygen_validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok,
+           %{
+             status: 200,
+             body: %{
+               "data" => %{
+                 "id" => "1234",
+                 "attributes" => %{"expiry" => expiry}
+               },
+               "meta" => %{"valid" => true}
+             }
+           }}
+      end)
+
+      {:ok, license} = License.resolve_license(license_key)
+
+      assert license.valid == true
+      assert license.id == "1234"
     end
   end
 
@@ -158,6 +246,39 @@ defmodule Tuist.LicenseTest do
       assert license.id == "test-license-id"
       assert license.valid == true
       assert license.signing_key == "test-signing-key-base64"
+    end
+
+    test "returns valid license when certificate is signed by one of the trusted verify keys" do
+      {trusted_public_key, _trusted_private_key} = :crypto.generate_key(:eddsa, :ed25519)
+      {atlas_public_key, atlas_private_key} = :crypto.generate_key(:eddsa, :ed25519)
+
+      verify_keys = [
+        Base.encode16(atlas_public_key, case: :lower),
+        Base.encode16(trusted_public_key, case: :lower)
+      ]
+
+      license_payload = %{
+        "data" => %{
+          "id" => "test-license-id",
+          "attributes" => %{
+            "expiry" => DateTime.utc_now() |> DateTime.shift(day: 1) |> DateTime.to_iso8601(),
+            "metadata" => %{"signingKey" => "test-signing-key-base64"}
+          }
+        }
+      }
+
+      encoded_data = license_payload |> JSON.encode!() |> Base.encode64()
+
+      signature =
+        :crypto.sign(:eddsa, :none, "license/" <> encoded_data, [atlas_private_key, :ed25519])
+
+      certificate =
+        %{"enc" => encoded_data, "sig" => Base.encode64(signature), "alg" => "base64+ed25519"}
+        |> JSON.encode!()
+        |> Base.encode64()
+
+      assert {:ok, license} = License.resolve_certificate(verify_keys, certificate)
+      assert license.id == "test-license-id"
     end
 
     test "returns error when signature is invalid" do

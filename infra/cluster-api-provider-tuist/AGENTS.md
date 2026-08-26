@@ -493,6 +493,151 @@ the box back into the pool**. It stays a monthly contract (release is not a cont
 termination), but the reinstall wipes the OS to a clean, claimable state — any
 node-local volume is lost and the host key rotates, so the next claim re-TOFUs it.
 
+### Disk layout, and why it is an install-time decision
+
+Every install these kinds start lays down a redundant root plus a **separate XFS
+`/data`**, and the self-join then mounts `/data` with `prjquota` and refuses to
+join a box where it cannot (`dataProjectQuotaScript` in
+`controllers/linux/linux_cloudinit.go`).
+
+The image store gets a reserved project of its own (`containerdQuotaScript`,
+project 100). It is the only consumer of `/data` that is not a tenant, and a
+per-volume quota is a ceiling rather than a reservation, so a tenant inside its
+own ceiling can still be denied space something else took first. Nothing else
+bounds it: the kubelet's image GC triggers on the FILESYSTEM being nearly full,
+so it only reclaims once the box is already squeezing tenants. The ceiling is
+deliberately generous, because containerd hitting it means failed pulls that
+image GC cannot resolve, and unlike the `/data` mount setup a failure to apply
+it does not fail the join.
+
+The chain it exists to close: a Kura cache PV is a local-path *directory* on
+`/data`, a directory has no size, so the pod's `ephemeral-storage` request is
+scheduler admission at placement time and nothing bounds what one account
+actually writes. An `ephemeral-storage` limit would not help: it is enforced
+against the pod's writable layer, logs and emptyDir, none of which is where the
+cache lives. XFS project quotas are the only real boundary, and the
+local-path-provisioner hooks in `infra/helm/tuist/templates/kura-fleet-storage.yaml`
+set one per volume from the PVC's requested size (which the kura-controller
+sizes from `KuraInstance.spec.storageSize`). Without it, one instance filling
+the box crosses kubelet's eviction line and takes down every tenant on it.
+
+The layout comes from the box's real disk groups (`ovh.PlanStorage`,
+`GET /dedicated/server/{name}/specifications/hardware`), so one code path covers
+every shape in the fleet: `/boot` + a capped `/` + `/data` filling the rest, on
+the box's LARGEST disk group.
+
+The RAID level comes from that group's disk count (`DiskGroup.raidLevel`): RAID
+10 on an even group of four or more disks, RAID 1 on two or three, none on one.
+This decides usable capacity, not just redundancy. A layout installed at RAID 1
+mirrors across every disk the partitioning covers, so a four-disk group installed
+that way carries ONE disk of `/data` and the extra disks buy nothing. Order a box
+with the larger disk option and it is RAID 10 that turns those disks into space.
+Odd counts above three fall back to RAID 1 rather than parity: RAID 5/6 is a
+different durability and rebuild trade to pick deliberately, and no box in the
+fleet has that shape.
+
+It is deliberately ONE storage entry. OVH documents storage customization for a
+single disk group per install, so a box with a small OS mirror plus a larger data
+mirror gets its whole layout on the larger mirror and leaves the smaller one
+untouched, rather than the two-entry payload that shape invites. Two entries
+would be either rejected or silently reduced to the first, and the silent case
+installs a box with no `/data` at all. That is recoverable, since the self-join
+then refuses to bring it up, but only after a wipe and a ~30 minute install.
+Using the second group needs either a verified multi-group flow or post-install
+assembly of the untouched disks; neither exists today, and no cache capacity is
+lost by leaving it idle, since the cache lives on the larger group either way.
+
+`StartInstall` refuses to post a reinstall it cannot plan a layout for, rather
+than falling back to the provider's default single-root install. Dedibox takes
+the same shape by formatting the default layout's `/data` as XFS
+(`internal/dedibox`), since its API already carves small-root + large-`/data`.
+
+Elastic Metal goes through Scaleway's partitioning schema (`internal/scaleway/partitioning.go`),
+which is the best-instrumented of the three: `GetDefaultPartitioningSchema`
+returns the offer's own layout to transform, so the planner never guesses the
+disk count, device naming, or whether the OS is mirrored, and
+`ValidatePartitioningSchema` checks the result against the real offer WITHOUT
+touching a server. `PartitioningSchemaFor` runs both before either install path
+posts, so a schema the provider would reject stops the install rather than
+wiping a box to discover it. `PlanSchema` takes /data out of root's partition
+and mirrors it exactly as the default mirrors root.
+
+
+**Already-adopted boxes need a reinstall.** Partitioning cannot change in place,
+so a box installed before this has either no separate `/data` or an ext4 one, and
+its cache volumes stay unbounded. They keep working: the provisioner hooks no-op
+with a log rather than refusing, so an old box does not become unschedulable, and
+`kura_volume_quota_enforced` is `0` on exactly those nodes, which is the query for
+what is left to convert.
+
+### Converting a live cache box
+
+**Do not delete the Machine out from under running cache pods.** It deadlocks,
+and this is pre-existing rather than anything the quota work introduced:
+
+1. CAPI drains the Node before the infrastructure controller runs. Draining
+   evicts a cache pod.
+2. That pod's PVC is still bound to a local-path PV with a
+   `kubernetes.io/hostname` affinity to the box being drained, so the replacement
+   pod has nowhere to schedule and stays Pending.
+3. Each `KuraInstance` has a `PodDisruptionBudget` of `minAvailable: 1`, so with
+   the first replica down the eviction API refuses the second.
+4. `deleteNodeLocalPVCs` (below) is what would free the volume, and it runs
+   AFTER drain in `reconcileDelete`. With `nodeDrainTimeout` unset on these
+   fleets, drain has no deadline, so the Machine sits in Deleting indefinitely.
+
+**The controller does this for you.** Annotate the outgoing node
+`tuist.dev/kura-evacuate` and the kura-controller runs the sequence below
+itself, one replica at a time, gated on each moved pod reporting a completed
+catch-up (`infra/kura-controller/controllers/node_evacuation.go`). Bring up the
+replacement box first; with nowhere to land it deliberately does nothing. Once
+the box holds no cache pods, delete its Machine as normal.
+
+The manual sequence, for reference and for anything the controller does not
+cover. A region's instances run a primary plus a warm standby, and the public
+Service selects ONE of them by pod name, so the standby can be moved with
+nothing user-visible happening:
+
+1. Prep a second box into the region's pool and raise `replicas`. Before
+   touching anything live, confirm the new box can actually enforce: provision a
+   throwaway PVC on it and check `kura_volume_quota_enforced` is `1` there. The
+   provisioner hook is fail-closed, so a box that cannot enforce will hold the
+   migration at Pending rather than proceeding, and that is much better
+   discovered before the old box is cordoned.
+2. Cordon the old box. This is not optional and the controller enforces it: an
+   annotated box that is still schedulable is refused, because
+   `instancePodAffinity` PREFERS co-locating an instance's pods, so the
+   replacement would be pulled straight back onto the box being retired and the
+   move would loop, burning the volume's cache on every turn.
+3. Move the STANDBY replica: delete its PVC (it stays Terminating under
+   `pvc-protection`), then delete its pod. Deleting the pod first only rebinds it
+   to the same PV. Once both are gone the StatefulSet recreates them and
+   `WaitForFirstConsumer` binds the new claim on the second box.
+4. Wait for the moved replica to catch up from its peer before handing it
+   traffic. Kura backfills a fresh replica from the peer it joins (`kura/src/backfill/`),
+   so the cache content follows even though the volume does not; gate on that
+   pod's backfill metrics rather than a timer.
+5. Let the primary role hand over, then repeat 3-4 for the ex-primary.
+6. Delete the old Machine once it holds no cache pods. Drain is trivial now, and
+   release reinstalls it onto the split layout and returns it to the pool.
+
+Releasing an OVH box is not a contract termination, so a region left at two boxes
+keeps paying for both. Decide whether the second box is capacity you want or a
+contract to cancel out of band.
+
+The deadlock itself is now defused declaratively: the `kura-cache-skip`
+`MachineDrainRule` in `infra/k8s/clusters/machinedrainrules.yaml` tells Cluster
+API not to evict cache Pods, so drain completes, the PVC reap runs, and the
+StatefulSets reprovision on whatever box is left in the pool. That is a safety
+net rather than the procedure: it makes the naive path terminate instead of
+hang, but it gives up the cache, since both replicas are co-located and deleting
+their box leaves no peer to backfill from. Use the staged move above to keep a
+region warm.
+
+Setting `nodeDrainTimeout` on these fleets would additionally bound the failure
+if a future Pod shape reintroduces the same shape of stall. Worth doing
+independently of any conversion.
+
 ### Scale up
 ```bash
 kubectl scale machinedeployment <fleet-name> --replicas=4
@@ -501,18 +646,119 @@ Two new ScalewayAppleSiliconMachines are created → operator orders
 two Mac minis from Scaleway → ~5 min later `kubectl get nodes` shows
 them Ready.
 
+### Multi-guest hosts and mixed-SKU fleets
+
+Apple's macOS SLA permits two virtualized macOS guests per host, and
+Tart enforces it. Whether a host actually runs two is a sizing
+decision, not a code path: tart-kubelet advertises `hostCPU` /
+`hostMemoryMB` as the Node's capacity and kube-scheduler fits guest
+Pods into it, so a host admits `hostMemoryMB / podMemoryMB` guests.
+Size `hostMemoryMB` as an exact multiple of the pool's Pod memory
+request so both dimensions bind at the same number — leaving CPU as
+the only thing standing between the fleet and a third guest makes the
+cap an accident of the current Pod shape.
+
+Five spec fields are per-Machine so one operator can run a
+heterogeneous fleet, all resolved in `hostConfig` and therefore all
+reflected in `desiredHostConfigHash`:
+
+| Field | What it sizes |
+| --- | --- |
+| `hostCPU` / `hostMemoryMB` | Node capacity — the actual guest-count control |
+| `maxPods` | Node Pod ceiling. Counts **every** Pod bound to the Node, and a terminal Pod holds its slot until GC — so it is guests x 2, not guests + system Pods. See below |
+| `guestCapacity` | The per-guest host resources: the VNC relay port range and the disk-pressure goldens floor. Declares intent; creates no capacity |
+| `runnerCacheVolumeGiB` | The per-account cache volume's quota, which tracks the SKU's disk |
+
+`maxPods` is sized as guests x 2 + 1 because a Pod stays bound to its
+Node after it finishes: each guest slot can transiently hold its running
+Pod plus a predecessor GC has not collected yet (observed on the live
+fleet 2026-08-25 — a single-guest host carrying one Running and one
+Succeeded Pod), and the +1 is margin. So 3 for a single-guest host, 5
+for a dual-guest one.
+
+Keep that margin. It is not where the SLA is enforced and does not need
+to be — Tart refuses a third VM and `hostCPU`/`hostMemoryMB` bind the
+guest count first, so a higher value admits no extra guest. But a node
+sitting exactly at its ceiling rejects Pods with `Too many pods` while
+`macosFleetAllocatableMemory` still counts its slots as available, so
+the autoscaler keeps targeting a node that cannot take them until GC
+catches up. Nothing is reserved for host-system Pods — `hcloud-csi-node`, the
+usual suspect, is kept off macOS by a `kubernetes.io/os NotIn [darwin]`
+required nodeAffinity rather than by the macOS taint, which its blanket
+`Exists` tolerations ignore.
+
+`guestCapacity` exists so those last two resources have one source of
+truth. Both are per-guest and neither is derivable from the others —
+`maxPods` folds in system Pods, and `hostMemoryMB / podMemoryMB` is not
+knowable host-side, since the host does not know the pool's Pod shape.
+
+A single-guest host resolves `guestCapacity` to 1, which is already
+tart-kubelet's default for both derived values, and the plist renderer
+omits a flag at its default — so adding a multi-guest SKU to a fleet
+does **not** drift the single-guest hosts already in it. There is a
+test pinning that (`TestDesiredHostConfigHash_UnchangedForSingleGuestMachines`);
+if it fails, deploying the operator silently rolls launchd on every
+mini in every macOS fleet.
+
+The VNC relay is the one thing that genuinely breaks without this. Its
+port is pinned per host (so the per-Mac Tailscale egress Service can
+declare it) while a relay is per *Pod*, so a second guest needs a
+second port and the Service has to front it. The chart expresses a
+mixed fleet through `runnersFleet.machineGroups[]` — see the comments
+in `infra/helm/tuist/templates/runners-fleet.yaml` for why each group
+gets its own Machine-object label but shares the fleet's Node label.
+
 ### Scale down
 ```bash
 kubectl scale machinedeployment <fleet-name> --replicas=1
 ```
 CAPI core picks the most-recently-created Machines for deletion. The
 controller renames the host back into the pool namespace
-(`<poolPrefix><uuid>`) and triggers a Scaleway OS reinstall; the
-host stays alive, returns to factory-default state, and becomes
-eligible for the next adoption once Scaleway flips it back to
-`Delivered + Ready`. The 24h Apple licensing floor stays in
-operator-owned territory — you keep paying for capacity you already
-pre-ordered until you decide to release it via the Scaleway console.
+(`<poolPrefix><uuid>`) and triggers a Scaleway OS reinstall onto the
+Machine's own `spec.os`; the host stays alive, returns to
+factory-default state, and becomes eligible for the next adoption
+once Scaleway flips it back to `Delivered + Ready`. The 24h Apple
+licensing floor stays in operator-owned territory — you keep paying
+for capacity you already pre-ordered until you decide to release it
+via the Scaleway console.
+
+`spec.os` names a macOS release **family** — `Tahoe`, `Sequoia`,
+`Sonoma` — not a point release. Adoption accepts any pool host in the
+family, and release reinstalls onto the family's newest published
+image the host's SKU can boot, so a fleet tracks Scaleway's point
+releases instead of chasing them.
+
+Do not put an image name there. Scaleway retires point releases
+without notice and reimages released hosts onto the server type's
+current default, so an exact pin drifts out from under its fleet and
+nothing in the pool can satisfy it again — staging lost its whole
+runner pool that way in Aug 2026 while pinned to `macos-tahoe-26.3`.
+Adoption therefore refuses a versioned pin outright with an
+`InvalidOSPin` condition rather than quietly widening it. The values
+to set are
+`{macosFleet,runnersFleet,buildersFleet}.machine.os`; `OnDelete`
+means live hosts are not churned by the change.
+
+### A Machine stuck on `InvalidOSPin`
+
+The pin lives on each Machine's own spec, cloned from the template at
+creation and never re-synced, so a Machine created before the family
+switch keeps its versioned pin. That is inert while it holds a host,
+but the moment it goes hostless — bootstrap exhaustion releases the
+host and leaves the Machine hostless, or it was already pending — its
+next adoption is refused and it loops on `InvalidOSPin` every 5
+minutes. Editing the fleet's values does nothing for it: the template
+is already correct.
+
+```bash
+kubectl delete machine <machine-name>
+```
+
+The MachineSet re-clones from the current template and the
+replacement carries the family. Safe when the Machine holds no host
+(`status.serverID` empty) — there is nothing to release. Patching
+`spec.os` to the family on the existing CR works too and skips the
+re-clone.
 
 ### Replace a wedged host
 ```bash

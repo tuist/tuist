@@ -1,0 +1,127 @@
+name: Cilium Deployment
+
+# Roll the Cilium chart values onto every workload cluster on push to main.
+#
+# Like HCCM (hccm-deployment.yml) and the node CSI drivers
+# (csi-deployment.yml), Cilium lives in kube-system and was only ever
+# installed during fresh-cluster onboarding via
+# `mise run k8s:bootstrap-workload`. Edits to
+# infra/k8s/mgmt/bootstrap/cilium-values.yaml therefore had no effect on
+# existing clusters until someone re-ran bootstrap by hand.
+#
+# That gap has already cost us. #12401 added
+# `drop:sourceContext=pod|ip;destinationContext=pod` to the Hubble drop
+# metric so a policy-denied kura cache node could be attributed to a
+# source. It merged, and production never picked it up: two days later
+# the "Kura Cache Rejecting Runner Traffic" alert fired again and
+# hubble_drop_total still carried no `source` label, so the drops were
+# still unattributable. A merged PR was mistaken for a deployed change.
+#
+# The per-cluster work lives in cilium-apply.yml. This file owns only the
+# ordering, and differs from the HCCM / CSI siblings in one way: those
+# fan out over all envs in parallel, because their blast radius is one
+# subsystem. Cilium is the CNI, so staging must prove the change before
+# canary, and canary before production. That ordering is expressed with
+# `needs` rather than a matrix: GitHub does not guarantee matrix
+# execution order, and `max-parallel: 1` only caps concurrency, so a
+# matrix could legally run production first.
+#
+# preview hangs off staging rather than sitting on the production path.
+# It is a real long-lived workload cluster running the same values (see
+# bootstrap-workload.sh), so leaving it out would park it permanently
+# outside reconciliation, but nothing gates on its result.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - infra/k8s/mgmt/bootstrap/cilium-values.yaml
+      # The chart version is parsed out of this script, so a version-only
+      # bump has to reach existing clusters too. It is a broad trigger for
+      # a narrow signal, but a run that finds nothing to change is a helm
+      # no-op with no rollout, so the cost of over-triggering is a few
+      # minutes of CI and the cost of under-triggering is the drift this
+      # workflow exists to prevent.
+      - infra/mise/tasks/k8s/bootstrap-workload.sh
+      - .github/workflows/cilium-deployment.yml
+      - .github/workflows/cilium-apply.yml
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Which cluster to reconcile"
+        type: choice
+        default: staging
+        options: [staging, canary, production, preview, all]
+      force_restart:
+        description: "Roll the agents even if they already run the current config"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    # `inputs` and `github` are available in a job-level `if`; `matrix` is
+    # not, which is why the env selection lives here and not in a matrix.
+    if: >-
+      github.event_name != 'workflow_dispatch'
+      || inputs.environment == 'all'
+      || inputs.environment == 'staging'
+    uses: ./.github/workflows/cilium-apply.yml
+    with:
+      environment: staging
+      force_restart: ${{ inputs.force_restart == true }}
+    secrets: inherit
+
+  preview:
+    needs: staging
+    # Off the production path: it must not block canary, and a targeted
+    # dispatch has to reach it with staging skipped. An allow-list rather
+    # than `!= 'failure'`, which would also admit `cancelled` — and
+    # `!cancelled()` does not cover that, since it reports whether this
+    # run was cancelled, not whether the dependency was.
+    if: >-
+      contains(fromJSON('["success","skipped"]'), needs.staging.result)
+      && (github.event_name != 'workflow_dispatch'
+          || inputs.environment == 'all'
+          || inputs.environment == 'preview')
+    uses: ./.github/workflows/cilium-apply.yml
+    with:
+      environment: preview
+      kubeconfig_source: environment_secret
+      force_restart: ${{ inputs.force_restart == true }}
+    secrets: inherit
+
+  canary:
+    needs: staging
+    # See the preview job for why this is an allow-list. A cancelled
+    # staging must not let canary through: job-level concurrency cancels a
+    # *pending* job when a newer one enters the same group, and this lane
+    # is shared with hccm and csi, so a csi job queueing at the wrong
+    # moment could evict staging and leave the cascade rolling a change
+    # staging never applied.
+    if: >-
+      contains(fromJSON('["success","skipped"]'), needs.staging.result)
+      && (github.event_name != 'workflow_dispatch'
+          || inputs.environment == 'all'
+          || inputs.environment == 'canary')
+    uses: ./.github/workflows/cilium-apply.yml
+    with:
+      environment: canary
+      force_restart: ${{ inputs.force_restart == true }}
+    secrets: inherit
+
+  production:
+    needs: [staging, canary]
+    if: >-
+      contains(fromJSON('["success","skipped"]'), needs.staging.result)
+      && contains(fromJSON('["success","skipped"]'), needs.canary.result)
+      && (github.event_name != 'workflow_dispatch'
+          || inputs.environment == 'all'
+          || inputs.environment == 'production')
+    uses: ./.github/workflows/cilium-apply.yml
+    with:
+      environment: production
+      force_restart: ${{ inputs.force_restart == true }}
+    secrets: inherit

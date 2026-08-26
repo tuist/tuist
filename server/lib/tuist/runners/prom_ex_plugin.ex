@@ -16,11 +16,13 @@ defmodule Tuist.Runners.PromExPlugin do
       shape is visible separately from an idle warm pool polling, and
       separately from a slow CH/PG.
 
-    * **Polling metrics.** Three poll loops at a coarse 30s cadence
+    * **Polling metrics.** Four poll loops at a coarse 30s cadence
       query authoritative state and emit gauges: queue length per
-      fleet from ClickHouse, inflight claim counts per fleet /
-      lifecycle state from Postgres, RunnerPool desired / observed /
-      capacity-ceiling replica counts from the K8s apiserver. Polled gauges are
+      fleet from Postgres, inflight claim counts per fleet /
+      lifecycle state from Postgres, open sessions past the six-hour
+      safety bound per fleet from Postgres, RunnerPool desired /
+      observed / capacity-ceiling replica counts from the K8s
+      apiserver. Polled gauges are
       deliberately separate from the event counters —
       `runner_pool_replicas` is a level (current capacity), not a
       flux (boot/teardown rate already covered by tart-kubelet's
@@ -34,14 +36,15 @@ defmodule Tuist.Runners.PromExPlugin do
 
   use PromEx.Plugin
 
-  import Ecto.Query, only: [from: 2, subquery: 1]
+  import Ecto.Query, only: [from: 2]
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
   alias Tuist.Runners.Claim
-  alias Tuist.Runners.Job
+  alias Tuist.Runners.Jobs
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias TuistCommon.Repo.PoolMetrics
 
@@ -71,6 +74,14 @@ defmodule Tuist.Runners.PromExPlugin do
   # growing age that keeps the queue-age alert firing after the queue
   # has cleared. Emit one final zero for such fleets.
   @queue_seen_key :tuist_runners_queue_seen_fleets
+
+  # Same drain for the session-clamp poll: a fleet can lose its pool and
+  # its clamped rows in one step, and a leak gauge stuck non-zero after
+  # the leak cleared is an alert nobody can silence.
+  @session_clamp_seen_key :tuist_runners_session_clamp_seen_fleets
+
+  # Same drain for the replica-divergence poll.
+  @divergence_seen_key :tuist_runners_divergence_seen_fleets
 
   # Buckets cover the realistic wall-clock range for each duration.
   # `queue_time` and `queue_to_running` are sub-minute on the happy
@@ -215,19 +226,6 @@ defmodule Tuist.Runners.PromExPlugin do
         ]
       ),
       Event.build(
-        :tuist_runners_session_event_metrics,
-        [
-          last_value(
-            @metric_prefix ++ [:session, :clamped, :count],
-            event_name: Telemetry.event_name_session_clamp(),
-            description:
-              "Open runner sessions per fleet past the six-hour session safety bound; a live claim can still prove current occupancy.",
-            measurement: :count,
-            tags: [:fleet]
-          )
-        ]
-      ),
-      Event.build(
         :tuist_runners_webhook_event_metrics,
         [
           counter(
@@ -247,6 +245,25 @@ defmodule Tuist.Runners.PromExPlugin do
             measurement: :count,
             description: "Stale or orphaned rows recovered by the recovery workers, by kind.",
             tags: [:kind]
+          ),
+          # Only the orphan re-queue carries `stranded_ms`, so this fires
+          # for that recovery alone even though every worker shares the
+          # event — a measurement key absent from the event is skipped.
+          # This is the ONLY series that sees a job dispatched to a runner
+          # that never registered: the row is `running` for the whole
+          # stall, so `queue_length` and `queue_oldest_age_seconds` both
+          # read zero while the customer watches "waiting for a runner".
+          # Its `_count` doubles as the per-fleet strand rate, which is why
+          # the shared counter above is left untagged.
+          distribution(
+            @metric_prefix ++ [:recovery, :stranded, :time, :milliseconds],
+            event_name: Telemetry.event_name_recovery(),
+            measurement: :stranded_ms,
+            description:
+              "Time a workflow_job sat claimed by a runner that never registered with GitHub, until recovery re-queued it.",
+            reporter_options: [buckets: @long_duration_buckets],
+            tags: [:fleet],
+            unit: :millisecond
           )
         ]
       )
@@ -266,12 +283,12 @@ defmodule Tuist.Runners.PromExPlugin do
           last_value(
             @metric_prefix ++ [:queue, :length],
             event_name: Telemetry.event_name_queue_length(),
-            description: "Queued workflow jobs per fleet (ClickHouse runner_jobs).",
+            description: "Queued workflow jobs per fleet (Postgres runner_workflow_jobs).",
             measurement: :count,
             tags: [:fleet]
           ),
           # Rides the `queue_length` event: both values come out of one
-          # ClickHouse scan. Depth alone can't distinguish a queue that
+          # Postgres scan. Depth alone can't distinguish a queue that
           # is never empty because arrivals are served promptly from one
           # job wedged for hours — both sit at 1.
           last_value(
@@ -312,6 +329,36 @@ defmodule Tuist.Runners.PromExPlugin do
         ]
       ),
       Polling.build(
+        :tuist_runners_session_clamp_metrics,
+        poll_rate,
+        {__MODULE__, :execute_session_clamp_telemetry_event, []},
+        [
+          last_value(
+            @metric_prefix ++ [:session, :clamped, :count],
+            event_name: Telemetry.event_name_session_clamp(),
+            description:
+              "Open runner sessions per fleet whose start is more than the six-hour safety bound ago — the rows the autoscaler has stopped counting as occupied and billing has stopped charging for. Counts by age alone, with no check on whether the Pod is still there, so a job running near GitHub's own six-hour ceiling crosses the bound while alive and legitimately counted here.",
+            measurement: :count,
+            tags: [:fleet]
+          )
+        ]
+      ),
+      Polling.build(
+        :tuist_runners_replica_divergence_metrics,
+        poll_rate,
+        {__MODULE__, :execute_replica_divergence_telemetry_event, []},
+        [
+          last_value(
+            @metric_prefix ++ [:replica, :divergence, :count],
+            event_name: Telemetry.event_name_replica_divergence(),
+            description:
+              "Jobs per fleet whose ClickHouse row is still non-terminal while Postgres holds a terminal state. The outbox makes divergence transient, so this reads zero in steady state; a sustained non-zero value means analytics and the Jobs dashboard are serving a state the job has already left, and nothing will correct it on its own because a terminal job emits no further events.",
+            measurement: :count,
+            tags: [:fleet]
+          )
+        ]
+      ),
+      Polling.build(
         :tuist_runners_pool_replicas_metrics,
         poll_rate,
         {__MODULE__, :execute_pool_replicas_telemetry_event, []},
@@ -344,18 +391,18 @@ defmodule Tuist.Runners.PromExPlugin do
 
   @doc false
   def execute_queue_length_telemetry_event do
-    if PoolMetrics.running?(ClickHouseRepo) do
+    if PoolMetrics.running?(Repo) do
       now = DateTime.utc_now()
-      stats = fetch_queue_stats(now)
+      stats = Jobs.queue_stats_by_fleet()
       current_fleets = stats |> universe_fleets() |> MapSet.new()
 
       Enum.each(current_fleets, fn fleet ->
-        %{count: count, oldest_age_seconds: age} =
-          Map.get(stats, fleet, %{count: 0, oldest_age_seconds: 0})
+        %{count: count, oldest_enqueued_at: oldest_enqueued_at} =
+          Map.get(stats, fleet, %{count: 0, oldest_enqueued_at: nil})
 
         :telemetry.execute(
           Telemetry.event_name_queue_length(),
-          %{count: count, oldest_age_seconds: age},
+          %{count: count, oldest_age_seconds: age_seconds(now, oldest_enqueued_at)},
           %{fleet: fleet}
         )
       end)
@@ -375,46 +422,14 @@ defmodule Tuist.Runners.PromExPlugin do
     end
   end
 
-  # Avoid `FINAL` — at scale it forces ClickHouse to merge across
-  # every part of `runner_jobs` on every 30s poll. Instead, collapse
-  # per workflow_job via `argMax(updated_at)` in a subquery, then
-  # filter the *current* state to `queued` and group by fleet.
-  #
-  # The `enqueued_at >= cutoff` prunes partitions (the table is
+  # Horizon for the ClickHouse side of the divergence scan. The
+  # `enqueued_at >= cutoff` prunes partitions (the table is
   # `PARTITION BY toYYYYMM(enqueued_at)` and every state-transition
   # INSERT carries the original `enqueued_at` forward, so all rows
-  # for a workflow_job live in the same partition). Seven days is
-  # well past any realistic queue lifetime — GitHub's own queue
-  # timeout is ~24h — so any row still queued beyond the cutoff is
-  # a system-wide outage where a slightly low gauge is the least
-  # of our problems.
+  # for a workflow_job live in the same partition). Seven days matches
+  # `Jobs`' own queued floor, so a row old enough to fall out of this
+  # scan is also one nothing will ever dispatch.
   @queue_lookback_days 7
-
-  defp fetch_queue_stats(now) do
-    cutoff = DateTime.add(now, -@queue_lookback_days, :day)
-
-    latest =
-      from(j in Job,
-        where: j.enqueued_at >= ^cutoff,
-        group_by: j.workflow_job_id,
-        select: %{
-          workflow_job_id: j.workflow_job_id,
-          fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
-          status: fragment("argMax(?, ?)", j.status, j.updated_at),
-          enqueued_at: min(j.enqueued_at)
-        }
-      )
-
-    from(s in subquery(latest),
-      where: s.status == "queued",
-      group_by: s.fleet_name,
-      select: {s.fleet_name, count(s.workflow_job_id), min(s.enqueued_at)}
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new(fn {fleet, count, oldest_enqueued_at} ->
-      {fleet || "", %{count: count, oldest_age_seconds: age_seconds(now, oldest_enqueued_at)}}
-    end)
-  end
 
   # Clamped at 0 so clock skew between the pod that wrote `enqueued_at`
   # and the pod polling can't report a negative age, which would read as
@@ -427,6 +442,78 @@ defmodule Tuist.Runners.PromExPlugin do
 
   defp age_seconds(now, %NaiveDateTime{} = enqueued_at) do
     age_seconds(now, DateTime.from_naive!(enqueued_at, "Etc/UTC"))
+  end
+
+  # Settle window before a non-terminal ClickHouse row counts as
+  # diverged. The flusher runs every minute, so anything younger is
+  # in-flight lag rather than a replica that has stopped converging.
+  @divergence_settle_minutes 5
+
+  @doc false
+  def execute_replica_divergence_telemetry_event do
+    if PoolMetrics.running?(ClickHouseRepo) and PoolMetrics.running?(Repo) do
+      now = DateTime.utc_now()
+
+      counts =
+        Jobs.count_replica_divergence(
+          DateTime.add(now, -@divergence_settle_minutes, :minute),
+          DateTime.add(now, -@queue_lookback_days, :day)
+        )
+
+      current_fleets = counts |> Map.keys() |> MapSet.new()
+
+      Enum.each(counts, fn {fleet, count} ->
+        :telemetry.execute(Telemetry.event_name_replica_divergence(), %{count: count}, %{fleet: fleet})
+      end)
+
+      @divergence_seen_key
+      |> Process.get(MapSet.new())
+      |> MapSet.difference(current_fleets)
+      |> Enum.each(fn fleet ->
+        :telemetry.execute(Telemetry.event_name_replica_divergence(), %{count: 0}, %{fleet: fleet})
+      end)
+
+      Process.put(@divergence_seen_key, current_fleets)
+    end
+  end
+
+  # Polled rather than emitted from `p95_concurrent_last_hour/1`, which
+  # is where this gauge used to ride. That path only runs for fleets the
+  # autoscaler happens to be polling, on whichever replica serves the
+  # request, and the striped Peep storage is flushed on every scrape — so
+  # the sample had to land in the same 15s window on the same pod to be
+  # exported at all. It never was: the metric was defined and registered
+  # while production leaked sessions for hours with no series to show for
+  # it. As a poll it behaves like every other gauge here, including the
+  # zero-drain for fleets that recovered.
+  @doc false
+  def execute_session_clamp_telemetry_event do
+    if PoolMetrics.running?(Repo) do
+      counts = RunnerSessions.clamped_open_session_counts_per_fleet()
+      current_fleets = counts |> universe_fleets() |> MapSet.new()
+
+      Enum.each(current_fleets, fn fleet ->
+        :telemetry.execute(
+          Telemetry.event_name_session_clamp(),
+          %{count: Map.get(counts, fleet, 0)},
+          %{fleet: fleet}
+        )
+      end)
+
+      # A fleet whose pool was deleted while it still held clamped
+      # sessions leaves both sets at once when those rows close, so
+      # nothing would be emitted and `last_value` would hold its last
+      # non-zero sample forever — a leak alert that never clears after
+      # the leak is gone. Emit one final zero.
+      @session_clamp_seen_key
+      |> Process.get(MapSet.new())
+      |> MapSet.difference(current_fleets)
+      |> Enum.each(fn fleet ->
+        :telemetry.execute(Telemetry.event_name_session_clamp(), %{count: 0}, %{fleet: fleet})
+      end)
+
+      Process.put(@session_clamp_seen_key, current_fleets)
+    end
   end
 
   @doc false

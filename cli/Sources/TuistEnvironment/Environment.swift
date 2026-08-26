@@ -88,6 +88,11 @@ public protocol Environmenting: Sendable {
     /// baked into a build setting.
     func casProxySocketPathString() -> String
 
+    /// A path with its `$HOME` prefix restored, so a value baked into a build setting
+    /// does not hard-code one machine's home directory. Paths outside `$HOME` are
+    /// returned unchanged.
+    func homeRelativePathString(_ path: AbsolutePath) -> String
+
     /// Returns the LaunchAgent label for the per-project Xcode cache daemon (the
     /// non-kura path) of the given full handle. Shared between `tuist setup cache`
     /// (which registers the LaunchAgent) and `tuist teardown cache` (which boots it out).
@@ -413,13 +418,7 @@ public struct Environment: Environmenting {
     }
 
     public func cacheSocketPathString(for fullHandle: String) -> String {
-        let socketPathString = cacheSocketPath(for: fullHandle).pathString
-        let homeDirectoryPathString = homeDirectory.pathString
-        if socketPathString.hasPrefix(homeDirectoryPathString) {
-            return "$HOME" + socketPathString.dropFirst(homeDirectoryPathString.count)
-        } else {
-            return socketPathString
-        }
+        homeRelativePathString(cacheSocketPath(for: fullHandle))
     }
 
     public func cacheLaunchAgentLabel(for fullHandle: String) -> String {
@@ -438,19 +437,13 @@ public struct Environment: Environmenting {
     }
 
     public func casProxySocketPathString() -> String {
-        homeRelative(casProxySocketPath())
+        homeRelativePathString(casProxySocketPath())
     }
 
-    /// A path with its `$HOME` prefix restored, so a value baked into a build
-    /// setting does not hard-code one machine's home directory.
-    private func homeRelative(_ path: AbsolutePath) -> String {
-        let pathString = path.pathString
-        let homeDirectoryPathString = homeDirectory.pathString
-        if pathString.hasPrefix(homeDirectoryPathString) {
-            return "$HOME" + pathString.dropFirst(homeDirectoryPathString.count)
-        } else {
-            return pathString
-        }
+    public func homeRelativePathString(_ path: AbsolutePath) -> String {
+        guard path.isDescendantOfOrEqual(to: homeDirectory) else { return path.pathString }
+        let relativePath = path.relative(to: homeDirectory).pathString
+        return relativePath == "." ? "$HOME" : "$HOME/\(relativePath)"
     }
 
     public func casProxyLaunchAgentLabel() -> String {

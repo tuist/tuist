@@ -42,6 +42,7 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.FeatureFlags
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
+  alias Tuist.Runners.Allowance
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
@@ -51,6 +52,7 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.Workers.FetchLogsWorker
+  alias Tuist.Runners.WorkflowJobs
   alias Tuist.VCS
 
   require Logger
@@ -127,6 +129,12 @@ defmodule Tuist.Runners.Dispatch do
   defp webhook_outcome({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
   defp webhook_outcome(_), do: "unknown"
 
+  # Only an account with no paid plan is ever blocked: exceeding the
+  # allowance is precisely what a paid account is billed for.
+  defp check_allowance(account) do
+    if Allowance.exhausted?(account), do: {:error, :allowance_exhausted}, else: :ok
+  end
+
   defp handle_queued(payload, installation_id) do
     handle_queueable(payload, installation_id, &Jobs.enqueue_if_missing/1)
   end
@@ -143,6 +151,7 @@ defmodule Tuist.Runners.Dispatch do
     requested = Map.get(job, "labels", [])
 
     with {:ok, account} <- fetch_enabled_account(installation_id, owner),
+         :ok <- check_allowance(account),
          {:ok, target} <- resolve_dispatch_target(account, requested),
          :ok <- enqueue_fun.(enqueue_attrs(account, target, full_name, job)) do
       Logger.info("runners: enqueued",
@@ -164,6 +173,21 @@ defmodule Tuist.Runners.Dispatch do
         )
 
         {:ignored, :no_account}
+
+      {:error, :allowance_exhausted} ->
+        # Logged loudly and distinctly because nothing tells the
+        # customer: the job simply stays queued on GitHub until it times
+        # out, which looks exactly like a capacity shortage from their
+        # side. This line is the only way to tell the two apart.
+        Logger.info(
+          "runners: free runner allowance of #{Allowance.free_monthly_minutes()} minutes exhausted, " <>
+            "not dispatching; job will stay queued on GitHub until it times out",
+          owner: owner,
+          repo: full_name,
+          workflow_job_id: Map.get(job, "id")
+        )
+
+        {:ignored, :allowance_exhausted}
 
       {:error, :runners_disabled} ->
         Logger.info("runners: runners not enabled for account; ignoring",
@@ -258,6 +282,7 @@ defmodule Tuist.Runners.Dispatch do
   defp record_execution(runner_name, executed_workflow_job_id, account_id) do
     claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id, account_id)
     session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id, account_id)
+    :ok = WorkflowJobs.record_execution(runner_name, executed_workflow_job_id, account_id)
     outcome = combine_attribution(claim_outcome, session_outcome)
 
     case outcome do
@@ -314,13 +339,44 @@ defmodule Tuist.Runners.Dispatch do
       # the durable session here. `runner_name` is null for a job
       # cancelled while still queued (no runner ever ran it), so this
       # is a no-op for that class.
-      if runner_name != "" and account_id,
-        do: RunnerSessions.record_execution(runner_name, workflow_job_id, account_id)
+      case record_session_execution(runner_name, workflow_job_id, account_id, job) do
+        :ok ->
+          mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps(job), installation_id, repository)
 
-      mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps(job), installation_id, repository)
+        {:error, reason} ->
+          # Leave the delivery unacknowledged so it retries. The billable
+          # job window is recorded nowhere else, and a session missing
+          # either bound bills nothing, so acknowledging here would turn a
+          # transient Postgres failure into permanently lost usage.
+          {:error, reason}
+      end
     else
       :ignored
     end
+  end
+
+  # No runner name means nothing ran (a job cancelled while queued), and no
+  # account means this delivery authenticates as nobody we can attribute to
+  # — neither is a failure, and neither has a window to record.
+  defp record_session_execution("", _workflow_job_id, _account_id, _job), do: :ok
+  defp record_session_execution(_runner_name, _workflow_job_id, nil, _job), do: :ok
+
+  defp record_session_execution(runner_name, workflow_job_id, account_id, job) do
+    case RunnerSessions.record_execution(runner_name, workflow_job_id, account_id, job_execution_window(job)) do
+      {:error, changeset} -> {:error, {:session_execution_write_failed, inspect(changeset.errors)}}
+      _outcome -> :ok
+    end
+  end
+
+  # GitHub's own bounds for the job, which is what the customer is
+  # charged for. The Pod that ran it boots before this window and tears
+  # down after it, and that overhead is ours rather than theirs. Missing
+  # or unparseable timestamps yield an empty window, which bills nothing.
+  defp job_execution_window(job) do
+    %{
+      started_at: parse_step_time(Map.get(job, "started_at")),
+      ended_at: parse_step_time(Map.get(job, "completed_at"))
+    }
   end
 
   defp mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps, installation_id, repository) do

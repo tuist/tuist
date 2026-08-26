@@ -9,6 +9,11 @@
 # PREP_SKIP_MARK=1 to prep without naming (to stage capacity ahead and release
 # later with baremetal:mark-ovh).
 #
+# The install lays down a mirrored root plus a separate XFS /data (the filesystem
+# every cache volume lives on, and the only one that can carry the per-account
+# project quota). Partitioning cannot be changed after the fact, so re-prepping
+# is also the only way to convert a box installed before that layout.
+#
 # Usage:
 #   mise run baremetal:prep-ovh <service-name> [fleet-name]
 #   e.g. mise run baremetal:prep-ovh ns543284.ip-144-217-252.net

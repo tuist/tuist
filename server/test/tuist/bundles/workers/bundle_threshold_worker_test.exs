@@ -69,6 +69,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
         )
 
       stub(Environment, :github_app_configured?, fn -> true end)
+      reject(&Client.create_check_run/1)
 
       job = %Oban.Job{
         id: 1,
@@ -99,6 +100,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
         )
 
       stub(Environment, :github_app_configured?, fn -> true end)
+      reject(&Client.create_check_run/1)
 
       job = %Oban.Job{
         id: 1,
@@ -216,6 +218,66 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
         assert params.output.summary =~ "Strict"
         assert length(params.actions) == 1
         assert hd(params.actions).identifier == "accept_bundle_size"
+        assert params.external_id == bundle.id
+        {:ok, %{"id" => 1}}
+      end)
+
+      job = %Oban.Job{
+        id: 1,
+        args: %{
+          "bundle_id" => bundle.id,
+          "project_id" => project.id,
+          "git_commit_sha" => "abc123"
+        }
+      }
+
+      assert :ok == BundleThresholdWorker.perform(job)
+    end
+
+    test "reports the configured threshold and the deviation without losing sub-decimal precision" do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "org/repo",
+            provider: :github
+          ]
+        )
+
+      BundlesFixtures.bundle_threshold_fixture(
+        project: project,
+        name: "Download size PR check",
+        metric: :download_size,
+        deviation_percentage: 0.15
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        download_size: 100_000,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          download_size: 100_170,
+          git_branch: "feature",
+          git_commit_sha: "abc123",
+          git_ref: "refs/pull/1/merge",
+          inserted_at: ~U[2024-01-02 00:00:00Z]
+        )
+
+      stub(Environment, :github_app_configured?, fn -> true end)
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      expect(Client, :get_pull_request, fn _params ->
+        {:ok, %{"head" => %{"sha" => "real-head-sha"}}}
+      end)
+
+      expect(Client, :create_check_run, fn params ->
+        assert params.conclusion == "action_required"
+        assert params.output.summary =~ "**Threshold:** 0.15%"
+        assert params.output.summary =~ "+0.17%"
         {:ok, %{"id" => 1}}
       end)
 
@@ -286,6 +348,126 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
         id: 1,
         args: %{
           "bundle_id" => bundle.id,
+          "project_id" => project.id,
+          "git_commit_sha" => "abc123"
+        }
+      }
+
+      assert :ok == BundleThresholdWorker.perform(job)
+    end
+
+    test "evaluates the bundle carried in the job args without reading it back" do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "org/repo",
+            provider: :github
+          ]
+        )
+
+      BundlesFixtures.bundle_threshold_fixture(
+        project: project,
+        name: "Strict",
+        deviation_percentage: 5.0
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        install_size: 1000,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      stub(Environment, :github_app_configured?, fn -> true end)
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Client, :get_pull_request, fn _params ->
+        {:ok, %{"head" => %{"sha" => "real-head-sha"}}}
+      end)
+
+      expect(Client, :create_check_run, fn params ->
+        assert params.conclusion == "action_required"
+        assert params.output.summary =~ "Strict"
+        {:ok, %{"id" => 1}}
+      end)
+
+      job = %Oban.Job{
+        id: 1,
+        attempt: 1,
+        args: %{
+          "bundle_id" => UUIDv7.generate(),
+          "project_id" => project.id,
+          "git_commit_sha" => "abc123",
+          "bundle_name" => "App",
+          "git_ref" => "refs/pull/1/merge",
+          "install_size" => 1200,
+          "download_size" => nil
+        }
+      }
+
+      assert :ok == BundleThresholdWorker.perform(job)
+    end
+
+    test "skips when the bundle carried in the job args is not on a PR ref" do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "org/repo",
+            provider: :github
+          ]
+        )
+
+      stub(Environment, :github_app_configured?, fn -> true end)
+      reject(&Client.create_check_run/1)
+
+      job = %Oban.Job{
+        id: 1,
+        attempt: 1,
+        args: %{
+          "bundle_id" => UUIDv7.generate(),
+          "project_id" => project.id,
+          "git_commit_sha" => "abc123",
+          "bundle_name" => "App",
+          "git_ref" => "refs/heads/main",
+          "install_size" => 1200,
+          "download_size" => nil
+        }
+      }
+
+      assert :ok == BundleThresholdWorker.perform(job)
+    end
+
+    test "snoozes when the bundle is not visible yet" do
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Environment, :github_app_configured?, fn -> true end)
+      reject(&Client.create_check_run/1)
+
+      job = %Oban.Job{
+        id: 1,
+        attempt: 1,
+        args: %{
+          "bundle_id" => UUIDv7.generate(),
+          "project_id" => project.id,
+          "git_commit_sha" => "abc123"
+        }
+      }
+
+      assert {:snooze, _} = BundleThresholdWorker.perform(job)
+    end
+
+    test "stops snoozing when the bundle is still not visible on the last attempt" do
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Environment, :github_app_configured?, fn -> true end)
+      reject(&Client.create_check_run/1)
+
+      job = %Oban.Job{
+        id: 1,
+        attempt: 5,
+        args: %{
+          "bundle_id" => UUIDv7.generate(),
           "project_id" => project.id,
           "git_commit_sha" => "abc123"
         }

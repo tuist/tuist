@@ -40,19 +40,20 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the account's managed Kura instances run the recency-first
-  backfill walker (`KURA_BACKFILL_ENABLED=true`) instead of the legacy
-  bootstrap walker. Read by the Kura provisioner at manifest render time;
-  because the rendered env participates in the manifest revision, flipping
-  the flag rolls exactly the gated account's instances — public mesh
-  instances and private runner-cache (co-located) instances alike, since
-  both render through the same manifest. Off everywhere by default: the
-  flag is the per-account rollout (and rollback) switch for Release AB.
-  Self-hosted instances are outside the flag; their operators set the env
-  on their own instance configuration.
+  Whether Kura runtime-image rollouts run through the rollout
+  orchestration (`Tuist.Kura.Rollouts`): durable rollout records,
+  account-grouped waves with the health gate in production, expedited
+  fan-out in the other environments, and the operator verbs.
+
+  On by default in every environment — the machinery soaked on staging
+  (spec #79's drills) before the default flipped. The flag is a
+  kill-switch, not an opt-in: enabling `kura_rollout_orchestration_kill_switch`
+  (via /ops/flags, no deploy) falls back to the interim-paced scheduler
+  (`Tuist.Kura.schedule_runtime_image_deployments/0`), which stays the
+  no-deploy rollback path.
   """
-  def kura_backfill_enabled?(account) do
-    FunWithFlags.enabled?(:kura_backfill, for: account)
+  def kura_rollout_orchestration_enabled? do
+    not FunWithFlags.enabled?(:kura_rollout_orchestration_kill_switch)
   end
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do

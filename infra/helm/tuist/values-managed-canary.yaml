@@ -9,6 +9,14 @@
 #     -f infra/helm/tuist/values-managed-canary.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+# Sweeps this env's abandoned tailnet devices only; production and staging run
+# their own. Starts in dry-run -- read a run's logs, then set dryRun: false.
+tailscaleDeviceReaper:
+  enabled: true
+  tags:
+    - tag:tuist-macmini-canary
+    - tag:tuist-k8s-canary
+
 registry:
   publicHost: registry-canary.tuist.dev
   serverUrl: https://canary.tuist.dev
@@ -49,6 +57,40 @@ server:
   # JSON-encodes this into TUIST_STRIPE_PRICES.
   stripe:
     prices:
+      # macOS is billable. 6000000 compute-unit milliseconds (100 minutes
+      # on the 6 vCPU / 14 GB baseline) are free, and beyond that each
+      # millisecond costs 0.000125 cents, which is $0.075 per baseline
+      # machine-minute.
+      #
+      # The 100 included minutes must stay in step with the free
+      # allowance: this Price decides what is charged, and
+      # TUIST_RUNNER_FREE_MONTHLY_MINUTES decides when dispatch stops.
+      # This env sets neither, so both come from the 100-minute default
+      # in `Tuist.Runners.Allowance`. Overriding one without the other
+      # either cuts accounts off before they can be charged or charges
+      # them after they were cut off.
+      #
+      # Tiers are in raw meter units rather than minutes because Stripe
+      # refuses `tiers` and `transform_quantity` together, so an invoice
+      # line reads in milliseconds. The dashboard renders minutes.
+      #
+      # Linux stays reporting-only: its Meter exists and receives usage,
+      # but with no agreed rate there is no Price to point at, and an
+      # empty id means no subscription can carry a Linux runner item, so
+      # nothing can be charged for it.
+      #
+      # An account is only actually billed once it is off a runner trial.
+      # Run `Tuist.Runners.Trials.backfill_runner_trials/0` before this id
+      # reaches an environment, so every account with runner access is on
+      # a trial first.
+      #
+      # Never blank an id that has already gone live: a plan change would
+      # then stop recognising that subscription item as a runner item and
+      # delete it, taking the cycle's accrued usage with it. Pause billing
+      # by removing the item, not by emptying this map.
+      runners:
+        runner_linux_compute_unit_milliseconds: ""
+        runner_macos_compute_unit_milliseconds: "price_1U6woPQ9gGM5W1agDGX7fNED"
       air:
         usage: ["price_1S7xQ3Q9gGM5W1ag8IjnKx6f"]
         flat_monthly: ["price_1S7xQ3Q9gGM5W1agupKva14g"]
@@ -141,6 +183,11 @@ server:
       # an implementation detail behind it (ovhFleet below, replicas 1) —
       # mirroring staging.
       value: eu-central,scw-fr-par-runners,ca-east
+    # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
+    # This environment's rollouts run expedited, so the value only shapes
+    # interim-paced ordering here; kept aligned with production.
+    - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
+      value: tuist
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -222,6 +269,15 @@ kuraController:
       enabled: true
       item: kura-sentry
 
+# Only the shared mesh cache pools are listed. The runner-cache pool
+# (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
+# and its traffic is node-local runner reads that must not be shaped.
+# betaPodPrefix keeps the first enforcement step on kura-tuist-* pods.
+egressTreeAgent:
+  enabled: true
+  nodePools: [kura-dedibox, kura-ca-east]
+  betaPodPrefix: "kura-tuist-"
+
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Matches the cluster's general-purpose
 # hcloud-worker pool (md-0, replicas: 2) — hard pod anti-affinity
@@ -262,17 +318,22 @@ postgresql:
     # infra/cnpg/README.md.
     pooler:
       enabled: true
-      # See values-managed-production.yaml for the rationale. Canary's
-      # only Mac mini is on the production tailnet (single shared
-      # tailnet across canary + production), so the proxy needs to land
-      # on the same tag as production's `tag:tuist-k8s-production`
-      # — the canary's tag (`tag:tuist-k8s-canary`) is not permitted
-      # by the operator's OAuth client. Hostname is env-scoped to
-      # keep production's stable.
+      # See values-managed-production.yaml for the rationale. Canary
+      # shares a tailnet with production but not a tag: the canary Mac
+      # mini fleet joins as `tag:tuist-macmini-canary` (macosFleet
+      # .tailscale.tags below) and the canary operator runs its own
+      # OAuth client, which can only mint `tag:tuist-k8s-canary`.
+      # Requesting production's tag here left the Service stuck on
+      # `requested tags [tag:tuist-k8s-production] are invalid or not
+      # permitted`, so no proxy node existed, the hostname below
+      # resolved to nothing, and the Tart VM could not reach Postgres.
+      # infra/tailscale/acls.json already grants
+      # tag:tuist-macmini-canary -> tag:tuist-k8s-canary on tcp:5432.
+      # Hostname stays env-scoped to keep production's stable.
       tailscale:
         enabled: true
         hostname: tuist-pg-pooler-canary
-        tags: tag:tuist-k8s-production
+        tags: tag:tuist-k8s-canary
     storage:
       size: "10Gi"
     resources:
@@ -314,6 +375,10 @@ processor:
 swiftRegistrySync:
   enabled: true
   syncAllowlist: alamofire/alamofire
+  # See values-managed-production.yaml for why the mirror authenticates as the
+  # App. Canary's installation is smaller, so its budget is the 5,000/hour
+  # floor rather than production's 12,500, which is ample for a single package.
+  githubAppInstallation: tuist
   # Terminate-then-replace, for the same reason as `registry.strategy` above.
   # This is a pure Oban consumer, so the gap only defers queue work: the jobs
   # stay in Postgres and the replacement Pod picks them up.
@@ -474,7 +539,7 @@ macosFleet:
   # `instance` (the Machine/Node name) and `level`.
   hostLogs:
     enabled: true
-    url: http://tuist-alloy-receiver-canary:3100/loki/api/v1/push
+    url: http://tuist-alloy-receiver-canary.taild6d7bb.ts.net:3100/loki/api/v1/push
     env: canary
   controlPlane:
     host: api-canary.tuist.dev
@@ -513,7 +578,7 @@ runnersFleet:
   # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
   # template merges each catalog entry with its override at render
   # time. Every active profile runs through the runners-controller's
-  # fleet allocator, which apportions the `hostCount` slot budget
+  # fleet allocator, which apportions the fleet's guest-slot budget
   # across all macOS pools using the three-tier (floor / load /
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
   # guarantee; the sum across overrides must stay ≤ `hostCount`.

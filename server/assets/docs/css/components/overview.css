@@ -266,7 +266,7 @@
     & code {
       color: var(--noora-neutral-light-50);
       font: var(--noora-font-body-medium);
-      font-family: "Geist Mono", var(--noora-font-mono), monospace;
+      font-family: var(--noora-font-code);
       user-select: text;
       white-space: nowrap;
     }

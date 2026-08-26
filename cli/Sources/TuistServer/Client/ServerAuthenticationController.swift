@@ -4,6 +4,7 @@ import Mockable
 import OpenAPIRuntime
 import Path
 import TuistHTTP
+import TuistLogging
 
 #if canImport(TuistProcess)
     import TuistProcess
@@ -13,7 +14,6 @@ import TuistHTTP
     import TuistAlert
     import TuistConstants
     import TuistEnvironment
-    import TuistLogging
     import TuistSupport
 #endif
 
@@ -314,7 +314,11 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             if case .unauthorized = error {
                 let refreshTokenAfterAction = try? await ServerCredentialsStore.current
                     .read(serverURL: serverURL)?.refreshToken
-                if refreshTokenBeforeAction != refreshTokenAfterAction {
+                let credentialsChangedDuringRefresh = refreshTokenBeforeAction != refreshTokenAfterAction
+                Logger.current.debug(
+                    "Unauthorized refresh handled credentials_changed_during_refresh=\(credentialsChangedDuringRefresh)"
+                )
+                if credentialsChangedDuringRefresh {
                     #if canImport(TuistSupport)
                         Logger.current.debug(
                             "Refresh token for \(serverURL) was rotated by another process; preserving credentials"
@@ -543,16 +547,22 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
 
     func tokenStatus(serverURL: URL, forceRefresh: Bool) async throws -> AuthenticationTokenStatus {
         guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
+            recordTokenStatus("absent")
             return .absent
         }
 
         switch token {
         case .project:
+            recordTokenStatus("valid_project")
             return .valid(token)
         case let .account(accessToken):
             let now = Date.now()
             let expiresIn = accessToken.expiryDate.timeIntervalSince(now)
-            if expiresIn < 30 { return .expired }
+            if expiresIn < 30 {
+                recordTokenStatus("expired_account", accessToken: accessToken)
+                return .expired
+            }
+            recordTokenStatus("valid_account", accessToken: accessToken)
             return .valid(token)
         case let .user(
             accessToken, refreshToken
@@ -562,7 +572,11 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             let expiresIn = accessToken.expiryDate
                 .timeIntervalSince(now)
             let refresh = expiresIn < 30 || forceRefresh
-            if refresh { return .expired }
+            if refresh {
+                recordTokenStatus("expired_user", accessToken: accessToken, refreshToken: refreshToken)
+                return .expired
+            }
+            recordTokenStatus("valid_user", accessToken: accessToken, refreshToken: refreshToken)
             return .valid(
                 .user(
                     accessToken: accessToken,
@@ -570,6 +584,16 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 )
             )
         }
+    }
+
+    private func recordTokenStatus(
+        _ status: String,
+        accessToken: JWT? = nil,
+        refreshToken: JWT? = nil
+    ) {
+        Logger.current.debug(
+            "Token status evaluated status=\(status) \(expirationDescription(accessToken: accessToken, refreshToken: refreshToken))"
+        )
     }
 
     func executeRefresh(serverURL: URL, forceRefresh: Bool) async throws -> (
@@ -610,9 +634,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     }
                 #endif
                 if refresh {
-                    #if canImport(TuistSupport)
-                        Logger.current.debug("Refreshing access token for \(serverURL)")
-                    #endif
+                    Logger.current.debug(
+                        "Token refresh started \(expirationDescription(accessToken: accessToken, refreshToken: refreshToken))"
+                    )
                     let tokens = try await refreshTokens(
                         serverURL: serverURL, refreshToken: refreshToken
                     )
@@ -748,16 +772,42 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     ),
                     serverURL: serverURL
                 )
+            let accessToken = try? JWT.parse(newTokens.accessToken)
+            let refreshToken = try? JWT.parse(newTokens.refreshToken)
+            Logger.current.debug(
+                "Token refresh succeeded \(expirationDescription(accessToken: accessToken, refreshToken: refreshToken))"
+            )
             return newTokens
         } catch let error as ClientError {
             if ServerErrorClassifier.isTransient(error) {
+                Logger.current.debug(
+                    "Token refresh deferred for transient error_type=\(String(reflecting: type(of: error.underlyingError)))"
+                )
                 throw error
             }
+            Logger.current.error(
+                "Token refresh failed error_type=\(String(reflecting: type(of: error.underlyingError)))"
+            )
             throw ClientAuthenticationError.notAuthenticated
         } catch let error as RefreshAuthTokenServiceError {
+            Logger.current.error(
+                "Token refresh failed error_type=\(String(reflecting: type(of: error)))"
+            )
             throw error
         } catch {
+            Logger.current.error(
+                "Token refresh failed error_type=\(String(reflecting: type(of: error)))"
+            )
             throw ClientAuthenticationError.notAuthenticated
         }
+    }
+
+    private func expirationDescription(accessToken: JWT?, refreshToken: JWT?) -> String {
+        "access_token_expires_at=\(accessToken.map { format($0.expiryDate) } ?? "unknown") "
+            + "refresh_token_expires_at=\(refreshToken.map { format($0.expiryDate) } ?? "unknown")"
+    }
+
+    private func format(_ date: Date) -> String {
+        ISO8601DateFormatter().string(from: date)
     }
 }

@@ -4,6 +4,7 @@ defmodule Tuist.Release do
   installed.
   """
   alias Ecto.Adapters.SQL
+  alias Tuist.ClickHouseCapabilities
   alias Tuist.Environment
   alias Tuist.IngestRepo
 
@@ -44,6 +45,8 @@ defmodule Tuist.Release do
     Logger.info(
       "Migrating with a pool of size of #{:tuist |> Application.get_env(Tuist.Repo) |> Keyword.get(:pool_size)}"
     )
+
+    assert_supported_clickhouse_version()
 
     for repo <- repos() do
       {:ok, _, _} =
@@ -152,6 +155,15 @@ defmodule Tuist.Release do
       Tuist.Repo,
       Keyword.merge(config, Environment.database_config_from_url(url))
     )
+  end
+
+  # Ahead of the migration loop rather than inside it: `repos/0` migrates Postgres
+  # first, so checking per-repo would only reject a below-floor ClickHouse after
+  # Postgres had already migrated.
+  defp assert_supported_clickhouse_version do
+    if IngestRepo in repos() do
+      {:ok, _, _} = Ecto.Migrator.with_repo(IngestRepo, &ClickHouseCapabilities.assert_supported_version!/1)
+    end
   end
 
   defp ensure_database_schema(repo) when repo == Tuist.Repo do

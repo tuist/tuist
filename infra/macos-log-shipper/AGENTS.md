@@ -116,8 +116,38 @@ receiver has to be exposed on the tailnet in the matching env — the
 `tailscale.com/expose` annotations on `alloy-receiver` in
 [`infra/helm/k8s-monitoring`](../helm/k8s-monitoring)'s per-env values.
 
-Staging is on; canary and production are wired with their URLs and left off
-until staging has proven the path and a day of volume data.
+All three managed envs are on.
+
+## The URL is a MagicDNS name, and this binary resolves it itself
+
+**No MagicDNS name resolves on a Mac mini through the OS.** `tailscale dns
+status` reports `Tailscale DNS: enabled`, but tailscaled installs no resolver:
+`scutil --dns` contains no `100.100.100.100` entry and `/etc/resolv.conf`
+carries only Scaleway's DHCP nameservers. On a production host, `curl
+http://tuist-alloy-receiver-production:3100/...` fails, and so does the FQDN
+form. Nothing on the host can turn a tailnet name into an address.
+
+tailscaled's own MagicDNS server is listening at `100.100.100.100:53`
+regardless, and answers. So `internal/shipper/dial.go` gives the push client a
+resolver that asks it directly, falling back to the system resolver when it is
+unreachable — the agent is `RunAtLoad`, so it can start before tailscaled is
+listening, and a `--url` that is a plain address or a public name must still
+work.
+
+**`--url` must carry the fully qualified name** (`<host>.<tailnet>.ts.net`).
+MagicDNS answers only fully-qualified queries, and these hosts have no `search`
+domain to complete a short one, so a bare hostname `NXDOMAIN`s even when asked
+directly. Both halves are required: the right resolver and the right name.
+
+Three consequences worth keeping in mind:
+
+- **A name that resolves from your laptop says nothing about a mini.** Your Mac
+  runs a tailscaled that does configure the OS resolver; these hosts do not.
+  Check with `scutil --dns | grep 100.100.100.100` on the host itself before
+  assuming a tailnet name is reachable from it.
+- **Do not swap the dialer out for `http.DefaultClient`.** It resolves through
+  `/etc/resolv.conf` and every push fails with `no such host`, once a minute,
+  while `launchctl print` reports the job `running`.
 
 The flag is reversible. Turning it off moves the fleet host-config hash, and
 the drift roll that follows unloads `dev.tuist.log-shipper` and removes the
@@ -131,31 +161,33 @@ the agent is off, so a re-enable that resumed from the stale offset would
 replay the whole disabled window in one burst. A re-enable starts at the end of
 the file, the same as a first install.
 
-## Guest stdout is a separate problem — `tart run` cannot capture it
+## Guest stdout reaches Loki through tart-kubelet, not through this agent
 
-The runner VMs' `dispatch-poll.sh` output (the `cache dirty=` /
-`cache image detached` lines that a CAS-poisoning investigation wants) does
-**not** ride this agent, and cannot be made to without new plumbing. Two
-independent reasons, both checked against what is actually deployed:
+The runner VMs' `dispatch-poll.sh` output does **not** ride this agent directly,
+and cannot: the guest redirects to a file inside itself
+(`exec >>/var/log/tuist-runner/poll.log 2>&1`), the host's
+`/var/log/tart-vms/<vm>.log` holds `tart run`'s own output rather than the
+guest's, and Tart 2.32.1 has no macOS-guest console capture (`--serial` attaches
+a virtio console a macOS guest never writes to).
 
-1. **The guest redirects before anything reaches a console.** `dispatch-poll.sh`
-   opens with `exec >>/var/log/tuist-runner/poll.log 2>&1`, so its output goes
-   to a file *inside* the guest. The host's `/var/log/tart-vms/<vm>.log` (which
-   tart-kubelet already captures) holds `tart run`'s own output, not the
-   guest's.
-2. **Tart has no macOS-guest console capture.** At the pinned 2.32.1, the only
-   options are `--serial` / `--serial-path`, which attach a
-   `VZVirtioConsoleDeviceSerialPortConfiguration` and are documented upstream as
-   "useful for debugging Linux Kernel". A macOS guest boots to the framebuffer
-   and puts nothing on that device.
+It arrives anyway, by a shorter route. The guest mirrors its log into the
+writable status share it already owns (`/Volumes/My Shared Files/status` → the
+host's `VolumeStatusDir`) as `runner.log`, and **tart-kubelet re-emits a bounded
+tail to its own stdout at teardown**, just before `deleteByKey` removes the
+share. That stdout is `/var/log/tart-kubelet.log` — the file this agent already
+tails. So the trail lands in Loki with no change here.
 
-The cheapest path if this is picked up: the guest already has a **writable**
-host share (`/Volumes/My Shared Files/status` → the host's `VolumeStatusDir`,
-where it writes `cache-dirty` and `volume-head.json`), so `dispatch-poll.sh`
-could `tee` into it and this agent could tail that directory. That is a real
-design step, not a free one — the share is per-VM and ephemeral, so the agent
-would need glob discovery, per-file position churn, and a story for the pools
-where cache volumes are off and the share does not exist at all.
+That indirection is deliberate. Tailing the shares directly was the obvious
+design and is the worse one: the share is per-VM and ephemeral, so the agent
+would need glob discovery, per-file position churn, and its own answer for the
+pools where cache volumes are off and no share exists. Routing through
+tart-kubelet costs one bounded read on a path that already had to touch the
+share to recover the exit code, and this agent stays a single-file tailer.
+
+The tradeoffs to know: the tail is emitted at teardown, so it is forensics after
+the fact, not a live stream; a VM that never terminates, or one killed before its
+EXIT trap runs, publishes nothing this way. The second case still reaches the
+cluster distinguishably, as `TartRunExited` rather than a reported exit code.
 
 ## Do not add log rotation for the tailed file
 

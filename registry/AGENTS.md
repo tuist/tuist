@@ -6,7 +6,7 @@ the registry Worker, which forwards requests to the `registry.tuist.dev`
 ingress. **The pod is a stateless read frontend.** The server-owned writer
 lives under `Tuist.Registry.Swift.*`
 and runs in a separate `TUIST_MODE=swift_registry_sync` pod (see
-`server/AGENTS.md` and
+`server/lib/tuist/registry/AGENTS.md` and
 `infra/helm/tuist/templates/swift-registry-sync-deployment.yaml`). The
 server-owned writer is the sole scheduled writer in managed environments;
 the legacy cache registry cron remains disabled.

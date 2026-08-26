@@ -31,7 +31,6 @@ pub struct Metrics {
     registry: Arc<Mutex<Registry>>,
     rollout_snapshot: Arc<RolloutSnapshot>,
     http_requests: Family<HttpRequestLabels, Counter>,
-    http_client_requests: Family<HttpClientCountryLabels, Counter>,
     http_request_duration: Histogram,
     internal_backfill_request_duration: Family<InternalBackfillRouteLabels, Histogram>,
     backfill_bodies_peer_requests: Family<BackfillBodiesPeerLabels, Counter>,
@@ -42,14 +41,15 @@ pub struct Metrics {
     artifact_writes: Family<ArtifactOpLabels, Counter>,
     artifact_read_bytes: Family<ArtifactOpLabels, Counter>,
     artifact_write_bytes: Family<ArtifactOpLabels, Counter>,
+    artifact_write_size_bytes: Family<ArtifactRouteLabels, Histogram>,
     artifact_egress_completions: Family<ArtifactOpLabels, Counter>,
     artifact_egress_bytes: Family<ArtifactOpLabels, Counter>,
     artifact_egress_duration: Family<ArtifactRouteLabels, Histogram>,
     artifact_egress_throughput: Family<ArtifactRouteLabels, Histogram>,
     artifact_serving_paths: Family<ArtifactServingPathLabels, Counter>,
-    segment_refreshes: Family<ArtifactOpLabels, Counter>,
-    segment_refresh_bytes: Family<ArtifactOpLabels, Counter>,
-    segment_refresh_duration: Family<ArtifactRouteLabels, Histogram>,
+    segment_refreshes: Family<SegmentRefreshLabels, Counter>,
+    segment_refresh_bytes: Family<SegmentRefreshLabels, Counter>,
+    segment_refresh_duration: Family<SegmentRefreshRouteLabels, Histogram>,
     segment_evicted_artifacts: Family<ArtifactOpLabels, Counter>,
     // Action-cache entries removed by the eviction cascade (an evicted blob
     // taking its referencing entries with it). A healthy nonzero rate is the
@@ -63,11 +63,11 @@ pub struct Metrics {
     replication_requests: Family<ReplicationLabels, Counter>,
     replication_request_duration: Family<ReplicationRouteLabels, Histogram>,
     replication_apply_results: Family<ReplicationApplyLabels, Counter>,
-    bootstrap_digest_buckets: Family<BootstrapDigestLabels, Counter>,
     replication_bandwidth_configured_limit_bytes_per_second: Gauge,
     replication_bandwidth_effective_limit_bytes_per_second: Gauge,
     replication_bandwidth_public_latency_target_ms: Gauge,
     multipart_parts: Family<MultipartLabels, Counter>,
+    capacity_sheds: Family<CapacityShedLabels, Counter>,
     node_info: Family<NodeInfoLabels, Gauge>,
     node_geo: Family<NodeGeoLabels, Gauge>,
     file_descriptor_wait: Family<FileDescriptorWaitLabels, Histogram>,
@@ -98,15 +98,6 @@ pub struct Metrics {
     multipart_uploads: Gauge,
     tmp_dir_bytes: Gauge,
     discovered_peer_nodes: Gauge,
-    bootstrap_known_peers: Gauge,
-    bootstrap_completed_peers: Gauge,
-    bootstrap_inflight_peers: Gauge,
-    bootstrap_runs: Family<BootstrapResultLabels, Counter>,
-    bootstrap_duration: Histogram,
-    bootstrap_applied_items: Family<BootstrapItemLabels, Counter>,
-    bootstrap_pass_buckets_divergent: Family<BootstrapPassLabels, Gauge>,
-    bootstrap_pass_buckets_reconciled: Family<BootstrapPassLabels, Gauge>,
-    bootstrap_current_bucket_manifests_walked: Family<BootstrapPassLabels, Gauge>,
     backfill_horizon_age_ms: Gauge,
     backfill_listing_pages: Counter,
     backfill_listed_tuples: Family<BackfillDecisionLabels, Counter>,
@@ -170,6 +161,7 @@ pub struct Metrics {
     memory_protection_min_bytes: Gauge,
     memory_protection_low_bytes: Gauge,
     memory_transient_reserved_bytes: Gauge,
+    memory_transient_capacity_bytes: Gauge,
     foreground_memory_waiters: Gauge,
     response_stream_pool_capacity_bytes: Gauge,
     response_stream_foreground_pool_capacity_bytes: Gauge,
@@ -189,31 +181,72 @@ pub struct Metrics {
     snapshot_cache_entries: Gauge,
     snapshot_cache_nodes: Gauge,
     snapshot_cache_served_full_bytes: Gauge,
-    geoip_refresh: Family<GeoIpRefreshLabels, Counter>,
     traffic_state: Gauge,
     ready_state: Gauge,
     drain_state: Gauge,
     membership_generation: Gauge,
     membership_peer_changes: Family<MembershipChangeLabels, Counter>,
-    bootstrap_completions_discarded: Counter,
     initial_discovery_completed: Gauge,
     writer_lock_owned: Gauge,
     writer_lock_acquire_failures: Counter,
     mmap_partial_page_exemptions: Counter,
     promotion_queue_depth: Gauge,
     promotion_failures: Counter,
+    peer_connection_failures: Counter,
+    promotion_drops: Family<RefreshTriggerLabels, Counter>,
 }
 
 #[derive(Default)]
 struct RolloutSnapshot {
     outbox_messages: AtomicU64,
     fd_timeout_count: AtomicU64,
+    peer_connection_failure_count: AtomicU64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RolloutMetricsSnapshot {
     pub outbox_messages: u64,
     pub fd_timeout_count: u64,
+    pub peer_connection_failure_count: u64,
+}
+
+/// The limits that can refuse a public request, one label value each.
+///
+/// Every kind is materialised at construction so its series exists from the
+/// first scrape, before the node has shed anything. Alert and dashboard
+/// queries rely on that: they select the response-stream kind and fall back to
+/// counting bare 429s where the series is absent, which is how one query stays
+/// correct across a fleet running both the old and new image. If a new pod
+/// only published the series after its first shed, that fallback would count
+/// its write sheds as read sheds until it happened to shed a read.
+pub mod shed_kind {
+    pub const RESPONSE_STREAM: &str = "response_stream";
+    pub const MULTIPART_UPLOADS: &str = "multipart_uploads";
+    pub const MULTIPART_STORAGE: &str = "multipart_storage";
+    pub const UPLOAD_MEMORY: &str = "upload_memory";
+    pub const TMP_STAGING: &str = "tmp_staging";
+    pub const MEMORY_PRESSURE_WRITE: &str = "memory_pressure_write";
+    pub const OUTBOX: &str = "outbox";
+    // The remote-execution surface sheds against the same transient budget the
+    // HTTP kinds above do, so it belongs in the counter that names which limit
+    // refused a request. It carries no HTTP status of its own -- gRPC answers
+    // RESOURCE_EXHAUSTED, which is already the retryable code -- so without a
+    // kind here a node shedding remote-execution traffic is invisible to the
+    // query operators are told to reach for first.
+    pub const REAPI_WRITE_DECODE: &str = "reapi_write_decode";
+    pub const REAPI_MATERIALIZATION: &str = "reapi_materialization";
+
+    pub const ALL: [&str; 9] = [
+        RESPONSE_STREAM,
+        MULTIPART_UPLOADS,
+        MULTIPART_STORAGE,
+        UPLOAD_MEMORY,
+        TMP_STAGING,
+        MEMORY_PRESSURE_WRITE,
+        OUTBOX,
+        REAPI_WRITE_DECODE,
+        REAPI_MATERIALIZATION,
+    ];
 }
 
 impl Metrics {
@@ -222,7 +255,6 @@ impl Metrics {
         let rollout_snapshot = Arc::new(RolloutSnapshot::default());
 
         let http_requests = Family::<HttpRequestLabels, Counter>::default();
-        let http_client_requests = Family::<HttpClientCountryLabels, Counter>::default();
         let http_request_duration = Histogram::new(exponential_buckets(0.001, 2.0, 16));
         let internal_backfill_request_duration =
             Family::<InternalBackfillRouteLabels, Histogram>::new_with_constructor(|| {
@@ -241,6 +273,10 @@ impl Metrics {
         let action_cache_cascade_removed = Counter::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
+        let artifact_write_size_bytes =
+            Family::<ArtifactRouteLabels, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_buckets(4096.0, 2.0, 20))
+            });
         let artifact_egress_completions = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_egress_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_egress_duration =
@@ -251,10 +287,10 @@ impl Metrics {
             Family::<ArtifactRouteLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(1024.0, 4.0, 12))
             });
-        let segment_refreshes = Family::<ArtifactOpLabels, Counter>::default();
-        let segment_refresh_bytes = Family::<ArtifactOpLabels, Counter>::default();
+        let segment_refreshes = Family::<SegmentRefreshLabels, Counter>::default();
+        let segment_refresh_bytes = Family::<SegmentRefreshLabels, Counter>::default();
         let segment_refresh_duration =
-            Family::<ArtifactRouteLabels, Histogram>::new_with_constructor(|| {
+            Family::<SegmentRefreshRouteLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
             });
         let segment_evicted_artifacts = Family::<ArtifactOpLabels, Counter>::default();
@@ -264,11 +300,16 @@ impl Metrics {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
             });
         let replication_apply_results = Family::<ReplicationApplyLabels, Counter>::default();
-        let bootstrap_digest_buckets = Family::<BootstrapDigestLabels, Counter>::default();
         let replication_bandwidth_configured_limit_bytes_per_second = Gauge::default();
         let replication_bandwidth_effective_limit_bytes_per_second = Gauge::default();
         let replication_bandwidth_public_latency_target_ms = Gauge::default();
         let multipart_parts = Family::<MultipartLabels, Counter>::default();
+        let capacity_sheds = Family::<CapacityShedLabels, Counter>::default();
+        for kind in shed_kind::ALL {
+            let _ = capacity_sheds.get_or_create(&CapacityShedLabels {
+                kind: kind.to_owned(),
+            });
+        }
         let node_info = Family::<NodeInfoLabels, Gauge>::default();
         let node_geo = Family::<NodeGeoLabels, Gauge>::default();
         let file_descriptor_wait =
@@ -306,16 +347,6 @@ impl Metrics {
         let multipart_uploads = Gauge::default();
         let tmp_dir_bytes = Gauge::default();
         let discovered_peer_nodes = Gauge::default();
-        let bootstrap_known_peers = Gauge::default();
-        let bootstrap_completed_peers = Gauge::default();
-        let bootstrap_inflight_peers = Gauge::default();
-        let bootstrap_runs = Family::<BootstrapResultLabels, Counter>::default();
-        let bootstrap_duration = Histogram::new(exponential_buckets(0.001, 2.0, 16));
-        let bootstrap_applied_items = Family::<BootstrapItemLabels, Counter>::default();
-        let bootstrap_pass_buckets_divergent = Family::<BootstrapPassLabels, Gauge>::default();
-        let bootstrap_pass_buckets_reconciled = Family::<BootstrapPassLabels, Gauge>::default();
-        let bootstrap_current_bucket_manifests_walked =
-            Family::<BootstrapPassLabels, Gauge>::default();
         let backfill_horizon_age_ms = Gauge::default();
         let backfill_listing_pages = Counter::default();
         let backfill_listed_tuples = Family::<BackfillDecisionLabels, Counter>::default();
@@ -389,6 +420,7 @@ impl Metrics {
         let memory_protection_min_bytes = Gauge::default();
         let memory_protection_low_bytes = Gauge::default();
         let memory_transient_reserved_bytes = Gauge::default();
+        let memory_transient_capacity_bytes = Gauge::default();
         let foreground_memory_waiters = Gauge::default();
         let response_stream_pool_capacity_bytes = Gauge::default();
         let response_stream_foreground_pool_capacity_bytes = Gauge::default();
@@ -414,19 +446,19 @@ impl Metrics {
         let snapshot_cache_entries = Gauge::default();
         let snapshot_cache_nodes = Gauge::default();
         let snapshot_cache_served_full_bytes = Gauge::default();
-        let geoip_refresh = Family::<GeoIpRefreshLabels, Counter>::default();
         let traffic_state = Gauge::default();
         let ready_state = Gauge::default();
         let drain_state = Gauge::default();
         let membership_generation = Gauge::default();
         let membership_peer_changes = Family::<MembershipChangeLabels, Counter>::default();
-        let bootstrap_completions_discarded = Counter::default();
         let initial_discovery_completed = Gauge::default();
         let writer_lock_owned = Gauge::default();
         let writer_lock_acquire_failures = Counter::default();
         let mmap_partial_page_exemptions = Counter::default();
         let promotion_queue_depth = Gauge::default();
         let promotion_failures = Counter::default();
+        let peer_connection_failures = Counter::default();
+        let promotion_drops = Family::<RefreshTriggerLabels, Counter>::default();
         let process_start_time_seconds = Gauge::<i64>::default();
         process_start_time_seconds.set(
             SystemTime::now()
@@ -439,11 +471,6 @@ impl Metrics {
             "kura_http_requests_total",
             "HTTP requests by route and status code",
             http_requests.clone(),
-        );
-        registry.register(
-            "kura_http_client_requests_total",
-            "Public HTTP requests by client country",
-            http_client_requests.clone(),
         );
         registry.register(
             "kura_http_request_duration_seconds",
@@ -501,6 +528,11 @@ impl Metrics {
             artifact_write_bytes.clone(),
         );
         registry.register(
+            "kura_artifact_write_size_bytes",
+            "Size of each stored artifact by producer. For producer=\"module\" this is the per-upload payload that stages to the tmp dir, so its upper quantiles size the staging reserve and the TmpBudget::try_reserve floor",
+            artifact_write_size_bytes.clone(),
+        );
+        registry.register(
             "kura_artifact_egress_completions_total",
             "Artifact response body stream completions by producer and result",
             artifact_egress_completions.clone(),
@@ -527,17 +559,17 @@ impl Metrics {
         );
         registry.register(
             "kura_segment_refreshes_total",
-            "Segment refreshes by producer and result",
+            "Segment refreshes by producer, result, and the trigger that drove them",
             segment_refreshes.clone(),
         );
         registry.register(
             "kura_segment_refresh_bytes_total",
-            "Bytes copied while refreshing artifacts out of old segments",
+            "Bytes copied while refreshing artifacts out of old segments, by trigger",
             segment_refresh_bytes.clone(),
         );
         registry.register(
             "kura_segment_refresh_duration_seconds",
-            "Time spent refreshing artifacts out of old segments",
+            "Time spent refreshing artifacts out of old segments, by trigger",
             segment_refresh_duration.clone(),
         );
         registry.register(
@@ -557,13 +589,8 @@ impl Metrics {
         );
         registry.register(
             "kura_replication_apply_results_total",
-            "Receiver and bootstrap apply outcomes for replicated artifacts and namespace deletes",
+            "Apply outcomes for replicated artifacts and namespace deletes received from peers",
             replication_apply_results.clone(),
-        );
-        registry.register(
-            "kura_bootstrap_digest_buckets_total",
-            "Manifest digest buckets classified during bootstrap range reconciliation, matched (skipped) vs walked",
-            bootstrap_digest_buckets.clone(),
         );
         registry.register(
             "kura_replication_bandwidth_configured_limit_bytes_per_second",
@@ -584,6 +611,11 @@ impl Metrics {
             "kura_multipart_parts_total",
             "Multipart part uploads by result",
             multipart_parts.clone(),
+        );
+        registry.register(
+            "kura_capacity_sheds_total",
+            "Public requests shed for capacity, by which limit refused them",
+            capacity_sheds.clone(),
         );
         registry.register(
             "kura_node_info",
@@ -736,36 +768,6 @@ impl Metrics {
             discovered_peer_nodes.clone(),
         );
         registry.register(
-            "kura_bootstrap_known_peers",
-            "Peers currently considered part of the bootstrap readiness set",
-            bootstrap_known_peers.clone(),
-        );
-        registry.register(
-            "kura_bootstrap_completed_peers",
-            "Peers that finished bootstrap for this node",
-            bootstrap_completed_peers.clone(),
-        );
-        registry.register(
-            "kura_bootstrap_inflight_peers",
-            "Peers currently being bootstrapped",
-            bootstrap_inflight_peers.clone(),
-        );
-        registry.register(
-            "kura_bootstrap_pass_buckets_divergent",
-            "Divergent manifest buckets identified for the peer's current bootstrap pass",
-            bootstrap_pass_buckets_divergent.clone(),
-        );
-        registry.register(
-            "kura_bootstrap_pass_buckets_reconciled",
-            "Divergent manifest buckets reconciled so far in the peer's current bootstrap pass",
-            bootstrap_pass_buckets_reconciled.clone(),
-        );
-        registry.register(
-            "kura_bootstrap_current_bucket_manifests_walked",
-            "Manifest entries walked in the bucket currently being reconciled for the peer",
-            bootstrap_current_bucket_manifests_walked.clone(),
-        );
-        registry.register(
             "kura_backfill_horizon_age_ms",
             "Milliseconds between the current wall clock and the node's backfill horizon version",
             backfill_horizon_age_ms.clone(),
@@ -834,21 +836,6 @@ impl Metrics {
             "kura_backfill_watermark_age_ms",
             "Milliseconds between the current wall clock and the peer's persisted backfill watermark",
             backfill_watermark_age_ms.clone(),
-        );
-        registry.register(
-            "kura_bootstrap_runs_total",
-            "Bootstrap runs from newly discovered peers by result",
-            bootstrap_runs.clone(),
-        );
-        registry.register(
-            "kura_bootstrap_duration_seconds",
-            "Time spent bootstrapping from newly discovered peers",
-            bootstrap_duration.clone(),
-        );
-        registry.register(
-            "kura_bootstrap_applied_items_total",
-            "Tombstones and artifacts applied during bootstrap",
-            bootstrap_applied_items.clone(),
         );
         registry.register(
             "kura_analytics_events_total",
@@ -1096,6 +1083,11 @@ impl Metrics {
             memory_transient_reserved_bytes.clone(),
         );
         registry.register(
+            "kura_memory_transient_capacity_bytes",
+            "Transient admission capacity: the anonymous-memory budget every upload, response stream and REAPI materialization is admitted against",
+            memory_transient_capacity_bytes.clone(),
+        );
+        registry.register(
             "kura_foreground_memory_waiters",
             "Foreground requests currently waiting for memory admission",
             foreground_memory_waiters.clone(),
@@ -1107,7 +1099,7 @@ impl Metrics {
         );
         registry.register(
             "kura_response_stream_foreground_pool_capacity_bytes",
-            "Share of the response-stream pool a public HTTP or ByteStream response can hold, after the bootstrap reservation",
+            "Share of the response-stream pool a public HTTP or ByteStream response can hold, after the background reservation",
             response_stream_foreground_pool_capacity_bytes.clone(),
         );
         registry.register(
@@ -1191,11 +1183,6 @@ impl Metrics {
             snapshot_cache_served_full_bytes.clone(),
         );
         registry.register(
-            "kura_geoip_refresh_total",
-            "Outcomes of background refreshes of the in-process GeoIP database",
-            geoip_refresh.clone(),
-        );
-        registry.register(
             "kura_traffic_state",
             "Current traffic state for this node: 0=joining, 1=serving, 2=draining",
             traffic_state.clone(),
@@ -1219,11 +1206,6 @@ impl Metrics {
             "kura_membership_peer_changes_total",
             "Peers that entered (change=discovered) or left (change=lost) the membership view",
             membership_peer_changes.clone(),
-        );
-        registry.register(
-            "kura_bootstrap_completions_discarded_total",
-            "Completed bootstrap passes that did not count toward the readiness gate",
-            bootstrap_completions_discarded.clone(),
         );
         registry.register(
             "kura_initial_discovery_completed",
@@ -1251,6 +1233,16 @@ impl Metrics {
             promotion_failures.clone(),
         );
         registry.register(
+            "kura_peer_connection_failures_total",
+            "Peer-plane request failures: outbox replication deliveries and backfill passes that errored against a peer",
+            peer_connection_failures.clone(),
+        );
+        registry.register(
+            "kura_promotion_drops_total",
+            "Promotions dropped for lack of queue room, by the trigger that queued them",
+            promotion_drops.clone(),
+        );
+        registry.register(
             "kura_mmap_partial_page_exemptions_total",
             "Times an artifact was served via mmap only because the file's final partial page was exempted from the residency gate while its mincore bit was clear (the path that may fault one cold page on a worker)",
             mmap_partial_page_exemptions.clone(),
@@ -1267,7 +1259,6 @@ impl Metrics {
             registry: Arc::new(Mutex::new(registry)),
             rollout_snapshot,
             http_requests,
-            http_client_requests,
             http_request_duration,
             internal_backfill_request_duration,
             backfill_bodies_peer_requests,
@@ -1280,6 +1271,7 @@ impl Metrics {
             action_cache_cascade_removed,
             artifact_read_bytes,
             artifact_write_bytes,
+            artifact_write_size_bytes,
             artifact_egress_completions,
             artifact_egress_bytes,
             artifact_egress_duration,
@@ -1292,11 +1284,11 @@ impl Metrics {
             replication_requests,
             replication_request_duration,
             replication_apply_results,
-            bootstrap_digest_buckets,
             replication_bandwidth_configured_limit_bytes_per_second,
             replication_bandwidth_effective_limit_bytes_per_second,
             replication_bandwidth_public_latency_target_ms,
             multipart_parts,
+            capacity_sheds,
             node_info,
             node_geo,
             file_descriptor_wait,
@@ -1327,15 +1319,6 @@ impl Metrics {
             multipart_uploads,
             tmp_dir_bytes,
             discovered_peer_nodes,
-            bootstrap_known_peers,
-            bootstrap_completed_peers,
-            bootstrap_inflight_peers,
-            bootstrap_runs,
-            bootstrap_duration,
-            bootstrap_applied_items,
-            bootstrap_pass_buckets_divergent,
-            bootstrap_pass_buckets_reconciled,
-            bootstrap_current_bucket_manifests_walked,
             backfill_horizon_age_ms,
             backfill_listing_pages,
             backfill_listed_tuples,
@@ -1399,6 +1382,7 @@ impl Metrics {
             memory_protection_min_bytes,
             memory_protection_low_bytes,
             memory_transient_reserved_bytes,
+            memory_transient_capacity_bytes,
             foreground_memory_waiters,
             response_stream_pool_capacity_bytes,
             response_stream_foreground_pool_capacity_bytes,
@@ -1418,19 +1402,19 @@ impl Metrics {
             snapshot_cache_entries,
             snapshot_cache_nodes,
             snapshot_cache_served_full_bytes,
-            geoip_refresh,
             traffic_state,
             ready_state,
             drain_state,
             membership_generation,
             membership_peer_changes,
-            bootstrap_completions_discarded,
             initial_discovery_completed,
             writer_lock_owned,
             writer_lock_acquire_failures,
             mmap_partial_page_exemptions,
             promotion_queue_depth,
             promotion_failures,
+            peer_connection_failures,
+            promotion_drops,
         };
 
         metrics
@@ -1459,26 +1443,14 @@ impl Metrics {
             .set(1);
     }
 
-    pub fn record_http(
-        &self,
-        route: String,
-        status: StatusCode,
-        client_country: Option<String>,
-        duration: Duration,
-    ) {
-        let public_http_metrics = records_public_http_metrics(&route);
+    pub fn record_http(&self, route: String, status: StatusCode, duration: Duration) {
         self.http_requests
             .get_or_create(&HttpRequestLabels {
                 route: route.clone(),
                 status: status.as_u16(),
             })
             .inc();
-        if public_http_metrics {
-            self.http_client_requests
-                .get_or_create(&HttpClientCountryLabels {
-                    client_country: client_country.unwrap_or_else(|| "unknown".to_owned()),
-                })
-                .inc();
+        if records_public_http_metrics(&route) {
             self.http_request_duration.observe(duration.as_secs_f64());
         }
         // Internal routes are excluded from the public duration histogram, so
@@ -1561,6 +1533,11 @@ impl Metrics {
             self.artifact_write_bytes
                 .get_or_create(&labels)
                 .inc_by(bytes);
+            self.artifact_write_size_bytes
+                .get_or_create(&ArtifactRouteLabels {
+                    producer: producer.as_str().to_owned(),
+                })
+                .observe(bytes as f64);
         }
     }
 
@@ -1611,12 +1588,14 @@ impl Metrics {
         &self,
         producer: ArtifactProducer,
         result: &str,
+        trigger: &str,
         bytes: u64,
         duration: Duration,
     ) {
-        let labels = ArtifactOpLabels {
+        let labels = SegmentRefreshLabels {
             producer: producer.as_str().to_owned(),
             result: result.to_owned(),
+            trigger: trigger.to_owned(),
         };
         self.segment_refreshes.get_or_create(&labels).inc();
         if bytes > 0 {
@@ -1625,10 +1604,36 @@ impl Metrics {
                 .inc_by(bytes);
         }
         self.segment_refresh_duration
-            .get_or_create(&ArtifactRouteLabels {
+            .get_or_create(&SegmentRefreshRouteLabels {
                 producer: producer.as_str().to_owned(),
+                trigger: trigger.to_owned(),
             })
             .observe(duration.as_secs_f64());
+    }
+
+    /// A promotion the queue had no room for. Split by trigger because the two
+    /// classes mean different things: a dropped `serve` entry costs a later
+    /// read some latency, while a dropped vouched entry means the node made a
+    /// promise to a client it then did nothing to keep.
+    pub fn record_promotion_drop(&self, trigger: &str) {
+        self.promotion_drops
+            .get_or_create(&RefreshTriggerLabels {
+                trigger: trigger.to_owned(),
+            })
+            .inc();
+    }
+
+    /// A refresh the pressure gate declined. Counted on the same family as
+    /// completed refreshes so one query covers both, and deliberately kept off
+    /// the duration and bytes families, which describe work actually done.
+    pub fn record_segment_refresh_skipped(&self, producer: ArtifactProducer, trigger: &str) {
+        self.segment_refreshes
+            .get_or_create(&SegmentRefreshLabels {
+                producer: producer.as_str().to_owned(),
+                result: "pressure_skipped".to_owned(),
+                trigger: trigger.to_owned(),
+            })
+            .inc();
     }
 
     pub fn record_segment_eviction(
@@ -1675,6 +1680,16 @@ impl Metrics {
                 operation: operation.to_owned(),
             })
             .observe(duration.as_secs_f64());
+        if result == "error" {
+            self.note_peer_connection_failure();
+        }
+    }
+
+    fn note_peer_connection_failure(&self) {
+        self.peer_connection_failures.inc();
+        self.rollout_snapshot
+            .peer_connection_failure_count
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn record_replication_apply(&self, source: &str, item_type: &str, outcome: &str) {
@@ -1685,19 +1700,6 @@ impl Metrics {
                 outcome: outcome.to_owned(),
             })
             .inc();
-    }
-
-    pub fn record_bootstrap_digest_reconcile(&self, matched: u64, walked: u64) {
-        self.bootstrap_digest_buckets
-            .get_or_create(&BootstrapDigestLabels {
-                result: "matched".to_owned(),
-            })
-            .inc_by(matched);
-        self.bootstrap_digest_buckets
-            .get_or_create(&BootstrapDigestLabels {
-                result: "walked".to_owned(),
-            })
-            .inc_by(walked);
     }
 
     pub fn update_replication_bandwidth_limits(
@@ -1712,6 +1714,21 @@ impl Metrics {
             .set(effective_bytes_per_second as i64);
         self.replication_bandwidth_public_latency_target_ms
             .set(public_latency_target_ms as i64);
+    }
+
+    /// One shed request, labelled by which limit refused it.
+    ///
+    /// The HTTP status cannot carry this: 429 is shared by every shed, and
+    /// `kura_http_requests_total` has no method label, so the read routes that
+    /// also accept writes cannot be split by route either. Alert rules that
+    /// mean "response-stream pressure" specifically have to select on `kind`
+    /// rather than on a bare 429.
+    pub fn record_capacity_shed(&self, kind: &str) {
+        self.capacity_sheds
+            .get_or_create(&CapacityShedLabels {
+                kind: kind.to_owned(),
+            })
+            .inc();
     }
 
     pub fn record_multipart_part(&self, result: &str) {
@@ -1894,12 +1911,6 @@ impl Metrics {
         self.discovered_peer_nodes.set(count as i64);
     }
 
-    pub fn update_bootstrap_peers(&self, known: usize, completed: usize, inflight: usize) {
-        self.bootstrap_known_peers.set(known as i64);
-        self.bootstrap_completed_peers.set(completed as i64);
-        self.bootstrap_inflight_peers.set(inflight as i64);
-    }
-
     pub fn set_backfill_horizon_age_ms(&self, age_ms: u64) {
         self.backfill_horizon_age_ms
             .set(i64::try_from(age_ms).unwrap_or(i64::MAX));
@@ -1953,9 +1964,9 @@ impl Metrics {
             .set(i64::try_from(resolved).unwrap_or(i64::MAX));
     }
 
-    // Zero the pass-progress gauges for a peer when its backfill pass ends —
-    // the bootstrap-pass convention: a finished or abandoned pass must not
-    // freeze at its last mid-pass value, which would read as a live wedge.
+    // Zero the pass-progress gauges for a peer when its backfill pass ends: a
+    // finished or abandoned pass must not freeze at its last mid-pass value,
+    // which would read as a live wedge.
     pub fn clear_backfill_pass_progress(&self, peer: &str) {
         self.set_backfill_pass_listed_tuples(peer, 0);
         self.set_backfill_pass_resolved_tuples(peer, 0);
@@ -1967,6 +1978,11 @@ impl Metrics {
                 event: event.to_owned(),
             })
             .inc();
+        // A pass that failed is a request that errored against a peer, the
+        // successor to the bootstrap-run error the rollout gate used to read.
+        if event == "failed" {
+            self.note_peer_connection_failure();
+        }
     }
 
     pub fn update_backfill_cycle_peers(&self, backfilling: usize, budget_exhausted: usize) {
@@ -1996,77 +2012,6 @@ impl Metrics {
     // clear_backfill_pass_progress convention.
     pub fn clear_backfill_watermark_age(&self, peer: &str) {
         self.set_backfill_watermark_age_ms(peer, 0);
-    }
-
-    pub fn set_bootstrap_pass_buckets_divergent(&self, peer: &str, mode: &str, divergent: usize) {
-        self.bootstrap_pass_buckets_divergent
-            .get_or_create(&BootstrapPassLabels {
-                peer: peer.to_owned(),
-                mode: mode.to_owned(),
-            })
-            .set(divergent as i64);
-    }
-
-    pub fn set_bootstrap_pass_buckets_reconciled(&self, peer: &str, mode: &str, reconciled: usize) {
-        self.bootstrap_pass_buckets_reconciled
-            .get_or_create(&BootstrapPassLabels {
-                peer: peer.to_owned(),
-                mode: mode.to_owned(),
-            })
-            .set(reconciled as i64);
-    }
-
-    pub fn set_bootstrap_current_bucket_manifests_walked(
-        &self,
-        peer: &str,
-        mode: &str,
-        walked: usize,
-    ) {
-        self.bootstrap_current_bucket_manifests_walked
-            .get_or_create(&BootstrapPassLabels {
-                peer: peer.to_owned(),
-                mode: mode.to_owned(),
-            })
-            .set(walked as i64);
-    }
-
-    // Zero the pass-progress gauges for a peer when its pass ends, so a
-    // finished or abandoned pass is not left frozen at its last mid-pass value
-    // (which would read as a live wedge). Makes "divergent > 0" imply an
-    // in-flight pass for that peer.
-    pub fn clear_bootstrap_pass_progress(&self, peer: &str, mode: &str) {
-        self.set_bootstrap_pass_buckets_divergent(peer, mode, 0);
-        self.set_bootstrap_pass_buckets_reconciled(peer, mode, 0);
-        self.set_bootstrap_current_bucket_manifests_walked(peer, mode, 0);
-    }
-
-    pub fn record_bootstrap_run(
-        &self,
-        result: &str,
-        duration: Duration,
-        tombstones_applied: u64,
-        artifacts_applied: u64,
-    ) {
-        self.bootstrap_runs
-            .get_or_create(&BootstrapResultLabels {
-                result: result.to_owned(),
-            })
-            .inc();
-        self.bootstrap_duration.observe(duration.as_secs_f64());
-        if tombstones_applied > 0 {
-            self.bootstrap_applied_items
-                .get_or_create(&BootstrapItemLabels {
-                    item_type: "namespace_tombstone".to_owned(),
-                })
-                .inc_by(tombstones_applied);
-        }
-        if artifacts_applied > 0 {
-            self.bootstrap_applied_items
-                .get_or_create(&BootstrapItemLabels {
-                    item_type: "artifact".to_owned(),
-                })
-                .inc_by(artifacts_applied);
-        }
     }
 
     pub fn record_analytics_event(&self, pipeline: &str, result: &str, count: u64) {
@@ -2247,6 +2192,11 @@ impl Metrics {
             .set(reserved_bytes as i64);
     }
 
+    pub fn update_transient_memory_capacity(&self, capacity_bytes: u64) {
+        self.memory_transient_capacity_bytes
+            .set(capacity_bytes as i64);
+    }
+
     pub fn update_foreground_memory_waiters(&self, waiters: u64) {
         self.foreground_memory_waiters.set(waiters as i64);
     }
@@ -2419,14 +2369,6 @@ impl Metrics {
             .inc_by(bytes);
     }
 
-    pub fn record_geoip_refresh(&self, result: &str) {
-        self.geoip_refresh
-            .get_or_create(&GeoIpRefreshLabels {
-                result: result.to_owned(),
-            })
-            .inc();
-    }
-
     pub fn update_runtime_state(
         &self,
         traffic_state: i64,
@@ -2460,10 +2402,6 @@ impl Metrics {
             .inc_by(count as u64);
     }
 
-    pub fn record_bootstrap_completion_discarded(&self) {
-        self.bootstrap_completions_discarded.inc();
-    }
-
     pub fn record_writer_lock_acquire_failure(&self) {
         self.writer_lock_acquire_failures.inc();
     }
@@ -2489,6 +2427,10 @@ impl Metrics {
             fd_timeout_count: self
                 .rollout_snapshot
                 .fd_timeout_count
+                .load(Ordering::Relaxed),
+            peer_connection_failure_count: self
+                .rollout_snapshot
+                .peer_connection_failure_count
                 .load(Ordering::Relaxed),
         }
     }
@@ -2520,11 +2462,6 @@ fn records_public_http_metrics(route: &str) -> bool {
 struct HttpRequestLabels {
     route: String,
     status: u16,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct HttpClientCountryLabels {
-    client_country: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -2581,6 +2518,28 @@ struct ArtifactOpLabels {
     result: String,
 }
 
+/// Segment refreshes carry the triggering RPC alongside the producer so the
+/// read-time write amplification each REAPI read path adds is separable from
+/// serve-path promotion. `ArtifactOpLabels` is shared with eviction and other
+/// artifact counters that have no trigger, hence the dedicated pair.
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct SegmentRefreshLabels {
+    producer: String,
+    result: String,
+    trigger: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct SegmentRefreshRouteLabels {
+    producer: String,
+    trigger: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct RefreshTriggerLabels {
+    trigger: String,
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct ArtifactServingPathLabels {
     path: String,
@@ -2611,13 +2570,13 @@ struct ReplicationApplyLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct BootstrapDigestLabels {
+struct MultipartLabels {
     result: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct MultipartLabels {
-    result: String,
+struct CapacityShedLabels {
+    kind: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -2716,25 +2675,6 @@ struct AuthBackendRouteLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct BootstrapResultLabels {
-    result: String,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct BootstrapItemLabels {
-    item_type: String,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct BootstrapPassLabels {
-    peer: String,
-    // "digest" for the per-bucket anti-entropy path, "full_walk" for the
-    // digest-less fallback — the fallback walks the whole keyspace as one
-    // range, which otherwise renders like a single wedged digest bucket.
-    mode: String,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct AnalyticsLabels {
     pipeline: String,
     result: String,
@@ -2780,17 +2720,34 @@ struct ResponseStreamAdmissionLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct GeoIpRefreshLabels {
-    result: String,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct MembershipChangeLabels {
     change: String,
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn every_shed_kind_is_published_before_the_first_shed() {
+        // The alert and dashboard queries select the response-stream kind and
+        // fall back to counting bare 429s wherever that series is missing, so
+        // a fleet running both images reads correctly. That fallback is only
+        // safe while "series missing" means "old image" — a new pod that
+        // published the series lazily would be read as an old one and have its
+        // write sheds counted as read sheds.
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let rendered = metrics.render();
+
+        for kind in shed_kind::ALL {
+            assert!(
+                rendered
+                    .lines()
+                    .any(|line| line.starts_with("kura_capacity_sheds_total")
+                        && line.contains(&format!("kind=\"{kind}\""))),
+                "{kind} is missing from a freshly constructed registry:\n{rendered}"
+            );
+        }
+    }
+
     use super::*;
 
     #[test]
@@ -2835,13 +2792,11 @@ mod tests {
         metrics.record_http(
             "/_internal/backfill/entries".into(),
             StatusCode::OK,
-            None,
             Duration::from_millis(10),
         );
         metrics.record_http(
             "/_internal/status".into(),
             StatusCode::OK,
-            None,
             Duration::from_millis(10),
         );
 
@@ -2862,18 +2817,41 @@ mod tests {
     }
 
     #[test]
+    fn module_write_sizes_are_bucketed_by_producer_alone() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        metrics.record_artifact_write(ArtifactProducer::Module, "ok", 21 * 1024 * 1024);
+        metrics.record_artifact_write(ArtifactProducer::Module, "error", 0);
+
+        let rendered = metrics.render();
+        let lines: Vec<&str> = rendered
+            .lines()
+            .filter(|line| line.starts_with("kura_artifact_write_size_bytes"))
+            .collect();
+
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("producer=\"module\""))
+        );
+        // A failed write carries no payload, so it must not land in the zero
+        // bucket and drag the quantiles that size the staging reserve down.
+        assert!(lines.iter().any(
+            |line| line.starts_with("kura_artifact_write_size_bytes_count") && line.ends_with(" 1")
+        ));
+        // The June 2026 series blowup came from a high-cardinality label on a
+        // Kura histogram; the size distribution stays producer-scoped.
+        assert!(lines.iter().all(|line| !line.contains("tenant")
+            && !line.contains("namespace")
+            && !line.contains("result=")));
+    }
+
+    #[test]
     fn render_includes_recorded_metrics() {
         let metrics = Metrics::new("eu-west".into(), "acme".into());
-        metrics.record_http(
-            "/up".into(),
-            StatusCode::OK,
-            Some("US".into()),
-            Duration::from_millis(10),
-        );
+        metrics.record_http("/up".into(), StatusCode::OK, Duration::from_millis(10));
         metrics.record_http(
             "/api/cache/keyvalue".into(),
             StatusCode::INTERNAL_SERVER_ERROR,
-            None,
             Duration::from_millis(20),
         );
         metrics.record_artifact_read(ArtifactProducer::Xcode, "ok", 5);
@@ -2885,7 +2863,13 @@ mod tests {
             Duration::from_millis(30),
         );
         metrics.record_artifact_serving_path("mmap");
-        metrics.record_segment_refresh(ArtifactProducer::Xcode, "ok", 5, Duration::from_millis(4));
+        metrics.record_segment_refresh(
+            ArtifactProducer::Xcode,
+            "ok",
+            "action_cache",
+            5,
+            Duration::from_millis(4),
+        );
         metrics.record_segment_eviction(ArtifactProducer::Xcode, "ok", 2);
         metrics.record_replication(
             "https://kura.example.com/internal",
@@ -2894,7 +2878,7 @@ mod tests {
             Duration::from_millis(5),
         );
         metrics.record_replication_apply("replication", "artifact", "applied");
-        metrics.record_replication_apply("bootstrap", "namespace_delete", "ignored_older");
+        metrics.record_replication_apply("replication", "namespace_delete", "ignored_older");
         metrics.update_replication_bandwidth_limits(10_485_760, 5_242_880, 100);
         metrics.record_multipart_part("ok");
         metrics.record_file_descriptor_wait("ok", Duration::from_millis(1));
@@ -2924,11 +2908,6 @@ mod tests {
         metrics.update_outbox_messages(4);
         metrics.update_multipart_uploads(2);
         metrics.update_discovered_peer_nodes(3);
-        metrics.update_bootstrap_peers(3, 2, 1);
-        metrics.set_bootstrap_pass_buckets_divergent("https://peer.example", "digest", 12);
-        metrics.set_bootstrap_pass_buckets_reconciled("https://peer.example", "digest", 3);
-        metrics.set_bootstrap_current_bucket_manifests_walked("https://peer.example", "digest", 40);
-        metrics.record_bootstrap_run("ok", Duration::from_millis(6), 2, 5);
         metrics.update_analytics_queue(1000, 2);
         metrics.record_analytics_event("xcode", "sent", 2);
         metrics.record_analytics_batch("xcode", "ok", Duration::from_millis(7));
@@ -2977,7 +2956,6 @@ mod tests {
         metrics.update_membership_generation(7);
         metrics.record_membership_peer_changes("lost", 1);
         metrics.record_membership_peer_changes("discovered", 2);
-        metrics.record_bootstrap_completion_discarded();
         metrics.record_writer_lock_acquire_failure();
         metrics.record_node_geo(&NodeLocation {
             country: Some("US".into()),
@@ -2987,7 +2965,6 @@ mod tests {
         let rendered = metrics.render();
 
         assert!(rendered.contains("kura_http_requests_total"));
-        assert!(rendered.contains("kura_http_client_requests_total"));
         assert!(rendered.contains("kura_http_exceptions_total"));
         assert!(
             rendered
@@ -2999,15 +2976,8 @@ mod tests {
             rendered
                 .lines()
                 .filter(|line| line.starts_with("kura_http_requests_total"))
-                .all(|line| !line.contains("client_country="))
-        );
-        assert!(
-            rendered
-                .lines()
-                .filter(|line| line.starts_with("kura_http_requests_total"))
                 .all(|line| !line.contains("method="))
         );
-        assert!(rendered.contains("client_country=\"unknown\""));
         assert!(
             rendered
                 .lines()
@@ -3016,6 +2986,7 @@ mod tests {
         );
         assert!(rendered.contains("kura_artifact_reads_total"));
         assert!(rendered.contains("kura_artifact_write_bytes_total"));
+        assert!(rendered.contains("kura_artifact_write_size_bytes_bucket"));
         assert!(rendered.contains("kura_artifact_egress_completions_total"));
         assert!(rendered.contains("kura_artifact_egress_bytes_total"));
         assert!(rendered.contains("kura_artifact_egress_duration_seconds"));
@@ -3028,7 +2999,6 @@ mod tests {
         assert!(rendered.contains("kura_replication_requests_total"));
         assert!(rendered.contains("kura_replication_apply_results_total"));
         assert!(rendered.contains("source=\"replication\""));
-        assert!(rendered.contains("source=\"bootstrap\""));
         assert!(rendered.contains("item_type=\"artifact\""));
         assert!(rendered.contains("item_type=\"namespace_delete\""));
         assert!(rendered.contains("outcome=\"applied\""));
@@ -3057,15 +3027,6 @@ mod tests {
         assert!(rendered.contains("kura_multipart_uploads"));
         assert!(rendered.contains("kura_tmp_dir_bytes"));
         assert!(rendered.contains("kura_discovered_peer_nodes"));
-        assert!(rendered.contains("kura_bootstrap_known_peers"));
-        assert!(rendered.contains("kura_bootstrap_completed_peers"));
-        assert!(rendered.contains("kura_bootstrap_inflight_peers"));
-        assert!(rendered.contains("kura_bootstrap_pass_buckets_divergent"));
-        assert!(rendered.contains("kura_bootstrap_pass_buckets_reconciled"));
-        assert!(rendered.contains("kura_bootstrap_current_bucket_manifests_walked"));
-        assert!(rendered.contains("kura_bootstrap_runs_total"));
-        assert!(rendered.contains("kura_bootstrap_duration_seconds"));
-        assert!(rendered.contains("kura_bootstrap_applied_items_total"));
         assert!(rendered.contains("kura_replication_bandwidth_configured_limit_bytes_per_second"));
         assert!(rendered.contains("kura_replication_bandwidth_effective_limit_bytes_per_second"));
         assert!(rendered.contains("kura_replication_bandwidth_public_latency_target_ms"));
@@ -3132,7 +3093,6 @@ mod tests {
         assert!(rendered.contains("kura_membership_peer_changes_total"));
         assert!(rendered.contains("change=\"lost\"} 1"));
         assert!(rendered.contains("change=\"discovered\"} 2"));
-        assert!(rendered.contains("kura_bootstrap_completions_discarded_total"));
         assert!(rendered.contains("kura_drain_state"));
         assert!(rendered.contains("kura_initial_discovery_completed"));
         assert!(rendered.contains("kura_writer_lock_owned"));

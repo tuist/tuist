@@ -557,9 +557,65 @@ struct GenerateAcceptanceTestCommandLineToolWithNativePackageTraits {
     }
 }
 
+struct GenerateAcceptanceTestCommandLineToolWithPackageAccessAndModuleMap {
+    @Test(.withFixture("generated_command_line_tool_with_package_access_and_module_map"), .inTemporaryDirectory)
+    func command_line_tool_with_package_access_and_module_map() async throws {
+        let fixturePath = try fixtureDirectory()
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "Package", "repro.xcodeproj").pathString
+        )
+        let reproCoreTarget = try TuistAcceptanceTest.requireTarget("ReproCore", in: xcodeproj)
+        let buildConfigurations = try #require(reproCoreTarget.buildConfigurationList?.buildConfigurations)
+
+        for buildConfiguration in buildConfigurations {
+            let buildSettings = buildConfiguration.buildSettings
+            #expect(buildSettings["SWIFT_PACKAGE_NAME"]?.stringValue == "repro")
+
+            let otherSwiftFlags = try #require(buildSettings["OTHER_SWIFT_FLAGS"]?.arrayValue)
+            #expect(otherSwiftFlags.contains("-module-abi-name"))
+            #expect(otherSwiftFlags.contains("-Xcc"))
+            #expect(otherSwiftFlags.contains(where: { $0.contains("ReproCore-deps.modulemap") }))
+            #expect(!otherSwiftFlags.contains("-package-name"))
+        }
+
+        try await run(BuildCommand.self)
+    }
+}
+
+struct GenerateAcceptanceTestCommandLineToolWithLocalMacroPackage {
+    @Test(.withFixture("generated_command_line_tool_with_local_macro_package"), .inTemporaryDirectory)
+    func command_line_tool_with_local_macro_package() async throws {
+        let fixturePath = try fixtureDirectory()
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "Package", "MacroPackage.xcodeproj").pathString
+        )
+        let macroTarget = try TuistAcceptanceTest.requireTarget("ReproMacro", in: xcodeproj)
+        let buildConfigurations = try #require(macroTarget.buildConfigurationList?.buildConfigurations)
+
+        for buildConfiguration in buildConfigurations {
+            let buildSettings = buildConfiguration.buildSettings
+            #expect(buildSettings["SWIFT_PACKAGE_NAME"]?.stringValue == "MacroPackage")
+
+            let otherSwiftFlags = try #require(buildSettings["OTHER_SWIFT_FLAGS"]?.stringValue)
+            #expect(otherSwiftFlags.contains("-Xfrontend -disable-sil-ownership-verifier"))
+            #expect(!otherSwiftFlags.contains("-package-name"))
+        }
+
+        try await run(BuildCommand.self)
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
     @Test(.withFixture("generated_ios_app_with_objc_static_framework_package"), .inTemporaryDirectory)
-    func ios_app_with_objc_static_framework_package() async throws {
+    func ios_app_with_objc_and_c_static_framework_package() async throws {
         let fixturePath = try fixtureDirectory()
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")

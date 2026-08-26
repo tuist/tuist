@@ -1,6 +1,7 @@
 import Command
 import FileSystem
 import Foundation
+import os
 import Path
 import Testing
 @testable import XCResultParser
@@ -57,6 +58,30 @@ private struct RoutingXCResultToolStub: CommandRunning {
                 let tail = command[redirect.upperBound...]
                 if let close = tail.firstIndex(of: "'") {
                     try? payload.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
+                }
+            }
+            continuation.finish()
+        }
+    }
+}
+
+/// Records the shell payload of every command the parser issues.
+private struct RecordingXCResultToolStub: CommandRunning {
+    let testResultsJSON: String
+    let commands = OSAllocatedUnfairLock<[String]>(initialState: [])
+
+    func run(
+        arguments: [String],
+        environment _: [String: String],
+        workingDirectory _: AbsolutePath?
+    ) -> AsyncThrowingStream<CommandEvent, any Error> {
+        let command = arguments.last ?? ""
+        commands.withLock { $0.append(command) }
+        return AsyncThrowingStream { continuation in
+            if let redirect = command.range(of: "> '") {
+                let tail = command[redirect.upperBound...]
+                if let close = tail.firstIndex(of: "'") {
+                    try? testResultsJSON.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
                 }
             }
             continuation.finish()
@@ -526,4 +551,69 @@ struct XCResultParserTests {
         #expect(summary.testCases.map(\.name) == ["Issues recorded without an associated test or suite"])
         #expect(summary.status == .failed)
     }
+
+    /// The parser shells out through `/bin/sh -c`. Without `exec` the shell
+    /// forks the tool and waits, so `Process.terminate()` on cancellation
+    /// signals the shell only and the tool keeps running, reparented, holding
+    /// its process-limiter permit and writing into a temp directory the caller
+    /// is about to delete.
+    @Test
+    func shellCommandsExecTheToolSoTheyStayCancellable() async throws {
+        let runner = RecordingXCResultToolStub(testResultsJSON: "{}")
+        let parser = XCResultParser(commandRunner: runner)
+
+        _ = try? await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+
+        let commands = runner.commands.withLock { $0 }
+        #expect(!commands.isEmpty)
+        for command in commands where command.contains("xcresulttool") {
+            #expect(command.hasPrefix("exec "), "not cancellable, shell would fork and wait: \(command)")
+        }
+    }
+
+    /// Guards the mechanism itself rather than the spelling: cancelling the
+    /// task must leave no descendant behind.
+    @Test
+    func cancellingACommandTerminatesItsRealChildProcess() async throws {
+        // Unique enough to identify this test's process in the table.
+        let marker = "774411"
+        defer { _ = runToCompletion("/usr/bin/pkill", ["-f", "sleep \(marker)"]) }
+
+        let task = Task {
+            for try await _ in CommandRunner().run(arguments: ["/bin/sh", "-c", "exec /bin/sleep \(marker)"]) {}
+        }
+
+        try await waitFor("the child to start") { processExists(marker) }
+        task.cancel()
+        try await waitFor("the child to be terminated") { !processExists(marker) }
+    }
+}
+
+private func runToCompletion(_ executable: String, _ arguments: [String]) -> Int32 {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: executable)
+    process.arguments = arguments
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    do {
+        try process.run()
+    } catch {
+        return -1
+    }
+    process.waitUntilExit()
+    return process.terminationStatus
+}
+
+private func processExists(_ marker: String) -> Bool {
+    runToCompletion("/usr/bin/pgrep", ["-f", "sleep \(marker)"]) == 0
+}
+
+/// Polls rather than sleeping a fixed interval, so the test is neither slow
+/// when the transition is fast nor flaky when the machine is loaded.
+private func waitFor(_ description: String, _ condition: @Sendable () -> Bool) async throws {
+    for _ in 0 ..< 100 {
+        if condition() { return }
+        try await Task.sleep(for: .milliseconds(100))
+    }
+    Issue.record("Timed out waiting for \(description)")
 }

@@ -838,7 +838,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             )
             moduleMapModuleName = resolvedModuleName
             let swiftPackageManagerScratchDirectory: AbsolutePath? = if packageType.isRemoteExternal {
-                SwiftPackageManagerPaths.scratchDirectory(containingCheckout: path)
+                SwiftPackageManagerPaths.scratchDirectory(containingPackageSource: path)
             } else {
                 nil
             }
@@ -1028,6 +1028,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             target: target,
             productName: productName,
             moduleName: moduleName,
+            packageName: packageInfo.name,
+            swiftToolsVersion: Version(stringLiteral: packageInfo.toolsVersion.description),
             packageFolder: packageFolder,
             settings: target.settings,
             moduleMap: moduleMap,
@@ -1039,7 +1041,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             prebuilts: targetPrebuilts
         )
 
-        var metadataTags: [String] = []
+        var metadataTags = [TargetTags.swiftPackage]
         if target.type == .test, packageType.isLocalExternal {
             metadataTags.append(TargetTags.localSwiftPackageTest)
         }
@@ -2229,6 +2231,8 @@ extension ProjectDescription.Settings {
         target: PackageInfo.Target,
         productName: String,
         moduleName: String,
+        packageName: String,
+        swiftToolsVersion: XcodeGraph.Version,
         packageFolder: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         moduleMap: ModuleMap?,
@@ -2431,6 +2435,10 @@ extension ProjectDescription.Settings {
             )
         }
 
+        if swiftToolsVersion >= Version(5, 9, 0) {
+            result.base.setSwiftPackageName(packageName)
+        }
+
         return result
     }
 
@@ -2518,6 +2526,10 @@ extension ProjectDescription.SettingsDictionary {
                 return ProjectDescription.SettingValue.array(arrayValue)
             }
         }
+    }
+
+    fileprivate mutating func setSwiftPackageName(_ packageName: String) {
+        self["SWIFT_PACKAGE_NAME"] = .string(packageName)
     }
 }
 
@@ -2648,18 +2660,6 @@ extension PackageInfo {
         ]
 
         settingsDictionary.merge(.from(settingsDictionary: baseSettings.base), uniquingKeysWith: { $1 })
-
-        if toolsVersion >= Version(5, 9, 0) {
-            let packageNameValues = ["$(inherited)", "-package-name", name.quotedIfContainsSpaces]
-            settingsDictionary["OTHER_SWIFT_FLAGS"] = switch settingsDictionary["OTHER_SWIFT_FLAGS"] {
-            case let .array(swiftFlags):
-                .array(swiftFlags + packageNameValues)
-            case let .string(swiftFlags):
-                .array(swiftFlags.split(separator: " ").map(String.init) + packageNameValues)
-            case .none:
-                .array(packageNameValues)
-            }
-        }
 
         if let cLanguageStandard {
             settingsDictionary["GCC_C_LANGUAGE_STANDARD"] = .string(cLanguageStandard)

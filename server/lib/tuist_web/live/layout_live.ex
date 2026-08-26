@@ -150,16 +150,17 @@ defmodule TuistWeb.LayoutLive do
 
     # Deferred until connected — see :project.
     current_user_accounts =
-      if connected?(socket) do
+      if connected?(socket) and not is_nil(current_user) do
         get_user_organization_accounts(current_user) ++ [current_user.account]
       else
         []
       end
 
     selected_account =
-      case Map.get(params, "account_handle") do
-        handle when is_binary(handle) -> Accounts.get_account_by_handle(handle)
-        _ -> current_user.account
+      case {Map.get(params, "account_handle"), current_user} do
+        {handle, _} when is_binary(handle) -> Accounts.get_account_by_handle(handle)
+        {_, nil} -> nil
+        {_, user} -> user.account
       end
 
     if is_nil(selected_account) do

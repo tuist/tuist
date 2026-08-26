@@ -356,7 +356,7 @@ public enum Module: String, CaseIterable {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
              .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
-             .constants, .environment, .logging, .swifterPMCore,
+             .constants, .environment, .swifterPMCore,
              .envKey, .versionCommand, .encodable,
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe, .macOSSDK,
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
@@ -1007,6 +1007,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .cache:
                 [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
@@ -1585,7 +1586,7 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] =
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
-                 .constants, .environment, .logging, .nooraTesting, .loggerTesting, .swifterPMCore,
+                 .constants, .environment, .nooraTesting, .loggerTesting, .swifterPMCore,
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .macOSSDK, .encodable,
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
@@ -1594,6 +1595,11 @@ public enum Module: String, CaseIterable {
                 []
             case .xcodeGraph:
                 []
+            case .logging:
+                [
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
             case .xcodeMetadata:
                 [
                     .target(name: Module.xcodeGraph.targetName),
@@ -1847,6 +1853,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.threadSafe.targetName),
                     .external(name: "PathKit"),
                     .external(name: "XcodeProj"),
@@ -1965,6 +1972,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .cache:
                 [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.hasher.targetName),

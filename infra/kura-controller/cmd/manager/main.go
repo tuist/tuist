@@ -71,6 +71,7 @@ func main() {
 
 	if err := (&controllers.KuraInstanceReconciler{
 		Client:             mgr.GetClient(),
+		APIReader:          mgr.GetAPIReader(),
 		Scheme:             mgr.GetScheme(),
 		GRPCClusterIssuer:  grpcClusterIssuer,
 		OTLPTracesEndpoint: otlpTracesEndpoint,

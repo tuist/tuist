@@ -7,13 +7,11 @@
 //!   live mesh members. The control plane withholds peers that stop
 //!   heartbeating and answers `mesh_member: false` once a node has been
 //!   withheld; the node then performs a **recovery re-enrollment** (with
-//!   backoff), which restores its membership server-side and — because the
-//!   writes it missed while out of the mesh were never enqueued for it —
-//!   resets local bootstrap progress and leaves serving until the full
-//!   dataset has been re-pulled. Under `KURA_BACKFILL_ENABLED` neither
-//!   applies: watermarks are durable (nothing to reset) and readiness is
-//!   latched for the process lifetime, so reconciliation runs in the
-//!   background without leaving serving.
+//!   backoff), which restores its membership server-side and re-arms a
+//!   backfill pass for every peer in view. Nothing local is torn down for it:
+//!   the walker's watermarks are durable, so those passes re-walk from them
+//!   and reconcile back to the backfill window, and readiness is latched for
+//!   the process lifetime so the node keeps serving through it.
 //! - **Managed pods** don't enroll (Kubernetes owns their liveness), but they
 //!   consume the same dynamic peer view through a peers-only fetch, so a
 //!   self-hosted peer joining or leaving propagates at heartbeat cadence
@@ -121,10 +119,10 @@ struct MeshHeartbeat<'a> {
 #[derive(Deserialize)]
 struct MeshHeartbeatResponse {
     // Deliberately NOT defaulted: `false` is the destructive value (it
-    // triggers recovery re-enrollment + a full re-bootstrap), so a response
-    // that merely lacks the field — shape drift, an intermediary answering
-    // 200 with a different body — must fail the decode and land in the safe
-    // keep-last-view error path instead.
+    // triggers a recovery re-enrollment, which mints fresh certificates), so
+    // a response that merely lacks the field — shape drift, an intermediary
+    // answering 200 with a different body — must fail the decode and land in
+    // the safe keep-last-view error path instead.
     mesh_member: bool,
     #[serde(default)]
     peers: Vec<String>,
@@ -261,10 +259,18 @@ async fn fetch_peers(
 // `mesh_member: false` means the node was withheld from the mesh (deactivated
 // as stale, or its row was purged). Heartbeats never create membership —
 // enrollment is the only door — so recovery is a re-enrollment: the server's
-// enrollment upsert reactivates or recreates the row, and locally the node
-// must forget its bootstrap progress and step out of serving until the
-// re-pull completes, because whatever was written while it was out of the
-// mesh was never enqueued for it.
+// enrollment upsert reactivates or recreates the row. Nothing local has to be
+// forgotten: whatever was written while the node was out of the mesh was never
+// enqueued for it, and the walker's watermarks are durable and monotonic, so a
+// pass re-walks from them and reconciles back to the backfill window.
+//
+// The passes have to be armed explicitly. A pass is otherwise scheduled from a
+// membership edge, and edges are a set difference over the probed peer set, so
+// a control-plane-only outage produces none: the node keeps reaching its peers
+// and its view never changes, while the server withholds it and its peers
+// prune the outbox messages queued for it. Readiness is not clawed back for
+// any of this — a node that already holds usable data keeps serving while it
+// catches up.
 async fn maybe_recover_membership(state: &SharedState, recovery: &mut RecoveryBackoff) {
     if !recovery.should_attempt(Instant::now()) {
         return;
@@ -274,14 +280,14 @@ async fn maybe_recover_membership(state: &SharedState, recovery: &mut RecoveryBa
     match crate::enrollment::renew().await {
         Ok(outcome) => match crate::app::apply_renewed_enrollment(state, &outcome).await {
             Ok(()) => {
-                state.reset_bootstrap_progress().await;
+                state.backfill.rearm_after_mesh_rejoin();
                 // The backoff is deliberately NOT reset here: recovery is
                 // only proven by a later heartbeat answering
                 // `mesh_member: true` (which resets it in the run loop). A
                 // successful re-enrollment that the server still answers
-                // `false` to must keep backing off, or it becomes an
-                // enroll/bootstrap-clear loop at heartbeat cadence.
-                info!("re-enrolled to recover mesh membership; re-bootstrapping from peers");
+                // `false` to must keep backing off, or it becomes a
+                // re-enrollment loop at heartbeat cadence.
+                info!("re-enrolled to recover mesh membership; re-arming backfill passes");
             }
             Err(error) => warn!("recovery re-enrollment: failed to apply: {error}"),
         },
@@ -428,51 +434,7 @@ mod tests {
         assert!(!ctx.state.runtime.is_serving());
 
         ctx.state.runtime.mark_peer_view_ready();
-        ctx.state.maybe_mark_serving().await;
-        assert!(ctx.state.runtime.is_serving());
-    }
-
-    #[tokio::test]
-    async fn recovery_resets_bootstrap_progress_so_peers_are_repulled() {
-        let ctx = test_context(|_| {}).await;
-        let peer = "https://peer-1.test:7443".to_string();
-        ctx.state
-            .apply_membership_view(
-                std::collections::BTreeSet::from(["remote".to_string()]),
-                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
-                true,
-            )
-            .await;
-        ctx.state
-            .note_bootstrap_succeeded(&peer, ctx.state.current_bootstrap_epoch().await)
-            .await;
-        ctx.state.expire_readiness_settle_window().await;
-        ctx.state.maybe_mark_serving().await;
-        assert!(ctx.state.runtime.is_serving());
-        assert!(ctx.state.peers_needing_bootstrap().await.is_empty());
-
-        ctx.state.reset_bootstrap_progress().await;
-
-        // Readiness implies complete data: the node must leave serving for
-        // the whole re-bootstrap window, not just re-pull in the background.
-        assert!(!ctx.state.runtime.is_serving());
-        assert_eq!(
-            ctx.state.peers_needing_bootstrap().await,
-            vec![peer.clone()]
-        );
-        ctx.state.maybe_mark_serving().await;
-        assert!(
-            !ctx.state.runtime.is_serving(),
-            "serving must not resume before a clean pass under the new epoch"
-        );
-
-        let epoch = ctx
-            .state
-            .note_bootstrap_started(&peer)
-            .await
-            .expect("fresh pass should start");
-        ctx.state.note_bootstrap_succeeded(&peer, epoch).await;
-        ctx.state.expire_readiness_settle_window().await;
+        crate::test_support::settle_empty_backfill_cycle(&ctx.state);
         ctx.state.maybe_mark_serving().await;
         assert!(ctx.state.runtime.is_serving());
     }

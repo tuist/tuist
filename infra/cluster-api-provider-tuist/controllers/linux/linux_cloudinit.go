@@ -346,7 +346,7 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 %[2]ssystemctl daemon-reexec || true
 export DEBIAN_FRONTEND=noninteractive
 %[3]sapt-get update
-%[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd
+%[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd xfsprogs
 %[2]smkdir -p /etc/containerd /etc/containerd/certs.d/docker.io
 %[4]s
 %[6]s
@@ -359,6 +359,12 @@ export DEBIAN_FRONTEND=noninteractive
 # mounted filesystem (single-partition Elastic Metal), and the trailing 'true'
 # keeps set -e happy regardless.
 %[2]ssh -c 'mountpoint -q /data && [ "$(findmnt -no SOURCE /data)" != "$(findmnt -no SOURCE /)" ] && { mkdir -p /data/containerd; sed -ri "s#^root = .*#root = \"/data/containerd\"#" /etc/containerd/config.toml; }; true'
+# Bound the image store's share of /data. It is the one consumer on that
+# filesystem that is not a tenant, and nothing else caps it: image GC keys on
+# the FILESYSTEM being 85%% full, so on a box whose tenants are light containerd
+# can grow into the headroom their quotas were written against and starve them
+# below their own ceilings. Tolerated on failure (see containerdQuotaScript).
+%[10]s
 # The kura cache PVCs use a local-path StorageClass that carves each PV as a
 # directory under /opt/local-path-provisioner. Bind that onto /data too, so the
 # cache volumes land on the big disk rather than the ~20G root: without it two
@@ -377,7 +383,8 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --
 %[2]sapt-mark hold kubelet
 %[2]ssystemctl daemon-reload
 %[2]ssystemctl enable --now kubelet`,
-		k8sMinor, sudo, sudoE, containerdConfig, aptSource, mirrorHosts, vlanSetup, hardeningSysctl, watchdogDropIn)
+		k8sMinor, sudo, sudoE, containerdConfig, aptSource, mirrorHosts, vlanSetup, hardeningSysctl, watchdogDropIn,
+		containerdQuotaSetup(sudo, writeFile))
 }
 
 // vlanBringUp renders the PN-VLAN setup prepended to the bootstrap body when a
@@ -603,6 +610,10 @@ func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euxo pipefail
 %[8]s%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
+# Turn project quotas on for /data before anything mounts off it: XFS only takes
+# quota accounting at mount time, and the bind below would pin the filesystem
+# busy. Aborts the join on a box whose /data cannot carry per-account quotas.
+%[11]s
 # Bring up the kubelet root's /data bind-mount BEFORE writing its config below, so
 # a box with a separate /data disk doesn't shadow config.yaml + kubeconfig once
 # the mount lands (which left the kubelet crash-looping on a missing config).
@@ -625,7 +636,182 @@ set -euxo pipefail
 		nopasswdSetup(opts.BootstrapUser, opts.SudoPassword),
 		dataKubeletMount(sudo),
 		caWrite,
+		dataProjectQuotaSetup(sudo, writeFile),
 	)
+}
+
+// dataProjectQuotaPath is where the self-join drops the script that turns
+// project quotas on for /data. Kept on disk (rather than inlined) because it is
+// also the recovery step an operator runs by hand after changing /etc/fstab.
+const dataProjectQuotaPath = "/usr/local/sbin/tuist-data-prjquota.sh"
+
+// dataProjectQuotaScript makes /data carry XFS project quotas, or refuses to let
+// the box join.
+//
+// Every Kura cache directory on these boxes is a local-path PV: a directory on
+// /data. A directory has no size, so nothing in Kubernetes bounds what one
+// account's instance writes. The pod's ephemeral-storage request is scheduler
+// admission at placement time, and an ephemeral-storage LIMIT would be enforced
+// against the pod's writable layer, logs and emptyDir, none of which is where
+// the cache lives. XFS project quotas are the only real boundary, and they are
+// what the provisioner's per-volume hooks set. One instance filling the box
+// crosses kubelet's eviction line and takes down every tenant on it, not just
+// the account that filled it.
+//
+// Two things make this a hard failure rather than a warning. Quota accounting is
+// a mount-time decision on XFS (`mount -o remount` cannot add it), so the
+// remount has to happen here, before anything binds onto /data, or not until the
+// next reboot. And a box that joins without it looks completely healthy while
+// being the one thing this change exists to prevent: unbounded, shared, and
+// only visibly wrong once a tenant has already taken the box down. Failing the
+// join surfaces that as a Machine that never goes Ready.
+//
+// A box with no separate /data (the single-filesystem Elastic Metal shape) is
+// left alone: it has no /data for cache directories to land on, so there is
+// nothing here to enforce.
+const dataProjectQuotaScript = `#!/usr/bin/env bash
+set -euo pipefail
+
+data=/data
+
+mountpoint -q "$data" || exit 0
+[ "$(findmnt -no SOURCE "$data")" != "$(findmnt -no SOURCE /)" ] || exit 0
+
+fstype="$(findmnt -no FSTYPE "$data")"
+if [ "$fstype" != xfs ]; then
+  echo "tuist: $data is $fstype, but per-account cache quotas need xfs project quotas." >&2
+  echo "tuist: this box predates the xfs /data layout and cannot grow one in place; reinstall it (mise run baremetal:prep-ovh / prep-dedibox) before it can rejoin." >&2
+  exit 1
+fi
+
+has_project_quota() {
+  case ",$(findmnt -no OPTIONS "$data")," in
+    *,prjquota,*|*,pquota,*) return 0 ;;
+  esac
+  return 1
+}
+
+if ! has_project_quota; then
+  if ! grep -qE "^[^#]+[[:space:]]+/data[[:space:]]" /etc/fstab; then
+    echo "tuist: $data is mounted but has no /etc/fstab entry to add prjquota to." >&2
+    exit 1
+  fi
+  # Rewrite only the /data options field; awk leaves every other line byte-identical
+  # because it only rebuilds a record whose fields it assigned. Written back through
+  # cat so /etc/fstab keeps its own inode and permissions.
+  awk '$1 !~ /^#/ && $2 == "/data" && $4 !~ /(^|,)(prjquota|pquota)(,|$)/ { $4 = $4 ",prjquota" } { print }' /etc/fstab > /tmp/fstab.tuist
+  cat /tmp/fstab.tuist > /etc/fstab
+  rm -f /tmp/fstab.tuist
+  # Safe at this point in the join: nothing has bind-mounted off /data yet, so
+  # the cycle cannot hit EBUSY and no running workload sees it disappear.
+  umount "$data"
+  mount "$data"
+fi
+
+if ! has_project_quota; then
+  echo "tuist: $data remounted without project quotas active; refusing to join an unbounded cache box." >&2
+  exit 1
+fi
+`
+
+// containerdProjectID is the reserved XFS project for the image store. Volume
+// projects are hashed into [1000, 16000999] by the provisioner hook, so a small
+// fixed id below that range cannot collide with one.
+const containerdProjectID = 100
+
+// containerdQuotaBytes caps the image store at 64 GiB. The number is chosen to
+// sit several times above the fleet's real image footprint and still be a small
+// share of a cache box, because the two ways to get it wrong are asymmetric.
+//
+// Too low and containerd hits ENOSPC on a pull while the filesystem still has
+// room, which the kubelet cannot resolve: image GC triggers on the FILESYSTEM's
+// available space, not on a project's, so nothing would reclaim anything and
+// the node would simply stop being able to start pods. Too high and it stops
+// being a bound. So this is deliberately a backstop against unbounded growth
+// rather than a tight fit, and it is worth revisiting against what the exporter
+// reports for project 100 once there is fleet data.
+const containerdQuotaBytes = 64 * 1024 * 1024 * 1024
+
+// containerdQuotaPath is where the self-join drops the image-store quota script.
+const containerdQuotaPath = "/usr/local/sbin/tuist-containerd-quota.sh"
+
+// containerdQuotaScript gives the relocated image store its own project quota.
+//
+// Tenant volumes are each bounded by their own project, but they all draw from
+// one pool, and the image store draws from the same pool without being anyone's
+// tenant. A per-volume quota is a ceiling, not a reservation, so a tenant that
+// stays inside its own ceiling can still be denied space that something else
+// took first. Nothing else bounds containerd here: the kubelet's image GC keys
+// on the filesystem's available space, so it only reclaims once the whole box is
+// nearly full, by which point tenants have already been squeezed.
+//
+// Unlike dataProjectQuotaScript this does NOT fail the join. A box that reaches
+// this point has already proven it can enforce, and every tenant on it is
+// bounded either way; what is lost is defence in depth on the shared pool, which
+// is the state the box was in before. Refusing to join over it would trade a
+// real outage for a theoretical one. Its absence is visible instead: the usage
+// exporter reads /etc/projects, so a missing project 100 shows up as the image
+// store dropping out of the report.
+//
+// Bytes only, no inode ceiling. Image layers are inode-heavy and the failure
+// mode of a wrong inode bound is the same unrecoverable pull failure described
+// on containerdQuotaBytes, with none of the pool protection.
+var containerdQuotaScript = fmt.Sprintf(`#!/usr/bin/env bash
+set -euo pipefail
+
+data=/data
+dir=/data/containerd
+projid=%[1]d
+bytes=%[2]d
+
+mountpoint -q "$data" || exit 0
+[ "$(findmnt -no SOURCE "$data")" != "$(findmnt -no SOURCE /)" ] || exit 0
+[ "$(findmnt -no FSTYPE "$data")" = xfs ] || exit 0
+case ",$(findmnt -no OPTIONS "$data")," in
+  *,prjquota,*|*,pquota,*) ;;
+  *) exit 0 ;;
+esac
+
+exec 9>/var/lock/tuist-kura-quota.lock
+flock 9
+
+mkdir -p "$dir"
+
+# Idempotent: the path is a fixed literal, so a plain filter is enough to drop a
+# previous entry before re-adding it.
+if [ -f /etc/projects ]; then
+  grep -v ":$dir$" /etc/projects > /etc/projects.tuist || true
+  cat /etc/projects.tuist > /etc/projects
+  rm -f /etc/projects.tuist
+fi
+printf '%%s:%%s\n' "$projid" "$dir" >> /etc/projects
+
+xfs_quota -x -c "project -s -p $dir $projid" "$data" >/dev/null
+xfs_quota -x -c "limit -p bhard=$bytes $projid" "$data"
+`, containerdProjectID, containerdQuotaBytes)
+
+// containerdQuotaSetup installs and runs containerdQuotaScript. It has to come
+// after the image store has been relocated onto /data (the directory has to
+// exist to carry a project) and after apt has installed xfsprogs, which is why
+// it lives in bootstrapBody rather than beside the /data mount setup.
+func containerdQuotaSetup(sudo string, writeFile func(producer, path string) string) string {
+	return strings.Join([]string{
+		writeFile("printf '%s' "+shellSingleQuote(containerdQuotaScript), containerdQuotaPath),
+		sudo + "chmod 0755 " + containerdQuotaPath,
+		sudo + "bash " + containerdQuotaPath + " || echo 'tuist: could not bound the containerd image store; continuing' >&2",
+	}, "\n")
+}
+
+// dataProjectQuotaSetup installs and runs dataProjectQuotaScript. It has to run
+// before ANY bind-mount off /data: enabling quota accounting means a real
+// unmount/mount cycle, and the kubelet-root bind two lines later would pin the
+// filesystem busy.
+func dataProjectQuotaSetup(sudo string, writeFile func(producer, path string) string) string {
+	return strings.Join([]string{
+		writeFile("printf '%s' "+shellSingleQuote(dataProjectQuotaScript), dataProjectQuotaPath),
+		sudo + "chmod 0755 " + dataProjectQuotaPath,
+		sudo + "bash " + dataProjectQuotaPath,
+	}, "\n")
 }
 
 // dataKubeletMount brings up the /data bind-mount for the kubelet root. The

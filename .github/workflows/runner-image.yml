@@ -52,15 +52,9 @@ jobs:
           go-version-file: infra/runner-image/go.mod
 
       # Log in BEFORE Packer build so Tart's clone of the
-      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
-      # authenticates. crane writes creds to ~/.docker/config.json,
-      # which Tart reads via the Docker credential-helper protocol
-      # for both pull (this build's clone of the base) and the push
-      # at the end of the job. Bypasses both the macOS keychain
-      # (which `tart login` would use, and which gates on a Tahoe-
-      # LaunchAgent-incompatible "User interaction" prompt) and
-      # Tart 2.32.1's env-var-only push path (which hangs with
-      # "Error: The request timed out").
+      # macos-tahoe-xcode base authenticates. The registry is
+      # tailnet-only and every image on it needs a credential, for
+      # reads as well as writes.
       - name: Log in to GHCR (crane)
         run: |
           set -euo pipefail

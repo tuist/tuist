@@ -29,6 +29,29 @@ defmodule TuistTestSupport.Fixtures.BundlesFixtures do
   end
 
   @doc """
+  Generates a bundle size approver.
+
+  Inserts directly so callers that only need an approver to exist do not have
+  to stand up a VCS connection and stub the GitHub lookup that
+  `Bundles.add_bundle_size_approver/2` performs.
+  """
+  def bundle_size_approver_fixture(opts \\ []) do
+    project = Keyword.get(opts, :project, ProjectsFixtures.project_fixture())
+    handle = Keyword.get(opts, :github_handle, "octocat")
+
+    {:ok, approver} =
+      %Bundles.BundleSizeApprover{id: UUIDv7.generate()}
+      |> Bundles.BundleSizeApprover.changeset(%{
+        project_id: project.id,
+        github_handle: handle,
+        github_id: Keyword.get(opts, :github_id, "#{TuistTestSupport.Utilities.unique_integer()}")
+      })
+      |> Repo.insert()
+
+    approver
+  end
+
+  @doc """
   Generates a bundle.
   """
   def bundle_fixture(opts \\ []) do

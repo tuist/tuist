@@ -505,7 +505,7 @@
               icon="history"
             />
             <.status_badge_cell
-              :if={!shard.actual_duration_ms}
+              :if={!shard.actual_duration_ms && shard.status != "not_reported"}
               label={dgettext("dashboard_tests", "In Progress")}
               status="in_progress"
             />
@@ -525,6 +525,11 @@
               :if={shard.status == "pending"}
               label={dgettext("dashboard_tests", "Pending")}
               status="warning"
+            />
+            <.status_badge_cell
+              :if={shard.status == "not_reported"}
+              label={dgettext("dashboard_tests", "Not reported")}
+              status="error"
             />
           </:col>
         </.table>

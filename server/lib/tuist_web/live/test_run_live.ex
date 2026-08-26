@@ -62,14 +62,6 @@ defmodule TuistWeb.TestRunLive do
 
     project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
-    # A run that was processed across multiple retries (e.g. before a fix) can
-    # carry duplicate identical destination rows, since create_run_destinations
-    # inserts a fresh row per attempt. Collapse them to distinct devices.
-    run = %{
-      run
-      | run_destinations: Enum.uniq_by(run.run_destinations, &{&1.name, &1.platform, &1.os_version})
-    }
-
     ci_run_url = Tests.test_ci_run_url(run)
     ci_context = test_ci_context(run, socket.assigns.selected_account, ci_run_url)
     run = Map.put(run, :project, project)
@@ -383,6 +375,7 @@ defmodule TuistWeb.TestRunLive do
         |> assign_initial_test_cases_state()
         |> assign_initial_failures_state()
         |> assign_initial_flaky_runs_state()
+        |> assign_shard_rows(refreshed_run)
         |> assign_tab_data(selected_tab, params)
 
       {:error, :not_found} ->
@@ -1506,12 +1499,14 @@ defmodule TuistWeb.TestRunLive do
 
     reported_indices = MapSet.new(reported_shards, & &1.shard_index)
 
+    unreported_status = unreported_shard_status(run)
+
     pending_rows =
       if expected_shard_count > 0 do
         0..(expected_shard_count - 1)
         |> Enum.reject(&MapSet.member?(reported_indices, &1))
         |> Enum.map(fn index ->
-          %{shard_index: index, actual_duration_ms: nil, status: "pending"}
+          %{shard_index: index, actual_duration_ms: nil, status: unreported_status}
         end)
       else
         []
@@ -1530,6 +1525,27 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:expected_shard_count, expected_shard_count)
     |> assign(:display_duration, run.duration)
   end
+
+  # A shard that is still executing has no `shard_runs` row yet, since its
+  # first report is the one it sends on finishing. A run also goes terminal as
+  # soon as any single shard fails, so shards still outstanding on a run that
+  # just failed are as likely to be running as to be lost. Only once the run
+  # has outlived the window the reaper gives up on can a missing row be read
+  # as a shard that will never report.
+  defp unreported_shard_status(run) do
+    if transient?(run.status) or within_reporting_window?(run) do
+      "pending"
+    else
+      "not_reported"
+    end
+  end
+
+  defp within_reporting_window?(%{ran_at: %NaiveDateTime{} = ran_at}) do
+    cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -Tests.stale_run_window_hours(), :hour)
+    NaiveDateTime.after?(ran_at, cutoff)
+  end
+
+  defp within_reporting_window?(_run), do: false
 
   defp target_counts_by_shard(%ShardPlan{granularity: "suite"} = plan) do
     Enum.frequencies_by(plan.test_suites, & &1.shard_index)

@@ -70,7 +70,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       trigger_config: %{
         "threshold" => 10,
         "window_type" => "rolling",
-        "rolling_window_size" => 76
+        "rolling_window_size" => 1001
       }
     )
     |> Repo.update!()
@@ -83,7 +83,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       end)
 
     assert log =~ "Skipping automation alert #{automation.id}"
-    assert log =~ "rolling trigger windows must be between 1 and 75"
+    assert log =~ "rolling trigger windows must be between 1 and 1000"
   end
 
   test "executes trigger actions for newly triggered test cases and creates alert" do
@@ -378,7 +378,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         "threshold" => 20,
         "comparison" => "gte",
         "window_type" => "rolling",
-        "rolling_window_size" => 76
+        "rolling_window_size" => 1001
       }
     )
     |> Repo.update!()
@@ -771,7 +771,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "rolling recovery above the trigger cap reads raw runs without clamping (real ClickHouse)" do
+  test "rolling recovery counts raw runs without clamping (real ClickHouse)" do
     project = ProjectsFixtures.project_fixture()
 
     automation =
@@ -1174,5 +1174,78 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       },
       Map.new(overrides)
     )
+  end
+
+  test "a default-branch-scoped alert does not recover a test case it cannot measure" do
+    # The classic shape this guards: a quarantined test whose work moved onto
+    # pull-request branches. It has no default-branch runs left, so a scoped
+    # alert cannot measure it and it falls out of the triggered set. That is
+    # missing data, not the condition clearing, and recovering on it would
+    # un-quarantine a test nothing has re-proven.
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        monitor_type: "reliability_rate",
+        trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d"},
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "last_days", "window" => "1d"},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    unmeasurable_id = Ecto.UUID.generate()
+
+    expect(FlakyTestsMonitor, :evaluate_by_reliability_rate, fn _automation -> %{triggered: []} end)
+
+    expect(FlakyTestsMonitor, :measurable_test_case_ids, fn _automation, [^unmeasurable_id] -> [] end)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [
+        %{
+          test_case_id: unmeasurable_id,
+          triggered_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
+        }
+      ]
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "a default-branch-scoped alert still recovers a test case it can measure" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        monitor_type: "reliability_rate",
+        trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d"},
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "last_days", "window" => "1d"},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    recovered_id = Ecto.UUID.generate()
+
+    expect(FlakyTestsMonitor, :evaluate_by_reliability_rate, fn _automation -> %{triggered: []} end)
+
+    expect(FlakyTestsMonitor, :measurable_test_case_ids, fn _automation, [^recovered_id] -> [recovered_id] end)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [
+        %{
+          test_case_id: recovered_id,
+          triggered_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
+        }
+      ]
+    end)
+
+    expected_entity = %{type: :test_case, id: recovered_id}
+
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
+      assert actions == automation.recovery_actions
+      :ok
+    end)
+
+    expect(Automations, :create_alert_event, fn %{test_case_id: ^recovered_id, status: "recovered"} -> :ok end)
+
+    assert :ok = run(automation.id)
   end
 end

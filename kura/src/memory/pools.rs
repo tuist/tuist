@@ -18,7 +18,7 @@ const MAX_ENCODED_RESPONSE_STREAM_CHUNK_BYTES: usize =
 const MAX_RESPONSE_STREAM_RESERVATION_BYTES: usize = MAX_ENCODED_RESPONSE_STREAM_CHUNK_BYTES * 4;
 const MIN_RESPONSE_STREAM_POOL_BYTES: usize =
     MAX_INLINE_REPLICATION_BODY_BYTES as usize + MAX_RESPONSE_STREAM_RESERVATION_BYTES;
-const MAX_BOOTSTRAP_RESPONSE_STREAM_RESERVATION_BYTES: usize =
+const MAX_BACKFILL_RESPONSE_STREAM_RESERVATION_BYTES: usize =
     MAX_INLINE_REPLICATION_BODY_BYTES as usize + RESPONSE_STREAM_CHUNK_BYTES * 4;
 
 pub(super) struct MemoryPools {
@@ -31,6 +31,7 @@ pub(super) struct MemoryPools {
     elastic_foreground_response_streaming: Arc<Semaphore>,
     background_response_streaming: Arc<Semaphore>,
     response_stream_waiters: Arc<Semaphore>,
+    response_stream_waiter_capacity: usize,
     response_stream_admission: Arc<Mutex<()>>,
     degraded_response_streaming: Arc<Semaphore>,
     mmap_serving_bytes: usize,
@@ -64,10 +65,10 @@ impl MemoryPools {
         let mmap_serving_bytes = mmap_serving_bytes(headroom_bytes);
         let response_streaming_bytes =
             response_streaming_pool_bytes(runtime_limit_bytes, hard_limit_bytes, headroom_bytes);
-        let bootstrap_reserved_bytes =
-            response_streaming_bytes.min(MAX_BOOTSTRAP_RESPONSE_STREAM_RESERVATION_BYTES);
+        let backfill_reserved_bytes =
+            response_streaming_bytes.min(MAX_BACKFILL_RESPONSE_STREAM_RESERVATION_BYTES);
         let foreground_response_streaming_bytes =
-            response_streaming_bytes.saturating_sub(bootstrap_reserved_bytes);
+            response_streaming_bytes.saturating_sub(backfill_reserved_bytes);
         let elastic_foreground_response_streaming_bytes =
             elastic_foreground_response_streaming_bytes(
                 transient_capacity_bytes,
@@ -77,10 +78,10 @@ impl MemoryPools {
         let response_stream_waiters = response_streaming_bytes
             .div_ceil(MAX_RESPONSE_STREAM_RESERVATION_BYTES)
             .max(1);
-        // Bootstrap may make bounded progress, but it cannot take capacity
+        // Backfill may make bounded progress, but it cannot take capacity
         // promised to binary serving. The global response pool leaves exactly
         // this quantum outside the foreground pool.
-        let background_response_streaming_bytes = bootstrap_reserved_bytes;
+        let background_response_streaming_bytes = backfill_reserved_bytes;
         // A degraded reader uses the 8 KiB chunk floor, but Hyper can still
         // hold up to one `RESPONSE_STREAM_SEND_BUFFER_BYTES` send buffer per
         // stream for a slow client. The shared transient budget charges that real
@@ -105,6 +106,7 @@ impl MemoryPools {
                 background_response_streaming_bytes,
             )),
             response_stream_waiters: Arc::new(Semaphore::new(response_stream_waiters)),
+            response_stream_waiter_capacity: response_stream_waiters,
             response_stream_admission: Arc::new(Mutex::new(())),
             degraded_response_streaming: Arc::new(Semaphore::new(degraded_response_stream_slots)),
             mmap_serving_bytes,
@@ -215,6 +217,10 @@ impl MemoryPools {
             .clone()
             .try_acquire_many_owned(permits)
             .map_err(|_| ())
+    }
+
+    pub(super) fn response_stream_waiter_capacity(&self) -> usize {
+        self.response_stream_waiter_capacity
     }
 
     pub(super) fn try_acquire_response_stream_waiter(&self) -> Result<OwnedSemaphorePermit, ()> {

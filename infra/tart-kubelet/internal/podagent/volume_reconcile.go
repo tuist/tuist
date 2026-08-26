@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -69,6 +71,182 @@ func ReattachVolumeForPod(volumes *VolumeManager, pod *corev1.Pod, vm string) (V
 // absence means the guest never completed (crashed job) and the branch is
 // discarded.
 const dirtyMarkerFile = "cache-dirty"
+
+// runnerExitFile is the file the guest writes into the writable status
+// share from its EXIT trap, carrying dispatch-poll.sh's exit code. It is
+// the only way that code reaches the host: the trap halts the VM on every
+// path, so `tart run` exits zero whether the job finished or the runner
+// died, and its status cannot distinguish the two.
+//
+// Absent for a guest killed without running its trap, and for any host
+// where the status share is not attached at all (it rides on the cache
+// volume feature). Absence therefore means "unknown", never "clean" —
+// see runnerTermination.
+const runnerExitFile = "runner-rc"
+
+// runnerLogFile is dispatch-poll.sh's own output, mirrored into the
+// writable status share by the guest so it outlives the VM. The copy
+// inside the guest (/var/log/tuist-runner/poll.log) dies with the VM at
+// teardown, and Tart cannot capture a macOS guest's console, so without
+// this the host has an exit code and nothing that explains it.
+//
+// That gap is not academic: the trap reports 0 both for a finished job
+// and for a runner that halted without ever taking one, so the exit code
+// alone cannot tell those apart. This file is what does.
+//
+// Absent for the same two reasons as runnerExitFile — a guest killed
+// before its trap ran, and hosts with no status share attached at all.
+const runnerLogFile = "runner.log"
+
+// runnerLogTailLines / runnerLogTailBytes bound what publishRunnerLog
+// re-emits. dispatch-poll.sh is quiet by design — the job's own output
+// goes to GitHub server-side, so this log is warm-standby ticks plus the
+// cache teardown trail — but the file is guest-writable, so it is bounded
+// rather than trusted.
+const (
+	runnerLogTailLines = 200
+	runnerLogTailBytes = 64 << 10
+)
+
+// openGuestFile opens a file the guest wrote into the status share and requires
+// it to be a plain file. Both the path and its contents are attacker-chosen: the
+// share is writable by the guest, and the guest runs untrusted customer CI.
+// O_NOFOLLOW stops a guest-planted symlink from making the host resolve and read
+// some other file on its behalf. O_NONBLOCK stops a FIFO from parking the caller
+// inside the open until something writes to the other end, which nothing ever
+// does: one job could otherwise wedge a reconcile for as long as it liked. The
+// regular-file check cannot stand in for O_NONBLOCK there, because it never runs
+// if the open never returns.
+//
+// Returns the handle and its stat together, so a reader that wants metadata
+// rather than bytes fstats what it already opened instead of racing a second
+// path lookup against the guest.
+func openGuestFile(statusDir, name string) (*os.File, os.FileInfo, bool) {
+	if statusDir == "" {
+		return nil, nil, false
+	}
+	f, err := os.OpenFile(
+		filepath.Join(statusDir, name),
+		os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK,
+		0,
+	)
+	if err != nil {
+		return nil, nil, false
+	}
+	fi, err := f.Stat()
+	if err != nil || !fi.Mode().IsRegular() {
+		f.Close()
+		return nil, nil, false
+	}
+	return f, fi, true
+}
+
+// guestMarkerMaxBytes bounds the scalar markers: an exit code, a percentage, a
+// millisecond count, a promote outcome. Set orders of magnitude above anything
+// the guest legitimately writes, so it binds only on a file the host has no
+// reason to be holding in memory in the first place.
+const guestMarkerMaxBytes = 4 << 10
+
+// guestHeadMaxBytes bounds volume-head.json, whose presigned download URL is the
+// one field that is not a handful of bytes.
+const guestHeadMaxBytes = 64 << 10
+
+// readGuestFile returns the bytes of a guest-written status file, or false when
+// the guest left something other than a plain file. Oversize reads as absent
+// rather than truncated: every caller parses a whole value, and half of one is
+// not a value.
+func readGuestFile(statusDir, name string, maxBytes int64) ([]byte, bool) {
+	f, _, ok := openGuestFile(statusDir, name)
+	if !ok {
+		return nil, false
+	}
+	defer f.Close()
+
+	b, err := io.ReadAll(io.LimitReader(f, maxBytes+1))
+	if err != nil || int64(len(b)) > maxBytes {
+		return nil, false
+	}
+	return b, true
+}
+
+// readRunnerExit reads the guest-reported exit code from the status share.
+// The bool is false when the guest reported nothing usable.
+//
+// A wait status is a byte, and the shell reports 128+signal for a
+// signalled child, so anything outside 0-255 did not come from `$?` and
+// is a torn or truncated read of a file the guest was still writing.
+// Rejecting it matters more than it looks: the value decides clean
+// versus abnormal downstream, so a garbage read that happened to land on
+// 0 would report a dead runner as a successful job, which is the bug
+// this file exists to close. Out of range therefore reads as unreported,
+// the same as no file at all.
+func readRunnerExit(statusDir string) (int32, bool) {
+	b, ok := readGuestFile(statusDir, runnerExitFile, guestMarkerMaxBytes)
+	if !ok {
+		return 0, false
+	}
+	// ParseInt over Atoi so an oversized value fails here rather than
+	// silently wrapping on the conversion to int32.
+	code, err := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 32)
+	if err != nil || code < 0 || code > 255 {
+		return 0, false
+	}
+	return int32(code), true
+}
+
+// readRunnerLog returns a bounded tail of the guest's mirrored log, or
+// "" when there is nothing usable. Callers re-emit it to tart-kubelet's
+// own stdout before teardown deletes the share.
+//
+// Tail rather than head: the interesting part of a runner that gave up
+// is what it said last. Bounded twice because the file is guest-written
+// — by bytes first so a single pathological line cannot blow up the log
+// record, then by lines.
+//
+// Read through openGuestFile, which is what keeps a guest-planted
+// symlink or FIFO at this path from being followed. The stake is highest
+// here of all the status-share readers: this one's output goes to Loki,
+// so a followed symlink publishes up to runnerLogTailBytes of a
+// host-readable file the guest chose.
+func readRunnerLog(statusDir string) string {
+	f, fi, ok := openGuestFile(statusDir, runnerLogFile)
+	if !ok {
+		return ""
+	}
+	defer f.Close()
+
+	offset := int64(0)
+	if fi.Size() > runnerLogTailBytes {
+		offset = fi.Size() - runnerLogTailBytes
+	}
+	b := make([]byte, fi.Size()-offset)
+	if _, err := f.ReadAt(b, offset); err != nil {
+		return ""
+	}
+
+	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
+	// A byte-bounded read almost certainly starts mid-line; drop that
+	// fragment so the tail begins on a real record.
+	if offset > 0 && len(lines) > 1 {
+		lines = lines[1:]
+	}
+	if len(lines) > runnerLogTailLines {
+		lines = lines[len(lines)-runnerLogTailLines:]
+	}
+	return strings.Join(lines, "\n")
+}
+
+// readRunnerExitTime returns when the guest wrote its exit report, which
+// is the moment it halted. Used to date a stop on the recovered path,
+// where no `tart run` handle survived to have observed the exit itself.
+func readRunnerExitTime(statusDir string) (time.Time, bool) {
+	f, fi, ok := openGuestFile(statusDir, runnerExitFile)
+	if !ok {
+		return time.Time{}, false
+	}
+	defer f.Close()
+	return fi.ModTime(), true
+}
 
 // cacheReadyFile is the marker the host writes into the writable status share
 // once it has materialized the dispatched account's cache into the VM's branch
@@ -267,11 +445,8 @@ const uploadMillisFile = "volume-upload-ms"
 // readUploadMillis returns the guest-reported upload duration in ms, or -1 when
 // absent (no promote, or the job did not upload).
 func readUploadMillis(statusDir string) int64 {
-	if statusDir == "" {
-		return -1
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, uploadMillisFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, uploadMillisFile, guestMarkerMaxBytes)
+	if !ok {
 		return -1
 	}
 	ms, err := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 64)
@@ -289,11 +464,8 @@ const fillPercentFile = "cache-fill-percent"
 
 // readFillPercent returns the guest-reported image fill %, or -1 when absent.
 func readFillPercent(statusDir string) int {
-	if statusDir == "" {
-		return -1
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, fillPercentFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, fillPercentFile, guestMarkerMaxBytes)
+	if !ok {
 		return -1
 	}
 	pct, err := strconv.Atoi(strings.TrimSpace(string(b)))
@@ -318,6 +490,29 @@ func writeBaseGeneration(statusDir string, generation int) {
 	_ = os.WriteFile(filepath.Join(statusDir, baseGenerationFile), []byte(strconv.Itoa(generation)), 0o644)
 }
 
+// nodeNameFile carries this host's Kubernetes Node name into the writable status
+// share. The guest relays it with its promote report, which is how a HEAD row
+// records the host that published it — the only attribution the fleet has for a
+// generation once it stands. It is the Node name rather than the Pod name
+// deliberately: the Pod is gone minutes later, whereas the Node name is what the
+// `tuist.dev/cache-master-<account>` advertisements and the volume affinities are
+// keyed on, so a HEAD can be traced back to the host still holding its master.
+//
+// Staged at VM create alongside the branch budget, not at materialize: it is a
+// property of the host, constant for the VM's whole life, and known before
+// dispatch binds the VM to an account.
+const nodeNameFile = "node-name"
+
+// writeNodeName stages the host's Node name for the guest to relay at promote.
+// Best-effort, like every other host to guest signal here: an unstaged name
+// leaves the attribution field empty, which is exactly the status quo.
+func writeNodeName(statusDir, nodeName string) {
+	if statusDir == "" || nodeName == "" {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(statusDir, nodeNameFile), []byte(nodeName), 0o644)
+}
+
 // promoteResultFile carries the outcome of this job's HEAD fast-forward, written
 // by the guest after the bump. It distinguishes the three cases the host must not
 // conflate: "accepted <generation>" (200 — install the branch as the local master
@@ -338,11 +533,8 @@ type promoteResult struct {
 
 // readPromoteResult parses the guest-relayed promote outcome.
 func readPromoteResult(statusDir string) promoteResult {
-	if statusDir == "" {
-		return promoteResult{}
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, promoteResultFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, promoteResultFile, guestMarkerMaxBytes)
+	if !ok {
 		return promoteResult{}
 	}
 	fields := strings.Fields(string(b))
@@ -378,11 +570,8 @@ type volumeHead struct {
 }
 
 func readVolumeHead(statusDir string) *volumeHead {
-	if statusDir == "" {
-		return nil
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, volumeHeadFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, volumeHeadFile, guestHeadMaxBytes)
+	if !ok {
 		return nil
 	}
 	var h volumeHead
@@ -465,10 +654,25 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	// the one the HEAD advertised. On mismatch, stay on the local master (status
 	// quo). With content-addressed HEAD keys a mismatch is rare, but a stale
 	// presigned URL or a partial download can still surface one.
+	//
+	// Being unable to MEASURE the image and measuring a DIFFERENT image are kept
+	// apart. The first is a local fault (the read-only attach failed, the disk is
+	// unhappy) and says nothing about the object, so it declines quietly. The
+	// second is proof about the object itself, reproducible on every host that
+	// fetches it — and since the account cannot promote past a HEAD it cannot
+	// adopt, that proof is the only thing that can unwedge it, so it is staged for
+	// the guest to report (see stageUnverifiableHead).
 	if head.Digest != "" {
-		if got, err := r.Volumes.ImageDigest(image); err != nil || got != head.Digest {
+		got, err := r.Volumes.ImageDigest(image)
+		switch {
+		case err != nil:
+			logger.Error(err, "converge: cannot measure the downloaded image; keeping local master",
+				"vm", vmName, "account", account, "volume", volumeName, "want", head.Digest)
+			return
+		case got != head.Digest:
 			logger.Info("converge: image digest does not match HEAD; keeping local master",
 				"vm", vmName, "account", account, "want", head.Digest, "got", got)
+			stageUnverifiableHead(statusDir, head.Digest)
 			return
 		}
 	}
@@ -490,6 +694,25 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	}
 	RecordVolumeConverged()
 	logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
+}
+
+// unverifiableHeadFile carries, into the writable status share, the HEAD digest
+// this host downloaded and found the object does not reproduce. The guest relays
+// it with its promote report, which is what lets the server retire a HEAD nothing
+// can adopt.
+//
+// The status share is the established host→guest direction (cache-ready, the
+// branch budget, the base generation all travel this way) and the host has no
+// server credentials of its own, so this is how host-observed evidence reaches
+// the control plane. Best-effort: an account that stays wedged one more job is
+// the status quo, whereas failing the convergence here would cost the job.
+const unverifiableHeadFile = "volume-head-unverifiable"
+
+func stageUnverifiableHead(statusDir, digest string) {
+	if statusDir == "" || digest == "" {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(statusDir, unverifiableHeadFile), []byte(digest), 0o644)
 }
 
 // convergeHeadWaitInterval / convergeHeadWaitAttempts bound how long the
@@ -618,11 +841,8 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 // Returns (present, dirty): present is false when the guest never wrote it
 // (crashed / incomplete job), which the caller treats as "discard".
 func readDirtyMarker(statusDir string) (present, dirty bool) {
-	if statusDir == "" {
-		return false, false
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, dirtyMarkerFile))
-	if err != nil {
+	b, ok := readGuestFile(statusDir, dirtyMarkerFile, guestMarkerMaxBytes)
+	if !ok {
 		return false, false
 	}
 	return true, strings.TrimSpace(string(b)) == "1"

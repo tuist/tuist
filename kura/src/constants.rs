@@ -82,11 +82,6 @@ pub const REAPI_ACTION_CACHE_REFRESH_DAMPING_MS: u64 = 24 * 60 * 60 * 1000;
 // pre-branch backlog, not a tuning knob, and one that trips it logs how far it
 // walked to get there.
 pub const ACTION_CACHE_TRUNK_SCAN_FACTOR: usize = 8;
-// Not a cap on total bootstrap runtime — it is the maximum time a bootstrap may
-// go *without forward progress* (a fetched page or applied artifact) before it
-// is abandoned and retried. A large cold pull that keeps making progress runs to
-// completion however long that takes; only a genuinely stalled one is dropped.
-pub const DEFAULT_BOOTSTRAP_TIMEOUT_MS: u64 = 30 * 60 * 1000;
 pub const SEGMENT_FREE_SPACE_MARGIN: u64 = 2;
 pub const DEFAULT_USAGE_WINDOW_SECS: u64 = 60;
 pub const DEFAULT_USAGE_FLUSH_INTERVAL_MS: u64 = 60_000;
@@ -95,14 +90,10 @@ pub const DEFAULT_USAGE_BATCH_SIZE: usize = 1_000;
 pub const DEFAULT_USAGE_MAX_BUCKETS: usize = 10_000;
 pub const DEFAULT_USAGE_OUTBOX_MAX_DEPTH: usize = 100_000;
 
-pub const MAX_BOOTSTRAP_PAGE_BYTES: u64 = 32 * 1024 * 1024;
-pub const MAX_BOOTSTRAP_PAGE_ITEMS: usize = 2048;
-// Range-digest anti-entropy: partition the sorted `artifact_id` keyspace by its
-// leading hex characters. 3 nibbles = 4096 buckets (~340 artifacts/bucket at
-// 1.4M), enough to make a mostly-in-sync bootstrap O(delta) while keeping the
-// digest payload small. `artifact_id` is a 64-char hex SHA-256, so the prefix
-// length is capped well under its width.
-pub const BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN: usize = 3;
+// Ceilings a peer-facing listing page is read under: the response body a
+// requester will buffer, and the row count it will accept in one page.
+pub const MAX_PEER_PAGE_BYTES: u64 = 32 * 1024 * 1024;
+pub const MAX_PEER_PAGE_ITEMS: usize = 2048;
 pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
 pub const RESPONSE_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 pub const RESPONSE_STREAM_SEND_BUFFER_BYTES: usize = 512 * 1024;
@@ -121,15 +112,6 @@ pub fn encoded_response_stream_chunk_bytes(body_bytes: u64) -> usize {
         .div_ceil(RESPONSE_STREAM_MIN_CHUNK_BYTES)
         .saturating_mul(RESPONSE_STREAM_MIN_CHUNK_BYTES)
 }
-pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
-// Stripes for the per-artifact bootstrap fetch gate that single-flights the
-// body download across peers. Sized well above the peak concurrent fetches
-// (bootstrap_max_concurrent_peers x per-peer fetch concurrency) so distinct
-// keys rarely share a stripe; false sharing only over-serializes briefly and is
-// correctness-neutral because the gate is paired with an exact per-artifact
-// presence recheck.
-pub const BOOTSTRAP_FETCH_LOCK_STRIPES: usize = 1024;
-
 // Backfill horizon margin (KURA_BACKFILL_MARGIN_PERCENT default): the share
 // of the age-ordered segment ring, counted from the newest, whose boundary
 // segment's seal-time stat becomes the horizon. The margin's share of the
@@ -190,6 +172,59 @@ pub const BACKFILL_SEQ_STAMP_SLACK_SEQS: u64 = 8_000_000;
 // on multi-million-entry nodes), blocking compaction of everything written
 // since it opened.
 pub const BACKFILL_INDEX_BUILD_CHUNK_ROWS: usize = 4_096;
+// How many rows a CAS eviction scans between yields, counting BOTH the
+// segment-index rows and the blob-ref rows of every cascade the scan starts
+// against one shared budget. Per-scan budgets were the first attempt and do not
+// bound anything: the cascade counter restarts on each blob, so 255 artifacts
+// each cascading 200 reverse rows walks ~51,000 rows without either scan
+// reaching the stride. The scan is entirely synchronous RocksDB work (a manifest
+// read per artifact, plus a reverse-row prefix scan and an inline-bytes read and
+// decode per cascaded action-cache entry), so without a yield one eviction parks
+// a runtime worker for its whole duration. Smaller than the snapshot gate's stride because each row here costs
+// several reads rather than one cache hit.
+//
+// Note the different shape from `BACKFILL_INDEX_BUILD_CHUNK_ROWS` above, which
+// answers an overlapping problem the other way. That build chunks and reopens
+// so no iterator outlives a chunk; an eviction yields inside one long-lived
+// `iterator_cf` instead, which pins its implicit snapshot across every yield
+// and so holds it marginally longer than before. That is deliberate, for two
+// reasons. The cascade has to stage every delete into one atomic batch or an
+// entry is left pointing at a blob that is already gone, so resuming from a key
+// cursor is not available here. And the exposure is bounded by one segment's
+// artifact index, tens of thousands of rows, rather than the millions the
+// backfill build walks, so pinning a snapshot for it does not reach the
+// compaction-blocking scale that shaped the constant above. Revisit if segments
+// ever grow far past `MAX_SEGMENT_BYTES` worth of small artifacts.
+pub const SEGMENT_EVICTION_YIELD_ROWS: usize = 256;
+// Payload ceiling of one segment-eviction write batch, and so of how much
+// memtable a single eviction can pin at once.
+//
+// The comment above is still right that a blob and the action-cache entries
+// cascading off it must land in ONE atomic batch, or an entry is left pointing
+// at a blob that is already gone (#12152). It does not follow that two
+// different blobs must share a batch, and treating it as if it did is what
+// made one eviction stage its whole 512 MiB segment index plus every cascade
+// as a single write: ~130k deletes, ~20 MB of memtable, committed in one call
+// against a pool that is 32 MiB on managed instances. That saturated the pool
+// and stalled every writer inside RocksDB (#12556).
+//
+// So the batch is committed in chunks. Splitting inside a blob's cascade is
+// legal too, which is the part that is easy to get wrong: #12152's invariant is
+// ONE-DIRECTIONAL. It forbids an *entry* outliving its blob, not a blob
+// outliving its entries. `evict_segment` therefore commits a blob's cascaded
+// entries first and stages the blob's own rows only afterwards, so a chunk
+// boundary can fall anywhere without ever publishing a blob deletion ahead of
+// an entry that references it. Checking the budget only between blobs, as the
+// first version of this did, left the real ceiling at `budget + one blob's
+// entire cascade` — unbounded in exactly the dimension that saturated the pool,
+// since a common output blob is referenced by very many action results.
+//
+// 2 MiB of payload is roughly 4-6 MiB of memtable once tombstone overhead is
+// counted, which stays clear of even the 16 MiB floor the pool clamps to. The
+// commits are `sync = false`, so the extra ones cost a memtable insert and a
+// WAL append each, not an fsync. Keeping chunks small also keeps the copy in
+// `Store::commit_eviction_chunk` cheap.
+pub const SEGMENT_EVICTION_MAX_BATCH_BYTES: usize = 2 * 1024 * 1024;
 // Byte ceiling of one backfill bodies batch: the sum of body bytes one
 // `POST /_internal/backfill/bodies` response may carry, and the per-entry
 // oversized cutoff (entries larger than this route to the per-artifact
@@ -244,9 +279,8 @@ pub const BACKFILL_BATCH_FLUSH_INTERVAL_MS: u64 = 1_000;
 pub const BACKFILL_APPLY_GROUP_RECORDS: usize = 64;
 // Bounded backoff for budget-exempt retryable peer responses (index building,
 // endpoint-absent, peer busy, tmp budget, generic Retry-After backpressure).
-// Same shape as the legacy bootstrap backpressure retry; the pass retries
-// without failing and reports cumulative retry-sleep time so the lifecycle
-// layer can enforce the per-peer wall-clock cap.
+// The pass retries without failing and reports cumulative retry-sleep time so
+// the lifecycle layer can enforce the per-peer wall-clock cap.
 pub const BACKFILL_RETRY_BACKOFF_BASE_MS: u64 = 250;
 pub const BACKFILL_RETRY_BACKOFF_MAX_MS: u64 = 5_000;
 // Capacity of the lister→fetcher claimed-tuple queue inside one backfill
