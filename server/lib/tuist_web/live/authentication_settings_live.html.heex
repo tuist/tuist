@@ -562,23 +562,31 @@
             </span>
           </div>
         </div>
-        <div :if={@sso_automatic_enrollment} data-part="field">
+      </div>
+
+      <div :if={@sso_enabled and @sso_automatic_enrollment} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Role for enrolled members")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "The role members get when they join through automatic enrollment. Viewers can read dashboards and runs but cannot change anything. A role an admin sets by hand is never overwritten by a later sign-in."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
           <.select
             id="sso-default-role-select"
             name="sso_default_role"
             value={@sso_default_role}
-            label={dgettext("dashboard_account", "Role for enrolled members")}
+            label={dgettext("dashboard_account", "Role")}
             on_value_change="select_sso_default_role"
           >
             <:item value="user" label={dgettext("dashboard_account", "User")} />
             <:item value="viewer" label={dgettext("dashboard_account", "Viewer")} />
           </.select>
-          <span data-part="description">
-            {dgettext(
-              "dashboard_account",
-              "The role members get when they join through automatic enrollment. Viewers can read dashboards and runs but cannot change anything. A role set by an admin is never overwritten by a later sign-in."
-            )}
-          </span>
         </div>
       </div>
 
