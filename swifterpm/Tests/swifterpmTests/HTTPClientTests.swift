@@ -173,6 +173,14 @@ struct HTTPClientTests {
             ))
         #expect(past.retryAfter == nil)
 
+        let rfc850 = try #require(
+            makeStatusError(
+                statusCode: 503,
+                headers: ["Retry-After": "Wednesday, 26-Aug-26 01:19:41 GMT"],
+                now: now
+            ))
+        #expect(rfc850.retryAfter == 10)
+
         let asctime = try #require(
             makeStatusError(
                 statusCode: 503,

@@ -330,17 +330,21 @@ enum HTTPClient {
             return min(seconds, maximumRetryAfter)
         }
 
-        /// Recipients must accept all three historic HTTP-date formats (RFC 9110 section 5.6.7).
+        /// The three formats a recipient must accept (RFC 9110 section 5.6.7). Foundation
+        /// ships no HTTP-date constant, so they are spelled out here.
+        private enum HTTPDateFormat {
+            static let imfFixdate = "EEE, dd MMM yyyy HH:mm:ss zzz"
+            static let rfc850 = "EEEE, dd-MMM-yy HH:mm:ss zzz"
+            static let asctime = "EEE MMM d HH:mm:ss yyyy"
+
+            static let all = [imfFixdate, rfc850, asctime]
+        }
+
         private static func httpDate(from value: String) -> Date? {
             let normalized = value.split(separator: " ", omittingEmptySubsequences: true)
                 .joined(separator: " ")
-            let formats = [
-                "EEE, dd MMM yyyy HH:mm:ss zzz",
-                "EEEE, dd-MMM-yy HH:mm:ss zzz",
-                "EEE MMM d HH:mm:ss yyyy",
-            ]
 
-            for format in formats {
+            for format in HTTPDateFormat.all {
                 let formatter = DateFormatter()
                 formatter.locale = Locale(identifier: "en_US_POSIX")
                 formatter.timeZone = TimeZone(secondsFromGMT: 0)
