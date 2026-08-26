@@ -715,6 +715,39 @@ defmodule TuistWeb.TestCaseLiveTest do
              )
     end
 
+    test "fills the column beside the chart with history rather than three entries", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - more history than the column can hold
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      for _event <- 1..12 do
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case_run.test_case_id,
+          event_type: "skipped"
+        )
+      end
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+
+      # Then - the column runs as deep as the analytics beside it, and says so
+      # when there is more
+      items =
+        lv
+        |> render()
+        |> Floki.parse_document!()
+        |> Floki.find("[data-part='analytics-history'] [data-part='timeline-item']")
+
+      assert length(items) == 8
+      assert has_element?(lv, "[data-part='analytics-history'] a", "View more")
+    end
+
     test "opens the timeline on the run that introduced the test case", %{
       conn: conn,
       account: account,

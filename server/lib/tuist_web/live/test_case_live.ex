@@ -21,6 +21,10 @@ defmodule TuistWeb.TestCaseLive do
 
   @table_page_size 20
 
+  # The overview's history sits in its own column beside the widgets and the
+  # chart, and runs as deep as they do. Anything past that is a tab away.
+  @overview_history_page_size 8
+
   def mount(
         %{"test_case_id" => test_case_id} = _params,
         _session,
@@ -355,9 +359,10 @@ defmodule TuistWeb.TestCaseLive do
   defp assign_overview_history(socket) do
     test_case_id = socket.assigns.test_case_id
 
-    {events, meta} = Tests.list_test_case_events(test_case_id, %{page: 1, page_size: 3})
+    {events, meta} =
+      Tests.list_test_case_events(test_case_id, %{page: 1, page_size: @overview_history_page_size})
 
-    has_more = meta.total_count > 3
+    has_more = meta.total_count > @overview_history_page_size
 
     socket
     |> assign(:overview_history_events, events)
