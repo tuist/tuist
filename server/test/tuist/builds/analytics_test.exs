@@ -2479,6 +2479,88 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert_in_delta current, 0.9, 0.001
       assert_in_delta previous, 0.7, 0.001
     end
+
+    test "only includes builds on the given branch when git_branch is set" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # main: 80% hit rate
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          git_branch: "main",
+          cacheable_tasks_count: 100,
+          cacheable_task_local_hits_count: 80,
+          cacheable_task_remote_hits_count: 0,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :minute)
+        )
+
+      # feature branch: 20% hit rate
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          git_branch: "feature",
+          cacheable_tasks_count: 100,
+          cacheable_task_local_hits_count: 20,
+          cacheable_task_remote_hits_count: 0,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :minute)
+        )
+
+      # When
+      result =
+        Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 10, git_branch: "main")
+
+      # Then
+      assert_in_delta result, 0.8, 0.001
+    end
+
+    test "returns nil when the window holds fewer builds than min_sample_size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for i <- 1..2 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: 1000,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 80,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When
+      result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 3, min_sample_size: 3)
+
+      # Then
+      assert result == nil
+    end
+
+    test "returns the metric when the window fills min_sample_size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for i <- 1..3 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: 1000,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 80,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When
+      result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 3, min_sample_size: 3)
+
+      # Then
+      assert_in_delta result, 0.8, 0.001
+    end
   end
 
   describe "build_duration_scatter_data/2" do

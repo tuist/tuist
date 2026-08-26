@@ -7,7 +7,6 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 pub mod config;
 pub mod engine;
@@ -20,14 +19,35 @@ pub mod tuist;
 
 pub use engine::{AuthEngine, SharedAuth};
 
-/// Who a request is from, and what they hold. `attributes` carries the cache
-/// grants and the handles they flatten to.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct Principal {
-    pub id: String,
-    pub kind: String,
-    #[serde(default)]
-    pub attributes: Value,
+/// What a credential may do to one target, as one ordered level.
+///
+/// Ordered because write implies read: a request is allowed when the level is
+/// at least what its action needs, so the level confirmed for a read also
+/// answers the write the build issues next, and the other way round. The two
+/// refusals are kept apart because they replay differently: `Invalid` is a 401
+/// about the credential itself, `Refused` a 403 about this one target.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Access {
+    /// The server said the credential itself is invalid or expired.
+    Invalid,
+    /// The credential is valid but does not reach this target.
+    Refused,
+    /// The credential would reach this target, but the account's plan has
+    /// exhausted its free tier. Ordered above `Refused` so the introspection
+    /// floor still only ever rises, and below `Read` so it grants nothing.
+    PaymentRequired,
+    Read,
+    ReadWrite,
+}
+
+impl Access {
+    /// The level an action needs.
+    pub fn required(action: &target::Action) -> Self {
+        match action {
+            target::Action::Read => Self::Read,
+            target::Action::Write => Self::ReadWrite,
+        }
+    }
 }
 
 /// What a request is asking for, as the transports describe it. Both HTTP and

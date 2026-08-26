@@ -3,6 +3,9 @@ package macos
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 
@@ -26,6 +30,7 @@ import (
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/scaleway"
+	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
 // recordUpdateFailure is the safety primitive that bounds the
@@ -740,6 +745,11 @@ type scalewayAPIStub struct {
 	rebootedIDs    []string
 	rebootCalls    int
 	rebootError    error
+	// osCatalog is what ListOS returns; nil means "every image any
+	// fixture server is running", which is what a release path pinned
+	// to a live host's own image needs.
+	osCatalog        []*applesilicon.OS
+	reinstalledOsIDs []*string
 }
 
 // ListServers returns the whole fixture as one page. AdoptFromPool
@@ -781,10 +791,26 @@ func (f *scalewayAPIStub) ReinstallServer(req *applesilicon.ReinstallServerReque
 	for _, s := range f.servers {
 		if s.ID == req.ServerID {
 			f.reinstalledIDs = append(f.reinstalledIDs, s.ID)
+			f.reinstalledOsIDs = append(f.reinstalledOsIDs, req.OsID)
 			return s, nil
 		}
 	}
 	return nil, errors.New("not found")
+}
+
+func (f *scalewayAPIStub) ListOS(*applesilicon.ListOSRequest, ...scw.RequestOption) (*applesilicon.ListOSResponse, error) {
+	catalog := f.osCatalog
+	if catalog == nil {
+		seen := map[string]bool{}
+		for _, s := range f.servers {
+			if s.Os == nil || seen[s.Os.Name] {
+				continue
+			}
+			seen[s.Os.Name] = true
+			catalog = append(catalog, &applesilicon.OS{ID: "os-" + s.Os.Name, Name: s.Os.Name})
+		}
+	}
+	return &applesilicon.ListOSResponse{Os: catalog, TotalCount: uint32(len(catalog))}, nil
 }
 
 func (f *scalewayAPIStub) RebootServer(req *applesilicon.RebootServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
@@ -945,7 +971,7 @@ func newAdoptMachine(name string) *infrav1.ScalewayAppleSiliconMachine {
 			// Empty AdoptPoolPrefix — a drifted MachineTemplate clones this shape.
 			Type: "M2-L",
 			Zone: "fr-par-1",
-			OS:   "macos-tahoe-26.3",
+			OS:   "Tahoe",
 		},
 	}
 }
@@ -1028,6 +1054,10 @@ type recoveryStub struct {
 	rebootErr    error
 	releaseCalls []recoveryReleaseCall
 	releaseErr   error
+	// unpublishedOS models Scaleway having retired an image: a
+	// release pinned to it comes back as ErrOSNotPublished, an
+	// unpinned one succeeds.
+	unpublishedOS string
 }
 
 type recoveryCall struct {
@@ -1039,6 +1069,7 @@ type recoveryReleaseCall struct {
 	id         string
 	zone       string
 	poolPrefix string
+	osName     string
 }
 
 func (s *recoveryStub) RebootServer(_ context.Context, id, zone string) error {
@@ -1049,8 +1080,11 @@ func (s *recoveryStub) RebootServer(_ context.Context, id, zone string) error {
 	return nil
 }
 
-func (s *recoveryStub) ReleaseToPool(_ context.Context, id, zone, poolPrefix string) error {
-	s.releaseCalls = append(s.releaseCalls, recoveryReleaseCall{id: id, zone: zone, poolPrefix: poolPrefix})
+func (s *recoveryStub) ReleaseToPool(_ context.Context, id, zone, poolPrefix string, pin scaleway.ReleasePin) error {
+	s.releaseCalls = append(s.releaseCalls, recoveryReleaseCall{id: id, zone: zone, poolPrefix: poolPrefix, osName: pin.Family})
+	if s.unpublishedOS != "" && pin.Family == s.unpublishedOS {
+		return fmt.Errorf("%w: %q not listed", scaleway.ErrOSNotPublished, pin.Family)
+	}
 	if s.releaseErr != nil {
 		return s.releaseErr
 	}
@@ -1137,6 +1171,38 @@ func TestHandleBootstrapFailure_RebootsAtThresholdOnce(t *testing.T) {
 	}
 	if res.RequeueAfter != 60*time.Second {
 		t.Fatalf("expected 60s requeue on post-reboot retry, got %v", res.RequeueAfter)
+	}
+}
+
+func TestHandleBootstrapFailure_RetiredOSPinStillReleases(t *testing.T) {
+	// Every Machine created before an operator repoints its fleet
+	// carries the retired pin in its own spec. If an unsatisfiable pin
+	// failed the release, those Machines would wedge on delete — host
+	// still claimed and billing, finalizer never clearing — and the
+	// fleet could never shed one to get a correctly-pinned
+	// replacement. Release must fall through to the server type
+	// default instead.
+	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
+	machine.Spec.OS = "macos-tahoe-26.3"
+	machine.Status.BootstrapAttempts = 7
+	machine.Status.BootstrapRebootIssued = true
+
+	stub := &recoveryStub{unpublishedOS: "macos-tahoe-26.3"}
+	secrets := &secretCleanerStub{}
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, secrets, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
+
+	if len(stub.releaseCalls) != 2 {
+		t.Fatalf("expected the pinned release to be retried unpinned, got %d call(s): %+v",
+			len(stub.releaseCalls), stub.releaseCalls)
+	}
+	if stub.releaseCalls[0].osName != "macos-tahoe-26.3" {
+		t.Fatalf("first release should honour the fleet pin, got %q", stub.releaseCalls[0].osName)
+	}
+	if stub.releaseCalls[1].osName != "" {
+		t.Fatalf("retry should be unpinned so Scaleway picks the type default, got %q", stub.releaseCalls[1].osName)
+	}
+	if machine.Status.ServerID != "" {
+		t.Fatalf("host must be considered released so the Machine can finalize, got %q", machine.Status.ServerID)
 	}
 }
 
@@ -1332,5 +1398,317 @@ func TestHandleBootstrapFailure_DisabledThresholdsSkipBothTiers(t *testing.T) {
 	if len(stub.rebootCalls) != 0 || len(stub.releaseCalls) != 0 {
 		t.Fatalf("zero thresholds must skip both tiers; got reboots=%+v releases=%+v",
 			stub.rebootCalls, stub.releaseCalls)
+	}
+}
+
+// The drift loop is only honest if what it pushes is what the operator stamps.
+// hostConfig builds what a given Mac mini receives; desiredHostConfigHash is
+// the fingerprint the reconciler writes to Status.HostConfigHash to mean "this
+// host is converged". If those two ever describe different configs the host is
+// recorded as running something it never received, and the skew is invisible
+// until something downstream needs the part that was dropped.
+//
+// That is not a hypothetical: node_exporter, the log shipper, the cache-volume
+// flags and the Tailscale tags were each lost this way, the last one freezing
+// the production fleet once the credential swap to a Tailscale OAuth client
+// made an untagged join impossible.
+//
+// The per-host/fleet-wide split itself is pinned in the bootstrap package
+// (TestWithPerHostReplacesExactlyThePerHostFields). What is checked here is the
+// operator's side of the contract: that both ends resolve the per-machine
+// fields the same way.
+func TestHostConfig_HashMatchesWhatIsStampedOnTheMachine(t *testing.T) {
+	r := &ScalewayAppleSiliconMachineReconciler{
+		FleetConfig: bootstrap.Config{
+			TartKubeletBinary:       []byte("tart-kubelet-binary"),
+			TailscaleBinaries:       []byte("tailscale-binaries"),
+			NodeExporterBinary:      []byte("node-exporter-binary"),
+			LogShipperBinary:        []byte("log-shipper-binary"),
+			LogShipURL:              "http://alloy.example.ts.net:3100/loki/api/v1/push",
+			LogShipEnv:              "production",
+			TailscaleTags:           []string{"tag:tuist-macmini-production"},
+			TailscaleAcceptRoutes:   true,
+			VMKuraEgressCIDR:        "10.128.0.0/12",
+			VMClusterDNSIP:          "10.96.0.10",
+			VMCachePNCIDR:           "172.16.0.0/22",
+			SSHIngressAllowCIDRs:    []string{"116.202.0.10/32"},
+			HostCPU:                 8,
+			HostMemoryMB:            14336,
+			MaxPods:                 3,
+			RunnerCacheVolumeGiB:    80,
+			CacheVolumeMasterCapGiB: 20,
+			CacheVolumeCASGiB:       11,
+			VNCRelayPort:            DashboardVNCRelayPort,
+		},
+	}
+
+	// Per-host values, all distinct from the fleet config's zeroes, so a field
+	// that leaks into the fingerprint cannot coincidentally match.
+	perHost := bootstrap.PerHost{
+		IP:                   "51.15.1.1",
+		SSHUser:              "m1",
+		UserPassword:         "sudo-password",
+		SSHPrivateKey:        []byte("ssh-private-key"),
+		NodeName:             "tuist-tuist-runners-fleet-mndbc-2t7nk",
+		ProviderID:           "scw-applesilicon://fr-par-1/c0b4b946",
+		Kubeconfig:           "apiVersion: v1\nkind: Config\n",
+		TailscaleAuthKey:     "tskey-client-secret",
+		VNCRelayHost:         "vnc-relay.example",
+		VMCachePNVLAN:        42,
+		KnownHostFingerprint: "SHA256:abc",
+		NodeLabels:           map[string]string{"tuist.dev/fleet": "runners"},
+		DisableVMGC:          true,
+	}
+
+	for _, tc := range []struct {
+		name    string
+		machine *infrav1.ScalewayAppleSiliconMachine
+	}{
+		{
+			name:    "fleet defaults",
+			machine: &infrav1.ScalewayAppleSiliconMachine{},
+		},
+		{
+			// The case a single fleet-wide hash got wrong: the operator pushed
+			// the overridden config and then stamped the fleet's hash on it, so
+			// the host read as converged to a config it had never been sent and
+			// a later change to the overridden field could not drift it.
+			name: "per-machine host size override",
+			machine: func() *infrav1.ScalewayAppleSiliconMachine {
+				m := &infrav1.ScalewayAppleSiliconMachine{}
+				m.Spec.HostCPU = 10
+				m.Spec.HostMemoryMB = 20480
+				return m
+			}(),
+		},
+		{
+			// A dual-guest SKU overrides every field the larger mini changes
+			// at once. Same hazard as above, wider: four resolvers now feed
+			// hostConfig, and any one of them missing from
+			// desiredHostConfigHash reproduces the converged-to-a-config-it-
+			// never-received bug for that field alone.
+			name: "per-machine dual-guest SKU",
+			machine: func() *infrav1.ScalewayAppleSiliconMachine {
+				m := &infrav1.ScalewayAppleSiliconMachine{}
+				m.Spec.HostCPU = 12
+				m.Spec.HostMemoryMB = 28672
+				m.Spec.MaxPods = 4
+				m.Spec.GuestCapacity = 2
+				m.Spec.RunnerCacheVolumeGiB = ptr.To(240)
+				return m
+			}(),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pushed := r.hostConfig(tc.machine, perHost)
+			if want, have := r.desiredHostConfigHash(tc.machine), bootstrap.HostConfigHash(pushed); want != have {
+				t.Fatalf("hash of pushed config = %s, stamped hash = %s\n"+
+					"the host would be recorded as converged to a config it never received", have, want)
+			}
+		})
+	}
+}
+
+// A per-machine override must actually move the fingerprint. Without this, a
+// hash that ignored the override would satisfy the test above trivially -- both
+// sides would agree on a value that does not describe the pushed config.
+func TestDesiredHostConfigHash_MovesWithPerMachineOverride(t *testing.T) {
+	r := &ScalewayAppleSiliconMachineReconciler{
+		FleetConfig: bootstrap.Config{HostCPU: 8, HostMemoryMB: 14336, MaxPods: 3},
+	}
+	base := &infrav1.ScalewayAppleSiliconMachine{}
+	overridden := &infrav1.ScalewayAppleSiliconMachine{}
+	overridden.Spec.HostCPU = 10
+
+	if r.desiredHostConfigHash(base) == r.desiredHostConfigHash(overridden) {
+		t.Fatal("a machine overriding HostCPU hashes the same as one on the fleet default; " +
+			"the override is not reaching the fingerprint")
+	}
+}
+
+// Every per-Machine SKU field has to move the fingerprint on its own. A field
+// resolved in hostConfig but absent from the hash pushes fine once and can
+// then never be changed again: the host reads as converged and the drift loop
+// has nothing to compare against.
+func TestDesiredHostConfigHash_MovesWithEverySKUField(t *testing.T) {
+	r := &ScalewayAppleSiliconMachineReconciler{
+		FleetConfig: bootstrap.Config{
+			HostCPU:              8,
+			HostMemoryMB:         14336,
+			MaxPods:              3,
+			RunnerCacheVolumeGiB: 80,
+			VNCRelayPort:         DashboardVNCRelayPort,
+		},
+		DefaultGuestCapacity: 1,
+	}
+	base := &infrav1.ScalewayAppleSiliconMachine{}
+
+	for name, set := range map[string]func(*infrav1.ScalewayAppleSiliconMachineSpec){
+		"HostCPU":              func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.HostCPU = 12 },
+		"HostMemoryMB":         func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.HostMemoryMB = 28672 },
+		"MaxPods":              func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.MaxPods = 4 },
+		"GuestCapacity":        func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.GuestCapacity = 2 },
+		"RunnerCacheVolumeGiB": func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.RunnerCacheVolumeGiB = ptr.To(240) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := &infrav1.ScalewayAppleSiliconMachine{}
+			set(&m.Spec)
+			if r.desiredHostConfigHash(base) == r.desiredHostConfigHash(m) {
+				t.Fatalf("a machine overriding %s hashes the same as one on the fleet default; "+
+					"the override is not reaching the fingerprint", name)
+			}
+		})
+	}
+}
+
+// The existing single-guest fleet must not drift when this operator ships.
+// GuestCapacity resolves to 1 for every Machine that does not set it, and the
+// plist renderer omits both guest-sized flags at that value, so the config a
+// live M2-L receives is byte-identical to what it already runs. If this ever
+// fails, deploying the operator silently rolls launchd on every mini in every
+// macOS fleet.
+func TestDesiredHostConfigHash_UnchangedForSingleGuestMachines(t *testing.T) {
+	fleet := bootstrap.Config{
+		TartKubeletBinary:       []byte("tart-kubelet-binary"),
+		HostCPU:                 8,
+		HostMemoryMB:            14336,
+		MaxPods:                 3,
+		RunnerCacheVolumeGiB:    80,
+		CacheVolumeMasterCapGiB: 20,
+		CacheVolumeCASGiB:       11,
+		VNCRelayPort:            DashboardVNCRelayPort,
+	}
+	r := &ScalewayAppleSiliconMachineReconciler{FleetConfig: fleet, DefaultGuestCapacity: 1}
+
+	// What the operator hashed before guest capacity existed: the fleet config
+	// as-is, with neither guest-sized field set.
+	if want, have := bootstrap.HostConfigHash(fleet), r.desiredHostConfigHash(&infrav1.ScalewayAppleSiliconMachine{}); want != have {
+		t.Fatalf("single-guest hash = %s, want the pre-existing %s; "+
+			"shipping this operator would drift every mini in the fleet", have, want)
+	}
+}
+
+// The relay port is pinned per host but a relay is per Pod, so the egress
+// Service has to front one port per guest. Without this the second guest on a
+// dual-guest mini binds a port the ProxyGroup does not forward — the relay
+// comes up, tart-kubelet advertises it on the Pod annotation, and the
+// dashboard session times out with nothing obviously wrong on the host.
+func TestReconcileTailscaleEgressService_DeclaresARelayPortPerGuest(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		guests    int
+		wantPorts map[string]int32
+	}{
+		{
+			name:      "single guest keeps the historical single port",
+			guests:    1,
+			wantPorts: map[string]int32{"vnc-relay": DashboardVNCRelayPort},
+		},
+		{
+			name:   "dual guest fronts both ports",
+			guests: 2,
+			wantPorts: map[string]int32{
+				"vnc-relay":   DashboardVNCRelayPort,
+				"vnc-relay-2": DashboardVNCRelayPort + 1,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newReconciler(t)
+			r.EgressProxyGroup = "macmini-egress"
+			r.EgressNamespace = "tailscale-operator"
+			r.EgressMagicDNSSuffix = "taild6d7bb.ts.net"
+			r.DefaultGuestCapacity = 1
+
+			machine := &infrav1.ScalewayAppleSiliconMachine{
+				ObjectMeta: metav1.ObjectMeta{Name: "macmini-1"},
+				Spec: infrav1.ScalewayAppleSiliconMachineSpec{
+					FleetName:     "tuist-runners-fleet",
+					GuestCapacity: tc.guests,
+				},
+			}
+			if err := r.reconcileTailscaleEgressService(context.Background(), machine); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			got := &corev1.Service{}
+			if err := r.Client.Get(context.Background(),
+				types.NamespacedName{Namespace: "tailscale-operator", Name: "macmini-1"}, got); err != nil {
+				t.Fatalf("get created service: %v", err)
+			}
+
+			relayPorts := map[string]int32{}
+			for _, p := range got.Spec.Ports {
+				if strings.HasPrefix(p.Name, "vnc-relay") {
+					relayPorts[p.Name] = p.Port
+				}
+			}
+			if !reflect.DeepEqual(relayPorts, tc.wantPorts) {
+				t.Errorf("relay ports = %v, want %v", relayPorts, tc.wantPorts)
+			}
+
+			// The scrape and SSH ports are what makes the mini reachable at
+			// all; a relay range that displaced one of them would take the
+			// fleet's metrics or its drift-update path down with it.
+			for _, name := range []string{"node-exporter", "tart-kubelet", "pod-metrics", "ssh"} {
+				found := false
+				for _, p := range got.Spec.Ports {
+					if p.Name == name {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("port %q missing from the egress Service", name)
+				}
+			}
+		})
+	}
+}
+
+// The cache quota resolves on presence, so an explicit 0 turns cache volumes
+// off on that host instead of collapsing into "unset" and inheriting a
+// non-zero fleet default. Staging a new SKU cold and enabling its cache once
+// validated depends on that distinction; with a scalar field the operator
+// would silently get 80 GiB on a host it asked to run cold.
+func TestRunnerCacheVolumeGiBFor_DistinguishesExplicitZeroFromUnset(t *testing.T) {
+	const fleetDefault = 80
+
+	for _, tc := range []struct {
+		name string
+		spec *int
+		want int
+	}{
+		{name: "unset inherits the fleet default", spec: nil, want: fleetDefault},
+		{name: "explicit zero disables cache volumes", spec: ptr.To(0), want: 0},
+		{name: "explicit value overrides", spec: ptr.To(240), want: 240},
+		// Not an intent anyone can have, and a negative quota would fail the
+		// diskutil call at bootstrap; degrade to the fleet default instead.
+		{name: "negative degrades to the fleet default", spec: ptr.To(-1), want: fleetDefault},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &infrav1.ScalewayAppleSiliconMachine{}
+			m.Spec.RunnerCacheVolumeGiB = tc.spec
+			if got := runnerCacheVolumeGiBFor(m, fleetDefault); got != tc.want {
+				t.Fatalf("runnerCacheVolumeGiBFor = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// An explicit 0 has to move the fingerprint too. If it hashed the same as
+// unset, a host switched to the cold path would read as already-converged and
+// never receive the launchd config that drops --runner-cache-root.
+func TestDesiredHostConfigHash_MovesWhenCacheVolumesAreExplicitlyDisabled(t *testing.T) {
+	r := &ScalewayAppleSiliconMachineReconciler{
+		FleetConfig:          bootstrap.Config{RunnerCacheVolumeGiB: 80, CacheVolumeMasterCapGiB: 20},
+		DefaultGuestCapacity: 1,
+	}
+	unset := &infrav1.ScalewayAppleSiliconMachine{}
+	disabled := &infrav1.ScalewayAppleSiliconMachine{}
+	disabled.Spec.RunnerCacheVolumeGiB = ptr.To(0)
+
+	if r.desiredHostConfigHash(unset) == r.desiredHostConfigHash(disabled) {
+		t.Fatal("a machine disabling cache volumes hashes the same as one on the fleet default; " +
+			"the host would never be told to stop using them")
 	}
 }

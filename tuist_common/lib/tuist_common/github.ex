@@ -185,8 +185,8 @@ defmodule TuistCommon.GitHub do
             end
         end
 
-      {:ok, %{status: status}} when status in [403, 429] ->
-        {:error, {:rate_limited, status}}
+      {:ok, %{status: status} = response} when status in [403, 429] ->
+        http_error(response)
 
       {:ok, %{status: status}} ->
         {:error, {:http_error, status}}
@@ -211,11 +211,13 @@ defmodule TuistCommon.GitHub do
     end
   end
 
-  defp http_error(%{status: 429}), do: {:error, {:rate_limited, 429}}
+  defp http_error(%{status: 429} = response) do
+    {:error, {:rate_limited, 429, retry_after_seconds(Map.get(response, :headers))}}
+  end
 
   defp http_error(%{status: 403, headers: headers}) do
     if rate_limited?(headers) do
-      {:error, {:rate_limited, 403}}
+      {:error, {:rate_limited, 403, retry_after_seconds(headers)}}
     else
       {:error, {:http_error, 403}}
     end
@@ -229,6 +231,29 @@ defmodule TuistCommon.GitHub do
       {"x-ratelimit-remaining", value} when value in ["0", ["0"]] -> true
       _header -> false
     end)
+  end
+
+  @doc """
+  Seconds a caller should wait before retrying a throttled request, read from
+  the headers GitHub sends with it.
+
+  `retry-after` is a relative delay and `x-ratelimit-reset` a Unix timestamp,
+  so the two are normalized to the same relative form here rather than at each
+  call site. Returns `nil` when GitHub sent neither, which is the caller's
+  signal to fall back to its own backoff instead of retrying immediately.
+  """
+  @spec retry_after_seconds(term()) :: non_neg_integer() | nil
+  def retry_after_seconds(headers) do
+    case header_integer(headers, "retry-after") do
+      seconds when is_integer(seconds) ->
+        max(seconds, 0)
+
+      nil ->
+        case header_integer(headers, "x-ratelimit-reset") do
+          reset when is_integer(reset) -> max(reset - DateTime.to_unix(DateTime.utc_now()), 0)
+          nil -> nil
+        end
+    end
   end
 
   defp request(method, url, token, opts) do

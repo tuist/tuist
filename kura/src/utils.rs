@@ -26,7 +26,7 @@ use crate::{
 
 /// Byte-accounted reservation over the shared tmp-dir budget.
 ///
-/// Bootstrap stages every non-inline artifact it pulls from a peer into the
+/// Backfill stages every non-inline artifact it pulls from a peer into the
 /// shared tmp dir before appending it to a segment. Multiple peers (and the
 /// sequential artifacts within a single peer) stage concurrently, so without a
 /// shared accounting the combined in-flight bytes scale with the number of
@@ -1258,7 +1258,7 @@ mod tests {
     async fn tmp_budget_serializes_total_far_exceeding_capacity() {
         // Stage a total volume far larger than the budget through a tiny budget;
         // every reservation must eventually succeed (peak never exceeds budget),
-        // proving bootstrap convergence is independent of total account size.
+        // proving backfill convergence is independent of total account size.
         let budget = TmpBudget::new(100);
         let mut total = 0_u64;
         for _ in 0..50 {

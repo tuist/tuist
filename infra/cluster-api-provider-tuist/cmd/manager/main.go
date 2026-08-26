@@ -90,6 +90,7 @@ func main() {
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
+		tartKubeletGuestCapacity     int
 		runnerCacheVolumeGiB         int
 		cacheVolumeMasterCapGiB      int
 		cacheVolumeCASGiB            int
@@ -262,9 +263,16 @@ func main() {
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
-		"Max concurrent Pods on each Mac mini. Capped at 2 by Apple's macOS SLA "+
-			"(no more than two simultaneous virtualized macOS instances per host); "+
-			"Tart refuses to start a third VM.")
+		"Max concurrent Pods on each Mac mini. Counts EVERY Pod on the Node, not just Tart-VM Pods: "+
+			"host-system DaemonSets that ignore the macOS taint (hcloud-csi-node) permanently hold a slot, "+
+			"so this is (guests + system Pods + churn headroom). Apple's macOS SLA caps the GUEST count at 2 "+
+			"and Tart refuses to start a third VM, so the SLA is enforced at the virtualization layer "+
+			"regardless of this value. Overridable per Machine via spec.maxPods for heterogeneous fleets.")
+	flag.IntVar(&tartKubeletGuestCapacity, "tartkubelet-guest-capacity", 1,
+		"How many Tart guests each Mac mini is expected to run concurrently, when the Machine does not "+
+			"set spec.guestCapacity. Sizes the per-guest host resources (the VNC relay port range and the "+
+			"disk-pressure goldens floor); it does not itself create or cap capacity, which comes from "+
+			"HostCPU/HostMemoryMB and Tart's own SLA enforcement. 1 preserves one-guest-per-host.")
 	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
 		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
 			"Set to 0 to disable the cap (not recommended for production).")
@@ -431,13 +439,30 @@ func main() {
 	if egressProxyGroup != "" && egressNamespace != "" {
 		vncRelayPort = macos.DashboardVNCRelayPort
 	}
-	hostConfigHash := bootstrap.HostConfigHash(bootstrap.Config{
-		TartKubeletBinary:       tartKubeletBinary,
-		TailscaleBinaries:       tailscaleBinaries,
-		NodeExporterBinary:      nodeExporterBinary,
-		LogShipperBinary:        logShipperBinary,
-		LogShipURL:              logShipURL,
-		LogShipEnv:              logShipEnv,
+	// One fleet config, used for both things that must agree: the hash the
+	// reconciler stamps on a Machine, and the config it pushes to the host.
+	// They were separate literals -- this one, and a field-by-field assembly
+	// in each of the controller's two push paths -- with nothing tying them
+	// together, so a field added here but missed there made the operator
+	// record a host as converged to a config it had never received.
+	fleetConfig := bootstrap.Config{
+		TartKubeletBinary:  tartKubeletBinary,
+		TartTarball:        tartTarball,
+		TailscaleBinaries:  tailscaleBinaries,
+		NodeExporterBinary: nodeExporterBinary,
+		LogShipperBinary:   logShipperBinary,
+		LogShipURL:         logShipURL,
+		LogShipEnv:         logShipEnv,
+		// Per-env Tailscale tag, e.g. `tag:tuist-macmini-staging`.
+		// Flows in from the Helm chart's macosFleet.tailscale.tags
+		// via --tailscale-tags. ACL grants the matching env's
+		// `tag:tuist-k8s-<env>` dial access to this tag on the
+		// scrape ports; cross-env scraping is blocked once the
+		// wide-open catch-all is removed.
+		//
+		// Load-bearing, not cosmetic: an OAuth-minted credential carries
+		// no default tag, so a host config pushed without these cannot
+		// join the tailnet at all.
 		TailscaleTags:           parseCommaList(tailscaleTagsRaw),
 		TailscaleAcceptRoutes:   tailscaleAcceptRoutes,
 		VMKuraEgressCIDR:        vmKuraEgressCIDR,
@@ -451,7 +476,8 @@ func main() {
 		CacheVolumeMasterCapGiB: cacheVolumeMasterCapGiB,
 		CacheVolumeCASGiB:       cacheVolumeCASGiB,
 		VNCRelayPort:            vncRelayPort,
-	})
+	}
+	hostConfigHash := bootstrap.HostConfigHash(fleetConfig)
 	setupLog.Info("computed host config hash", "hash", hostConfigHash)
 
 	restConfig := ctrl.GetConfigOrDie()
@@ -538,41 +564,17 @@ func main() {
 	}
 
 	if err := (&macos.ScalewayAppleSiliconMachineReconciler{
-		Client:               mgr.GetClient(),
-		Scheme:               mgr.GetScheme(),
-		ScalewayClient:       scwClient,
-		CredentialsManager:   credsManager,
-		Recorder:             mgr.GetEventRecorderFor("scalewayapplesiliconmachine-controller"),
-		Kubeconfig:           kubeconfigBuilder,
-		TartKubeletBinary:    tartKubeletBinary,
-		TartKubeletBinarySHA: binarySHA,
-		HostConfigHash:       hostConfigHash,
-		TartTarball:          tartTarball,
-		TailscaleBinaries:    tailscaleBinaries,
-		NodeExporterBinary:   nodeExporterBinary,
-		LogShipperBinary:     logShipperBinary,
-		LogShipURL:           logShipURL,
-		LogShipEnv:           logShipEnv,
-		// Per-env Tailscale tag, e.g. `tag:tuist-macmini-staging`.
-		// Flows in from the Helm chart's macosFleet.tailscale.tags
-		// via --tailscale-tags. ACL grants the matching env's
-		// `tag:tuist-k8s-<env>` dial access to this tag on the
-		// scrape ports; cross-env scraping is blocked once the
-		// wide-open catch-all is removed.
-		TailscaleTags:                 parseCommaList(tailscaleTagsRaw),
-		TailscaleAcceptRoutes:         tailscaleAcceptRoutes,
-		VMKuraEgressCIDR:              vmKuraEgressCIDR,
-		VMClusterDNSIP:                vmClusterDNSIP,
+		Client:                        mgr.GetClient(),
+		Scheme:                        mgr.GetScheme(),
+		ScalewayClient:                scwClient,
+		CredentialsManager:            credsManager,
+		Recorder:                      mgr.GetEventRecorderFor("scalewayapplesiliconmachine-controller"),
+		Kubeconfig:                    kubeconfigBuilder,
+		TartKubeletBinarySHA:          binarySHA,
+		FleetConfig:                   fleetConfig,
+		DefaultGuestCapacity:          tartKubeletGuestCapacity,
 		VMCachePNName:                 vmCachePNName,
-		VMCachePNCIDR:                 vmCachePNCIDR,
-		SSHIngressAllowCIDRs:          parseCommaList(sshIngressAllowRaw),
 		VPC:                           vpcClient,
-		TartKubeletHostCPU:            tartKubeletHostCPU,
-		TartKubeletHostMemoryMB:       tartKubeletHostMemory,
-		TartKubeletMaxPods:            tartKubeletMaxPods,
-		RunnerCacheVolumeGiB:          runnerCacheVolumeGiB,
-		CacheVolumeMasterCapGiB:       cacheVolumeMasterCapGiB,
-		CacheVolumeCASGiB:             cacheVolumeCASGiB,
 		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
 		TartKubeletTerminalRetryAfter: terminalRetryAfter,
 		BootstrapRebootAfter:          int32(bootstrapRebootAfter),

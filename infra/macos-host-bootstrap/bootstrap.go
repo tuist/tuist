@@ -271,12 +271,36 @@ type Config struct {
 	HostMemoryMB int
 	MaxPods      int
 
+	// MinGoldensKept floors how many golden base VMs tart-kubelet's
+	// disk-pressure reclaim may leave on the host
+	// (`--min-goldens-kept`). 0 uses tart-kubelet's own default of 1.
+	//
+	// A host that runs guests from more than one pool wants at least
+	// one golden per pool: reclaiming to a single golden under
+	// pressure strands the other pool into a full cold image pull
+	// (~10 min) on its next job. Only relevant once a host runs more
+	// than one guest — a single-guest host has one live pool at a
+	// time by construction.
+	MinGoldensKept int
+
 	// VNCRelayHost / VNCRelayPort configure the server-facing runner VNC
 	// relay coordinates that tart-kubelet advertises after a dashboard
 	// session is requested. Managed tailnet clusters set these to the
 	// per-Mac Tailscale egress Service DNS name and port.
 	VNCRelayHost string
 	VNCRelayPort int
+
+	// VNCRelayPortCount is how many contiguous ports from VNCRelayPort
+	// tart-kubelet may bind for relays (`--vnc-relay-port-count`). 0 or
+	// 1 is the single pinned port.
+	//
+	// A pinned relay port is a per-host resource but a relay is a
+	// per-Pod one, so this must be at least the number of guests the
+	// host can run concurrently or the second guest's relay fails to
+	// bind and interactive sessions break on that half of the fleet.
+	// Every port in the range has to be declared on whatever fronts
+	// the host (the per-Mac Tailscale egress Service).
+	VNCRelayPortCount int
 
 	// NodeLabels is the set of labels tart-kubelet stamps on the
 	// Node it registers. The bootstrap layer is generic — fleet
@@ -423,6 +447,15 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installTailscale(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
 	}
+	// After installTailscale: the resolver points at the daemon this
+	// installs, so writing it first would leave a window where `.ts.net`
+	// resolves nowhere rather than resolving publicly.
+	if err := installTailnetResolver(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install tailnet resolver: %w", err)
+	}
+	if err := installLocalNetworkAllowlist(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install local network allowlist: %w", err)
+	}
 	// After installTailscale: the guard's unconditional allowance is the
 	// tailnet, so it must not narrow :22 before that path exists.
 	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
@@ -533,6 +566,23 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := installTailscale(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
 	}
+	// Re-run on the drift path because the resolver is part of
+	// HostConfigHash: without this step a roll converges the stamped hash
+	// while the host still has no /etc/resolver/ts.net, so the fleet reads
+	// as correct while crane, oras and tart keep getting NXDOMAIN on every
+	// tailnet name. Unconditional, unlike installTailscale above: writing
+	// the file restarts nothing, so it is safe on the tailnet fallback that
+	// sets SkipTailscaleInstall.
+	if err := installTailnetResolver(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install tailnet resolver: %w", err)
+	}
+	// On the drift path as well as first bootstrap, because the fleet
+	// predates this setting and a converged hostConfigHash otherwise
+	// certifies hosts that cannot build an image. Same mistake the
+	// tailnet resolver made.
+	if err := installLocalNetworkAllowlist(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install local network allowlist: %w", err)
+	}
 	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh ssh ingress guard: %w", err)
 	}
@@ -557,6 +607,69 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	return hk.Observed(), nil
 }
 
+// PerHost carries every Config field whose value belongs to one specific Mac
+// mini rather than to the fleet. It exists so that split has exactly one
+// definition in the codebase.
+//
+// It used to have two, written far apart: an assignment list in the operator's
+// drift-update path naming the fleet-wide fields, and the zeroing list in
+// HostConfigHash naming the per-host ones. Nothing tied them together, so a
+// field added to Config and wired into only one of them left the operator
+// pushing a config that did not match the hash it then stamped on the host --
+// the host was recorded as converged to a config it had never received, and
+// the skew stayed invisible until something downstream needed the dropped
+// field. node_exporter, the log shipper and the cache-volume flags were each
+// lost that way. The fourth, the Tailscale tags, froze the production Mac mini
+// fleet on 2026-08-18: once the shared credential became a Tailscale OAuth
+// client secret, an untagged join was no longer possible at all.
+//
+// With one definition the failure cannot recur. WithPerHost applies these
+// fields on top of a fleet config, and HostConfigHash strips them by applying
+// an empty PerHost, so the two lists are the same list.
+type PerHost struct {
+	IP                   string
+	SSHUser              string
+	UserPassword         string
+	SSHPrivateKey        []byte
+	NodeName             string
+	ProviderID           string
+	Kubeconfig           string
+	TailscaleAuthKey     string
+	VNCRelayHost         string
+	VMCachePNVLAN        uint32
+	KnownHostFingerprint string
+	NodeLabels           map[string]string
+	GHActionsRunner      *GHActionsRunnerConfig
+	// DisableVMGC is a per-host role signal (builder hosts set it); the
+	// launchd plist renderer keys --disable-vm-gc off it.
+	DisableVMGC bool
+	// SkipTailscaleInstall is transport-only: it gates whether
+	// installTailscale runs and changes no rendered output.
+	SkipTailscaleInstall bool
+}
+
+// WithPerHost returns a copy of c with the per-host fields replaced by p.
+// The receiver is a fleet config, identical across the fleet; the result is
+// what one host actually receives.
+func (c Config) WithPerHost(p PerHost) Config {
+	c.IP = p.IP
+	c.SSHUser = p.SSHUser
+	c.UserPassword = p.UserPassword
+	c.SSHPrivateKey = p.SSHPrivateKey
+	c.NodeName = p.NodeName
+	c.ProviderID = p.ProviderID
+	c.Kubeconfig = p.Kubeconfig
+	c.TailscaleAuthKey = p.TailscaleAuthKey
+	c.VNCRelayHost = p.VNCRelayHost
+	c.VMCachePNVLAN = p.VMCachePNVLAN
+	c.KnownHostFingerprint = p.KnownHostFingerprint
+	c.NodeLabels = p.NodeLabels
+	c.GHActionsRunner = p.GHActionsRunner
+	c.DisableVMGC = p.DisableVMGC
+	c.SkipTailscaleInstall = p.SkipTailscaleInstall
+	return c
+}
+
 // HostConfigHash is a fleet-wide canonical fingerprint of everything the
 // operator pushes to a host: the rendered install scripts (firewall +
 // vmnat, PN interface, launchd job + plist, Tailscale, node_exporter,
@@ -579,26 +692,10 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 func HostConfigHash(cfg Config) string {
 	// Strip per-host / volatile fields so the fingerprint is fleet-wide.
 	// Fleet-config fields (CIDRs, tags, accept-routes, host CPU/mem/pods)
-	// and the embedded binaries are kept.
-	cfg.IP = ""
-	cfg.SSHUser = ""
-	cfg.UserPassword = ""
-	cfg.SSHPrivateKey = nil
-	cfg.NodeName = ""
-	cfg.ProviderID = ""
-	cfg.Kubeconfig = ""
-	cfg.TailscaleAuthKey = ""
-	cfg.VNCRelayHost = ""
-	cfg.VMCachePNVLAN = 0
-	cfg.KnownHostFingerprint = ""
-	cfg.GHActionsRunner = nil
-	cfg.NodeLabels = nil
-	// Per-host role signal (builder hosts set it); the launchd plist
-	// renderer keys --disable-vm-gc off it, so neutralize it too.
-	cfg.DisableVMGC = false
-	// Transport-only: gates whether installTailscale runs, changes no
-	// rendered output. Neutralized so it can never perturb the hash.
-	cfg.SkipTailscaleInstall = false
+	// and the embedded binaries are kept. Stripping is an empty overlay
+	// rather than its own zeroing list, so the set of per-host fields is
+	// defined once, in PerHost, and cannot drift from what callers apply.
+	cfg = cfg.WithPerHost(PerHost{})
 
 	var b strings.Builder
 
@@ -626,6 +723,8 @@ func HostConfigHash(cfg Config) string {
 		{"launchd-plist", renderLaunchdPlist(cfg)},
 		{"tailscale", renderTailscaleScript(cfg)},
 		{"node-exporter", renderNodeExporterScript()},
+		{"tailnet-resolver", renderTailnetResolverScript()},
+		{"local-network-allowlist", renderLocalNetworkAllowlistScript()},
 		{"log-shipper", renderLogShipperScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
 		{"ssh-reachability", renderSSHReachabilityScript()},
@@ -832,6 +931,12 @@ exit 1
 `, shellQuote(cfg.SSHUser))
 }
 
+// defaultMinGoldensKept mirrors tart-kubelet's own default for
+// --min-goldens-kept. Kept here so the plist renderer can tell "the
+// operator asked for the default" apart from "the operator asked for
+// more", and omit the flag in the first case.
+const defaultMinGoldensKept = 1
+
 func renderLaunchdPlist(cfg Config) string {
 	cpu := cfg.HostCPU
 	if cpu == 0 {
@@ -923,6 +1028,21 @@ func renderLaunchdPlist(cfg Config) string {
 	vncRelayPortArg := ""
 	if cfg.VNCRelayPort > 0 {
 		vncRelayPortArg = fmt.Sprintf("\n    <string>--vnc-relay-port=%d</string>", cfg.VNCRelayPort)
+		// Only rendered above 1 so a single-guest host's plist is
+		// byte-identical to what it rendered before the range existed
+		// and the fleet doesn't drift for a no-op flag.
+		if cfg.VNCRelayPortCount > 1 {
+			vncRelayPortArg += fmt.Sprintf("\n    <string>--vnc-relay-port-count=%d</string>", cfg.VNCRelayPortCount)
+		}
+	}
+	// Same rule, and the threshold is 1 rather than 0 because that is
+	// tart-kubelet's own default: a single-guest host resolves this to
+	// 1, and rendering it explicitly would say nothing while changing
+	// the fleet-wide config hash — drifting every existing mini to push
+	// a flag that does not alter behaviour.
+	minGoldensKeptArg := ""
+	if cfg.MinGoldensKept > defaultMinGoldensKept {
+		minGoldensKeptArg = fmt.Sprintf("\n    <string>--min-goldens-kept=%d</string>", cfg.MinGoldensKept)
 	}
 	// Turn on per-account cache volumes when the fleet provisioned
 	// a runner-cache volume. --runner-cache-root points at the auto-mounted
@@ -961,7 +1081,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s%[13]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -975,7 +1095,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg, minGoldensKeptArg)
 }
 
 func shellQuote(s string) string {
@@ -2311,6 +2431,18 @@ func installSSHIngressGuard(ctx context.Context, client *ssh.Client, cfg Config)
 // 127.0.0.1 probe reads as permanently wedged and reloads ssh every
 // minute.
 //
+// Being interface-agnostic is also what makes the VM carve-out
+// mandatory. A Tart VM's egress arrives inbound on the vmnet bridge with
+// its 192.168.64.x source before it is routed and NAT'd out, so a bare
+// `block drop in quick proto tcp to any port 22` matches it and drops
+// every SSH the customer workload makes — private git dependencies,
+// ssh:// submodules, deploy steps — silently, as a connect timeout
+// rather than a refusal. The `tuist.runners` anchor cannot compensate:
+// its VM rules are all `out`, and `com.apple/*` is evaluated ahead of
+// anything appended to the end of /etc/pf.conf. So the VM sources get an
+// explicit pass, preceded by a block that still denies them the host's
+// and a sibling's :22.
+//
 // The live session's own source address is folded into the table on the
 // host at render time, so a roll can never sever the connection
 // carrying it. That also makes the guard self-correcting: if the
@@ -2366,11 +2498,21 @@ sudo tee /etc/pf.anchors/tuist.sshguard >/dev/null <<PFCONF
 # MUST stay above the block.
 
 table <ssh_allowed> persist { 100.64.0.0/10${SESSION_ENTRY}%s }
+table <vm_ssh_sources> persist { 192.168.64.0/22 }
 
 # The reachability watchdog probes 127.0.0.1:22 every minute; a
 # blocked loopback reads as a permanent wedge to it.
 pass in quick on lo0 proto tcp to any port 22 keep state
 pass in quick proto tcp from <ssh_allowed> to any port 22 keep state
+
+# A Tart VM's egress arrives inbound on the vmnet bridge before it is
+# routed and NAT'd out, so the catch-all block below also swallows every
+# SSH the customer workload makes. The guard protects the host's own
+# listener, not the workload's outbound reach: VMs keep :22 to the
+# internet, but not to the host or a sibling VM.
+block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22
+pass in quick proto tcp from <vm_ssh_sources> to any port 22 keep state
+
 block drop in quick proto tcp to any port 22
 PFCONF
 
@@ -2421,6 +2563,93 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.
 // node_exporter wrapper + launchd job. The binary rides stdin and its
 // drift is tracked by its own SHA in the host config hash, so this
 // script carries no per-host or per-binary input.
+// installTailnetResolver teaches the host OS to resolve `.ts.net` names
+// through MagicDNS.
+//
+// tailscaled is running here, and answers MagicDNS on 100.100.100.100 like
+// anywhere else — but the open-source daemon on macOS never rewrites the
+// system resolver configuration, so nothing that uses ordinary OS
+// resolution can see tailnet names. That is why the log shipper resolves
+// through tailscaled itself rather than through the OS, and why a Tart VM
+// guest resolves these names while its host does not.
+//
+// Programs we do not control cannot do that. `crane`, `oras` and `tart`
+// all resolve through the OS, so on a builder every tailnet name is
+// NXDOMAIN — which is what broke image publishing when the workflows moved
+// to the tailnet-hosted registry.
+//
+// A scoped resolver supplies exactly what the daemon cannot, and nothing
+// more: only `.ts.net` is redirected, so public DNS keeps answering for
+// everything else, including the rest of tuist.dev.
+func installTailnetResolver(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderTailnetResolverScript())
+}
+
+func renderTailnetResolverScript() string {
+	return `set -euo pipefail
+sudo mkdir -p /etc/resolver
+# 100.100.100.100 is Tailscale's fixed MagicDNS address, not a per-host
+# value, so this file is identical fleet-wide and stays inside the
+# fleet-wide config hash.
+sudo tee /etc/resolver/ts.net >/dev/null <<'RESOLVER'
+nameserver 100.100.100.100
+RESOLVER
+sudo chmod 0644 /etc/resolver/ts.net
+# macOS caches negative answers, and these names have been NXDOMAIN on
+# this host until now, so without a flush the first lookups keep failing
+# for as long as the cache holds them.
+sudo dscacheutil -flushcache || true
+sudo killall -HUP mDNSResponder 2>/dev/null || true
+`
+}
+
+// installLocalNetworkAllowlist exempts the private address ranges a Tart
+// guest can land on from macOS local network privacy.
+//
+// Since macOS Sequoia, a process must hold the "Local Network" permission
+// to open a connection to a LAN address. There is no way to grant it
+// without a user answering a dialog, and nothing on a builder runs in
+// front of a person: the Actions runner is a LaunchAgent in a headless
+// Aqua session. So Packer, which drives the build from the host and has
+// to reach the guest it just booted, is denied.
+//
+// The denial is invisible in every way that matters. The guest boots
+// normally, takes a DHCP lease, and listens on :22 — `nc` and `ping` from
+// a shell on the same host both succeed, because that shell is a
+// different process with a different permission verdict. Only Packer is
+// blocked, and the block presents as silence rather than a refusal, so
+// the build sits in "Waiting for SSH to become available..." until it
+// times out 15 minutes later. A healthy build connects in about 20
+// seconds. Nothing in the failure names the cause.
+//
+// This is why it hid for so long: a host that was already granted the
+// permission keeps working indefinitely, so the fleet looked fine while
+// every host rebuilt after the requirement arrived came back unable to
+// build images at all. Recycling a host through the pool is the
+// documented repair for a wedged builder, which means the repair itself
+// was breaking image builds.
+//
+// The allowlist is the workaround the packer-plugin-tart README
+// documents. It is written per host and only takes effect on the next
+// boot, so a host converged by the drift path carries the setting but
+// keeps failing until it restarts.
+func installLocalNetworkAllowlist(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderLocalNetworkAllowlistScript())
+}
+
+func renderLocalNetworkAllowlistScript() string {
+	// The whole of RFC1918 rather than just 192.168.64.0/24, because the
+	// range vmnet hands out is Tart's to choose and has moved before.
+	// Widening it costs nothing here: this exempts addresses from a
+	// privacy prompt on a single-tenant build host, it does not open a
+	// path that was closed.
+	return `set -euo pipefail
+for key in AllowedEthernetLocalNetworkAddresses AllowedWiFiLocalNetworkAddresses; do
+  sudo defaults write com.apple.network.local-network "$key" -array "10.0.0.0/8" "172.16.0.0/12" "192.168.0.0/16"
+done
+`
+}
+
 func renderNodeExporterScript() string {
 	return `set -euo pipefail
 sudo mkdir -p /usr/local/bin

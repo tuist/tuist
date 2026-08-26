@@ -274,9 +274,10 @@ enum HTTPAuthorization {
         // repo-scoped CI token shadows the netrc credential that can actually read
         // a private release asset. This mirrors SwiftPM, whose download
         // AuthorizationProvider resolves netrc and never consults GITHUB_TOKEN.
-        if let header = prioritizedHeader(
+        if let header = await prioritizedHeader(
             isGitHub: isGitHub(url),
             netrcCredential: Environment.netrc.credential(for: url),
+            keychain: { await KeychainAuthorization.credential(for: url) },
             gitHubEnvToken: environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]
         ) {
             return header
@@ -292,9 +293,13 @@ enum HTTPAuthorization {
     static func prioritizedHeader(
         isGitHub: Bool,
         netrcCredential: RegistryCredential?,
+        keychain: () async -> RegistryCredential?,
         gitHubEnvToken: String?
-    ) -> String? {
+    ) async -> String? {
         if let credential = netrcCredential {
+            return basicHeader(credential)
+        }
+        if let credential = await keychain() {
             return basicHeader(credential)
         }
         if isGitHub, let token = nonEmpty(gitHubEnvToken) {
@@ -484,16 +489,24 @@ enum PathCanonicalizer {
         #if os(Windows)
             url.standardizedFileURL
         #else
+            // The pointer `realpath` returns is only guaranteed for as long as the buffer is
+            // borrowed, so the string has to be built inside the borrow rather than from the
+            // returned pointer afterwards.
             var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
-            #if canImport(Glibc)
-                let resolved = Glibc.realpath(url.path, &buffer)
-            #elseif canImport(Musl)
-                let resolved = Musl.realpath(url.path, &buffer)
-            #else
-                let resolved = Darwin.realpath(url.path, &buffer)
-            #endif
-            if let resolved, let path = String(validatingCString: resolved) {
-                return URL(fileURLWithPath: path)
+            let resolved = buffer.withUnsafeMutableBufferPointer { buffer -> String? in
+                guard let base = buffer.baseAddress else { return nil }
+                #if canImport(Glibc)
+                    let resolved = Glibc.realpath(url.path, base)
+                #elseif canImport(Musl)
+                    let resolved = Musl.realpath(url.path, base)
+                #else
+                    let resolved = Darwin.realpath(url.path, base)
+                #endif
+                guard let resolved else { return nil }
+                return String(validatingCString: resolved)
+            }
+            if let resolved {
+                return URL(fileURLWithPath: resolved)
             }
             return url.standardizedFileURL
         #endif

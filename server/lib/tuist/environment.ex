@@ -329,6 +329,71 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Whether this process is the deployment that owns the Kura control
+  plane. Booting in web mode is not proof: an ops eval Job boots the
+  application with the server's envFrom secrets but not its manifest env
+  list, and its reconcile would read the secrets-blob runtime-tag
+  fallback (a stale blob tag superseded a live rollout on staging that
+  way). The helm-injected env var is the discriminator that fails safe:
+  only the server Deployment's manifest carries it.
+  """
+  def kura_control_plane? do
+    case System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") do
+      tag when is_binary(tag) and tag != "" -> true
+      _ -> false
+    end
+  end
+
+  @doc """
+  Account handles of the Tuist-owned accounts that make up wave 0 (the
+  canary) of a progressive Kura runtime rollout. Comma-separated in
+  `TUIST_KURA_CANARY_ACCOUNT_HANDLES`; matching is case-insensitive.
+  """
+  def kura_canary_account_handles do
+    "TUIST_KURA_CANARY_ACCOUNT_HANDLES"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  @doc """
+  Per-environment override of the rollout pacing default ("progressive"
+  or "expedited"). Unset, production paces progressively and every other
+  environment fans out expedited. Exists for the staging drills that
+  exercise progressive mode through real releases before production
+  enablement (spec #79 rollout plan).
+  """
+  def kura_rollout_pacing do
+    case System.get_env("TUIST_KURA_ROLLOUT_PACING") do
+      value when value in ["progressive", "expedited"] -> value
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Image tag the deploy explicitly asked to expedite (the deployment-input
+  form of the expedite verb, used for rollbacks to a proven tag). Only a
+  rollout created for exactly this tag starts expedited, so the value
+  cannot leak onto a later unrelated rollout.
+  """
+  def kura_rollout_expedite_tag do
+    case System.get_env("TUIST_KURA_ROLLOUT_EXPEDITE_TAG") do
+      nil -> nil
+      value -> with "" <- String.trim(value), do: nil
+    end
+  end
+
+  @doc """
+  Webhook URL for best-effort internal ops notifications (Kura rollout
+  lifecycle). Context only — Grafana owns paging — so an unset value
+  disables the notifications rather than failing anything.
+  """
+  def ops_slack_webhook_url(secrets \\ secrets()) do
+    System.get_env("TUIST_OPS_SLACK_WEBHOOK_URL") || get([:ops, :slack_webhook_url], secrets)
+  end
+
+  @doc """
   The public peer failover IP for a bare-metal region, or `nil` when none is
   configured. Self-hosted nodes resolve a region's `peer.` host to this IP; the
   CAPI provider keeps it routed to a healthy box of the region's pool. Read from
@@ -351,6 +416,135 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_KURA_TUIST_BASE_URL")
   end
 
+  @doc """
+  The region Air instances run in for an account's storage region.
+
+  An account that states no storage region ("All regions") has no residency
+  constraint to uphold, so where its free tier runs is a deployment decision:
+  `us-east` unless `TUIST_KURA_AIR_REGION` names another.
+
+  An account that chose Europe has stated one. "Storage region" in account
+  settings names module cache binaries, which is what a Kura instance holds, so
+  such an account is never placed in the United States: it runs in whichever
+  region `TUIST_KURA_AIR_EUROPE_REGION` names, and is refused while nothing
+  names one. That variable is unset everywhere today, which is why those
+  accounts are refused now, and setting it is what turns Air in Europe on.
+
+  Paid regions are not configurable for the opposite reason: a paid account
+  restricted to Europe or the USA chose that, and no deployment setting may
+  move it.
+
+  Staging has no `us-east` pool, so without this every Air account there
+  resolves to a region whose instances can never schedule, and the Air-only
+  pressure rule cannot be exercised at all.
+  """
+  def kura_air_region(:europe), do: air_region_env("TUIST_KURA_AIR_EUROPE_REGION", nil)
+
+  def kura_air_region(storage_region) when storage_region in [:all, :usa],
+    do: air_region_env("TUIST_KURA_AIR_REGION", "us-east")
+
+  defp air_region_env(variable, default) do
+    case System.get_env(variable) do
+      nil -> default
+      "" -> default
+      region -> region
+    end
+  end
+
+  @doc """
+  Days without cache demand before a Kura instance is drained and reclaimed,
+  and the shortened window Air may use under capacity pressure.
+
+  Defaults are the spec's 90 and 60. They are configurable because otherwise
+  the archival half of the lifecycle cannot be exercised in any environment
+  without waiting a quarter: its first real run would be in production against
+  customer instances. Staging runs short windows so every deploy re-validates
+  the whole cycle.
+
+  Read from `TUIST_KURA_INACTIVE_DAYS` and
+  `TUIST_KURA_PRESSURE_INACTIVE_DAYS`.
+  """
+  def kura_inactive_days, do: positive_env_integer("TUIST_KURA_INACTIVE_DAYS", 90)
+
+  def kura_pressure_inactive_days, do: positive_env_integer("TUIST_KURA_PRESSURE_INACTIVE_DAYS", 60)
+
+  @doc """
+  Days an account-region's demand must have been tracked before it can be
+  archived, however old the recorded demand looks.
+
+  This is what makes enabling archival against freshly backfilled data safe, so
+  it defaults to a week. Staging sets it to zero, where the backfill is not the
+  concern and waiting a week to exercise archival would defeat the point.
+
+  Read from `TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS`.
+  """
+  def kura_demand_tracking_grace_days do
+    case System.get_env("TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS") do
+      nil -> 7
+      value -> parse_non_negative_days!("TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS", value)
+    end
+  end
+
+  defp positive_env_integer(name, default) do
+    case System.get_env(name) do
+      nil ->
+        default
+
+      value ->
+        case parse_non_negative_days!(name, value) do
+          0 -> raise ArgumentError, "#{name} must be greater than 0"
+          days -> days
+        end
+    end
+  end
+
+  # An unreadable window must not silently fall back to the default: a typo
+  # would leave an operator believing they had shortened or lengthened it.
+  defp parse_non_negative_days!(name, value) do
+    case Integer.parse(String.trim(value)) do
+      {days, ""} when days >= 0 ->
+        days
+
+      _ ->
+        raise ArgumentError, "#{name} must be a non-negative integer number of days, got: #{inspect(value)}"
+    end
+  end
+
+  @doc """
+  Cron schedule for the Kura archival sweep, which decides that an instance
+  has gone a full inactive window without cache demand.
+
+  Daily by default, matching the 90-day production window: deciding more often
+  than the window's own granularity changes nothing. It is configurable so a
+  deployment running a short window can sweep at a matching cadence, since a
+  daily sweep against a one-day window would leave an instance eligible for up
+  to another day before anything looked at it.
+
+  Read from `TUIST_KURA_ARCHIVAL_SWEEP_CRON`.
+  """
+  def kura_archival_sweep_cron do
+    case System.get_env("TUIST_KURA_ARCHIVAL_SWEEP_CRON") do
+      nil -> "@daily"
+      "" -> "@daily"
+      schedule -> String.trim(schedule)
+    end
+  end
+
+  @doc """
+  Whether Kura cache-demand records bypass the in-memory buffer and are
+  written straight through the caller's repo connection.
+
+  False in every deployed environment: buffering is what keeps the demand hook
+  off the database on the cache-endpoint hot path. Tests turn it on so a
+  process-wide buffer cannot carry one test's demand into another's
+  transaction, the same way `Tuist.Ingestion.Bufferable` does.
+  """
+  def kura_demand_write_through_repo? do
+    :tuist
+    |> Application.get_env(Tuist.Kura.Demand, [])
+    |> Keyword.get(:write_through_repo, false)
+  end
+
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
@@ -369,6 +563,10 @@ defmodule Tuist.Environment do
   def license_certificate_base64(secrets \\ secrets()) do
     System.get_env("TUIST_LICENSE_CERTIFICATE_BASE64") ||
       get([:license, :certificate, :base64], secrets)
+  end
+
+  def license_verify_key(secrets \\ secrets()) do
+    System.get_env("TUIST_LICENSE_VERIFY_KEY") || get([:license, :verify_key], secrets)
   end
 
   def use_ipv6?(secrets \\ secrets()) do
@@ -820,9 +1018,10 @@ defmodule Tuist.Environment do
 
   def stripe_prices(secrets \\ secrets()) do
     case get([:stripe, :prices], secrets) do
-      # TUIST_STRIPE_PRICES carries the plan -> category -> [price ids] map as a
-      # JSON string (rendered by the chart / set in mise for dev). A raw map is
-      # only seen in tests that stub it directly.
+      # TUIST_STRIPE_PRICES carries the plan -> category -> [price ids] map and
+      # the top-level runner meter event name -> price id map as a JSON string
+      # (rendered by the chart / set in mise for dev). A raw map is only seen in
+      # tests that stub it directly.
       prices when is_map(prices) -> prices
       prices when is_binary(prices) -> JSON.decode!(prices)
       _ -> nil
@@ -1367,6 +1566,30 @@ defmodule Tuist.Environment do
 
   def secret_key_tokens(secrets \\ secrets()) do
     get([:secret_key, :tokens], secrets, default_value: secret_key_base(secrets))
+  end
+
+  @doc """
+  The private half of the keypair cache tokens are signed with, as a PEM.
+
+  Absent unless a deployment has minted one, in which case cache tokens are
+  signed with `secret_key_tokens/1` instead and cache nodes cannot read them
+  without asking.
+  """
+  def secret_key_cache_tokens(secrets \\ secrets()) do
+    get([:secret_key, :cache_tokens], secrets)
+  end
+
+  @doc """
+  Whether cache tokens are signed with `secret_key_cache_tokens/1` yet.
+
+  Deliberately separate from holding the key. Installing the key teaches a
+  replica to verify tokens signed with it; this switches on issuing them. Doing
+  both at once means that during a rolling deploy a token minted by a replica
+  that has the key can be introspected by one that does not, and be reported
+  inactive.
+  """
+  def cache_token_signing_enabled?(secrets \\ secrets()) do
+    truthy?(get([:cache_token, :signing_enabled], secrets, default_value: "0"))
   end
 
   def secret_key_encryption(secrets \\ secrets()) do

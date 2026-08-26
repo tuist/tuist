@@ -1,6 +1,6 @@
 # Workload Cluster Onboarding — Tuist Server on Kubernetes
 
-Stand up a new Tuist workload cluster (staging / canary / production / preview) on Hetzner via our self-hosted CAPI management cluster, and deploy the Tuist server to it. Production Kura regions are node pools inside the production workload cluster, not separate clusters.
+Stand up a new Tuist workload cluster (staging / canary / production / preview / pentest) on Hetzner via our self-hosted Cluster API management cluster, and deploy the Tuist server to it. Production Kura regions are node pools inside the production workload cluster, not separate clusters.
 
 We run a **management cluster** (a single-node Talos VM in Hetzner project `tuist-mgmt`) that hosts CAPI v1.13 + caph v1.1. You apply [Cluster API](https://cluster-api.sigs.k8s.io/) CRs against it; caph spins up workload nodes in the workload Hetzner project. The mgmt cluster's manifests live in [`infra/k8s/mgmt/`](mgmt/); workload Cluster CRs (and the shared `tuist-hcloud` ClusterClass) live in [`infra/k8s/clusters/`](clusters/) and are auto-applied to the mgmt cluster on push to `main` by [`mgmt-cluster-apply.yml`](../../.github/workflows/mgmt-cluster-apply.yml).
 
@@ -12,7 +12,7 @@ If you just want to **read** an existing cluster (the day-to-day case — `kubec
 
 ## Engineer read access (Pomerium kubeconfig)
 
-Every engineer's Google Workspace identity already carries `view`-tier read access to all three workload clusters through the Pomerium gateway — no grant, no per-person provisioning. There's nothing secret to download: you assemble a small kubeconfig locally that registers `pomerium-cli` as an [exec credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). On the first call the plugin opens a browser for Google OIDC and caches the session for ~24h. The full identity flow is documented in [`infra/helm/pomerium/NOTES.md`](../helm/pomerium/NOTES.md); the agent-facing rules (read is always allowed, writes go through the JIT Slack flow) are in [`infra/AGENTS.md`](../AGENTS.md#cluster-access-for-agents).
+Every engineer's Google Workspace identity already carries `view`-tier read access to the three production-like workload clusters through the Pomerium gateway — no grant, no per-person provisioning. There's nothing secret to download: you assemble a small kubeconfig locally that registers `pomerium-cli` as an [exec credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). On the first call the plugin opens a browser for Google OIDC and caches the session for ~24h. The full identity flow is documented in [`infra/helm/pomerium/NOTES.md`](../helm/pomerium/NOTES.md); the agent-facing rules (read is always allowed, writes go through the JIT Slack flow) are in [`infra/AGENTS.md`](../AGENTS.md#cluster-access-for-agents).
 
 `view` deliberately excludes `Secret`s, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of reach on this path. Mutating operations (`apply`, `delete`, `scale`, `patch`, `create`) return `403` until you elevate via `/elevate <env>` in Slack.
 
@@ -77,7 +77,7 @@ Every engineer's Google Workspace identity already carries `view`-tier read acce
 - Hetzner Cloud project `tuist-workloads` (separate from `tuist-mgmt`) with API access. Token in 1Password as `tuist-workloads`.
 - A Cloudflare account with an API token stored as `cloudflare-tuist-dns`. Local bootstrap reads it from the `Founders` vault.
 - The `cloudflare-tuist-dns` token must be able to edit DNS for `tuist.dev`, read `tuist.dev` zone metadata, manage zone Load Balancers, and manage account-level Load Balancing pools/monitors.
-- Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview, `TUIST_LICENSE_CERTIFICATE_BASE64` for production, Grafana Cloud tokens) and a Service Account token scoped to the vault.
+- Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview` / `tuist-k8s-pentest`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview and pentest, `TUIST_LICENSE_CERTIFICATE_BASE64` for production, Grafana Cloud tokens) and a Service Account token scoped to the vault.
 - CLI tools installed via mise:
   ```bash
   mise use -g kubectl helm clusterctl talosctl
@@ -120,7 +120,7 @@ kubectl -n org-tuist get cluster <name> -w
 
 ## 4. Bootstrap the workload cluster
 
-Run the `k8s:bootstrap-workload` task. It is idempotent and handles every step the workload cluster needs before CI deploys can target it: Cilium, HCCM, hcloud-csi, the `hetzner` Secret on the workload, the platform chart, ESO + the per-env `onepassword` ClusterSecretStore, the monitoring chart, the app namespace + the Cloudflare origin TLS Secret, and a final ingress smoke test.
+Run the `k8s:bootstrap-workload` task. It is idempotent and handles every step the workload cluster needs before CI deploys can target it: Cilium, HCCM, hcloud-csi, the `hetzner` Secret on the workload, the platform chart, ESO + the per-env `onepassword` ClusterSecretStore, the monitoring chart, the app namespace + a final ingress smoke test. Non-pentest clusters also receive the shared Cloudflare origin TLS Secret; pentest uses separate certificate-manager-issued host certificates instead.
 
 ```bash
 mise run k8s:bootstrap-workload <cluster_name> <env> [kubeconfig_item]
@@ -211,10 +211,12 @@ Every Mac mini joins the tailnet at bootstrap, and so does every Tart VM the pro
 
 **Store an OAuth client secret here, never a pre-auth key.** Tailscale caps pre-auth keys at 90 days and there is no way to extend one, so a fleet joining with a pre-auth key has an outage on the calendar with nothing but a human remembering the date in the way. On 2026-08-12 that key lapsed and the `:process_xcresult` queue ran with zero consumers for ~13h: the Mac mini hosts were fine (they join once and keep their identity) but every processor Pod roll creates a fresh VM that has to join again, and its launchd chain refuses to start the release without a tailnet identity. OAuth clients don't expire, and `tailscale up` accepts the client secret wherever an auth key goes, minting a fresh key per join.
 
-In the Tailscale admin console, under **Settings → OAuth clients**, create one client per env:
+In the Tailscale admin console, create one client per env under [**Settings → Trust credentials**](https://login.tailscale.com/admin/settings/trust-credentials): select **Credential**, then **OAuth**, then **Generate credential**. Note this is not the **Keys** page, which holds only auth keys and API access tokens; there is no "OAuth clients" page.
 
-- Scope: `auth_keys` (write). Nothing else: this credential only mints join keys.
-- Tags: this env's `tag:tuist-macmini-<env>` only. One client per env means a leaked staging credential can't enroll a device under a production tag, the same isolation the `tuist-k8s-<env>` operator clients get.
+- Scope: **Keys → Auth Keys → Write**, nothing else. This credential only mints join keys.
+- Tags: this env's `tag:tuist-macmini-<env>` only. The write scope requires at least one tag, and it is what the minted key applies to the joining device. One client per env means a leaked staging credential can't enroll a device under a production tag, the same isolation the `tuist-k8s-<env>` operator clients get.
+
+The secret is shown once, and starts with `tskey-client-`. That prefix is load-bearing: both consumers detect it to decide whether to annotate the credential, so a value stored without it is treated as a legacy pre-auth key.
 
 The tag must already exist under `tagOwners` in [`../tailscale/acls.json`](../tailscale/acls.json). Keys minted through an OAuth client are always tagged and carry no default, so the consumers name the tag at join time from `macosFleet.tailscale.tags`. Set that in the env's values file or the fleet cannot join at all (the CAPI operator rejects the config before it pushes anything, and the VM's `tailscale-up.sh` exits before `tailscale up`).
 
@@ -225,6 +227,30 @@ op item create --vault tuist-k8s-<env> --category "API Credential" --title TAILS
 The consumers pin `ephemeral=true&preauthorized=true` on the minted key themselves; don't append query parameters to the stored value.
 
 > **ESO health is not credential health.** The ExternalSecret reports `SecretSynced` / `Ready=True` whatever the value's validity; it says only that 1Password answered. A fleet that can't join looks identical from the ESO side, so don't use it to rule the credential out. Detection for the failure class lives in [`../helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md), keyed on queue age.
+
+## 5d. Tailscale device reaper credential
+
+One client per env, same as 5c, and for the same reason: confined to one env's tags, a leaked staging credential cannot delete a production device.
+
+Nothing garbage-collects a tailnet device. Tagged devices have key expiry disabled, so a registration outlives whatever created it, and both the xcresult-processor VMs and the Tailscale operator's proxy Pods register a device per Pod. Renaming them does not help: identity is the node key, and an image-booted VM has no persisted state to carry one across boots. The `tailscale-device-reaper` CronJob deletes the leftovers; see [`../helm/tuist/templates/tailscale-device-reaper.yaml`](../helm/tuist/templates/tailscale-device-reaper.yaml) for the grace-window design and the full safety argument.
+
+Create the client under [**Settings → Trust credentials**](https://login.tailscale.com/admin/settings/trust-credentials) exactly as in 5c: **Credential**, then **OAuth**, then **Generate credential**.
+
+- Scope: **Devices → Core → Write**, nothing else. Read alone lists devices but cannot delete them.
+- Tags: this env's two tags only — `tag:tuist-macmini-<env>` and `tag:tuist-k8s-<env>`. Both must already exist under `tagOwners` in [`../tailscale/acls.json`](../tailscale/acls.json).
+
+```bash
+op item create --vault tuist-k8s-<env> --category "API Credential" --title TAILSCALE_DEVICE_REAPER \
+  "client-id[text]=..." "client-secret[password]=tskey-client-..."
+```
+
+Both field labels are load-bearing: the ExternalSecret reads `TAILSCALE_DEVICE_REAPER/client-id` and `/client-secret` by label.
+
+**Then set `tailscaleDeviceReaper.tags` in the env's values file to the same two tags.** This is not redundant with the client scope, and it is not optional — the job refuses to start without it. All envs share one tailnet and the devices listing returns every device on it regardless of how the credential is scoped, so the tag list is what stops this env's reaper walking another env's devices and dying on the first 403. The client scope is the second, independent guard: if the two ever disagree, the credential is what prevents a bug in the predicate from deleting someone else's fleet.
+
+`tag:tuist-mgmt` is swept by no reaper, deliberately. It covers a single long-lived device that has never produced a duplicate, and reaping the mgmt cluster's tailnet identity is the one deletion that could cost you the access you would need to undo it.
+
+Each env ships with `dryRun: true`. Read one run's logs in Grafana Cloud, confirm the list is what you expect, then set `tailscaleDeviceReaper.dryRun: false` in that env's values file to arm it. A run that reports `0 of 0 in-scope device(s)` is the signature of a mistyped tag, not of a clean tailnet — the log line reports in-scope and tailnet-wide counts separately so the two are distinguishable.
 
 ## 6. First deploy
 
@@ -275,7 +301,7 @@ Each preview's `KuraInstance` is rendered by the Helm chart into that same `kura
 
 Cleanup is self-healing. Deleting the `KuraInstance` makes the controller garbage-collect the StatefulSet, PVC, Service, Ingress, and Certificate it created in the `kura` namespace (all owned by the CR, and the StatefulSet's volume-claim retention is `WhenDeleted: Delete`, so no PVC leaks). Because that CR lives outside the preview namespace, it is additionally owned by the preview namespace itself: deleting the namespace garbage-collects the CR even if a teardown path never runs its explicit delete. So a preview leaves nothing behind whether it is torn down by `helm uninstall`, by the janitor's namespace delete, or by a half-finished run of either. Requests enter through `/preview` in Slack or through manual workflow dispatch, are audited in `tuist-ops`, and are reconciled by `.github/workflows/preview-deploy.yml`; cleanup is handled inside the cluster by `preview-janitor`, with `.github/workflows/preview-sweep.yml` kept as the external Helm-aware backstop.
 
-Previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks each account's Kura endpoint up through a `kura_servers` row. The deploy workflow runs the regular development seed with preview-sized counts, uses the seeded `tuist` organization, refreshes the `tuistrocks@tuist.dev` test user's password, and wires that organization to the preview `KuraInstance`, so the preview is Kura-ready out of the box. The login page shows the test-user sign-in button in preview environments. Seeding is idempotent and is also what `mise run helm:preview-up` does locally.
+Previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks each account's Kura endpoint up through a `kura_servers` row. The deploy workflow runs the regular development seed with preview-sized counts, uses the seeded `tuist` organization, and wires that organization to the preview `KuraInstance`, so the preview is Kura-ready out of the box. The login page shows the test-user sign-in button in preview environments. Seeding is idempotent and is also what `mise run helm:preview-up` does locally.
 
 ### 8.1 Wildcard domain record and certificate
 
@@ -385,7 +411,57 @@ gh workflow run preview-deploy.yml -f commit_sha=abc1234567890... -f ttl_hours=4
 
 The hourly `preview-sweep.yml` workflow gets the first cleanup chance and is the path that runs `helm uninstall`. The platform chart's `preview-janitor` CronJob follows at minute 20 and deletes expired preview `KuraInstance` resources and namespaces if the external sweep did not finish the cleanup.
 
-## 9. Teardown
+## 9. Dedicated pentest cluster
+
+`tuist-pentest` is a separate workload cluster for an authorized security
+assessment. It uses the existing `tuist-workloads` Hetzner project, not a new
+Hetzner project, but does not share Kubernetes resources or Kura credentials
+with any other environment. Its topology is three control-plane nodes, two
+general workers, and one tainted Kura worker. It deliberately contains no
+runner or Mac worker pools.
+
+Before applying `cluster-pentest.yaml`, create a `tuist-k8s-pentest`
+1Password vault with the pentest-only `TUIST_LICENSE_KEY` and a service-account
+token scoped only to that vault. Keep the service-account item identifier out
+of the repository, then bootstrap the cluster with:
+
+```bash
+PENTEST_OP_TOKEN_ID=<private-service-account-item-id> \
+  mise run k8s:bootstrap-workload tuist-pentest pentest
+```
+
+Use the standard deployment credential process with the application namespace
+set to `tuist-pentest`, then put the generated kubeconfig in the `server-k8s-pentest` GitHub
+Environment. That Environment also needs `PENTEST_USER_EMAIL` and
+`PENTEST_USER_PASSWORD`; these are used once to create the assessment account.
+
+After bootstrap, run the **Pentest Platform Reconcile** workflow with an
+immutable Kura controller image tag. It installs the cluster platform and the
+cluster-local Kura controller with the certificate issuer required for
+`kura-pentest.tuist.dev`. The controller's source credentials stay in the
+pentest cluster; the application deployment copies only the two introspection
+keys into `tuist-pentest`.
+
+Deploy through **Pentest Deployment** with an `expires_at` timestamp. The
+scheduled cleanup removes the application namespace and its Kura instance
+after that time. Extending an engagement means re-deploying with a later
+timestamp.
+
+When the engagement ends, first remove
+`infra/k8s/clusters/cluster-pentest.yaml` in a reviewed change and merge it.
+Then run **Pentest Cluster Retirement** from `main`, typing
+`retire-tuist-pentest` as its confirmation. The workflow uses the protected
+management-cluster environment to delete the workload `Cluster` resource and
+wait for its managed infrastructure to disappear. Removing the source manifest
+first prevents a later management-cluster reconciliation from recreating it.
+Cluster retirement is deliberately manual because it permanently removes the
+control plane and any remaining persistent volumes.
+
+## 10. Teardown
+
+For `tuist-pentest`, use the **Pentest Cluster Retirement** workflow described
+above instead of the command below. It verifies that the source manifest is no
+longer on `main` before deleting the `Cluster` resource.
 
 ```bash
 KUBECONFIG=~/.kube/tuist-mgmt.yaml kubectl -n org-tuist delete cluster <cluster_name>

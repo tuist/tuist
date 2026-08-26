@@ -1,28 +1,33 @@
 package scaling
 
 // PoolDemand is one pool's input to the fleet-capacity allocation.
-// All pools in a single AllocateFleet call share one capacity
-// budget (the contention domain): for Linux that's the schedulable
-// memory across a bare-metal node pool, for macOS the number of
-// available host slots (1 VM per Mac mini).
+// All pools in a single AllocateFleet call share one capacity budget
+// (the contention domain): the schedulable memory across the fleet's
+// nodes, for both Linux bare metal and macOS Mac minis.
 type PoolDemand struct {
 	Name string
 
 	// PerPodCost is what one Pod consumes from the shared budget,
-	// in the same unit as `fleetCapacity`:
-	//   - Linux: per-Pod memory request in bytes (kata microVMs
-	//     pin memory per sandbox; CPU is deliberately
-	//     oversubscribed, so memory is the only bin-packed
-	//     dimension).
-	//   - macOS: always 1 (one Mac mini = one slot = one VM,
-	//     per Apple's Virtualization.framework SLA).
+	// in the same unit as `fleetCapacity` — per-Pod memory request
+	// in bytes on both platforms, because memory is the only
+	// bin-packed dimension on either:
+	//   - Linux: kata microVMs pin memory per sandbox; CPU is
+	//     deliberately oversubscribed. Includes RuntimeClass
+	//     overhead, which is charged at admission.
+	//   - macOS: tart-kubelet advertises the host's usable RAM and
+	//     the guest is sized from the Pod's request, so the
+	//     quotient is how many Tart guests the host admits. Apple's
+	//     Virtualization.framework SLA caps that at 2 regardless,
+	//     and Tart enforces it.
 	PerPodCost int64
 
 	// Floor is `minWarmPoolFloor` — the always-on warm guarantee.
 	Floor int32
 
-	// Load is `occupied + queued` — Pods holding capacity (including
-	// post-job cache and teardown work) plus work waiting for a Pod.
+	// Load is `Signals.Load()` — Pods holding capacity (including
+	// post-job cache and teardown work), plus work waiting for a Pod,
+	// plus one Pod when the pool has queued work that is real but
+	// currently undispatchable (see Signals.BlockedDemand).
 	Load int32
 
 	// Target is the per-pool `DesiredReplicas` output: the full ask
@@ -34,10 +39,13 @@ type PoolDemand struct {
 // AllocateFleet distributes `fleetCapacity` across pools sharing a
 // capacity domain, in three priority tiers:
 //
-//  1. Load — `occupied + queued`, the capacity held by live runner Pods
-//     plus work waiting for one. Genuine demand; granted in full even
+//  1. Load — the capacity held by live runner Pods, plus work waiting for
+//     one, plus one Pod for work that is queued but currently blocked on
+//     an account's concurrency limit. Genuine demand; granted in full even
 //     when it exceeds capacity (the excess goes Pending, the operator's
-//     "add a host" signal).
+//     "add a host" signal). Admitting blocked demand here is what keeps a
+//     pool whose work is temporarily unservable from being classified as
+//     idle and starved of a Pod forever on a saturated fleet.
 //  2. Floor — `minWarmPoolFloor` above load: the speculative warm
 //     guarantee that keeps the next spike off cold-start. Idle warm Pods.
 //  3. Headroom — the p95 warm buffer (`Target` above floor+load). Also
@@ -60,7 +68,7 @@ type PoolDemand struct {
 // proportionally to requested cost and all lower tiers get nothing.
 // Result per pool is in `[load_i, Target_i]`. The algorithm is
 // unit-agnostic: `fleetCapacity` and `PerPodCost` just need to be in
-// the same unit (memory bytes for Linux, host slots for macOS).
+// the same unit (allocatable memory bytes on both platforms today).
 func AllocateFleet(pools []PoolDemand, fleetCapacity int64) map[string]int32 {
 	out := make(map[string]int32, len(pools))
 

@@ -101,13 +101,9 @@ jobs:
           ls -lh /tmp/release.tar.gz
 
       # Log in BEFORE Packer build so Tart's clone of the
-      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
-      # authenticates. crane writes creds to ~/.docker/config.json,
-      # which Tart reads via the Docker credential-helper protocol
-      # for both the pull (this build's clone of the base) and the
-      # push at the end of the job. See runner-image.yml's matching
-      # step for the long explanation of why we use crane instead
-      # of `tart login`.
+      # macos-tahoe-xcode base authenticates. The registry is
+      # tailnet-only and every image on it needs a credential, for
+      # reads as well as writes.
       - name: Log in to GHCR (crane)
         run: |
           set -euo pipefail

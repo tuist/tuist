@@ -7,6 +7,7 @@ defmodule TuistWeb.TestCaseLive do
   import TuistWeb.Helpers.FailureMessage
   import TuistWeb.Helpers.TestLabels
   import TuistWeb.Helpers.VCSLinks
+  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -15,6 +16,7 @@ defmodule TuistWeb.TestCaseLive do
   alias Tuist.Tests.Analytics
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -80,6 +82,153 @@ defmodule TuistWeb.TestCaseLive do
       </.tooltip>
     </div>
     """
+  end
+
+  defp period_seconds(start_datetime, end_datetime) do
+    DateTime.diff(end_datetime, start_datetime, :second)
+  end
+
+  defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_tests", "since yesterday")
+  defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_tests", "since last week")
+  defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_tests", "since last year")
+  defp analytics_trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
+  defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
+
+  # The flakiness rate is the analytics' own flaky count over its own total, so
+  # the widget and its trend read one pass over one set of runs.
+  defp flakiness_rate(%{total_count: 0}), do: 0.0
+
+  defp flakiness_rate(%{flaky_count: flaky_count, total_count: total_count}) do
+    Float.round(flaky_count / total_count * 100, 1)
+  end
+
+  # A run can be failed and flaky and quarantined at once, and the bar files it
+  # under one of those. The widget counts the same way, so selecting Failed
+  # cannot report runs the chart draws in another segment.
+  defp runs_count(analytics, "failed"), do: analytics.outcome_counts.failed
+  defp runs_count(analytics, "flaky"), do: analytics.outcome_counts.flaky
+  defp runs_count(analytics, _total), do: analytics.total_count
+
+  defp duration(analytics, "p99"), do: analytics.p99_duration
+  defp duration(analytics, "p90"), do: analytics.p90_duration
+  defp duration(analytics, "p50"), do: analytics.p50_duration
+  defp duration(analytics, _avg), do: analytics.avg_duration
+
+  # `Analytics.trend/1` reports 0.0 when either side is zero, which on this page
+  # would tell a test case that only started running this week that nothing
+  # changed since last week. A window with no runs is not a baseline, so the
+  # widget shows no badge rather than a change of nothing.
+  defp trend(%{total_count: 0}, _previous, _current), do: nil
+
+  defp trend(_previous_analytics, previous, current) do
+    Analytics.trend(previous_value: previous, current_value: current)
+  end
+
+  # A period the test case never ran in has a chart's worth of empty buckets and
+  # nothing to draw, so the card offers an empty state instead of a flat line.
+  defp charted?(%{run_counts: run_counts}), do: Enum.any?(run_counts, &(&1 > 0))
+
+  defp chart_points(dates, values) do
+    dates
+    |> Enum.zip(values)
+    |> Enum.map(&Tuple.to_list/1)
+  end
+
+  # Rates are bounded, so their axis is pinned to 0-100 rather than scaled to the
+  # data: a test that sat between 98% and 100% all month should read as flat, not
+  # as a cliff.
+  defp selected_chart("flakiness_rate", series) do
+    %{
+      values: series.flakiness_rates,
+      name: dgettext("dashboard_tests", "Flakiness rate"),
+      color: "var:noora-chart-flaky",
+      formatter: "{value}%",
+      y_axis: %{max: 100}
+    }
+  end
+
+  defp selected_chart(_reliability, series) do
+    %{
+      values: series.reliability_rates,
+      name: dgettext("dashboard_tests", "Test reliability"),
+      color: "var:noora-chart-tertiary",
+      formatter: "{value}%",
+      y_axis: %{max: 100}
+    }
+  end
+
+  # One bar per bucket, split by how those runs came out. The segments are
+  # mutually exclusive and sum to the run count, so the bar's height is the
+  # number the widget above it shows. A segment that is zero across the whole
+  # window is dropped rather than drawn: an empty "Quarantined" entry in the
+  # legend of a test that was never quarantined is noise.
+  #
+  # The corner radius caps the bar, not each segment of it, so it goes on the
+  # topmost segment that actually has runs in that bucket. Which segment that is
+  # varies bar to bar: a day with no flaky runs is capped by its failures.
+  defp run_segments(series) do
+    segments =
+      series
+      |> run_outcomes()
+      |> Enum.filter(&Enum.any?(&1.data, fn count -> count > 0 end))
+
+    caps =
+      segments
+      |> Enum.map(& &1.data)
+      |> Enum.zip_with(fn counts ->
+        counts
+        |> Enum.with_index()
+        |> Enum.filter(fn {count, _index} -> count > 0 end)
+        |> List.last()
+        |> case do
+          nil -> nil
+          {_count, index} -> index
+        end
+      end)
+
+    segments
+    |> Enum.with_index()
+    |> Enum.map(fn {segment, index} ->
+      data =
+        segment.data
+        |> Enum.zip(caps)
+        |> Enum.map(fn
+          {count, ^index} -> %{value: count, itemStyle: %{borderRadius: [2, 2, 0, 0]}}
+          {count, _cap} -> count
+        end)
+
+      %{segment | data: data}
+    end)
+  end
+
+  defp run_outcomes(series) do
+    [
+      %{
+        data: series.successful_counts,
+        name: dgettext("dashboard_tests", "Successful"),
+        color: "var:noora-chart-tertiary"
+      },
+      %{
+        data: series.failed_counts,
+        name: dgettext("dashboard_tests", "Failed"),
+        color: "var:noora-chart-destructive"
+      },
+      %{
+        data: series.flaky_counts,
+        name: dgettext("dashboard_tests", "Flaky"),
+        color: "var:noora-chart-flaky"
+      },
+      %{
+        data: series.quarantined_counts,
+        name: dgettext("dashboard_tests", "Quarantined"),
+        color: "var:noora-chart-quaternary"
+      },
+      %{
+        data: series.skipped_counts,
+        name: dgettext("dashboard_tests", "Skipped"),
+        color: "var:noora-chart-legend-secondary"
+      }
+    ]
   end
 
   defp define_filters(project) do
@@ -153,7 +302,7 @@ defmodule TuistWeb.TestCaseLive do
       socket
       |> assign(:uri, uri)
       |> assign(:selected_tab, selected_tab)
-      |> assign_analytics()
+      |> assign_analytics(params)
       |> assign_test_case_runs(params)
       |> assign_history_tab(selected_tab)
       |> assign_overview_history()
@@ -225,6 +374,27 @@ defmodule TuistWeb.TestCaseLive do
       )
 
     {:noreply, socket}
+  end
+
+  def handle_event(
+        "analytics_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_account: account, selected_project: project, test_case_id: test_case_id, uri: uri}} = socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        uri.query
+        |> Query.put("analytics-date-range", "custom")
+        |> Query.put("analytics-start-date", start_date)
+        |> Query.put("analytics-end-date", end_date)
+      else
+        Query.put(uri.query, "analytics-date-range", preset)
+      end
+
+    {:noreply,
+     push_patch(socket,
+       to: "/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?#{query_params}"
+     )}
   end
 
   def handle_event(
@@ -330,11 +500,57 @@ defmodule TuistWeb.TestCaseLive do
      |> assign(:history_page, next_page)}
   end
 
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+
+    {:noreply,
+     socket
+     |> assign(:analytics_selected_widget, widget)
+     |> assign(:uri, URI.new!("?" <> query))
+     |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
+  # The bar already draws every outcome, so this only picks which of them the
+  # widget counts, and the URL so the choice survives a reload.
+  def handle_event("select_runs_type", %{"type" => type}, socket) when type in ["total", "failed", "flaky"] do
+    query =
+      socket.assigns.uri.query
+      |> Query.put("runs-type", type)
+      |> Query.put("analytics-selected-widget", "test_case_runs")
+
+    {:noreply,
+     socket
+     |> assign(:selected_runs_type, type)
+     |> assign(:analytics_selected_widget, "test_case_runs")
+     |> assign(:uri, URI.new!("?" <> query))
+     |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
+  # Every series is already loaded, so both of these only change which one the
+  # card draws, plus the URL so the choice survives a reload. Picking a
+  # statistic also selects the duration chart: choosing p90 while looking at the
+  # run count would otherwise change a number off screen.
+  def handle_event("select_duration_type", %{"type" => type}, socket) do
+    query =
+      socket.assigns.uri.query
+      |> Query.put("duration-type", type)
+      |> Query.put("analytics-selected-widget", "duration")
+
+    {:noreply,
+     socket
+     |> assign(:selected_duration_type, type)
+     |> assign(:analytics_selected_widget, "duration")
+     |> assign(:uri, URI.new!("?" <> query))
+     |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
   def handle_info({:test_created, %{name: "test"}}, socket) do
+    params = URI.decode_query(socket.assigns.uri.query)
+
     socket =
       socket
-      |> assign_analytics()
-      |> assign_test_case_runs(URI.decode_query(socket.assigns.uri.query))
+      |> assign_analytics(params)
+      |> assign_test_case_runs(params)
 
     {:noreply, socket}
   end
@@ -356,25 +572,81 @@ defmodule TuistWeb.TestCaseLive do
     {:noreply, socket}
   end
 
-  defp assign_analytics(
-         %{assigns: %{selected_project: project, test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
-       ) do
+  defp assign_analytics(%{assigns: %{selected_project: project, test_case_id: test_case_id}} = socket, params) do
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "analytics")
+
+    # Relative presets run up to now, so they take no upper bound: the picker
+    # truncates now down to the second, which would drop runs ingested during it.
+    opts =
+      if preset == "custom" do
+        [start_datetime: start_datetime, end_datetime: end_datetime]
+      else
+        [start_datetime: start_datetime]
+      end
+
+    # The window before this one, of the same length, is what every trend on the
+    # card compares against. A relative preset runs up to now, so its length is
+    # measured to now rather than to the bound it does not carry.
+    #
+    # It ends a microsecond before the current window opens, not on the same
+    # instant: `ran_at` is a DateTime64(6) and the period filter is inclusive at
+    # both ends, so sharing the boundary would count a run landing exactly on it
+    # in both windows and flatten every trend it touches.
+    previous_opts = [
+      start_datetime: DateTime.add(start_datetime, -period_seconds(start_datetime, end_datetime), :second),
+      end_datetime: DateTime.add(start_datetime, -1, :microsecond)
+    ]
+
     socket
-    |> assign_async(:reliability, fn ->
-      {:ok, %{reliability: Analytics.test_case_reliability_by_id(project.id, test_case_id, project.default_branch)}}
+    |> assign(:analytics_preset, preset)
+    |> assign(:analytics_period, period)
+    |> assign(:selected_duration_type, params["duration-type"] || "avg")
+    |> assign(:analytics_selected_widget, params["analytics-selected-widget"] || "test_case_runs")
+    |> assign(:selected_runs_type, params["runs-type"] || "total")
+    |> assign(:analytics_trend_label, analytics_trend_label(preset))
+    |> assign_async([:reliability, :previous_reliability], fn ->
+      {:ok,
+       %{
+         reliability: Analytics.test_case_reliability_by_id(project.id, test_case_id, project.default_branch, opts),
+         previous_reliability:
+           Analytics.test_case_reliability_by_id(
+             project.id,
+             test_case_id,
+             project.default_branch,
+             previous_opts
+           )
+       }}
     end)
-    |> assign_async(:analytics, fn ->
-      {:ok, %{analytics: Analytics.test_case_analytics_by_id(project.id, test_case_id)}}
+    |> assign_async([:analytics, :previous_analytics], fn ->
+      {:ok,
+       %{
+         analytics: Analytics.test_case_analytics_by_id(project.id, test_case_id, opts),
+         previous_analytics: Analytics.test_case_analytics_by_id(project.id, test_case_id, previous_opts)
+       }}
     end)
-    |> assign_async([:flakiness_rate, :flaky_runs_grouped, :flaky_runs_meta], fn ->
-      {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case_id)
+    |> assign_async(:series, fn ->
+      run_series = Analytics.test_case_run_series_by_id(project.id, test_case_id, opts)
 
       {:ok,
        %{
-         flakiness_rate: Analytics.get_test_case_flakiness_rate(test_case_detail),
-         flaky_runs_grouped: flaky_runs_grouped,
-         flaky_runs_meta: flaky_runs_meta
+         series:
+           Map.merge(run_series, %{
+             reliability_rates:
+               Analytics.test_case_reliability_series_by_id(
+                 project.id,
+                 test_case_id,
+                 project.default_branch,
+                 opts
+               ).values,
+             duration: Analytics.test_case_duration_series_by_id(project.id, test_case_id, opts)
+           })
        }}
+    end)
+    |> assign_async([:flaky_runs_grouped, :flaky_runs_meta], fn ->
+      {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case_id)
+
+      {:ok, %{flaky_runs_grouped: flaky_runs_grouped, flaky_runs_meta: flaky_runs_meta}}
     end)
   end
 

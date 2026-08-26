@@ -144,6 +144,7 @@ defmodule Tuist.MCP.Components.Tools.SearchTuistCode do
   use Tuist.MCP.Tool,
     name: "search_tuist_code",
     title: "Search Tuist Code",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{
@@ -212,6 +213,7 @@ defmodule Tuist.MCP.Components.Tools.ListTuistFiles do
   use Tuist.MCP.Tool,
     name: "list_tuist_files",
     title: "List Tuist Files",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{
@@ -263,6 +265,7 @@ defmodule Tuist.MCP.Components.Tools.ReadTuistFile do
   use Tuist.MCP.Tool,
     name: "read_tuist_file",
     title: "Read Tuist File",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{

@@ -61,6 +61,7 @@ enum ManifestLoader {
     }
 
     static func dumpPackage(packageDir: URL, disableSandbox: Bool) async throws -> Any {
+        try await requireManifest(packageDir: packageDir)
         do {
             let data = try await loadPackageJSON(
                 packageDir: packageDir, disableSandbox: disableSandbox
@@ -72,12 +73,29 @@ enum ManifestLoader {
     }
 
     static func dumpPackageJSON(packageDir: URL, disableSandbox: Bool) async throws -> Data {
+        try await requireManifest(packageDir: packageDir)
         do {
             return try await loadPackageJSON(
                 packageDir: packageDir, disableSandbox: disableSandbox
             )
         } catch {
             throw await dumpFailure(packageDir: packageDir, underlying: error)
+        }
+    }
+
+    /// `swift package dump-package` resolves the package root by walking up from its working
+    /// directory, and `--package-path` walks up as well, so a directory that holds no manifest
+    /// does not fail the dump: it produces the nearest ancestor package instead, which swifterpm
+    /// would then cache and resolve under the identity of the package the caller asked for. A
+    /// checkout that lives inside another Swift package is enough to turn a broken local
+    /// dependency into a silently wrong graph, so refuse the dump before it starts.
+    ///
+    /// Only the directory-exists-without-a-manifest case is decided here. A directory that is
+    /// absent or unreadable cannot adopt an ancestor either way, and letting the subprocess fail
+    /// keeps the diagnosis of those states in `dumpFailure`, next to the error they produce.
+    private static func requireManifest(packageDir: URL) async throws {
+        if case .absent = await manifestPresence(packageDir: packageDir) {
+            throw ToolError.message("no Package.swift in \(packageDir.path)")
         }
     }
 
@@ -206,6 +224,17 @@ enum ManifestFileSystemDependencyGraph {
                 parentPackageDir: item.parentPackageDir,
                 dependency: item.dependency
             )
+            // Resolving symlinks identifies the package, so two declared paths reaching the
+            // same directory are visited once and a cycle through a link terminates. It must
+            // not choose where the dump runs: SwiftPM loads a local dependency at the path the
+            // manifest declared, and reports it that way in `dump-package` output and in
+            // `workspace-state.json`, so dumping the resolved directory instead makes
+            // swifterpm disagree with SwiftPM about where a package lives. A declared path
+            // that is a symlink then dumps whatever its target resolves to, which is a package
+            // nobody declared when the link leaves the package's own directory: the dump either
+            // fails against a directory the manifest never named, or succeeds against the wrong
+            // manifest. `chdir` follows the link on its own, so the declared path reaches the
+            // same package without the substitution.
             let canonicalPath = PathCanonicalizer.realpath(packagePath)
             guard seenPackagePaths.insert(canonicalPath.path).inserted else {
                 continue
@@ -214,14 +243,15 @@ enum ManifestFileSystemDependencyGraph {
             let manifest: Any
             do {
                 manifest = try await ManifestLoader.dumpPackage(
-                    packageDir: canonicalPath,
+                    packageDir: packagePath,
                     disableSandbox: disableSandbox
                 )
             } catch {
                 throw ToolError.message(
                     """
                     failed to load the manifest for the local package \
-                    \(item.dependency.identity), declared as "\(item.dependency.path)" by \
+                    \(item.dependency.identity), declared as "\(item.dependency.path)"\
+                    \(redirect(declared: item.dependency.path, canonical: canonicalPath)) by \
                     \(item.parentPackageDir.path): \(error)
                     """
                 )
@@ -229,16 +259,29 @@ enum ManifestFileSystemDependencyGraph {
             result.append(
                 ManifestFileSystemPackage(
                     dependency: item.dependency,
-                    packagePath: canonicalPath,
+                    packagePath: packagePath,
                     manifest: manifest
                 )
             )
+            // A child's own path is resolved against the parent's real directory, not its
+            // declared one: `packagePathForFileSystemDependency` folds `..` textually, which
+            // only matches the directory `chdir` would reach when no link was crossed on the
+            // way in. SwiftPM emits these paths absolute, so this is the defensive branch.
             for child in try ManifestParser.fileSystemDependencies(manifest) {
                 queue.append((parentPackageDir: canonicalPath, dependency: child))
             }
         }
 
         return result
+    }
+
+    /// The failure above names the declared path, because that is where the dump ran. When a
+    /// link on the way in sends that path somewhere else, the directory it lands in is the
+    /// whole diagnosis and nothing else in the message carries it: a manifest missing from the
+    /// declared path reads as a package that was never generated until you can see that the
+    /// path resolves out of the package's own directory.
+    private static func redirect(declared: String, canonical: URL) -> String {
+        canonical.path == declared ? "" : ", which resolves to \(canonical.path),"
     }
 
     static func packagePathForFileSystemDependency(

@@ -55,6 +55,13 @@ Describe 'warm rollout lifecycle'
     liveness_status="$(status_only "${KURA_US_URL}/up")"
     The variable liveness_status should eq 200
 
+    capture_into liveness_body curl -sS "${KURA_US_URL}/up" || return 1
+    The variable liveness_body should include '"status":"ok"'
+    The variable liveness_body should not include '"ring_members"'
+
+    capture_into liveness_cluster_body curl -sS "${KURA_US_URL}/status/cluster" || return 1
+    The variable liveness_cluster_body should include '"ring_members"'
+
     capture_into draining_headers \
       sh -lc "curl -sS --http1.1 -D - -o /dev/null '${KURA_US_URL}/api/cache/cas/warm-rollout-artifact?tenant_id=acme&namespace_id=ios' | tr '[:upper:]' '[:lower:]'" || return 1
     The variable draining_headers should include 'http/1.1 503 service unavailable'
@@ -102,12 +109,12 @@ Describe 'warm rollout lifecycle'
   End
 End
 
-# The 2026-07-24 incident class: under legacy bootstrap, a peer flap or a
-# recovery re-enrollment after a node became Ready cleared its serving state
-# and re-gated readiness, which let a readiness-gated rolling update kill a
-# just-Ready pod mid-catch-up. Under KURA_BACKFILL_ENABLED readiness LATCHES
-# for the process lifetime: nothing on the backfill path may take a node out
-# of rotation once it served, so this suite flaps the only peer and asserts
+# The 2026-07-24 incident class: under the retired bootstrap walker, a peer
+# flap or a recovery re-enrollment after a node became Ready cleared its
+# serving state and re-gated readiness, which let a readiness-gated rolling
+# update kill a just-Ready pod mid-catch-up. Readiness now LATCHES for the
+# process lifetime: nothing on the backfill path may take a node out of
+# rotation once it served, so this suite flaps the only peer and asserts
 # /ready never regresses through loss, rediscovery, and the rejoin pass.
 Describe 'backfill readiness latch survives peer flaps'
   Include spec/e2e/support.sh

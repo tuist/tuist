@@ -19,7 +19,7 @@ defmodule TuistWeb.ProjectsLive do
     selected_account = socket.assigns[:selected_account]
     current_user = socket.assigns[:current_user]
 
-    if Authorization.authorize(:projects_read, current_user, selected_account) != :ok do
+    if Authorization.authorize(:account_dashboard_read, current_user, selected_account) != :ok do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_projects", "The page you are looking for doesn't exist or has been moved.")
     end
@@ -29,6 +29,14 @@ defmodule TuistWeb.ProjectsLive do
     {:ok,
      socket
      |> assign(:form, form)
+     |> assign(
+       :visible_project_opts,
+       visible_project_opts(current_user, selected_account)
+     )
+     |> assign(
+       :can_create_project?,
+       Authorization.authorize(:project_create, current_user, selected_account) == :ok
+     )
      |> assign(:selected_build_system, "xcode")
      |> assign(:head_title, "#{dgettext("dashboard_projects", "Projects")} · #{selected_account.name} · Tuist")
      |> assign(:pagination_threshold, @pagination_threshold)}
@@ -41,7 +49,9 @@ defmodule TuistWeb.ProjectsLive do
     uri = %{uri | query: URI.encode_query(params)}
 
     selected_account = socket.assigns[:selected_account]
-    total_project_count = Projects.get_project_count_for_account(selected_account)
+
+    total_project_count =
+      Projects.get_project_count_for_account(selected_account, socket.assigns.visible_project_opts)
 
     {:noreply,
      socket
@@ -54,7 +64,9 @@ defmodule TuistWeb.ProjectsLive do
 
   defp assign_projects(socket, _params, total_project_count) when total_project_count <= @pagination_threshold do
     selected_account = socket.assigns[:selected_account]
-    all_project_accounts = Projects.get_all_project_accounts(selected_account)
+
+    all_project_accounts =
+      Projects.get_all_project_accounts(selected_account, socket.assigns.visible_project_opts)
 
     all_projects_with_interaction =
       all_project_accounts
@@ -69,12 +81,23 @@ defmodule TuistWeb.ProjectsLive do
 
   defp assign_projects(socket, params, _total_project_count) do
     selected_account = socket.assigns[:selected_account]
-    recent_projects = Projects.get_recent_projects_for_account(selected_account)
+    visible_project_opts = socket.assigns.visible_project_opts
+
+    recent_projects =
+      Projects.get_recent_projects_for_account(selected_account, 3, visible_project_opts)
 
     # Build Flop options for pagination and search
-    flop_filters = [
-      %{field: :account_id, op: :==, value: selected_account.id}
-    ]
+    flop_filters =
+      case Keyword.get(visible_project_opts, :visibility) do
+        nil ->
+          [%{field: :account_id, op: :==, value: selected_account.id}]
+
+        visibility ->
+          [
+            %{field: :account_id, op: :==, value: selected_account.id},
+            %{field: :visibility, op: :==, value: visibility}
+          ]
+      end
 
     # Add search filter if present
     flop_filters =
@@ -128,6 +151,7 @@ defmodule TuistWeb.ProjectsLive do
       <div data-part="row">
         <h2 data-part="title">{dgettext("dashboard_projects", "Projects")}</h2>
         <.create_project_form
+          :if={@can_create_project?}
           id="create-project-form"
           form={@form}
           source="header"
@@ -140,6 +164,7 @@ defmodule TuistWeb.ProjectsLive do
         <div data-part="grid">
           <div :if={Enum.empty?(@all_projects)} data-part="empty-state">
             <.create_project_form
+              :if={@can_create_project?}
               id="create-project-form-empty-state"
               form={@form}
               source="empty-state"
@@ -240,8 +265,8 @@ defmodule TuistWeb.ProjectsLive do
             </div>
           </div>
         </div>
-        
-    <!-- All projects section -->
+
+        <!-- All projects section -->
         <div data-part="all-section">
           <h3 data-part="section-title">{dgettext("dashboard_projects", "All projects")}</h3>
           <.form
@@ -263,6 +288,7 @@ defmodule TuistWeb.ProjectsLive do
           <div data-part="grid">
             <div :if={Enum.empty?(@all_projects)} data-part="empty-state">
               <.create_project_form
+                :if={@can_create_project?}
                 id="create-project-form-empty-state"
                 form={@form}
                 source="empty-state"
@@ -463,6 +489,10 @@ defmodule TuistWeb.ProjectsLive do
     else
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset))}
+
+      {:error, :forbidden} ->
+        raise TuistWeb.Errors.UnauthorizedError,
+              dgettext("dashboard_projects", "You are not authorized to perform this action.")
     end
   end
 
@@ -529,5 +559,15 @@ defmodule TuistWeb.ProjectsLive do
       </defs>
     </svg>
     """
+  end
+
+  # Signed-out visitors on a public account see the account's public
+  # projects only; private project names stay hidden.
+  defp visible_project_opts(current_user, account) do
+    if Authorization.authorize(:projects_read, current_user, account) == :ok do
+      []
+    else
+      [visibility: :public]
+    end
   end
 end

@@ -153,7 +153,12 @@
 			// agent and volume manager, shipped by
 			// infra/macos-log-shipper) cannot be tailed from the cluster
 			// at all, because a Pod on a macOS Node IS a VM.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
+			// :443   the OCI registry holding the VM images. The
+			//        builders clone their base and push finished
+			//        images over this; without it the image
+			//        workflows lose their registry the moment the
+			//        catch-all grant above is removed.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
 		},
 		{
 			"src": ["tag:tuist-macmini-canary"],
@@ -166,7 +171,12 @@
 			// agent and volume manager, shipped by
 			// infra/macos-log-shipper) cannot be tailed from the cluster
 			// at all, because a Pod on a macOS Node IS a VM.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
+			// :443   the OCI registry holding the VM images. The
+			//        builders clone their base and push finished
+			//        images over this; without it the image
+			//        workflows lose their registry the moment the
+			//        catch-all grant above is removed.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
 		},
 		{
 			"src": ["tag:tuist-macmini-production"],
@@ -179,7 +189,12 @@
 			// agent and volume manager, shipped by
 			// infra/macos-log-shipper) cannot be tailed from the cluster
 			// at all, because a Pod on a macOS Node IS a VM.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
+			// :443   the OCI registry holding the VM images. The
+			//        builders clone their base and push finished
+			//        images over this; without it the image
+			//        workflows lose their registry the moment the
+			//        catch-all grant above is removed.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
 		},
 
 		// Staging Mac mini fleet → the staging cluster's Service CIDR,

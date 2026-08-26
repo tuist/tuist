@@ -1,26 +1,26 @@
 # Vulnerabilities ignored by Trivy. Each entry must carry a reason.
-# Revisit when the upstream tool ships a fix and bump the pinned version
-# in server/Dockerfile to drop the entry.
+# Revisit whenever the scan turns red: drop entries whose fixed package has
+# landed in the Debian suite the runner image tracks (bookworm-security).
 
-# CVE-2026-33186 (CRITICAL): google.golang.org/grpc/authz authorization
-# bypass via improper HTTP/2 path validation. Bundled by helm v3.20.2
-# (grpc v1.72.2). Helm v4.1.4 still bundles grpc v1.78.0; the fix is
-# in grpc v1.79.3 which no helm release ships yet. The vulnerability
-# is in the gRPC server-side authz package; helm uses gRPC as a client
-# to talk to its plugin system and never serves authz-gated gRPC
-# traffic, so the practical exposure is zero. Drop this entry once a
-# helm release bundling grpc >= 1.79.3 lands and Dockerfile is bumped.
-CVE-2026-33186
-
-# The following Common Vulnerabilities and Exposures (CVEs) are high-severity
-# Chromium vulnerabilities fixed in 151.0.7922.47-1. The server runtime uses
-# Debian Bookworm's multi-architecture base image, whose current security
-# repository provides 150.0.7871.181-1~deb12u1. Debian Unstable has the fixed
-# package, but installing it on Bookworm would replace hundreds of core
-# packages, including the core C library and systemd. Keep the supported stable
-# image and remove these entries as soon as Debian backports the fixed Chromium
-# version to Bookworm security. https://www.cve.org/
-CVE-2026-16804
-CVE-2026-16805
-CVE-2026-16806
-CVE-2026-16807
+# High-severity Chromium vulnerabilities fixed upstream in 151.0.7922.169.
+# Debian fixed them for bookworm in 151.0.7922.169-1~deb12u1 (DLA-4749-1), but
+# bookworm-security still publishes 151.0.7922.137-1~deb12u1, so `apt-get
+# upgrade` in server/Dockerfile has no patched package to install. Only trixie
+# and unstable carry the fixed build today, and pulling Chromium from either
+# onto bookworm would replace hundreds of core packages including glibc.
+# Chromium is present solely to render Open Graph images. It renders markup the
+# server builds from fixed templates, with only length-validated text
+# interpolated in, and never navigates to a remote page, so the crafted-page
+# vector every one of these CVEs requires is not reachable. Drop these entries
+# once bookworm-security publishes 151.0.7922.169-1~deb12u1.
+CVE-2026-76033
+CVE-2026-76036
+CVE-2026-76037
+CVE-2026-76038
+CVE-2026-76039
+CVE-2026-76040
+CVE-2026-76041
+CVE-2026-76043
+CVE-2026-76044
+CVE-2026-76045
+CVE-2026-76047

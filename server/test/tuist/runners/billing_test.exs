@@ -5,22 +5,40 @@ defmodule Tuist.Runners.BillingTest do
 
   alias Tuist.Repo
   alias Tuist.Runners.Billing
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.RunnerSession
 
+  # Billing measures the job window, not the Pod window. Most cases here
+  # only care about the interval maths, so the job window defaults to the
+  # Pod window; a test that cares about the difference passes
+  # `job_started_at` / `job_ended_at` (or nil) explicitly.
   defp session_fixture(account, attrs) do
+    attrs = Map.new(attrs)
+
+    # Every real session records the machine it ran on, and the billing
+    # aggregates weight elapsed time by that machine's multiplier. The
+    # default here is the macOS baseline, so one elapsed millisecond is
+    # one compute unit and a case that only cares about interval maths
+    # can keep asserting wall-clock figures.
     defaults = %{
       account_id: account.id,
       workflow_job_id: System.unique_integer([:positive]),
       fleet_name: "fleet-a",
+      platform: :macos,
+      vcpus: 6,
+      memory_gb: 14,
+      billing_multiplier: 10_000,
       pod_name: "pod-#{System.unique_integer([:positive])}",
       runner_name: "",
       started_at: nil,
       ended_at: nil,
+      job_started_at: Map.get(attrs, :started_at),
+      job_ended_at: Map.get(attrs, :ended_at),
       inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
       updated_at: DateTime.truncate(DateTime.utc_now(), :second)
     }
 
-    Repo.insert!(struct(RunnerSession, Map.merge(defaults, Map.new(attrs))))
+    Repo.insert!(struct(RunnerSession, Map.merge(defaults, attrs)))
   end
 
   describe "compute_milliseconds/3" do
@@ -59,24 +77,57 @@ defmodule Tuist.Runners.BillingTest do
       assert Billing.compute_milliseconds(account.id, period_start, period_end) == 60 * 60 * 1_000
     end
 
-    test "open sessions clamp to now() when period_end is in the future" do
+    test "bills nothing for a job still in flight" do
       account = account_fixture()
       now = DateTime.utc_now()
       period_start = DateTime.add(now, -1, :day)
       period_end = DateTime.add(now, 30, :day)
 
-      # Session started 5 minutes ago with no ended_at. Billing
-      # bills started_at → now(), not forever.
+      # Pod claimed 5 minutes ago, job still running: no completion
+      # webhook has landed, so there is no evidenced window yet.
       session_fixture(account,
         started_at: DateTime.add(now, -5, :minute),
-        ended_at: nil
+        ended_at: nil,
+        job_started_at: nil,
+        job_ended_at: nil
       )
 
-      result = Billing.compute_milliseconds(account.id, period_start, period_end)
+      assert Billing.compute_milliseconds(account.id, period_start, period_end) == 0
+    end
 
-      # 5 minutes ± a generous tolerance for clock drift between
-      # the fixture insert and the billing query.
-      assert_in_delta result, 5 * 60 * 1_000, 2_000
+    test "bills nothing when the Pod ran but no job window was ever recorded" do
+      account = account_fixture()
+      period_start = ~U[2026-05-01 00:00:00.000000Z]
+      period_end = ~U[2026-05-31 23:59:59.999999Z]
+
+      # A completed Pod whose `workflow_job.completed` webhook never
+      # arrived. The Pod's wall clock is not evidence the customer's
+      # work ran, so it bills nothing rather than falling back to it.
+      session_fixture(account,
+        started_at: ~U[2026-05-10 12:00:00.000000Z],
+        ended_at: ~U[2026-05-10 12:30:00.000000Z],
+        job_started_at: nil,
+        job_ended_at: nil
+      )
+
+      assert Billing.compute_milliseconds(account.id, period_start, period_end) == 0
+    end
+
+    test "bills the job window, not the Pod's boot and teardown around it" do
+      account = account_fixture()
+      period_start = ~U[2026-05-01 00:00:00.000000Z]
+      period_end = ~U[2026-05-31 23:59:59.999999Z]
+
+      # Pod held the host for 20 minutes; the customer's job ran for 5
+      # of them. The other 15 are VM boot and teardown, which are ours.
+      session_fixture(account,
+        started_at: ~U[2026-05-10 12:00:00.000000Z],
+        ended_at: ~U[2026-05-10 12:20:00.000000Z],
+        job_started_at: ~U[2026-05-10 12:10:00.000000Z],
+        job_ended_at: ~U[2026-05-10 12:15:00.000000Z]
+      )
+
+      assert Billing.compute_milliseconds(account.id, period_start, period_end) == 5 * 60 * 1_000
     end
 
     test "excludes sessions that ended before the window" do
@@ -111,26 +162,25 @@ defmodule Tuist.Runners.BillingTest do
       assert Billing.compute_milliseconds(mine.id, period_start, period_end) == 5 * 60 * 1_000
     end
 
-    test "caps an open session at the max-lifetime safety clamp (6 hours)" do
+    test "an orphaned Pod cannot run away with the bill" do
       account = account_fixture()
       now = DateTime.utc_now()
 
-      # Session opened 12 hours ago, never closed (lost `stopped`
-      # event). Without the clamp this would bill 12 hours; with
-      # the clamp it bills at most 6 hours.
+      # Pod opened 12 hours ago and never closed (lost `stopped`
+      # event). Under the Pod-clock window this needed a six-hour
+      # safety clamp; billing the job window makes it structurally
+      # impossible, because no job window was ever recorded.
       session_fixture(account,
         started_at: DateTime.add(now, -12, :hour),
-        ended_at: nil
+        ended_at: nil,
+        job_started_at: nil,
+        job_ended_at: nil
       )
 
       period_start = DateTime.add(now, -1, :day)
       period_end = DateTime.add(now, 1, :day)
 
-      ms = Billing.compute_milliseconds(account.id, period_start, period_end)
-      six_hours_ms = 6 * 60 * 60 * 1_000
-
-      assert ms <= six_hours_ms
-      assert ms >= six_hours_ms - 5_000
+      assert Billing.compute_milliseconds(account.id, period_start, period_end) == 0
     end
 
     test "retries bill for every Pod the customer actually held" do
@@ -153,6 +203,216 @@ defmodule Tuist.Runners.BillingTest do
       )
 
       assert Billing.compute_milliseconds(account.id, period_start, period_end) == 11 * 60 * 1_000
+    end
+  end
+
+  describe "compute-unit weighting" do
+    # Stripe is metered on elapsed time scaled by the machine's
+    # multiplier, so every aggregate the dashboard and the allowance read
+    # has to be scaled the same way. Summing raw elapsed milliseconds
+    # lets a 2x machine burn half the allowance it should and reads as
+    # half its real cost.
+    setup do
+      account = account_fixture()
+
+      session_fixture(account,
+        started_at: ~U[2026-05-10 12:00:00.000000Z],
+        ended_at: ~U[2026-05-10 12:05:00.000000Z],
+        platform: :macos,
+        vcpus: 12,
+        memory_gb: 28,
+        billing_multiplier: 20_000,
+        repository: "tuist/tuist"
+      )
+
+      %{
+        account: account,
+        period_start: ~U[2026-05-01 00:00:00.000000Z],
+        period_end: ~U[2026-05-31 23:59:59.999999Z]
+      }
+    end
+
+    test "compute_milliseconds/3 scales a non-baseline shape", ctx do
+      # 5 minutes on a 2x machine is 10 baseline minutes.
+      assert Billing.compute_milliseconds(ctx.account.id, ctx.period_start, ctx.period_end) == 10 * 60 * 1_000
+    end
+
+    test "compute_milliseconds/3 agrees with what Stripe is metered on", ctx do
+      metered =
+        ctx.account.id
+        |> Billing.compute_units_by_platform(ctx.period_start, ctx.period_end)
+        |> Enum.map(& &1.total_units)
+        |> Enum.sum()
+
+      assert Billing.compute_milliseconds(ctx.account.id, ctx.period_start, ctx.period_end) == metered
+    end
+
+    test "compute_milliseconds_per_bucket/5 scales a non-baseline shape", ctx do
+      buckets = Billing.compute_milliseconds_per_bucket(ctx.account.id, ctx.period_start, ctx.period_end, :day)
+
+      assert Map.get(buckets, ~D[2026-05-10]) == 10 * 60 * 1_000
+    end
+
+    test "compute_milliseconds_per_repository/3 scales a non-baseline shape", ctx do
+      rows = Billing.compute_milliseconds_per_repository(ctx.account.id, ctx.period_start, ctx.period_end)
+
+      assert [%{date: ~D[2026-05-10], repository: "tuist/tuist", total_ms: 600_000}] = rows
+    end
+  end
+
+  describe "compute_milliseconds_by_machine/4" do
+    test "groups usage by platform and machine specification" do
+      account = account_fixture()
+      period_start = ~U[2026-05-01 00:00:00.000000Z]
+      period_end = ~U[2026-05-02 00:00:00.000000Z]
+
+      session_fixture(account,
+        fleet_name: "linux-first",
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8,
+        started_at: ~U[2026-05-01 10:00:00.000000Z],
+        ended_at: ~U[2026-05-01 10:05:00.000000Z]
+      )
+
+      session_fixture(account,
+        fleet_name: "linux-second",
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8,
+        started_at: ~U[2026-05-01 11:00:00.000000Z],
+        ended_at: ~U[2026-05-01 11:10:00.000000Z]
+      )
+
+      session_fixture(account,
+        fleet_name: "macos-xcode-26-5",
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        started_at: ~U[2026-05-01 12:00:00.000000Z],
+        ended_at: ~U[2026-05-01 12:07:00.000000Z]
+      )
+
+      assert [
+               %{platform: :linux, vcpus: 2, memory_gb: 8, total_ms: 900_000},
+               %{platform: :macos, vcpus: 6, memory_gb: 14, total_ms: 420_000}
+             ] = Billing.compute_milliseconds_by_machine(account.id, period_start, period_end)
+    end
+
+    test "falls back to the fleet catalog for historical sessions" do
+      account = account_fixture()
+      period_start = ~U[2026-05-01 00:00:00.000000Z]
+      period_end = ~U[2026-05-02 00:00:00.000000Z]
+
+      session_fixture(account,
+        fleet_name: Catalog.pool_name(%{platform: :linux, vcpus: 2, memory_gb: 8}),
+        platform: nil,
+        vcpus: nil,
+        memory_gb: nil,
+        billing_multiplier: nil,
+        started_at: ~U[2026-05-01 10:00:00.000000Z],
+        ended_at: ~U[2026-05-01 10:03:00.000000Z]
+      )
+
+      assert [%{platform: :linux, vcpus: 2, memory_gb: 8, total_ms: 180_000}] =
+               Billing.compute_milliseconds_by_machine(account.id, period_start, period_end)
+    end
+  end
+
+  describe "meter_event_name/1" do
+    test "is one compute-unit meter per platform" do
+      assert Billing.meter_event_name(:linux) == "runner_linux_compute_unit_milliseconds"
+      assert Billing.meter_event_name(:macos) == "runner_macos_compute_unit_milliseconds"
+    end
+  end
+
+  describe "compute_units_by_platform/4" do
+    test "weights each machine by its multiplier and totals per platform" do
+      account = account_fixture()
+      period_start = ~U[2026-05-01 00:00:00.000000Z]
+      period_end = ~U[2026-05-02 00:00:00.000000Z]
+
+      # Baseline shape: one compute-unit millisecond per elapsed millisecond.
+      session_fixture(account,
+        fleet_name: "linux-baseline",
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8,
+        billing_multiplier: Catalog.billing_multiplier(:linux, 2, 8),
+        started_at: ~U[2026-05-01 10:00:00.000000Z],
+        ended_at: ~U[2026-05-01 10:05:00.000000Z]
+      )
+
+      # Twice the baseline shape, so the same wall-clock time is worth twice
+      # as many units.
+      session_fixture(account,
+        fleet_name: "linux-double",
+        platform: :linux,
+        vcpus: 4,
+        memory_gb: 16,
+        billing_multiplier: Catalog.billing_multiplier(:linux, 4, 16),
+        started_at: ~U[2026-05-01 11:00:00.000000Z],
+        ended_at: ~U[2026-05-01 11:05:00.000000Z]
+      )
+
+      # The macOS baseline machine, which is one macOS unit per elapsed
+      # millisecond and totals into its own meter rather than the Linux one.
+      session_fixture(account,
+        fleet_name: "macos-standard",
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        billing_multiplier: Catalog.billing_multiplier(:macos, 6, 14),
+        started_at: ~U[2026-05-01 12:00:00.000000Z],
+        ended_at: ~U[2026-05-01 12:05:00.000000Z]
+      )
+
+      assert Billing.compute_units_by_platform(account.id, period_start, period_end) == [
+               %{platform: :linux, total_units: 300_000 + 2 * 300_000},
+               %{platform: :macos, total_units: 300_000}
+             ]
+    end
+
+    test "bills a session at the multiplier it was admitted under, not the current catalog" do
+      account = account_fixture()
+      period_start = ~U[2026-05-01 00:00:00.000000Z]
+      period_end = ~U[2026-05-02 00:00:00.000000Z]
+
+      # Half the weighting the catalog would give this shape today, standing
+      # in for a session opened under an older rate card.
+      session_fixture(account,
+        fleet_name: "linux-legacy-rate-card",
+        platform: :linux,
+        vcpus: 4,
+        memory_gb: 16,
+        billing_multiplier: div(Catalog.billing_multiplier(:linux, 4, 16), 2),
+        started_at: ~U[2026-05-01 10:00:00.000000Z],
+        ended_at: ~U[2026-05-01 10:05:00.000000Z]
+      )
+
+      assert Billing.compute_units_by_platform(account.id, period_start, period_end) == [
+               %{platform: :linux, total_units: 300_000}
+             ]
+    end
+
+    test "falls back to the catalog multiplier for sessions that never stored one" do
+      account = account_fixture()
+      period_start = ~U[2026-05-01 00:00:00.000000Z]
+      period_end = ~U[2026-05-02 00:00:00.000000Z]
+
+      session_fixture(account,
+        fleet_name: "linux-pre-multiplier",
+        platform: :linux,
+        vcpus: 4,
+        memory_gb: 16,
+        billing_multiplier: nil,
+        started_at: ~U[2026-05-01 10:00:00.000000Z],
+        ended_at: ~U[2026-05-01 10:05:00.000000Z]
+      )
+
+      assert Billing.compute_units_by_platform(account.id, period_start, period_end) == [
+               %{platform: :linux, total_units: 600_000}
+             ]
     end
   end
 

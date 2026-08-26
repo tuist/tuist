@@ -5,7 +5,7 @@ description: |
   throwaway across runs), then LRU-prunes the OCI base-image
   cache only when free disk falls below `free-floor-gb`.
 
-  The cached OCI bases (`ghcr.io/tuist/macos-tahoe-xcode:<dashes>`
+  The cached OCI bases (`<registry>/macos-tahoe-xcode:<dashes>`
   and friends, ~80 GB each on the 512 GB M2-L) survive across
   runs whenever there's headroom. `tart prune --older-than` is
   access-time based, so sibling matrix legs (e.g. xcode 26.5

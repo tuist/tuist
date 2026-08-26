@@ -348,8 +348,13 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+      # -maximum-parallel-testing-workers caps how many test runner processes xcodebuild spawns.
+      # Acceptance tests each shell out to their own nested xcodebuild, so every extra runner
+      # multiplies into a fresh set of compiler processes. Uncapped on a 6-core runner that reached
+      # 78 concurrent swift-frontend processes, which is what starved tests into their time limits.
+      # See https://github.com/tuist/tuist/issues/12512 for the measurements behind this number.
       - name: Run shard ${{ matrix.shard }}
-        run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2 -maximum-parallel-testing-workers 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
           TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}

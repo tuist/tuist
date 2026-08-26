@@ -62,9 +62,15 @@ defmodule TuistTestSupport.Fixtures.AlertsFixtures do
           rolling_window_size: Keyword.get(opts, :rolling_window_size, 100)
         }
 
-        case Keyword.get(opts, :scheme) do
+        attrs =
+          case Keyword.get(opts, :scheme) do
+            nil -> attrs
+            scheme -> Map.put(attrs, :scheme, scheme)
+          end
+
+        case Keyword.get(opts, :git_branch) do
           nil -> attrs
-          scheme -> Map.put(attrs, :scheme, scheme)
+          git_branch -> Map.put(attrs, :git_branch, git_branch)
         end
       end
 

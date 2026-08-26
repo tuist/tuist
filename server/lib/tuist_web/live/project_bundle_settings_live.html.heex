@@ -168,7 +168,7 @@
               </div>
               <div data-part="schedule-row">
                 <label data-part="schedule-label">
-                  {dgettext("dashboard_projects", "Name")}
+                  {dgettext("dashboard_projects", "Bundle name")}
                 </label>
                 <.text_input
                   type="basic"
@@ -327,13 +327,14 @@
                     </div>
                     <div data-part="schedule-row">
                       <label data-part="schedule-label">
-                        {dgettext("dashboard_projects", "Name")}
+                        {dgettext("dashboard_projects", "Bundle name")}
                       </label>
                       <.text_input
                         type="basic"
                         id={"edit-threshold-bundle-name-#{threshold.id}"}
                         name="bundle_name"
                         value={form[:bundle_name] || threshold.bundle_name || ""}
+                        placeholder={dgettext("dashboard_projects", "e.g. MyApp (optional)")}
                         phx-keyup="update_edit_form_bundle_name"
                         phx-value-id={threshold.id}
                         phx-debounce="300"
@@ -392,6 +393,158 @@
           </:empty_state>
         </.table>
       </div>
+    </div>
+  </.card_section>
+
+  <.card_section data-part="bundle-approvals-card-section">
+    <div data-part="header">
+      <div data-part="title-group">
+        <span data-part="title">{dgettext("dashboard_projects", "Approvals")}</span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_projects",
+            "Choose who can accept a bundle size increase that exceeded a threshold."
+          )}
+        </span>
+      </div>
+    </div>
+    <div
+      class="policy-options"
+      data-part="policy-options"
+      role="radiogroup"
+      aria-label={dgettext("dashboard_projects", "Who can accept")}
+    >
+      <button
+        :for={policy <- @approval_policies}
+        id={"bundle-approval-policy-#{policy}"}
+        type="button"
+        data-part="policy-option"
+        data-selected={
+          if @selected_project.bundle_size_approval_policy == policy, do: "true", else: "false"
+        }
+        role="radio"
+        aria-checked={
+          if @selected_project.bundle_size_approval_policy == policy, do: "true", else: "false"
+        }
+        phx-click="select_approval_policy"
+        phx-value-policy={policy}
+      >
+        <span data-part="option-header">
+          <span data-part="control" aria-hidden="true"></span>
+          <span data-part="body">
+            <span data-part="label">{approval_policy_label(policy)}</span>
+            <span data-part="description">{approval_policy_description(policy)}</span>
+          </span>
+        </span>
+      </button>
+    </div>
+
+    <div
+      :if={@selected_project.bundle_size_approval_policy == :selected}
+      data-part="approvers-section"
+    >
+      <div data-part="approvers-header">
+        <h3 data-part="approvers-title">{dgettext("dashboard_projects", "Approvers")}</h3>
+        <.modal
+          id="add-approver-modal"
+          title={dgettext("dashboard_projects", "Add approver")}
+          description={
+            dgettext(
+              "dashboard_projects",
+              "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
+            )
+          }
+          header_size="large"
+          on_dismiss="close_add_approver_modal"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              label={dgettext("dashboard_projects", "Add approver")}
+              variant="secondary"
+              size="medium"
+              disabled={!@has_vcs_connection}
+              phx-click="open_add_approver_modal"
+              {attrs}
+            />
+          </:trigger>
+          <.line_divider />
+          <div data-part="alert-form">
+            <div data-part="schedule-row">
+              <label data-part="schedule-label">
+                {dgettext("dashboard_projects", "GitHub username")}
+              </label>
+              <.text_input
+                type="basic"
+                id="add-approver-handle"
+                name="github_handle"
+                value={@approver_handle}
+                placeholder="octocat"
+                phx-keyup="update_approver_handle"
+                phx-debounce="300"
+              />
+            </div>
+            <.hint_text :if={@approver_error} label={@approver_error} variant="destructive" />
+          </div>
+          <.line_divider />
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  type="button"
+                  label={dgettext("dashboard_projects", "Cancel")}
+                  variant="secondary"
+                  phx-click="close_add_approver_modal"
+                />
+              </:action>
+              <:action>
+                <.button
+                  type="button"
+                  label={dgettext("dashboard_projects", "Add")}
+                  variant="primary"
+                  disabled={String.trim(@approver_handle) == ""}
+                  phx-click="add_approver"
+                />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
+      </div>
+      <.table
+        id="bundle-size-approvers-table"
+        rows={@approvers}
+        row_key={fn approver -> "approver-#{approver.id}" end}
+      >
+        <:col :let={approver} label={dgettext("dashboard_projects", "GitHub username")}>
+          <.text_cell label={"@#{approver.github_handle}"} />
+        </:col>
+        <:col :let={approver}>
+          <.button_cell>
+            <:button>
+              <.button
+                icon_only
+                size="small"
+                variant="secondary"
+                phx-click="delete_approver"
+                phx-value-approver_id={approver.id}
+              >
+                <.icon name="trash" />
+              </.button>
+            </:button>
+          </.button_cell>
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="users"
+            title={dgettext("dashboard_projects", "No approvers")}
+            subtitle={
+              dgettext(
+                "dashboard_projects",
+                "Nobody can accept a size increase until a GitHub username is added"
+              )
+            }
+          />
+        </:empty_state>
+      </.table>
     </div>
   </.card_section>
 </div>

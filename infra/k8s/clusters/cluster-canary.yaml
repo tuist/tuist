@@ -25,7 +25,7 @@ spec:
       - name: region
         value: fsn1
       - name: hcloudControlPlaneMachineType
-        value: cpx32
+        value: cpx22
       # Roll out the kubeadm compatibility fallback in canary first. With the
       # local-mode feature enabled, new control-plane kubelets point at their
       # own not-yet-running control-plane endpoint and never start the etcd
@@ -101,8 +101,11 @@ spec:
               maxInFlight: 1
           variables:
             overrides:
+              # Forwards/SNATs server egress only — runs no application
+              # workload, so it doesn't need the general pool's dedicated
+              # vCPU shape.
               - name: hcloudWorkerMachineType
-                value: cpx32
+                value: cpx22
               - name: workerNodeLabels
                 value: tuist.dev/stable-egress-candidate=server
               # Isolate the gateway pool: only cilium, hcloud-csi, the egress

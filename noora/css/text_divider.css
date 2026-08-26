@@ -3,7 +3,7 @@
     var(--noora-neutral-light-700),
     var(--noora-neutral-dark-500)
   );
-  padding: var(--nora-spacing-4) var(--noora-spacing-2);
+  padding: var(--noora-spacing-4) var(--noora-spacing-2);
   width: 100%;
 
   color: var(--noora-content-divider-label);

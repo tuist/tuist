@@ -12,6 +12,10 @@ kuraRuntime:
   image:
     tag: validation
 
+egressTreeAgent:
+  image:
+    tag: validation
+
 codebaseSearch:
   image:
     tag: validation

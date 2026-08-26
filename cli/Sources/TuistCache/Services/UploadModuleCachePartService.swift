@@ -110,6 +110,11 @@ public struct UploadModuleCachePartService: UploadModuleCachePartServicing {
             case let .json(error):
                 throw UploadModuleCachePartServiceError.forbidden(error.message)
             }
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
+            case let .json(error):
+                throw UploadModuleCachePartServiceError.badRequest(error.message)
+            }
         case let .badRequest(badRequest):
             switch badRequest.body {
             case let .json(error):

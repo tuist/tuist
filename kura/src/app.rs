@@ -11,7 +11,7 @@ use hyper_util::{
     rt::{TokioExecutor, TokioTimer},
     server::conn::auto::Builder as HttpBuilder,
 };
-use tokio::sync::{Notify, Semaphore, oneshot, watch};
+use tokio::sync::{Notify, oneshot, watch};
 use tokio::{
     task::JoinHandle,
     time::{Instant, sleep},
@@ -24,7 +24,6 @@ use crate::{
     auth::AuthEngine,
     bandwidth::BandwidthLimiter,
     config::Config,
-    geoip::GeoIp,
     http,
     io::IoController,
     memory::{MemoryController, MemoryPressure},
@@ -59,7 +58,6 @@ const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
 // it: two sysfs reads five times a second would add I/O to the loop the
 // watchdog supervises for a value scraped every 15-60s.
 const MEMORY_PROTECTION_SAMPLE_INTERVAL: Duration = Duration::from_secs(60);
-const BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS: usize = 4;
 #[cfg(target_os = "linux")]
 const INITIAL_MEMORY_SAMPLE_ATTEMPTS: u8 = 5;
 
@@ -86,20 +84,17 @@ pub async fn run() -> Result<(), String> {
     let enrollment = crate::enrollment::enroll_on_boot().await?;
 
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
-    let geoip = GeoIp::open();
     let node_location = resolve_node_location(
         config.node_country_override.as_deref(),
         config.node_subdivision_override.as_deref(),
-        geoip.as_ref(),
         &config.region,
-    )
-    .await;
+    );
     let telemetry = init_tracing(&config, &node_location);
     if let Some(error) = nofile_raise_error {
         warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
     }
     let log_context = log_context_span(&config, &node_location);
-    let result = run_with_config(config, geoip, node_location, enrollment)
+    let result = run_with_config(config, node_location, enrollment)
         .instrument(log_context)
         .await;
 
@@ -109,7 +104,6 @@ pub async fn run() -> Result<(), String> {
 
 async fn run_with_config(
     config: Config,
-    geoip: Option<GeoIp>,
     node_location: crate::node_location::NodeLocation,
     enrollment: Option<crate::enrollment::EnrollmentOutcome>,
 ) -> Result<(), String> {
@@ -140,18 +134,41 @@ async fn run_with_config(
         Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
         vec![config.tmp_dir.clone(), config.data_dir.clone()],
     )?;
+    // Report the anon budget once tracing exists. Config parsing derives it, but
+    // that runs before any subscriber does, and a budget that came out smaller
+    // than the caches asked for is the difference between a node that serves and
+    // one that is Ready and rejects everything.
+    if let Some(fit) = config.anon_cache_fit {
+        tracing::warn!(
+            requested_bytes = fit.requested_bytes,
+            fitted_bytes = fit.fitted_bytes,
+            allowance_bytes = fit.allowance_bytes,
+            memory_floor_bytes = config.memory_floor_bytes,
+            "shrank the metadata-store, manifest and snapshot caches to fit the memory floor"
+        );
+    }
+    let anon_admission_budget_bytes = config.anon_admission_budget_bytes();
+    tracing::info!(
+        memory_floor_bytes = config.memory_floor_bytes,
+        memory_limit_bytes = config.memory_limit_bytes,
+        anon_admission_budget_bytes,
+        rocksdb_block_cache_bytes = config.rocksdb_block_cache_bytes,
+        rocksdb_write_buffer_manager_bytes = config.rocksdb_write_buffer_manager_bytes,
+        manifest_cache_max_bytes = config.manifest_cache_max_bytes,
+        snapshot_cache_max_bytes = config.snapshot_cache_max_bytes,
+        "resolved anonymous memory budget"
+    );
     let memory = MemoryController::with_anon_budget(
         metrics.clone(),
         config.memory_limit_bytes,
         config.memory_soft_limit_bytes,
         config.memory_hard_limit_bytes,
-        config.anon_admission_budget_bytes(),
+        anon_admission_budget_bytes,
     );
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,
     ));
     let store = Store::open(&config, io.clone(), memory.clone())?;
-    let local_data_available_at_join = store.has_artifacts()?;
     let tmp_staging_budget = store.tmp_staging_budget();
     match store.sweep_orphaned_segments().await {
         Ok(0) => {}
@@ -175,12 +192,10 @@ async fn run_with_config(
     .map(Arc::new);
     let notify = Notify::new();
 
-    let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
-    let bootstrap_artifact_semaphore = Arc::new(Semaphore::new(BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS));
-    let bootstrap_staging_budget = crate::utils::TmpBudget::new(
+    let peer_staging_budget = crate::utils::TmpBudget::new(
         config
             .tmp_dir_max_bytes
-            .min(memory.bootstrap_staging_budget_bytes()),
+            .min(memory.peer_staging_budget_bytes()),
     );
     let state = Arc::new(AppState {
         config,
@@ -194,7 +209,6 @@ async fn run_with_config(
         auth,
         analytics,
         usage,
-        geoip,
         client: arc_swap::ArcSwap::from_pointee(client),
         upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
         peer_client_factory,
@@ -203,16 +217,8 @@ async fn run_with_config(
         replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
-        local_data_available_at_join: std::sync::atomic::AtomicBool::new(
-            local_data_available_at_join,
-        ),
-        bootstrap_semaphore,
-        bootstrap_artifact_semaphore,
         tmp_staging_budget,
-        bootstrap_staging_budget,
-        bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
-            .map(|_| tokio::sync::Mutex::new(()))
-            .collect(),
+        peer_staging_budget,
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
@@ -241,7 +247,6 @@ async fn run_with_config(
     spawn_action_cache_expiry_task(state.clone());
     spawn_backfill_index_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
-    spawn_geoip_refresh_task(state.clone());
     spawn_segment_promotion_task(state.clone());
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
@@ -786,7 +791,7 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                     }
                 }
                 state.metrics.update_background_work_paused(
-                    "bootstrap",
+                    "backfill",
                     !state.memory.allow_background_admission(),
                 );
                 state.metrics.update_background_work_paused(
@@ -1081,46 +1086,6 @@ fn spawn_tmp_dir_metrics_task(state: Arc<AppState>) {
                     .await
                     .unwrap_or(0);
                 state.metrics.update_tmp_dir_bytes(bytes);
-            }
-        }
-        .in_current_span(),
-    );
-}
-
-fn spawn_geoip_refresh_task(state: Arc<AppState>) {
-    if state.geoip.is_none() {
-        return;
-    }
-    let interval_secs = state.config.geoip_refresh_interval_secs;
-    if interval_secs == 0 {
-        info!("GeoIP background refresh disabled");
-        return;
-    }
-    let http = match reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(60))
-        .build()
-    {
-        Ok(client) => client,
-        Err(error) => {
-            warn!("failed to build GeoIP refresh client: {error}");
-            return;
-        }
-    };
-    let interval = Duration::from_secs(interval_secs);
-    tokio::spawn(
-        async move {
-            loop {
-                tokio::time::sleep(interval).await;
-                let geoip = state
-                    .geoip
-                    .as_ref()
-                    .expect("geoip presence checked before spawning the refresh task");
-                let outcome = geoip.refresh(&http).await;
-                state.metrics.record_geoip_refresh(outcome.as_str());
-                if matches!(outcome, crate::geoip::RefreshOutcome::Updated) {
-                    info!("GeoIP database refreshed");
-                }
             }
         }
         .in_current_span(),

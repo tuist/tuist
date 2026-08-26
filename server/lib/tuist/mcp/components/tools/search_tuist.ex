@@ -7,6 +7,7 @@ defmodule Tuist.MCP.Components.Tools.SearchTuist do
   use Tuist.MCP.Tool,
     name: "search_tuist",
     title: "Search Tuist",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{

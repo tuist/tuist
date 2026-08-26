@@ -109,13 +109,13 @@ defmodule TuistWeb.RunnersController do
   # can only advance the HEAD of the account it actually ran.
   def report_volume_head(conn, params) do
     digest = Map.get(params, "tree_digest", "")
-    node = Map.get(params, "node_name", "")
+    node = node_name(params)
     base_generation = parse_base_generation(Map.get(params, "base_generation"))
 
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
-      case Runners.report_volume_head(account_id, node, digest, base_generation) do
+      case Runners.report_volume_head(account_id, node, digest, base_generation, unverifiable_digest(params)) do
         {:ok, generation} ->
           json(conn, %{generation: generation})
 
@@ -151,6 +151,36 @@ defmodule TuistWeb.RunnersController do
 
   defp parse_base_generation(_), do: 0
 
+  # The HEAD digest the runner's host downloaded during this job and found the
+  # stored object does not reproduce, when it reported one. Whatever the body
+  # carries is passed through as-is for `Runners` to validate against the digest
+  # format; a non-binary reads as no report.
+  defp unverifiable_digest(params) do
+    case Map.get(params, "unverifiable_digest") do
+      digest when is_binary(digest) -> digest
+      _ -> nil
+    end
+  end
+
+  # The Node name of the host that published this HEAD, for attribution only —
+  # nothing in the fast-forward reads it, so a name that does not check out is
+  # dropped rather than failing the promote.
+  #
+  # Checked against the shape a Kubernetes Node name can have rather than
+  # truncated: the column is a varchar(255) and the body comes from a VM running
+  # customer job code, so an over-long value would otherwise raise on insert and
+  # lose an otherwise valid promote. Missing, malformed or non-binary all read as
+  # unreported, which is what every row held before the guest began sending it.
+  defp node_name(params) do
+    case Map.get(params, "node_name") do
+      name when is_binary(name) ->
+        if Regex.match?(~r/\A[A-Za-z0-9.-]{1,253}\z/, name), do: name, else: ""
+
+      _ ->
+        ""
+    end
+  end
+
   # A runner requests the presigned PUT URL for the master object keyed by the
   # inventory digest it is about to promote, then PUTs its image there and calls
   # report_volume_head to bump the HEAD. Content-addressed: each distinct digest
@@ -158,18 +188,28 @@ defmodule TuistWeb.RunnersController do
   # current HEAD points at. Same SA-token + server-stamped account-label binding
   # as report_volume_head, so a runner can only mint an upload URL under the
   # account it actually ran.
+  #
+  # Minting also PRE-FLIGHTS the fast-forward the upload leads to: a runner that
+  # sends the base generation it built on gets a 409 here, before transferring
+  # the image, when that base has already been advanced past. The upload blocks
+  # the VM halt and the host slot's reclaim, so a promote that is certain to lose
+  # is worth not paying for.
   def volume_head_upload_url(conn, params) do
     digest = Map.get(params, "tree_digest", "")
 
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
-      case Runners.volume_master_upload_url(account_id, digest) do
-        {:ok, upload_url} ->
-          json(conn, %{upload_url: upload_url})
+      if doomed_fast_forward?(account_id, params) do
+        conn |> put_status(:conflict) |> json(%{error: "stale base generation"})
+      else
+        case Runners.volume_master_upload_url(account_id, digest) do
+          {:ok, upload_url} ->
+            json(conn, %{upload_url: upload_url})
 
-        :error ->
-          conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})
+          :error ->
+            conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})
+        end
       end
     else
       {:error, :missing_bearer} ->
@@ -180,13 +220,34 @@ defmodule TuistWeb.RunnersController do
     end
   end
 
+  # True when the promote this mint would serve is already certain to be rejected
+  # because its base generation has been advanced past. Advisory: it may only
+  # skip doomed uploads, never authorize a promote — report_volume_head's
+  # compare-and-swap is what decides the HEAD, and another host can still win
+  # between this check and that bump.
+  #
+  # An absent base_generation disables the pre-check rather than defaulting to 0
+  # the way the bump does: a runner image predating this pre-flight sends no base
+  # here, and must keep its upload-then-arbitrate path instead of being told its
+  # cold-job promote is stale.
+  defp doomed_fast_forward?(account_id, params) do
+    case Map.fetch(params, "base_generation") do
+      {:ok, value} ->
+        not Runners.fast_forward_viable?(account_id, parse_base_generation(value), unverifiable_digest(params))
+
+      :error ->
+        false
+    end
+  end
+
   @doc """
   Returns the raw scaling signals the runners-controller's
   autoscaler reconciler uses to compute the desired replica count
   for a given fleet:
 
       GET /api/internal/runners/desired_replicas?fleet=<name>
-      → 200 { fleet, claimed, occupied, queued, p95_concurrent_last_hour }
+      → 200 { fleet, claimed, occupied, queued, withheld,
+              p95_concurrent_last_hour }
 
   Authentication: same SA-token + TokenReview path as the dispatch
   endpoint. Anyone with a valid in-cluster SA token can read —

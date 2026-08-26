@@ -235,6 +235,10 @@ defmodule Tuist.Docs.Loader do
       "{{minimum_supported_cli_version}}",
       Tuist.CLIVersions.minimum_supported_version()
     )
+    |> String.replace(
+      "{{minimum_supported_clickhouse_version}}",
+      Tuist.ClickHouseVersions.minimum_supported_version()
+    )
     |> String.replace("{{runner_default_profiles_table}}", runner_default_profiles_table())
     |> String.replace("{{runner_linux_shapes_table}}", runner_shapes_table(:linux))
     |> String.replace("{{runner_macos_shapes_table}}", runner_shapes_table(:macos))
