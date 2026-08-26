@@ -65,6 +65,8 @@ defmodule Tuist do
       Kura.Server,
       Kura.Usage,
       Kura.UsageEvent,
+      Kura.StorageTelemetry,
+      Kura.ClaimProposal,
       Kura.Provisioner,
       Kura.Provisioner.KubernetesController,
       Kura.Regions,

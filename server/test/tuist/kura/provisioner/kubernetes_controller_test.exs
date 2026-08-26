@@ -915,10 +915,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
 
-      # 50Gi less the 8Gi tmp ceiling and one 512Mi segment, less 3% for the
-      # index. Without this the runtime would size the ring from the node's whole
-      # disk instead.
-      assert env["KURA_CAS_CAPACITY_BYTES"] == "43223477125"
+      # 50Gi less the 6.2Gi tmp reserve (an eighth of the claim) and one 512Mi
+      # segment, less 3% for the index. Without this the runtime would size the
+      # ring from the node's whole disk instead.
+      assert env["KURA_CAS_CAPACITY_BYTES"] == "45046153871"
     end
 
     test "leaves a 20Gi volume room for staging and index alongside the ring" do
@@ -937,12 +937,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       capacity = String.to_integer(env["KURA_CAS_CAPACITY_BYTES"])
 
-      assert capacity == 11_977_590_046
+      assert capacity == 17_706_002_677
 
-      # The reserves are fixed sizes, not a share, so the ring plus the tmp
-      # ceiling plus a rotation has to stay inside the volume. A flat percentage
-      # passes at 50Gi and overruns here, which on an enforced class is ENOSPC.
-      tmp = 8 * 1024 * 1024 * 1024
+      # The ring plus the tmp reserve plus a rotation has to stay inside the
+      # volume. A flat percentage passes at 50Gi and overruns here, which on an
+      # enforced class is ENOSPC.
+      tmp = staging_bytes(env)
       segment = 512 * 1024 * 1024
       assert capacity + tmp + segment < 20 * 1024 * 1024 * 1024
     end
@@ -998,16 +998,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
 
-      # 6Gi clears the reserves, so a budget is derivable, but it comes to
+      # 5Gi clears the reserves, so a budget is derivable, but it comes to
       # ~2.4GiB and Kura clamps the ring up to its 2.5GiB floor. Emitting the
       # derived value would promise a ring the runtime does not honour, and the
-      # floor plus the reserves overruns the volume.
+      # floor plus the reserves overruns the volume. Every claim the ladder
+      # actually hands out sits well clear of this: the smallest, 8Gi, now
+      # derives a 5.3GiB ring.
       manifest =
         KubernetesController.manifest(
           "kura-tuist-under-floor-1",
           "0.5.2",
           %{name: "tuist"},
-          eu_region(%{storage_size: "6Gi"}),
+          eu_region(%{storage_size: "5Gi"}),
           %Server{}
         )
 
@@ -1122,11 +1124,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
 
-      # The ring each plan's claim leaves once the 8Gi staging ceiling, one
-      # rotation segment and 3% for the index are reserved: 40 GiB, 20.5 GiB and
-      # 5.3 GiB. A region-derived budget would hand all three the same ring and
-      # let an Air instance overrun the claim its pod reserved.
-      for {claim, ring_gib} <- [{"50Gi", 40.2}, {"30Gi", 20.8}, {"8Gi", 3.4}] do
+      # The ring each claim leaves once the staging reserve, one rotation
+      # segment and 3% for the index are taken: a region-derived budget would
+      # hand all three the same ring and let a small instance overrun the claim
+      # its pod reserved.
+      for {claim, ring_gib} <- [{"50Gi", 41.95}, {"30Gi", 24.98}, {"8Gi", 5.33}] do
         manifest =
           KubernetesController.manifest(
             "kura-tuist-eu-central-1",

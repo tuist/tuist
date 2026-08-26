@@ -109,6 +109,37 @@ pub fn is_multipart_capacity_error(error: &str) -> bool {
     error.starts_with(MULTIPART_CAPACITY_ERROR)
 }
 
+// Ring-rotation evictions queued for the usage reporter, capped so a stalled
+// or unconfigured reporter cannot grow the queue without bound. Oldest entries
+// drop first: the newest evictions describe the ring's current fit.
+const MAX_PENDING_CAPACITY_EVICTIONS: usize = 4_096;
+
+/// One segment evicted by ring rotation, i.e. shed under size pressure. The
+/// startup orphan sweep never lands here: it removes files the ring no longer
+/// references and says nothing about ring fit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CapacityEviction {
+    pub segment_id: String,
+    pub segment_created_at_ms: u64,
+    pub newest_content_at_ms: u64,
+    pub evicted_at_ms: u64,
+    pub artifact_count: u64,
+    pub bytes: u64,
+}
+
+/// Point-in-time view of the segment ring against its budget, reported to the
+/// control plane so claim sizing can tell an oversized ring (occupancy stays
+/// low, nothing evicts) from an undersized one (full and churning).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StorageSnapshotData {
+    pub ring_budget_bytes: u64,
+    pub desired_segment_count: u64,
+    pub live_segment_count: u64,
+    pub live_segment_bytes: u64,
+    pub oldest_segment_created_at_ms: Option<u64>,
+    pub newest_content_at_ms: Option<u64>,
+}
+
 pub struct Store {
     db: Arc<DB>,
     io: IoController,
@@ -128,6 +159,7 @@ pub struct Store {
     multipart_max_active_uploads: usize,
     multipart_max_stored_bytes: u64,
     segment_write_lock: Mutex<()>,
+    pending_capacity_evictions: StdMutex<VecDeque<CapacityEviction>>,
     /// Payload ceiling of one segment-eviction write batch. Mirrors
     /// `SEGMENT_EVICTION_MAX_BATCH_BYTES`; it is a field rather than the
     /// constant read inline so tests can drive the chunk boundary without
@@ -1006,6 +1038,7 @@ impl Store {
             multipart_max_active_uploads: config.multipart_max_active_uploads,
             multipart_max_stored_bytes: config.multipart_max_stored_bytes,
             segment_write_lock: Mutex::new(()),
+            pending_capacity_evictions: StdMutex::new(VecDeque::new()),
             eviction_batch_budget_bytes: SEGMENT_EVICTION_MAX_BATCH_BYTES,
             #[cfg(test)]
             eviction_commits: Arc::new(StdMutex::new(EvictionCommitLog::default())),
@@ -2993,12 +3026,88 @@ impl Store {
 
     async fn evict_segments(&self, evicted_segments: Vec<SegmentReference>) -> Result<(), String> {
         for segment in evicted_segments {
-            self.evict_segment(&segment.segment_id).await?;
+            let bytes = try_path_size_bytes(&self.segment_path(&segment.segment_id)).unwrap_or(0);
+            let artifact_count = self.evict_segment(&segment.segment_id).await?;
+            self.record_capacity_eviction(&segment, artifact_count, bytes);
         }
         Ok(())
     }
 
-    async fn evict_segment(&self, segment_id: &str) -> Result<(), String> {
+    fn record_capacity_eviction(
+        &self,
+        segment: &SegmentReference,
+        artifact_count: u64,
+        bytes: u64,
+    ) {
+        let evicted_at_ms = now_ms();
+        let newest_content_at_ms = segment.effective_max_version_ms();
+        self.io.metrics().record_segment_shed_age(
+            evicted_at_ms.saturating_sub(newest_content_at_ms) as f64 / 1_000.0,
+        );
+
+        let mut pending = self
+            .pending_capacity_evictions
+            .lock()
+            .expect("pending capacity evictions poisoned");
+        while pending.len() >= MAX_PENDING_CAPACITY_EVICTIONS {
+            pending.pop_front();
+            self.io.metrics().record_capacity_eviction_report_dropped();
+        }
+        pending.push_back(CapacityEviction {
+            segment_id: segment.segment_id.clone(),
+            segment_created_at_ms: segment.created_at_ms,
+            newest_content_at_ms,
+            evicted_at_ms,
+            artifact_count,
+            bytes,
+        });
+    }
+
+    pub fn take_pending_capacity_evictions(&self) -> Vec<CapacityEviction> {
+        let mut pending = self
+            .pending_capacity_evictions
+            .lock()
+            .expect("pending capacity evictions poisoned");
+        pending.drain(..).collect()
+    }
+
+    /// Ring occupancy against the resolved budget. The per-segment stat walks
+    /// the live segment files; a file that disappears mid-walk (a concurrent
+    /// rotation) counts as zero, which the next snapshot corrects.
+    pub fn storage_snapshot(&self) -> StorageSnapshotData {
+        let snapshot = self.segment_state_snapshot();
+        let references: Vec<&SegmentReference> = snapshot
+            .state
+            .old
+            .iter()
+            .chain(snapshot.state.current.iter())
+            .chain(snapshot.state.new.iter())
+            .collect();
+
+        let live_segment_bytes = references
+            .iter()
+            .map(|reference| {
+                try_path_size_bytes(&self.segment_path(&reference.segment_id)).unwrap_or(0)
+            })
+            .sum();
+
+        StorageSnapshotData {
+            ring_budget_bytes: self.segment_ring_limits.capacity_bytes(),
+            desired_segment_count: self.segment_ring_limits.total_segments() as u64,
+            live_segment_count: references.len() as u64,
+            live_segment_bytes,
+            oldest_segment_created_at_ms: references
+                .iter()
+                .map(|reference| reference.created_at_ms)
+                .min(),
+            newest_content_at_ms: references
+                .iter()
+                .map(|reference| reference.effective_max_version_ms())
+                .max(),
+        }
+    }
+
+    async fn evict_segment(&self, segment_id: &str) -> Result<u64, String> {
         let prefix = segment_artifact_index_prefix(segment_id);
         let mut batch = WriteBatch::default();
         let mut saw_entries = false;
@@ -3106,13 +3215,15 @@ impl Store {
             .await;
         self.mutate_segment_state(|state| state.remove_segment(segment_id))
             .await?;
+        let mut total_artifacts = 0;
         for (producer, artifacts) in removed_artifacts {
+            total_artifacts += artifacts;
             self.io
                 .metrics()
                 .record_segment_eviction(producer, "ok", artifacts);
         }
 
-        Ok(())
+        Ok(total_artifacts)
     }
 
     /// Commits one chunk of a segment eviction and then invalidates exactly the
@@ -10494,6 +10605,147 @@ mod tests {
                 .expect("tolerant read should not error on a miss"),
             None
         );
+    }
+
+    #[tokio::test]
+    async fn evict_segments_queues_capacity_eviction_reports() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        let mut reference = SegmentReference::new(segment_id.clone(), 1_000);
+        reference.max_version_ms = Some(2_000);
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![reference.clone()],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 3_000)],
+            })
+            .expect("failed to seed segment state");
+
+        store
+            .evict_segments(vec![reference])
+            .await
+            .expect("eviction should succeed");
+
+        let reports = store.take_pending_capacity_evictions();
+        assert_eq!(reports.len(), 1);
+        let report = &reports[0];
+        assert_eq!(report.segment_id, segment_id);
+        assert_eq!(report.segment_created_at_ms, 1_000);
+        assert_eq!(report.newest_content_at_ms, 2_000);
+        assert!(report.evicted_at_ms >= 2_000);
+        assert_eq!(report.artifact_count, 1);
+        assert!(
+            report.bytes > 0,
+            "should stat the segment file before unlinking it"
+        );
+
+        assert!(store.take_pending_capacity_evictions().is_empty());
+    }
+
+    #[tokio::test]
+    async fn capacity_eviction_report_falls_back_to_created_at_without_a_seal_stat() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .evict_segments(vec![SegmentReference::new("segment-1".into(), 5_000)])
+            .await
+            .expect("eviction of an absent segment should still succeed");
+
+        let reports = store.take_pending_capacity_evictions();
+        assert_eq!(reports.len(), 1);
+        assert_eq!(reports[0].newest_content_at_ms, 5_000);
+        assert_eq!(reports[0].artifact_count, 0);
+        assert_eq!(reports[0].bytes, 0);
+    }
+
+    #[tokio::test]
+    async fn orphan_sweep_does_not_queue_capacity_eviction_reports() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        // A ring state that no longer references the persisted segment makes
+        // its file an orphan: the sweep removes it as crash debris, which says
+        // nothing about ring fit and must not read as churn.
+        store
+            .save_segment_state(&SegmentState {
+                old: Vec::new(),
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+
+        let swept = store
+            .sweep_orphaned_segments()
+            .await
+            .expect("sweep should succeed");
+
+        assert!(swept >= 1);
+        assert!(store.take_pending_capacity_evictions().is_empty());
+    }
+
+    #[tokio::test]
+    async fn capacity_eviction_reports_cap_drops_oldest() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        for index in 0..(MAX_PENDING_CAPACITY_EVICTIONS + 5) {
+            store.record_capacity_eviction(
+                &SegmentReference::new(format!("segment-{index}"), index as u64),
+                0,
+                0,
+            );
+        }
+
+        let reports = store.take_pending_capacity_evictions();
+        assert_eq!(reports.len(), MAX_PENDING_CAPACITY_EVICTIONS);
+        assert_eq!(reports[0].segment_id, "segment-5");
+    }
+
+    #[tokio::test]
+    async fn storage_snapshot_reports_ring_occupancy() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        assert!(manifest.segment_id.is_some());
+
+        let snapshot = store.storage_snapshot();
+        assert!(snapshot.ring_budget_bytes > 0);
+        assert!(snapshot.desired_segment_count > 0);
+        assert!(snapshot.live_segment_count >= 1);
+        assert!(snapshot.live_segment_bytes > 0);
+        assert!(snapshot.oldest_segment_created_at_ms.is_some());
+        assert!(snapshot.newest_content_at_ms.is_some());
     }
 
     async fn drain_reader(mut reader: ArtifactReader) -> Vec<u8> {
