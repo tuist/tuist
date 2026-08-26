@@ -223,12 +223,12 @@ defmodule TuistWeb.TestCaseLiveTest do
       refute 0 in values
     end
 
-    test "points a day that stands alone so the line has something to draw", %{
+    test "spans the days it did not run and points the ones it did", %{
       conn: conn,
       account: account,
       project: project
     } do
-      # Given - runs today and three days ago, so neither day has a neighbour
+      # Given - runs today and three days ago, with empty days between them
       test_case_id = seed_runs_across_time(project)
 
       # When
@@ -240,11 +240,13 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       render_async(lv)
 
-      # Then - a lone day carries a symbol, since a line alone would draw nothing
+      # Then - one line across the window, with a symbol on each measured day so
+      # the stretches it spans are not mistaken for observations
       [average | _] = chart_option(lv, "test-case-duration-chart")["series"]
 
       {measured, empty} = Enum.split_with(average["data"], &(not is_nil(point_value(&1))))
 
+      assert average["connectNulls"] == true
       # A series that draws no symbol at all would make the sizes below inert
       assert average["symbol"] == "circle"
       assert Enum.any?(measured)
@@ -252,26 +254,33 @@ defmodule TuistWeb.TestCaseLiveTest do
       assert Enum.all?(empty, &(&1["symbolSize"] == 0))
     end
 
-    test "leaves a day that neighbours another bare, so a run of days reads as a line", %{
+    test "leaves a series that measured every day bare, so it reads as a plain line", %{
       conn: conn,
       account: account,
       project: project
     } do
-      # Given - runs on consecutive days
+      # Given - a window whose every day holds runs, so the line spans nothing
       test_case_id = seed_consecutive_runs(project)
+
+      # A span of one day buckets hourly, so the window covers three whole days
+      query =
+        URI.encode_query(%{
+          "analytics-selected-widget" => "duration",
+          "analytics-date-range" => "custom",
+          "analytics-start-date" => start_of_day_ago(3),
+          "analytics-end-date" => end_of_day_ago(1)
+        })
 
       # When
       {:ok, lv, _html} =
-        live(
-          conn,
-          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-selected-widget=duration"
-        )
+        live(conn, "/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?#{query}")
 
       render_async(lv)
 
-      # Then
+      # Then - nothing to disambiguate, so no symbols
       [average | _] = chart_option(lv, "test-case-duration-chart")["series"]
 
+      refute Enum.any?(average["data"], &is_nil(point_value(&1)))
       assert Enum.all?(average["data"], &(&1["symbolSize"] == 0))
     end
 
@@ -886,7 +895,7 @@ defmodule TuistWeb.TestCaseLiveTest do
   defp seed_consecutive_runs(project) do
     test_case_run = passing_test_case_run(project)
 
-    for days_ago <- [1, 2] do
+    for days_ago <- [1, 2, 3] do
       ran_at = DateTime.utc_now() |> DateTime.add(-days_ago, :day) |> DateTime.to_naive()
 
       RunsFixtures.test_case_run_fixture(
@@ -940,6 +949,16 @@ defmodule TuistWeb.TestCaseLiveTest do
 
   # A line point is `[date, value]` wrapped in the symbol the bucket draws.
   defp point_value(%{"value" => [_date, value]}), do: value
+
+  # Whole-day bounds, so a seeded run cannot land a fraction of a second outside
+  # the window it was meant to sit in.
+  defp start_of_day_ago(days) do
+    Date.utc_today() |> Date.add(-days) |> DateTime.new!(~T[00:00:00], "Etc/UTC") |> DateTime.to_iso8601()
+  end
+
+  defp end_of_day_ago(days) do
+    Date.utc_today() |> Date.add(-days) |> DateTime.new!(~T[23:59:59], "Etc/UTC") |> DateTime.to_iso8601()
+  end
 
   defp chart_option(lv, chart_id) do
     lv
