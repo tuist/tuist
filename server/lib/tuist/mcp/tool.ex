@@ -2,6 +2,7 @@ defmodule Tuist.MCP.Tool do
   @moduledoc false
 
   alias Tuist.MCP.Authorization
+  alias Tuist.MCP.Observability
   alias Tuist.Projects
 
   require Logger
@@ -99,6 +100,7 @@ defmodule Tuist.MCP.Tool do
   def load_and_authorize(result, assigns, action, category, not_found_message) do
     with {:ok, resource} <- load_resource(result, not_found_message),
          {:ok, project} <- authorize_project_by_id(assigns, resource.project_id, action, category) do
+      Observability.set_project_context(project)
       {:ok, resource, project}
     end
   end
@@ -119,6 +121,7 @@ defmodule Tuist.MCP.Tool do
              category,
              "You do not have access to project: #{account_handle}/#{project_handle}"
            ) do
+      Observability.set_project_context(project)
       {:ok, project}
     end
   end
@@ -134,6 +137,8 @@ defmodule Tuist.MCP.Tool do
   # --- Response helpers ---
 
   def json_response(data, module) when is_map(data) do
+    Observability.set_tool_context(module.name())
+
     encoded = JSON.encode!(data)
     structured_content = JSON.decode!(encoded)
 

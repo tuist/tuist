@@ -6,6 +6,8 @@ defmodule Tuist.MCP.ToolTest do
 
   alias Tuist.MCP.Components.Tools.ListBundles
   alias Tuist.MCP.Tool
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
 
   defp valid_payload do
     %{
@@ -37,6 +39,16 @@ defmodule Tuist.MCP.ToolTest do
   end
 
   describe "json_response/2" do
+    test "records the tool name" do
+      expect(OpenTelemetry.Tracer, :set_attribute, fn "mcp_tool_name", "list_bundles" ->
+        :ok
+      end)
+
+      Tool.json_response(valid_payload(), ListBundles)
+
+      assert Logger.metadata()[:mcp_tool_name] == "list_bundles"
+    end
+
     test "returns both the encoded text content and the structured content" do
       response = Tool.json_response(valid_payload(), ListBundles)
 
@@ -74,6 +86,63 @@ defmodule Tuist.MCP.ToolTest do
       assert_raise ArgumentError, ~r/list_bundles must return a map as structured content/, fn ->
         Tool.json_response([1, 2, 3], ListBundles)
       end
+    end
+  end
+
+  describe "project observability context" do
+    test "records a resource project's context after authorization" do
+      parent = self()
+      project = %Project{id: 1, name: "atlas", account: %{name: "tuist"}}
+
+      expect(Projects, :get_project_by_id, fn 1 -> project end)
+
+      expect(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project ->
+        :ok
+      end)
+
+      expect(OpenTelemetry.Tracer, :set_attribute, 2, fn key, value ->
+        send(parent, {:trace_attribute, key, value})
+        :ok
+      end)
+
+      assert {:ok, %{project_id: 1}, ^project} =
+               Tool.load_and_authorize(
+                 {:ok, %{project_id: 1}},
+                 %{current_subject: :subject},
+                 :read,
+                 :test,
+                 "Test case not found."
+               )
+
+      assert_receive {:trace_attribute, "mcp_account_handle", "tuist"}
+      assert_receive {:trace_attribute, "mcp_project_handle", "atlas"}
+    end
+
+    test "records an explicitly selected project's context after authorization" do
+      parent = self()
+      project = %Project{id: 1, name: "atlas", account: %{name: "tuist"}}
+
+      expect(Projects, :get_project_by_account_and_project_handles, fn "tuist", "atlas" -> project end)
+
+      expect(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project ->
+        :ok
+      end)
+
+      expect(OpenTelemetry.Tracer, :set_attribute, 2, fn key, value ->
+        send(parent, {:trace_attribute, key, value})
+        :ok
+      end)
+
+      assert {:ok, ^project} =
+               Tool.resolve_and_authorize_project(
+                 %{"account_handle" => "tuist", "project_handle" => "atlas"},
+                 %{current_subject: :subject},
+                 :read,
+                 :build
+               )
+
+      assert_receive {:trace_attribute, "mcp_account_handle", "tuist"}
+      assert_receive {:trace_attribute, "mcp_project_handle", "atlas"}
     end
   end
 
