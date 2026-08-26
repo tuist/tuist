@@ -764,9 +764,15 @@ ovhFleets:
       offer: advance-1
       datacenter: vin
       os: ubuntu_24.04
-      # Node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
-      # tuist.dev/egress-mbps so the scheduler bin-packs the 750-Mbps-floor pods.
-      egressBudgetMbps: 3000
+      # Node egress budget (Mbps), advertised as tuist.dev/egress-mbps so the
+      # scheduler bin-packs the 750-Mbps-floor pods. This describes the ONE box
+      # this fleet holds (replicas: 1), whose public uplink is 5 Gbit/s — not
+      # the advance-1 offer in general, which us-west still runs at 3 Gbit/s.
+      # A second, slower box added here would inherit this number and be
+      # over-committed; give it its own fleet key (with a displayName prefix
+      # that is not a prefix of this one — adoption is HasPrefix-matched) or
+      # move the budget per-box before growing the fleet.
+      egressBudgetMbps: 5000
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH
