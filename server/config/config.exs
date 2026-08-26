@@ -138,6 +138,12 @@ config :logger, :console,
     :auth_outcome,
     :selected_account_handle,
     :selected_project_handle,
+    # Model Context Protocol request attribution. These are set only after the
+    # requested project has been authorized, and the tool name only after a
+    # successful structured response has been produced.
+    :mcp_account_handle,
+    :mcp_project_handle,
+    :mcp_tool_name,
     # Operator project-access grant (forensic join key for the audit trail)
     :operator_grant_jti,
     :operator_grant_sub,
