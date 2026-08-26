@@ -82,14 +82,22 @@ spec:
 {{- end }}
 
 {{- /*
-Per-Xcode macOS pools (Runner Profiles backend). Each entry in
-`runnersFleet.xcodeVersions` renders a RunnerPool CR with a
-deterministic name (`<release>-runner-pool-macos-<xcode-dashes>`)
-mirroring how `runnersFleetLinux.shapes` produces per-shape pools.
+Per-Xcode, per-shape macOS pools (Runner Profiles backend). Every
+`runnersFleet.xcodeVersions` entry crossed with every
+`runnersFleet.shapes` entry renders a RunnerPool CR, mirroring how
+`runnersFleetLinux.shapes` produces per-shape pools.
 Customers don't reference these labels directly; they create
 account-scoped Profiles in the Tuist UI, and the server's dispatch
 path resolves (account, requested-label) → profile → pool, with
 the pool name formed via `Catalog.pool_name/1`.
+
+Naming: the DEFAULT shape's pools keep the shape-free
+`<release>-runner-pool-macos-<xcode-dashes>` name they had before the
+catalog gained a second shape, and every other shape appends
+`-<vcpus>vcpu-<gb>gb`. Renaming the existing pools instead would
+strand `queued` runner_jobs rows pointing at the old `fleet_name`
+(a runner only claims work for its own pool) and split fleet
+analytics at the deploy. `Catalog.pool_name/1` applies the same rule.
 
 The `runnerImage` for each pool is derived from a shared
 `runnerImageRepository` + per-semver tag computed as
@@ -114,10 +122,17 @@ chart defaults (replicas: 0, the long-standing pod sizing).
 */}}
 {{- $overrides := .Values.runnersFleet.xcodeOverrides | default dict }}
 {{- /*
-Pod sizing defaults follow the catalog's default shape so a pool
-inherits 6 vCPU / 14 GB from the M2-L catalog without each env
-re-stating it. An override can still pin custom pod sizing if a
-future shape moves off the default.
+Pod sizing for the default shape's pools follows the catalog's
+`default: true` entry, so a pool inherits 6 vCPU / 14 GB without each
+env re-stating it. An `xcodeOverrides` entry can still pin custom pod
+sizing. Non-default shapes size their Pods from the shape itself
+(that is what makes them a distinct shape) and take their scaling
+knobs from the shape entry's own `autoscaling` block.
+
+An empty `shapes` list, or one with no `default: true` entry, keeps
+rendering exactly the one pool per Xcode this template rendered before
+shapes were crossed in, at the long-standing 8000 milli / 14336 MB
+sizing.
 */}}
 {{- $defaultShape := dict }}
 {{- range $.Values.runnersFleet.shapes | default list }}
@@ -127,6 +142,16 @@ future shape moves off the default.
 {{- end }}
 {{- $defaultCPU := mul (dig "vcpus" 8 $defaultShape) 1000 }}
 {{- $defaultMem := mul (dig "memoryGb" 14 $defaultShape) 1024 }}
+{{- /*
+The rendered set is the default shape (always, even when the catalog
+declares none) plus every non-default shape.
+*/}}
+{{- $extraShapes := list }}
+{{- range $.Values.runnersFleet.shapes | default list }}
+  {{- if not .default }}
+    {{- $extraShapes = append $extraShapes . }}
+  {{- end }}
+{{- end }}
 {{- range $xcode := $xcodeVersions }}
 {{- $xcodeVersion := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString }}
 {{- $xcodeTag := $xcodeVersion | replace "." "-" }}
@@ -158,6 +183,10 @@ metadata:
     tuist.dev/runner-pool: {{ $poolName | quote }}
     tuist.dev/managed-by: helm
     tuist.dev/xcode-version: {{ $xcodeVersion | quote }}
+    tuist.dev/shape: {{ printf "%dvcpu-%dgb" (div $defaultCPU 1000) (div $defaultMem 1024) | quote }}
+    tuist.dev/shape-vcpus: {{ div $defaultCPU 1000 | quote }}
+    tuist.dev/shape-memory-gb: {{ div $defaultMem 1024 | quote }}
+    tuist.dev/shape-default: "true"
     {{- if $xcode.default }}
     tuist.dev/xcode-default: "true"
     {{- end }}
@@ -189,6 +218,74 @@ spec:
   rollout:
     maxConcurrentPercent: {{ dig "maxConcurrentPercent" 5 . }}
   {{- end }}
+{{- /*
+Non-default shapes on this same Xcode. They share the Xcode's image,
+runner labels and idle timeout, which are properties of the image rather
+than of the machine, and take their sizing and scaling from the shape
+entry.
+
+A shape only runs on host SKUs whose advertised hostCPU/hostMemoryMB fit
+it, and the fleet allocator's budget is the fleet's TOTAL advertised
+memory, which counts hosts too small to place this shape at all. So a
+shape larger than the smallest host in the fleet MUST carry an
+`autoscaling.maxReplicas` no greater than the number of hosts that can
+host it; that ceiling, not the shared budget, is what keeps the pool from
+targeting slots it can never fill. Omitting the block leaves the pool
+static at replicas 0, which is the safe cold default.
+*/}}
+{{- range $shape := $extraShapes }}
+{{- $vcpus := required "runnersFleet.shapes[].vcpus required" $shape.vcpus | int }}
+{{- $memoryGb := required "runnersFleet.shapes[].memoryGb required" $shape.memoryGb | int }}
+{{- $shapeKey := printf "%dvcpu-%dgb" $vcpus $memoryGb }}
+{{- $shapeAutoscaling := $shape.autoscaling }}
+{{- $shapePoolName := printf "%s-%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos")) $xcodeTag $shapeKey }}
+---
+apiVersion: tuist.dev/v1alpha1
+kind: RunnerPool
+metadata:
+  name: {{ $shapePoolName | quote }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- $labels | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+    tuist.dev/runner-pool: {{ $shapePoolName | quote }}
+    tuist.dev/managed-by: helm
+    tuist.dev/xcode-version: {{ $xcodeVersion | quote }}
+    tuist.dev/shape: {{ $shapeKey | quote }}
+    tuist.dev/shape-vcpus: {{ $vcpus | quote }}
+    tuist.dev/shape-memory-gb: {{ $memoryGb | quote }}
+    {{- if $xcode.default }}
+    tuist.dev/xcode-default: "true"
+    {{- end }}
+spec:
+  labels: []
+  replicas: {{ dig "minWarmPoolFloor" 0 (default dict $shapeAutoscaling) }}
+  image: {{ $image | quote }}
+  os: darwin
+  fleetSelector: {{ $hostFleetName | quote }}
+  dispatchLabel: {{ printf "shape-macos-%s-%s" $xcodeTag $shapeKey | quote }}
+  runnerLabels:
+    {{- range $runnerLabels }}
+    - {{ . | quote }}
+    {{- end }}
+  podCPUMilli: {{ mul $vcpus 1000 }}
+  podMemoryMB: {{ mul $memoryGb 1024 }}
+  {{- $shapeIdleTimeout := dig "idleTimeoutSeconds" ($.Values.runnersFleet.idleTimeoutSeconds | default 0) $shape }}
+  {{- if gt (int $shapeIdleTimeout) 0 }}
+  idleTimeoutSeconds: {{ $shapeIdleTimeout }}
+  {{- end }}
+  {{- if $shapeAutoscaling }}
+  autoscaling:
+    enabled: {{ dig "enabled" false $shapeAutoscaling }}
+    minWarmPoolFloor: {{ dig "minWarmPoolFloor" 0 $shapeAutoscaling }}
+    maxReplicas: {{ dig "maxReplicas" 0 $shapeAutoscaling }}
+    scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $shapeAutoscaling }}
+  {{- end }}
+  {{- with $shape.rollout }}
+  rollout:
+    maxConcurrentPercent: {{ dig "maxConcurrentPercent" 5 . }}
+  {{- end }}
+{{- end }}
 {{- end }}
 {{- end }}
 

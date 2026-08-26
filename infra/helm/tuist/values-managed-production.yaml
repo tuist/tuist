@@ -1033,13 +1033,25 @@ runnersFleet:
         # M4 Pro is 14 CPU / 64 GB. Leave the host 2 cores and Apple
         # Virtualization.framework its reserve, as on the M2-L.
         #
-        # hostMemoryMB is 2x the pool's 14336 MB podMemoryMB, not the
-        # ~60 GB the SKU could advertise, so BOTH dimensions bind at
+        # hostMemoryMB is 2x the 6 vCPU pool's 14336 MB podMemoryMB, not
+        # the ~60 GB the SKU could advertise, so BOTH dimensions bind at
         # exactly two guests. On CPU alone 12/6 already caps at two,
         # but that would make the cap an accident of the current shape:
-        # a future 4-vCPU macOS shape would let memory admit four and
-        # leave maxPods — which also counts system Pods — as the only
-        # thing between the fleet and an SLA violation.
+        # a 4-vCPU macOS shape would let memory admit four and leave
+        # maxPods — which also counts system Pods — as the only thing
+        # between the fleet and an SLA violation.
+        #
+        # These two numbers are also what every macOS shape is sized
+        # against. 28672/12 is 2389 MB per vCPU, the same proportion as
+        # the 6 vCPU / 14 GB shape, so the 12 vCPU / 28 GB shape in
+        # `shapes` above binds at one guest on BOTH dimensions here and
+        # at zero on an M2-L. Keeping that proportion is what lets
+        # `macosFleetAllocatableMemory` keep dividing advertised memory
+        # by podMemoryMB and agree with kube-scheduler; a shape with
+        # more memory per vCPU would force hostMemoryMB up, CPU would
+        # start binding instead, and the 6 vCPU pools' budget would
+        # over-count. Size a new shape from these numbers, not the
+        # other way round.
         #
         # Advertising only 28 of 64 GB looks like a lot left on the
         # table. It isn't reclaimable, and the measurements say it also
@@ -1065,9 +1077,12 @@ runnersFleet:
         # disk images and a 240 GiB cache volume on a 2 TB disk. That is
         # the best available use of it.
         #
-        # If the M4's headroom is ever worth monetizing, the data says
-        # sell CORES, not RAM: a larger-CPU shape would measurably help
-        # 78% of jobs, a larger-memory one would help none of them.
+        # That is also why the M4's headroom is monetized as CORES and
+        # not RAM: the 12 vCPU shape in `shapes` above measurably helps
+        # the 78% of jobs that peg all 6 vCPUs, where a larger-memory
+        # shape would help none of them. A 12 vCPU guest takes the whole
+        # advertised CPU budget, so a host runs one of those OR two 6
+        # vCPU guests, never a mix.
         # Caveat on the numbers: 15s sampling can miss a sub-15s spike,
         # though compressed pages are counted so sustained pressure
         # would show.
@@ -1117,8 +1132,60 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-  # macOS catalog (shapes + xcodeVersions) is shared across managed
-  # envs via `values-managed-common.yaml`. Per-env tuning lives in
+  # Shape catalog. Overrides the common baseline because production is
+  # the only managed env with an M4-XL group, and 12 vCPU only fits
+  # there. Helm replaces lists rather than merging, so the 6 vCPU
+  # baseline is restated here.
+  #
+  # 12 vCPU / 28 GB is the M4-XL sold whole: 12 of its 14 cores, and
+  # memory in the SAME 2389 MB-per-vCPU proportion the 6 vCPU shape
+  # uses. That proportion is the point. `hostMemoryMB: 28672` below
+  # stays as it is, so memory keeps binding guest count on every host
+  # for BOTH shapes (M4: 1 of these or 2 of those; M2-L: 0 or 1), which
+  # is the invariant `macosFleetAllocatableMemory` divides against. A 56
+  # GB variant would force `hostMemoryMB` to 57344, and the 6 vCPU pools,
+  # which carry all of today's traffic, would then be handed a 15-slot
+  # budget against 11 placeable ones.
+  #
+  # It is also exactly 2x the baseline shape in both dimensions, so
+  # `Catalog.billing_multiplier/3` meters it at precisely 2.0000 compute
+  # units with no rounding.
+  #
+  # Memory is not what this shape sells and the numbers say so: over
+  # 3,251 macOS jobs in the 7 days to 2026-08-25 peak RSS was p50 7.6 /
+  # p90 8.8 / p99 10.0 GiB, max ever 10.2, with ZERO jobs above 85% of
+  # the 14 GiB ceiling, while peak CPU was p50 100% and 78% of jobs
+  # pegged all 6 vCPUs. Cores are the constraint; 28 GB is already 2.7x
+  # the largest working set ever measured.
+  #
+  # NO PRICE ATTACHED YET. A 12 vCPU guest takes the whole M4-XL
+  # (12 of 12 advertised cores), so it costs EUR 0.49/h against EUR
+  # 0.245 for a 6 vCPU slot on the same host: 2x the cost for 2x the
+  # billing multiplier, which is coincidence, not a pricing decision.
+  # Settle the rate card before this is offered to accounts.
+  shapes:
+    - vcpus: 6
+      memoryGb: 14
+      default: true
+    - vcpus: 12
+      memoryGb: 28
+      # maxReplicas is the M4-XL HOST count, not a fleet slot count.
+      # The allocator's budget is the fleet's total advertised memory,
+      # which includes the 7 M2-L hosts that cannot place a 28 GB Pod at
+      # all, so 157696 / 28672 reads as 5 where only 2 are real. This
+      # ceiling is what makes that safe, so it moves with
+      # `machineGroups[m4].hostCount`, not with the 11-slot totals the
+      # `xcodeOverrides` below use.
+      #
+      # Cold: no warm floor. A 12 vCPU Pod parks a whole M4-XL, and idle
+      # it would halve the fleet's dual-guest capacity to keep one
+      # speculative runner warm. Jobs pay cold start until demand
+      # justifies otherwise.
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 2
+  # Per-env tuning for the default shape's pools lives in
   # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
   # template merges each catalog entry with its override at render
   # time. Every active profile runs through the runners-controller's
