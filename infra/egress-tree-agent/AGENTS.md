@@ -124,21 +124,19 @@ dictate this shape — do not regress them:
   upgrades. Removing shaping is an explicit operator action: delete the
   DaemonSet, remove the pin directory, delete `kura-egress0`.
 - **The box cap binds the floor, not just the ceiling.** `classRates` clamps a
-  tenant's floor to the node budget before raising its ceiling to meet that
-  floor. Without the first clamp the second one is a hole: a floor larger than
-  the whole budget (a mistyped override, a hand-edited CR) would carry that
-  tenant's ceiling straight past the cap this tree exists to hold, and the root
-  class cannot hand out what it does not have anyway. Observed live on k01
-  before the clamp: a 2000 Mbps floor on a 1000 Mbps box produced
-  `rate 2Gbit ceil 2Gbit`.
-- **tc validates none of this, so `classRates` is the only guard.** Measured on
-  a live tree: two child classes at `rate 800mbit` under a `rate 1gbit` root
-  both install with exit 0 — HTB does no admission control on the sum of child
-  rates, it simply cannot keep every guarantee at once and shares out in
-  proportion under contention. A single class with `rate 900mbit ceil 100mbit`
-  installs cleanly too. Nothing in the kernel will tell an operator that a floor
-  is unkeepable or unreachable; that has to come from this agent's metrics and
-  from the ops form.
+  tenant's floor to the node budget *before* raising its ceiling to meet that
+  floor. Clamping only the ceiling leaves a hole: a floor larger than the whole
+  budget (a mistyped override, a hand-edited CR) carries the ceiling with it past
+  the cap this tree exists to hold — a 2000 Mbps floor on a 1000 Mbps box yields
+  `rate 2Gbit ceil 2Gbit`. The root class cannot hand out what it does not have
+  anyway.
+- **tc validates none of this, so `classRates` is the only guard.** Measured on a
+  live tree: two child classes at `rate 800mbit` under a `rate 1gbit` root both
+  install with exit 0, and a single class with `rate 900mbit ceil 100mbit`
+  installs cleanly. HTB does no admission control on the sum of child rates — it
+  shares out in proportion under contention instead. Nothing in the kernel will
+  say a floor is unkeepable or unreachable; that has to come from this agent's
+  metrics and from the ops form.
 - `default 0` on the root qdisc: unclassified packets transmit unshaped via
   HTB's direct queue and increment a counter that must alert — every packet
   entering the tree was stamped, so a direct packet means a foreign redirect

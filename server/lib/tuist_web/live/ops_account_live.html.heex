@@ -158,11 +158,10 @@
           title={@kura_egress_result.title}
         />
         <div data-part="actions">
-          <%!-- data-confirm belongs on the button, never on the form: what
-                implements it here is phoenix_html's polyfill, which walks up
-                the DOM from whatever was clicked and confirms on the first
-                ancestor carrying the attribute. On the form that means every
-                click inside it — including into a field — asks the question. --%>
+          <%!-- data-confirm belongs on the button, never on the form:
+                phoenix_html's polyfill walks up from whatever was clicked and
+                confirms on the first ancestor carrying it, so on the form every
+                click into a field asks too. --%>
           <.button
             type="submit"
             variant="primary"

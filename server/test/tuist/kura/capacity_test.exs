@@ -263,10 +263,9 @@ defmodule Tuist.Kura.CapacityTest do
     end
 
     # A box can carry pods of the same account that belong to something else —
-    # another region's instance, or a self-hosted deployment's own. They hold
-    # whatever they hold against the box, but they are not replicas of the
-    # instance being sized, and counting them divides the box by too many. On a
-    # lab node three such pods turned a limit of 500 into one of 200.
+    # another region's instance, or a self-hosted deployment's own. They reserve
+    # against the box, but they are not replicas of the instance being sized, and
+    # counting them divides the box by too many.
     test "counts as replicas only the account's pods in this region" do
       stub_egress_nodes(%{"box-1" => 1000})
 

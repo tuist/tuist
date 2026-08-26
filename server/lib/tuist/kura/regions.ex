@@ -793,11 +793,9 @@ defmodule Tuist.Kura.Regions do
   # `egress_burst_mbps`; empty on the Hetzner cloud regions, whose NIC is not
   # shared with another tenant.
   #
-  # This is the region's own ceiling, which is the default an account gets here.
-  # The provisioner replaces the value with the account's effective one before it
-  # renders the KuraInstance, so the ceiling reaches the pod through this one
-  # annotation whether or not staff have overridden it; see
-  # `Tuist.Kura.EgressLimits`.
+  # The region's own ceiling, which is the default. The provisioner substitutes
+  # the account's effective one before rendering the KuraInstance, so this single
+  # annotation carries the ceiling either way (`Tuist.Kura.EgressLimits`).
   defp egress_bandwidth_pod_annotations(spec) do
     case Map.get(spec, :egress_burst_mbps) do
       nil -> %{}

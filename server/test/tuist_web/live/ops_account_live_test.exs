@@ -272,10 +272,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
   end
 
   # A browser posts the whole table, untouched rows included, seeded with what
-  # they already hold. Those rows have to come back out unchanged — a save aimed
-  # at one region that quietly cleared another's override would be the worst
-  # kind of bug here, since the cleared region rolls its pods back to the
-  # region's numbers without anyone asking it to.
+  # they already hold. A save aimed at one region that cleared another's override
+  # would roll that region's pods back to the region's numbers unasked.
   test "leaves an untouched row alone when the whole table is submitted", %{conn: conn, user: user} do
     stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
     stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)

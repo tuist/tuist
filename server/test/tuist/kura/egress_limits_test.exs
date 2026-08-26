@@ -275,12 +275,10 @@ defmodule Tuist.Kura.EgressLimitsTest do
                errors_on(changeset).kura_egress_floor_mbps
     end
 
-    # The bound this got wrong. An account mid-rollout holds the new floor on
-    # one replica and the old one on the other, and a rule written in terms of
-    # what they hold reports a different limit depending on when it is asked:
-    # raising a settled 250 was refused with "must be at most 137" because one
-    # replica was still on 25. What the box holds for the account does not move
-    # while its own replicas swap values, so this answer does not either.
+    # An account mid-rollout holds the new floor on one replica and the old one
+    # on the other, so a bound written in terms of what they hold would answer
+    # differently depending on when it is asked. What the box holds for the
+    # account does not move while its own replicas swap values.
     test "answers the same mid-rollout as it does settled", %{account: account, region: region} do
       assert :ok = EgressLimits.put_override(account, region, %{floor_mbps: 250, burst_mbps: 400})
 

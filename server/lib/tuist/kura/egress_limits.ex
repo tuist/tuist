@@ -2,52 +2,40 @@ defmodule Tuist.Kura.EgressLimits do
   @moduledoc """
   Per-account, per-region overrides of the Kura egress floor and ceiling.
 
-  Three pairs of numbers decide what a tenant's pods run at, and only one of
-  them is a bound:
+  Three pairs of numbers decide what a tenant's pods run at, and only one is a
+  bound:
 
     * The **operator's override** is the intent. Whichever half staff state is
       the number that applies.
-    * The **region's pair** is the default. It says what an account nobody has
-      looked at gets, it fills in whichever half the override leaves blank, and
-      where the two disagree it gives way. It is sized for the fleet, not for
-      the hardware, so it is never a limit on what staff may set.
-    * The **node's budget** — the `tuist.dev/egress-mbps` capacity each box
-      advertises, its NIC ceiling minus headroom — is the only real cap. The
-      form validates against it, and `infra/egress-tree-agent` clamps both
-      halves to it on the box itself.
+    * The **region's pair** is the default. It fills in whichever half the
+      override leaves blank, and gives way where the two disagree. It is sized
+      for the fleet rather than for the hardware, so it never limits what staff
+      may set.
+    * The **box** is the only real cap, measured per node (`Capacity`). The
+      region is scoped per region because the boxes are: a floor a 3 Gbit/s box
+      can keep is one a 1 Gbit/s box cannot.
 
-  The override is scoped to a region because the boxes are: the budget is
-  declared per machine, so a floor a 3 Gbit/s box can keep is one a 1 Gbit/s box
-  cannot, and a single account-wide number would either waste the roomy regions
-  or promise what the small ones cannot deliver.
+  The pair rides the two fields that already carry the region's numbers rather
+  than override fields of their own: the floor is the KuraInstance's
+  `egressGuaranteedMbps`, the ceiling its `kubernetes.io/egress-bandwidth` pod
+  annotation. Each cascades as it always has — the floor to the pod's
+  `tuist.dev/egress-mbps` request, both to the `tuist.dev/egress-class`
+  annotation the shared-tree shaper reads. One number per knob keeps the slice
+  the scheduler reserves, the ceiling Cilium paces, and the class the shaper
+  builds from ever describing different limits.
 
-  The pair is delivered through the two fields that already carry the region's
-  numbers, rather than through override fields of their own: the floor is the
-  KuraInstance's `egressGuaranteedMbps`, the ceiling its
-  `kubernetes.io/egress-bandwidth` pod annotation. The server renders both at
-  the account's effective rates, and each cascades on the cluster side as it
-  always has — the floor to the pod's `tuist.dev/egress-mbps` request and limit,
-  both to the `tuist.dev/egress-class` annotation the shared-tree shaper reads.
-  One number per knob means the slice the scheduler reserves, the ceiling Cilium
-  paces, and the class the shaper builds can never disagree about what the
-  tenant's limits are.
+  Both are pod-spec state, so a retune recreates that region's replicas. The
+  cache survives — a `data-<sts>-<ordinal>` claim belongs to the ordinal, not the
+  pod, so a replica reopens the same volume — and the standby serves through
+  each restart.
 
-  Both are pod-spec state, so a retune moves the StatefulSet's pod template and
-  the account's replicas in that region are recreated to pick it up. The cache
-  survives: a replica's `data-<sts>-<ordinal>` claim belongs to the ordinal
-  rather than to the pod, so the replacement binds the same volume and reopens
-  the same warm data. Rolling one replica at a time, with the standby serving
-  through each restart, is the whole cost.
+  The floor needs the care, because it is also the request the scheduler places
+  against. Its volume pins the replacement to one box, so a floor that box
+  cannot satisfy leaves it Pending rather than placed elsewhere, and the rollout
+  stops there until the number comes back down. Hence the checks in
+  `change_override/3`.
 
-  What has to be got right is the floor, because it is also the
-  `tuist.dev/egress-mbps` request the scheduler places against. The replacement
-  has to fit what its box has left — its own volume pins it to that one box, so
-  a request the box cannot satisfy leaves it Pending rather than placing it
-  elsewhere. The rollout then stops there, holding the account on its surviving
-  replica until the number comes back down. Validate against the node budget
-  before saving (`node_budget_mbps/1`), which the form does.
-
-  A change is carried to the cluster by the manifest revision (see
+  A change reaches the cluster through the manifest revision (see
   `Tuist.Kura.Provisioner.KubernetesController`), so it lands on the next
   reconciler tick rather than waiting for an unrelated field to move.
   """
@@ -253,21 +241,13 @@ defmodule Tuist.Kura.EgressLimits do
     end
   end
 
-  # The box is the one thing that can actually refuse a number. A floor above the
-  # budget is a promise the root class cannot keep, and a ceiling above it is
-  # headroom the NIC does not have — the agent clamps both on the node, so
-  # without this the operator's number would simply be quietly discarded there.
-  # Saying so in the form is the difference between setting a limit and thinking
-  # you set one.
+  # Above what a box advertises, the agent clamps both halves on the node, so the
+  # operator's number would be discarded there without a word.
   #
-  # A floor is held to more than that. It is the pod's tuist.dev/egress-mbps
-  # request, so it is also what the scheduler bin-packs, and a request no node in
-  # the region can satisfy leaves the account's replicas Pending — on the
-  # local-NVMe regions with their volumes pinned to a box they can no longer be
-  # placed on. An unreadable budget is therefore a reason to refuse a floor
-  # rather than to wave it through: the edit can be retried in a minute, while a
-  # cache stranded behind an unschedulable pod cannot be undone by retrying
-  # anything. The ceiling reserves nothing and stays settable either way.
+  # A budget that cannot be read refuses a floor rather than waving it through:
+  # a floor is a scheduler request, and one no node can satisfy leaves the
+  # replicas Pending with their volumes pinned to a box they no longer fit. The
+  # ceiling reserves nothing and stays settable either way.
   defp validate_against_node_budget(changeset, %Regions{} = region) do
     case node_budget_mbps(region) do
       nil ->
@@ -292,40 +272,23 @@ defmodule Tuist.Kura.EgressLimits do
     end
   end
 
-  # What the box can hold for this account, which is a tighter bound than what it
-  # advertises and a different question from it.
+  # What the box holds for this account, a tighter bound than what it advertises.
+  # Every replica reserves the floor and the box carries all of them at once, so
+  # `replicas x floor` has to fit — see `Capacity.egress_headroom/2` for why the
+  # replicas' current values are not part of it.
   #
-  # A floor is the pod's `tuist.dev/egress-mbps` request, so every replica
-  # reserves it and the box has to hold all of them at once. The rollout gets
-  # there one replica at a time, each step handing in the old reservation before
-  # asking for the new, so by the last step the old values are all gone and what
-  # remains beside the account is only what other tenants hold:
+  # Skipped where the account has no pods on a box: nothing pins it, so the
+  # scheduler may place it anywhere and `node_budget_mbps/1` is the whole bound.
   #
-  #     replicas x floor <= what the box has for this account
-  #
-  # Deliberately written without what the replicas hold *now*. An account caught
-  # mid-rollout holds different values on different replicas, and a rule stated
-  # in terms of them answers differently depending on when it is asked — the
-  # first version of this check told an operator raising a settled 250 that
-  # their limit was 137, because it happened to run while one replica was still
-  # on the old value.
-  #
-  # Skipped where the account has no pods on a box yet: nothing pins it, so the
-  # scheduler may place it anywhere in the region and `node_budget_mbps/1` above
-  # is the whole of the bound.
-  #
-  # This is a check against a live reading, so it is not a guarantee — another
-  # account can be provisioned onto the box between saving and rolling. It is
-  # here to catch the mistake at the point it is made, rather than leaving it to
-  # be discovered as a Pending pod thirty minutes later.
+  # A live reading rather than a guarantee — another account can be provisioned
+  # onto the box between saving and rolling — so this catches the mistake where
+  # it is made and the unschedulable alert stays the backstop.
   defp validate_against_node_headroom(changeset, %Account{} = account, %Regions{} = region) do
     with floor_mbps when is_integer(floor_mbps) <- Changeset.get_field(changeset, @floor_field),
          %{replicas: replicas, available_mbps: available, node: node} <- node_headroom(account, region),
          true <- floor_mbps * replicas > available do
-      # Short on purpose: this renders inside a table cell, and the row already
-      # carries the same number under the node's limit. The reasoning behind it
-      # belongs in the section's description, not in an error that widens the
-      # table it appears in.
+      # Short on purpose: this renders in a table cell, and the row already
+      # carries the same number under the node's limit.
       Changeset.add_error(changeset, @floor_field, "must be at most #{div(available, replicas)} Mbps on #{node}")
     else
       _ -> changeset

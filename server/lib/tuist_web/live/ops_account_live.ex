@@ -434,18 +434,14 @@ defmodule TuistWeb.OpsAccountLive do
     # The rows share one form element; each row's inputs carry their own names,
     # so this outer form exists only to own the submit.
     |> assign(:kura_egress_form, to_form(%{}, as: "egress"))
-    # The outcome of the last Save, rendered inside the section rather than as a
-    # page flash: it is about this table, and a banner at the top of the page
-    # sits nowhere near the rows it is talking about. assign_new so a save that
-    # re-reads the section keeps the message it just produced.
+    # assign_new so a save that re-reads the section keeps the message it just
+    # produced.
     |> assign_new(:kura_egress_result, fn -> nil end)
   end
 
-  # One entry per egress-governed region the account holds an instance in. Each
-  # carries its own form, because an override is a per-region decision: the
-  # boxes differ, so the number that suits one region is not the number that
-  # suits another. Each also carries that region's node budget, which is the
-  # only figure that can actually refuse what an operator types.
+  # One entry per egress-governed region the account holds an instance in, each
+  # with its own form: an override is a per-region decision because the boxes
+  # differ.
   defp kura_egress_regions(account, servers) do
     servers
     |> Enum.map(& &1.region)
@@ -481,12 +477,10 @@ defmodule TuistWeb.OpsAccountLive do
     |> to_form(as: "account[#{region.id}]", id: "kura-egress-#{region.id}")
   end
 
-  # One Save covers the whole table, so the rows are cast before any of them is
-  # written: a typo in one region must not leave the operator having half-applied
-  # a change they were making to several. Only the rows they actually touched are
-  # written — an untouched row would otherwise be rewritten on every save, and a
-  # rewrite is a manifest revision and a reconcile for an instance nobody asked
-  # to disturb.
+  # Every row is cast before any is written, so a typo in one region cannot
+  # half-apply a change across several. Only touched rows are written: rewriting
+  # an untouched one moves its manifest revision and reconciles an instance
+  # nobody asked to disturb.
   defp save_kura_egress_limits(socket, params) do
     account = socket.assigns.account
 
@@ -547,18 +541,9 @@ defmodule TuistWeb.OpsAccountLive do
     end)
   end
 
-  # One Save can change several regions, so the result is one message about all
-  # of them rather than a stack of them: it names the regions and totals the
-  # instances, which is what an operator goes and checks.
-  #
-  # Says the part they have to weigh, too: the floor is a pod request and the
-  # ceiling a pod annotation, so the account's replicas in those regions are
-  # recreated to take the new pair. They keep their volumes, so this is a restart
-  # behind the standby rather than a cache rebuild.
-  #
-  # Nothing changed is its own answer. A Save over an untouched table writes
-  # nothing, and reporting a recreate that is not happening would be a lie the
-  # operator would go looking for.
+  # One message for the whole Save, naming the regions and totalling the
+  # instances an operator can go and check. Nothing changed gets its own answer:
+  # reporting a recreate that is not happening sends them looking for a rollout.
   defp kura_egress_limits_result([]) do
     %{status: "information", title: dgettext("dashboard", "No egress limits changed.")}
   end
@@ -580,8 +565,8 @@ defmodule TuistWeb.OpsAccountLive do
     }
   end
 
-  # Named regions again, for the same reason: with several rows on screen, "could
-  # not be updated" leaves the operator hunting for which one the form rejected.
+  # Named, because with several rows on screen "could not be updated" leaves the
+  # operator hunting for which one was rejected.
   defp kura_egress_limits_error_message(invalid) do
     regions = invalid |> Enum.map(fn {region, _attrs, _result} -> region.display_name end) |> Enum.sort()
 

@@ -360,14 +360,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "private" => Regions.private?(region),
           "exposeNodePort" => Regions.node_port_data_plane?(region),
           "clientCIDRs" => client_cidrs(region),
-          # Both carry the account's effective pair, not the region's: the
-          # ceiling as the bandwidth annotation the pod template renders, the
-          # floor as the tuist.dev/egress-mbps request the scheduler bin-packs.
-          # The controller derives the shaper's tuist.dev/egress-class from these
-          # same two, so one number per knob keeps the reservation, the pacing,
-          # and the shaped class from ever describing different limits. An
-          # account that overrides nothing renders the same spec it rendered
-          # before this feature existed.
+          # The account's effective pair, not the region's. The controller
+          # derives the shaper's tuist.dev/egress-class from these same two
+          # fields, so one number per knob keeps the reservation, the pacing and
+          # the shaped class from describing different limits.
           "podAnnotations" => pod_annotations(region, egress.burst_mbps),
           "egressGuaranteedMbps" => egress.floor_mbps,
           "memoryFloorMib" => entitlements.memory && entitlements.memory.floor_mib,
@@ -492,27 +488,21 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       egress_revision_suffix(egress)
   end
 
-  # Keyed on the pair the manifest actually renders, not on the operator's
-  # override, because the reconciler converges on the revision alone: anything
-  # that changes what these two fields carry while leaving the revision where it
-  # was would sit unapplied until something unrelated happened to move it. The
-  # override is only one of the inputs — the region's own numbers and the
-  # entitlement that gates its floor are the others, and each has silently
-  # failed to propagate for exactly this reason.
+  # Keyed on the pair the manifest renders rather than on the override alone: the
+  # reconciler converges on the revision, so anything that moves these two fields
+  # — the override, the region's own numbers, the entitlement gating the floor —
+  # has to move it too or sit unapplied.
   #
-  # Re-applying is cheap where the pair has not moved: the rendered spec is
-  # identical, so the CR is written once with a new annotation and no pod is
-  # touched. Only a pair that really changed reaches the pod template.
+  # Cheap where the pair has not moved: the spec is identical, so the CR takes a
+  # new annotation and no pod is touched.
   defp egress_revision_suffix(%{floor_mbps: nil, burst_mbps: nil}), do: ""
 
   defp egress_revision_suffix(%{floor_mbps: floor_mbps, burst_mbps: burst_mbps}) do
     "+egress#{floor_mbps || "-"}-#{burst_mbps || "-"}"
   end
 
-  # The floor and ceiling the instance is actually built at: the operator's
-  # override where they set one, the region's default (already entitlement-gated
-  # for the floor) everywhere else. Resolved from the entitlements this manifest
-  # already carries so an override costs no extra subscription lookup.
+  # Resolved from the entitlements this manifest already carries, so an override
+  # costs no extra subscription lookup.
   defp effective_egress(account, %Regions{} = region, entitlements) do
     if Regions.egress_governed?(region) do
       EgressLimits.effective_limits(account, region, entitlements.egress_guaranteed_mbps)
@@ -954,9 +944,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp client_cidrs(%Regions{provisioner_config: %{client_cidrs: [_ | _] = cidrs}}), do: cidrs
   defp client_cidrs(_), do: nil
 
-  # The region's annotations with the burst ceiling replaced by the account's
-  # effective one. A region that paces nobody and an account that overrides
-  # nothing both render what they always did.
+  # The region's annotations with the burst ceiling replaced by the account's.
   defp pod_annotations(region, burst_mbps) do
     region
     |> region_pod_annotations()

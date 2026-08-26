@@ -197,43 +197,28 @@ defmodule Tuist.Kura.Capacity do
   @doc """
   How much egress the box `account_handle`'s instances in `region_id` sit on can
   hold for that account, and across how many replicas — or `nil` when it has
-  none placed there yet (then nothing pins it and `egress_budget_mbps/1` is the
-  whole answer).
+  none placed there yet, where nothing pins it and `egress_budget_mbps/1` is the
+  whole answer.
 
       %{node:, allocatable_mbps:, available_mbps:, replicas:}
 
-  `available_mbps` is what the box has for *this account*: everything it
-  advertises, less what other tenants have reserved on it. It deliberately
-  counts the account's own current reservation as available, because a rollout
-  releases each replica's before asking for its replacement.
+  `available_mbps` is the box less what *other* tenants reserve on it: a rollout
+  hands each replica's own reservation in before asking for its replacement, so
+  the account is not charged for what it already holds.
 
-  That is the whole of the bound, and it is simpler than it first looks. Walking
-  a floor change through the rollout, with `O` the other tenants and `c_i` what
-  each replica holds now:
+  Every replica reserves the floor, and the rollout replaces them one at a time,
+  releasing the old value at each step. On the last step the old values are all
+  gone, which is what a raise has to fit:
 
-      step k:  O + k x new + sum(c_i for i > k)  <= allocatable
-      step r:  O + r x new                       <= allocatable
+      replicas x floor <= allocatable - other tenants
 
-  Every step releases one old value and takes one new one, so on the last step
-  the old values are all gone and the `c_i` cancel out. A raise tightens the
-  constraint at each step, which makes the last one binding:
+  Nothing here reads what the replicas hold now. An account mid-rollout holds
+  different values on different replicas, so a bound written in terms of them
+  answers differently depending on when it is asked.
 
-      replicas x new_floor <= allocatable - other tenants
-
-  What the replicas hold *now* never enters it. That matters: an account caught
-  mid-rollout holds different values on different replicas, and any formula
-  written in terms of them reports a different bound depending on when it is
-  asked.
-
-  Two things this still has to get right:
-
-    * **The box, not the region.** A replica's volume pins it to one node, so a
-      roomier sibling box is no help — it is the only node the pod can ever be
-      placed on again. Where an account somehow spans boxes, the binding one is
-      whichever holds least for it.
-    * **Scheduled pods only.** An unscheduled pod holds nothing on a node, so it
-      cannot count towards what other tenants have reserved there. It is exactly
-      the pod this measurement exists to make room for.
+  The box is the unit, not the region: a replica's volume pins it to one node,
+  so a roomier sibling box is no help. Where an account spans boxes, the binding
+  one is whichever holds least for it.
   """
   def egress_headroom(region_id, account_handle) when is_binary(account_handle) do
     with %{nodes: nodes, accounts: accounts} <- egress_placement(region_id),
@@ -250,9 +235,8 @@ defmodule Tuist.Kura.Capacity do
     end
   end
 
-  # The account's box with the least room for it. Its own reservation on that box
-  # is added back, because the rollout hands it in before asking for the
-  # replacement -- what bounds the account is the box minus everybody else.
+  # The account's box with the least room for it, its own reservation added back:
+  # the rollout hands that in before asking for the replacement.
   defp worst_node(account_nodes, nodes) do
     account_nodes
     |> Enum.filter(fn {node, _placement} -> Map.has_key?(nodes, node) end)
@@ -263,16 +247,12 @@ defmodule Tuist.Kura.Capacity do
     |> Enum.min_by(fn {_node, available} -> available end, fn -> nil end)
   end
 
-  # Replicas this box will rebuild at the new floor, which is what the box is
-  # divided by -- not the account's replicas in the region. Each one's volume
-  # pins it to the box it is on, so a box only ever rebuilds the replicas that
-  # live there, and dividing a box by replicas it does not carry would bound it
-  # twice as tightly as the rollout does.
+  # Replicas this box will rebuild, which is what it is divided by. A volume pins
+  # each replica to its own box, so a box rebuilds only what lives on it.
   #
-  # A replica the account is momentarily between -- deleted, not yet recreated --
-  # is in no pod list, so the count is raised by the replicas the region declares
-  # and no other box accounts for. Its volume pins it here, so here is where it
-  # comes back.
+  # Raised by the replicas the region declares that no other box accounts for: a
+  # replica between deletion and recreation is in no pod list, and its volume
+  # brings it back here.
   defp replicas_on(%{nodes: account_nodes, replicas: total}, node, region_id) do
     on_node = Enum.find_value(account_nodes, 0, fn {name, %{pods: pods}} -> name == node && pods end)
 
@@ -325,22 +305,18 @@ defmodule Tuist.Kura.Capacity do
     end
   end
 
-  # One list per box, cluster-wide, rather than one list of the pods this control
-  # plane labels: what bounds a tenant's floor is everything reserved on its box,
-  # whoever put it there, and a narrower list overstates the room left by
-  # whatever it does not see.
+  # Cluster-wide per box rather than scoped to this control plane's own pods:
+  # everything on a box reserves egress from it, whoever put it there.
   #
-  # A box that cannot be read abandons the whole measurement rather than
-  # answering from the ones that could — a region reading as roomier than it is
-  # would be worse than reading as unknown, which falls back to the advertised
-  # budget.
+  # A box that cannot be read abandons the whole measurement. Answering from the
+  # boxes that could would report the region as roomier than it is, where
+  # `nil` falls back to the advertised budget.
   defp measure_node_egress(acc, node, allocatable_mbps, region_id) do
     case Client.list_pods_on_node(node) do
       {:ok, pods} ->
-        # The field selector already narrows this to the box, and a pod holds a
-        # node's resources from the moment it is bound rather than when it
-        # starts. Re-checking the binding here keeps that invariant next to the
-        # arithmetic that depends on it, instead of in a query string.
+        # A pod holds a node's resources from the moment it is bound, not when
+        # it starts. The field selector already guarantees this; restated here
+        # so the arithmetic below does not depend on a query string elsewhere.
         pods = Enum.filter(pods, &(pod_node_name(&1) == node and not terminal?(&1)))
 
         nodes =
@@ -356,16 +332,11 @@ defmodule Tuist.Kura.Capacity do
     end
   end
 
-  # Which account each pod belongs to, and what it holds where, accumulated
-  # across the region's boxes. Only pods that carry the controller's account
-  # label are anybody's — everything else on a box is simply reserved against it.
-  #
-  # Scoped to this region as well as to the account, which the node-wide list no
-  # longer does on its own. A box can carry pods of the same account that belong
-  # to something else — another region's instance, or a self-hosted deployment's
-  # own — and counting those as replicas of the instance being sized divides the
-  # box by too many. Observed on a lab node: three unrelated pods labelled with
-  # the account turned a limit of 500 into one of 200.
+  # Which pods belong to the account's instance in this region, and what they
+  # hold where. Pods without both labels are reserved against the box but are not
+  # replicas of it: a box can carry the same account's pods from another region
+  # or from a self-hosted deployment, and counting those divides the box by too
+  # many.
   defp account_egress_placement(pods, accounts, region_id) do
     Enum.reduce(pods, accounts, fn pod, acc ->
       with handle when is_binary(handle) <- pod_account_handle(pod),
