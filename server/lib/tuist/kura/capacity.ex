@@ -237,13 +237,13 @@ defmodule Tuist.Kura.Capacity do
   """
   def egress_headroom(region_id, account_handle) when is_binary(account_handle) do
     with %{nodes: nodes, accounts: accounts} <- egress_placement(region_id),
-         %{nodes: [_ | _] = account_nodes, replicas: replicas} <- Map.get(accounts, account_handle),
+         %{nodes: [_ | _] = account_nodes} = placement <- Map.get(accounts, account_handle),
          {node, available} <- worst_node(account_nodes, nodes) do
       %{
         node: node,
         allocatable_mbps: nodes[node].allocatable_mbps,
         available_mbps: available,
-        replicas: max(replicas, declared_replicas(region_id))
+        replicas: replicas_on(placement, node, region_id)
       }
     else
       _ -> nil
@@ -255,17 +255,30 @@ defmodule Tuist.Kura.Capacity do
   # replacement -- what bounds the account is the box minus everybody else.
   defp worst_node(account_nodes, nodes) do
     account_nodes
-    |> Enum.filter(fn {node, _reserved} -> Map.has_key?(nodes, node) end)
-    |> Enum.map(fn {node, reserved} ->
+    |> Enum.filter(fn {node, _placement} -> Map.has_key?(nodes, node) end)
+    |> Enum.map(fn {node, %{reserved_mbps: reserved}} ->
       %{allocatable_mbps: allocatable, reserved_mbps: node_reserved} = nodes[node]
       {node, max(allocatable - (node_reserved - reserved), 0)}
     end)
     |> Enum.min_by(fn {_node, available} -> available end, fn -> nil end)
   end
 
-  # A replica the account is between (deleted, not yet recreated) holds nothing
-  # and is not in the pod list, so counting only what is there would divide the
-  # box by too few and overstate what a floor may be raised to.
+  # Replicas this box will rebuild at the new floor, which is what the box is
+  # divided by -- not the account's replicas in the region. Each one's volume
+  # pins it to the box it is on, so a box only ever rebuilds the replicas that
+  # live there, and dividing a box by replicas it does not carry would bound it
+  # twice as tightly as the rollout does.
+  #
+  # A replica the account is momentarily between -- deleted, not yet recreated --
+  # is in no pod list, so the count is raised by the replicas the region declares
+  # and no other box accounts for. Its volume pins it here, so here is where it
+  # comes back.
+  defp replicas_on(%{nodes: account_nodes, replicas: total}, node, region_id) do
+    on_node = Enum.find_value(account_nodes, 0, fn {name, %{pods: pods}} -> name == node && pods end)
+
+    max(on_node, declared_replicas(region_id) - (total - on_node))
+  end
+
   defp declared_replicas(region_id) do
     case Regions.fetch(region_id) do
       {:ok, region} -> replicas(region)
@@ -359,9 +372,14 @@ defmodule Tuist.Kura.Capacity do
            ^region_id <- pod_region(pod),
            node when is_binary(node) <- pod_node_name(pod) do
         entry = Map.get(acc, handle, %{nodes: %{}, replicas: 0})
+        on_node = Map.get(entry.nodes, node, %{reserved_mbps: 0, pods: 0})
 
         Map.put(acc, handle, %{
-          nodes: Map.update(entry.nodes, node, pod_egress_mbps(pod), &(&1 + pod_egress_mbps(pod))),
+          nodes:
+            Map.put(entry.nodes, node, %{
+              reserved_mbps: on_node.reserved_mbps + pod_egress_mbps(pod),
+              pods: on_node.pods + 1
+            }),
           replicas: entry.replicas + 1
         })
       else

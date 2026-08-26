@@ -295,6 +295,31 @@ defmodule Tuist.Kura.CapacityTest do
       assert %{node: "box-2", available_mbps: 200} = Capacity.egress_headroom(@region, "tuist")
     end
 
+    # A box only ever rebuilds the replicas that live on it -- each one's volume
+    # pins it there -- so it is divided by those, not by the account's replicas
+    # in the region. Dividing box-1 by 2 here would bound it twice as tightly as
+    # the rollout it is describing.
+    test "divides a box by the replicas that live on it" do
+      stub_egress_nodes(%{"box-1" => 1000, "box-2" => 1000})
+
+      stub(Client, :list_pods_on_node, fn
+        "box-1" -> {:ok, [egress_pod("tuist", 100, node: "box-1"), egress_pod("neighbour", 400, node: "box-1")]}
+        "box-2" -> {:ok, [egress_pod("tuist", 100, node: "box-2")]}
+      end)
+
+      assert %{node: "box-1", available_mbps: 600, replicas: 1} = Capacity.egress_headroom(@region, "tuist")
+    end
+
+    # A replica deleted and not yet recreated is in no pod list, and its volume
+    # pins it to the box it left, so the box has to be sized for its return.
+    # Counting only what is there would divide by too few and overstate the room.
+    test "counts a replica the account is between" do
+      stub_egress_nodes(%{"box-1" => 1000})
+      stub(Client, :list_pods_on_node, fn "box-1" -> {:ok, [egress_pod("tuist", 100)]} end)
+
+      assert %{replicas: 2} = Capacity.egress_headroom(@region, "tuist")
+    end
+
     test "is unknown for an account with nothing on the region's boxes" do
       stub_egress_nodes(%{"box-1" => 500})
       stub(Client, :list_pods_on_node, fn "box-1" -> {:ok, [egress_pod("neighbour", 150)]} end)
