@@ -15,7 +15,6 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
       states: :incomplete
     ]
 
-  alias Tuist.FeatureFlags
   alias Tuist.Kura
   alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.StorageRollups
@@ -38,14 +37,6 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
   end
 
   defp apply_within_budget do
-    if FeatureFlags.kura_claim_sizing_paused?() do
-      :ok
-    else
-      drain_budget()
-    end
-  end
-
-  defp drain_budget do
     spent =
       DateTime.utc_now()
       |> DateTime.add(-3600, :second)

@@ -64,20 +64,7 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
     %{account: account}
   end
 
-  test "writes proposals but applies nothing while sizing is paused", %{account: account} do
-    stub(FunWithFlags, :enabled?, fn :kura_claim_sizing_paused -> true end)
-
-    assert :ok = perform_job(ClaimSizingWorker, %{})
-
-    assert %ClaimProposal{status: :open} = ClaimProposals.open_proposal_for(account)
-    assert PlacerClaims.claim_for(account) == nil
-  end
-
-  test "applies open proposals by default, with no flag set", %{account: account} do
-    # FunWithFlags reports an unset flag as disabled, which is what an
-    # untouched deployment looks like: sizing acts without being turned on.
-    stub(FunWithFlags, :enabled?, fn :kura_claim_sizing_paused -> false end)
-
+  test "applies open proposals", %{account: account} do
     assert :ok = perform_job(ClaimSizingWorker, %{})
 
     assert PlacerClaims.claim_for(account) == "16Gi"
@@ -85,8 +72,6 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
   end
 
   test "the unattended budget is spent per hour, not per pass", %{account: account} do
-    stub(FunWithFlags, :enabled?, fn :kura_claim_sizing_paused -> false end)
-
     # Five automatic applies already this hour: the fleet's unattended budget
     # is gone, so a pass that would otherwise apply does nothing. This is what
     # keeps the blast radius fixed while the sweep runs every ten minutes.
@@ -114,8 +99,6 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
   end
 
   test "operator applies do not consume the unattended budget", %{account: account} do
-    stub(FunWithFlags, :enabled?, fn :kura_claim_sizing_paused -> false end)
-
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     for _ <- 1..5 do

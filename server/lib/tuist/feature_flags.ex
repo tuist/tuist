@@ -39,17 +39,6 @@ defmodule Tuist.FeatureFlags do
     not Environment.tuist_hosted?() or FunWithFlags.enabled?(:kura, for: account)
   end
 
-  @doc """
-  Whether automatic Kura claim sizing is paused fleet-wide. Sizing applies its
-  own proposals by default, so this is the stop button rather than an opt-in:
-  enabling it leaves the sweep writing proposals for operators to confirm by
-  hand. Deliberately global — the per-account off switch is the operator
-  claim override.
-  """
-  def kura_claim_sizing_paused? do
-    FunWithFlags.enabled?(:kura_claim_sizing_paused)
-  end
-
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"

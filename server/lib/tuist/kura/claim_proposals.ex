@@ -4,8 +4,7 @@ defmodule Tuist.Kura.ClaimProposals do
   recommendation opens a proposal, a changed one supersedes it, a withdrawn
   one closes it. Applying is `Tuist.Kura.apply_claim_proposal/2`.
 
-  Pausing is fleet-wide (`Tuist.FeatureFlags.kura_claim_sizing_paused?/0`);
-  there is no per-account exemption.
+  Every account with a governed instance is sized; there is no exemption.
   """
 
   import Ecto.Query
