@@ -381,3 +381,114 @@ func TestReservation_SkipsTheSmallShapeOnADualSeatHost(t *testing.T) {
 		t.Fatal("the fleet's most granular shape must never trigger a reservation")
 	}
 }
+
+// The timeout is only a safety valve if the host actually goes back
+// into circulation. `starvedPod` measures the Pod's own age, so the Pod
+// that triggered the reservation is still long past the grace period the
+// instant the taint lifts — without a cooldown the next reconcile
+// re-reserves the same host and the small shapes never get it back.
+func TestReservation_TimedOutHostRestsBeforeBeingReservedAgain(t *testing.T) {
+	pool := largePool()
+	node := m4Node("m4-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{
+		reservationAtAnnotation: reservationNow.Add(-reservationTimeout - time.Minute).Format(time.RFC3339),
+	}
+	// Pending since well before the grace period, as it would be after
+	// fifteen minutes of waiting.
+	starved := pendingPod("large-0", pool.Name, time.Hour)
+
+	r := reservationReconciler(pool, smallPool(), node, starved)
+	ctx := context.Background()
+
+	// First pass times out and releases.
+	if err := r.reconcileReservation(ctx, pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation (release): %v", err)
+	}
+	released := nodeByName(t, r, "m4-0")
+	if isReserved(released) {
+		t.Fatal("an expired reservation should have been released")
+	}
+	if released.Annotations[reservationCooldownAnnotation] == "" {
+		t.Fatal("a timed-out release must rest the host")
+	}
+
+	// Second pass, same tick: the host must not be taken straight back.
+	if err := r.reconcileReservation(ctx, pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation (retry): %v", err)
+	}
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Fatal("host was re-reserved during its cooldown; the timeout is then a no-op")
+	}
+}
+
+// Once the cooldown expires the pool may try again — the job is still
+// queued and the host may since have freed up.
+func TestReservation_ResumesAfterTheCooldownExpires(t *testing.T) {
+	pool := largePool()
+	node := m4Node("m4-0")
+	node.Annotations = map[string]string{
+		reservationCooldownAnnotation: reservationNow.Add(-time.Minute).Format(time.RFC3339),
+	}
+	starved := pendingPod("large-0", pool.Name, time.Hour)
+
+	r := reservationReconciler(pool, smallPool(), node, starved)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-0")) {
+		t.Fatal("an expired cooldown must not keep blocking the host")
+	}
+}
+
+// A reservation that ended because the Pod landed achieved what it was
+// for, so the host is handed straight back with no penalty.
+func TestReservation_SuccessfulReleaseSetsNoCooldown(t *testing.T) {
+	pool := largePool()
+	node := m4Node("m4-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{reservationAtAnnotation: reservationNow.Format(time.RFC3339)}
+	placed := placedPod("large-0", pool.Name, "m4-0", "acme")
+
+	r := reservationReconciler(pool, smallPool(), node, placed)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*placed}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if got := nodeByName(t, r, "m4-0"); got.Annotations[reservationCooldownAnnotation] != "" {
+		t.Fatal("a successful reservation must not penalise the host")
+	}
+}
+
+// A pool blocked on a resting host is still free to reserve a different
+// eligible one, which is why the cooldown lives on the node.
+func TestReservation_CooldownIsPerHostNotPerPool(t *testing.T) {
+	pool := largePool()
+	resting := m4Node("m4-0")
+	resting.Annotations = map[string]string{
+		reservationCooldownAnnotation: reservationNow.Add(time.Minute).Format(time.RFC3339),
+	}
+	fresh := m4Node("m4-1")
+	starved := pendingPod("large-0", pool.Name, time.Hour)
+
+	r := reservationReconciler(pool, smallPool(), resting, fresh, starved)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Error("the resting host must stay out of the running")
+	}
+	if !isReserved(nodeByName(t, r, "m4-1")) {
+		t.Error("a sibling host with no cooldown should have been reserved instead")
+	}
+}

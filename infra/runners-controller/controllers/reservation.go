@@ -62,6 +62,25 @@ const (
 	// back in general circulation than spent waiting.
 	reservationTimeout = 15 * time.Minute
 
+	// reservationCooldownAnnotation is when a timed-out host may be
+	// reserved again, and reservationCooldown is how long that is.
+	//
+	// Without it the timeout above does nothing. `starvedPod` measures a
+	// Pod's own age, so the Pod that triggered a reservation is still
+	// long past the grace period the instant the reservation releases —
+	// the next reconcile would re-reserve the same host immediately and
+	// the small shapes would never actually get it back. The timeout
+	// would read as a safety valve and behave like an indefinite hold.
+	//
+	// It is stamped on the NODE rather than the pool, because that is
+	// the resource being rested: a pool blocked on one host should still
+	// be free to reserve a different eligible one. Only a timed-out
+	// release sets it. A reservation that ended because the Pod landed
+	// achieved what it was for, and a later starved Pod deserves a fresh
+	// attempt with no penalty.
+	reservationCooldownAnnotation = "tuist.dev/reservation-cooldown-until"
+	reservationCooldown           = 15 * time.Minute
+
 	// maxFleetReservations is how many hosts may be held across the whole
 	// fleet at once. Every reservation is capacity withdrawn from the
 	// small shapes while it converges, so this stays at one: a second
@@ -104,11 +123,12 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 		switch {
 		case starved == nil:
 			logger.Info("releasing node reservation; pool is served", "node", held.Name, "pool", pool.Name)
-			return r.releaseReservation(ctx, held)
+			return r.releaseReservation(ctx, held, time.Time{})
 		case reservationAge(held, now) > reservationTimeout:
 			logger.Info("releasing node reservation; timed out waiting for jobs to finish",
-				"node", held.Name, "pool", pool.Name, "timeout", reservationTimeout)
-			return r.releaseReservation(ctx, held)
+				"node", held.Name, "pool", pool.Name, "timeout", reservationTimeout,
+				"cooldown", reservationCooldown)
+			return r.releaseReservation(ctx, held, now.Add(reservationCooldown))
 		default:
 			return r.retireIdlePodsOnReservedNode(ctx, held, pool)
 		}
@@ -121,7 +141,7 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 		return nil
 	}
 
-	target, err := r.pickReservationTarget(ctx, pool, nodes)
+	target, err := r.pickReservationTarget(ctx, pool, nodes, now)
 	if err != nil {
 		return err
 	}
@@ -173,6 +193,7 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
 	nodes []corev1.Node,
+	now time.Time,
 ) (*corev1.Node, error) {
 	shape := podShape{cpuMilli: pool.Spec.PodCPUMilli, memoryMB: pool.Spec.PodMemoryMB}
 	if shape.cpuMilli <= 0 || shape.memoryMB <= 0 {
@@ -204,6 +225,9 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 	for i := range nodes {
 		node := &nodes[i]
 		if nodeFilterReason(node) != "" || isReserved(node) {
+			continue
+		}
+		if inReservationCooldown(node, now) {
 			continue
 		}
 		seats := nodeSeatsForShape(node, shape)
@@ -305,7 +329,14 @@ func (r *RunnerPoolReconciler) reserveNode(
 	return nil
 }
 
-func (r *RunnerPoolReconciler) releaseReservation(ctx context.Context, node *corev1.Node) error {
+// releaseReservation lifts the taint. A non-zero `cooldownUntil` rests
+// the host until that time, which is what a timed-out release wants; the
+// zero value releases it straight back into circulation.
+func (r *RunnerPoolReconciler) releaseReservation(
+	ctx context.Context,
+	node *corev1.Node,
+	cooldownUntil time.Time,
+) error {
 	patched := node.DeepCopy()
 	taints := make([]corev1.Taint, 0, len(patched.Spec.Taints))
 	for _, taint := range patched.Spec.Taints {
@@ -316,6 +347,12 @@ func (r *RunnerPoolReconciler) releaseReservation(ctx context.Context, node *cor
 	}
 	patched.Spec.Taints = taints
 	delete(patched.Annotations, reservationAtAnnotation)
+	if !cooldownUntil.IsZero() {
+		if patched.Annotations == nil {
+			patched.Annotations = map[string]string{}
+		}
+		patched.Annotations[reservationCooldownAnnotation] = cooldownUntil.UTC().Format(time.RFC3339)
+	}
 
 	if err := r.Patch(ctx, patched, client.MergeFrom(node)); err != nil {
 		return fmt.Errorf("release reservation on node %s: %w", node.Name, err)
@@ -373,6 +410,21 @@ func maxSeatsOnNode(node *corev1.Node, shapes []podShape) int32 {
 		}
 	}
 	return most
+}
+
+// inReservationCooldown reports whether a host is resting after a
+// timed-out reservation. An unparseable stamp reads as expired: a
+// malformed annotation must not take a host out of the pool forever.
+func inReservationCooldown(node *corev1.Node, now time.Time) bool {
+	stamp, ok := node.Annotations[reservationCooldownAnnotation]
+	if !ok {
+		return false
+	}
+	until, err := time.Parse(time.RFC3339, stamp)
+	if err != nil {
+		return false
+	}
+	return now.Before(until)
 }
 
 func isReserved(node *corev1.Node) bool {

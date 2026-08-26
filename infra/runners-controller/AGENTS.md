@@ -141,6 +141,17 @@ independent workqueues:
     (`maxFleetReservations`), since a reservation is capacity withdrawn
     from the small shapes while it converges.
 
+    A timed-out release rests the host for `reservationCooldown` (15m)
+    via a `tuist.dev/reservation-cooldown-until` annotation. Without it
+    the timeout does nothing: `starvedPod` measures a Pod's own age, so
+    the Pod that triggered the reservation is still far past the grace
+    period the moment the taint lifts, and the next reconcile would
+    re-reserve the same host immediately. The cooldown is on the NODE
+    rather than the pool because the host is what is being rested — a
+    pool blocked on one host stays free to reserve a different eligible
+    one. A release because the Pod landed sets no cooldown; it achieved
+    what it was for.
+
     A dedicated taint, not a cordon: a cordoned node is indistinguishable
     from one Cluster API is replacing, and `reapIdlePodsOnCordonedNodes`
     would retire the reserved pool's own Pod the moment it landed and was
