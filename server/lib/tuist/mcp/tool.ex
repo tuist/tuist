@@ -137,17 +137,19 @@ defmodule Tuist.MCP.Tool do
   # --- Response helpers ---
 
   def json_response(data, module) when is_map(data) do
-    Observability.set_tool_context(module.name())
-
     encoded = JSON.encode!(data)
     structured_content = JSON.decode!(encoded)
 
     validate_structured_content(module, structured_content)
 
-    %{
+    response = %{
       "content" => [%{"type" => "text", "text" => encoded}],
       "structuredContent" => structured_content
     }
+
+    Observability.set_tool_context(module.name())
+
+    response
   end
 
   def json_response(data, module) do

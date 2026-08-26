@@ -40,7 +40,7 @@ defmodule Tuist.MCP.ToolTest do
 
   describe "json_response/2" do
     test "records the tool name" do
-      expect(OpenTelemetry.Tracer, :set_attribute, fn "mcp_tool_name", "list_bundles" ->
+      expect(OpenTelemetry.Tracer, :set_attribute, fn "mcp.tool.name", "list_bundles" ->
         :ok
       end)
 
@@ -114,8 +114,8 @@ defmodule Tuist.MCP.ToolTest do
                  "Test case not found."
                )
 
-      assert_receive {:trace_attribute, "mcp_account_handle", "tuist"}
-      assert_receive {:trace_attribute, "mcp_project_handle", "atlas"}
+      assert_receive {:trace_attribute, "mcp.account.handle", "tuist"}
+      assert_receive {:trace_attribute, "mcp.project.handle", "atlas"}
     end
 
     test "records an explicitly selected project's context after authorization" do
@@ -141,8 +141,80 @@ defmodule Tuist.MCP.ToolTest do
                  :build
                )
 
-      assert_receive {:trace_attribute, "mcp_account_handle", "tuist"}
-      assert_receive {:trace_attribute, "mcp_project_handle", "atlas"}
+      assert_receive {:trace_attribute, "mcp.account.handle", "tuist"}
+      assert_receive {:trace_attribute, "mcp.project.handle", "atlas"}
+    end
+
+    test "does not record a resource project's context when authorization is denied" do
+      project = %Project{id: 1, name: "atlas", account: %{name: "tuist"}}
+
+      expect(Projects, :get_project_by_id, fn 1 -> project end)
+      expect(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :error end)
+      reject(&OpenTelemetry.Tracer.set_attribute/2)
+
+      assert {:error, "You do not have access to this resource."} =
+               Tool.load_and_authorize(
+                 {:ok, %{project_id: 1}},
+                 %{current_subject: :subject},
+                 :read,
+                 :test,
+                 "Test case not found."
+               )
+
+      refute Keyword.has_key?(Logger.metadata(), :mcp_account_handle)
+      refute Keyword.has_key?(Logger.metadata(), :mcp_project_handle)
+    end
+
+    test "does not record an explicitly selected project's context when authorization is denied" do
+      project = %Project{id: 1, name: "atlas", account: %{name: "tuist"}}
+
+      expect(Projects, :get_project_by_account_and_project_handles, fn "tuist", "atlas" -> project end)
+      expect(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :error end)
+      reject(&OpenTelemetry.Tracer.set_attribute/2)
+
+      assert {:error, "You do not have access to project: tuist/atlas"} =
+               Tool.resolve_and_authorize_project(
+                 %{"account_handle" => "tuist", "project_handle" => "atlas"},
+                 %{current_subject: :subject},
+                 :read,
+                 :build
+               )
+
+      refute Keyword.has_key?(Logger.metadata(), :mcp_account_handle)
+      refute Keyword.has_key?(Logger.metadata(), :mcp_project_handle)
+    end
+
+    test "does not record project context when project arguments are missing" do
+      reject(&OpenTelemetry.Tracer.set_attribute/2)
+
+      assert {:error, "Provide account_handle and project_handle."} =
+               Tool.resolve_and_authorize_project(%{}, %{current_subject: :subject}, :read, :build)
+
+      refute Keyword.has_key?(Logger.metadata(), :mcp_account_handle)
+      refute Keyword.has_key?(Logger.metadata(), :mcp_project_handle)
+    end
+
+    test "does not record a tool name when a project action returns an error" do
+      project = %Project{id: 1, name: "atlas", account: %{name: "tuist"}}
+
+      expect(Projects, :get_project_by_account_and_project_handles, fn "tuist", "atlas" -> project end)
+      expect(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+
+      expect(OpenTelemetry.Tracer, :set_attribute, 2, fn _key, _value ->
+        :ok
+      end)
+
+      _response =
+        Tool.call_with_project(
+          %Plug.Conn{assigns: %{current_subject: :subject}},
+          %{"account_handle" => "tuist", "project_handle" => "atlas"},
+          :read,
+          :build,
+          fn _conn, _args, _project -> {:error, "Build not found."} end,
+          ListBundles
+        )
+
+      refute Keyword.has_key?(Logger.metadata(), :mcp_tool_name)
     end
   end
 
