@@ -765,4 +765,158 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             XCTAssertEqual(storedSubhashes[bHash], bSubhashes)
         }
     }
+
+    func test_map_scopes_cache_items_to_the_replacement_scope_when_the_graph_is_not_focused() async throws {
+        let path = try temporaryPath()
+        let runMetadataStorage = RunMetadataStorage()
+
+        try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
+            // Given
+            let focusedApp = Target.test(name: "FocusedApp", platform: .iOS, product: .app)
+            let focusedFramework = Target.test(name: "FocusedFramework", platform: .iOS, product: .framework)
+            let otherApp = Target.test(name: "OtherApp", platform: .iOS, product: .app)
+            let otherFramework = Target.test(name: "OtherFramework", platform: .iOS, product: .framework)
+            let project = Project.test(
+                path: path,
+                targets: [focusedApp, focusedFramework, otherApp, otherFramework]
+            )
+            let focusedFrameworkGraphTarget = GraphTarget(path: path, target: focusedFramework, project: project)
+            let otherFrameworkGraphTarget = GraphTarget(path: path, target: otherFramework, project: project)
+
+            let inputGraph = Graph.test(
+                name: "input",
+                projects: [path: project],
+                dependencies: [
+                    .target(name: focusedApp.name, path: path): [
+                        .target(name: focusedFramework.name, path: path),
+                    ],
+                    .target(name: otherApp.name, path: path): [
+                        .target(name: otherFramework.name, path: path),
+                    ],
+                ]
+            )
+            let outputGraph = Graph.test(
+                name: "output",
+                projects: inputGraph.projects,
+                dependencies: inputGraph.dependencies
+            )
+
+            subject = TargetsToCacheBinariesGraphMapper(
+                config: config,
+                cacheGraphContentHasher: cacheGraphContentHasher,
+                decider: CacheProfileTargetReplacementDecider(
+                    profile: .allPossible,
+                    exceptions: [.named("FocusedApp")]
+                ),
+                configuration: "Debug",
+                cacheGraphMutator: cacheGraphMutator,
+                cacheStorage: cacheStorage,
+                replacementScope: [.named("FocusedApp")]
+            )
+
+            given(cacheGraphContentHasher)
+                .contentHashes(
+                    for: .any,
+                    configuration: .any,
+                    defaultConfiguration: .any,
+                    excludedTargets: .any,
+                    destination: .any
+                )
+                .willReturn([
+                    focusedFrameworkGraphTarget: .test(hash: "focused-framework-hash"),
+                    otherFrameworkGraphTarget: .test(hash: "other-framework-hash"),
+                ])
+            given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
+            given(cacheGraphMutator)
+                .map(
+                    graph: .any,
+                    precompiledArtifacts: .any,
+                    sources: .any,
+                    keepSourceTargets: .any
+                )
+                .willReturn(outputGraph)
+
+            // When
+            _ = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
+
+            // Then
+            let binaryCacheItems = await runMetadataStorage.binaryCacheItems
+            XCTAssertEqual(Set(binaryCacheItems[path, default: [:]].keys), ["FocusedFramework"])
+            verify(cacheStorage)
+                .fetch(
+                    .value([CacheStorableItem(name: "FocusedFramework", hash: "focused-framework-hash")]),
+                    cacheCategory: .value(.binaries)
+                )
+                .called(1)
+        }
+    }
+
+    func test_map_keeps_every_target_in_scope_when_no_replacement_scope_is_given() async throws {
+        let path = try temporaryPath()
+        let runMetadataStorage = RunMetadataStorage()
+
+        try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
+            // Given
+            let focusedApp = Target.test(name: "FocusedApp", platform: .iOS, product: .app)
+            let focusedFramework = Target.test(name: "FocusedFramework", platform: .iOS, product: .framework)
+            let otherApp = Target.test(name: "OtherApp", platform: .iOS, product: .app)
+            let otherFramework = Target.test(name: "OtherFramework", platform: .iOS, product: .framework)
+            let project = Project.test(
+                path: path,
+                targets: [focusedApp, focusedFramework, otherApp, otherFramework]
+            )
+            let focusedFrameworkGraphTarget = GraphTarget(path: path, target: focusedFramework, project: project)
+            let otherFrameworkGraphTarget = GraphTarget(path: path, target: otherFramework, project: project)
+
+            let inputGraph = Graph.test(
+                name: "input",
+                projects: [path: project],
+                dependencies: [
+                    .target(name: focusedApp.name, path: path): [
+                        .target(name: focusedFramework.name, path: path),
+                    ],
+                    .target(name: otherApp.name, path: path): [
+                        .target(name: otherFramework.name, path: path),
+                    ],
+                ]
+            )
+            let outputGraph = Graph.test(
+                name: "output",
+                projects: inputGraph.projects,
+                dependencies: inputGraph.dependencies
+            )
+
+            given(cacheGraphContentHasher)
+                .contentHashes(
+                    for: .any,
+                    configuration: .any,
+                    defaultConfiguration: .any,
+                    excludedTargets: .any,
+                    destination: .any
+                )
+                .willReturn([
+                    focusedFrameworkGraphTarget: .test(hash: "focused-framework-hash"),
+                    otherFrameworkGraphTarget: .test(hash: "other-framework-hash"),
+                ])
+            given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
+            given(cacheGraphMutator)
+                .map(
+                    graph: .any,
+                    precompiledArtifacts: .any,
+                    sources: .any,
+                    keepSourceTargets: .any
+                )
+                .willReturn(outputGraph)
+
+            // When
+            _ = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
+
+            // Then
+            let binaryCacheItems = await runMetadataStorage.binaryCacheItems
+            XCTAssertEqual(
+                Set(binaryCacheItems[path, default: [:]].keys),
+                ["FocusedFramework", "OtherFramework"]
+            )
+        }
+    }
 }

@@ -287,6 +287,50 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self, after: CacheHashingGraphMapper.self)
         }
 
+        func test_generation_scopes_binary_replacement_to_the_cache_sources_when_source_targets_are_kept() {
+            // Given
+            let config = Tuist.test(
+                project: .generated(.test(cacheOptions: .test(keepSourceTargets: true)))
+            )
+            let cacheSources: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.generation(
+                config: config,
+                cacheProfile: .allPossible,
+                cacheSources: cacheSources,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            XCTAssertDoesntContainElementOfType(got, FocusTargetsGraphMappers.self)
+            let mapper = XCTAssertContainsElementOfType(got, TargetsToCacheBinariesGraphMapper.self)
+            XCTAssertEqual(mapper?.replacementScope, cacheSources)
+        }
+
+        func test_generation_does_not_scope_binary_replacement_when_the_graph_is_focused() {
+            // Given
+            let config = Tuist.test(
+                project: .generated(.test(cacheOptions: .test(keepSourceTargets: false)))
+            )
+            let cacheSources: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.generation(
+                config: config,
+                cacheProfile: .allPossible,
+                cacheSources: cacheSources,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self)
+            let mapper = XCTAssertContainsElementOfType(got, TargetsToCacheBinariesGraphMapper.self)
+            XCTAssertEqual(mapper?.replacementScope, [])
+        }
+
         func test_generation_does_not_preserve_cache_hashing_graph_when_cache_is_disabled() {
             // Given
             let config = Tuist.test()

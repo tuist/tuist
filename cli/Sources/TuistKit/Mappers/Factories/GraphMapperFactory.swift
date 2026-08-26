@@ -285,6 +285,11 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                     )
                 }
 
+                // Keeping the source targets empties `includedTargets` so the graph is never focused
+                // and the generated project holds every target. Binary replacement still has to
+                // follow the requested focus, otherwise `tuist cache <target>` warms the target's
+                // closure while `tuist generate <target>` hashes and looks up every replaceable
+                // target in the workspace.
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                     config: config,
                     decider: CacheProfileTargetReplacementDecider(
@@ -292,7 +297,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                         exceptions: cacheSources
                     ),
                     configuration: configuration,
-                    cacheStorage: cacheStorage
+                    cacheStorage: cacheStorage,
+                    replacementScope: includedTargets.isEmpty ? cacheSources : []
                 )
                 mappers.append(focusTargetsGraphMapper)
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
