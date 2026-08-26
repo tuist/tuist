@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuilds do
   use Tuist.MCP.Tool,
     name: "list_gradle_builds",
     title: "List Gradle Builds",
+    read_only_hint: true,
     authorize: [action: :read, category: :build],
     schema: %{
       "type" => "object",

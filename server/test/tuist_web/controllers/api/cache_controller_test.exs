@@ -5,8 +5,9 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.API.Pipeline
+  alias Tuist.Billing
   alias Tuist.CacheActionItems
-  alias Tuist.FeatureFlags
+  alias Tuist.Kura.Demand
   alias Tuist.Projects.Workers.CleanProjectWorker
   alias Tuist.Repo
   alias Tuist.Storage
@@ -138,7 +139,7 @@ defmodule TuistWeb.API.CacheControllerTest do
                ])
     end
 
-    test "does not return another account's custom endpoints", %{conn: conn} do
+    test "returns default endpoints instead of another account's custom endpoints", %{conn: conn} do
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
 
       attacker = AccountsFixtures.user_fixture()
@@ -152,14 +153,70 @@ defmodule TuistWeb.API.CacheControllerTest do
           url: "https://victim-private-cache.example.com"
         })
 
+      default_endpoints = [
+        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-us-east-test.tuist.dev"
+      ]
+
+      stub(Tuist.Environment, :cache_endpoints, fn -> default_endpoints end)
+
       conn =
         conn
         |> Authentication.put_current_user(attacker)
         |> get(~p"/api/cache/endpoints?account_handle=#{victim_account.name}")
 
-      assert json_response(conn, :forbidden) == %{
-               "message" => "The authenticated subject is not authorized to perform this action"
-             }
+      assert json_response(conn, :ok) == %{"endpoints" => default_endpoints}
+    end
+
+    test "returns Kura endpoints to a project-scoped account token", %{conn: conn} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      organization = AccountsFixtures.organization_fixture(name: "restricted-org")
+      account = organization.account
+      project = ProjectsFixtures.project_fixture(account: account)
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache.example.com",
+          technology: :kura
+        })
+
+      stub(Tuist.Environment, :cache_endpoints, fn -> [] end)
+
+      conn =
+        conn
+        |> Plug.Conn.assign(:current_subject, %AuthenticatedAccount{
+          account: account,
+          scopes: ["project:cache:read"],
+          all_projects: false,
+          project_ids: [project.id]
+        })
+        |> Headers.put_client_feature_flags(["kura"])
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      assert json_response(conn, :ok) == %{"endpoints" => ["https://kura-cache.example.com"]}
+
+      # A serving instance is a stable answer, so it is cacheable for the usual
+      # interval rather than re-resolved constantly.
+      assert ["private, max-age=3600"] = get_resp_header(conn, "cache-control")
+    end
+
+    test "shortens the cache lifetime while a dedicated instance is being provisioned back", %{conn: conn} do
+      # The stand-in answer stops being right the moment the account's own
+      # instance starts serving, so it must not be held for the usual interval.
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_client_feature_flags(["kura"])
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      assert json_response(conn, :ok) == %{"endpoints" => ["https://default.tuist.dev"]}
+      assert ["private, max-age=30"] = get_resp_header(conn, "cache-control")
     end
 
     test "returns ready account Kura endpoints when the client requests Kura and the account is opted in", %{
@@ -184,7 +241,6 @@ defmodule TuistWeb.API.CacheControllerTest do
         })
 
       stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default-cache.example.com"] end)
-      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
 
       conn =
         conn
@@ -199,7 +255,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert response["endpoints"] == ["https://kura-cache.example.com"]
     end
 
-    test "returns custom endpoints when the client does not request Kura even if the account is opted in", %{
+    test "returns custom endpoints when the client does not request Kura even if the account has Kura endpoints", %{
       conn: conn
     } do
       # Given
@@ -221,7 +277,6 @@ defmodule TuistWeb.API.CacheControllerTest do
         })
 
       stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default-cache.example.com"] end)
-      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
 
       conn = Authentication.put_current_user(conn, user)
 
@@ -233,9 +288,14 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert response["endpoints"] == ["https://custom-cache.example.com"]
     end
 
-    test "returns custom endpoints when the client requests Kura but the account is not opted in", %{conn: conn} do
+    test "returns custom endpoints when the client requests Kura but the account has no Kura endpoints", %{conn: conn} do
       # Given
+      # An account that has never routed through Kura keeps the custom-endpoint
+      # behaviour. Stubbed rather than arranged, because the demand this very
+      # request records is what makes an account lifecycle-managed, and the
+      # window before it is flushed is exactly what this branch serves.
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Demand, :lifecycle_managed?, fn _account -> false end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
@@ -244,12 +304,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       {:ok, _} =
         Accounts.create_account_cache_endpoint(account, %{
           url: "https://custom-cache.example.com"
-        })
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
         })
 
       stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default-cache.example.com"] end)
@@ -289,7 +343,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert response["endpoints"] == expected_endpoints
     end
 
-    test "returns Kura endpoints when the client requests Kura and the account is opted in", %{conn: conn} do
+    test "returns Kura endpoints when the client requests Kura and the account has Kura endpoints", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -306,8 +360,6 @@ defmodule TuistWeb.API.CacheControllerTest do
           technology: :kura
         })
 
-      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
-
       conn =
         conn
         |> Authentication.put_current_user(user)
@@ -323,7 +375,7 @@ defmodule TuistWeb.API.CacheControllerTest do
                Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
     end
 
-    test "returns the tuist account Kura endpoints when the client requests Kura and the account is opted in", %{
+    test "returns the tuist account Kura endpoints when the client requests Kura and the account has Kura endpoints", %{
       conn: conn
     } do
       # Given
@@ -347,8 +399,6 @@ defmodule TuistWeb.API.CacheControllerTest do
           url: "https://kura-cache-2.example.com",
           technology: :kura
         })
-
-      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
 
       conn =
         conn
@@ -387,6 +437,131 @@ defmodule TuistWeb.API.CacheControllerTest do
       # Then
       response = json_response(conn, 200)
       assert response["endpoints"] == default_endpoints
+    end
+  end
+
+  describe "POST /api/cache/token" do
+    test "requires authentication", %{conn: conn} do
+      # When
+      conn = post(conn, ~p"/api/cache/token")
+
+      # Then
+      assert json_response(conn, 401) == %{
+               "message" => "You need to be authenticated to access this resource."
+             }
+    end
+
+    # This is the case the endpoint exists for: CI authenticates with an opaque
+    # project token, which a cache node cannot verify on its own.
+    test "returns a token carrying the project's cache grants", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      project = ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+      conn = Plug.Conn.assign(conn, :current_subject, project)
+
+      # When
+      conn = post(conn, ~p"/api/cache/token")
+
+      # Then
+      assert %{"token" => token, "expires_in" => expires_in} = json_response(conn, 200)
+      assert expires_in == Tuist.Cache.cache_token_ttl_seconds()
+
+      handle = "#{project.account.name}/#{project.name}"
+      {:ok, claims} = Tuist.CacheGuardian.decode_and_verify(token)
+      assert claims["cache_grants"]["project"]["read"] == [handle]
+      assert claims["cache_grants"]["project"]["write"] == [handle]
+    end
+
+    test "narrows the grants to the full handle it is given", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(preload: [:account])
+      target = ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+      _other = ProjectsFixtures.project_fixture(account: organization.account)
+
+      conn =
+        Plug.Conn.assign(conn, :current_subject, %AuthenticatedAccount{
+          account: organization.account,
+          scopes: ["project:cache:read", "project:cache:write"],
+          all_projects: true
+        })
+
+      handle = "#{target.account.name}/#{target.name}"
+
+      # When
+      conn = post(conn, ~p"/api/cache/token?full_handle=#{handle}")
+
+      # Then
+      assert %{"token" => token} = json_response(conn, 200)
+      {:ok, claims} = Tuist.CacheGuardian.decode_and_verify(token)
+      assert claims["cache_grants"]["project"]["read"] == [handle]
+      assert claims["cache_grants"]["project"]["write"] == [handle]
+    end
+  end
+
+  describe "POST /api/cache/token free tier" do
+    test "returns payment required when the scoped account is over the free tier", %{conn: conn} do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold,
+          preload: [:account]
+        )
+
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn = post(conn, ~p"/api/cache/token?#{[full_handle: "#{user.account.name}/#{project.name}"]}")
+
+      # Then
+      assert json_response(conn, 402)["message"] =~ "Tuist Air"
+    end
+
+    # `full_handle` is caller-controlled, so answering 402 for an account the
+    # subject cannot reach would turn this into a probe for which accounts are
+    # over the free tier.
+    test "does not reveal the billing status of an account the subject cannot reach", %{conn: conn} do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      blocked =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold,
+          preload: [:account]
+        )
+
+      project = ProjectsFixtures.project_fixture(account_id: blocked.account.id)
+      outsider = AccountsFixtures.user_fixture(preload: [:account])
+      conn = Authentication.put_current_user(conn, outsider)
+
+      # When
+      conn =
+        post(conn, ~p"/api/cache/token?#{[full_handle: "#{blocked.account.name}/#{project.name}"]}")
+
+      # Then
+      assert json_response(conn, 200)["token"]
+    end
+
+    test "still mints a token while the account is under the free tier", %{conn: conn} do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold - 1,
+          preload: [:account]
+        )
+
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn = post(conn, ~p"/api/cache/token?#{[full_handle: "#{user.account.name}/#{project.name}"]}")
+
+      # Then
+      assert json_response(conn, 200)["token"]
     end
   end
 
@@ -441,6 +616,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       # Then
       assert json_response(conn, 200) == %{
+               "payment_required" => [],
                "accounts" => [],
                "projects" => ["#{organization.account.name}/#{project.name}"]
              }
@@ -501,7 +677,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -572,6 +748,106 @@ defmodule TuistWeb.API.CacheControllerTest do
       response = json_response(conn, 200)
       assert response["data"]["url"] == download_url
     end
+
+    test "returns a signed url without consulting storage, so an unstored hash is still a 200", %{
+      conn: conn,
+      cache: cache
+    } do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
+      hash = "hash-that-was-never-uploaded"
+      name = "name"
+      project_slug = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      download_url = "https://tuist.dev/download/1234"
+      object_key = "#{project_slug}/#{cache_category}/#{hash}/#{name}"
+
+      reject(&Storage.object_exists?/2)
+
+      expect(Storage, :generate_download_url, fn ^object_key, _, _ ->
+        download_url
+      end)
+
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> assign(:cache, cache)
+        |> get(~p"/api/cache",
+          hash: hash,
+          name: name,
+          project_id: project_slug,
+          cache_category: cache_category
+        )
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["data"]["url"] == download_url
+    end
+  end
+
+  describe "GET /api/cache/exists" do
+    test "returns ok when the artifact is stored", %{conn: conn, cache: cache} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_slug = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      object_key = "#{project_slug}/#{cache_category}/#{hash}/#{name}"
+
+      expect(Storage, :object_exists?, fn ^object_key, _ -> true end)
+
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> assign(:cache, cache)
+        |> get(~p"/api/cache/exists",
+          hash: hash,
+          name: name,
+          project_id: project_slug,
+          cache_category: cache_category
+        )
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+    end
+
+    test "returns not found when the artifact is absent", %{conn: conn, cache: cache} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_slug = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      object_key = "#{project_slug}/#{cache_category}/#{hash}/#{name}"
+
+      expect(Storage, :object_exists?, fn ^object_key, _ -> false end)
+
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> assign(:cache, cache)
+        |> get(~p"/api/cache/exists",
+          hash: hash,
+          name: name,
+          project_id: project_slug,
+          cache_category: cache_category
+        )
+
+      # Then
+      response = json_response(conn, 404)
+      assert [%{"code" => "not_found", "message" => "The artifact was not found"}] = response["errors"]
+    end
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/cache/ac/:hash" do
@@ -639,7 +915,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -766,7 +1042,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -874,7 +1150,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -950,7 +1226,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -1159,7 +1435,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 

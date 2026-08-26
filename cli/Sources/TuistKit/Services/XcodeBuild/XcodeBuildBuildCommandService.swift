@@ -136,6 +136,7 @@ struct XcodeBuildBuildCommandService {
             let buildRunId = await RunMetadataStorage.current.buildRunId
             _ = try await shardPlanService.plan(
                 xctestproductsPath: testProductsPath,
+                projectPath: buildPath,
                 reference: shardReference,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,

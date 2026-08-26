@@ -46,6 +46,16 @@ spec:
   resources:
     {{- toYaml .Values.postgresql.resources | nindent 4 }}
 
+  # Hard pod anti-affinity across hostnames, matching the main Tuist
+  # chart. CNPG's own default is `preferred`, which would let both
+  # instances land on one node: that still satisfies the PDB well enough
+  # to release a drain, but it would not actually remove the single-node
+  # failure mode this cluster is scaled out for.
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: required
+
   {{- if .Values.postgresql.backup.enabled }}
   # Barman Cloud Plugin (CNPG-I). serverName pinned to the cluster name to keep
   # the existing archive prefix. See infra/cnpg/README.md.

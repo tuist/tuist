@@ -4,7 +4,12 @@
 set -eo pipefail
 cd noora
 if [ "$usage_fix" = "true" ]; then
-  mix format; aube exec prettier --write "js/**/*.js" "css/**/*.css"
+  aube run generate:web-components
+  mix format
+  aube exec prettier --write "js/**/*.js" "css/**/*.css"
 else
-  mix format --check-formatted; aube exec prettier --check "js/**/*.js" "css/**/*.css"
+  aube run check:generated
+  mix format --check-formatted
+  aube exec prettier --check "js/**/*.js" "css/**/*.css"
+  mise run css:lint-tokens noora
 fi

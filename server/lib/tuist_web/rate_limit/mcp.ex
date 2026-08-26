@@ -7,11 +7,11 @@ defmodule TuistWeb.RateLimit.MCP do
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
   alias TuistWeb.Authentication
-  alias TuistWeb.RateLimit.InMemory
+  alias TuistWeb.RateLimit
 
   def hit(conn) do
     {key, bucket_size} = key_and_bucket_size(conn)
-    InMemory.hit(key, to_timeout(minute: 1), bucket_size)
+    RateLimit.hit(key, limit: bucket_size, window: to_timeout(minute: 1))
   end
 
   defp key_and_bucket_size(conn) do

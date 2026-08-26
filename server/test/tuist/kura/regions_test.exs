@@ -38,7 +38,11 @@ defmodule Tuist.Kura.RegionsTest do
         assert config.storage_class == "scw-local-nvme"
         assert config.gateway == :host_network
         assert config.replicas == 2
-        assert config.storage_size == "50Gi"
+        assert config.storage_governed == true
+
+        # No region-wide claim: every instance carries the one its volumes were
+        # created at, resolved from its account's plan.
+        assert config.storage_size == nil
       end
 
       assert Regions.get("us-east").provisioner_config.node_selector == %{
@@ -60,7 +64,7 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "sets a uniform enterprise egress floor across the bare-metal regions" do
-      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast"] do
         assert Regions.get(id).provisioner_config.egress_guaranteed_mbps == 25
       end
 
@@ -70,6 +74,145 @@ defmodule Tuist.Kura.RegionsTest do
              }
     end
 
+    test "reads the egress pair the same way wherever it is declared" do
+      assert Regions.egress_guaranteed_mbps(Regions.get("us-east")) == 25
+      assert Regions.egress_burst_mbps(Regions.get("us-east")) == 1500
+      assert Regions.egress_governed?(Regions.get("us-east"))
+
+      # The runner-cache pool caps a tenant without reserving one a floor, and
+      # its ceiling is read through the same accessor rather than by parsing the
+      # annotation back out.
+      runner_cache = Regions.get("scw-fr-par-runners")
+      assert Regions.egress_burst_mbps(runner_cache) == 750
+      assert Regions.egress_guaranteed_mbps(runner_cache) == nil
+      assert Regions.egress_governed?(runner_cache)
+
+      assert runner_cache.provisioner_config.pod_annotations == %{
+               "kubernetes.io/egress-bandwidth" => "750M"
+             }
+    end
+
+    test "a region with no shared NIC governs no egress" do
+      stub(Tuist.Environment, :dev?, fn -> true end)
+
+      local = Regions.get("local-controller")
+      refute Regions.egress_governed?(local)
+      assert Regions.egress_burst_mbps(local) == nil
+    end
+
+    test "sizes the managed regions per tier" do
+      # Safe here and not before: a tiered floor sits far below its ceiling, so
+      # it is only a scheduling promise until the kubelet's MemoryQoS gate makes
+      # it the pod's cgroup memory.min. That gate ships in this same change.
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast"] do
+        assert Regions.memory_governed?(Regions.get(id))
+      end
+
+      refute Regions.memory_governed?(Regions.get("scw-fr-par-runners"))
+    end
+
+    test "bin-packs memory ceilings only where a node budget is advertised" do
+      # Every managed region runs on a bare-metal pool the CAPI provider patches
+      # with a tuist.dev/memory-ceiling-mib budget.
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast"] do
+        assert Regions.memory_ceiling_bin_packed?(Regions.get(id))
+      end
+
+      # The private runner-cache pool runs on Elastic Metal, which the provider
+      # does not patch; requesting the extended resource there would leave every
+      # cache pod Pending.
+      refute Regions.memory_ceiling_bin_packed?(Regions.get("scw-fr-par-runners"))
+    end
+
+    test "sizes the managed regions' storage per tier" do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast"] do
+        assert Regions.storage_governed?(Regions.get(id))
+      end
+
+      # The private runner-cache pool holds one instance per account regardless
+      # of plan, on capacity ordered for the runner fleet.
+      refute Regions.storage_governed?(Regions.get("scw-fr-par-runners"))
+      refute Regions.storage_governed?(Regions.get("local-controller"))
+    end
+
+    test "descends the storage ladder and floors it at air" do
+      claims = Enum.map([:enterprise, :pro, :air], &Regions.storage_profile(&1).claim_size)
+      assert claims == ["50Gi", "30Gi", "8Gi"]
+
+      # Air is the floor, and unknown plans land on it.
+      assert Regions.storage_profile(:open_source) == Regions.storage_profile(:air)
+    end
+
+    test "bounds an operator override by the floor the ladder already sits on" do
+      # One floor, not two. A hand-typed override is the one claim that can land
+      # under the reserve, and the bound it is held to is air's claim rather than
+      # a number of its own, so the budget-cliff test above covers it: whatever
+      # clears the derivation for air clears it for the smallest override.
+      assert Regions.minimum_storage_claim() == Regions.storage_profile(:air).claim_size
+
+      {:ok, minimum_bytes} = Regions.parse_storage_quantity(Regions.minimum_storage_claim())
+
+      for plan <- [:enterprise, :pro, :air, :open_source] do
+        {:ok, claim_bytes} = Regions.parse_storage_quantity(Regions.storage_profile(plan).claim_size)
+
+        assert claim_bytes >= minimum_bytes
+      end
+    end
+
+    test "parses the storage quantities a claim is written in" do
+      assert Regions.parse_storage_quantity("14Gi") == {:ok, 14 * 1024 * 1024 * 1024}
+      assert Regions.parse_storage_quantity("1Ti") == {:ok, 1024 * 1024 * 1024 * 1024}
+      assert Regions.parse_storage_quantity("512Mi") == {:ok, 512 * 1024 * 1024}
+      assert Regions.parse_storage_quantity("1024") == {:ok, 1024}
+
+      for value <- ["", "0Gi", "-4Gi", "24GB", "big", nil] do
+        assert Regions.parse_storage_quantity(value) == :error
+      end
+    end
+
+    test "keeps every claim clear of the budget cliff" do
+      # Staging and one rotation segment come out of a claim before the ring is
+      # sized, and Kura clamps its ring up to five segments. A claim too small to
+      # clear that leaves `cas_capacity_bytes/1` emitting nothing at all, and the
+      # runtime sizes its ring from the whole box instead — the failure the
+      # derivation exists to prevent. Asserted against the derivation rather than
+      # a claim number, so it still holds if the reserves move.
+      gib = 1024 * 1024 * 1024
+      kura_ring_floor = 5 * 512 * 1024 * 1024
+
+      for plan <- [:enterprise, :pro, :air, :open_source] do
+        {claim_gib, "Gi"} = Integer.parse(Regions.storage_profile(plan).claim_size)
+        staging = min(div(claim_gib * gib, 2), 8 * gib)
+        ring = div((claim_gib * gib - staging - 512 * 1024 * 1024) * 97, 100)
+
+        assert ring >= kura_ring_floor * 5 / 4,
+               "#{plan} leaves #{ring} bytes of ring, too close to Kura's #{kura_ring_floor} floor"
+      end
+    end
+
+    test "keeps every memory ceiling above its floor" do
+      # A limit below its request is rejected by the API, and a ceiling equal to
+      # the floor would leave no burst headroom for Kura's admission pools.
+      for plan <- [:enterprise, :pro, :air, :open_source] do
+        %{floor_mib: floor_mib, ceiling_mib: ceiling_mib} = Regions.memory_profile(plan)
+        assert ceiling_mib > floor_mib
+      end
+
+      # Floors are what decide how many tenants fit on a box, so the ladder has
+      # to actually descend to be worth tiering at all.
+      floors = Enum.map([:enterprise, :pro, :air], &Regions.memory_profile(&1).floor_mib)
+      assert floors == Enum.sort(floors, :desc)
+      assert Enum.uniq(floors) == floors
+
+      # Each ceiling has to clear its plan's measured peak by more than the
+      # runtime's 0.9x recovery hysteresis, or a burst that trips shedding stays
+      # shedding. Peaks: ~1220 MiB for the busiest pro instance, ~150 MiB for air.
+      for {plan, peak_mib} <- [pro: 1220, air: 150] do
+        soft = Regions.memory_profile(plan).ceiling_mib * 0.6
+        assert soft * 0.9 > peak_mib, "#{plan} recovers at #{soft * 0.9} MiB, under its #{peak_mib} MiB peak"
+      end
+    end
+
     test "runs eu-central on Dedibox bare metal" do
       config = Regions.get("eu-central").provisioner_config
 
@@ -77,7 +220,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert config.storage_class == "scw-local-nvme"
       assert config.gateway == :host_network
       assert config.replicas == 2
-      assert config.storage_size == "50Gi"
+      assert config.storage_size == nil
       assert config.hetzner_location == nil
 
       # Identity is unchanged so the cutover is invisible to the customer and CLI.
@@ -97,7 +240,7 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "enables the per-account peer mesh on managed and private regions" do
-      for id <- ["us-east", "us-west", "eu-central", "scw-fr-par-runners", "hetzner-staging-runners"] do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "scw-fr-par-runners"] do
         assert Regions.get(id).provisioner_config.mesh == true,
                "expected region #{id} to enable the peer mesh"
       end
@@ -108,8 +251,11 @@ defmodule Tuist.Kura.RegionsTest do
                %{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}
              ]
 
-      # The Hetzner runner-cache pool isn't tainted, so its region carries no toleration.
-      assert Regions.get("hetzner-staging-runners").provisioner_config.tolerations == []
+      # The customer-facing cache pools carry their own taint, not the
+      # runner-cache one, so their regions never tolerate it.
+      assert Regions.get("eu-central").provisioner_config.tolerations == [
+               %{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}
+             ]
     end
 
     test "exposes a local controller-backed region for kind smoke tests" do
@@ -175,7 +321,12 @@ defmodule Tuist.Kura.RegionsTest do
       platform_ingress_keys = %{
         "eu-central" => "kura-eu-central-ingress-nginx",
         "us-east" => "kura-us-east-ingress-nginx",
-        "us-west" => "kura-us-west-ingress-nginx"
+        "us-west" => "kura-us-west-ingress-nginx",
+        # Listed here while the region is still gated off everywhere. A region
+        # whose ingress class no controller declares would have its Ingresses
+        # go unclaimed the moment it was switched on, and nothing else in the
+        # tree ties the two files together.
+        "ap-southeast" => "kura-ap-southeast-ingress-nginx"
       }
 
       for {id, platform_ingress_key} <- platform_ingress_keys do
@@ -198,6 +349,52 @@ defmodule Tuist.Kura.RegionsTest do
         assert production_node_pool_location(production_cluster, node_pool) ==
                  config.hetzner_location
       end
+    end
+  end
+
+  describe "node_location/1" do
+    test "gives every provisionable region the location of the datacenter it runs in" do
+      locations = %{
+        # OVH Vint Hill VA / Hillsboro OR, Scaleway Dedibox (Paris region),
+        # OVHcloud BHS in Quebec, Scaleway Elastic Metal fr-par.
+        "us-east" => %{country: "US", subdivision: "US-VA"},
+        "us-west" => %{country: "US", subdivision: "US-OR"},
+        "eu-central" => %{country: "FR", subdivision: "FR-IDF"},
+        "ca-east" => %{country: "CA", subdivision: "CA-QC"},
+        "scw-fr-par-runners" => %{country: "FR", subdivision: "FR-IDF"},
+        # Singapore is a city-state: its ISO 3166-2 codes are CDC statistical
+        # districts rather than anything a datacenter address resolves to, so
+        # the country alone is the whole location and the subdivision is left
+        # unstated instead of guessed.
+        "ap-southeast" => %{country: "SG", subdivision: nil}
+      }
+
+      for {id, location} <- locations do
+        assert Regions.node_location(Regions.get(id)) == location
+      end
+    end
+
+    test "leaves no provisionable region without one" do
+      # Kura cannot work its own location out any more, so a fleet that ships
+      # without this exports every span with no geography and nothing detects
+      # it. The local controller region is a developer's own machine, and
+      # tombstones never provision, so neither declares a location.
+      unlocated =
+        Regions.all()
+        |> Enum.reject(&(&1.id == "local-controller" or Regions.retired?(&1)))
+        |> Enum.filter(&is_nil(Regions.node_location(&1)))
+
+      assert unlocated == []
+    end
+
+    test "returns nil for a region that declares no location" do
+      # Two different shapes reach nil. The local controller omits the keys
+      # entirely, while a tombstone carries them as nil, because the region
+      # builders write both unconditionally through Map.get/2. Any future
+      # region added without a location takes the tombstone's path, so it is
+      # the one that has to keep resolving rather than raising.
+      assert Regions.node_location(Regions.get("local-controller")) == nil
+      assert Regions.node_location(Regions.get("hetzner-staging-runners")) == nil
     end
   end
 
@@ -232,30 +429,110 @@ defmodule Tuist.Kura.RegionsTest do
 
       assert Enum.map(Regions.available(), & &1.id) == ["eu-central"]
     end
+
+    test "never makes a retired cleanup region available" do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["hetzner-staging-runners"]
+      end)
+
+      assert Regions.available() == []
+    end
+  end
+
+  describe "ap-southeast" do
+    test "is a bare-metal region on its own OVH node pool" do
+      assert %Regions{provisioner: KubernetesController, provisioner_config: config} =
+               Regions.get("ap-southeast")
+
+      assert Regions.get("ap-southeast").display_name == "Asia Pacific Southeast"
+      assert config.cluster_id == "ap-southeast-1"
+      assert config.ingress_class_name == "kura-ap-southeast"
+      assert config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-ap-southeast"}
+      assert config.storage_class == "scw-local-nvme"
+      assert config.gateway == :host_network
+      assert config.hetzner_location == nil
+
+      # Two, like every other managed region. Nothing serves this region while a
+      # replica restarts (Kura is terminal storage; a miss is a 404), so the
+      # standby is what keeps a rolling deploy from costing every account in the
+      # region a cache miss. Sizing gives way to that, not the other way round.
+      assert config.replicas == 2
+
+      # No region-wide claim: every instance carries the one its volumes were
+      # created at, resolved from its account's plan.
+      assert config.storage_size == nil
+    end
+
+    test "takes the conservative burst ceiling until the box's NIC is measured" do
+      assert Regions.get("ap-southeast").provisioner_config.pod_annotations == %{
+               "kubernetes.io/egress-bandwidth" => "500M"
+             }
+    end
+
+    test "is not served in an environment whose gate omits it" do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      # Staging and canary have no SGP hardware, so they leave it out. Being in
+      # the catalog is not being served: the gate is what decides, and a region
+      # served without its fleet and ingress controller behind it would leave
+      # every instance Pending.
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-central", "scw-fr-par-runners", "ca-east"]
+      end)
+
+      refute Regions.available?("ap-southeast")
+      refute "ap-southeast" in Enum.map(Regions.selectable(), & &1.id)
+    end
+
+    test "becomes available and selectable once the gate names it" do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["us-east", "ap-southeast"]
+      end)
+
+      assert Regions.available?("ap-southeast")
+      assert Enum.map(Regions.available(), & &1.id) == ["us-east", "ap-southeast"]
+      assert "ap-southeast" in Enum.map(Regions.selectable(), & &1.id)
+    end
   end
 
   describe "private runner-cache regions" do
-    test "scaleway and hetzner-staging runner regions are registered as private" do
+    test "the scaleway runner region is registered as private" do
       assert %Regions{provisioner_config: scw_config} = Regions.get("scw-fr-par-runners")
       assert scw_config.private == true
       assert scw_config.storage_class == "scw-local-nvme"
       assert scw_config.replicas == 1
+
+      # No disk_envelope_size override: the ring derives from storage_size like
+      # every managed region, so a per-account node here sizes its CAS ring the
+      # same as its cross-region mesh peers and can stay caught up.
+      assert scw_config.storage_size == "50Gi"
+      assert scw_config.disk_envelope_size == nil
       assert scw_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
       refute Map.has_key?(scw_config, :public_host_template)
       refute Map.has_key?(scw_config, :ingress_class_name)
 
-      assert %Regions{provisioner_config: hetzner_config} = Regions.get("hetzner-staging-runners")
-      assert hetzner_config.private == true
-      assert hetzner_config.storage_class == "hcloud-volumes"
-      assert hetzner_config.replicas == 1
-      assert hetzner_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura"}
+      # The retired Hetzner entry remains fetchable only so old resources can
+      # be deleted. It is not an available serving region.
+      assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == [
+               "scw-fr-par-runners",
+               "hetzner-staging-runners"
+             ]
+
+      assert Regions.retired?(Regions.get("hetzner-staging-runners"))
+      refute Regions.retired?(Regions.get("scw-fr-par-runners"))
     end
   end
 
   describe "private?/1" do
     test "is true only for private regions" do
       assert Regions.private?(Regions.get("scw-fr-par-runners"))
-      assert Regions.private?(Regions.get("hetzner-staging-runners"))
       refute Regions.private?(Regions.get("eu-central"))
       refute Regions.private?(Regions.get("local-controller"))
       refute Regions.private?(nil)
@@ -271,17 +548,14 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.serves_runner_platform?(scw, :linux)
     end
 
-    test "staging hetzner region serves only the co-located linux fleet" do
-      staging = Regions.get("hetzner-staging-runners")
-
-      assert staging.runner_platforms == [:linux]
-      assert Regions.serves_runner_platform?(staging, :linux)
-      refute Regions.serves_runner_platform?(staging, :macos)
+    test "no region serves the linux fleet" do
+      # The Hetzner-backed staging region was the only :linux one, and it went
+      # with its node pool. Linux runners fall back to the public endpoint.
+      refute Enum.any?(Regions.all(), &Regions.serves_runner_platform?(&1, :linux))
     end
 
-    test "scw region uses the node-port data plane; hetzner stays on cluster DNS" do
+    test "scw region uses the node-port data plane; customer regions stay on cluster DNS" do
       assert Regions.node_port_data_plane?(Regions.get("scw-fr-par-runners"))
-      refute Regions.node_port_data_plane?(Regions.get("hetzner-staging-runners"))
       refute Regions.node_port_data_plane?(Regions.get("eu-central"))
       refute Regions.node_port_data_plane?(nil)
     end
@@ -297,13 +571,13 @@ defmodule Tuist.Kura.RegionsTest do
     test "excludes private regions a customer cannot pick" do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-central", "hetzner-staging-runners"] end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-central", "scw-fr-par-runners"] end)
 
       available_ids = Enum.map(Regions.available(), & &1.id)
       selectable_ids = Enum.map(Regions.selectable(), & &1.id)
 
-      assert "hetzner-staging-runners" in available_ids
-      refute "hetzner-staging-runners" in selectable_ids
+      assert "scw-fr-par-runners" in available_ids
+      refute "scw-fr-par-runners" in selectable_ids
       assert "eu-central" in selectable_ids
     end
   end
@@ -358,6 +632,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert Regions.exists?("eu-central")
       assert Regions.exists?("us-east")
       assert Regions.exists?("us-west")
+      assert Regions.exists?("ap-southeast")
       assert Regions.exists?("local-controller")
       refute Regions.exists?("local")
       refute Regions.exists?("nope")

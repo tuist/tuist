@@ -83,6 +83,37 @@ struct LaunchctlControllerTests {
             .called(1)
     }
 
+    @Test func kickstart_label() async throws {
+        let label = "tuist.cache.org_project"
+        let uid = getuid()
+        given(commandRunner)
+            .run(
+                arguments: .any,
+                environment: .any,
+                workingDirectory: .any
+            )
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.finish()
+            })
+
+        try await subject.kickstart(label: label)
+
+        verify(commandRunner)
+            .run(
+                arguments: .value(
+                    [
+                        "/bin/launchctl",
+                        "kickstart",
+                        "-k",
+                        "gui/\(uid)/\(label)",
+                    ]
+                ),
+                environment: .any,
+                workingDirectory: .any
+            )
+            .called(1)
+    }
+
     @Test func isLoaded_returnsTrueWhenLaunchctlPrintSucceeds() async throws {
         // Given
         let label = "tuist.cache.org_project"
@@ -139,6 +170,53 @@ struct LaunchctlControllerTests {
 
         // Then
         #expect(isLoaded == false)
+    }
+
+    @Test func isLoaded_returnsFalseWhenLaunchctlPrintCannotFindTheServiceUnderAnotherCode() async throws {
+        // Given
+        let label = "tuist.cache.org_project"
+        given(commandRunner)
+            .run(
+                arguments: .any,
+                environment: .any,
+                workingDirectory: .any
+            )
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.finish(throwing: CommandError.terminated(
+                    3,
+                    stderr: "Could not find service \"tuist.cache.org_project\" in domain for port",
+                    command: ["/bin/launchctl", "print", "gui/501/tuist.cache.org_project"]
+                ))
+            })
+
+        // When
+        let isLoaded = try await subject.isLoaded(label: label)
+
+        // Then
+        #expect(isLoaded == false)
+    }
+
+    @Test func isLoaded_propagatesTerminationsThatAreNotAMissingService() async throws {
+        // Given
+        let label = "tuist.cache.org_project"
+        given(commandRunner)
+            .run(
+                arguments: .any,
+                environment: .any,
+                workingDirectory: .any
+            )
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.finish(throwing: CommandError.terminated(
+                    1,
+                    stderr: "Bootstrap failed: 5: Input/output error",
+                    command: ["/bin/launchctl", "print", "gui/501/tuist.cache.org_project"]
+                ))
+            })
+
+        // When / Then
+        await #expect(throws: CommandError.self) {
+            _ = try await subject.isLoaded(label: label)
+        }
     }
 
     @Test func isLoaded_propagatesNonTerminatedErrors() async throws {

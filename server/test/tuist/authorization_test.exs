@@ -11,6 +11,36 @@ defmodule Tuist.AuthorizationTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  test "can.read.account_dashboard when the account is public and the subject is anonymous" do
+    # Given
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    {:ok, public_account} = Accounts.update_account_visibility(account, :public)
+
+    # Then
+    assert Authorization.authorize(:account_dashboard_read, nil, public_account) == :ok
+  end
+
+  test "cannot.read.account_dashboard when the account is private and the subject is anonymous" do
+    # Given
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+    # Then
+    assert Authorization.authorize(:account_dashboard_read, nil, account) == {:error, :forbidden}
+  end
+
+  test "cannot.read.runners on a public account when the subject is not a member" do
+    # Given — a public account exposes its dashboards, but attaching to a
+    # running VM over VNC/shell stays members-only.
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    {:ok, public_account} = Accounts.update_account_visibility(account, :public)
+    non_member = AccountsFixtures.user_fixture()
+
+    # Then
+    assert Authorization.authorize(:runners_read, nil, public_account) == {:error, :forbidden}
+    assert Authorization.authorize(:runners_read, non_member, public_account) == {:error, :forbidden}
+    assert Authorization.authorize(:account_dashboard_read, non_member, public_account) == :ok
+  end
+
   test "can.update.account when the subject has an admin operator grant" do
     # Given — the grant only authorizes a Tuist operator (signed in with
     # Google) whose email matches the grant's subject. Operators only exist
@@ -159,6 +189,39 @@ defmodule Tuist.AuthorizationTest do
 
     # When
     assert Authorization.authorize(:project_cache_read, project, project) == :ok
+  end
+
+  test "can discover account cache endpoints with project cache access without gaining account cache access" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = organization.account
+    project = ProjectsFixtures.project_fixture(account: account)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["project:cache:read"],
+      all_projects: false,
+      project_ids: [project.id]
+    }
+
+    # When/Then
+    assert Authorization.authorize(:account_cache_endpoint_read, subject, account) == :ok
+    assert Authorization.authorize(:account_cache_read, subject, account) == {:error, :forbidden}
+  end
+
+  test "cannot discover account cache endpoints when project cache access has no accessible projects" do
+    # Given
+    account = AccountsFixtures.organization_fixture().account
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["project:cache:read"],
+      all_projects: false,
+      project_ids: []
+    }
+
+    # When/Then
+    assert Authorization.authorize(:account_cache_endpoint_read, subject, account) == {:error, :forbidden}
   end
 
   test "can.read.project.cache when the subject is not the same project being read" do

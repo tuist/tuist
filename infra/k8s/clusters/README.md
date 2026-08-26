@@ -1,7 +1,7 @@
 # Tuist ClusterClass + Cluster CRs
 
 Self-hosted Kubernetes manifests for the Tuist workload clusters
-(staging / canary / production / preview), reconciled by our own
+(staging / canary / production / preview / pentest), reconciled by our own
 management cluster running CAPI + caph. Production Kura regions are
 dedicated node pools inside the production workload cluster.
 
@@ -24,7 +24,8 @@ clusters/
 ├── cluster-staging.yaml       per-env Cluster CRs in topology mode
 ├── cluster-canary.yaml
 ├── cluster-production.yaml
-└── cluster-preview.yaml
+├── cluster-preview.yaml
+└── cluster-pentest.yaml
 ```
 
 ## Target shape per cluster
@@ -35,6 +36,14 @@ clusters/
 | `tuist-canary` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: bare-metal Robot (`pool=runners-linux`) |
 | `tuist` (production) | 3× cpx22 | md-0: 3× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 2× AX162-R bare-metal Robot in `fsn1` (`pool=runners-linux`) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
+| `tuist-pentest` | 3× cpx22 | md-0: 2× cpx32 (`pool=general`); kura: 1× cpx32 (`pool=kura`, tainted) |
+
+`tuist-pentest` is a dedicated, fixed-duration security-assessment cluster.
+It intentionally has no runner, Mac, processor, or stable-egress pools. Kura
+runs on its own tainted worker pool, while its controller and credentials are
+confined to this cluster. When the engagement ends, remove its manifest in a
+reviewed change, then run the **Pentest Cluster Retirement** workflow to delete
+the Cluster resource and its managed infrastructure.
 
 The `md-egress` pool is the HA (≥2 node) stable-egress gateway: the
 production Phoenix server's public egress is SNAT'd through the active
@@ -63,6 +72,20 @@ about; no Packer pipeline. Acceptable for the autoscaler's `md-processor`
 2→6 cadence; if scaling latency becomes painful we can introduce a
 pre-baked image without changing the ClusterClass shape.
 
+## Replacing a production runner node
+
+Production runner-node replacement is not automated. The fleet has
+exactly two pre-ordered physical hosts, so the current MachineDeployment
+cannot create a current-revision replacement before releasing an old
+node. Deleting an individual Machine can also let its outdated
+MachineSet recreate the old revision.
+
+Do not delete a claimed `HetznerBareMetalHost` or remove its finalizers.
+The safe prerequisite is a third pre-ordered production runner host and
+a matching replica increase. That gives the MachineDeployment spare
+capacity to create and verify a current-revision node before an old node
+is drained.
+
 ## Adapting from caph upstream
 
 `clusterclass-tuist.yaml` was originally forked from caph's
@@ -83,4 +106,7 @@ Adaptations to be aware of when porting upstream changes:
 - `KUBERNETES_VERSION` and `CONTAINERD` in `preKubeadmCommands` ported from the flat `cluster-template-hcloud.yaml`. The reference ClusterClass uses an old `cri-containerd-cni-` bundle that's no longer published for containerd 2.x.
 - `containerd.service` systemd unit added to both KCP and worker `files:` blocks. The plain `containerd-` tarball doesn't ship one (only the older `cri-containerd-cni-` bundle did). Without this, `systemctl start containerd` finds no unit and PLEG never goes healthy.
 - `containerRuntimeEndpoint`, `staticPodPath`, `cgroupDriver`, `clusterDNS`, `clusterDomain`, **`authentication.x509.clientCAFile`** added to the kubelet `KubeletConfiguration` shipped via the `files:` block. Critical: kubelet is invoked with two `--config` flags (kubeadm's default + ours via `kubeletExtraArgs`) and the second OVERRIDES the first, so any field omitted here gets cleared. Without `clientCAFile`, kubelet rejects the kube-apiserver's client cert as Unauthorized → `kubectl exec`, `kubectl port-forward`, and KCP's etcd health check all fail; KCP then refuses to scale the control plane to 3 replicas.
-- `resolvConf` deliberately NOT set on the kubelet `KubeletConfiguration`, and the caph reference's `/etc/kubernetes/resolv.conf` (Cloudflare-only) is dropped. Kubelet falls back to the host's `/etc/resolv.conf`, which DHCP populates with Hetzner's resolvers (multi-IP, dual-stack, one network hop away) — avoids tying DNS to a single provider.
+- Control-plane kubelets set `resolvConf` to `/run/systemd/resolve/resolv.conf`. Ubuntu's `/etc/resolv.conf` points at the host-local `127.0.0.53` stub, which is unreachable from pod network namespaces.
+- Control-plane Machine deletion retries Kubernetes Node removal indefinitely. The default ten-second deletion window can expire during a brief control-plane interruption and leave an unreachable Node after its Machine and server are gone. The ClusterClass control-plane deletion policy propagates this in place, so changing the immutable control-plane template is unnecessary.
+- All kubelets use `/run/systemd/resolve/resolv.conf` for resolver configuration. Ubuntu's `/etc/resolv.conf` points at a host-local `127.0.0.53` stub, which is unreachable from pod network namespaces. Cloud-worker MachineDeployments use an explicit rolling strategy that keeps all desired workers available and creates at most one additional worker per pool during this configuration change.
+- CoreDNS remains kubeadm-owned. Do not fork or reconcile its ConfigMap: [kubeadm does not support persisting CoreDNS ConfigMap customizations](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/control-plane-flags/#customizing-coredns).

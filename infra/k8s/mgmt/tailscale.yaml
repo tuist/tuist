@@ -32,10 +32,14 @@
 #          "tag:tuist-mgmt": ["autogroup:admin"]
 #        }
 #      (Merge with any existing `tagOwners` block; don't replace.)
-#   3. Settings → OAuth clients → Generate OAuth client.
+#   3. Settings → Trust credentials → Credential → OAuth, then
+#      Generate credential. (Not "Settings → OAuth clients", and not
+#      the Keys page, which holds only auth keys and API tokens.)
+#      https://login.tailscale.com/admin/settings/trust-credentials
 #      - Description: `mgmt-cluster tailscaled (manifest: infra/k8s/mgmt/tailscale.yaml)`
-#      - Scopes: `auth_keys` write (Devices → Auth Keys → Write)
-#      - Tags: `tag:tuist-mgmt` (limits what the client can mint)
+#      - Scopes: Keys → Auth Keys → Write
+#      - Tags: `tag:tuist-mgmt` (required for the write scope, and
+#        limits what the client can mint)
 #      Copy the secret (starts with `tskey-client-`); shown once.
 #   4. Store the secret in 1Password as
 #      `tailscale-mgmt-oauth-client-secret`.

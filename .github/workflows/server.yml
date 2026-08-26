@@ -10,6 +10,7 @@ on:
       - noora/**
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
+      - .trivyignore
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -19,6 +20,7 @@ on:
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
       - noora/aube-lock.yaml
+      - .trivyignore
   merge_group: {}
 
 permissions:
@@ -35,6 +37,13 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_TASK_RUN_AUTO_INSTALL: 0
   MISE_GITHUB_ATTESTATIONS: 0
+  MISE_GITHUB_SLSA: 0
+  # Same repositories as Trivy's default, in the opposite order. Trivy only
+  # falls through to the next repository on a temporary status code (408, 429,
+  # 5xx) or a BLOB_UNKNOWN diagnostic. mirror.gcr.io intermittently serves a
+  # bare 404 for the blob redirect target, which is neither, so a mirror.gcr.io
+  # fault is fatal when it is first and recoverable when it is second.
+  TRIVY_DB_REPOSITORY: "ghcr.io/aquasecurity/trivy-db:2,mirror.gcr.io/aquasec/trivy-db:2"
 
 defaults:
   run:
@@ -56,6 +65,25 @@ jobs:
         with:
           path: server/native/xcactivitylog_nif/.build
           key: xcactivitylog-nif-swiftpm-${{ hashFiles('server/native/xcactivitylog_nif/Package.resolved') }}
+      - name: Run tests
+        run: swift test --replace-scm-with-registry
+  # XCResultParser is not server-only: the CLI compiles these sources into its
+  # binary, so this job guards both.
+  swift-test-xcresult:
+    name: Swift Tests (XCResultParser)
+    runs-on: tuist-macos
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    defaults:
+      run:
+        working-directory: server/native/xcresult_nif
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore SwiftPM Cache
+        uses: actions/cache@v4
+        with:
+          path: server/native/xcresult_nif/.build
+          key: xcresult-nif-swiftpm-${{ hashFiles('server/native/xcresult_nif/Package.resolved') }}
       - name: Run tests
         run: swift test --replace-scm-with-registry
   gettext:
@@ -260,6 +288,81 @@ jobs:
         run: mise run --no-deps db:reset
       - name: Run tests
         run: mix test --warnings-as-errors
+  test-clickhouse-floor:
+    name: Test (oldest supported ClickHouse)
+    # The self-hosting requirements promise ClickHouse 25, but every ClickHouse
+    # we operate is newer: dev and the Test job pin 26.1, the Helm chart ships
+    # 26.1, and the bundled Compose file ships 26.5. Nothing exercised the
+    # documented floor, so a query setting or function introduced after it
+    # reached self-hosted deployments as a failed migration rather than as a
+    # failed build (#12515). Running the suite here replays every ClickHouse
+    # migration and every runtime query against the floor.
+    #
+    # The release under test comes from Tuist.ClickHouseVersions, which is also
+    # what the migration guard asserts and what the self-hosting requirements
+    # publish, so the three cannot drift apart.
+    runs-on: tuist-linux-large
+    timeout-minutes: 75
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    env:
+      # Matches the Test job. Several locale assertions live in tests that carry
+      # no `:locale` tag, so they run either way and fail against the "en"-only
+      # locale set that `mix test` compiles by default.
+      TUIST_DEV_ALL_LOCALES: "1"
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve the oldest supported ClickHouse release
+        run: |
+          file=lib/tuist/clickhouse_versions.ex
+          version="$(grep -E '^\s*@oldest_tested_release' "$file" | sed -E 's/.*"([^"]+)".*/\1/' | head -1)"
+          if [ -z "$version" ]; then
+            echo "Could not resolve @oldest_tested_release from $file" >&2
+            exit 1
+          fi
+          echo "CLICKHOUSE_FLOOR_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Testing against ClickHouse ${version}"
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          mise-version: ${{ env.MISE_VERSION }}
+          mix-cache-key: mix-test-v2
+          mix-cache-restore-key: mix-test-v2-
+          restore-mix-cache: "false"
+      # Not passed through mise-install-args: that path installs `--locked`, and
+      # mise.lock pins the version the rest of CI runs on.
+      - name: Pin ClickHouse to the oldest supported release
+        run: |
+          mise use "github:ClickHouse/ClickHouse@${CLICKHOUSE_FLOOR_VERSION}"
+          clickhouse --version
+      - name: Restore CLDR locale cache
+        uses: actions/cache@v4
+        with:
+          path: server/_build/cldr/locales
+          key: cldr-locales-v1-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            cldr-locales-v1-
+      - name: Prefetch CLDR locale data
+        run: mise/tasks/cldr/prefetch-locale-data.sh
+      - name: Compile
+        run: mix compile --warnings-as-errors
+      - name: Start ClickHouse
+        run: mise run --no-deps clickhouse:start
+      - name: Setup database
+        run: mise run --no-deps db:reset
+      - name: Run tests
+        run: mix test --warnings-as-errors
   credo:
     name: Credo
     runs-on: tuist-linux
@@ -295,6 +398,9 @@ jobs:
         run: mix format --check-formatted
       - name: Check asset format
         run: prettier --check assets
+      - name: Check CSS custom property references
+        working-directory: ${{ github.workspace }}
+        run: mise run css:lint-tokens server
   esbuild:
     name: esbuild
     runs-on: tuist-linux
@@ -407,6 +513,25 @@ jobs:
             exit "$status"
           fi
           echo "Docker build completed"
+      - name: Smoke test PromEx metrics server
+        run: |
+          docker run --rm \
+            --env DATABASE_URL=ecto://tuist:tuist@127.0.0.1/tuist \
+            --env TUIST_DEPLOY_ENV=prod \
+            --env TUIST_HOSTED=1 \
+            --env TUIST_OBJECT_STORAGE_PROVIDER=azure_blob \
+            --env TUIST_PROMETHEUS_ENABLED=1 \
+            tuist/tuist \
+            /app/bin/tuist eval '
+              :web = Tuist.Environment.mode()
+              :prod = Tuist.Environment.env()
+              {:ok, _} = Application.ensure_all_started(:plug_cowboy)
+              {:ok, _} = Application.ensure_all_started(:prom_ex)
+              {:ok, supervisor} = Tuist.PromEx.start_link([])
+              {:ok, _} = Application.ensure_all_started(:inets)
+              {:ok, {{_, 200, _}, _, _}} = :httpc.request(~c"http://127.0.0.1:9091/metrics")
+              :ok = Supervisor.stop(supervisor)
+            '
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"

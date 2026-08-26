@@ -14,6 +14,7 @@ defmodule Tuist.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: compilers(Mix.env()),
+      phoenix_live_view: [colocated_assets: [node_modules_path: "node_modules"]],
       listeners: [Phoenix.CodeReloader]
     ]
   end
@@ -34,8 +35,8 @@ defmodule Tuist.MixProject do
   defp elixirc_paths(_), do: ["lib"]
 
   # Boundary verifies a large module graph and makes content edits slow in dev.
-  defp compilers(:dev), do: Mix.compilers()
-  defp compilers(_env), do: [:boundary] ++ Mix.compilers()
+  defp compilers(:dev), do: [:phoenix_live_view] ++ Mix.compilers()
+  defp compilers(_env), do: [:phoenix_live_view, :boundary] ++ Mix.compilers()
 
   # Specifies your project dependencies.
   #
@@ -49,7 +50,7 @@ defmodule Tuist.MixProject do
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_reload, "~> 1.6.1", only: :dev},
-      {:phoenix_live_view, "~> 1.1.0"},
+      {:phoenix_live_view, "~> 1.2.0"},
       {:phoenix_view, "~> 2.0"},
       {:floki, ">= 0.33.0"},
       {:html2markdown, "~> 0.3.1"},
@@ -63,7 +64,7 @@ defmodule Tuist.MixProject do
       {:gettext, "~> 1.0", override: true},
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
-      {:bandit, "~> 1.11.1", override: true},
+      {:bandit, "~> 1.12.0", override: true},
       # The WebSocket upgrade crash that originally held this at 1.19.2
       # (ArgumentError ":upgrade not a binary") came from the header validation
       # 1.19.3 added to `Plug.Conn.inform/3`, which rejected atom header keys.
@@ -89,20 +90,23 @@ defmodule Tuist.MixProject do
       {:mimic, "~> 2.0", only: :test},
       {:ymlr, "~> 5.0"},
       {:open_api_spex, "~> 3.22"},
-      {:oban, "~> 2.19"},
-      {:oban_web, "~> 2.11"},
+      {:oban, "~> 2.21.0"},
+      {:oban_web, "~> 2.12"},
       {:bcrypt_elixir, "~> 3.0"},
       {:stripity_stripe, "~> 3.1"},
       {:ueberauth, "~> 0.10.8"},
       {:ueberauth_github, "~> 0.8"},
       {:ueberauth_google, "~> 0.12"},
-      {:ueberauth_apple, "~> 0.6"},
+      {:ueberauth_apple, "~> 0.6.2"},
       {:req, "~> 0.6.2"},
       {:telemetry_test, "~> 0.1.2"},
       {:sweet_xml, "~> 0.7.4"},
       {:flop, "~> 0.26.0"},
       {:timex, "~> 3.7.13"},
       {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
+      # PromEx's standalone metrics server still runs on Cowboy even though
+      # the Phoenix endpoint runs on Bandit.
+      {:plug_cowboy, "~> 2.7"},
       {:ranch, "~> 2.2.0", override: true},
       {:hammer, "~> 7.0"},
       {:guardian, "~> 2.3"},
@@ -133,6 +137,7 @@ defmodule Tuist.MixProject do
       {:boundary, "~> 0.10", runtime: false},
       {:makeup, "~> 1.2", override: true},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
       {:solid, "~> 1.3"},
       {:plug_minify_html, "~> 0.1.0"},
       {:briefly, "~> 0.5.0"},
@@ -162,6 +167,7 @@ defmodule Tuist.MixProject do
       {:peep, "4.2.1", override: true},
       {:langchain, "~> 0.4"},
       {:mdex, "~> 0.13.3"},
+      {:mdex_katex, "~> 0.2.1"},
       {:lumis, "~> 0.1.2"},
       {:mdex_mermaid, "~> 0.3"},
       {:html_sanitize_ex, "~> 1.4"},

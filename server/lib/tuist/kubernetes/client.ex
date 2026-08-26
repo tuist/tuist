@@ -248,8 +248,32 @@ defmodule Tuist.Kubernetes.Client do
   customer (Pods labeled `tuist.dev/runner-pool-owner=<owner>`)
   before claiming a queue entry, to enforce `max_concurrent`.
   """
-  def list_pods(namespace, label_selector) when is_binary(namespace) and is_binary(label_selector) do
-    case request(:get, "/api/v1/namespaces/#{namespace}/pods", query: %{"labelSelector" => label_selector}) do
+  def list_pods(namespace, label_selector, opts \\ []) when is_binary(namespace) and is_binary(label_selector) do
+    case request(:get, "/api/v1/namespaces/#{namespace}/pods",
+           query: %{"labelSelector" => label_selector},
+           timeout: opts[:timeout]
+         ) do
+      {:ok, %{"items" => items}} -> {:ok, items}
+      {:error, _} = err -> err
+    end
+  end
+
+  @doc """
+  LISTs Pods on `node`, across every namespace.
+
+  Kura egress capacity reads this rather than a namespace-and-label list because
+  what bounds a tenant's floor is everything reserved on its box, whoever put it
+  there. A list narrowed to the pods this control plane knows about would answer
+  the question it can already answer, and silently overstate the room left by
+  whatever it does not label.
+
+  The server SA is granted cluster-wide `pods: [list]` by the
+  kura-controller's node-reads ClusterRole.
+  """
+  def list_pods_on_node(node, opts \\ []) when is_binary(node) do
+    selector = "spec.nodeName=#{node},status.phase!=Succeeded,status.phase!=Failed"
+
+    case request(:get, "/api/v1/pods", query: %{"fieldSelector" => selector}, timeout: opts[:timeout]) do
       {:ok, %{"items" => items}} -> {:ok, items}
       {:error, _} = err -> err
     end
@@ -264,6 +288,28 @@ defmodule Tuist.Kubernetes.Client do
   """
   def get_pod(namespace, name) when is_binary(namespace) and is_binary(name) do
     get("/api/v1/namespaces/#{namespace}/pods/#{name}")
+  end
+
+  @doc """
+  Reads a Node. Dispatch uses this to read the cache-master labels
+  tart-kubelet advertises on each macOS host, so it can hand a polling
+  runner a job whose account's cache is already resident there. The
+  server SA is granted `nodes: [get, list]` by the runners-fleet-reader
+  ClusterRole.
+  """
+  def get_node(name, opts \\ []) when is_binary(name) do
+    request(:get, "/api/v1/nodes/#{name}", timeout: opts[:timeout])
+  end
+
+  @doc """
+  Lists Nodes carrying `label_selector`. Kura capacity uses this to count the
+  machines installed in a region rather than reading a hand-maintained count,
+  which drifts the moment a pool is scaled and drifts in the direction that
+  overcommits. The server SA is granted `nodes: [get, list]` by the
+  runners-fleet-reader ClusterRole.
+  """
+  def list_nodes(label_selector) when is_binary(label_selector) do
+    request(:get, "/api/v1/nodes", query: %{labelSelector: label_selector})
   end
 
   @doc """
@@ -339,13 +385,16 @@ defmodule Tuist.Kubernetes.Client do
     with {:ok, config} <- config(opts) do
       req_opts =
         maybe_put_body(
-          [
-            method: method,
-            url: url(config, path),
-            headers: request_headers(config, headers),
-            params: query,
-            connect_options: [transport_opts: config.transport_opts]
-          ],
+          maybe_put_timeout(
+            [
+              method: method,
+              url: url(config, path),
+              headers: request_headers(config, headers),
+              params: query,
+              connect_options: [transport_opts: config.transport_opts]
+            ],
+            Keyword.get(options, :timeout)
+          ),
           body
         )
 
@@ -571,6 +620,15 @@ defmodule Tuist.Kubernetes.Client do
 
   defp url(%{server: server}, path), do: server <> path
   defp url(config, path), do: "https://#{config.host}:#{config.port}#{path}"
+
+  # Bounds a read a caller is waiting on, retries included: Req's defaults are a
+  # 15s receive timeout and up to three transient-GET retries, so an apiserver
+  # that hangs holds the caller for the better part of a minute.
+  defp maybe_put_timeout(req_opts, nil), do: req_opts
+
+  defp maybe_put_timeout(req_opts, timeout) do
+    Keyword.merge(req_opts, receive_timeout: timeout, retry: false)
+  end
 
   defp maybe_put_body(req_opts, nil), do: req_opts
   defp maybe_put_body(req_opts, body), do: Keyword.put(req_opts, :body, body)

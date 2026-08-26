@@ -13,12 +13,13 @@ use std::os::unix::fs::MetadataExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::prefetch::Prefetcher;
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PUBLISH, OP_RESOLVE,
+    read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PUBLISH,
+    OP_RESOLVE,
     STATUS_ERROR, STATUS_HIT, STATUS_MISS,
 };
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
@@ -44,12 +45,34 @@ const MAX_PUBLISH_CACHE: usize = 500_000;
 const MAX_PENDING_OBJECTS: usize = 1_000_000;
 
 // Snapshot refresh cadence and cache bounds (see `refresh_snapshots`).
-const SNAPSHOT_DELTA_INTERVAL: Duration = Duration::from_secs(120);
+// Default cadence for the incremental (watermark-scoped) snapshot delta of an
+// active instance, overridable via TUIST_CAS_SNAPSHOT_DELTA_INTERVAL (seconds).
+// A delta is a cheap fetch of only the trunk entries newer than what we hold,
+// so this trades trunk freshness against a small periodic round trip.
+const SNAPSHOT_DELTA_INTERVAL_DEFAULT_SECS: u64 = 10 * 60;
 // How long a FETCH_OBJECT with no registered instruction waits for the
 // instance's snapshot to arrive before answering not-found (it runs on a
 // compiler worker thread, which demand fetches already block on network I/O).
 const SNAPSHOT_FETCH_WAIT: Duration = Duration::from_secs(20);
 const SNAPSHOT_FULL_INTERVAL: Duration = Duration::from_secs(30 * 60);
+// How stale a snapshot may be and still answer a resolve from its own copy of
+// the keyspace, measured from the last FULL fetch and never the last delta:
+// deltas only ADD, so only the full fetch re-applies the server's eviction
+// gate, and a view kept current by deltas alone goes on advertising keys the
+// remote has already dropped.
+//
+// It matters here and not on the per-key path because the per-key path is
+// gated at the server on every call — kura refuses to serve an ActionResult
+// whose blobs are gone. The snapshot bypasses that: it is a bulk dump, gated
+// once when the index was built. So the client's copy is the ONLY thing
+// standing between an evicted entry and a compiler that will fail the build on
+// it, and how recently it was gated is the whole of its authority.
+//
+// Twice the full cadence, so healthy operation never trips it — a scheduled
+// refresh lands well inside — and what it catches is a refresh loop that
+// stopped. That is reachable rather than theoretical: refreshes are held off on
+// a loaded machine and while a build is active, and CI runners are both.
+const SNAPSHOT_SERVE_MAX_AGE: Duration = Duration::from_secs(2 * 30 * 60);
 const SNAPSHOT_RETRY_INTERVAL: Duration = Duration::from_secs(60 * 60);
 // Ceiling on a compressed snapshot's declared uncompressed size, so a torn or
 // hostile length prefix cannot drive an unbounded allocation. Comfortably
@@ -68,16 +91,226 @@ const DEMAND_BATCH_LINGER: Duration = Duration::from_millis(3);
 const SNAPSHOT_ERROR_RETRY_INTERVAL: Duration = Duration::from_secs(60);
 const SNAPSHOT_IDLE_EVICT: Duration = Duration::from_secs(60 * 60);
 const SNAPSHOT_MAX_INSTANCES: usize = 8;
+
+// How long after the last CAS operation the machine still counts as busy. A
+// build's traffic arrives in bursts with gaps between them (a link step, a test
+// run, the developer reading a diagnostic), so a short window would read those
+// gaps as idle and start competing with the build it is meant to stay out of.
+const BUSY_AFTER_LAST_OP: Duration = Duration::from_secs(90);
+// One-minute load average per core above which the machine counts as busy. The
+// one-minute figure is the shortest the kernel keeps, so it already lags a
+// burst; staying under 1.0 keeps a core's worth of headroom for the developer.
+const BUSY_LOAD_PER_CORE: f64 = 0.6;
+// How often to say we are holding off. The tick is every 10s, so an unthrottled
+// line would bury the log through a long build.
+const BUSY_LOG_INTERVAL: Duration = Duration::from_secs(5 * 60);
+
+/// Why a machine in this state is too busy for background snapshot work, or
+/// None when it is free enough. `idle` is the time since the last CAS operation
+/// (None when no path has served one yet). Pure so the policy is unit-testable.
+fn busy_verdict(idle: Option<Duration>, load_per_core: Option<f64>) -> Option<String> {
+    if let Some(idle) = idle {
+        if idle < BUSY_AFTER_LAST_OP {
+            return Some(format!("a build was active {}s ago", idle.as_secs()));
+        }
+    }
+    match load_per_core {
+        Some(load) if load > BUSY_LOAD_PER_CORE => Some(format!("load is {load:.2} per core")),
+        _ => None,
+    }
+}
+
+/// The one-minute load average per core, or None if the platform will not say.
+fn load_per_core() -> Option<f64> {
+    let mut averages = [0f64; 3];
+    // SAFETY: getloadavg fills at most `nelem` entries of an array we own, and
+    // returns how many it wrote (-1 if it cannot).
+    let written = unsafe { libc::getloadavg(averages.as_mut_ptr(), 1) };
+    if written < 1 {
+        return None;
+    }
+    let cores = std::thread::available_parallelism().ok()?.get() as f64;
+    Some(averages[0] / cores)
+}
+
+/// The snapshot delta cadence, honoring TUIST_CAS_SNAPSHOT_DELTA_INTERVAL
+/// (seconds) and falling back to SNAPSHOT_DELTA_INTERVAL_DEFAULT_SECS.
+fn snapshot_delta_interval() -> Duration {
+    std::env::var("TUIST_CAS_SNAPSHOT_DELTA_INTERVAL")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .map(Duration::from_secs)
+        .unwrap_or(Duration::from_secs(SNAPSHOT_DELTA_INTERVAL_DEFAULT_SECS))
+}
 // The bulk-warm budget, in value-graph nodes (each node is one blob fetch).
 // Sized past the largest closure a single build replays (~37.5k on the CLI
 // fixture) so a right-sized namespace still warms completely.
 const PREMATERIALIZE_MAX_NODES: usize = 60_000;
+
+/// The bulk-warm budget, overridable for the full-ingestion layer: `0` lifts
+/// the cap entirely so the whole (trunk-scoped) snapshot is materialized into
+/// the local CAS ahead of any build. Default keeps the shipped bound.
+fn prematerialize_max_nodes() -> usize {
+    std::env::var("TUIST_CAS_PREMATERIALIZE_NODES")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(PREMATERIALIZE_MAX_NODES)
+}
+
+/// Suffix of the file that carries a spool record's publish tags. Both this
+/// proxy's `sweep` and the plugin's own `sweep_spool` walk the spool directory
+/// and must skip it.
+pub const TAGS_SUFFIX: &str = ".tags";
+
+/// The sidecar path for a record, keyed off the base name so it is still found
+/// once a sweeper has claimed the record as `<base>.claim-<pid>`.
+fn tags_path(record_path: &str) -> std::path::PathBuf {
+    let path = std::path::Path::new(record_path);
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    let base = name.split_once(".claim-").map(|(b, _)| b).unwrap_or(name);
+    path.with_file_name(format!("{base}{TAGS_SUFFIX}"))
+}
+
+/// `branch\ntrunk`, where an empty field encodes `None`. Neither resolver can
+/// yield an empty branch name, so the round trip is lossless: the same encoding
+/// the publish queue item uses.
+fn encode_tags(branch: &str, trunk: &str) -> Vec<u8> {
+    format!("{branch}\n{trunk}").into_bytes()
+}
+
+fn decode_tags(bytes: &[u8]) -> Option<(String, String)> {
+    let contents = std::str::from_utf8(bytes).ok()?;
+    let (branch, trunk) = contents.split_once('\n')?;
+    Some((branch.to_string(), trunk.to_string()))
+}
+
+/// The plugin's write-ahead publication spool for a CAS path. One place, so the
+/// sweep, the drain accounting and the plugin agree on the name.
+fn spool_dir(cas_path: &str) -> std::path::PathBuf {
+    std::path::Path::new(cas_path).join("tuist-spool")
+}
+
+/// How many publication records are still spooled under `cas_path`: what this
+/// machine recorded and has NOT got onto the remote. A record is deleted only
+/// once its publication succeeded (or the policy dropped it), so zero here is
+/// the proof a drain waits for.
+///
+/// Counts exactly what `sweep_path` would try to publish — sidecars are not
+/// records, a claimed record still is — so the two cannot disagree about what
+/// is owed.
+fn spool_records(cas_path: &str) -> usize {
+    let Ok(entries) = std::fs::read_dir(spool_dir(cas_path)) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| !name.ends_with(TAGS_SUFFIX))
+        })
+        .count()
+}
+
+/// How long a drain waits when its caller names no budget of its own.
+const DRAIN_TIMEOUT_DEFAULT: Duration = Duration::from_secs(120);
+/// Ceiling on a caller-named budget. A drain parks a proxy thread and the
+/// request comes from outside this process, so the number is not the caller's
+/// to make unbounded.
+const DRAIN_TIMEOUT_MAX: Duration = Duration::from_secs(600);
+/// Pause between drain attempts. A publication that failed keeps its record and
+/// the periodic sweeper is 10s away, which is most of a caller's budget.
+const DRAIN_RETRY_BACKOFF: Duration = Duration::from_secs(2);
+
+/// The caller's wait budget, as `u32` big-endian milliseconds. Absent or zero
+/// reads as the default, anything above the ceiling is clamped.
+fn drain_timeout(payload: &[u8]) -> Duration {
+    let Ok(bytes) = <[u8; 4]>::try_from(payload) else {
+        return DRAIN_TIMEOUT_DEFAULT;
+    };
+    match u32::from_be_bytes(bytes) {
+        0 => DRAIN_TIMEOUT_DEFAULT,
+        millis => Duration::from_millis(u64::from(millis)).min(DRAIN_TIMEOUT_MAX),
+    }
+}
+
+/// Deletes a spool record and the tags written beside it. A leaked sidecar
+/// would be read back by whatever record later reuses that name.
+fn remove_record(record_path: &str) {
+    let _ = std::fs::remove_file(record_path);
+    let _ = std::fs::remove_file(tags_path(record_path));
+}
+
+/// Whether a re-put can be dropped without a `publish` round trip. True only
+/// when its value matches one we already resolved AND it is not a trunk publish:
+/// a trunk publish is the reclaim path and must reach `publish` even on a value
+/// match, because the entry it matches may still carry a feature-branch tag that
+/// only republishing under the trunk tag can claim into the trunk view. A trunk
+/// publish is one that names a branch equal to the trunk it targets.
+fn is_redundant_reput(branch: Option<&str>, trunk: Option<&str>, value_matches: bool) -> bool {
+    let reclaims_into_trunk = branch.is_some() && branch == trunk;
+    value_matches && !reclaims_into_trunk
+}
+
+/// How much of a trunk snapshot to pull before a build asks for it. The two
+/// layers cost different orders of magnitude and are worth disabling
+/// separately, so one setting names all three states rather than leaving the
+/// middle one to be spelled with a node budget.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PrefetchMode {
+    /// Nothing proactive: no snapshot, no warm. Every resolve is a per-key
+    /// round trip and every object arrives on demand.
+    Off,
+    /// The snapshot only: one round trip for the trunk's keys, no bytes pulled
+    /// ahead of the build that needs them. What CI wants: keys are orders of
+    /// magnitude lighter than bytes, and a machine whose proxy and build start
+    /// together has no window to warm in, so the byte layer would race the build
+    /// it is meant to help.
+    Keys,
+    /// The snapshot and its whole byte closure, materialized ahead of the build.
+    ///
+    /// The default, because it is affordable and it pays: the trunk scoping
+    /// bounds the warm to the project's closure instead of a whole shared
+    /// namespace, it runs off any build's critical path, it is idempotent
+    /// (objects already on disk are skipped, so steady state only fetches the
+    /// delta a new snapshot introduced), and Xcode's size-LRU bounds the store
+    /// it lands in. Measured on a mastodon-sized project: ~12s of off-path
+    /// fetching turns a from-scratch trunk build from ~57s into ~33s at 50ms
+    /// RTT, cutting demand stalls ~14x.
+    Full,
+}
+
+/// Pure so the policy is testable without writing to the process environment.
+/// An unrecognized value reads as `Full`, matching how the other flags treat
+/// anything that is not an explicit opt-out: a typo must not silently turn
+/// caching down.
+fn prefetch_mode_from(value: Option<&str>) -> PrefetchMode {
+    match value.map(str::trim).map(str::to_ascii_lowercase).as_deref() {
+        Some("0" | "off" | "false" | "no" | "none") => PrefetchMode::Off,
+        Some("keys") => PrefetchMode::Keys,
+        _ => PrefetchMode::Full,
+    }
+}
+
+fn prefetch_mode() -> PrefetchMode {
+    prefetch_mode_from(std::env::var("TUIST_CAS_PREFETCH").ok().as_deref())
+}
 // View refresh: per-key hits taken while a snapshot was Ready get their
 // manifests re-published in the background (see Proxy.view_refresh). The
 // per-tick batch keeps a full cold build's backlog (~10k keys) draining in
 // well under an hour without contending with the build's own traffic; the
 // queue cap bounds memory if the server never accepts them.
 const VIEW_REFRESH_PER_TICK: usize = 100;
+/// How many refreshes a proxy remembers having done, to suppress duplicates.
+/// Deliberately its own bound: the queue's cap protects memory against a server
+/// that never accepts, while this one is a history whose entries are never
+/// retired, so reusing that number turned "the queue is full" into "this machine
+/// is finished refreshing". Full means forget, never refuse.
+const VIEW_REFRESH_HISTORY_MAX: usize = 200_000;
 const VIEW_REFRESH_MAX_QUEUE: usize = 50_000;
 
 /// How long a cached miss is served before it is re-resolved. Positive results
@@ -192,7 +425,14 @@ fn generation_changed(stored: Option<CasGeneration>, current: Option<CasGenerati
 /// until killed.
 pub struct PathState {
     up: &'static Upstream,
-    cas: llcas_cas_t,
+    // The handle addressing the store at `cas_path`. Behind a lock because it
+    // is REBOUND when the directory is wiped and recreated: an llcas handle
+    // holds the store's files open, so after an `rm -rf DerivedData` the old
+    // handle keeps answering from the deleted directory's still-open inodes --
+    // reads report objects the compiler cannot see, and writes land where
+    // nothing will ever read them. Readers hold the guard across their whole
+    // FFI call so a swap can never dispose a handle mid-use.
+    cas: RwLock<llcas_cas_t>,
     // The on-disk CAS directory this state wraps, kept so a resolve can restat
     // it for wipe detection (see `generation`).
     cas_path: String,
@@ -250,6 +490,11 @@ pub struct PathState {
     // through a separate BatchReadBlobs round-trip (kura's
     // `inline_output_files: ["*"]` extension).
     pub stats_blobs_inlined: AtomicU64,
+    // Value graphs whose root was withheld because a node in their closure could
+    // not be stored. Each one is a key that resolves again next build instead of
+    // being served over a hole. Persistently non-zero means the remote is handing
+    // out entries whose blobs it cannot produce.
+    pub stats_incomplete_closures: AtomicU64,
     pub stats_published: AtomicU64,
     pub ms_action: AtomicU64,
     pub ms_filter: AtomicU64,
@@ -526,12 +771,75 @@ impl PathState {
         // Clearing it wholesale meant one mid-build prune signal threw away
         // the read-ahead wavefront's work and sent every later lookup back to
         // the remote (measured: ~2x the remote round trips of the key set).
+        // Keeping it is only safe while that guard probes the store the
+        // consumer reads: a wipe must rebind the handle (see `reopen_cas`)
+        // BEFORE this runs, or every retained Hit is re-verified against the
+        // deleted store and served as a `missing object` build failure.
         for shard in &self.known_local {
             shard.lock().unwrap().clear();
         }
         // `pending_objects` is also KEPT: entries are content-addressed fetch
         // instructions, valid for any incarnation of the store — after a wipe
         // they let demand loads refill exactly what is asked for.
+    }
+
+    /// Rebinds `cas` to the store that now lives at `cas_path`, releasing the
+    /// handle to the previous one. Called when a wipe is detected: an llcas
+    /// handle keeps the store's files open, so a deleted directory's inodes stay
+    /// alive and reachable THROUGH THAT HANDLE ALONE. Everything the proxy does
+    /// with it afterwards addresses a store no other process can see -- and
+    /// silently: the reads answer SUCCESS and the writes report success.
+    /// Dropping the marks is not enough on its own, because `load_present`
+    /// re-learns them from that same handle.
+    ///
+    /// The fresh handle is opened before the lock is taken, so a failure leaves
+    /// the existing one in place; the stale handle is disposed only once the
+    /// swap holds the write lock, where no thread can be inside a call with it.
+    /// Disposing (rather than leaking) also lets go of the deleted store's
+    /// inodes, which is what actually returns the disk the user meant to free.
+    fn reopen_cas(&self) -> Result<(), String> {
+        let fresh = unsafe { open_cas(self.up, &self.cas_path)? };
+        let mut cas = self.cas.write().unwrap();
+        let stale = std::mem::replace(&mut *cas, fresh);
+        unsafe { (self.up.llcas_cas_dispose)(stale) };
+        Ok(())
+    }
+
+    /// Authoritative on-disk presence for `digest`: an actual llcas load, the
+    /// same call the consumer will make, bypassing the known-local cache. Used
+    /// both by `is_local` (which memoizes a positive result) and to guard a
+    /// cached Hit against a wiped local CAS, where the in-memory marks lie.
+    /// Only as authoritative as the handle is current -- see `reopen_cas`.
+    fn load_present(&self, digest: &[u8]) -> bool {
+        // Held across the probe: a concurrent `reopen_cas` must not dispose the
+        // handle between the objectid lookup and the containment check.
+        let cas = self.cas.read().unwrap();
+        unsafe {
+            let digest_t = llcas_digest_t {
+                data: digest.as_ptr(),
+                size: digest.len(),
+            };
+            let mut id = llcas_objectid_t { opaque: 0 };
+            let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
+            if (self.up.llcas_cas_get_objectid)(*cas, digest_t, &mut id, &mut error) {
+                if !error.is_null() {
+                    (self.up.llcas_string_dispose)(error);
+                }
+                return false;
+            }
+            // Existence check, not a data load: this runs once per served hit
+            // and once per manifest-entry probe, so loading object bytes here
+            // put real I/O on the resolve path (thousands of loads per warm
+            // build). A wiped or pruned store answers NOTFOUND either way,
+            // which is all the stale-hit guard needs.
+            let mut contains_error: *mut std::ffi::c_char = std::ptr::null_mut();
+            let result =
+                (self.up.llcas_cas_contains_object)(*cas, id, false, &mut contains_error);
+            if !contains_error.is_null() {
+                (self.up.llcas_string_dispose)(contains_error);
+            }
+            result == LLCAS_LOOKUP_RESULT_SUCCESS
+        }
     }
 }
 
@@ -551,7 +859,27 @@ unsafe impl Sync for PathState {}
 
 /// One queued view refresh: the instance's client, the action key, and the
 /// manifest to re-publish.
-type ViewRefresh = (Arc<Remote>, Vec<u8>, Vec<ManifestEntry>);
+/// A per-key hit queued for background re-publish, with the tags bound when it
+/// was queued rather than when it drains: the drain runs on a maintenance tick,
+/// by which point the checkout may have moved.
+struct ViewRefresh {
+    remote: Arc<Remote>,
+    key: Vec<u8>,
+    manifest: Vec<ManifestEntry>,
+    branch: Option<String>,
+    trunk: Option<String>,
+    /// Carried so a refresh that never happens can release its claim.
+    dedup: RefreshKey,
+}
+
+/// What makes a refresh distinct: the instance it belongs to, the action, and the
+/// tags it would write.
+///
+/// All four matter. The key alone collides across projects, and it collides
+/// across branches, which is worse: a feature build refreshing a key would
+/// suppress the later trunk hit for it, for the proxy's lifetime, and that hit is
+/// the only thing that reclaims the entry into the trunk view.
+type RefreshKey = (String, Vec<u8>, Option<String>, Option<String>);
 
 /// Result of a coalesced demand fetch, taken by exactly one waiter.
 enum DemandResult {
@@ -668,6 +996,69 @@ impl DemandCoalescer {
     }
 }
 
+/// What setup recorded for an instance, memoized on a TTL so a publish does not
+/// re-read the registry file.
+struct SourceContext {
+    read_at: Instant,
+    trunk: Option<String>,
+    ci_branch: Option<String>,
+    upload: bool,
+}
+
+/// How long a recorded context is reused before the proxy re-reads the registry,
+/// so a project set up after startup is picked up within seconds.
+const GIT_CONTEXT_TTL: Duration = Duration::from_secs(15);
+
+/// The (branch, trunk) pair `source_context` resolves, cloned out from under the
+/// cache lock.
+struct SourceBranches {
+    branch: Option<String>,
+    trunk: Option<String>,
+    upload: bool,
+}
+
+/// What `tuist setup cache` recorded for an instance.
+///
+/// Note what is NOT here: the checkout. Nothing about a publish is read from the
+/// working copy, which is what makes a moved, renamed, or duplicated one unable
+/// to mis-attribute a build.
+#[derive(serde::Deserialize)]
+struct RegisteredSource {
+    /// The branch `tuist setup cache` saw in the CI job's environment, recorded
+    /// ONLY on CI. A launchd agent does not inherit the job's environment, so the
+    /// provider's branch variable is unreachable from here and the command inside
+    /// the job has to hand it over.
+    ///
+    /// `None` off CI, and that is the design rather than a gap: the snapshot is
+    /// what trunk looks like as CI built it, so CI is the only publisher whose
+    /// branch has to be right. A local publish goes out untagged, stays out of
+    /// every trunk view, and is still stored and served per key.
+    #[serde(default, rename = "branch")]
+    ci_branch: Option<String>,
+    /// The project's default branch, as the server knows it. Which branch is
+    /// trunk is a property of the project, not of how this machine happened to
+    /// clone it (a fork, a mirror, or a clone whose remote head was never set all
+    /// get it wrong locally). `None` when setup could not reach the server, which
+    /// means no scoping: what a client too old to ask for it already gets.
+    #[serde(default)]
+    trunk: Option<String>,
+    /// The project's `xcodeCache.upload`.
+    ///
+    /// The plugin checks this too, from a compiler option, but that option only
+    /// reaches Swift: swift-build's `CASOptions` carries a plugin PATH and no
+    /// plugin options, so the CAS it creates for its Clang caching has no idea
+    /// what the project asked for and defaults to uploading. The proxy is the
+    /// only place that sees both lanes, so it is where the policy is enforced.
+    ///
+    /// Absent is permissive: nothing recorded is nothing to withhold.
+    #[serde(default = "uploads_by_default")]
+    upload: bool,
+}
+
+fn uploads_by_default() -> bool {
+    true
+}
+
 pub struct Proxy {
     grpc_url: String,
     tokens: Arc<TokenProvider>,
@@ -683,6 +1074,18 @@ pub struct Proxy {
     // a proxy restart. See proxy_proto for why the fallback exists.
     path_instance: Mutex<HashMap<String, String>>,
     registry_path: Option<PathBuf>,
+    // instance -> what `tuist setup cache` recorded for it: the project's trunk,
+    // the CI job's branch, and the upload policy. Not the checkout: nothing about
+    // a publish is read from a working copy, which is what stops a moved,
+    // renamed or duplicated one mis-attributing a build. Nothing branch-specific
+    // enters a build setting either, which could pollute the compile cache key.
+    instance_sources: Mutex<HashMap<String, RegisteredSource>>,
+    // Instances a build has touched since this proxy started; bounds trunk
+    // ingestion to projects actually in use (see `instance_active`).
+    active_instances: Mutex<HashSet<String>>,
+    // instance -> the last context read from the registry, refreshed on a short
+    // TTL so per-publish tagging is a cache hit rather than a file read.
+    source_cache: Mutex<HashMap<String, SourceContext>>,
     paths: Mutex<HashMap<String, &'static PathState>>,
     publisher: Prefetcher,
     // Resolves/publishes that arrived with no declared instance and no primed
@@ -710,6 +1113,9 @@ pub struct Proxy {
     // background on an instance's first resolve; while it is in flight (or
     // when the server has none) resolves use the per-key path.
     snapshots: Mutex<HashMap<String, SnapshotState>>,
+    // When we last said a refresh was held off for a busy machine (see
+    // `log_busy`).
+    busy_logged_at: Mutex<Option<Instant>>,
 
     // Keys answered by a per-key lookup while a snapshot was Ready: they fell
     // out of the server's size-capped wire view, which ranks by version — a
@@ -722,7 +1128,10 @@ pub struct Proxy {
     // identical re-publishes of entries fresher than a day, so a fleet of
     // cold machines cannot stampede version bumps.
     view_refresh: Mutex<VecDeque<ViewRefresh>>,
-    view_refreshed: Mutex<HashSet<Vec<u8>>>,
+    view_refreshed: Mutex<HashSet<RefreshKey>>,
+    // Instances already reported as serving per key because their snapshot aged
+    // out; see `note_stale_snapshot`. One line per instance, not per resolve.
+    stale_snapshot_logged: Mutex<HashSet<String>>,
 
     // instance -> demand-fetch coalescer, created on first demand miss. Groups
     // concurrent OP_FETCH_OBJECT blob reads into shared BatchReadBlobs calls.
@@ -752,6 +1161,13 @@ impl Proxy {
             epoch: Instant::now(),
             remotes: Mutex::new(HashMap::new()),
             path_instance: Mutex::new(path_instance),
+            instance_sources: Mutex::new(
+                registry_path
+                    .as_deref()
+                    .and_then(|path| load_sources(&sources_path_for(path)))
+                    .unwrap_or_default(),
+            ),
+            source_cache: Mutex::new(HashMap::new()),
             registry_path,
             paths: Mutex::new(HashMap::new()),
             publisher: Prefetcher::new(),
@@ -760,10 +1176,13 @@ impl Proxy {
             materialize_jobs: Mutex::new(HashMap::new()),
             job_counter: AtomicU64::new(0),
             snapshots: Mutex::new(HashMap::new()),
+            busy_logged_at: Mutex::new(None),
             unprimed: AtomicU64::new(0),
             view_refresh: Mutex::new(VecDeque::new()),
             view_refreshed: Mutex::new(HashSet::new()),
+            stale_snapshot_logged: Mutex::new(HashSet::new()),
             demand_coalescers: Mutex::new(HashMap::new()),
+            active_instances: Mutex::new(HashSet::new()),
             analytics,
         }));
         let proxy_addr = proxy as *const Proxy as usize;
@@ -814,15 +1233,99 @@ impl Proxy {
     /// empty one falls back to whatever a prior build primed. `None` means an
     /// unprimed ⌘B build: the caller degrades it to a miss.
     fn resolve_instance(&self, cas_path: &str, declared: &str) -> Option<String> {
-        if !declared.is_empty() {
+        let instance = if !declared.is_empty() {
             let mut map = self.path_instance.lock().unwrap();
             if map.get(cas_path).map(String::as_str) != Some(declared) {
                 map.insert(cas_path.to_string(), declared.to_string());
                 self.persist_registry(&map);
             }
-            return Some(declared.to_string());
+            Some(declared.to_string())
+        } else {
+            self.path_instance.lock().unwrap().get(cas_path).cloned()
+        };
+        // Every caller of this is real build traffic (a resolve, a demand fetch,
+        // a publish), and nothing else reaches it — the startup prefetch does
+        // not. So this is the seam where "a project is being built on this
+        // machine" is known, which is what bounds trunk ingestion (see
+        // `instance_active`).
+        if let Some(instance) = &instance {
+            // `insert` reports the transition, and the guard is dropped before
+            // the hook: what it kicks off takes locks of its own.
+            let newly_active = self
+                .active_instances
+                .lock()
+                .unwrap()
+                .insert(instance.clone());
+            if newly_active {
+                self.ingest_on_activation(instance);
+            }
         }
-        self.path_instance.lock().unwrap().get(cas_path).cloned()
+        instance
+    }
+
+    /// Ingests the trunk closure of an instance that has just become active but
+    /// whose snapshot arrived before it did.
+    ///
+    /// The startup prefetch warms under the node budget by design: nothing is
+    /// active that early, and that is exactly what stops a restart from pulling
+    /// the closure of every project the registry has ever seen. But the budget
+    /// then sticks. The snapshot is Ready, nothing re-materializes it, and the
+    /// first build after a restart — the build the prefetch exists to help —
+    /// would wait out SNAPSHOT_FULL_INTERVAL for the closure it was meant to
+    /// have. So the same signal that bounds the fan-out lifts the budget, for
+    /// this one instance, the moment it stops being a guess.
+    ///
+    /// Reachable once per instance per proxy lifetime. It no-ops unless a
+    /// snapshot is already Ready: an instance whose snapshot lands after the
+    /// build (the on-demand path) is materialized with the instance already
+    /// active and needs nothing here.
+    fn ingest_on_activation(&self, instance: &str) {
+        if self.snapshot_ready(instance).is_none() {
+            return;
+        }
+        let proxy: &'static Proxy = unsafe { &*(self as *const Proxy) };
+        let instance = instance.to_string();
+        // Off-thread: this runs from a resolve, and `resolve_trunk` can fork git.
+        std::thread::spawn(move || {
+            if prefetch_mode() != PrefetchMode::Full || proxy.resolve_trunk(&instance).is_none() {
+                return;
+            }
+            let Some(snapshot) = proxy.snapshot_ready(&instance) else {
+                return;
+            };
+            crate::log_line(&format!(
+                "ingesting {instance}'s trunk closure: prefetched before any build, so it warmed under the node budget"
+            ));
+            proxy.prematerialize_snapshot(&instance, &snapshot);
+        });
+    }
+
+    /// Whether this instance's project allows uploading.
+    ///
+    /// Read here rather than trusted from the client, because the client cannot
+    /// speak for the whole build. The plugin's own check sees a compiler option,
+    /// which reaches Swift; swift-build's Clang caching runs against a CAS
+    /// created with a plugin path and no options, so that lane defaults to
+    /// uploading and would publish straight through an explicit opt-out. Every
+    /// publication passes through here, from either lane and from the sweeper,
+    /// so this is the one place the project's answer can be made to hold.
+    fn upload_enabled(&self, instance: &str) -> bool {
+        self.source_context(instance).upload
+    }
+
+    /// Whether a build for this instance has touched this proxy since it
+    /// started. Trunk ingestion is gated on it, because the registry accumulates
+    /// every project ever built on the machine: without this, one proxy restart
+    /// would fan out and pull the full trunk closure of all of them (GBs) for
+    /// projects the developer may not have opened in months. In-memory on
+    /// purpose — a fresh proxy ingests nothing until you actually build, which
+    /// is the conservative direction.
+    ///
+    /// It gates the budget rather than the warm, so a prefetched-but-inactive
+    /// instance still warms its newest nodes; `ingest_on_activation` is what
+    /// lifts the budget once the guess resolves into a real build.
+    fn instance_active(&self, instance: &str) -> bool {
+        self.active_instances.lock().unwrap().contains(instance)
     }
 
     fn persist_registry(&self, map: &HashMap<String, String>) {
@@ -850,7 +1353,7 @@ impl Proxy {
         let cas = unsafe { open_cas(up, cas_path)? };
         let state: &'static PathState = Box::leak(Box::new(PathState {
             up,
-            cas,
+            cas: RwLock::new(cas),
             cas_path: cas_path.to_string(),
             generation: Mutex::new(cas_generation(cas_path)),
             gen_counter: AtomicU64::new(0),
@@ -868,6 +1371,7 @@ impl Proxy {
             stats_demand_fetched: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
             stats_blobs_inlined: AtomicU64::new(0),
+            stats_incomplete_closures: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),
             ms_action: AtomicU64::new(0),
             ms_filter: AtomicU64::new(0),
@@ -894,6 +1398,7 @@ impl Proxy {
     fn resolve(
         &self,
         remote: &Arc<Remote>,
+        instance: &str,
         state: &'static PathState,
         key: &[u8],
         snapshot: Option<&Snapshot>,
@@ -921,7 +1426,7 @@ impl Proxy {
         match fast_path(
             &state.resolved,
             key,
-            |value| self.load_present(state, value) || state.fetchable(value),
+            |value| state.load_present(value) || state.fetchable(value),
             || state.invalidate(),
         ) {
             FastPath::Hit(value) => return Ok(Some(value)),
@@ -964,7 +1469,7 @@ impl Proxy {
                     _ => None,
                 };
                 if let Some(value) = peeked {
-                    if self.load_present(state, &value) || state.fetchable(&value) {
+                    if state.load_present(&value) || state.fetchable(&value) {
                         return Ok(Some(value));
                     }
                 }
@@ -981,7 +1486,8 @@ impl Proxy {
         // this resolve's marks if a wipe/prune advances the counter mid-resolve.
         self.check_generation(state);
         let observed = state.gen_counter.load(Ordering::SeqCst);
-        let outcome = self.resolve_uncached(remote, state, key, observed, snapshot.is_some());
+        let outcome =
+            self.resolve_uncached(remote, instance, state, key, observed, snapshot.is_some());
         {
             let mut inflight = state.inflight.lock().unwrap();
             inflight.remove(key);
@@ -993,6 +1499,7 @@ impl Proxy {
     fn resolve_uncached(
         &self,
         remote: &Arc<Remote>,
+        instance: &str,
         state: &'static PathState,
         key: &[u8],
         observed: u64,
@@ -1030,7 +1537,7 @@ impl Proxy {
         // machine. Without a snapshot, per-key is just the normal path and
         // says nothing about view membership.
         if snapshot_ready {
-            self.queue_view_refresh(remote, key, &manifest);
+            self.queue_view_refresh(remote, instance, key, &manifest);
         }
         let action_ms = phase.elapsed().as_millis() as u64;
         state.ms_action.fetch_add(action_ms, Ordering::Relaxed);
@@ -1148,7 +1655,7 @@ impl Proxy {
             let contents = if digests.is_empty() {
                 HashMap::new()
             } else {
-                remote.batch_read(&digests)?
+                remote.batch_read_after_action_result(&digests)?
             };
             let fetch_elapsed = phase.elapsed();
             state
@@ -1177,7 +1684,51 @@ impl Proxy {
                 .map(|entry| entry.blob.size_bytes)
                 .sum::<i64>()
                 .max(1);
-            for entry in &missing {
+            // The value ROOT goes in LAST, and only if every other node landed.
+            //
+            // Skipping a node below is a DESIGNED outcome (an incomplete graph on
+            // the server, a writer still uploading), so "root present, child
+            // absent" is reachable in normal operation rather than only after a
+            // prune. That shape is invisible to a reader: the get path probes the
+            // ROOT and nothing deeper, because verifying a closure there means a
+            // load per node on the serial task-setup thread. Storing the root
+            // first therefore published a graph we already knew was incomplete.
+            //
+            // Ordering it last stops THIS writer publishing a root over a hole,
+            // which is a property of the materializer and not of the store:
+            // `fetch_object` stores whatever single node it is asked for, and a
+            // withheld root keeps its instruction, so the demand load that
+            // follows the served value puts the root back standalone. After that
+            // the probe passes and the association is recorded. The ordering
+            // buys that this crate stops CREATING the state unconditionally, not
+            // that it cannot be reached. A closure check in `fetch_object` would
+            // cost the transitive walk the root-only probe exists to avoid.
+            //
+            // Repair is per object and on demand: every skipped node keeps its
+            // fetch instructions, and the load that needs one fetches it. The
+            // graph is not re-materialized on the next build, because the
+            // `resolved` fast path counts a value with registered instructions as
+            // present and serves the cached Hit. Latency, not a safety hole.
+            let root_digest = manifest.first().map(|entry| entry.llcas_digest.clone());
+            let is_root = |entry: &ManifestEntry| Some(&entry.llcas_digest) == root_digest.as_ref();
+            let mut ordered: Vec<&ManifestEntry> =
+                missing.iter().copied().filter(|entry| !is_root(entry)).collect();
+            ordered.extend(missing.iter().copied().filter(|entry| is_root(entry)));
+            // Whether the root is ours to publish at all. A root already present
+            // locally is not in `missing`, and its absence from the loop is not a
+            // withheld closure.
+            let root_pending = missing.iter().any(|entry| is_root(entry));
+            let mut root_stored = false;
+            // Counts the OTHER nodes only. A root that fails on its own is not
+            // evidence about its children, and reporting it as one of them would
+            // misdescribe which side of the graph the remote could not produce.
+            let mut skipped = 0usize;
+
+            for entry in ordered {
+                let entry_is_root = is_root(entry);
+                if entry_is_root && skipped > 0 {
+                    continue;
+                }
                 let (blob, inlined) = match &entry.contents {
                     Some(bytes) => (bytes, true),
                     None => match contents.get(&entry.blob.hash) {
@@ -1187,14 +1738,19 @@ impl Proxy {
                         // instructions registered so the demand load that
                         // needs it retries — and surfaces the failure —
                         // per object.
-                        None => continue,
+                        None => {
+                            skipped += usize::from(!entry_is_root);
+                            continue;
+                        }
                     },
                 };
                 let phase = Instant::now();
                 let Some(frame) = reapi::decompress_frame(blob) else {
+                    skipped += usize::from(!entry_is_root);
                     continue;
                 };
                 let Some(node) = reapi::decode_frame(&frame) else {
+                    skipped += usize::from(!entry_is_root);
                     continue;
                 };
                 let codec_elapsed = phase.elapsed();
@@ -1227,6 +1783,7 @@ impl Proxy {
                 }
                 let phase = Instant::now();
                 unsafe { store_node(state, &node)? };
+                root_stored |= entry_is_root;
                 state
                     .ms_store
                     .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
@@ -1253,6 +1810,53 @@ impl Proxy {
                     .get_mut(&entry.llcas_digest)
                 {
                     instruction.contents = None;
+                }
+            }
+            // Reported once, AFTER the pass, in three distinct shapes. Deciding
+            // it at the root's turn in the loop saw only the first: nothing runs
+            // after the root, and a root already on disk never enters the loop at
+            // all. The counts are against `missing`, not `manifest`, because that
+            // is the set this pass was actually responsible for fetching:
+            // measuring against the whole graph reads as `skipped=1 of 40` when
+            // only two nodes were in play, which under-reports the failure rate
+            // this counter exists to trend.
+            let root_already_local = !root_pending;
+            if skipped > 0 || (root_pending && !root_stored) {
+                state.stats_incomplete_closures.fetch_add(1, Ordering::Relaxed);
+                let root_hex = root_digest
+                    .as_deref()
+                    .map(crate::analytics::hex_upper)
+                    .unwrap_or_default();
+                if root_already_local {
+                    // The one this crate cannot withhold its way out of: the root
+                    // was stored by an earlier pass or a demand load, so it is
+                    // present over a closure this pass just failed to complete.
+                    // The read guard's probe passes and the association gets
+                    // recorded, which is why it is counted rather than treated as
+                    // a non-event.
+                    crate::log_line(&format!(
+                        "incomplete closure, root already local: root={} skipped={} of {}",
+                        root_hex,
+                        skipped,
+                        missing.len()
+                    ));
+                } else if skipped > 0 {
+                    crate::log_line(&format!(
+                        "incomplete closure, root withheld: root={} skipped={} of {}",
+                        root_hex,
+                        skipped,
+                        missing.len()
+                    ));
+                } else {
+                    // The remote produced the children but not the root itself,
+                    // so the graph is unusable for a different reason than the
+                    // withhold: retrying it is pointless until the root's blob is
+                    // actually serveable.
+                    crate::log_line(&format!(
+                        "incomplete closure, root unavailable: root={} of {}",
+                        root_hex,
+                        missing.len()
+                    ));
                 }
             }
         }
@@ -1333,7 +1937,26 @@ impl Proxy {
         declared_instance: &str,
         digest: &[u8],
     ) -> Result<bool, String> {
-        if self.load_present(state, digest) {
+        // Restat before answering. A demand fetch can be the FIRST thing to
+        // arrive after a wipe: the compiler asks for an object it could not
+        // load, and nothing makes a resolve come first. Every answer below is
+        // about whatever store this handle is bound to, so bound to a deleted
+        // one, `load_present` reports an object the compiler cannot see and a
+        // fetch stores into a directory nothing reads. Both end as the
+        // `missing object` the rebind exists to prevent, and clang does not
+        // survive that one. The resolve path restats for the same reason; this
+        // is the door it does not cover.
+        self.check_generation(state);
+        // And a demand fetch IS the build working. The resolves all land during
+        // planning, so a long compile phase afterwards is nothing but these: with
+        // only resolves and publishes stamping this, the machine reads as idle
+        // ~90s into the phase that is most bandwidth-bound, and the idle gate
+        // starts the refresh whose whole purpose was to stay out of the build's
+        // way, competing for the link the fetch below is waiting on.
+        state
+            .last_used
+            .store(self.epoch.elapsed().as_millis() as u64, Ordering::Relaxed);
+        if state.load_present(digest) {
             return Ok(true);
         }
         let pending = state.pending_objects.lock().unwrap().get(digest).cloned();
@@ -1440,20 +2063,36 @@ impl Proxy {
     }
 
     /// Detects a wiped-and-recreated on-disk CAS (a deleted DerivedData under
-    /// this long-lived proxy) from a change in the CAS directory's identity and
-    /// drops the now-stale in-memory marks (`resolved`, `known_local`,
-    /// `publish_cache`) so a resolve re-probes and re-materializes authoritatively.
-    /// Called at the head of every resolve, so it covers uncached/changed keys
-    /// and parallel builds, not only re-requested cached Hits. The generation
-    /// lock is held across the invalidation so a concurrent resolve can't observe
-    /// the new generation as unchanged and filter against `known_local` while it
-    /// is being cleared.
+    /// this long-lived proxy) from a change in the CAS directory's identity,
+    /// rebinds the CAS handle to the new store, and drops the now-stale
+    /// in-memory marks (`resolved`, `known_local`, `publish_cache`) so a resolve
+    /// re-probes and re-materializes authoritatively. Called at the head of
+    /// every resolve, so it covers uncached/changed keys and parallel builds,
+    /// not only re-requested cached Hits. The generation lock is held across the
+    /// invalidation so a concurrent resolve can't observe the new generation as
+    /// unchanged and filter against `known_local` while it is being cleared.
+    ///
+    /// The handle is rebound BEFORE the counter is bumped, so a resolve that
+    /// probed the old store cannot have its answer committed: it snapshotted
+    /// `observed` before the bump, so `committable` drops the write. Dropping
+    /// the marks without rebinding would achieve nothing -- `load_present` would
+    /// re-learn every one of them from the deleted store (see `reopen_cas`).
     fn check_generation(&self, state: &PathState) {
         let Some(current) = cas_generation(&state.cas_path) else {
             return;
         };
         let mut stored = state.generation.lock().unwrap();
         if generation_changed(*stored, Some(current)) {
+            if let Err(message) = state.reopen_cas() {
+                // Leave `stored` untouched so the next resolve retries: serving
+                // from the old handle is answering about a store that no longer
+                // exists, which fails the compiler with `missing object`.
+                crate::log_line(&format!(
+                    "cas reopen after wipe failed for {}: {message}",
+                    state.cas_path
+                ));
+                return;
+            }
             state.invalidate();
             state.publish_cache.lock().unwrap().clear();
         }
@@ -1464,7 +2103,7 @@ impl Proxy {
         if state.shard(digest).lock().unwrap().contains(digest) {
             return true;
         }
-        if self.load_present(state, digest) {
+        if state.load_present(digest) {
             // Memoize the authoritative load only while still on this generation:
             // a wipe/prune that cleared the shards must not have this present-now
             // fact re-inserted for what may already be a replaced store.
@@ -1478,47 +2117,84 @@ impl Proxy {
         }
     }
 
-    /// Authoritative on-disk presence for `digest`: an actual llcas load, the
-    /// same call the consumer will make, bypassing the known-local cache. Used
-    /// both by `is_local` (which memoizes a positive result) and to guard a
-    /// cached Hit against a wiped local CAS, where the in-memory marks lie.
-    fn load_present(&self, state: &PathState, digest: &[u8]) -> bool {
-        unsafe {
-            let digest_t = llcas_digest_t {
-                data: digest.as_ptr(),
-                size: digest.len(),
-            };
-            let mut id = llcas_objectid_t { opaque: 0 };
-            let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
-            if (state.up.llcas_cas_get_objectid)(state.cas, digest_t, &mut id, &mut error) {
-                if !error.is_null() {
-                    (state.up.llcas_string_dispose)(error);
-                }
-                return false;
+    /// PUBLISH notify: queue the record for the publisher pool. Items encode
+    /// The tags to publish a record under, preferring the pair bound the first
+    /// time we accepted it.
+    ///
+    /// Binding at accept only holds for as long as we hold the queue, and the
+    /// record outlives that. It sits in the spool until its upload drains, so a
+    /// proxy restart mid-drain, or an unprimed Xcode build that spools before any
+    /// project has primed the path, leaves it for a later `sweep` or for the
+    /// plugin's own sweeper to re-send. Resolving there reads whatever is checked
+    /// out by then, which is exactly how a trunk build's orphaned outputs come
+    /// back tagged with the feature branch someone checked out afterwards.
+    ///
+    /// So the first accept, the closest we ever stand to the producing build,
+    /// writes the pair beside the record, and every later re-enqueue reads it
+    /// back. Best-effort by design: a record we never accepted while primed has
+    /// no sidecar, and resolving live is the only guess left.
+    fn record_tags(&self, instance: &str, record_path: &str) -> (String, String) {
+        let sidecar = tags_path(record_path);
+        if let Ok(contents) = std::fs::read(&sidecar) {
+            if let Some((branch, trunk)) = decode_tags(&contents) {
+                return (branch, trunk);
             }
-            // Existence check, not a data load: this runs once per served hit
-            // and once per manifest-entry probe, so loading object bytes here
-            // put real I/O on the resolve path (thousands of loads per warm
-            // build). A wiped or pruned store answers NOTFOUND either way,
-            // which is all the stale-hit guard needs.
-            let mut contains_error: *mut std::ffi::c_char = std::ptr::null_mut();
-            let result =
-                (state.up.llcas_cas_contains_object)(state.cas, id, false, &mut contains_error);
-            if !contains_error.is_null() {
-                (state.up.llcas_string_dispose)(contains_error);
-            }
-            result == LLCAS_LOOKUP_RESULT_SUCCESS
         }
+        let branch = self.resolve_branch(instance).unwrap_or_default();
+        let trunk = self.resolve_trunk(instance).unwrap_or_default();
+        // A torn write would be read back as "no sidecar" and re-resolved, so
+        // failing here costs a re-resolve, never a wrong tag.
+        let _ = std::fs::write(&sidecar, encode_tags(&branch, &trunk));
+        (branch, trunk)
     }
 
-    /// PUBLISH notify: queue the record for the publisher pool. Items encode
-    /// instance + cas_path + record path.
+    /// instance + cas_path + the (branch, trunk) bound here + record path.
+    ///
+    /// The tags are resolved NOW, when the build hands us the record, and not
+    /// where they are used (the upload, which runs after the queue wait, the
+    /// existence probe and the closure's blob transfers, tens of seconds over
+    /// a WAN link, and mostly AFTER the build that produced them has exited).
+    ///
+    /// Resolving there would read whatever the registry says by then, and the
+    /// registry moves: a shared CI runner rewrites it on every job's setup. So
+    /// job A's still-draining outputs would be tagged with job B's branch, and a
+    /// trunk build's outputs would land tagged `feature` and drop out of the
+    /// trunk view they belong in.
+    ///
+    /// Binding at accept costs nothing: the context is memoized, so this reads
+    /// the registry at most once per TTL per instance, never per publish.
     fn enqueue_publish(&self, cas_path: &str, instance: &str, record_path: &str) {
-        let mut item = Vec::with_capacity(4 + instance.len() + cas_path.len() + record_path.len());
+        // The project's answer, enforced where both lanes meet. The plugin
+        // declines to publish when its own option says so, but that option only
+        // reaches Swift: the build system's Clang caching creates its CAS with a
+        // plugin path and no options, so it asks to publish regardless. Its
+        // records arrive here, and so do the sweeper's, so refusing here is what
+        // makes `upload: false` mean it.
+        if !self.upload_enabled(instance) {
+            // The record is already durable. The Clang lane wrote it before
+            // asking, because its plugin instance never saw the policy, so
+            // refusing the request without dropping the record leaves it for
+            // every later sweep to find: the spool grows without bound, and the
+            // first time the policy reads as enabled (the project turns uploads
+            // on, or a registry read fails open) it hands the sweeper a backlog
+            // of everything produced while the project was read-only.
+            remove_record(record_path);
+            return;
+        }
+        let (branch, trunk) = self.record_tags(instance, record_path);
+        let mut item = Vec::with_capacity(
+            8 + instance.len() + cas_path.len() + branch.len() + trunk.len() + record_path.len(),
+        );
         item.extend_from_slice(&(instance.len() as u16).to_be_bytes());
         item.extend_from_slice(instance.as_bytes());
         item.extend_from_slice(&(cas_path.len() as u16).to_be_bytes());
         item.extend_from_slice(cas_path.as_bytes());
+        // Empty encodes `None`: neither resolver can yield an empty branch name
+        // (both reject it), so the round trip is lossless.
+        item.extend_from_slice(&(branch.len() as u16).to_be_bytes());
+        item.extend_from_slice(branch.as_bytes());
+        item.extend_from_slice(&(trunk.len() as u16).to_be_bytes());
+        item.extend_from_slice(trunk.as_bytes());
         item.extend_from_slice(record_path.as_bytes());
         self.publisher.enqueue(item);
     }
@@ -1527,11 +2203,19 @@ impl Proxy {
         let Some((instance, rest)) = take_u16_field(item) else {
             return;
         };
-        let Some((cas_path, record_path)) = take_u16_field(rest) else {
+        let Some((cas_path, rest)) = take_u16_field(rest) else {
+            return;
+        };
+        let Some((branch, rest)) = take_u16_field(rest) else {
+            return;
+        };
+        let Some((trunk, record_path)) = take_u16_field(rest) else {
             return;
         };
         let instance = String::from_utf8_lossy(instance).into_owned();
         let cas_path = String::from_utf8_lossy(cas_path).into_owned();
+        let branch = non_empty(&String::from_utf8_lossy(branch));
+        let trunk = non_empty(&String::from_utf8_lossy(trunk));
         let record_path = String::from_utf8_lossy(record_path).into_owned();
         let remote = self.remote_for(&instance);
         let Ok(state) = self.path_state(&cas_path) else {
@@ -1546,7 +2230,7 @@ impl Proxy {
         let Some(record) =
             PublishRecord::decode_body(&bytes, Some(std::path::PathBuf::from(&record_path)))
         else {
-            let _ = std::fs::remove_file(&record_path);
+            remove_record(&record_path);
             return;
         };
         // The client re-puts replayed results at the end of its job, so a warm
@@ -1555,15 +2239,25 @@ impl Proxy {
         // that with a get_action round trip per record; the resolved map
         // already knows, so drop those records here for free. A Hit with a
         // DIFFERENT value (a genuine local recompute) still publishes.
-        if let Some(Resolution::Hit(value)) = state.resolved.lock().unwrap().get(&record.key) {
-            if value == &record.value_digest {
-                let _ = std::fs::remove_file(&record_path);
-                return;
-            }
+        //
+        // But `resolved` remembers the value, not the tag it carries remotely,
+        // and a trunk build's re-put is the reclaim path: the entry it matches
+        // may still be tagged with a feature branch, and only republishing it
+        // under the trunk tag pulls it into the trunk view (`sticky_branch`
+        // then lets trunk claim it). So a trunk re-put must reach `publish` even
+        // when the value matches; only a feature, local, or untagged re-put,
+        // which reclaims nothing into trunk, is free to drop here.
+        let value_matches = {
+            let resolved = state.resolved.lock().unwrap();
+            matches!(resolved.get(&record.key), Some(Resolution::Hit(value)) if value == &record.value_digest)
+        };
+        if is_redundant_reput(branch.as_deref(), trunk.as_deref(), value_matches) {
+            remove_record(&record_path);
+            return;
         }
-        match self.publish(&remote, state, &record) {
+        match self.publish(&remote, state, &record, branch.as_deref(), trunk.as_deref()) {
             Ok(()) => {
-                let _ = std::fs::remove_file(&record_path);
+                remove_record(&record_path);
                 state.stats_published.fetch_add(1, Ordering::Relaxed);
                 state.resolved.lock().unwrap().insert(
                     record.key.clone(),
@@ -1576,11 +2270,15 @@ impl Proxy {
         }
     }
 
+    /// `branch`/`trunk` are the tags bound when this record was accepted (see
+    /// `enqueue_publish`), not resolved here: by now the checkout may have moved.
     fn publish(
         &self,
         remote: &Remote,
         state: &'static PathState,
         record: &PublishRecord,
+        branch: Option<&str>,
+        trunk: Option<&str>,
     ) -> Result<(), String> {
         let op_start = Instant::now();
         // Existence probe: only the first entry's digest is compared, so skip
@@ -1589,6 +2287,19 @@ impl Proxy {
             if manifest.first().map(|entry| entry.llcas_digest.as_slice())
                 == Some(record.value_digest.as_slice())
             {
+                // Same bytes, so there is nothing to upload. That used to end
+                // it, which meant a trunk build could recompute a result a
+                // feature branch had published first and never take the tag
+                // back: the entry stayed `feature` and stayed out of the trunk
+                // view forever, which is the reclaim half of what this scoping
+                // is for. Bytes are no longer the whole of an entry's identity,
+                // so re-send the manifest we just probed, carrying our tags and
+                // nothing else. The server damps a true no-op; we cannot tell
+                // one from here without asking what tag it holds, which is the
+                // round trip this would be making anyway.
+                if branch.is_some() || trunk.is_some() {
+                    remote.update_action(&record.key, &manifest, branch, trunk)?;
+                }
                 return Ok(());
             }
         }
@@ -1682,7 +2393,7 @@ impl Proxy {
                 }
             }
         }
-        let result = remote.update_action(&record.key, &entries);
+        let result = remote.update_action(&record.key, &entries, branch, trunk);
         if let Some(analytics) = &self.analytics {
             analytics.record_keyvalue(&record.key, "write", op_start.elapsed().as_secs_f64());
         }
@@ -1741,6 +2452,44 @@ impl Proxy {
         }
     }
 
+    /// Why background snapshot work should wait, or None when the machine is
+    /// free enough to do it. Two signals, both cheap enough for every tick:
+    ///
+    /// - a recent CAS operation, meaning a build is running (or just was). This
+    ///   is the traffic a refresh would actually be stealing from, and it is the
+    ///   one case where slowing the machine down also slows down the very build
+    ///   the cache exists to make fast.
+    /// - the load average per core, which catches whatever else is running,
+    ///   since a machine busy with something other than a build never touches
+    ///   the CAS and would otherwise read as idle.
+    ///
+    /// Note this does not sense network throughput. A build's own fetches are
+    /// covered by the first signal; unrelated saturation (a big download) is
+    /// not, and would need per-interface counters to see.
+    fn busy_reason(&self) -> Option<String> {
+        let now = self.epoch.elapsed();
+        let idle = self
+            .paths
+            .lock()
+            .unwrap()
+            .values()
+            .map(|state| Duration::from_millis(state.last_used.load(Ordering::Relaxed)))
+            .max()
+            .map(|last_op| now.saturating_sub(last_op));
+        busy_verdict(idle, load_per_core())
+    }
+
+    /// Rate-limits the "holding off" line to BUSY_LOG_INTERVAL.
+    fn log_busy(&self, reason: &str) {
+        let mut logged_at = self.busy_logged_at.lock().unwrap();
+        let now = Instant::now();
+        if logged_at.is_some_and(|at| now.duration_since(at) < BUSY_LOG_INTERVAL) {
+            return;
+        }
+        *logged_at = Some(now);
+        crate::log_line(&format!("snapshot refresh held off: {reason}"));
+    }
+
     /// Sweeps orphaned publication records for every known CAS path whose
     /// instance the proxy knows (an unprimed path has nothing to publish to).
     pub fn sweep(&self) {
@@ -1749,29 +2498,115 @@ impl Proxy {
             let Some(instance) = self.path_instance.lock().unwrap().get(&cas_path).cloned() else {
                 continue;
             };
-            let spool = std::path::Path::new(&cas_path).join("tuist-spool");
-            let Ok(entries) = std::fs::read_dir(&spool) else {
-                continue;
-            };
-            for entry in entries.flatten() {
-                if let Some(name) = entry.file_name().to_str() {
-                    // Claims are ours alone now; reclaim anything.
-                    let base = name.split_once(".claim-").map(|(b, _)| b.to_string());
-                    let path = match base {
-                        Some(base) => {
-                            let claimed =
-                                spool.join(format!("{base}.claim-{}", std::process::id()));
-                            if std::fs::rename(entry.path(), &claimed).is_err() {
-                                continue;
-                            }
-                            claimed
-                        }
-                        None => entry.path(),
-                    };
-                    self.enqueue_publish(&cas_path, &instance, &path.to_string_lossy());
+            self.sweep_path(&cas_path, &instance);
+        }
+    }
+
+    /// Re-enqueues every publication record still spooled under one CAS path.
+    fn sweep_path(&self, cas_path: &str, instance: &str) {
+        let spool = spool_dir(cas_path);
+        let Ok(entries) = std::fs::read_dir(&spool) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                // A sidecar is not a record. Publishing one would fail to
+                // decode and delete it, throwing away the tags it exists to
+                // carry, and the record beside it would then resolve live.
+                if name.ends_with(TAGS_SUFFIX) {
+                    continue;
                 }
+                // Claims are ours alone now; reclaim anything.
+                let base = name.split_once(".claim-").map(|(b, _)| b.to_string());
+                let path = match base {
+                    Some(base) => {
+                        let claimed = spool.join(format!("{base}.claim-{}", std::process::id()));
+                        if std::fs::rename(entry.path(), &claimed).is_err() {
+                            continue;
+                        }
+                        claimed
+                    }
+                    None => entry.path(),
+                };
+                self.enqueue_publish(cas_path, instance, &path.to_string_lossy());
             }
         }
+    }
+
+    /// Waits for everything this machine recorded under `cas_path` to reach the
+    /// remote, and reports how many records are still owed.
+    ///
+    /// Zero is a promote gate's green light. A runner folds its CAS store into
+    /// the cache image it promotes as the account's master, and every host that
+    /// later clones that master inherits its `key -> value` associations while
+    /// its only repair path for an object the store does not hold is the remote.
+    /// So an association whose blobs are still spooled here is one that no host
+    /// can ever satisfy — and nothing retracts it (the llcas ABI has no delete,
+    /// and re-putting the key with another value is refused), so it fails every
+    /// later build of that key until the store generation rolls. An empty spool
+    /// is what rules that out: a record is deleted only by a publication that
+    /// succeeded.
+    ///
+    /// It sweeps before waiting because the plugin writes its record BEFORE
+    /// notifying the proxy — a frontend that died between the two leaves one
+    /// nothing has queued, and waiting on the pool alone would read that spool
+    /// as drained. Then it waits on the publisher pool, which is machine-wide:
+    /// a drain also waits out other instances' publications. That is deliberate
+    /// rather than incidental — per-path accounting would have to track
+    /// in-flight items by path, and the caller this exists for (a runner VM's
+    /// teardown) has exactly one.
+    ///
+    /// `instance` is the already-resolved routing target. `None` means the path
+    /// is unroutable, so nothing CAN be published and whatever is spooled is
+    /// owed — the one case where "nothing queued" must not read as "nothing
+    /// owed".
+    ///
+    /// Best-effort by nature, and no substitute for the read-side guard: a host
+    /// that panics, or a job cancelled mid-upload, promotes without ever
+    /// reaching this.
+    fn drain_publications(
+        &self,
+        cas_path: &str,
+        instance: Option<&str>,
+        timeout: Duration,
+    ) -> usize {
+        let deadline = Instant::now() + timeout;
+        // The common case: the job's publications drained while it was still
+        // building, so teardown owes nothing and waits for nothing.
+        let owed = spool_records(cas_path);
+        if owed == 0 {
+            return 0;
+        }
+        let Some(instance) = instance else {
+            return owed;
+        };
+        loop {
+            self.sweep_path(cas_path, instance);
+            self.publisher
+                .wait_idle(deadline.saturating_duration_since(Instant::now()));
+            let owed = spool_records(cas_path);
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if owed == 0 || remaining.is_zero() {
+                return owed;
+            }
+            // A publication that failed keeps its record, and its retry is a
+            // sweep away. Spending what is left of the budget on another attempt
+            // beats parking on it: the alternative for the caller is the account
+            // losing this job's entire warm image over one transient failure.
+            std::thread::sleep(DRAIN_RETRY_BACKOFF.min(remaining));
+        }
+    }
+
+    /// The instance a drain routes to, WITHOUT going through `resolve_instance`.
+    /// That one is the seam where "a project is being built on this machine" is
+    /// known, and it acts on the transition (trunk ingestion, registry persist).
+    /// A drain is the opposite signal — the build is over — so it reads the
+    /// mapping and leaves that machinery alone.
+    fn drain_instance(&self, cas_path: &str, declared: &str) -> Option<String> {
+        if !declared.is_empty() {
+            return Some(declared.to_string());
+        }
+        self.path_instance.lock().unwrap().get(cas_path).cloned()
     }
 
     /// Refreshes the bearer only when it is within `lead` of its JWT expiry,
@@ -1786,10 +2621,44 @@ impl Proxy {
     /// `Proxy.view_refresh`). Inlined contents are stripped: the refresh only
     /// re-sends the llcas→blob mapping, and the blobs are already on the
     /// server (the per-key hit proved the entry serveable).
-    fn queue_view_refresh(&self, remote: &Arc<Remote>, key: &[u8], manifest: &[ManifestEntry]) {
+    fn queue_view_refresh(
+        &self,
+        remote: &Arc<Remote>,
+        instance: &str,
+        key: &[u8],
+        manifest: &[ManifestEntry],
+    ) {
+        // A refresh is a write, and this one is ours, not the build's: nothing
+        // the compiler asked for produced it. A machine told not to upload does
+        // not get to write to the server because the proxy found reading
+        // interesting, so the read-only case declines and pays the per-key round
+        // trip it was always paying.
+        if !self.upload_enabled(instance) {
+            return;
+        }
+        let branch = self.resolve_branch(instance);
+        let trunk = self.resolve_trunk(instance);
+        let dedup: RefreshKey = (
+            instance.to_string(),
+            key.to_vec(),
+            branch.clone(),
+            trunk.clone(),
+        );
         {
             let mut refreshed = self.view_refreshed.lock().unwrap();
-            if refreshed.len() >= VIEW_REFRESH_MAX_QUEUE || !refreshed.insert(key.to_vec()) {
+            // Forget everything rather than refuse everything. A successful claim
+            // is never removed, so this set is a lifetime history, and bounding
+            // it the way the QUEUE is bounded meant that once a machine had
+            // refreshed enough keys it would never refresh another one, however
+            // empty the queue. Identity now includes the instance and the tags,
+            // so a few large projects or a run of branches reach that sooner.
+            //
+            // Dropping the history costs at most a re-publish of something
+            // already published, which the server damps.
+            if refreshed.len() >= VIEW_REFRESH_HISTORY_MAX {
+                refreshed.clear();
+            }
+            if !refreshed.insert(dedup.clone()) {
                 return;
             }
         }
@@ -1803,7 +2672,19 @@ impl Proxy {
             .collect();
         let mut queue = self.view_refresh.lock().unwrap();
         if queue.len() < VIEW_REFRESH_MAX_QUEUE {
-            queue.push_back((remote.clone(), key.to_vec(), stripped));
+            queue.push_back(ViewRefresh {
+                remote: remote.clone(),
+                key: key.to_vec(),
+                manifest: stripped,
+                branch,
+                trunk,
+                dedup,
+            });
+        } else {
+            // Claimed but not queued: hold the claim and this refresh never
+            // happens and can never be asked for again.
+            drop(queue);
+            self.view_refreshed.lock().unwrap().remove(&dedup);
         }
     }
 
@@ -1813,11 +2694,34 @@ impl Proxy {
     pub fn refresh_view_keys(&self) {
         let mut sent = 0_usize;
         while sent < VIEW_REFRESH_PER_TICK {
-            let Some((remote, key, manifest)) = self.view_refresh.lock().unwrap().pop_front()
-            else {
+            let Some(refresh) = self.view_refresh.lock().unwrap().pop_front() else {
                 break;
             };
-            if remote.update_action(&key, &manifest).is_err() {
+            // Carrying the tags of the build that took the hit is what makes this
+            // the reclaim path. These entries are, by definition, outside the
+            // trunk view, and this is often the only thing that will ever put one
+            // back: sending no tags would re-attribute every one of them to
+            // nobody, and an untagged entry is in NO trunk view, so trunk's own
+            // keys would be dropped from it by the very act of reading them. With
+            // the tags, a feature hit stays out and a trunk hit takes the entry
+            // back.
+            if refresh
+                .remote
+                .update_action(
+                    &refresh.key,
+                    &refresh.manifest,
+                    refresh.branch.as_deref(),
+                    refresh.trunk.as_deref(),
+                )
+                .is_err()
+            {
+                // Release the claim so a later hit can ask again. This item is
+                // the one being dropped (the rest of the batch stays queued and
+                // retries next tick, so their claims stand), and without letting
+                // go of it, "the next cold build that pays the per-key round trip
+                // re-queues the key" describes something that cannot happen: the
+                // claim outlives the work and suppresses every later attempt.
+                self.view_refreshed.lock().unwrap().remove(&refresh.dedup);
                 break;
             }
             sent += 1;
@@ -1854,6 +2758,14 @@ impl Proxy {
     /// background — never on a resolve path. One fetch per proxy lifetime:
     /// entries published later resolve through the ordinary per-key path.
     fn ensure_snapshot(&self, instance: &str, remote: &Arc<Remote>) {
+        // The one place a snapshot enters the map, so this is the whole of what
+        // `PrefetchMode::Off` has to stop. Nothing downstream can run without a
+        // snapshot: the refresh only plans deltas for instances already here,
+        // the warm walks a snapshot's keys, and a fetch instruction gives up
+        // immediately when no fetch is in flight rather than waiting one out.
+        if prefetch_mode() == PrefetchMode::Off {
+            return;
+        }
         {
             let mut snapshots = self.snapshots.lock().unwrap();
             if snapshots.contains_key(instance) {
@@ -1872,7 +2784,7 @@ impl Proxy {
 
     /// One full snapshot fetch + decode, returning the resulting state.
     fn fetch_full_snapshot(&self, instance: &str, remote: &Arc<Remote>) -> SnapshotState {
-        match remote.get_snapshot(None) {
+        match remote.get_snapshot(None, self.resolve_trunk(instance).as_deref()) {
             Ok(Some(bytes)) => match Snapshot::decode(&bytes) {
                 Some(snapshot) => {
                     crate::log_line(&format!(
@@ -1916,13 +2828,20 @@ impl Proxy {
     }
 
     /// Called from the maintenance loop: keeps Ready snapshots fresh with
-    /// deltas (SNAPSHOT_DELTA_INTERVAL), replaces them wholesale on
+    /// deltas (snapshot_delta_interval), replaces them wholesale on
     /// SNAPSHOT_FULL_INTERVAL (deltas only ADD; the full fetch re-applies the
     /// server's blob-presence gate after evictions), retries Absent after
     /// SNAPSHOT_RETRY_INTERVAL (the server may have been upgraded under this
     /// long-lived proxy), and BOUNDS the cache: instances idle past
     /// SNAPSHOT_IDLE_EVICT are dropped and the map is capped at
     /// SNAPSHOT_MAX_INSTANCES by evicting the least recently used.
+    ///
+    /// All of that fetching waits for a machine that is not busy (see
+    /// `busy_reason`); the point of a refresh is to have the trunk ready for the
+    /// *next* build, which makes it worth nothing and costly now if it lands in
+    /// the middle of this one. An instance's FIRST snapshot is not this path
+    /// (`ensure_snapshot` on demand, `prefetch_known_snapshots` at startup) and
+    /// is never held off: it is what the build in front of us is waiting on.
     pub fn refresh_snapshots(&self) {
         let now = Instant::now();
         enum Plan {
@@ -1965,7 +2884,7 @@ impl Proxy {
                             plans.push(Plan::Full {
                                 instance: instance.clone(),
                             });
-                        } else if now.duration_since(*refreshed_at) > SNAPSHOT_DELTA_INTERVAL {
+                        } else if now.duration_since(*refreshed_at) > snapshot_delta_interval() {
                             plans.push(Plan::Delta {
                                 instance: instance.clone(),
                                 watermark: snapshot.watermark,
@@ -1984,6 +2903,19 @@ impl Proxy {
                 }
             }
         }
+        // Everything above is bookkeeping over what we already hold, so it runs
+        // regardless; what follows fetches and ingests, so it waits for a free
+        // machine. Checked only when something is actually due, both to keep the
+        // held-off line honest and because a due refresh is the only thing the
+        // wait costs: the next tick re-plans it, so nothing is dropped, it is
+        // deferred. A machine that is never free simply keeps the view it has,
+        // which costs hits and never correctness.
+        if !plans.is_empty() {
+            if let Some(reason) = self.busy_reason() {
+                self.log_busy(&reason);
+                return;
+            }
+        }
         for plan in plans {
             match plan {
                 Plan::Full { instance } => {
@@ -1996,7 +2928,8 @@ impl Proxy {
                     watermark,
                 } => {
                     let remote = self.remote_for(&instance);
-                    match remote.get_snapshot(Some(watermark)) {
+                    let trunk = self.resolve_trunk(&instance);
+                    match remote.get_snapshot(Some(watermark), trunk.as_deref()) {
                         Ok(Some(bytes)) => {
                             let Some(delta) = Snapshot::decode(&bytes) else {
                                 continue;
@@ -2059,14 +2992,123 @@ impl Proxy {
         }
     }
 
+    /// The branch to attribute a publish to: the env override, then what setup
+    /// recorded from the CI job's environment.
+    ///
+    /// Nothing derives this from the checkout. The snapshot is what trunk looks
+    /// like as CI built it, so CI is the only publisher whose branch has to be
+    /// right, and CI is exactly where a checkout cannot answer anyway, its HEAD
+    /// being detached. Deleting the live derivation deleted a class of bug with
+    /// it: a registered root could be moved, renamed, or shared by two worktrees
+    /// of one project, and each of those quietly attributed a build to the wrong
+    /// branch. None of it is reachable from a value the CI job told us about
+    /// itself.
+    fn resolve_branch(&self, instance: &str) -> Option<String> {
+        if let Ok(branch) = std::env::var("TUIST_CAS_BRANCH") {
+            if !branch.is_empty() {
+                return Some(branch);
+            }
+        }
+        self.source_context(instance).branch
+    }
+
+    /// The trunk to scope this instance's snapshot to: the env override, then the
+    /// project's configured default branch. A server decision, never the
+    /// checkout's `origin/HEAD`.
+    fn resolve_trunk(&self, instance: &str) -> Option<String> {
+        if let Ok(trunk) = std::env::var("TUIST_CAS_TRUNK_BRANCH") {
+            if !trunk.is_empty() {
+                return Some(trunk);
+            }
+        }
+        self.source_context(instance).trunk
+    }
+
+    /// What setup recorded for the instance, memoized on GIT_CONTEXT_TTL so a
+    /// publish does not re-read the registry. A refresh re-reads it, so a project
+    /// set up after this proxy started is picked up without a restart.
+    fn source_context(&self, instance: &str) -> SourceBranches {
+        {
+            let cache = self.source_cache.lock().unwrap();
+            if let Some(context) = cache.get(instance) {
+                if context.read_at.elapsed() < GIT_CONTEXT_TTL {
+                    return SourceBranches {
+                        branch: context.ci_branch.clone(),
+                        trunk: context.trunk.clone(),
+                        upload: context.upload,
+                    };
+                }
+            }
+        }
+        let source = self.registered_source(instance);
+        let trunk = source.as_ref().and_then(|source| source.trunk.clone());
+        let branch = source.as_ref().and_then(|source| source.ci_branch.clone());
+        // Unknown instance: nothing recorded, so nothing to withhold.
+        let upload = source.as_ref().map(|source| source.upload).unwrap_or(true);
+        {
+            let cache = self.source_cache.lock().unwrap();
+            let changed = cache
+                .get(instance)
+                .map(|context| context.ci_branch != branch || context.trunk != trunk)
+                .unwrap_or(true);
+            if changed {
+                crate::log_line(&format!(
+                    "source context for {instance}: branch={branch:?} trunk={trunk:?}"
+                ));
+            }
+        }
+        self.source_cache.lock().unwrap().insert(
+            instance.to_string(),
+            SourceContext {
+                read_at: Instant::now(),
+                trunk: trunk.clone(),
+                ci_branch: branch.clone(),
+                upload,
+            },
+        );
+        SourceBranches { branch, trunk, upload }
+    }
+
+    /// What setup registered for the instance, reloading the sources registry so
+    /// a mapping written after startup is visible. Cheap: only runs on a TTL
+    /// miss in `git_context`.
+    fn registered_source(&self, instance: &str) -> Option<RegisteredSource> {
+        let clone = |source: &RegisteredSource| RegisteredSource {
+            trunk: source.trunk.clone(),
+            ci_branch: source.ci_branch.clone(),
+            upload: source.upload,
+        };
+        if let Some(path) = self.registry_path.as_deref() {
+            match load_sources(&sources_path_for(path)) {
+                Some(sources) => {
+                    let source = sources.get(instance).map(clone);
+                    *self.instance_sources.lock().unwrap() = sources;
+                    source
+                }
+                // Unreadable: keep what we last saw rather than forgetting every
+                // project's policy because one read lost a race with setup.
+                None => self.instance_sources.lock().unwrap().get(instance).map(clone),
+            }
+        } else {
+            self.instance_sources.lock().unwrap().get(instance).map(clone)
+        }
+    }
+
     /// Queues materialization of every graph the snapshot describes: bulk
-    /// content warming with no keylog and no demand ordering — resolves
-    /// answer from the snapshot regardless and loads self-heal per object,
-    /// so this only keeps the link busy so most loads find bytes already
-    /// local. Once per snapshot fetch (i.e. per proxy lifetime per
-    /// instance); after a mid-day wipe, demand-driven jobs and per-object
-    /// self-heals carry re-materialization.
+    /// content warming with no keylog and no demand ordering. Resolves answer
+    /// from the snapshot regardless and loads self-heal per object, so this only
+    /// keeps the link busy so most loads find bytes already local. Once per
+    /// snapshot fetch (i.e. per proxy lifetime per instance); after a mid-day
+    /// wipe, demand-driven jobs and per-object self-heals carry
+    /// re-materialization.
     fn prematerialize_snapshot(&self, instance: &str, snapshot: &Snapshot) {
+        // `Keys` buys the snapshot's breadth and declines to pull its bytes. The
+        // budget below cannot express that: its zero means "no cap", and its
+        // smallest honest value still warms a node, so the only way to fetch
+        // nothing is not to start.
+        if prefetch_mode() == PrefetchMode::Keys {
+            return;
+        }
         let cas_paths: Vec<String> = self
             .path_instance
             .lock()
@@ -2080,6 +3122,13 @@ impl Proxy {
             let Ok(state) = self.path_state(&cas_path) else {
                 continue;
             };
+            // Restat before warming. Nothing else on this path is a resolve, so
+            // without this a snapshot arriving after a wipe warms through a
+            // handle bound to the deleted store: the fetches cost bandwidth, the
+            // stores land where nothing reads them, and they hold the wiped
+            // directory's inodes on disk. The resolve that eventually rebinds
+            // discards it all. One restat per snapshot, not per key.
+            self.check_generation(state);
             let observed = state.gen_counter.load(Ordering::SeqCst);
             // Warm newest-first (the wire order) and stop at the node budget:
             // a shared namespace's snapshot carries every project's history,
@@ -2087,13 +3136,28 @@ impl Proxy {
             // link the demand loads share (562s vs the 134s a right-sized
             // namespace measured). The budget covers a large build's closure;
             // everything past it stays resolvable and self-heals on demand.
-            let mut budget = PREMATERIALIZE_MAX_NODES;
+            // With a trunk-scoped snapshot the closure IS the budget's target,
+            // so full ingestion (the layer above key caching) warms all of it:
+            // the scoping already bounds it to the trunk, not the whole polluted
+            // namespace. Unscoped, or not yet a real build, keep the node budget.
+            // The mode is necessarily Full here, the other two having stopped
+            // above.
+            let configured = if self.resolve_trunk(instance).is_some()
+                && self.instance_active(instance)
+            {
+                0
+            } else {
+                prematerialize_max_nodes()
+            };
+            let mut budget = configured;
             let mut enqueued = 0usize;
             for key_hash in &snapshot.key_order {
                 let Some(manifest) = snapshot.manifest(key_hash) else {
                     continue;
                 };
-                budget = budget.saturating_sub(manifest.len());
+                if configured != 0 {
+                    budget = budget.saturating_sub(manifest.len());
+                }
                 let id = self.job_counter.fetch_add(1, Ordering::Relaxed);
                 self.materialize_jobs.lock().unwrap().insert(
                     id,
@@ -2106,7 +3170,7 @@ impl Proxy {
                 );
                 self.prematerializer.enqueue(id.to_be_bytes().to_vec());
                 enqueued += 1;
-                if budget == 0 {
+                if configured != 0 && budget == 0 {
                     break;
                 }
             }
@@ -2115,6 +3179,27 @@ impl Proxy {
                     "snapshot warm capped for {instance}: {enqueued} newest of {} keys enqueued",
                     snapshot.key_order.len()
                 ));
+            }
+            if enqueued > 0 {
+                // Drain watcher: logs when the warm's jobs have all been
+                // processed, with wall time — the cost side of proactive
+                // ingestion, and the bench's "ingested, off critical path"
+                // gate. Watches the shared job map, so it reads drained only
+                // once demand jobs are also quiet (fine: the warm phase
+                // precedes any build).
+                let proxy: &'static Proxy = unsafe { &*(self as *const Proxy) };
+                let instance = instance.to_string();
+                let started = Instant::now();
+                std::thread::spawn(move || loop {
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    if proxy.materialize_jobs.lock().unwrap().is_empty() {
+                        crate::log_line(&format!(
+                            "snapshot warm drained for {instance}: {enqueued} keys in {:.1}s",
+                            started.elapsed().as_secs_f64()
+                        ));
+                        return;
+                    }
+                });
             }
         }
     }
@@ -2130,6 +3215,52 @@ impl Proxy {
                 Some(snapshot.clone())
             }
             _ => None,
+        }
+    }
+
+    /// How long ago this instance's snapshot last had a FULL fetch, which is the
+    /// only refresh that re-applies the server's eviction gate. `None` when
+    /// there is no Ready snapshot to age.
+    fn snapshot_full_fetch_age(&self, instance: &str) -> Option<Duration> {
+        match self.snapshots.lock().unwrap().get(instance) {
+            Some(SnapshotState::Ready { full_at, .. }) => Some(full_at.elapsed()),
+            _ => None,
+        }
+    }
+
+    /// Whether a snapshot that old may still answer resolves. Pure, and split
+    /// out from the serving path so the policy is testable without a store on
+    /// disk or a remote to talk to.
+    ///
+    /// `None` (no Ready snapshot) is not fresh: there is nothing to answer from,
+    /// and the per-key path already handles that case.
+    fn snapshot_may_serve(full_fetch_age: Option<Duration>) -> bool {
+        full_fetch_age.is_some_and(|age| age <= SNAPSHOT_SERVE_MAX_AGE)
+    }
+
+    /// Whether this instance's stale snapshot is worth reporting, and claims the
+    /// report if so. Split from the logging because that is the half a test can
+    /// see: `log_line` writes to a file named by an env var, and mutating the
+    /// environment races every other test in the binary.
+    fn should_report_stale_snapshot(&self, instance: &str) -> bool {
+        self.stale_snapshot_logged
+            .lock()
+            .unwrap()
+            .insert(instance.to_string())
+    }
+
+    /// Says once per instance that its snapshot has aged out of serving. Worth a
+    /// line: the effect is silent otherwise — resolves keep succeeding, just via
+    /// a round trip each — so a refresh loop that stopped would surface only as
+    /// "builds got slower" with nothing naming the cause.
+    fn note_stale_snapshot(&self, instance: &str, age: Duration) {
+        if self.should_report_stale_snapshot(instance) {
+            crate::log_line(&format!(
+                "snapshot for {instance} last fully fetched {}s ago (limit {}s); \
+                 serving resolves per key until it refreshes",
+                age.as_secs(),
+                SNAPSHOT_SERVE_MAX_AGE.as_secs()
+            ));
         }
     }
 
@@ -2151,7 +3282,7 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} | ms action={} filter={} fetch={} decode={} store={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} | ms action={} filter={} fetch={} decode={} store={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
@@ -2162,6 +3293,7 @@ impl Proxy {
                 state.stats_blobs_fetched.load(Ordering::Relaxed),
                 state.stats_blobs_inlined.load(Ordering::Relaxed),
                 state.stats_published.load(Ordering::Relaxed),
+                state.stats_incomplete_closures.load(Ordering::Relaxed),
                 state.ms_action.load(Ordering::Relaxed),
                 state.ms_filter.load(Ordering::Relaxed),
                 state.ms_fetch.load(Ordering::Relaxed),
@@ -2205,9 +3337,25 @@ impl Proxy {
                 };
                 let remote = self.remote_for(&instance);
                 self.ensure_snapshot(&instance, &remote);
-                let snapshot = self.snapshot_ready(&instance);
+                // A snapshot answers from a copy of the remote's keyspace, so
+                // its authority expires. Past the bound, stop serving from it
+                // and let the key take the per-key path, which kura gates on
+                // every call. Dropping it here rather than inside `resolve` also
+                // suppresses the view refresh that a per-key hit would otherwise
+                // queue: that refresh exists to re-rank a key that fell out of a
+                // CURRENT view, which says nothing when the view is stale.
+                let snapshot = self.snapshot_ready(&instance).filter(|_| {
+                    let age = self.snapshot_full_fetch_age(&instance);
+                    let fresh = Self::snapshot_may_serve(age);
+                    if !fresh {
+                        if let Some(age) = age {
+                            self.note_stale_snapshot(&instance, age);
+                        }
+                    }
+                    fresh
+                });
                 let outcome = self.path_state(&request.cas_path).and_then(|state| {
-                    self.resolve(&remote, state, &request.payload, snapshot.as_deref())
+                    self.resolve(&remote, &instance, state, &request.payload, snapshot.as_deref())
                 });
                 match outcome {
                     Ok(Some(value)) => write_response(&mut stream, STATUS_HIT, &value),
@@ -2229,6 +3377,23 @@ impl Proxy {
                     self.note_unprimed(&request.cas_path);
                 }
                 write_response(&mut stream, STATUS_HIT, &[])
+            }
+            OP_DRAIN => {
+                let owed = self.drain_publications(
+                    &request.cas_path,
+                    self.drain_instance(&request.cas_path, &request.instance)
+                        .as_deref(),
+                    drain_timeout(&request.payload),
+                );
+                if owed == 0 {
+                    write_response(&mut stream, STATUS_HIT, &[])
+                } else {
+                    crate::log_line(&format!(
+                        "proxy drain: {owed} publication(s) never reached the remote for {}",
+                        request.cas_path
+                    ));
+                    write_response(&mut stream, STATUS_MISS, owed.to_string().as_bytes())
+                }
             }
             OP_INVALIDATE => {
                 // A prune emptied this path's on-disk CAS in place; drop our marks
@@ -2293,6 +3458,12 @@ impl Proxy {
     }
 }
 
+/// An owned copy of `value`, or `None` when it is empty. Publisher items encode
+/// an absent branch or trunk as a zero-length field.
+fn non_empty(value: &str) -> Option<String> {
+    (!value.is_empty()).then(|| value.to_owned())
+}
+
 /// Reads a `u16`-length-prefixed field from the front of `buf`, returning it
 /// and the remainder. `None` if the buffer is truncated.
 fn take_u16_field(buf: &[u8]) -> Option<(&[u8], &[u8])> {
@@ -2320,6 +3491,37 @@ fn load_registry(path: &Path) -> HashMap<String, String> {
     map
 }
 
+/// The sources registry sits next to the cas_path registry, written by
+/// `tuist setup cache` (the only place that has the project's configuration).
+/// `<registry>.sources`: a JSON object of instance -> `RegisteredSource`. JSON
+/// because the writer is Swift and the reader is here, and a format each side
+/// hand-rolls is one each side can drift on.
+fn sources_path_for(registry: &Path) -> PathBuf {
+    let mut path = registry.to_path_buf().into_os_string();
+    path.push(".sources");
+    PathBuf::from(path)
+}
+
+/// `None` when the registry could not be read at all, which is NOT the same as
+/// an empty one: setup rewrites this file, and a read landing mid-rewrite would
+/// otherwise turn every project on the machine into an unknown one. Unknown
+/// means "no policy recorded", and the answer there has to be permissive, so a
+/// transient read error would quietly hand an opted-out project an upload
+/// window.
+fn load_sources(path: &Path) -> Option<HashMap<String, RegisteredSource>> {
+    let body = std::fs::read_to_string(path).ok()?;
+    // A file torn or truncated under us reads as unreadable rather than as a
+    // subset of the projects, which is the answer that matters: a project this
+    // read forgot would come back as unknown, and unknown has to be allowed to
+    // upload.
+    serde_json::from_str(&body)
+        .map_err(|error| {
+            crate::log_line(&format!("sources registry at {}: {error}", path.display()));
+            error
+        })
+        .ok()
+}
+
 unsafe fn open_cas(up: &'static Upstream, path: &str) -> Result<llcas_cas_t, String> {
     let options = (up.llcas_cas_options_create)();
     let c_path = std::ffi::CString::new(path).map_err(|_| "bad cas path".to_string())?;
@@ -2344,6 +3546,10 @@ unsafe fn open_cas(up: &'static Upstream, path: &str) -> Result<llcas_cas_t, Str
 }
 
 unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String> {
+    // Held for the whole store: the ref objectids are only meaningful to the
+    // handle that minted them, and a wipe must not swap it out mid-write.
+    let cas_guard = state.cas.read().unwrap();
+    let cas = *cas_guard;
     let mut ref_ids = Vec::with_capacity(node.refs.len());
     for reference in &node.refs {
         let digest = llcas_digest_t {
@@ -2352,7 +3558,7 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
         };
         let mut id = llcas_objectid_t { opaque: 0 };
         let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
-        if (state.up.llcas_cas_get_objectid)(state.cas, digest, &mut id, &mut error) {
+        if (state.up.llcas_cas_get_objectid)(cas, digest, &mut id, &mut error) {
             if !error.is_null() {
                 (state.up.llcas_string_dispose)(error);
             }
@@ -2367,7 +3573,7 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
     let mut stored = llcas_objectid_t { opaque: 0 };
     let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
     let failed = (state.up.llcas_cas_store_object)(
-        state.cas,
+        cas,
         data,
         ref_ids.as_ptr(),
         ref_ids.len(),
@@ -2387,13 +3593,17 @@ unsafe fn encode_node_blob(
     state: &PathState,
     digest: &[u8],
 ) -> Result<(Vec<u8>, Vec<Vec<u8>>), String> {
+    // Held for the whole decode: the loaded object and every id/digest borrowed
+    // out of it below belong to this handle, so a wipe must not dispose it here.
+    let cas_guard = state.cas.read().unwrap();
+    let cas = *cas_guard;
     let digest_t = llcas_digest_t {
         data: digest.as_ptr(),
         size: digest.len(),
     };
     let mut id = llcas_objectid_t { opaque: 0 };
     let mut id_error: *mut std::ffi::c_char = std::ptr::null_mut();
-    if (state.up.llcas_cas_get_objectid)(state.cas, digest_t, &mut id, &mut id_error) {
+    if (state.up.llcas_cas_get_objectid)(cas, digest_t, &mut id, &mut id_error) {
         if !id_error.is_null() {
             (state.up.llcas_string_dispose)(id_error);
         }
@@ -2401,21 +3611,21 @@ unsafe fn encode_node_blob(
     }
     let mut loaded = llcas_loaded_object_t { opaque: 0 };
     let mut load_error: *mut std::ffi::c_char = std::ptr::null_mut();
-    let result = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut load_error);
+    let result = (state.up.llcas_cas_load_object)(cas, id, &mut loaded, &mut load_error);
     if !load_error.is_null() {
         (state.up.llcas_string_dispose)(load_error);
     }
     if result != LLCAS_LOOKUP_RESULT_SUCCESS {
         return Err("local load".into());
     }
-    let data = (state.up.llcas_loaded_object_get_data)(state.cas, loaded);
+    let data = (state.up.llcas_loaded_object_get_data)(cas, loaded);
     let node_data = std::slice::from_raw_parts(data.data as *const u8, data.size);
-    let refs = (state.up.llcas_loaded_object_get_refs)(state.cas, loaded);
-    let count = (state.up.llcas_object_refs_get_count)(state.cas, refs);
+    let refs = (state.up.llcas_loaded_object_get_refs)(cas, loaded);
+    let count = (state.up.llcas_object_refs_get_count)(cas, refs);
     let mut ref_digests = Vec::with_capacity(count);
     for index in 0..count {
-        let child = (state.up.llcas_object_refs_get_id)(state.cas, refs, index);
-        let digest = (state.up.llcas_objectid_get_digest)(state.cas, child);
+        let child = (state.up.llcas_object_refs_get_id)(cas, refs, index);
+        let digest = (state.up.llcas_objectid_get_digest)(cas, child);
         ref_digests.push(std::slice::from_raw_parts(digest.data, digest.size).to_vec());
     }
     let blob = reapi::compress_frame(&reapi::encode_frame(&ref_digests, node_data));
@@ -2426,6 +3636,636 @@ unsafe fn encode_node_blob(
 mod tests {
     use super::*;
     use std::cell::Cell;
+
+    /// The churn-skip must not swallow the reclaim: a trunk build re-putting a
+    /// value it already resolved may be republishing an entry that is still
+    /// tagged with a feature branch, and only that publish pulls it into the
+    /// trunk view.
+    #[test]
+    fn a_trunk_reput_is_never_dropped_as_churn() {
+        // Feature, local (no branch), and fully untagged re-puts reclaim nothing
+        // into trunk, so a value match is genuine churn.
+        assert!(is_redundant_reput(Some("feature/x"), Some("main"), true));
+        assert!(is_redundant_reput(None, Some("main"), true));
+        assert!(is_redundant_reput(None, None, true));
+
+        // A trunk publish (branch == trunk) is the reclaim path: even on a value
+        // match it must reach `publish`, so it is never redundant.
+        assert!(!is_redundant_reput(Some("main"), Some("main"), true));
+
+        // A value mismatch is a genuine recompute and always publishes, trunk or
+        // not.
+        assert!(!is_redundant_reput(Some("feature/x"), Some("main"), false));
+        assert!(!is_redundant_reput(Some("main"), Some("main"), false));
+    }
+
+    /// The two layers cost different orders of magnitude, so the middle state is
+    /// the one CI runs on and the one this parse exists to keep reachable. A
+    /// value that fell through to `Full` here would turn CI's one round trip
+    /// into a full closure pull, which is the failure this pins.
+    /// A snapshot's answer is only as good as the last time its copy of the
+    /// remote's keyspace was gated, and only a FULL fetch re-gates it — deltas
+    /// add and never remove. Past the bound it stops serving and keys take the
+    /// per-key path, which kura gates on every call.
+    #[test]
+    fn a_snapshot_stops_serving_once_its_gate_is_stale() {
+        assert!(Proxy::snapshot_may_serve(Some(Duration::from_secs(0))));
+        assert!(Proxy::snapshot_may_serve(Some(SNAPSHOT_SERVE_MAX_AGE)));
+        assert!(!Proxy::snapshot_may_serve(Some(
+            SNAPSHOT_SERVE_MAX_AGE + Duration::from_secs(1)
+        )));
+        // Nothing to serve from is not "fresh"; the per-key path covers it.
+        assert!(!Proxy::snapshot_may_serve(None));
+        // A scheduled full refresh lands at SNAPSHOT_FULL_INTERVAL, so healthy
+        // operation must never trip this. Tightening the bound below the cadence
+        // would put every build on per-key round trips.
+        assert!(
+            SNAPSHOT_SERVE_MAX_AGE > SNAPSHOT_FULL_INTERVAL,
+            "the bound must leave room for the refresh cadence meant to keep it fresh"
+        );
+    }
+
+    /// The field choice is the substance, and it is the easy one to get wrong:
+    /// age comes from the last FULL fetch, never the last delta. Deltas only
+    /// ADD, so a view refreshed by deltas alone looks continuously fresh while
+    /// never re-applying the server's eviction gate — which is precisely the
+    /// state that serves keys the remote has dropped.
+    #[test]
+    fn snapshot_age_comes_from_the_full_fetch_not_the_delta() {
+        let dir = std::env::temp_dir().join(format!("tuist-snapage-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            r#"{"tuist/writer":{"trunk":"main"}}"#,
+        )
+        .expect("write sources");
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+
+        // What a held-off refresh loop leaves behind: deltas kept landing, the
+        // full re-gate did not.
+        let stale = Instant::now()
+            .checked_sub(SNAPSHOT_SERVE_MAX_AGE + Duration::from_secs(60))
+            .expect("clock has enough history");
+        proxy.snapshots.lock().unwrap().insert(
+            "tuist/writer".to_string(),
+            SnapshotState::Ready {
+                snapshot: Arc::new(Snapshot {
+                    nodes: Vec::new(),
+                    node_index: HashMap::new(),
+                    keys: HashMap::new(),
+                    key_order: Vec::new(),
+                    watermark: 0,
+                }),
+                full_at: stale,
+                refreshed_at: Instant::now(),
+                last_used: Instant::now(),
+            },
+        );
+
+        let age = proxy
+            .snapshot_full_fetch_age("tuist/writer")
+            .expect("a Ready snapshot has an age");
+        assert!(
+            age > SNAPSHOT_SERVE_MAX_AGE,
+            "reading `refreshed_at` instead of `full_at` would have called this fresh"
+        );
+        assert!(!Proxy::snapshot_may_serve(Some(age)));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// One line per instance, not one per resolve: the condition persists for as
+    /// long as the refresh stays stuck, and a warm build issues thousands of
+    /// resolves through it.
+    #[test]
+    fn an_aged_out_snapshot_is_reported_once_per_instance() {
+        let dir = std::env::temp_dir().join(format!("tuist-snaplog-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(dir.join("registry")),
+            None,
+        );
+
+        assert!(
+            proxy.should_report_stale_snapshot("tuist/writer"),
+            "the first resolve through a stale view reports it"
+        );
+        for _ in 0..5 {
+            assert!(
+                !proxy.should_report_stale_snapshot("tuist/writer"),
+                "and the thousands behind it in a warm build do not"
+            );
+        }
+        assert!(
+            proxy.should_report_stale_snapshot("tuist/other"),
+            "a second instance is its own report"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn prefetch_keys_is_its_own_mode_and_not_a_way_of_spelling_off() {
+        assert_eq!(prefetch_mode_from(Some("keys")), PrefetchMode::Keys);
+        assert_eq!(prefetch_mode_from(Some("KEYS")), PrefetchMode::Keys);
+        assert_eq!(prefetch_mode_from(Some(" keys ")), PrefetchMode::Keys);
+
+        for off in ["0", "off", "false", "no", "none", "OFF"] {
+            assert_eq!(prefetch_mode_from(Some(off)), PrefetchMode::Off, "{off}");
+        }
+
+        // Unset is the default, and so is anything unrecognized: a typo must not
+        // quietly turn caching down, which is the direction that costs a build.
+        assert_eq!(prefetch_mode_from(None), PrefetchMode::Full);
+        assert_eq!(prefetch_mode_from(Some("full")), PrefetchMode::Full);
+        assert_eq!(prefetch_mode_from(Some("kyes")), PrefetchMode::Full);
+        assert_eq!(prefetch_mode_from(Some("")), PrefetchMode::Full);
+    }
+
+    #[test]
+    fn sources_registry_keeps_reading_entries_written_without_a_trunk() {
+        let dir = std::env::temp_dir().join(format!("tuist-sources-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("registry.sources");
+        // Row 1 is what a setup that reached the server writes; row 2 is a setup
+        // that could not, so it knows the project but not its trunk. Both must
+        // parse, and the bare row must leave the proxy unscoped rather than
+        // dropping the project entirely, which would read as "no policy" and
+        // hand an opted-out project an upload.
+        std::fs::write(
+            &path,
+            r#"{"tuist/mastodon":{"trunk":"main"},"tuist/legacy":{}}"#,
+        )
+        .expect("write registry");
+
+        let sources = load_sources(&path).expect("a readable registry parses");
+        assert_eq!(sources.len(), 2);
+        // Unreadable is not the same as empty, and the difference decides whether
+        // an opted-out project keeps its policy: setup rewrites this file, and a
+        // read landing mid-rewrite must not be mistaken for "no projects here".
+        assert!(
+            load_sources(&dir.join("does-not-exist")).is_none(),
+            "a registry that cannot be read reports so, rather than reporting none"
+        );
+        let scoped = sources.get("tuist/mastodon").expect("scoped entry");
+        assert_eq!(
+            scoped.trunk.as_deref(),
+            Some("main"),
+            "the trunk is read from the third column, not the second"
+        );
+        let legacy = sources.get("tuist/legacy").expect("legacy entry");
+        assert_eq!(legacy.trunk, None, "an absent trunk column is not a path");
+        assert_eq!(
+            scoped.ci_branch, None,
+            "a registry written before the branch column carries no branch"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Publishing is asynchronous and durable: a record is queued, then uploaded
+    /// after the queue wait, the existence probe and the closure's transfers,
+    /// which is typically after the build that produced it has exited. Resolving
+    /// the tags at the upload would read whatever the registry says by then.
+    ///
+    /// A shared CI runner is where that bites: job A's still-draining outputs
+    /// would be tagged with job B's branch, because B's setup rewrote the row A
+    /// was accepted under.
+    #[test]
+    fn a_queued_publish_keeps_the_branch_it_was_accepted_on() {
+        let dir = std::env::temp_dir().join(format!("tuist-publish-tag-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        let sources = sources_path_for(&registry);
+        let record_branch = |branch: &str| {
+            std::fs::write(
+                &sources,
+                format!(r#"{{"tuist/mastodon":{{"trunk":"main","branch":"{branch}"}}}}"#),
+            )
+            .expect("write sources");
+        };
+        record_branch("release/4.2");
+
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        let captured: Arc<Mutex<Vec<Vec<u8>>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&captured);
+        // Replaces the publisher's real worker before any enqueue starts it, so
+        // the queued items land here instead of being uploaded to a remote.
+        proxy
+            .publisher
+            .configure(1, move |item| sink.lock().unwrap().push(item));
+
+        proxy.enqueue_publish("/cas", "tuist/mastodon", "/spool/from-the-release-job");
+        // The next job on this runner runs setup, which rewrites the row.
+        record_branch("main");
+        // The proxy would otherwise reuse the memoized context for the TTL;
+        // expiring it is what the next job gets for free by taking longer.
+        proxy.source_cache.lock().unwrap().clear();
+        proxy.enqueue_publish("/cas", "tuist/mastodon", "/spool/from-the-main-job");
+
+        proxy
+            .publisher
+            .drain_stop_timeout(std::time::Duration::from_secs(10));
+        let items = captured.lock().unwrap();
+        assert_eq!(items.len(), 2, "both records queued");
+        let tags = |item: &[u8]| {
+            let (_, rest) = take_u16_field(item).expect("instance");
+            let (_, rest) = take_u16_field(rest).expect("cas path");
+            let (branch, rest) = take_u16_field(rest).expect("branch");
+            let (trunk, record) = take_u16_field(rest).expect("trunk");
+            (
+                String::from_utf8_lossy(branch).into_owned(),
+                String::from_utf8_lossy(trunk).into_owned(),
+                String::from_utf8_lossy(record).into_owned(),
+            )
+        };
+        let (branch, trunk, record) = tags(&items[0]);
+        assert_eq!(record, "/spool/from-the-release-job");
+        assert_eq!(
+            branch, "release/4.2",
+            "the record keeps the branch it was accepted under, after the next \
+             job on this runner rewrote the registry"
+        );
+        assert_eq!(trunk, "main");
+        let (branch, trunk, record) = tags(&items[1]);
+        assert_eq!(record, "/spool/from-the-main-job");
+        assert_eq!(branch, "main", "a later record takes the new branch");
+        assert_eq!(trunk, "main", "the trunk is the project's either way");
+
+        drop(items);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A sweeper claims a record the producing build left behind, and it resolves
+    /// tags at sweep time, long after that build is gone. The sidecar is what
+    /// carries the answer forward: without it a record swept on the next job
+    /// would be tagged with that job's branch.
+    #[test]
+    fn a_reswept_record_keeps_the_branch_that_produced_it() {
+        let dir = std::env::temp_dir().join(format!("tuist-sidecar-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        let sources = sources_path_for(&registry);
+        let record_branch = |branch: &str| {
+            std::fs::write(
+                &sources,
+                format!(r#"{{"tuist/mastodon":{{"trunk":"main","branch":"{branch}"}}}}"#),
+            )
+            .expect("write sources");
+        };
+        record_branch("main");
+
+        let cas_path = dir.join("cas");
+        let spool = cas_path.join("tuist-spool");
+        std::fs::create_dir_all(&spool).expect("spool");
+        let record = spool.join("1234-0");
+        std::fs::write(&record, b"record").expect("record");
+        let record_path = record.to_string_lossy().into_owned();
+
+        let captured: Arc<Mutex<Vec<Vec<u8>>>> = Arc::new(Mutex::new(Vec::new()));
+        // One per proxy: a publisher is owned by the process that ran it, and
+        // draining one stops it for good.
+        let start_proxy = || {
+            let proxy = Proxy::new(
+                "http://127.0.0.1:1".into(),
+                crate::token::TokenProvider::from_env(),
+                String::new(),
+                Some(registry.clone()),
+                None,
+            );
+            let sink = Arc::clone(&captured);
+            proxy
+                .publisher
+                .configure(1, move |item| sink.lock().unwrap().push(item));
+            proxy
+        };
+
+        // The build hands us the record while the main job owns the registry.
+        let producing = start_proxy();
+        producing.enqueue_publish(&cas_path.to_string_lossy(), "tuist/mastodon", &record_path);
+        assert!(
+            spool.join("1234-0.tags").exists(),
+            "accepting a record writes its tags beside it"
+        );
+        producing
+            .publisher
+            .drain_stop_timeout(std::time::Duration::from_secs(10));
+
+        // The next job on this runner runs setup, rewriting the registry, and a
+        // later sweep finds the record still there. That sweep runs in a proxy
+        // that never saw the build: a fresh process, so nothing but the sidecar
+        // survives to tell it which branch produced this record.
+        record_branch("feature/theirs");
+        let sweeping = start_proxy();
+        sweeping.enqueue_publish(&cas_path.to_string_lossy(), "tuist/mastodon", &record_path);
+        sweeping
+            .publisher
+            .drain_stop_timeout(std::time::Duration::from_secs(10));
+
+        let items = captured.lock().unwrap();
+        assert_eq!(items.len(), 2);
+        let branch_of = |item: &[u8]| {
+            let (_, rest) = take_u16_field(item).expect("instance");
+            let (_, rest) = take_u16_field(rest).expect("cas path");
+            let (branch, _) = take_u16_field(rest).expect("branch");
+            String::from_utf8_lossy(branch).into_owned()
+        };
+        assert_eq!(branch_of(&items[0]), "main");
+        assert_eq!(
+            branch_of(&items[1]),
+            "main",
+            "the re-enqueued record keeps the branch that produced it, not the one \
+             whose job happens to own the registry when it is swept"
+        );
+
+        drop(items);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Builds a proxy whose publisher, instead of uploading, runs `publish` for
+    /// each queued item — the seam the drain tests use to decide which records
+    /// "reach the remote" and which are left behind.
+    fn proxy_with_publisher<F>(registry: std::path::PathBuf, publish: F) -> &'static Proxy
+    where
+        F: Fn(&str) + Send + Sync + 'static,
+    {
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        proxy.publisher.configure(1, move |item| {
+            let Some((_, rest)) = take_u16_field(&item) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, record_path)) = take_u16_field(rest) else { return };
+            publish(&String::from_utf8_lossy(record_path));
+        });
+        proxy
+    }
+
+    fn drain_fixture(name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!("tuist-drain-{name}-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            r#"{"tuist/mastodon":{"trunk":"main","branch":"main"}}"#,
+        )
+        .expect("write sources");
+        let spool = dir.join("cas").join("tuist-spool");
+        std::fs::create_dir_all(&spool).expect("spool");
+        (dir, registry)
+    }
+
+    /// The promote gate a runner's teardown stands on: has everything this job
+    /// recorded actually reached the remote? A record is deleted ONLY by a
+    /// successful publish, so an empty spool is the proof, and the drain is what
+    /// waits for it rather than sampling it.
+    #[test]
+    fn a_drain_reports_a_spool_the_publisher_emptied_as_clean() {
+        let (dir, registry) = drain_fixture("clean");
+        let spool = dir.join("cas").join("tuist-spool");
+        std::fs::write(spool.join("1234-0"), b"record").expect("record");
+        std::fs::write(spool.join("1234-1"), b"record").expect("record");
+
+        let proxy = proxy_with_publisher(registry, |record_path| remove_record(record_path));
+        let remaining = proxy.drain_publications(
+            &dir.join("cas").to_string_lossy(),
+            Some("tuist/mastodon"),
+            std::time::Duration::from_secs(10),
+        );
+
+        assert_eq!(remaining, 0);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A publication the proxy could not send keeps its record, and the drain has
+    /// to say so. Promoting that image anyway is the whole defect: every host
+    /// that later clones the master inherits associations naming objects no kura
+    /// holds, and nothing can retract them.
+    #[test]
+    fn a_drain_reports_the_records_publication_left_behind() {
+        let (dir, registry) = drain_fixture("dirty");
+        let spool = dir.join("cas").join("tuist-spool");
+        std::fs::write(spool.join("1234-0"), b"published").expect("record");
+        std::fs::write(spool.join("1234-1"), b"stuck").expect("record");
+
+        // The publisher keeps the record whose upload failed, exactly as
+        // `publish_item` does.
+        let proxy = proxy_with_publisher(registry, |record_path| {
+            if record_path.ends_with("1234-0") {
+                remove_record(record_path);
+            }
+        });
+        // A budget of a couple of retries: the drain re-sweeps a failed
+        // publication until the caller's deadline, so a generous one here would
+        // only make this test wait out the backoff.
+        let remaining = proxy.drain_publications(
+            &dir.join("cas").to_string_lossy(),
+            Some("tuist/mastodon"),
+            std::time::Duration::from_millis(2500),
+        );
+
+        assert_eq!(remaining, 1, "the record that never landed is still counted");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The plugin writes its record BEFORE notifying the proxy, so a frontend
+    /// that exited without reaching the socket leaves one nothing has queued.
+    /// Waiting on the pool alone would call that spool drained while its records
+    /// sit there, so the drain sweeps first.
+    #[test]
+    fn a_drain_sweeps_records_the_proxy_was_never_notified_about() {
+        let (dir, registry) = drain_fixture("unnotified");
+        let spool = dir.join("cas").join("tuist-spool");
+        std::fs::write(spool.join("1234-0"), b"never announced").expect("record");
+
+        let published: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let seen = Arc::clone(&published);
+        let proxy = proxy_with_publisher(registry, move |record_path| {
+            seen.lock().unwrap().push(record_path.to_string());
+            remove_record(record_path);
+        });
+        let remaining = proxy.drain_publications(
+            &dir.join("cas").to_string_lossy(),
+            Some("tuist/mastodon"),
+            std::time::Duration::from_secs(10),
+        );
+
+        assert_eq!(remaining, 0);
+        assert_eq!(
+            published.lock().unwrap().len(),
+            1,
+            "the drain swept the record and published it"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Without a routable instance there is nothing to publish TO, so records
+    /// cannot have reached the remote — the drain must report them rather than
+    /// read "nothing queued" as "nothing owed".
+    #[test]
+    fn a_drain_of_an_unroutable_path_reports_its_records_as_owed() {
+        let (dir, registry) = drain_fixture("unrouted");
+        let spool = dir.join("cas").join("tuist-spool");
+        std::fs::write(spool.join("1234-0"), b"record").expect("record");
+
+        let proxy = proxy_with_publisher(registry, |record_path| remove_record(record_path));
+        let remaining = proxy.drain_publications(
+            &dir.join("cas").to_string_lossy(),
+            None,
+            std::time::Duration::from_secs(10),
+        );
+
+        assert_eq!(remaining, 1);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A path that never published has no spool directory at all, which is the
+    /// common case on a runner whose job used the builtin lane. It has to read as
+    /// drained, or every such job would withhold its promote.
+    #[test]
+    fn a_path_that_never_published_drains_immediately() {
+        let (dir, registry) = drain_fixture("empty");
+        let proxy = proxy_with_publisher(registry, |record_path| remove_record(record_path));
+
+        let remaining = proxy.drain_publications(
+            &dir.join("never-built").to_string_lossy(),
+            Some("tuist/mastodon"),
+            std::time::Duration::from_secs(10),
+        );
+
+        assert_eq!(remaining, 0);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The wait is the caller's budget: the guest holds a VM (and its warm-pool
+    /// slot) open for it. An absent or absurd value must not turn into an
+    /// unbounded park on a proxy thread.
+    #[test]
+    fn a_drain_request_carries_a_bounded_timeout() {
+        assert_eq!(
+            drain_timeout(&5_000u32.to_be_bytes()),
+            Duration::from_secs(5)
+        );
+        assert_eq!(drain_timeout(&[]), DRAIN_TIMEOUT_DEFAULT);
+        assert_eq!(drain_timeout(&0u32.to_be_bytes()), DRAIN_TIMEOUT_DEFAULT);
+        assert_eq!(drain_timeout(&u32::MAX.to_be_bytes()), DRAIN_TIMEOUT_MAX);
+    }
+
+    /// A sweeper claims a record by renaming it to `<base>.claim-<pid>`, so the
+    /// sidecar has to be found from the claimed name too.
+    #[test]
+    fn a_claimed_record_still_finds_its_tags() {
+        assert_eq!(tags_path("/spool/1234-0"), tags_path("/spool/1234-0.claim-9"));
+        assert_eq!(
+            tags_path("/spool/1234-0"),
+            std::path::PathBuf::from("/spool/1234-0.tags")
+        );
+    }
+
+    #[test]
+    fn tags_round_trip_through_the_sidecar() {
+        let encoded = encode_tags("feature/tags", "main");
+        assert_eq!(
+            decode_tags(&encoded),
+            Some(("feature/tags".to_string(), "main".to_string()))
+        );
+        // An absent branch is the empty field, the same encoding the queue uses.
+        assert_eq!(
+            decode_tags(&encode_tags("", "main")),
+            Some((String::new(), "main".to_string()))
+        );
+        assert_eq!(decode_tags(b"garbage"), None, "a torn write re-resolves");
+    }
+
+    /// The CI branch, which `tuist setup cache` records only from inside a CI job
+    /// (the proxy is a launchd agent and never sees the provider's branch
+    /// variable). Every field here is optional, so what this pins is that an
+    /// absent one reads as its default rather than as its neighbour's value:
+    /// setup writes only what it knows, and it usually does not know all three.
+    #[test]
+    fn sources_registry_defaults_every_field_setup_did_not_record() {
+        let dir = std::env::temp_dir().join(format!("tuist-sources-ci-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("registry.sources");
+        std::fs::write(
+            &path,
+            r#"{
+                "tuist/ci":        {"trunk": "main", "branch": "feature/x"},
+                "tuist/no-trunk":  {"branch": "feature/y"},
+                "tuist/read-only": {"trunk": "main", "upload": false},
+                "tuist/newer":     {"trunk": "main", "something-we-do-not-know": 1},
+                "tuist/dev":       {"trunk": "main"},
+                "tuist/bare":      {}
+            }"#,
+        )
+        .expect("write registry");
+
+        let sources = load_sources(&path).expect("a readable registry parses");
+        let ci = sources.get("tuist/ci").expect("ci entry");
+        assert_eq!(ci.trunk.as_deref(), Some("main"));
+        assert_eq!(ci.ci_branch.as_deref(), Some("feature/x"));
+        assert!(ci.upload, "an absent upload is permissive");
+
+        // A branch without a trunk. Setup records these separately (the trunk is
+        // the server's answer, the branch the job's), so either can be missing.
+        let no_trunk = sources.get("tuist/no-trunk").expect("no-trunk entry");
+        assert_eq!(no_trunk.trunk, None);
+        assert_eq!(no_trunk.ci_branch.as_deref(), Some("feature/y"));
+
+        assert!(!sources.get("tuist/read-only").expect("read-only entry").upload);
+
+        // A setup newer than this proxy: unknown fields are ignored rather than
+        // failing the whole file, which would take every project's policy with it.
+        let newer = sources.get("tuist/newer").expect("newer entry");
+        assert_eq!(newer.trunk.as_deref(), Some("main"));
+
+        let dev = sources.get("tuist/dev").expect("dev entry");
+        assert_eq!(
+            dev.ci_branch, None,
+            "off CI nothing records a branch, so a developer's publishes stay untagged"
+        );
+
+        let bare = sources.get("tuist/bare").expect("bare entry");
+        assert_eq!(bare.trunk, None);
+        assert_eq!(bare.ci_branch, None);
+        assert!(bare.upload, "nothing recorded is nothing to withhold");
+
+        // Unreadable is not the same as empty: a project this read forgot would
+        // come back as unknown, and unknown has to be allowed to upload.
+        std::fs::write(&path, "{not json").expect("write garbage");
+        assert!(
+            load_sources(&path).is_none(),
+            "a registry that cannot be decoded reports so, rather than reporting none"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     #[test]
     fn snapshot_decodes_the_server_wire_format() {
@@ -2771,6 +4611,42 @@ mod tests {
         assert!(should_reclaim(IDLE_RECLAIM + Duration::from_secs(1), true));
     }
 
+    // A build that touched the CAS moments ago holds off a refresh, however
+    // quiet the CPU looks: between two bursts of compiles the load average has
+    // not caught up yet, and the build is exactly who we would be stealing from.
+    #[test]
+    fn recent_build_holds_off_a_refresh() {
+        let reason = busy_verdict(Some(BUSY_AFTER_LAST_OP - Duration::from_secs(1)), Some(0.0));
+        assert!(reason.is_some_and(|reason| reason.contains("build")));
+    }
+
+    // Once the build is long done and the machine is quiet, the refresh runs.
+    #[test]
+    fn quiet_machine_refreshes() {
+        assert!(
+            busy_verdict(Some(BUSY_AFTER_LAST_OP + Duration::from_secs(1)), Some(0.1)).is_none()
+        );
+        // A proxy that has served nothing yet has no last op to go on.
+        assert!(busy_verdict(None, Some(0.1)).is_none());
+    }
+
+    // Something other than a build can keep the machine busy: it never touches
+    // the CAS, so load is the only thing that sees it.
+    #[test]
+    fn loaded_machine_holds_off_a_refresh_with_no_build() {
+        let reason = busy_verdict(
+            Some(BUSY_AFTER_LAST_OP + Duration::from_secs(1)),
+            Some(BUSY_LOAD_PER_CORE + 0.1),
+        );
+        assert!(reason.is_some_and(|reason| reason.contains("load")));
+    }
+
+    // A platform that will not report load must not wedge the refresh forever.
+    #[test]
+    fn unknown_load_does_not_hold_off_a_refresh() {
+        assert!(busy_verdict(Some(BUSY_AFTER_LAST_OP + Duration::from_secs(1)), None).is_none());
+    }
+
     fn generation(ino: u64, birth_nanos: u128) -> CasGeneration {
         CasGeneration { ino, birth_nanos }
     }
@@ -2829,6 +4705,602 @@ mod tests {
         assert_ne!(
             before, after,
             "a recreated CAS directory must read as a new generation"
+        );
+    }
+
+    // A Proxy with no remote: the wipe tests only drive `check_generation`,
+    // which is local-only (restat, rebind, drop marks).
+    fn test_proxy() -> &'static Proxy {
+        Proxy::new(
+            "http://127.0.0.1:1".to_string(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        )
+    }
+
+    // Builds a PathState over a real on-disk CAS at `path`, the way `path_state`
+    // does, so the wipe tests drive the production probe rather than a copy.
+    fn path_state_for(path: &str) -> &'static PathState {
+        let up = unsafe { Upstream::load(&crate::upstream_path()).unwrap() };
+        let up: &'static Upstream = Box::leak(Box::new(up));
+        let cas = unsafe { open_cas(up, path).unwrap() };
+        Box::leak(Box::new(PathState {
+            up,
+            cas: RwLock::new(cas),
+            cas_path: path.to_string(),
+            generation: Mutex::new(cas_generation(path)),
+            gen_counter: AtomicU64::new(0),
+            resolved: Mutex::new(HashMap::new()),
+            inflight: Mutex::new(HashSet::new()),
+            inflight_cvar: Condvar::new(),
+            known_local: std::array::from_fn(|_| Mutex::new(HashSet::new())),
+            publish_cache: Mutex::new(HashMap::new()),
+            last_used: AtomicU64::new(0),
+            pending_objects: Mutex::new(HashMap::new()),
+            stats_resolves: AtomicU64::new(0),
+            stats_remote_hits: AtomicU64::new(0),
+            stats_misses: AtomicU64::new(0),
+            stats_snapshot_hits: AtomicU64::new(0),
+            stats_demand_fetched: AtomicU64::new(0),
+            stats_blobs_fetched: AtomicU64::new(0),
+            stats_blobs_inlined: AtomicU64::new(0),
+            stats_incomplete_closures: AtomicU64::new(0),
+            stats_published: AtomicU64::new(0),
+            ms_action: AtomicU64::new(0),
+            ms_filter: AtomicU64::new(0),
+            ms_fetch: AtomicU64::new(0),
+            ms_decode: AtomicU64::new(0),
+            ms_store: AtomicU64::new(0),
+        }))
+    }
+
+    // Stores a childless object and returns its digest.
+    fn store_probe_object(state: &PathState, payload: &[u8]) -> Vec<u8> {
+        unsafe {
+            let cas = *state.cas.read().unwrap();
+            let data = llcas_data_t {
+                data: payload.as_ptr() as *const std::ffi::c_void,
+                size: payload.len(),
+            };
+            let mut id = llcas_objectid_t { opaque: 0 };
+            let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
+            assert!(
+                !(state.up.llcas_cas_store_object)(
+                    cas,
+                    data,
+                    std::ptr::null(),
+                    0,
+                    &mut id,
+                    &mut error
+                ),
+                "store must succeed"
+            );
+            let digest = (state.up.llcas_objectid_get_digest)(cas, id);
+            std::slice::from_raw_parts(digest.data, digest.size).to_vec()
+        }
+    }
+
+    struct TempCasDir(std::path::PathBuf);
+
+    impl TempCasDir {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!("cas-{tag}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+        fn path(&self) -> String {
+            self.0.to_string_lossy().into_owned()
+        }
+        // The user action: `rm -rf DerivedData`, then the build recreates it.
+        fn wipe(&self) {
+            std::fs::remove_dir_all(&self.0).unwrap();
+            std::fs::create_dir_all(&self.0).unwrap();
+        }
+    }
+
+    impl Drop for TempCasDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    // The regression this whole guard exists for. An llcas handle pins the store
+    // it opened: after the directory is wiped, the pre-wipe handle still answers
+    // from the deleted inodes, so `load_present` reports objects the compiler
+    // cannot see. `is_local` trusts it, skips re-fetching, and clang -- which
+    // FAILS rather than recompiles on a missing object -- breaks the build.
+    // Rebinding the handle is what makes the probe authoritative again.
+    #[test]
+    fn load_present_does_not_answer_from_a_wiped_store() {
+        let dir = TempCasDir::new("wipe-read");
+        let state = path_state_for(&dir.path());
+        let digest = store_probe_object(state, b"tuist-cas-wipe-probe");
+        assert!(
+            state.load_present(&digest),
+            "sanity: the object is present before the wipe"
+        );
+
+        dir.wipe();
+        state.reopen_cas().unwrap();
+
+        assert!(
+            !state.load_present(&digest),
+            "a wiped store must read as empty: reporting the object present              skips the re-fetch and fails the compiler with `missing object`"
+        );
+    }
+
+    // The write half: a store through a pre-wipe handle reports success but
+    // lands in the deleted store, so re-fetching alone could never heal the
+    // build. After rebinding, what the proxy writes is what the compiler reads.
+    #[test]
+    fn stores_after_a_wipe_land_in_the_live_store() {
+        let dir = TempCasDir::new("wipe-write");
+        let state = path_state_for(&dir.path());
+
+        dir.wipe();
+        state.reopen_cas().unwrap();
+
+        let digest = store_probe_object(state, b"stored-after-the-wipe");
+        // A handle opened fresh is what the compiler in its own process gets.
+        let compiler_view = path_state_for(&dir.path());
+        assert!(
+            compiler_view.load_present(&digest),
+            "an object stored after the wipe must be visible to a handle opened              independently: otherwise the proxy is writing into a deleted store"
+        );
+    }
+
+    /// The idle gate reads `last_used`, and a build that has finished planning
+    /// does nothing but demand fetches. If they do not count as activity, the
+    /// machine looks idle exactly while it is most bandwidth-bound.
+    #[test]
+    fn a_demand_fetch_counts_as_the_machine_being_busy() {
+        let dir = TempCasDir::new("busy-fetch");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        // A sentinel rather than 0: the proxy's epoch is fresh here, so a real
+        // stamp is ~0ms and would be indistinguishable from never having run.
+        state.last_used.store(u64::MAX, Ordering::Relaxed);
+
+        let _ = proxy.fetch_object(state, &dir.path(), "", &[0xAB; 32]);
+
+        assert!(
+            state.last_used.load(Ordering::Relaxed) < u64::MAX,
+            "a demand fetch must keep the machine marked busy, or the idle gate \
+             starts competing with the build it is meant to avoid"
+        );
+    }
+
+    /// The reclaim path only works if a trunk hit can still be asked for after a
+    /// feature hit for the same action. On a shared runner that ordering is
+    /// routine, and a dedup keyed on the action alone would suppress the trunk
+    /// hit for the proxy's lifetime, quietly disabling the mechanism the whole
+    /// scoping leans on.
+    #[test]
+    fn a_refresh_is_distinct_per_instance_and_per_tag() {
+        let dir = std::env::temp_dir().join(format!("tuist-refresh-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        let sources = sources_path_for(&registry);
+        let record = |branch: &str| {
+            std::fs::write(
+                &sources,
+                format!(
+                    r#"{{"tuist/one":{{"trunk":"main","branch":"{branch}"}},"tuist/two":{{"trunk":"main","branch":"{branch}"}}}}"#
+                ),
+            )
+            .expect("write sources");
+        };
+        record("feature");
+
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        let manifest = vec![ManifestEntry {
+            llcas_digest: vec![0xAA],
+            blob: reapi::Digest {
+                hash: "bb".repeat(32),
+                size_bytes: 7,
+            },
+            contents: None,
+        }];
+        let queued = || proxy.view_refresh.lock().unwrap().len();
+        let one = proxy.remote_for("tuist/one");
+
+        proxy.queue_view_refresh(&one, "tuist/one", b"shared-key", &manifest);
+        assert_eq!(queued(), 1);
+        // Same everything: the second one is the same work.
+        proxy.queue_view_refresh(&one, "tuist/one", b"shared-key", &manifest);
+        assert_eq!(queued(), 1, "an identical refresh is not queued twice");
+
+        // Same action, another project. Keys collide across instances.
+        let two = proxy.remote_for("tuist/two");
+        proxy.queue_view_refresh(&two, "tuist/two", b"shared-key", &manifest);
+        assert_eq!(queued(), 2, "another project's identical key is its own refresh");
+
+        // The trunk job now takes a hit on the key the feature job refreshed.
+        record("main");
+        proxy.source_cache.lock().unwrap().clear();
+        proxy.queue_view_refresh(&one, "tuist/one", b"shared-key", &manifest);
+        assert_eq!(
+            queued(),
+            3,
+            "a trunk hit reclaims a key a feature hit refreshed first: suppressing \
+             it would disable the reclaim path entirely"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The remote here cannot be reached, so the drain fails, which is the point:
+    /// a refresh that did not happen must be askable again.
+    #[test]
+    fn a_failed_refresh_can_be_asked_for_again() {
+        let dir = std::env::temp_dir().join(format!("tuist-refresh-fail-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            r#"{"tuist/one":{"trunk":"main","branch":"main"}}"#,
+        )
+        .expect("write sources");
+
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        let manifest = vec![ManifestEntry {
+            llcas_digest: vec![0xAA],
+            blob: reapi::Digest {
+                hash: "bb".repeat(32),
+                size_bytes: 7,
+            },
+            contents: None,
+        }];
+        let one = proxy.remote_for("tuist/one");
+
+        proxy.queue_view_refresh(&one, "tuist/one", b"key", &manifest);
+        assert_eq!(proxy.view_refresh.lock().unwrap().len(), 1);
+        proxy.refresh_view_keys();
+        assert_eq!(
+            proxy.view_refresh.lock().unwrap().len(),
+            0,
+            "the failed item is dropped from the queue"
+        );
+
+        proxy.queue_view_refresh(&one, "tuist/one", b"key", &manifest);
+        assert_eq!(
+            proxy.view_refresh.lock().unwrap().len(),
+            1,
+            "and it can be queued again, which is what the retry comment promises"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// `upload: false` has to hold for the whole build, and only the proxy can
+    /// make it. The plugin checks a compiler option, which reaches Swift;
+    /// swift-build's Clang caching creates its CAS with a plugin path and NO
+    /// options, so that lane never sees the project's answer and asks to publish
+    /// regardless. Its records arrive at `enqueue_publish`, and so do the
+    /// sweeper's, which is why the refusal lives there and not in the client.
+    #[test]
+    fn a_read_only_project_publishes_nothing_and_refreshes_nothing() {
+        let dir = std::env::temp_dir().join(format!("tuist-upload-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        let sources = sources_path_for(&registry);
+        std::fs::write(
+            &sources,
+            r#"{"tuist/reader":{"trunk":"main","upload":false},"tuist/writer":{"trunk":"main"}}"#,
+        )
+        .expect("write sources");
+
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        let captured: Arc<Mutex<Vec<Vec<u8>>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&captured);
+        proxy
+            .publisher
+            .configure(1, move |item| sink.lock().unwrap().push(item));
+
+        // What the Clang lane does: it never saw the option, so it asks.
+        proxy.enqueue_publish("/cas", "tuist/reader", "/spool/from-the-clang-lane");
+        proxy
+            .publisher
+            .drain_stop_timeout(std::time::Duration::from_secs(10));
+        assert!(
+            captured.lock().unwrap().is_empty(),
+            "a project that opted out publishes nothing, however the record got here"
+        );
+
+        let manifest = vec![ManifestEntry {
+            llcas_digest: vec![0xAA],
+            blob: reapi::Digest {
+                hash: "bb".repeat(32),
+                size_bytes: 7,
+            },
+            contents: None,
+        }];
+        let remote = proxy.remote_for("tuist/reader");
+        proxy.queue_view_refresh(&remote, "tuist/reader", b"key-1", &manifest);
+        assert_eq!(
+            proxy.view_refresh.lock().unwrap().len(),
+            0,
+            "and it does not write on the proxy's own initiative either"
+        );
+
+        // A project that did not opt out is untouched.
+        let remote = proxy.remote_for("tuist/writer");
+        proxy.queue_view_refresh(&remote, "tuist/writer", b"key-2", &manifest);
+        assert_eq!(proxy.view_refresh.lock().unwrap().len(), 1);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The case withholding cannot address: the root is ALREADY on disk, so it
+    /// never enters the loop (`missing` filters out whatever `is_local` answers
+    /// yes for) and there is nothing to withhold. An earlier pass or a demand
+    /// load put it there, and this pass then fails to complete its closure. The
+    /// read guard's probe passes and the association is recorded over the hole,
+    /// which makes this the shape most worth counting, not the least.
+    #[test]
+    fn an_incomplete_closure_under_an_already_local_root_is_counted() {
+        let dir = TempCasDir::new("root-already-local");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/already-local");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        let root = vec![0x31];
+        let child = vec![0x32];
+        let root_entry = ManifestEntry {
+            llcas_digest: root.clone(),
+            blob: reapi::Digest { hash: "1a".repeat(32), size_bytes: 4 },
+            contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"root"))),
+        };
+
+        // First pass: the root alone, which lands.
+        proxy
+            .materialize_manifest(&remote, state, &[root_entry.clone()], observed)
+            .expect("materialize");
+        assert!(proxy.is_local(state, observed, &root), "the root is on disk now");
+
+        // Second pass over the same key, now with a child that cannot decode.
+        let manifest = vec![
+            root_entry,
+            ManifestEntry {
+                llcas_digest: child.clone(),
+                blob: reapi::Digest { hash: "1b".repeat(32), size_bytes: 5 },
+                contents: Some(b"not a frame".to_vec()),
+            },
+        ];
+        proxy
+            .materialize_manifest(&remote, state, &manifest, observed)
+            .expect("materialize");
+
+        assert!(!proxy.is_local(state, observed, &child), "the child still did not land");
+        assert!(
+            proxy.is_local(state, observed, &root),
+            "and the root stays present, because this pass never had it to withhold"
+        );
+        assert_eq!(
+            state.stats_incomplete_closures.load(Ordering::Relaxed),
+            1,
+            "so it must be COUNTED: keying the report off the withhold alone left \
+             the one case the read guard cannot catch as the only silent one"
+        );
+    }
+
+    /// The root can also fail on its own terms, and nothing runs after it: the
+    /// withhold decision is made at its turn in the loop, so deciding there left
+    /// a corrupt root uncounted and unlogged. Its children landing is exactly
+    /// what makes this case distinct, and why it reports a different reason than
+    /// a withhold: retrying is pointless until the remote can serve the root.
+    #[test]
+    fn a_root_that_fails_on_its_own_is_still_reported() {
+        let dir = TempCasDir::new("corrupt-root");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/corrupt-root");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        // The child is sound and the ROOT is the undecodable one, which is the
+        // inverse of the case above.
+        let root = vec![0x21];
+        let child = vec![0x22];
+        let manifest = vec![
+            ManifestEntry {
+                llcas_digest: root.clone(),
+                blob: reapi::Digest { hash: "ee".repeat(32), size_bytes: 4 },
+                contents: Some(b"not a frame".to_vec()),
+            },
+            ManifestEntry {
+                llcas_digest: child.clone(),
+                blob: reapi::Digest { hash: "ff".repeat(32), size_bytes: 5 },
+                contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"child"))),
+            },
+        ];
+
+        proxy
+            .materialize_manifest(&remote, state, &manifest, observed)
+            .expect("a corrupt root is not an error either, it is the case being handled");
+
+        assert!(proxy.is_local(state, observed, &child), "the child landed");
+        assert!(
+            !proxy.is_local(state, observed, &root),
+            "and the root did not, so no association can be recorded over it"
+        );
+        assert_eq!(
+            state.stats_incomplete_closures.load(Ordering::Relaxed),
+            1,
+            "the root failing on its own must be counted too: it is the store's \
+             most consequential outcome, and deciding this at the root's turn in \
+             the loop reported only the case where a CHILD was skipped"
+        );
+    }
+
+    /// Skipping a node is a designed outcome here, so "root present, child
+    /// absent" is reachable without any prune — and invisible to a reader, whose
+    /// guard probes the ROOT and nothing deeper. Storing the root last, and only
+    /// when the rest of its closure landed, is what makes that probe mean
+    /// "complete". Without it this manifest publishes a root over a hole.
+    #[test]
+    fn an_incomplete_closure_withholds_its_root() {
+        let dir = TempCasDir::new("incomplete-closure");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/incomplete");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        // Root first, as an ActionResult's output order puts it. Both arrive
+        // inlined, so nothing is fetched and the remote is never consulted; the
+        // child's bytes are not a frame, which is one of the ways a node is
+        // skipped.
+        let root = vec![0x01];
+        let child = vec![0x02];
+        let manifest = vec![
+            ManifestEntry {
+                llcas_digest: root.clone(),
+                blob: reapi::Digest { hash: "aa".repeat(32), size_bytes: 4 },
+                contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"root"))),
+            },
+            ManifestEntry {
+                llcas_digest: child.clone(),
+                blob: reapi::Digest { hash: "bb".repeat(32), size_bytes: 4 },
+                contents: Some(b"not a frame".to_vec()),
+            },
+        ];
+
+        proxy
+            .materialize_manifest(&remote, state, &manifest, observed)
+            .expect("a skipped node is not an error, it is the case being handled");
+
+        assert!(
+            !proxy.is_local(state, observed, &root),
+            "the root must NOT be published when a node in its closure was skipped: \
+             a later get probes only the root, so storing it here is what turns an \
+             incomplete graph into a hit that fails at load on the child"
+        );
+        assert!(!proxy.is_local(state, observed, &child), "and the child did not land");
+        assert_eq!(
+            state.stats_incomplete_closures.load(Ordering::Relaxed),
+            1,
+            "and the condition is counted rather than silent -- it was the silence \
+             that let this go undiagnosed"
+        );
+    }
+
+    /// The other half: withholding must be conditional, or no graph would ever
+    /// become locally resolvable and every build would re-resolve every key.
+    #[test]
+    fn a_complete_closure_publishes_its_root() {
+        let dir = TempCasDir::new("complete-closure");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/complete");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        let root = vec![0x11];
+        let child = vec![0x12];
+        let manifest = vec![
+            ManifestEntry {
+                llcas_digest: root.clone(),
+                blob: reapi::Digest { hash: "cc".repeat(32), size_bytes: 4 },
+                contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"root"))),
+            },
+            ManifestEntry {
+                llcas_digest: child.clone(),
+                blob: reapi::Digest { hash: "dd".repeat(32), size_bytes: 5 },
+                contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"child"))),
+            },
+        ];
+
+        proxy
+            .materialize_manifest(&remote, state, &manifest, observed)
+            .expect("materialize");
+
+        assert!(proxy.is_local(state, observed, &child), "the child landed");
+        assert!(
+            proxy.is_local(state, observed, &root),
+            "so the root is published and the key resolves locally next build"
+        );
+        assert_eq!(state.stats_incomplete_closures.load(Ordering::Relaxed), 0);
+    }
+
+    // A demand fetch is a door into the same store, and it does not have to come
+    // after a resolve: the compiler asks for an object the moment it fails to
+    // load one. If a wipe lands in between, this is the first thing to touch the
+    // dead handle, and answering "present" from it tells the compiler an object
+    // is there that its own live CAS has never seen.
+    #[test]
+    fn a_demand_fetch_arriving_first_after_a_wipe_does_not_answer_from_the_dead_store() {
+        let dir = TempCasDir::new("wipe-fetch");
+        let state = path_state_for(&dir.path());
+        let digest = store_probe_object(state, b"present-before-the-wipe");
+        let proxy = test_proxy();
+        assert!(
+            proxy
+                .fetch_object(state, &dir.path(), "", &digest)
+                .expect("fetch should not error"),
+            "sanity: served from the live store before the wipe"
+        );
+
+        // No resolve in between: the wipe, then the fetch.
+        dir.wipe();
+
+        assert!(
+            !proxy
+                .fetch_object(state, &dir.path(), "", &digest)
+                .expect("fetch should not error"),
+            "a fetch after a wipe must not report an object the compiler's own CAS \
+             cannot see: that is the `missing object` this rebind exists to prevent"
+        );
+    }
+
+    // check_generation is the only caller that rebinds, and it must do so from
+    // the wipe signal alone -- the marks it drops are worthless while the handle
+    // they get re-learned through still points at the deleted store.
+    #[test]
+    fn a_wipe_rebinds_the_handle_and_drops_the_marks() {
+        let dir = TempCasDir::new("wipe-guard");
+        let state = path_state_for(&dir.path());
+        let digest = store_probe_object(state, b"marked-local-before-the-wipe");
+        state.shard(&digest).lock().unwrap().insert(digest.clone());
+        let before = state.gen_counter.load(Ordering::SeqCst);
+
+        dir.wipe();
+        let proxy = test_proxy();
+        proxy.check_generation(state);
+
+        assert!(
+            state.gen_counter.load(Ordering::SeqCst) > before,
+            "a wipe must advance the generation so in-flight writes are dropped"
+        );
+        assert!(
+            !state.shard(&digest).lock().unwrap().contains(&digest),
+            "the known-local mark must be dropped"
+        );
+        assert!(
+            !state.load_present(&digest),
+            "and the probe behind it must now read the live store"
         );
     }
 }

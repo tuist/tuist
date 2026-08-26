@@ -152,6 +152,15 @@ components:
           type: string
           x-struct:
           x-validate:
+        only_test_identifiers:
+          description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         scheme:
           description: The scheme used for the test run.
           type: string
@@ -166,6 +175,15 @@ components:
         shard_plan_id:
           description: The shard plan ID if this test run is part of a sharded execution.
           type: string
+          x-struct:
+          x-validate:
+        skip_test_identifiers:
+          description: The tests the caller asked this run to exclude.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         status:
@@ -1788,6 +1806,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        git_branch:
+          description: "The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch."
+          type: string
+          x-struct:
+          x-validate:
         gradle_build_id:
           description: The UUID of the associated Gradle build.
           format: uuid
@@ -1804,6 +1827,15 @@ components:
           x-validate:
         modules:
           description: Test module names (for module-level granularity).
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        parallelizable_modules:
+          description: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
           items:
             type: string
             x-struct:
@@ -1834,6 +1866,15 @@ components:
         shard_total:
           description: Exact number of shards. With suite granularity, the final shard is the catch-all.
           type: integer
+          x-struct:
+          x-validate:
+        skipped_test_suites:
+          description: Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         test_suites:
@@ -2112,7 +2153,7 @@ components:
           x-struct:
           x-validate:
         plan:
-          description: The plan associated with the organization
+          description: The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
           enum:
             - air
             - pro
@@ -2716,6 +2757,12 @@ components:
           type: integer
           x-struct:
           x-validate:
+        end_cursor:
+          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         has_next_page:
           description: Whether there are more pages available.
           type: boolean
@@ -2731,8 +2778,15 @@ components:
           type: integer
           x-struct:
           x-validate:
+        start_cursor:
+          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         total_count:
-          description: Total number of items.
+          description: Total number of items. Always `nil` when using cursor-based pagination.
+          nullable: true
           type: integer
           x-struct:
           x-validate:
@@ -2745,7 +2799,6 @@ components:
         - has_next_page
         - has_previous_page
         - page_size
-        - total_count
       title: PaginationMetadata
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.PaginationMetadata
@@ -2857,6 +2910,56 @@ components:
       title: ProjectToken
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ProjectToken
+      x-validate:
+    GenerationsIndexBefore:
+      description: Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+      title: GenerationsIndexBefore
+      type: string
+      x-struct:
+      x-validate:
+    RunnerShellSession:
+      properties:
+        expires_at:
+          description: When the session expires.
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        session_id:
+          description: The runner shell session ID.
+          type: integer
+          x-struct:
+          x-validate:
+        state:
+          description: The current runner shell session state.
+          type: string
+          x-struct:
+          x-validate:
+        websocket_protocol:
+          description: The WebSocket subprotocol token.
+          type: string
+          x-struct:
+          x-validate:
+        websocket_url:
+          description: The WebSocket URL to connect to.
+          type: string
+          x-struct:
+          x-validate:
+        workflow_job_id:
+          description: The GitHub Actions workflow job ID.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - session_id
+        - workflow_job_id
+        - state
+        - expires_at
+        - websocket_url
+        - websocket_protocol
+      title: RunnerShellSession
+      type: object
+      x-struct:
       x-validate:
     ArtifactUploadURL:
       description: The URL to upload an artifact.
@@ -3809,8 +3912,7 @@ components:
       x-struct:
       x-validate:
     GenerationsIndexPage:
-      default: 1
-      description: The page number to return.
+      description: Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.
       minimum: 1
       title: GenerationsIndexPage
       type: integer
@@ -3961,6 +4063,15 @@ components:
           type: array
           x-struct:
           x-validate:
+        payment_required:
+          description: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         projects:
           items:
             type: string
@@ -3972,6 +4083,7 @@ components:
       required:
         - accounts
         - projects
+        - payment_required
       title: CacheAccess
       type: object
       x-struct:
@@ -4213,6 +4325,32 @@ components:
         - miss
       title: CacheTaskStatus
       type: string
+      x-struct:
+      x-validate:
+    GenerationsIndexAfter:
+      description: Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
+      title: GenerationsIndexAfter
+      type: string
+      x-struct:
+      x-validate:
+    CacheToken:
+      description: A short-lived token that proves the subject's cache access
+      properties:
+        expires_in:
+          description: Seconds until the token expires.
+          type: integer
+          x-struct:
+          x-validate:
+        token:
+          description: The token to send to cache nodes.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - token
+        - expires_in
+      title: CacheToken
+      type: object
       x-struct:
       x-validate:
     CASOutputType:
@@ -5030,7 +5168,7 @@ components:
       x-validate:
     AbsentCacheArtifact:
       properties:
-        error:
+        errors:
           items:
             properties:
               code:
@@ -6646,6 +6784,14 @@ paths:
                 x-struct:
                 x-validate:
           description: List of cache endpoints
+          headers:
+            cache-control:
+              description: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '403':
           content:
             application/json:
@@ -6658,7 +6804,12 @@ paths:
   /api/cache:
     get:
       callbacks: {}
-      description: This endpoint returns a signed URL that can be used to download an artifact from the cache.
+      description: |
+        This endpoint returns a signed URL that can be used to download an artifact from the cache.
+
+        The URL is signed from the request parameters alone, without a storage round trip, so
+        this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+        miss, or treat a failing download as the miss signal.
       operationId: downloadCacheArtifact
       parameters:
         - description: The category of the cache. It's used to differentiate between different types of caches.
@@ -6697,7 +6848,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CacheArtifactDownloadURL'
-          description: The artifact exists and is downloadable
+          description: 'A signed download URL was generated. The URL is returned without verifying that the artifact is stored, so this status does not imply a cache hit: a hash that was never uploaded is signed just the same, and the download then fails with a 404 at the storage provider.'
         '401':
           content:
             application/json:
@@ -6721,7 +6872,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The project or the cache artifact doesn't exist
+          description: The project doesn't exist
       summary: Downloads an artifact from the cache.
       tags:
         - Cache
@@ -7660,6 +7811,15 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                only_test_identifiers:
+                  description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
                 scheme:
                   description: The scheme used for the test run.
                   type: string
@@ -7674,6 +7834,15 @@ paths:
                 shard_plan_id:
                   description: The shard plan ID if this test run is part of a sharded execution.
                   type: string
+                  x-struct:
+                  x-validate:
+                skip_test_identifiers:
+                  description: The tests the caller asked this run to exclude.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
                   x-struct:
                   x-validate:
                 status:
@@ -8022,6 +8191,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The test run could not be scheduled for processing
       summary: Create a new test run.
       tags:
         - Tests
@@ -8600,6 +8775,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Validation error
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal server error occurred
       summary: Update an automation alert.
       tags:
         - Automation Alerts
@@ -8674,6 +8855,14 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -8690,28 +8879,20 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: The handle of the project.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
       responses:
@@ -9426,6 +9607,11 @@ paths:
                                     subhashes:
                                       description: Individual component hashes that make up the final hash
                                       properties:
+                                        additional_hashing_inputs:
+                                          description: Additional hashing inputs hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
                                         additional_strings:
                                           description: Additional strings used in the hash
                                           items:
@@ -9599,6 +9785,11 @@ paths:
                                     subhashes:
                                       description: Individual component hashes that make up the final hash
                                       properties:
+                                        additional_hashing_inputs:
+                                          description: Additional hashing inputs hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
                                         additional_strings:
                                           description: Additional strings used in the hash
                                           items:
@@ -9848,6 +10039,12 @@ paths:
           application/json:
             schema:
               properties:
+                sso_automatic_enrollment:
+                  description: When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
+                  nullable: true
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 sso_enforced:
                   description: When true, organization members must use SSO and cannot log in with email and password
                   nullable: true
@@ -9926,6 +10123,12 @@ paths:
           application/json:
             schema:
               properties:
+                sso_automatic_enrollment:
+                  description: When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
+                  nullable: true
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 sso_enforced:
                   description: When true, organization members must use SSO and cannot log in with email and password
                   nullable: true
@@ -11123,8 +11326,12 @@ paths:
   /api/cache/exists:
     get:
       callbacks: {}
-      deprecated: true
-      description: This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
+      description: |
+        This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
+
+        It is the only cache endpoint that reaches storage to answer, so it is what clients
+        should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+        checking storage and answers 200 either way.
       operationId: cacheArtifactExists
       parameters:
         - description: The category of the cache. It's used to differentiate between different types of caches.
@@ -11204,7 +11411,7 @@ paths:
             application/json:
               schema:
                 properties:
-                  error:
+                  errors:
                     items:
                       properties:
                         code:
@@ -15570,6 +15777,15 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: The exact shard plan identifier. When present, it takes precedence over the reference.
+          in: query
+          name: shard_plan_id
+          required: false
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
         - description: The zero-based shard index.
           in: path
           name: shard_index
@@ -15585,6 +15801,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Shard'
           description: The shard
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request parameters are invalid
         '401':
           content:
             application/json:
@@ -15791,6 +16013,15 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
+                  payment_required:
+                    description: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
                   projects:
                     items:
                       type: string
@@ -15802,6 +16033,7 @@ paths:
                 required:
                   - accounts
                   - projects
+                  - payment_required
                 title: CacheAccess
                 type: object
                 x-struct:
@@ -16280,6 +16512,11 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                git_branch:
+                  description: "The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch."
+                  type: string
+                  x-struct:
+                  x-validate:
                 gradle_build_id:
                   description: The UUID of the associated Gradle build.
                   format: uuid
@@ -16296,6 +16533,15 @@ paths:
                   x-validate:
                 modules:
                   description: Test module names (for module-level granularity).
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                parallelizable_modules:
+                  description: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
                   items:
                     type: string
                     x-struct:
@@ -16326,6 +16572,15 @@ paths:
                 shard_total:
                   description: Exact number of shards. With suite granularity, the final shard is the catch-all.
                   type: integer
+                  x-struct:
+                  x-validate:
+                skipped_test_suites:
+                  description: Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
                   x-struct:
                   x-validate:
                 test_suites:
@@ -17881,6 +18136,102 @@ paths:
       summary: It completes a multi-part upload
       tags:
         - Analytics
+  /api/runners/interactive/shell:
+    post:
+      callbacks: {}
+      description: Creates an interactive shell session for a running runner job.
+      operationId: createRunnerShellSession
+      parameters:
+        - description: A dashboard job URL, GitHub Actions job URL, or workflow job ID.
+          in: query
+          name: job_ref
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  expires_at:
+                    description: When the session expires.
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  session_id:
+                    description: The runner shell session ID.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  state:
+                    description: The current runner shell session state.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  websocket_protocol:
+                    description: The WebSocket subprotocol token.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  websocket_url:
+                    description: The WebSocket URL to connect to.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  workflow_job_id:
+                    description: The GitHub Actions workflow job ID.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - session_id
+                  - workflow_job_id
+                  - state
+                  - expires_at
+                  - websocket_url
+                  - websocket_protocol
+                title: RunnerShellSession
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner shell session
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The job reference is missing
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is not authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The runner job was not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Shell access is unavailable for the runner job
+      summary: Create a runner shell session.
+      tags:
+        - Runners
   /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons:
     post:
       callbacks: {}
@@ -18971,16 +19322,36 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: ''
+        - deprecated: true
+          description: ''
           in: query
           name: page
           required: false
           schema:
-            default: 1
-            description: The page number to return.
+            description: Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.
             minimum: 1
             title: GenerationsIndexPage
             type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: after
+          required: false
+          schema:
+            description: Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
+            title: GenerationsIndexAfter
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: before
+          required: false
+          schema:
+            description: Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+            title: GenerationsIndexBefore
+            type: string
             x-struct:
             x-validate:
       responses:
@@ -21058,9 +21429,76 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Validation error
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal server error occurred
       summary: Create an automation alert.
       tags:
         - Automation Alerts
+  /api/cache/token:
+    post:
+      callbacks: {}
+      description: |
+        Returns a short-lived token that carries the authenticated subject's cache grants.
+
+        Cache nodes verify it themselves and authorize from the grants it carries, so
+        clients holding a credential a cache node cannot verify locally (a CI project
+        token, for example) avoid a server round-trip per cache authorization. Exchange
+        it once and reuse it until it expires. It is only accepted by cache nodes; it is
+        not an API credential.
+      operationId: getCacheToken
+      parameters:
+        - description: 'Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account.'
+          in: query
+          name: full_handle
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: A short-lived token that proves the subject's cache access
+                properties:
+                  expires_in:
+                    description: Seconds until the token expires.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  token:
+                    description: The token to send to cache nodes.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - token
+                  - expires_in
+                title: CacheToken
+                type: object
+                x-struct:
+                x-validate:
+          description: A cache token for the authenticated subject
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has exhausted its plan's free tier
+      summary: Exchange the current credential for a cache token.
+      tags:
+        - Cache
 security:
   - authorization: []
   - cookie: []

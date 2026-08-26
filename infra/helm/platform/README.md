@@ -27,13 +27,9 @@ kubectl create namespace platform
 kubectl -n platform create secret generic cloudflare-api-token \
   --from-literal=api-token="$CLOUDFLARE_API_TOKEN"
 
-# 3. Fetch chart dependencies.
-helm dependency update infra/helm/platform
-
-# 4. Install the platform with the right provider overlay.
-helm upgrade --install platform infra/helm/platform \
-  -n platform \
-  -f infra/helm/platform/values-hetzner.yaml
+# 3. Install the platform through the managed-cluster task. It reconciles the
+# cert-manager custom resource definitions before Helm renders the ClusterIssuer.
+mise -C infra run k8s:install-platform "$KUBECONFIG" tuist-<environment>
 ```
 
 Other clouds can plug in by adding a `values-<provider>.yaml` overlay that
@@ -92,8 +88,8 @@ When enabled, a `values-<cluster-name>.yaml` overlay renders:
   configured egress IP via the node carrying the **active** label
   `tuist.dev/stable-egress-gateway=server`.
 - `DaemonSet/kube-system/tuist-server-stable-egress-host-configurer`, which runs
-  on the active node and keeps the Floating IP + source route present on its
-  `eth0`.
+  on every candidate node and keeps the Floating IP + source route prepared on
+  its `eth0`. Hetzner routes the address only to the active cloud server.
 - When `failoverController.enabled`, the
   `Deployment/kube-system/stable-egress-controller` (see
   [`infra/stable-egress-controller/`](../../stable-egress-controller/)).
@@ -117,8 +113,11 @@ automatic failover — no manual steps and no SPOF:
   is no healthy active node does it fail over to a Ready `md-egress` candidate,
   moving the IP + label together (~30–60s: node-NotReady detection + reassign;
   faster on deletion).
-- **Datapath:** Cilium re-selects the gateway (1s reconcile) and the
-  host-configurer reschedules onto the new active node automatically.
+- **Preparation:** the host-configurer runs on every candidate and reports
+  Ready only after the outbound address is attached. The controller excludes
+  unprepared candidates from election.
+- **Datapath:** once the Floating IP is assigned, the controller applies the
+  active label and Cilium re-selects the already-prepared gateway.
 
 Why Cilium alone isn't enough: our Cilium 1.18 OSS egress gateway selects a
 gateway node by lexical order with no health-based failover (cilium/cilium#30157
@@ -189,4 +188,4 @@ kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.o
 - The main ingress-nginx LoadBalancer is annotated for Hetzner Cloud (Nuremberg region) by default. Managed Tuist cluster overlays pin it explicitly to `fsn1`, matching the general worker pools; regional Kura LoadBalancers are pinned separately.
 - Production Kura ingress controllers are shared per region. Their LoadBalancers are placed in `fsn1`, `ash`, and `hil` and their pods are pinned to the matching Kura node pools.
 - external-dns is scoped by `txtOwnerId: tuist-platform` — one cluster, one TXT prefix. Run it with `policy: sync` only if you're happy with it deleting DNS records that aren't tracked by any Ingress.
-- cert-manager CRDs are installed by the subchart (`installCRDs: true`). If another tool manages them, turn that off.
+- cert-manager custom resource definitions are reconciled by `k8s:install-platform` before the Helm release. A direct Helm install is supported only after another tool has applied those definitions.

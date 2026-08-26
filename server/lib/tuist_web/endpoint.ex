@@ -12,9 +12,15 @@ defmodule TuistWeb.Endpoint do
   alias TuistWeb.Webhooks.BillingController
   alias TuistWeb.Webhooks.GitHubController
 
+  # Browser cookies are scoped to host and ignore the port, so every dev
+  # server on localhost otherwise shares one session cookie: loading a
+  # page on one port rewrites the session another port's form embedded
+  # its CSRF token into, and the next form post there fails as an
+  # invalid CSRF token. Dev derives the name from the port to give each
+  # server its own cookie; every other environment keeps `_tuist_key`.
   @session_options [
     store: :cookie,
-    key: "_tuist_key",
+    key: Application.compile_env(:tuist, :session_cookie_key, "_tuist_key"),
     signing_salt: "tmgjS63H",
     same_site: "Lax"
   ]
@@ -60,7 +66,8 @@ defmodule TuistWeb.Endpoint do
 
   plug Plug.RequestId
   plug TuistCommon.OtelRequestIdPlug
-  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint], log: false
+  plug TuistCommon.RequestLoggerPlug
   plug TuistWeb.Plugs.RequestKindPlug
   plug TuistWeb.Plugs.SCIMErrorFormatPlug
   plug Sentry.PlugContext

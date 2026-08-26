@@ -6,6 +6,7 @@ This directory contains the core business logic and domain modules for the serve
 
 - Ecto schemas, contexts, and domain services.
 - Business rules for accounts, projects, bundles, previews, and analytics.
+- Content-addressed Open Graph image rendering and shared object-storage caching.
 
 ## Boundaries
 
@@ -40,6 +41,7 @@ This directory contains the core business logic and domain modules for the serve
 - Posthog: `server/lib/tuist/posthog/AGENTS.md`
 - Projects: `server/lib/tuist/projects/AGENTS.md`
 - Prom Ex: `server/lib/tuist/prom_ex/AGENTS.md`
+- Registry (Swift Package Registry writer): `server/lib/tuist/registry/AGENTS.md`
 - Repo: `server/lib/tuist/repo/AGENTS.md`
 - Result Bundle: `server/lib/tuist/result_bundle/AGENTS.md`
 - Runs: `server/lib/tuist/runs/AGENTS.md`

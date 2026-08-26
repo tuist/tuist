@@ -2,10 +2,15 @@ defmodule Tuist.AutomationsTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Workers.AlertEvaluationWorker
+  alias Tuist.Repo
+  alias Tuist.Tests
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -83,6 +88,7 @@ defmodule Tuist.AutomationsTest do
                })
 
       assert updated.baseline_established_at == nil
+      assert updated.baseline_generation == automation.baseline_generation + 1
     end
 
     test "keeps the baseline when only enabled changes" do
@@ -91,6 +97,134 @@ defmodule Tuist.AutomationsTest do
       assert {:ok, updated} = Automations.update_alert(automation, %{"enabled" => false})
 
       assert updated.baseline_established_at == automation.baseline_established_at
+      assert updated.baseline_generation == automation.baseline_generation
+    end
+  end
+
+  describe "alert revisions" do
+    test "records creation and configuration edits with the actor and source" do
+      project = ProjectsFixtures.project_fixture()
+      actor = AccountsFixtures.user_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        name: "Quarantine flaky tests",
+        monitor_type: "flakiness_rate",
+        trigger_config: %{"threshold" => 10, "window_type" => "rolling", "rolling_window_size" => 50},
+        trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
+      }
+
+      assert {:ok, automation} =
+               Automations.create_alert(attrs, actor: actor, source: "dashboard")
+
+      assert {:ok, _updated} =
+               Automations.update_alert(
+                 automation,
+                 %{
+                   name: "Auto-quarantine flaky tests",
+                   trigger_actions: [
+                     %{"type" => "change_state", "state" => "muted"},
+                     %{
+                       "type" => "send_slack",
+                       "channel" => "test-infra",
+                       "message" => "A test was quarantined",
+                       "webhook_url_encrypted" => "secret"
+                     }
+                   ]
+                 },
+                 actor: actor,
+                 source: "dashboard"
+               )
+
+      assert [updated_revision, created_revision] = Automations.list_alert_revisions(automation.id)
+      assert updated_revision.event == "updated"
+      assert updated_revision.actor.id == actor.id
+      assert updated_revision.source == "dashboard"
+
+      assert updated_revision.changes["name"] == %{
+               "from" => "Quarantine flaky tests",
+               "to" => "Auto-quarantine flaky tests"
+             }
+
+      refute get_in(updated_revision.snapshot, ["trigger_actions", Access.at(1), "webhook_url_encrypted"])
+      assert created_revision.event == "created"
+
+      assert [newest_revision] = Automations.list_alert_revisions(automation.id, limit: 1)
+      assert newest_revision.id == updated_revision.id
+
+      assert [oldest_revision] =
+               Automations.list_alert_revisions(automation.id, limit: 1, before: newest_revision)
+
+      assert oldest_revision.id == created_revision.id
+    end
+
+    test "does not record a revision when configuration is unchanged" do
+      automation = AutomationsFixtures.automation_alert_fixture()
+      revisions_before = Automations.list_alert_revisions(automation.id)
+
+      assert {:ok, _automation} = Automations.update_alert(automation, %{name: automation.name})
+
+      assert Automations.list_alert_revisions(automation.id) == revisions_before
+    end
+
+    test "records redacted webhook updates" do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          trigger_actions: [
+            %{
+              "type" => "send_slack",
+              "channel" => "test-infra",
+              "message" => "A test was quarantined",
+              "webhook_url_encrypted" => "old-webhook"
+            }
+          ]
+        )
+
+      assert {:ok, _updated} =
+               Automations.update_alert(automation, %{
+                 trigger_actions: [
+                   %{
+                     "type" => "send_slack",
+                     "channel" => "test-infra",
+                     "message" => "A test was quarantined",
+                     "webhook_url_encrypted" => "new-webhook"
+                   }
+                 ]
+               })
+
+      [updated_revision | _] = Automations.list_alert_revisions(automation.id)
+
+      assert %{"trigger_actions" => %{"from" => [before_action], "to" => [after_action]}} = updated_revision.changes
+      refute Map.has_key?(before_action, "webhook_url_encrypted")
+      refute Map.has_key?(after_action, "webhook_url_encrypted")
+      assert before_action["webhook_url_digest"] != after_action["webhook_url_digest"]
+    end
+
+    test "returns a revision error when the actor no longer exists" do
+      project = ProjectsFixtures.project_fixture()
+
+      assert {:error, :revision} =
+               Automations.create_alert(
+                 %{
+                   project_id: project.id,
+                   name: "Quarantine flaky tests",
+                   monitor_type: "flakiness_rate",
+                   trigger_config: %{"threshold" => 10, "window_type" => "last_days", "window" => "30d"},
+                   trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
+                 },
+                 actor_id: -1
+               )
+
+      assert [] = Automations.list_alerts(project.id)
+    end
+
+    test "rolls back an update when the actor no longer exists" do
+      automation = AutomationsFixtures.automation_alert_fixture()
+
+      assert {:error, :revision} = Automations.update_alert(automation, %{enabled: false}, actor_id: -1)
+
+      assert {:ok, unchanged} = Automations.get_alert(automation.id)
+      assert unchanged.enabled
     end
   end
 
@@ -147,21 +281,25 @@ defmodule Tuist.AutomationsTest do
   end
 
   describe "enqueue_flaky_alert_evaluations/2" do
-    test "enqueues debounced scoped evaluations for enabled scoped monitors only" do
+    test "enqueues one debounced scoped evaluation per project and cadence" do
       project = ProjectsFixtures.project_fixture()
       other_project = ProjectsFixtures.project_fixture()
 
-      flakiness_alert =
-        AutomationsFixtures.automation_alert_fixture(project: project, monitor_type: "flakiness_rate")
+      _flakiness_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{"threshold" => 10, "window_type" => "rolling", "rolling_window_size" => 75}
+        )
 
-      count_alert =
+      _count_alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "flaky_run_count",
           trigger_config: %{"threshold" => 1, "window_type" => "last_days", "window" => "30d"}
         )
 
-      reliability_alert =
+      _reliability_alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "reliability_rate",
@@ -185,33 +323,152 @@ defmodule Tuist.AutomationsTest do
 
       assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, test_case_ids ++ [hd(test_case_ids), nil])
 
-      jobs = all_enqueued(worker: AlertEvaluationWorker)
+      assert [
+               %{
+                 args: %{
+                   "project_id" => project_id,
+                   "cadence_seconds" => 300,
+                   "evaluate_recent_test_case_runs" => true
+                 }
+               }
+             ] = all_enqueued(worker: AlertEvaluationWorker)
 
-      assert length(jobs) == 3
-
-      args_by_alert_id = Map.new(jobs, fn job -> {job.args["alert_id"], job.args} end)
-
-      assert args_by_alert_id[flakiness_alert.id]["evaluate_recent_test_case_runs"]
-      refute Map.has_key?(args_by_alert_id[flakiness_alert.id], "test_case_ids")
-      assert args_by_alert_id[count_alert.id]["evaluate_recent_test_case_runs"]
-      refute Map.has_key?(args_by_alert_id[count_alert.id], "test_case_ids")
-      assert args_by_alert_id[reliability_alert.id]["evaluate_recent_test_case_runs"]
-      refute Map.has_key?(args_by_alert_id[reliability_alert.id], "test_case_ids")
+      assert project_id == project.id
     end
 
-    test "merges repeated enqueue calls into one scoped evaluation job per alert" do
+    test "leaves calendar-window alerts and rolling baselines to the scheduler" do
       project = ProjectsFixtures.project_fixture()
-      alert = AutomationsFixtures.automation_alert_fixture(project: project, monitor_type: "flakiness_rate")
+
+      _calendar_window_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate"
+        )
+
+      _rolling_baseline_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          baseline_established_at: nil,
+          monitor_type: "flaky_run_count",
+          trigger_config: %{"threshold" => 1, "window_type" => "rolling", "rolling_window_size" => 75}
+        )
+
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [Ecto.UUID.generate()])
+
+      assert [] = all_enqueued(worker: AlertEvaluationWorker)
+    end
+
+    test "merges repeated enqueue calls into one scoped evaluation job per project and cadence" do
+      project = ProjectsFixtures.project_fixture()
+
+      _alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{"threshold" => 10, "window_type" => "rolling", "rolling_window_size" => 75}
+        )
 
       [first_id, second_id, third_id] = Enum.map(1..3, fn _ -> Ecto.UUID.generate() end)
 
       assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [first_id, second_id])
       assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [second_id, third_id])
 
-      assert [%{args: %{"alert_id" => alert_id, "evaluate_recent_test_case_runs" => true}}] =
+      assert [
+               %{
+                 args: %{
+                   "project_id" => project_id,
+                   "cadence_seconds" => 300,
+                   "evaluate_recent_test_case_runs" => true
+                 }
+               }
+             ] =
                all_enqueued(worker: AlertEvaluationWorker)
 
-      assert alert_id == alert.id
+      assert project_id == project.id
+    end
+
+    test "keeps different alert cadences in separate evaluation jobs" do
+      project = ProjectsFixtures.project_fixture()
+
+      _five_minute_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          cadence: "5m",
+          trigger_config: %{"threshold" => 10, "window_type" => "rolling", "rolling_window_size" => 75}
+        )
+
+      _one_minute_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          cadence: "1m",
+          trigger_config: %{
+            "threshold" => 90,
+            "comparison" => "lt",
+            "window_type" => "rolling",
+            "rolling_window_size" => 75
+          }
+        )
+
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [Ecto.UUID.generate()])
+
+      assert [60, 300] ==
+               [worker: AlertEvaluationWorker]
+               |> all_enqueued()
+               |> Enum.map(& &1.args["cadence_seconds"])
+               |> Enum.sort()
+    end
+
+    test "schedules scoped evaluations at the alert cadence" do
+      project = ProjectsFixtures.project_fixture()
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          cadence: "30s"
+        )
+
+      enqueued_at = DateTime.utc_now(:second)
+
+      assert :ok = Automations.enqueue_scoped_alert_evaluation(alert)
+
+      assert [%{scheduled_at: scheduled_at}] = all_enqueued(worker: AlertEvaluationWorker)
+      assert DateTime.diff(scheduled_at, enqueued_at, :second) in 30..31
+    end
+
+    test "does not enqueue a second scoped evaluation while the existing job is active" do
+      project = ProjectsFixtures.project_fixture()
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          cadence: "5m",
+          trigger_config: %{
+            "threshold" => 10,
+            "window_type" => "rolling",
+            "rolling_window_size" => 75
+          }
+        )
+
+      assert :ok = Automations.enqueue_scoped_alert_evaluation(alert)
+
+      job_query =
+        from(job in Oban.Job,
+          where: job.worker == ^inspect(AlertEvaluationWorker)
+        )
+
+      job = Repo.one!(job_query)
+
+      for state <- ["executing", "retryable"] do
+        Repo.update!(Ecto.Changeset.change(job, state: state))
+
+        assert :ok = Automations.enqueue_scoped_alert_evaluation(alert)
+        assert [%{id: job_id, state: ^state}] = Repo.all(job_query)
+        assert job_id == job.id
+      end
     end
   end
 
@@ -224,6 +481,8 @@ defmodule Tuist.AutomationsTest do
 
       first_id = Ecto.UUID.generate()
       second_id = Ecto.UUID.generate()
+      corrected_id = Ecto.UUID.generate()
+      outside_window_id = Ecto.UUID.generate()
 
       RunsFixtures.test_case_run_fixture(
         project_id: project.id,
@@ -251,6 +510,19 @@ defmodule Tuist.AutomationsTest do
 
       RunsFixtures.test_case_run_fixture(
         project_id: project.id,
+        test_case_id: corrected_id,
+        ran_at: ~N[2025-01-01 00:00:00.000000],
+        inserted_at: ~N[2026-06-09 10:10:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: outside_window_id,
+        inserted_at: ~N[2026-06-09 10:15:50.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
         test_case_id: nil,
         inserted_at: ~N[2026-06-09 10:00:49.000000]
       )
@@ -261,11 +533,31 @@ defmodule Tuist.AutomationsTest do
         inserted_at: ~N[2026-06-09 10:00:49.000000]
       )
 
-      assert %{test_case_ids: test_case_ids, cursor: cursor} =
+      assert %{test_case_ids: test_case_ids, cursor: cursor, more?: true} =
                Automations.recent_test_case_run_changes_for_alert(alert)
 
-      assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id])
-      assert cursor == ~U[2026-06-09 10:00:48Z]
+      assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id, corrected_id])
+      assert cursor == ~U[2026-06-09 10:15:50Z]
+    end
+  end
+
+  describe "scoped_evaluation_ranges/1" do
+    test "keeps ordered identifiers in several bounded ranges" do
+      identifiers = Enum.to_list(1..8001)
+
+      ranges = Automations.scoped_evaluation_ranges(identifiers)
+
+      assert Enum.map(ranges, &length/1) == [2000, 2000, 2000, 2000, 1]
+      assert List.flatten(ranges) == identifiers
+    end
+
+    test "splits smaller sets into at least four ranges" do
+      identifiers = Enum.to_list(1..4000)
+
+      assert [1000, 1000, 1000, 1000] ==
+               identifiers
+               |> Automations.scoped_evaluation_ranges()
+               |> Enum.map(&length/1)
     end
   end
 
@@ -347,6 +639,23 @@ defmodule Tuist.AutomationsTest do
       reject(&ActionExecutor.execute_actions/3)
 
       assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+    end
+
+    test "skips alerts whose trigger state filter does not match the test case" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      alert = test_updated_alert(project, trigger_config: %{"events" => ["marked_flaky"], "states" => ["skipped"]})
+      project_id = project.id
+      test_case_id = test_case.id
+
+      expect(Tests, :get_test_case_states, fn ^project_id, [^test_case_id] ->
+        %{test_case_id => %{state: "muted", is_flaky: false}}
+      end)
+
+      reject(&ActionExecutor.execute_actions/3)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+      assert Automations.list_active_alert_events(alert.id) == []
     end
 
     test ":unmarked_flaky fires an alert subscribed to unmarked_flaky" do

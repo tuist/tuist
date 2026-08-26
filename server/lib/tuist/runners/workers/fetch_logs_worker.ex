@@ -40,6 +40,13 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
   GitHub returns 404 for ~30 s after the job completes while it
   finalises the log archive. We let Oban retry with backoff up to
   5 attempts before giving up.
+
+  A 404 on the last attempt is not raised. Some jobs have no log
+  archive at all — `Tuist.Runners.Dispatch` filters out the known
+  class (a completed job with no steps never ran), but a webhook
+  that predates that filter, or an archive GitHub simply never
+  publishes, would otherwise discard the job with an error nobody
+  can act on.
   """
   use Oban.Worker,
     queue: :webhooks,
@@ -68,7 +75,9 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
           "account_id" => account_id,
           "installation_id" => installation_id,
           "repository" => repository
-        }
+        },
+        attempt: attempt,
+        max_attempts: max_attempts
       }) do
     with {:ok, installation} <- fetch_installation(installation_id),
          api_url = VCS.installation_api_url(installation),
@@ -83,6 +92,17 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
         Logger.warning("runners: fetch-logs gave up; installation gone",
           workflow_job_id: workflow_job_id,
           installation_id: installation_id
+        )
+
+        :ok
+
+      {:error, :log_not_ready_yet} when attempt >= max_attempts ->
+        # Out of retries and GitHub still has no archive. Nothing here
+        # is actionable, so record it and let the job complete rather
+        # than discarding it with an error.
+        Logger.warning("runners: fetch-logs gave up; no log archive published",
+          workflow_job_id: workflow_job_id,
+          repository: repository
         )
 
         :ok

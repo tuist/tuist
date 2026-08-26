@@ -32,6 +32,14 @@
     {dgettext("dashboard_projects", "Automations")}
   </h2>
 
+  <.alert
+    :if={@flash_message}
+    status={elem(@flash_message, 0)}
+    type="secondary"
+    size="small"
+    title={elem(@flash_message, 1)}
+  />
+
   <.card_section data-part="test-case-automations-card-section">
     <div data-part="header">
       <div data-part="title-group">
@@ -273,13 +281,14 @@
                       id="create-automation-rolling-window-size"
                       name="rolling_window_size"
                       value={@create_automation_form_rolling_window_size}
-                      placeholder="100"
+                      placeholder="75"
                       min={1}
-                      max={Tuist.Automations.Alerts.Alert.max_rolling_window_size()}
+                      max={Tuist.Automations.Alerts.Alert.max_rolling_trigger_window_size()}
                       error={
                         rolling_size_error(
                           @create_automation_form_window_type,
-                          @create_automation_form_rolling_window_size
+                          @create_automation_form_rolling_window_size,
+                          Tuist.Automations.Alerts.Alert.max_rolling_trigger_window_size()
                         )
                       }
                       phx-keyup="update_create_automation_form_rolling_window_size"
@@ -305,6 +314,25 @@
                         <span data-part="description">
                           {test_updated_event_description(event)}
                         </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+                <div data-part="form-row">
+                  <label data-part="label">
+                    {dgettext("dashboard_projects", "Only apply to tests in these states")}
+                  </label>
+                  <div id="create-automation-trigger-states" data-part="event-checkbox-list">
+                    <label
+                      :for={state <- ["enabled", "muted", "skipped"]}
+                      id={"create-automation-trigger-state-#{state}"}
+                      data-part="event-checkbox"
+                      phx-click="toggle_create_automation_form_trigger_state"
+                      phx-value-data={state}
+                    >
+                      <.checkbox_control checked={state in @create_automation_form_trigger_states} />
+                      <div data-part="body">
+                        <span data-part="label">{trigger_action_label(state)}</span>
                       </div>
                     </label>
                   </div>
@@ -681,12 +709,34 @@
                         error={
                           rolling_size_error(
                             @create_automation_form_recovery_window_type,
-                            @create_automation_form_recovery_rolling_window_size
+                            @create_automation_form_recovery_rolling_window_size,
+                            Tuist.Automations.Alerts.Alert.max_rolling_window_size()
                           )
                         }
                         phx-keyup="update_create_automation_form_recovery_rolling_window_size"
                         phx-debounce="300"
                       />
+                    </div>
+                  </div>
+                  <div data-part="form-row">
+                    <label data-part="label">
+                      {dgettext("dashboard_projects", "Only apply to tests in these states")}
+                    </label>
+                    <div id="create-automation-recovery-states" data-part="event-checkbox-list">
+                      <label
+                        :for={state <- ["enabled", "muted", "skipped"]}
+                        id={"create-automation-recovery-state-#{state}"}
+                        data-part="event-checkbox"
+                        phx-click="toggle_create_automation_form_recovery_state"
+                        phx-value-data={state}
+                      >
+                        <.checkbox_control checked={
+                          state in @create_automation_form_recovery_states
+                        } />
+                        <div data-part="body">
+                          <span data-part="label">{trigger_action_label(state)}</span>
+                        </div>
+                      </label>
                     </div>
                   </div>
                   <div
@@ -885,6 +935,11 @@
         id="automations-table"
         rows={@automations}
         row_key={fn a -> a.id end}
+        row_navigate={
+          fn automation ->
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations/#{automation.id}"
+          end
+        }
       >
         <:col :let={automation} label={dgettext("dashboard_projects", "Name")}>
           <.text_cell label={automation.name} />
@@ -893,8 +948,21 @@
           <.text_cell label={automation_summary(automation)} />
         </:col>
         <:col :let={automation} label="">
-          <.button_cell :if={@can_manage_automations}>
+          <.button_cell>
             <:button>
+              <.button
+                icon_only
+                size="small"
+                variant="secondary"
+                aria-label={dgettext("dashboard_projects", "View automation details")}
+                navigate={
+                  ~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations/#{automation.id}"
+                }
+              >
+                <.icon name="arrow_right" />
+              </.button>
+            </:button>
+            <:button :if={@can_manage_automations}>
               <.button
                 icon_only
                 size="small"
@@ -905,7 +973,7 @@
                 <.icon name="pencil" />
               </.button>
             </:button>
-            <:button>
+            <:button :if={@can_manage_automations}>
               <.button
                 icon_only
                 size="small"

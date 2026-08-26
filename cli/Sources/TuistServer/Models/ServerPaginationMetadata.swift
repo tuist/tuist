@@ -5,7 +5,7 @@ public struct ServerPaginationMetadata: Equatable {
     public let hasPreviousPage: Bool
     public let currentPage: Int?
     public let pageSize: Int
-    public let totalCount: Int
+    public let totalCount: Int?
     public let totalPages: Int?
 
     init(
@@ -13,7 +13,7 @@ public struct ServerPaginationMetadata: Equatable {
         hasPreviousPage: Bool,
         currentPage: Int?,
         pageSize: Int,
-        totalCount: Int,
+        totalCount: Int?,
         totalPages: Int?
     ) {
         self.hasNextPage = hasNextPage
@@ -39,7 +39,7 @@ public struct ServerPaginationMetadata: Equatable {
             hasPreviousPage: Bool = false,
             currentPage: Int? = 1,
             pageSize: Int = 20,
-            totalCount: Int = 100,
+            totalCount: Int? = 100,
             totalPages: Int? = 5
         ) -> ServerPaginationMetadata {
             ServerPaginationMetadata(

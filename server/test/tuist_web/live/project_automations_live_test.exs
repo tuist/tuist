@@ -7,6 +7,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
   alias Tuist.Accounts
   alias Tuist.Automations
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AutomationsFixtures
 
@@ -30,6 +31,21 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert html =~ "My automation"
       refute html =~ "No automations yet"
       assert html =~ automation.id
+    end
+
+    test "links each automation to its detail page", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      automation = AutomationsFixtures.automation_alert_fixture(project: project, name: "Auto-quarantine")
+
+      {:ok, live_view, _html} = open(conn, organization, project)
+
+      assert has_element?(
+               live_view,
+               "a[href='/#{organization.account.name}/#{project.name}/settings/automations/#{automation.id}']"
+             )
     end
 
     test "does not let a regular project member forge automation mutations", %{
@@ -230,7 +246,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Over cap"})
       render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
-      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "100000"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "1001"})
 
       # The Save button itself is rendered as disabled, so the user can't
       # click it and the changeset's cap is never exercised silently.
@@ -252,12 +268,12 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Within cap"})
       render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
-      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "100000"})
-      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "500"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "1001"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "75"})
 
       render_hook(lv, "save_automation", %{})
       assert [automation] = Automations.list_alerts(project.id)
-      assert automation.trigger_config["rolling_window_size"] == 500
+      assert automation.trigger_config["rolling_window_size"] == 75
     end
 
     test "rolling recovery window persists rolling_window_size and drops the days window", %{
@@ -300,6 +316,36 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert automation.recovery_config["window_type"] == "last_days"
       assert automation.recovery_config["window"] == "14d"
       refute Map.has_key?(automation.recovery_config, "rolling_window_size")
+    end
+
+    test "persists trigger and recovery state filters", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "State-aware recovery"})
+      render_hook(lv, "toggle_create_automation_form_trigger_state", %{"data" => "enabled"})
+      render_hook(lv, "toggle_create_automation_form_recovery", %{})
+      render_hook(lv, "toggle_create_automation_form_recovery_state", %{"data" => "muted"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.trigger_config["states"] == ["enabled"]
+      assert automation.recovery_config["states"] == ["muted"]
+    end
+
+    test "state filters are multi-select", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Reliability for live tests"})
+      render_hook(lv, "toggle_create_automation_form_trigger_state", %{"data" => "enabled"})
+      render_hook(lv, "toggle_create_automation_form_trigger_state", %{"data" => "muted"})
+      # Toggling the same state again removes it.
+      render_hook(lv, "toggle_create_automation_form_trigger_state", %{"data" => "muted"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.trigger_config["states"] == ["enabled"]
     end
 
     test "creates a test_updated automation subscribed to the default marked_flaky event", %{
@@ -456,6 +502,71 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert {:ok, %{enabled: false}} = Automations.get_alert(automation.id)
     end
 
+    test "can disable an existing automation whose rolling window is now unsupported", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          enabled: true,
+          trigger_config: %{
+            "threshold" => 10,
+            "window_type" => "rolling",
+            "rolling_window_size" => 75
+          }
+        )
+
+      automation
+      |> Ecto.Changeset.change(
+        trigger_config: %{
+          "threshold" => 10,
+          "window_type" => "rolling",
+          "rolling_window_size" => 1001
+        }
+      )
+      |> Repo.update!()
+
+      {:ok, lv, _html} = open(conn, organization, project)
+      render_hook(lv, "toggle_automation_enabled", %{"id" => automation.id})
+
+      assert {:ok, %{enabled: false}} = Automations.get_alert(automation.id)
+    end
+
+    test "keeps an unsupported legacy automation disabled and explains how to enable it", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          enabled: false,
+          trigger_config: %{
+            "threshold" => 10,
+            "window_type" => "rolling",
+            "rolling_window_size" => 75
+          }
+        )
+
+      automation
+      |> Ecto.Changeset.change(
+        trigger_config: %{
+          "threshold" => 10,
+          "window_type" => "rolling",
+          "rolling_window_size" => 1001
+        }
+      )
+      |> Repo.update!()
+
+      {:ok, lv, _html} = open(conn, organization, project)
+      html = render_hook(lv, "toggle_automation_enabled", %{"id" => automation.id})
+
+      assert html =~ "This automation uses an unsupported trigger configuration. Edit it before enabling it."
+      assert {:ok, %{enabled: false}} = Automations.get_alert(automation.id)
+    end
+
     test "delete_automation removes the automation", %{conn: conn, organization: organization, project: project} do
       automation = AutomationsFixtures.automation_alert_fixture(project: project)
       {:ok, lv, _html} = open(conn, organization, project)
@@ -472,6 +583,25 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       {:ok, lv, _html} = open(conn, organization, project)
       render_hook(lv, "delete_automation", %{"id" => other.id})
       assert {:ok, ^other} = Automations.get_alert(other.id)
+    end
+  end
+
+  describe "branch scope" do
+    test "the summary describes reliability as trunk-scoped rather than across branches", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "reliability_rate",
+        trigger_config: %{"threshold" => 90, "comparison" => "lt", "window_type" => "last_days", "window" => "30d"}
+      )
+
+      {:ok, _lv, html} = open(conn, organization, project)
+
+      assert html =~ "on the default branch"
+      refute html =~ "across branches"
     end
   end
 end

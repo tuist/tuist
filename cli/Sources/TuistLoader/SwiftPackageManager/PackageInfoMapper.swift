@@ -40,6 +40,12 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
     /// Thrown when a target defined in a product is not present in the package
     case unknownProductTarget(package: String, product: String, target: String)
 
+    /// Thrown when an included local package test target depends on a product from another package.
+    case unsupportedExternalProductInLocalPackageTest(package: String, target: String, product: String)
+
+    /// Thrown when an included local package test target depends on an executable target that is not mapped.
+    case unsupportedExecutableTargetInLocalPackageTest(package: String, target: String, executable: String)
+
     /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
     case unsupportedSetting(
         PackageInfo.Target.TargetBuildSettingDescription.Tool,
@@ -67,6 +73,18 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
             return "The product \(name) of package \(package) cannot be found."
         case let .unknownProductTarget(package, product, target):
             return "The target \(target) of product \(product) cannot be found in package \(package)."
+        case let .unsupportedExternalProductInLocalPackageTest(package, target, product):
+            return """
+            The test target `\(target)` in the local package `\(package)` depends on the external product `\(product)`. \
+            Tuist can include local package test targets only when all their dependencies belong to the same package. Remove \
+            the external product dependency, or set `includeLocalPackageTestTargets` to `false` in `PackageSettings`.
+            """
+        case let .unsupportedExecutableTargetInLocalPackageTest(package, target, executable):
+            return """
+            The test target `\(target)` in the local package `\(package)` depends on the executable target `\(executable)`, \
+            which Tuist omits when mapping local package dependencies. Remove the executable target dependency, or set \
+            `includeLocalPackageTestTargets` to `false` in `PackageSettings`.
+            """
         case let .unsupportedSetting(tool, setting):
             return "The \(tool) and \(setting) pair is not a supported setting."
         case let .modulemapMissing(moduleMapPath, package, target):
@@ -89,11 +107,13 @@ public enum PackageType {
         derivedXCFrameworksPath: AbsolutePath? = nil
     )
 
-    fileprivate var includesTestTargets: Bool {
+    fileprivate func includesTestTargets(includeLocalPackageTestTargets: Bool) -> Bool {
         switch self {
         case .local:
             return true
-        case .external:
+        case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
+            return includeLocalPackageTestTargets
+        case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
             return false
         }
     }
@@ -182,9 +202,9 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
     /// Resolves all SwiftPackageManager dependencies.
     /// - Parameters:
-    ///   - packageInfos: All available `PackageInfo`s
-    ///   - packageToFolder: Mapping from a package name to its local folder
-    ///   - packageToTargetsToArtifactPaths: Mapping from a package name its targets' names to artifacts' paths
+    ///   - packageInfos: All available `PackageInfo`s, keyed by package identity
+    ///   - packageToFolder: Mapping from a package identity to its local folder
+    ///   - packageToTargetsToArtifactPaths: Mapping from a package identity to its targets' names to artifacts' paths
     /// - Returns: Mapped project
     public func resolveExternalDependencies(
         path: AbsolutePath,
@@ -719,7 +739,9 @@ public struct PackageInfoMapper: PackageInfoMapping {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
         switch target.type {
-        case .test where !packageType.includesTestTargets:
+        case .test where !packageType.includesTestTargets(
+            includeLocalPackageTestTargets: packageSettings.includeLocalPackageTestTargets
+        ):
             Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
         case .regular, .system, .macro, .test:
@@ -735,6 +757,44 @@ public struct PackageInfoMapper: PackageInfoMapping {
         default:
             Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
+        }
+
+        if target.type == .test,
+           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = packageType,
+           let productName = target.dependencies.compactMap({ dependency -> String? in
+               switch dependency {
+               case let .product(name, package: _, moduleAliases: _, condition: _):
+                   return name
+               case let .byName(name, condition: _) where targetsByName[name] == nil:
+                   return name
+               case .target, .byName:
+                   return nil
+               }
+           }).first
+        {
+            throw PackageInfoMapperError.unsupportedExternalProductInLocalPackageTest(
+                package: packageInfo.name,
+                target: target.name,
+                product: productName
+            )
+        }
+
+        if target.type == .test,
+           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = packageType,
+           let executableName = target.dependencies.compactMap({ dependency -> String? in
+               switch dependency {
+               case let .target(name, _), let .byName(name, _):
+                   return targetsByName[name]?.type == .executable ? name : nil
+               case .product:
+                   return nil
+               }
+           }).first
+        {
+            throw PackageInfoMapperError.unsupportedExecutableTargetInLocalPackageTest(
+                package: packageInfo.name,
+                target: target.name,
+                executable: executableName
+            )
         }
 
         let products = targetToProducts[target.name] ?? Set()
@@ -778,7 +838,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             )
             moduleMapModuleName = resolvedModuleName
             let swiftPackageManagerScratchDirectory: AbsolutePath? = if packageType.isRemoteExternal {
-                SwiftPackageManagerPaths.scratchDirectory(containingCheckout: path)
+                SwiftPackageManagerPaths.scratchDirectory(containingPackageSource: path)
             } else {
                 nil
             }
@@ -816,11 +876,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
         }
 
-        let version = try Version(versionString: try await SwiftVersionProvider.current.swiftVersion(), usesLenientParsing: true)
-        let minDeploymentTargets = ProjectDescription.DeploymentTargets.oldestVersions(for: version)
+        let minDeploymentTargets = try await ProjectDescription.DeploymentTargets.minimumSupportedVersions()
 
-        let deploymentTargets = try ProjectDescription.DeploymentTargets.from(
+        let deploymentTargets = try await ProjectDescription.DeploymentTargets.from(
             minDeploymentTargets: minDeploymentTargets,
+            minMacCatalystDeploymentTarget: ProjectDescription.DeploymentTargets.minimumSupportedMacCatalystVersion(),
             package: packageInfo.platforms,
             destinations: destinations,
             packageName: packageInfo.name
@@ -968,6 +1028,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             target: target,
             productName: productName,
             moduleName: moduleName,
+            packageName: packageInfo.name,
+            swiftToolsVersion: Version(stringLiteral: packageInfo.toolsVersion.description),
             packageFolder: packageFolder,
             settings: target.settings,
             moduleMap: moduleMap,
@@ -979,7 +1041,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             prebuilts: targetPrebuilts
         )
 
-        var metadataTags: [String] = []
+        var metadataTags = [TargetTags.swiftPackage]
         if target.type == .test, packageType.isLocalExternal {
             metadataTags.append(TargetTags.localSwiftPackageTest)
         }
@@ -1728,6 +1790,41 @@ private struct StaticLibraryArtifactBundleSliceIdentifier: Hashable, Comparable 
 }
 
 extension ProjectDescription.DeploymentTargets {
+    /// The oldest version of each platform that packages can be generated for.
+    ///
+    /// The versions come from the SDKs of the selected Xcode, which is what rejects a deployment target that is too
+    /// old at build time. `oldestVersions(for:)` covers the platforms whose SDK can't be read, and every platform
+    /// where Xcode is not available.
+    static func minimumSupportedVersions() async throws -> ProjectDescription.DeploymentTargets {
+        let sdkVersions = await SDKDeploymentTargetsProvider.current.minimumDeploymentTargets()
+        if let iOS = sdkVersions.iOS, let macOS = sdkVersions.macOS, let watchOS = sdkVersions.watchOS,
+           let tvOS = sdkVersions.tvOS, let visionOS = sdkVersions.visionOS
+        {
+            return .multiplatform(iOS: iOS, macOS: macOS, watchOS: watchOS, tvOS: tvOS, visionOS: visionOS)
+        }
+
+        let swiftVersion = try Version(
+            versionString: try await SwiftVersionProvider.current.swiftVersion(),
+            usesLenientParsing: true
+        )
+        let fallback = oldestVersions(for: swiftVersion)
+        return .multiplatform(
+            iOS: sdkVersions.iOS ?? fallback.iOS,
+            macOS: sdkVersions.macOS ?? fallback.macOS,
+            watchOS: sdkVersions.watchOS ?? fallback.watchOS,
+            tvOS: sdkVersions.tvOS ?? fallback.tvOS,
+            visionOS: sdkVersions.visionOS ?? fallback.visionOS
+        )
+    }
+
+    /// The oldest deployment target that a Mac Catalyst build can use, or `nil` when the SDK can't be read.
+    ///
+    /// Catalyst targets carry the iOS deployment target, and the Catalyst variant of the macOS SDK stops
+    /// supporting versions that the iOS SDK still builds for.
+    static func minimumSupportedMacCatalystVersion() async -> String? {
+        await SDKDeploymentTargetsProvider.current.minimumDeploymentTargets().macCatalyst
+    }
+
     /// A dictionary that contains the oldest supported version of each platform
     public static func oldestVersions(for swiftVersion: TSCUtility.Version) -> ProjectDescription.DeploymentTargets {
         if swiftVersion < Version(5, 7, 0) {
@@ -1783,6 +1880,7 @@ extension ProjectDescription.DeploymentTargets {
 
     fileprivate static func from(
         minDeploymentTargets: ProjectDescription.DeploymentTargets,
+        minMacCatalystDeploymentTarget: String?,
         package: [PackageInfo.Platform],
         destinations: ProjectDescription.Destinations,
         packageName _: String
@@ -1797,7 +1895,11 @@ extension ProjectDescription.DeploymentTargets {
 
         func versionFor(platform: ProjectDescription.Platform) throws -> String? {
             guard destinationTypes.contains(platform) else { return nil }
-            return try max(minDeploymentTargets[platform], platformInfos[platform])
+            var minimum = minDeploymentTargets[platform]
+            if platform == .iOS, destinations.contains(.macCatalyst) {
+                minimum = try max(minimum, minMacCatalystDeploymentTarget)
+            }
+            return try max(minimum, platformInfos[platform])
         }
 
         return .multiplatform(
@@ -2129,6 +2231,8 @@ extension ProjectDescription.Settings {
         target: PackageInfo.Target,
         productName: String,
         moduleName: String,
+        packageName: String,
+        swiftToolsVersion: XcodeGraph.Version,
         packageFolder: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         moduleMap: ModuleMap?,
@@ -2160,6 +2264,16 @@ extension ProjectDescription.Settings {
         var settingsDictionary: XcodeGraph.SettingsDictionary = [
             "OTHER_SWIFT_FLAGS": ["$(inherited)"],
         ]
+
+        // Swift's back-deployment compatibility dylibs (e.g. libswiftCompatibilitySpan) ship only in the
+        // toolchain's versioned prebuilt directory, not in the simulator/device runtime. Packages that adopt
+        // back-deployed stdlib types (Span, RawSpan, ...) reference them via @rpath, so expose that directory
+        // to dyld; otherwise loading the product fails with "Library not loaded: @rpath/libswiftCompatibilitySpan.dylib".
+        settingsDictionary.appendArraySetting(
+            key: "LD_RUNPATH_SEARCH_PATHS",
+            values: try await SwiftBackDeploymentLibrariesProvider.current.runpathSearchPaths(),
+            includeInherited: true
+        )
 
         if !enabledTraits.isEmpty {
             var traitConditions: Set<String> = []
@@ -2279,20 +2393,13 @@ extension ProjectDescription.Settings {
         propagatedBaseSettings.removeValue(forKey: "PRODUCT_BUNDLE_IDENTIFIER")
         baseSettingsDictionary.merge(
             .from(settingsDictionary: propagatedBaseSettings),
-            uniquingKeysWith: { _, new in new }
+            policy: .inheritFromProject
         )
 
         if let userDefinedBaseSettings = targetSettings?.base {
             baseSettingsDictionary.merge(
                 .from(settingsDictionary: userDefinedBaseSettings),
-                uniquingKeysWith: {
-                    switch ($0, $1) {
-                    case let (.array(leftArray), .array(rightArray)):
-                        return SettingValue.array(leftArray + rightArray)
-                    default:
-                        return $1
-                    }
-                }
+                policy: .appendArrays
             )
         }
 
@@ -2326,6 +2433,10 @@ extension ProjectDescription.Settings {
                 ),
                 uniquingKeysWith: { $1 }
             )
+        }
+
+        if swiftToolsVersion >= Version(5, 9, 0) {
+            result.base.setSwiftPackageName(packageName)
         }
 
         return result
@@ -2415,6 +2526,10 @@ extension ProjectDescription.SettingsDictionary {
                 return ProjectDescription.SettingValue.array(arrayValue)
             }
         }
+    }
+
+    fileprivate mutating func setSwiftPackageName(_ packageName: String) {
+        self["SWIFT_PACKAGE_NAME"] = .string(packageName)
     }
 }
 
@@ -2545,18 +2660,6 @@ extension PackageInfo {
         ]
 
         settingsDictionary.merge(.from(settingsDictionary: baseSettings.base), uniquingKeysWith: { $1 })
-
-        if toolsVersion >= Version(5, 9, 0) {
-            let packageNameValues = ["$(inherited)", "-package-name", name.quotedIfContainsSpaces]
-            settingsDictionary["OTHER_SWIFT_FLAGS"] = switch settingsDictionary["OTHER_SWIFT_FLAGS"] {
-            case let .array(swiftFlags):
-                .array(swiftFlags + packageNameValues)
-            case let .string(swiftFlags):
-                .array(swiftFlags.split(separator: " ").map(String.init) + packageNameValues)
-            case .none:
-                .array(packageNameValues)
-            }
-        }
 
         if let cLanguageStandard {
             settingsDictionary["GCC_C_LANGUAGE_STANDARD"] = .string(cLanguageStandard)

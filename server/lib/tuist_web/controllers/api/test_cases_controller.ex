@@ -261,8 +261,8 @@ defmodule TuistWeb.API.TestCasesController do
       {:ok, test_case} ->
         if test_case.project_id == selected_project.id do
           default_branch = selected_project.default_branch || "main"
-          analytics = Analytics.test_case_analytics_by_id(test_case_id)
-          reliability_rate = Analytics.test_case_reliability_by_id(test_case_id, default_branch)
+          analytics = Analytics.test_case_analytics_by_id(selected_project.id, test_case_id)
+          reliability_rate = Analytics.test_case_reliability_by_id(selected_project.id, test_case_id, default_branch)
           flakiness_rate = Analytics.get_test_case_flakiness_rate(test_case)
 
           json(conn, %{

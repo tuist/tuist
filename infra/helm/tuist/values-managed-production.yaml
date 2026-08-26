@@ -6,12 +6,24 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
-registry:
-  # The public host stays behind the registry-router Worker. The ingress keeps
-  # the canonical host for routing and certificate identity, while external-dns
-  # publishes a separate resolution-only record for the Worker's origin lookup.
+# Sweeps this env's abandoned tailnet devices only; canary and staging run their
+# own. Starts in dry-run -- read a run's logs, then set dryRun: false.
+tailscaleDeviceReaper:
   enabled: true
-  publicHost: registry.tuist.dev
+  tags:
+    - tag:tuist-macmini-production
+    - tag:tuist-k8s-production
+
+registry:
+  # Clients stay on tuist.dev/api/registry while the Worker forwards requests
+  # to this dedicated ingress host. The ingress hostname is not advertised as
+  # a separate registry endpoint.
+  enabled: true
+  # Two replicas so a rolling deploy or a node loss always leaves another
+  # ready endpoint behind the ingress. With a single replica the ingress has
+  # nowhere to retry a refused connection and clients see 502s.
+  replicaCount: 2
+  publicHost: tuist.dev
   serverUrl: https://tuist.dev
   deployEnv: production
   sentryEnv: prod
@@ -20,8 +32,19 @@ registry:
     host: registry.tuist.dev
     tlsSecretName: registry-tls
     annotations:
-      external-dns.alpha.kubernetes.io/hostname: registry-origin.tuist.dev
-      external-dns.alpha.kubernetes.io/ingress-hostname-source: annotation-only
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: registry
+            topologyKey: kubernetes.io/hostname
   resources:
     requests:
       cpu: "500m"
@@ -35,12 +58,64 @@ server:
 
   appUrl: https://tuist.dev
 
+  config:
+    atlasEmail:
+      enabled: true
+
+  # Cache-signing grant private key (PEM Ed25519), synced from the
+  # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item. Without it dispatch omits the
+  # grant and the runner CLI falls back to per-machine MAC signing, so a warm
+  # cache volume's binaries never validate as local hits across VMs. Same
+  # keypair as staging (the CLI's baked public key pins it).
+  externalSecrets:
+    # The offline-certificate license config is now the shared default in
+    # values-managed-common.yaml, so production no longer overrides it here.
+    license:
+      verifyKeyItem: TUIST_LICENSE_VERIFY_KEY
+      verifyKeyField: password
+    cacheGrant:
+      item: TUIST_CACHE_GRANT_PRIVATE_KEY
+
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
   # STRIPE 1Password item). Live-mode prices, so they're set per env: staging
   # and canary use their own (test-mode) IDs in their overlays. The chart
   # JSON-encodes this into TUIST_STRIPE_PRICES.
   stripe:
     prices:
+      # macOS is billable. 6000000 compute-unit milliseconds (100 minutes
+      # on the 6 vCPU / 14 GB baseline) are free, and beyond that each
+      # millisecond costs 0.000125 cents, which is $0.075 per baseline
+      # machine-minute.
+      #
+      # The 100 included minutes must stay in step with the free
+      # allowance: this Price decides what is charged, and
+      # TUIST_RUNNER_FREE_MONTHLY_MINUTES decides when dispatch stops.
+      # This env sets neither, so both come from the 100-minute default
+      # in `Tuist.Runners.Allowance`. Overriding one without the other
+      # either cuts accounts off before they can be charged or charges
+      # them after they were cut off.
+      #
+      # Tiers are in raw meter units rather than minutes because Stripe
+      # refuses `tiers` and `transform_quantity` together, so an invoice
+      # line reads in milliseconds. The dashboard renders minutes.
+      #
+      # Linux stays reporting-only: its Meter exists and receives usage,
+      # but with no agreed rate there is no Price to point at, and an
+      # empty id means no subscription can carry a Linux runner item, so
+      # nothing can be charged for it.
+      #
+      # An account is only actually billed once it is off a runner trial.
+      # Run `Tuist.Runners.Trials.backfill_runner_trials/0` before this id
+      # reaches an environment, so every account with runner access is on
+      # a trial first.
+      #
+      # Never blank an id that has already gone live: a plan change would
+      # then stop recognising that subscription item as a runner item and
+      # delete it, taking the cycle's accrued usage with it. Pause billing
+      # by removing the item, not by emptying this map.
+      runners:
+        runner_linux_compute_unit_milliseconds: ""
+        runner_macos_compute_unit_milliseconds: "price_1U6woeLWue9IBlPSZpNHymSX"
       air:
         usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
         flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]
@@ -77,14 +152,12 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
-    # Keep advertising the legacy path until the Worker cutover is live. The
-    # cache origins only serve this prefix, and the standalone frontend keeps
-    # it as a compatibility route, so it works throughout the rollout.
+    # Keep clients on the existing registry base address while the Worker
+    # moves its origin from the cache nodes to the standalone frontend.
     - name: TUIST_REGISTRY_URL
-      value: https://registry.tuist.dev/api/registry/swift
-    # Enables the server-owned registry sync writer. Cache still writes
-    # too until it is turned off as a separate step; the two coordinate
-    # through the shared S3 sync lock, so dual-writing is safe.
+      value: https://tuist.dev/api/registry/swift
+    # The registry sync deployment owns catalog synchronization after the
+    # legacy cache writer was disabled.
     - name: SWIFT_REGISTRY_SYNC_ENABLED
       value: "true"
     - name: TUIST_DATABASE_POOL_SIZE
@@ -99,7 +172,11 @@ server:
     # per-account cache pods and dispatch routes the Mac fleet's build
     # cache to it over the Private Network.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central,us-east,us-west,scw-fr-par-runners
+      value: eu-central,us-east,us-west,ap-southeast,scw-fr-par-runners
+    # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
+    # accounts, and only those (spec #79).
+    - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
+      value: tuist
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -201,6 +278,23 @@ server:
   nodeSelector:
     node.cluster.x-k8s.io/pool: general
 
+# Grafana Cloud PDC agent. The signing token lives in this env's vault as
+# PDC_AGENT/password; cluster + hostedGrafanaId come from
+# values-managed-common.yaml. Each environment gets its own PDC network (and so
+# its own token): Grafana treats every agent on a network as interchangeable, so
+# sharing one across clusters would let a query resolve an in-cluster hostname in
+# the wrong cluster.
+pdcAgent:
+  enabled: true
+  # Grafana load-balances across agents and fails over when one drops, so a
+  # single replica would make a node drain take every PDC-routed panel down.
+  # Three is Grafana's production recommendation.
+  replicas: 3
+  # Pin the tunnel to the CNPG read-only service. Without this the agent
+  # permits any destination reachable from its pod, not just Postgres.
+  permitRemoteOpen:
+    - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
+
 kuraController:
   sharedSecrets:
     externalSecret:
@@ -214,6 +308,15 @@ kuraController:
     externalSecret:
       enabled: true
       item: kura-sentry
+
+# Only the shared mesh cache pools are listed. The runner-cache pool
+# (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
+# and its traffic is node-local runner reads that must not be shaped.
+# betaPodPrefix keeps the first enforcement step on kura-tuist-* pods.
+egressTreeAgent:
+  enabled: true
+  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast]
+  betaPodPrefix: "kura-tuist-"
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
@@ -306,6 +409,12 @@ postgresql:
 clickhouse:
   poolSize: "15"
   bufferPoolSize: "15"
+  # The ClickHouse replica has an 18-gibibyte process ceiling. Bound all Tuist
+  # reads and writes to eight gibibytes in aggregate, leaving ten gibibytes for
+  # background merges and allocator overhead instead of discovering pressure
+  # at the process-wide ceiling. Ingestion retries and retains buffered rows
+  # when the shared application budget is temporarily full.
+  maxMemoryUsageForUserBytes: "8589934592"
   external:
     url: ""  # Set via helm --set at deploy time; see runbook.
 
@@ -346,25 +455,69 @@ processor:
       value: prod
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
-  # Sized for the dedicated cpx51 processor pool (16 vCPU / 32 GiB shared
-  # vCPU per node). With anti-affinity pinning one replica per node, each
-  # pod owns the whole node minus kube-system overhead; we leave ~4 GiB
-  # and ~4 vCPU as headroom. The Swift parser holds ~3-4x the .xcactivitylog
-  # file size in memory while building the BuildStep tree and JSON-encoding
-  # the result; at queueConcurrency=5 most realistic builds fit comfortably
-  # in 24 GiB. If we ever start seeing OOMKills again the next move is
-  # either to lower queueConcurrency, bump pod memory, or reintroduce a
+  # The 24Gi ceiling this used to carry assumed each replica owned a whole
+  # cpx51 (16 vCPU / ~30.6 GiB allocatable) minus kube-system overhead. That
+  # assumption never held: the pool is pinned by nodeSelector but not tainted,
+  # so the platform stack (CNPG, ingress-nginx, cert-manager, external-secrets,
+  # Pomerium, Tailscale, Alloy) schedules onto these nodes too and occupies
+  # ~9-10 GiB. A processor therefore could not reach a 24Gi cgroup limit
+  # without first exhausting the node - 24 + 10 > 30.6 - so the kernel OOM
+  # killer fired at the node level and picked the largest RSS cgroup, which is
+  # always a processor. Measured on the 2026-08-14 07:13Z kill: both replicas
+  # were stacked on ...-g7wzh-qk9kr, that node sat at 27-28 GiB of 30.5 GiB
+  # for half an hour, crossed capacity, and the victim container was killed
+  # holding 10.7 GiB - 45% of its own 24Gi limit. Raising the limit would
+  # therefore have made this worse rather than better.
+  #
+  # 16Gi is the largest limit a single replica can actually be given here:
+  # 16 + ~10 GiB of co-resident platform leaves ~5 GiB of node headroom, so
+  # the cgroup limit is now the thing that binds a runaway parse rather than
+  # a decoration the node can never honor. Net effect is more usable memory,
+  # not less - a stacked replica previously had ~10 GiB of real headroom
+  # before the node died, versus 16 GiB that is honorable now.
+  #
+  # Keeping the replicas off each other is the topology constraint's job
+  # (matchLabelKeys in templates/processor-deployment.yaml), not the
+  # scheduler's: there is no request value that both blocks stacking and
+  # leaves room for the maxSurge=1 pod during a rollout, because the pool
+  # has only two schedulable nodes. Requests are therefore capped by the
+  # rollout, not by the steady state - at ~7-10 GiB of platform requests per
+  # node, anything above ~11.7Gi leaves the surge pod Pending and, with
+  # maxUnavailable=0, stalls the deploy indefinitely.
+  #
+  # Within that ceiling the request is raised 8Gi -> 10Gi, which also matches
+  # the measured median daily peak, because oom_score_adj for a burstable pod
+  # scales with memoryRequest/capacity: 10Gi moves the processor from ~739 to
+  # ~673 while the small platform pods stay near 1000, so if the node does
+  # come under pressure the kernel reaches for them before a live parse.
+  #
+  # Sized against 30 days of container_memory_working_set_bytes: the daily
+  # peak sits at 9-12 GiB on 29 of 31 days, with two excursions (14.9 GiB,
+  # and 20.1 GiB on 2026-07-23 when several pods spiked together). So 16Gi
+  # clears normal operation with room and clips only the far tail. That tail
+  # is a deliberate trade: a 20 GiB parse cannot be served on a co-tenanted
+  # node at all, and a contained cgroup kill of the one offending pod is
+  # strictly better than a node-level kill that also destabilises whatever
+  # platform workload happens to share the node.
+  #
+  # The Swift parser holds ~3-4x the .xcactivitylog file size while building
+  # the BuildStep tree and JSON-encoding the result, so 16Gi is ~3.2 GiB per
+  # slot at queueConcurrency=5 - the same per-slot budget tmpSizeLimit is
+  # sized against. A future OOMKill with the container at its own limit
+  # (rather than the node-level kills seen here) means the tail got common:
+  # lower queueConcurrency before raising memory, or reintroduce a
   # per-archive size cap in Tuist.Processor.BuildProcessor.
-  # CPU limit at 12 cores lets the BEAM run ~12 dirty-CPU schedulers,
-  # so all 5 NIF parses run on dedicated dirty schedulers without
-  # serializing on scheduler availability the way they did at 4 cores.
+  #
+  # CPU stays burstable at 4/12. The limit at 12 cores lets the BEAM run ~12
+  # dirty-CPU schedulers, so all 5 NIF parses get a dedicated dirty scheduler
+  # instead of serializing the way they did at 4 cores.
   resources:
     requests:
       cpu: "4000m"
-      memory: "8Gi"
+      memory: "10Gi"
     limits:
       cpu: "12000m"
-      memory: "24Gi"
+      memory: "16Gi"
 
   # Pin processor pods to the dedicated cpx51 pool provisioned by
   # md-processor in cluster-production.yaml. The label is set on
@@ -392,12 +545,65 @@ processor:
   affinity: {}
 
 swiftRegistrySync:
+  # The legacy cache writer is disabled, so this deployment is the sole
+  # registry synchronization writer.
   enabled: true
+  # Each package in a pass costs at least one tag-listing request, plus one per
+  # extra page of tags, so the batch size is what decides whether a pass fits
+  # inside the GitHub request budget. Production ran the old 1,000 default and
+  # exhausted the budget mid-pass, which the July 2026 postmortem records as
+  # 2,566 rate-limit failures and nine discarded passes in a little over six
+  # hours on a pod that stayed Ready throughout.
+  #
+  # Set explicitly rather than left to the (now also 600) release default, so
+  # the number production runs is visible next to the deployment that runs it.
+  # This is a static floor under the budget, not a measurement: replacing it
+  # with a limit derived from the live remaining quota and the measured
+  # per-package pagination cost is tracked separately.
+  syncLimit: "600"
+  # Authenticate as the Tuist GitHub App installation rather than as a user.
+  # The personal access token spends one user-scoped budget of 5,000 requests
+  # an hour across the whole catalog rotation and every release job, and it is
+  # that budget the July 2026 incident exhausted. This installation reports
+  # 12,500, the documented ceiling, and it is not shared with anything else.
+  #
+  # Given as the organization the App is installed on rather than as the
+  # numeric installation id, which the release resolves and caches.
+  #
+  # Verified against the production App before enabling: an installation token
+  # reads tags, repository contents, zipballs and git clone credentials for
+  # public repositories outside its own installation, which is what the mirror
+  # does for every package it syncs. The personal access token remains
+  # configured and is used automatically if the App cannot issue a token.
+  githubAppInstallation: tuist
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  # Production is the only env syncing the full catalog, so it's the only
+  # one that outgrows the common 512Mi/1Gi default. Enabling the sync
+  # (#12136) took this pod from idle to real work and it started getting
+  # OOMKilled every 10-60 minutes: idle working set is 750-850Mi and
+  # per-release jobs peak at 930-995Mi, leaving no room under a 1Gi cap.
+  #
+  # The request matches the measured idle baseline. At 512Mi the pod
+  # permanently exceeded its own request, which made it a first-choice
+  # eviction target whenever a processor node came under memory pressure.
+  # The limit is deliberately well clear of observed peak rather than
+  # just above it — peak scales with :swift_registry_release running 5
+  # jobs concurrently (server/config/runtime.exs), and each one unpacks
+  # and re-zips a package archive under /tmp, so page cache on that
+  # emptyDir counts against this cgroup too. Archive sizes are set by
+  # whatever upstream publishes, so the ceiling isn't ours to predict.
+  # If this OOMs again, lower queueConcurrency before raising memory.
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "4Gi"
 
 # Runs as the same env as the build processor; the Tart VM reads its secrets
 # from the environment (config Secret via envFrom + object-storage ESO), same
@@ -411,6 +617,33 @@ xcresultProcessor:
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
+  # Size the Tart VM for a dedicated host. tart-kubelet derives the VM's
+  # `tart set --cpu/--memory` from the container's resources, preferring
+  # limits (vmResourcesFromPod in infra/tart-kubelet), so these numbers ARE
+  # the VM. The chart default (3 CPU / 4Gi) is sized for a shared or
+  # self-hosted box and left a 10-core / 16 GB Mac mini running a 3-core VM
+  # at load 7+ while the host idled at 3 of 10. The parse path is CPU-bound,
+  # so that capped throughput to roughly a third of the hardware.
+  #
+  # 6 CPU matches the M2 Pro's 6 performance cores and leaves the 4
+  # efficiency cores to the macOS host; 12Gi leaves 4 GB for the host and
+  # the Virtualization.framework reserve (the fleet's runner VMs already run
+  # 14336 MB on identical hardware, so this stays inside proven headroom).
+  # The topology spread pins one replica per host, so a VM never shares.
+  resources:
+    requests:
+      cpu: "2000m"
+      memory: "4Gi"
+    limits:
+      cpu: "6000m"
+      memory: "12Gi"
+  # One in-flight parse per performance core. Held at parity with the CPU
+  # count deliberately: at the old 3-core sizing the chart default of 4
+  # oversubscribed the VM 2.4x (load 7.33 on 3 cores), which stretched
+  # per-job latency without adding throughput. 12Gi across 6 workers also
+  # keeps ~2 GB per parse, above the ~1 GB/worker the 4Gi VM ran at
+  # without touching swap.
+  queueConcurrency: 6
   # Opt into the Tailscale-fronted URL the processor's ExternalSecret
   # renders when postgresql.cnpg.pooler.tailscale.enabled is true.
   # Linux processors keep the direct in-cluster URL via the default
@@ -426,8 +659,30 @@ xcresultProcessor:
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod
+    # Deliberately NOT the in-cluster receiver address the Linux deployments
+    # use. These pods are macOS Tart VMs whose only interface is Tailscale, so
+    # `*.svc.cluster.local` does not resolve inside the guest and every span
+    # was being dropped before it left the VM. This is the tailnet hostname of
+    # the Tailscale-operator proxy in front of the same receiver Service, set
+    # up in the k8s-monitoring chart's production values.
+    #
+    # Fully qualified, not the bare MagicDNS label. The bare form only
+    # resolves when the tailnet search domain is in the guest's resolver,
+    # and on these VMs it is not: tailscaled sets DNS up at boot, so a
+    # short name resolves for the first few minutes and then stops. That
+    # is what the host-side `macosFleet.hostLogs.url` below has always
+    # used, and why host logs kept flowing while the guest's did not.
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+      value: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:4317
+    # Push logs to the same tailnet-fronted Alloy. Setting this attaches the
+    # in-process handler in Tuist.Application.start_loki_logger/0, which is
+    # the only way these pods can ship logs: Alloy cannot tail a Tart guest
+    # and `kubectl logs` cannot resolve their kubelet hostnames. The handler
+    # appends /loki/api/v1/push, matching the loki.source.api endpoint the
+    # k8s-monitoring chart exposes on 3100. No credentials here: Alloy
+    # forwards to Grafana Cloud with the ones it already holds.
+    - name: TUIST_LOKI_URL
+      value: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:3100
 
 # Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
 # Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to
@@ -531,12 +786,58 @@ ovhFleets:
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH
+  # Asia Pacific Southeast (Singapore / OVHcloud SGP): the node pool backing the
+  # ap-southeast Kura region, which serves APAC accounts that would otherwise be
+  # answered from Virginia.
+  ap-southeast:
+    enabled: true
+    replicas: 1
+    # The endpoint names the OVHcloud entity holding the account, not the box's
+    # geography — APAC datacenters bill under the US subsidiary, the same way
+    # ca-east's Quebec box does. Every OVH fleet must share one endpoint:
+    # capi-scaleway-applesilicon.yaml resolves a single endpoint for the whole
+    # reconciler from whichever OVH fleet is enabled last, so a divergent one
+    # would silently point it at the wrong API.
+    endpoint: ovh-us
+    nodePool: kura-ap-southeast
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-ap-southeast
+      # Matched case-insensitively as a substring of the box's commercialRange,
+      # which OVH's 2026 range spells with a CPU suffix rather than a year. A
+      # value matching nothing adopts nothing, silently, so this is the range
+      # string verbatim — and in full, so a differently specced Advance-2 cannot
+      # land in this pool by accident.
+      offer: "ADVANCE-2 | AMD EPYC 4344P"
+      # Prefix-matched, so this claims a box in any sgp* datacenter.
+      datacenter: sgp
+      os: ubuntu_24.04
+      # Node egress budget (Mbps), advertised as tuist.dev/egress-mbps so the
+      # scheduler bin-packs the cache pods' guaranteed floors against it. This
+      # is the box's public bandwidth, which is what a cache serves — not the
+      # 25 Gbit/s its NIC links at, which is the vRack side and would
+      # over-commit the public path 25x. A 25 TiB/month egress quota sits above
+      # it that nothing here enforces or watches.
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
 
 # Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
 # xcresult capacity offline.
 macosFleet:
   replicas: 2
+  # The minis drop inbound :22 from everything except the tailnet, loopback
+  # and this list, so internet SSH scan traffic can't exhaust launchd's ssh
+  # listen backlog. That socket binds *:22, so an exhausted backlog takes the
+  # operator's tailnet fallback down with the public path and the host stops
+  # accepting config pushes entirely. This is the cluster's stable egress
+  # Floating IP, which the capi entry in the platform chart's
+  # ciliumEgressGateway routes the operator through; keep the two in lockstep.
+  # Dropping it here is safe (the drift loop falls back to the tailnet) but
+  # costs the public dial path, the only one that can update Tailscale itself.
+  sshIngressAllowCIDRs:
+    - 116.202.0.10/32
   # Per-account cache volumes. The quota is an APFS ceiling (shares the
   # container's free space, not a reservation) fenced by admission +
   # watermark eviction, so space pressure degrades a job to the cold
@@ -546,14 +847,70 @@ macosFleet:
   # a single host keeps hot once affinity spreads them across the fleet.
   # Kept well under the 512 GB disk, which is dominated by the ~85 GB
   # golden VM image(s) (two during a digest roll) + per-job DerivedData.
+  # Enabled after the disk-image redesign (#11908): the cache is now a
+  # sparse APFS disk image on the share, not files on it, because virtio-fs
+  # cannot carry a macOS cache faithfully (no xattrs on the symlinks in
+  # versioned framework bundles → the ELOOP that broke every macOS job on
+  # 2026-07-16). Validated end-to-end on a real staging runner (gib: 40):
+  # the framework-with-xattr copy that failed on the old share succeeds
+  # inside the image, and a promoted master clones back warm with symlinks
+  # and xattrs intact.
   runnerCacheVolume:
     gib: 80
+    # Fold the Xcode compilation cache (CAS) into the per-account image.
+    # masterCapGib is the sparse per-master ceiling; of it the CAS gets casGib,
+    # the binary cache the rest minus a ~2 GiB reserve. A typical binary master
+    # is ~2.4 GB, so the ~7 GiB binary budget still holds ~3x headroom while the
+    # CAS rides the same clone/promote/converge path. The guest is fail-safe: a
+    # store it cannot write falls back to a VM-local cold compilation cache, so
+    # a bad budget costs warmth, not the job.
+    #
+    # The cap is bounded by admission, not by taste. Admission reserves
+    # masterCapGib for the branch it is admitting plus every branch already
+    # live, so with B branches already held the resident masters that survive
+    # are gib/cap - (B+1). A host runs one job VM, but a branch is reserved at
+    # VM BOOT rather than at dispatch, so a booted warm standby holds one too:
+    # B is 0 or 1 depending on the pool. At cap 28 that leaves 1 or 0 masters —
+    # which is what the fleet showed, hosts flapping between one master and
+    # none, and warm materializes at ~18%. At cap 20 it leaves 3 or 2. Either
+    # covers the account set with dispatch affinity scoring on residency.
+    #
+    # Raising gib is NOT the alternative fix. Masters that survive scale as
+    # gib/cap, so holding 3 at cap 28 needs gib 140, which raises the volume's
+    # PEAK claim on the shared boot container by 60 GiB. There is no room for
+    # that: the container is 460 GiB with ~330 GiB free idle, but a single job
+    # VM's CoW growth transiently takes it to 42-61 GiB, and the volume already
+    # reaches its 80 GiB quota (observed down to 0.5 GiB free). Restoring
+    # residents raises the volume's sustained floor, not that peak, which is
+    # why it fits where a bigger quota would not. gib also needs a host
+    # replacement (the provisioning script never resizes), while cap is an
+    # operator flag that rolls in place, so cap is the tunable one.
+    #
+    # If the tail ever does starve job VMs, lower gib rather than raising cap:
+    # masters fill to roughly gib - cap, so a smaller cap yields MORE total
+    # master bytes. gib is the footprint lever, cap is the master-count lever.
+    #
+    # Retuning either value changes how many accounts a host keeps hot, and
+    # therefore how often dispatch can place a job warm. Nothing needs to be
+    # kept in sync for that: the host advertises the masters it actually holds
+    # as Node labels and the server reads them, so this arithmetic bounds the
+    # fleet's behaviour without also being a number the server has to be told.
+    masterCapGib: 20
+    casGib: 11
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-production"]
+  # The receiver's tailnet hostname is set by
+  # infra/helm/k8s-monitoring/values-production.yaml. Query as
+  # {job="tuist-macos-tart-kubelet", env="production"}; every line also
+  # carries `instance` (the Machine/Node name) and `level`.
+  hostLogs:
+    enabled: true
+    url: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:3100/loki/api/v1/push
+    env: production
   # Claim pre-ordered Mac minis from the shared `tuist-pool-`
   # pool. The CAPI controller has no auto-order path; operators
   # pre-order capacity in the Scaleway console.
@@ -587,71 +944,330 @@ macosFleet:
     name: tuist-runner-cache
     cidr: 172.16.0.0/22
 
-# Customer-runner Mac mini fleet. Sized to 9 hosts = 9 concurrent
-# customer runs. Apple's SLA permits up to two VMs per host; v1
-# runs one VM per host to keep capacity reasoning simple. Bump
-# this once the operational story for two-per-host is in place.
+# Customer-runner Mac mini fleet. 7 M2-L hosts at one guest each plus
+# 2 M4-XL hosts at two = 11 concurrent customer runs.
+#
+# Sized against measured demand, not host count. macOS job concurrency
+# over the 7 days to 2026-08-25 ran p50 3 / p95 5 / p99 6 with a peak of
+# 8, so 11 keeps a margin above the observed peak while the M4s absorb
+# what the retired M2-Ls used to hold. The M2-L count came down from 9
+# when the second M4 landed: 2 M4 hosts add 4 slots, so keeping all 9
+# M2-Ls would have meant 13 slots against a workload that has never
+# asked for 9.
+#
+# Apple's SLA permits two guests per host and Tart enforces it; whether
+# a host runs two is purely a function of how much CPU/RAM tart-kubelet
+# advertises for it, which is why the M4-XL group below fits two of the
+# same 6 vCPU / 14 GB guest the M2-L fits one of. Concurrency is
+# therefore the sum over groups of hosts x guests-per-host, and the
+# autoscaler derives exactly that from the Nodes' advertised memory.
+#
 # Runner images are digest-pinned so subsequent runner-image
 # releases can safely bump all enabled managed environments.
 runnersFleet:
   enabled: true
-  hostCount: 9
+  # 7, down from 9, offset by the 4 slots the two M4-XL hosts add.
+  #
+  # Scaling this DOWN does not stop the bill. On Machine deletion the
+  # controller renames the host back into the `tuist-pool-` pool and
+  # reinstalls it — the mini stays alive and keeps billing, deliberately,
+  # so Apple's 24h floor never leaks into a deploy flow. Releasing the
+  # hardware is a separate, operator-owned step in the Scaleway console.
+  # Leave the host parked instead if you want it back as burst capacity.
+  #
+  # CAPI deletes the most-recently-created Machines and this fleet sets
+  # no nodeDrainTimeout, so an evicted Pod is not waited on: retire while
+  # the target hosts hold no owned (job-running) runner Pod, or a
+  # customer job dies with the node.
+  hostCount: 7
   # Pre-ordered pool. Operator orders M2-L hosts in the Scaleway
   # console with names starting with `tuist-pool-` ahead of
   # bringing this block live (Mac mini lead times can stretch
   # several days). The CAPI controller claims them on demand;
   # there is no auto-order fallback.
   adoptPoolPrefix: "tuist-pool-"
+  # M4-XL host group. Same fleet as the M2-L hosts above — same
+  # `tuist.dev/fleet` Node label, so every Xcode pool schedules across
+  # both and the autoscaler sums one budget — but its own
+  # MachineDeployment because the SKU differs.
+  #
+  # Park the minis BEFORE raising hostCount. Adoption is SKU-exact — the
+  # controller passes this group's `type` straight into AdoptFromPool —
+  # so a host that is missing, still reinstalling, or not named
+  # `tuist-pool-*` cannot be claimed, and it cannot fall back to an M2-L
+  # another group is waiting on. The Machine then sits on
+  # `NoAvailableHost` and this MachineDeployment stays at 0/1.
+  #
+  # On THIS fleet that costs capacity, not the deploy. `helm --wait`
+  # tracks built-in workload kinds, not MachineDeployment or RunnerPool,
+  # and the runners fleet renders no Helm-managed workload pinned to its
+  # nodes — runner Pods come from the runners-controller. So the upgrade
+  # completes and the two slots simply never appear, which shows up as
+  # the MD at 0/1 and a `NoAvailableHost` event rather than as a failure.
+  # `maxReplicas` over-promising in the meantime is harmless: the
+  # allocator derives capacity from the memory Ready nodes actually
+  # advertise and caps there, so it is a ceiling, not a target.
+  #
+  # Do NOT generalise that to the sibling fleets. macosFleet pins the
+  # xcresult-processor Deployment to its nodes with a nodeSelector, so an
+  # unadoptable host there leaves a Deployment unschedulable and really
+  # does wedge `helm --wait` for the full `--timeout 60m` before
+  # `--atomic` rolls production back. That is the case the orphan-reclaim
+  # comment in controllers/macos/orphan_reclaimer.go and the kura
+  # cold-start note in cluster-api-provider-tuist/AGENTS.md describe;
+  # kura-fleet, ovh-fleet and dedibox-fleet have the same shape.
+  #
+  # The other reason to park first is money: Scaleway bills a mini under
+  # Apple's 24h floor whether or not this controller ever adopts it.
+  #
+  # Growing the group: order N more M4-XL minis named `tuist-pool-*`,
+  # bump hostCount, and raise every `xcodeOverrides[*].maxReplicas` below
+  # by 2N. At 2 today; maxReplicas moved 11 -> 13 in the same change.
+  #
+  # Two guests per host, at the same 6 vCPU / 14 GB shape the M2-L
+  # runs — customers see an identical runner, the host just fits two.
+  # Slots, not hosts, are what `xcodeOverrides[*].maxReplicas` bounds,
+  # so raise those by 2 per M4 host added, not by 1.
+  #
+  # Per-slot this is DEARER than the M2-L, not cheaper: EUR 0.49/h over
+  # two guests is EUR 0.245/slot/h against EUR 0.21 for a one-guest
+  # M2-L. What the ~17% premium buys is the 2 TB disk and faster cores
+  # — see runnerCacheVolumeGiB below, which is the real reason to want
+  # these. Growing raw concurrency alone is still cheaper on M2-L.
+  machineGroups:
+    - name: m4
+      hostCount: 2
+      machine:
+        type: M4-XL
+        zone: fr-par-1
+        os: Tahoe
+        # M4 Pro is 14 CPU / 64 GB. Leave the host 2 cores and Apple
+        # Virtualization.framework its reserve, as on the M2-L.
+        #
+        # hostMemoryMB is 2x the 6 vCPU pool's 14336 MB podMemoryMB, not
+        # the ~60 GB the SKU could advertise, so BOTH dimensions bind at
+        # exactly two guests. On CPU alone 12/6 already caps at two,
+        # but that would make the cap an accident of the current shape:
+        # a 4-vCPU macOS shape would let memory admit four and leave
+        # maxPods — which also counts system Pods — as the only thing
+        # between the fleet and an SLA violation.
+        #
+        # These two numbers are also what every macOS shape is sized
+        # against. 28672/12 is 2389 MB per vCPU, the same proportion as
+        # the 6 vCPU / 14 GB shape, so the 12 vCPU / 28 GB shape in
+        # `shapes` above binds at one guest on BOTH dimensions here and
+        # at zero on an M2-L. Keeping that proportion is what lets
+        # `macosFleetAllocatableMemory` keep dividing advertised memory
+        # by podMemoryMB and agree with kube-scheduler; a shape with
+        # more memory per vCPU would force hostMemoryMB up, CPU would
+        # start binding instead, and the 6 vCPU pools' budget would
+        # over-count. Size a new shape from these numbers, not the
+        # other way round.
+        #
+        # Advertising only 28 of 64 GB looks like a lot left on the
+        # table. It isn't reclaimable, and the measurements say it also
+        # isn't wanted. Over 3,251 macOS jobs in the 14 days to
+        # 2026-08-25 (runner_job_machine_metrics, in-guest
+        # active+wired+compressed):
+        #
+        #   peak RSS   p50 7.6 GiB · p90 8.8 GiB · p99 10.0 GiB
+        #              max ever 10.2 GiB, ZERO jobs above 85% of 14 GiB
+        #   peak CPU   p50 100% · 78% of jobs peg all 6 vCPUs
+        #              whole-job average CPU p50 47%, p90 71%
+        #
+        # So the guests are CPU-bound and nowhere near memory-bound —
+        # the 14 GiB ceiling has never been approached, let alone hit.
+        # Bigger guests would move idle RAM from the host into the
+        # guest and buy nothing. More guests is not an option either:
+        # Apple's SLA caps a host at 2 and Tart enforces it, and 6 vCPU
+        # x 2 already takes 12 of 14 cores.
+        #
+        # hostMemoryMB is a scheduling PROMISE, not an allocation, so
+        # the unadvertised ~36 GB is not idle — macOS spends it on the
+        # unified buffer cache, which on this SKU backs two guests' CoW
+        # disk images and a 240 GiB cache volume on a 2 TB disk. That is
+        # the best available use of it.
+        #
+        # That is also why the M4's headroom is monetized as CORES and
+        # not RAM: the 12 vCPU shape in `shapes` above measurably helps
+        # the 78% of jobs that peg all 6 vCPUs, where a larger-memory
+        # shape would help none of them. A 12 vCPU guest takes the whole
+        # advertised CPU budget, so a host runs one of those OR two 6
+        # vCPU guests, never a mix.
+        # Caveat on the numbers: 15s sampling can miss a sub-15s spike,
+        # though compressed pages are counted so sustained pressure
+        # would show.
+        hostCPU: 12
+        hostMemoryMB: 28672
+        # 2 guests x 2 + 1: each guest slot can transiently hold its
+        # running Pod plus the predecessor GC has not collected yet
+        # (observed on a live single-guest node), and the +1 keeps the
+        # same slot of margin the single-guest hosts get at 3 rather
+        # than parking the M4 exactly at its ceiling in precisely that
+        # worst case.
+        #
+        # Margin is free here and its absence is not. hostCPU 12 and
+        # hostMemoryMB 28672 both bind the guest count at 2, so a higher
+        # maxPods admits no extra guest; but at the ceiling the node
+        # rejects Pods with "Too many pods" while
+        # macosFleetAllocatableMemory still counts both its slots as
+        # available, so the allocator keeps targeting a node that cannot
+        # take them until GC catches up (bounded, ~60s per
+        # pod_lifecycle_controller.go, but pointless to invite).
+        #
+        # No slot for hcloud-csi-node: it is kept off macOS by a
+        # `kubernetes.io/os NotIn [darwin]` nodeAffinity, verified zero
+        # across all 15 macOS Nodes.
+        maxPods: 5
+        guestCapacity: 2
+        # 240 GiB against the M2-L's 80. Not a nicety — at 80 the dual
+        # guest host would hold FEWER hot accounts than a single-guest
+        # M2-L does today. Resident masters are `gib/masterCapGib -
+        # (liveBranches + 1)` and a branch is reserved at VM boot, so
+        # two guests means liveBranches reaches 2: at 80/20 that is
+        # 4 - 3 = 1 master, or 0. At 240/20 it is 12 - 3 = 9.
+        #
+        # The M2-L cannot simply be raised to match; that is the point
+        # of the SKU. Its 460 GiB container has ~330 GiB free idle and
+        # a single job VM transiently takes 42-61 GiB on top of ~85 GB
+        # goldens (two mid digest-roll), which is why the quota has sat
+        # at 80. Worst case here is ~240 (volume) + ~340 (two pools'
+        # goldens, doubled through a roll) + ~280 (two clones at the
+        # 140 GB virtual ceiling) = well under half of ~1.8 TiB, and
+        # the 15% free floor that drives golden reclaim is a
+        # percentage, so it scales with the disk rather than binding.
+        runnerCacheVolumeGiB: 240
   networkPolicy:
     enabled: true
     exceptCIDRs:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-  # macOS catalog (shapes + xcodeVersions) is shared across managed
-  # envs via `values-managed-common.yaml`. Per-env tuning lives in
+  # Shape catalog. Overrides the common baseline because production is
+  # the only managed env with an M4-XL group, and 12 vCPU only fits
+  # there. Helm replaces lists rather than merging, so the 6 vCPU
+  # baseline is restated here.
+  #
+  # 12 vCPU / 28 GB is the M4-XL sold whole: 12 of its 14 cores, and
+  # memory in the SAME 2389 MB-per-vCPU proportion the 6 vCPU shape
+  # uses. That proportion is the point. `hostMemoryMB: 28672` below
+  # stays as it is, so memory keeps binding guest count on every host
+  # for BOTH shapes (M4: 1 of these or 2 of those; M2-L: 0 or 1), which
+  # is the invariant `macosFleetAllocatableMemory` divides against. A 56
+  # GB variant would force `hostMemoryMB` to 57344, and the 6 vCPU pools,
+  # which carry all of today's traffic, would then be handed a 15-slot
+  # budget against 11 placeable ones.
+  #
+  # It is also exactly 2x the baseline shape in both dimensions, so
+  # `Catalog.billing_multiplier/3` meters it at precisely 2.0000 compute
+  # units with no rounding.
+  #
+  # Memory is not what this shape sells and the numbers say so: over
+  # 3,251 macOS jobs in the 7 days to 2026-08-25 peak RSS was p50 7.6 /
+  # p90 8.8 / p99 10.0 GiB, max ever 10.2, with ZERO jobs above 85% of
+  # the 14 GiB ceiling, while peak CPU was p50 100% and 78% of jobs
+  # pegged all 6 vCPUs. Cores are the constraint; 28 GB is already 2.7x
+  # the largest working set ever measured.
+  #
+  # Priced at 2x the baseline, which is exactly what that multiplier
+  # already produces: $0.15 per machine-minute on demand and $0.12
+  # prepaid, against $0.075 / $0.06 for the 6 vCPU shape. No Stripe
+  # work is needed for it. Usage is reported gross into the single
+  # macOS meter weighted by `Catalog.billing_multiplier/3`, and prepaid
+  # is a money-denominated credit grant rather than a minutes ledger,
+  # so a new shape prices itself and the 1.25x funding ratio is
+  # untouched (see `Tuist.Runners.Prepaid`).
+  #
+  # Cost tracks it: a 12 vCPU guest takes the whole M4-XL, EUR 0.49/h
+  # against EUR 0.245 for a 6 vCPU slot on the same host. Revenue and
+  # cost both double, so the margin matches the baseline shape's on
+  # this SKU.
+  shapes:
+    - vcpus: 6
+      memoryGb: 14
+      default: true
+    - vcpus: 12
+      memoryGb: 28
+      # maxReplicas is a PER-POOL ceiling and is NOT what keeps the
+      # fleet honest: this shape renders one pool per Xcode version, and
+      # five pools each allowed 2 compose to 10. The fleet-wide bound
+      # comes from the runners-controller, which counts each node's own
+      # min(cpu, memory) quotient for a shape and caps every pool sharing
+      # it at that sum (2 today, both on M4-XL). It has to be derived
+      # there rather than written here because the byte budget cannot see
+      # it: 157696 / 28672 reads as 5, pooling memory from M2-L hosts
+      # that cannot seat one of these Pods at all.
+      #
+      # Set it to the M4-XL host count regardless, as the per-pool bound
+      # it is: no single Xcode version should be able to take the whole
+      # shape. It moves with `machineGroups[m4].hostCount`, not with the
+      # 11-slot totals the `xcodeOverrides` below use.
+      #
+      # Cold: no warm floor. A 12 vCPU Pod parks a whole M4-XL, and idle
+      # it would halve the fleet's dual-guest capacity to keep one
+      # speculative runner warm. Jobs pay cold start until demand
+      # justifies otherwise.
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 2
+  # Per-env tuning for the default shape's pools lives in
   # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
   # template merges each catalog entry with its override at render
   # time. Every active profile runs through the runners-controller's
-  # fleet allocator, which apportions the `hostCount` slot budget
+  # fleet allocator, which apportions the fleet's GUEST-slot budget
   # across all macOS pools using the three-tier (floor / load /
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
-  # guarantee; `maxReplicas: 9` lets either pool absorb the whole
+  # guarantee; `maxReplicas: 11` lets either pool absorb the whole
   # fleet under skewed demand and the allocator caps the joint sum
   # so the pools don't double-book.
   #
-  # Floors sum to 3 of the 9-slot budget; the remaining 6 slots are
-  # dynamically apportioned by queue depth across the pools.
-  # The default (26.6) keeps the warm baseline since most traffic
-  # lands there; older Xcodes sit cold (floor 0) so an unused runner
-  # doesn't tie up a host. Revisit once we open the runners to
-  # general signups where the pool mix is unpredictable in advance.
+  # The budget is slots, not minis: the allocator divides the fleet's
+  # advertised memory by this shape's 14336 MB, so the 7 M2-L hosts are
+  # 7 slots and the 2 M4-XL hosts are 2 each, for 11. These ceilings must
+  # move with that number — the allocator never exceeds a pool's
+  # maxReplicas, so leaving them behind would let an M4 boot but keep
+  # every pool clamped below the capacity it adds, and its second guest
+  # would sit idle.
+  #
+  # Floors sum to 1 of the 11-slot budget; the remaining 10 slots are
+  # dynamically apportioned by queue depth across the pools. Older
+  # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
+  #
+  # The default (26.6) carries the warm floor, since `tuist-macos`
+  # resolves there. That resolution goes through each account's
+  # protected `macos` profile, which stores `xcode_version` at account
+  # creation — so bumping the catalog default only redirects new
+  # accounts. Move existing accounts' profile in the same change, or
+  # their traffic stays on the old pool while the floor warms an idle
+  # one. Revisit once we open the runners to general signups where the
+  # pool mix is unpredictable in advance.
   xcodeOverrides:
     "26.6":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 3
-        maxReplicas: 9
+        minWarmPoolFloor: 1
+        maxReplicas: 11
     "26.5":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 9
+        maxReplicas: 11
     "26.4.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 9
+        maxReplicas: 11
     "26.3":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 9
+        maxReplicas: 11
     "26.0.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 9
+        maxReplicas: 11
   # Resolved at deploy time from the latest `runner-image@` git tag.
   runnerImageSemver: ""
   pools: []
@@ -725,15 +1341,22 @@ runnersFleetLinux:
   shapes:
     - { vcpus: 1, memoryGb: 2 }
     - { vcpus: 2, memoryGb: 4 }
-    # Default shape: ~50% of P95 warm floor (the legacy pool's value),
-    # since all `tuist-default` + `linux` default-profile (`tuist-linux`)
-    # traffic lands here. The floor is a slot count, so it absorbs the
-    # same concurrent cold starts at 2/8 as it did at 4/16, for less RAM.
+    # Default shape: all `tuist-default` + `linux` default-profile
+    # (`tuist-linux`) traffic lands here, so it carries the fleet's warm
+    # floor. Sized against RAM, not slots: request == limit == the
+    # advertised shape, so the floor reserves `floor * 8 GiB` on a
+    # ~504 GiB fleet whether or not those Pods ever touch it. At 30 it
+    # reserved 240 GiB and left no 16 GiB hole, so `4vcpu-16gb` could
+    # not place a single Pod while running well under a third of the
+    # fleet's real memory. 12 sits above observed concurrent demand and
+    # leaves the heavier shapes room to schedule. Revisit alongside
+    # decoupling the scheduler request from the shape limit, which is
+    # what would let the floor be a slot count again.
     - vcpus: 2
       memoryGb: 8
       default: true
       autoscaling:
-        minWarmPoolFloor: 30
+        minWarmPoolFloor: 12
     - { vcpus: 4, memoryGb: 8 }
     - { vcpus: 4, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 16 }

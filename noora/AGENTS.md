@@ -8,7 +8,12 @@ Noora is a Phoenix LiveView component library published to hex.pm. It provides r
 
 - `lib/` - Elixir component modules
 - `js/` - JavaScript hooks and behaviors
+- `js/web-components/` - Lit-based custom elements
 - `css/` - Component stylesheets
+- `components/` - Shared component contracts consumed by Elixir and JavaScript
+- `docs/` - Generated web component guides and references
+- `scripts/` - Web component artifact generation
+- `types/` - Generated TypeScript declarations
 - `priv/static/` - Built assets (noora.js, noora.css)
 - `storybook/` - Phoenix Storybook app for component previews, deployed to the production cluster at storybook.noora.tuist.dev via `infra/helm/noora-storybook` and `.github/workflows/noora-storybook-deployment.yml`
 
@@ -21,7 +26,11 @@ Noora is a Phoenix LiveView component library published to hex.pm. It provides r
 
 ## Publishing
 
-Noora is published to hex.pm. Version is tracked in `mix.exs`. Releases are automated via the monorepo release workflow using `noora/cliff.toml` for changelog generation.
+Noora is published to [Hex](https://hex.pm/) for Phoenix LiveView consumers and to the [npm package registry](https://www.npmjs.com/) as `@tuist/noora` for JavaScript consumers. The shared version is tracked in `mix.exs` and `package.json`. Releases are automated by `.github/workflows/noora-release.yml` using `noora/cliff.toml` for changelog generation. The workflow validates Noora on `tuist-linux`, then builds and publishes both registry artifacts on a GitHub-hosted runner so the npm package includes provenance.
+
+Web component metadata and documentation are generated from `components/*.json` with `aube run generate:web-components`. Run `aube run check:generated` when changing a component contract.
+
+Do not bootstrap the npm package from a local machine. The first automated release reads a granular access token with permission to publish under the `@tuist` scope from `op://tuist/NPM_TOKEN/password` using `OP_SERVICE_ACCOUNT_TOKEN`. After the package exists, configure its trusted publisher for the `tuist/tuist` repository and `noora-release.yml` workflow, allow `npm publish`, verify a release, revoke the long-lived token, and remove its 1Password item.
 
 ## Conventions
 

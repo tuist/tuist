@@ -361,8 +361,12 @@ struct RestoreTests {
             )
 
             #expect(Set(refsByIdentity.keys) == ["local-one", "local-two"])
-            let expectedLocalOne = PathCanonicalizer.realpath(localOne).path
-            let expectedLocalTwo = PathCanonicalizer.realpath(localTwo).path
+            // SwiftPM writes a fileSystem dependency's `location` and `state.path` as the path
+            // the manifest declared, even when a link on the way in points somewhere else, so
+            // a workspace state that recorded the resolved directory described the same
+            // dependency by a directory SwiftPM never names.
+            let expectedLocalOne = localOne.path
+            let expectedLocalTwo = localTwo.path
             #expect(refsByIdentity["local-one"]?["location"] as? String == expectedLocalOne)
             #expect(refsByIdentity["local-two"]?["location"] as? String == expectedLocalTwo)
             #expect(
@@ -409,6 +413,118 @@ struct RestoreTests {
             #expect(packageRef["kind"] as? String == "root")
             #expect(packageRef["identity"] as? String == "package")
             #expect(source["type"] as? String == "local")
+        }
+    }
+
+    @Test
+    func writeWorkspaceStateWritesSymlinkedRegistryBinaryArtifacts() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("Package")
+            let scratch = root.appendingPathComponent("scratch")
+            let pin = ResolvedPin(
+                identity: "example.package",
+                kind: "registry",
+                location: "",
+                state: ResolvedState(branch: nil, revision: nil, version: "2.3.4")
+            )
+
+            // A registry download is a farm of symlinks into the shared source
+            // cache, so a binary target at the package root arrives as a symlink
+            // rather than a directory.
+            let cachedFramework = root.appendingPathComponent("cache/example.package/Foo.xcframework")
+            try await fileSystem.makeDirectory(
+                at: cachedFramework.absolutePath, options: [.createTargetParentDirectories]
+            )
+            try await fileSystem.atomicWrite(
+                validXCFrameworkInfoPlist(),
+                to: cachedFramework.appendingPathComponent("Info.plist")
+            )
+
+            let downloadDir = try scratch
+                .appendingPathComponent("registry/downloads")
+                .appendingPathComponent(PinKind.registryDownloadSubpath(pin))
+            try await writeCachedManifest(
+                localBinaryTargetManifest(name: "Foo", path: "Foo.xcframework"),
+                packageDir: downloadDir
+            )
+            let framework = downloadDir.appendingPathComponent("Foo.xcframework")
+            try await fileSystem.createSymbolicLink(
+                from: framework.absolutePath, to: cachedFramework.absolutePath
+            )
+
+            try await writeCachedManifest(emptyManifest(), packageDir: package)
+
+            let resolved = ResolvedPins(originHash: "origin", pins: [pin], version: 3)
+
+            try await WorkspaceRestorer.writeWorkspaceState(
+                packageDir: package, scratchDir: scratch, resolved: resolved, disableSandbox: false
+            )
+
+            let statePath = scratch.appendingPathComponent("workspace-state.json")
+            let state = try #require(
+                try JSONSerialization.jsonObject(
+                    with: await fileSystem.readFile(at: statePath.absolutePath))
+                    as? [String: Any])
+            let object = try #require(state["object"] as? [String: Any])
+            let artifacts = try #require(object["artifacts"] as? [[String: Any]])
+            let artifact = try #require(artifacts.first)
+            let packageRef = try #require(artifact["packageRef"] as? [String: Any])
+            #expect(artifacts.count == 1)
+            #expect(artifact["targetName"] as? String == "Foo")
+            // The path stays inside the scratch directory rather than pointing at
+            // the cache, matching what a source-control checkout records.
+            #expect(artifact["path"] as? String == framework.path)
+            #expect(packageRef["kind"] as? String == "registry")
+            #expect(packageRef["identity"] as? String == "example.package")
+        }
+    }
+
+    @Test
+    func writeWorkspaceStateDoesNotFollowSymlinksOutOfTheScannedDirectory() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("Package")
+            let scratch = root.appendingPathComponent("scratch")
+
+            // Only the path a manifest names is resolved through symlinks. Walking
+            // a directory still refuses to follow links, so a link planted inside a
+            // scanned directory cannot pull an artifact in from outside the tree.
+            let outsideFramework = root.appendingPathComponent("outside/Escaped.xcframework")
+            try await fileSystem.makeDirectory(
+                at: outsideFramework.absolutePath, options: [.createTargetParentDirectories]
+            )
+            try await fileSystem.atomicWrite(
+                validXCFrameworkInfoPlist(),
+                to: outsideFramework.appendingPathComponent("Info.plist")
+            )
+
+            let vendor = package.appendingPathComponent("Vendor")
+            try await fileSystem.makeDirectory(
+                at: vendor.absolutePath, options: [.createTargetParentDirectories]
+            )
+            try await fileSystem.createSymbolicLink(
+                from: vendor.appendingPathComponent("Escaped.xcframework").absolutePath,
+                to: outsideFramework.absolutePath
+            )
+
+            try await writeCachedManifest(
+                localBinaryTargetManifest(name: "Escaped", path: "Vendor"),
+                packageDir: package
+            )
+
+            let resolved = ResolvedPins(originHash: "origin", pins: [], version: 3)
+
+            try await WorkspaceRestorer.writeWorkspaceState(
+                packageDir: package, scratchDir: scratch, resolved: resolved, disableSandbox: false
+            )
+
+            let statePath = scratch.appendingPathComponent("workspace-state.json")
+            let state = try #require(
+                try JSONSerialization.jsonObject(
+                    with: await fileSystem.readFile(at: statePath.absolutePath))
+                    as? [String: Any])
+            let object = try #require(state["object"] as? [String: Any])
+            let artifacts = try #require(object["artifacts"] as? [[String: Any]])
+            #expect(artifacts.isEmpty)
         }
     }
 

@@ -2,6 +2,18 @@ defmodule Tuist.Builds.Build do
   @moduledoc """
   A build represents a single build run of a project, such as when building an app from Xcode.
   This is a ClickHouse entity that stores build run data.
+
+  `build_runs` is `ReplacingMergeTree(updated_at)`: a build is written once as a
+  `processing` placeholder and again once `ProcessBuildWorker` has parsed its
+  xcactivitylog. `updated_at` is the dedup version, so the row written second has
+  to carry the higher one; `inserted_at` stays the build's own timestamp and the
+  partition key.
+
+  A first write takes `updated_at` from `inserted_at`. A write that replaces a
+  known row passes that row's version, bumped, as `updated_at`, and
+  `to_buffer_map/1` treats it as a floor: the stored version is the later of it
+  and now. Ordering therefore does not depend on the writing pods' clocks
+  agreeing, only on each writer reading the row it replaces.
   """
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
@@ -63,6 +75,7 @@ defmodule Tuist.Builds.Build do
     field :xcode_cache_upload_enabled, :boolean, default: false
     field :generation_id, Ch, type: "Nullable(UUID)"
     field :inserted_at, Ch, type: "DateTime64(6)"
+    field :updated_at, Ch, type: "DateTime64(6)"
 
     belongs_to :project, Tuist.Projects.Project, define_field: false
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
@@ -104,6 +117,7 @@ defmodule Tuist.Builds.Build do
         :project_id,
         :account_id,
         :inserted_at,
+        :updated_at,
         :status,
         :category,
         :configuration,
@@ -171,6 +185,12 @@ defmodule Tuist.Builds.Build do
       nil -> NaiveDateTime.utc_now()
       %DateTime{} = dt -> DateTime.to_naive(dt)
       other -> other
+    end)
+    |> then(fn attrs ->
+      Map.update(attrs, :updated_at, attrs.inserted_at, fn
+        nil -> attrs.inserted_at
+        floor -> Enum.max([NaiveDateTime.utc_now(), floor], NaiveDateTime)
+      end)
     end)
     |> Map.new(fn
       {key, %NaiveDateTime{} = ndt} -> {key, %{ndt | microsecond: {elem(ndt.microsecond, 0), 6}}}

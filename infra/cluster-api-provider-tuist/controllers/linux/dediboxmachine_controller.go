@@ -310,6 +310,14 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 		return ctrl.Result{}, err
 	}
 
+	// Same idea for memory: cache pods run with a ceiling above their floor, so
+	// their ceilings oversubscribe the box and the native requests.memory
+	// bin-pack cannot see them. Advertise a bounded ceiling budget for the
+	// scheduler to pack them against.
+	if err := shared.ReconcileNodeMemoryCeilingCapacity(ctx, r.Client, node); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	if nodeReady(node) {
 		machine.Status.Ready = true
 		machine.Status.Phase = "Ready"

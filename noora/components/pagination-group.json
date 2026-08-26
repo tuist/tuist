@@ -1,0 +1,79 @@
+{
+  "name": "PaginationGroup",
+  "tagName": "noora-pagination-group",
+  "elementClassName": "NooraPaginationGroup",
+  "className": "noora-pagination-group",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Navigates a finite collection of numbered pages.",
+  "usage": "<noora-pagination-group current-page=\"2\" number-of-pages=\"10\"></noora-pagination-group>",
+  "attributes": [
+    {
+      "name": "current-page",
+      "property": "currentPage",
+      "type": "number",
+      "default": 1,
+      "description": "Sets the selected page."
+    },
+    {
+      "name": "number-of-pages",
+      "property": "numberOfPages",
+      "type": "number",
+      "default": 1,
+      "description": "Sets the total page count."
+    },
+    {
+      "name": "href-template",
+      "property": "hrefTemplate",
+      "type": "string",
+      "description": "Sets link locations by replacing `{page}` with the page number."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [],
+  "cssParts": [
+    {
+      "name": "pagination",
+      "description": "The pagination container."
+    },
+    {
+      "name": "page",
+      "description": "Each page control."
+    },
+    {
+      "name": "previous",
+      "description": "The previous-page control."
+    },
+    {
+      "name": "next",
+      "description": "The next-page control."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-page-change",
+      "type": "CustomEvent<{ page: number }>",
+      "description": "Emitted when a page control is activated."
+    }
+  ],
+  "notes": ["Page activation emits a `noora-page-change` event."],
+  "examples": [
+    {
+      "id": "basic",
+      "title": "Page positions",
+      "description": "Compare the first, middle, last, and second page positions.",
+      "markup": "<noora-pagination-group current-page=\"1\" number-of-pages=\"12\"></noora-pagination-group>\n<noora-pagination-group current-page=\"6\" number-of-pages=\"12\"></noora-pagination-group>\n<noora-pagination-group current-page=\"12\" number-of-pages=\"12\"></noora-pagination-group>\n<noora-pagination-group current-page=\"2\" number-of-pages=\"12\"></noora-pagination-group>"
+    },
+    {
+      "id": "page-counts",
+      "title": "Page counts",
+      "description": "Show ellipsis behavior across small and large collections.",
+      "markup": "<noora-pagination-group current-page=\"3\" number-of-pages=\"5\"></noora-pagination-group>\n<noora-pagination-group current-page=\"25\" number-of-pages=\"50\"></noora-pagination-group>\n<noora-pagination-group current-page=\"500\" number-of-pages=\"999\"></noora-pagination-group>"
+    },
+    {
+      "id": "edge-cases",
+      "title": "Edge cases",
+      "description": "Handle one-page, two-page, and near-boundary collections.",
+      "markup": "<noora-pagination-group current-page=\"1\" number-of-pages=\"1\"></noora-pagination-group>\n<noora-pagination-group current-page=\"1\" number-of-pages=\"2\"></noora-pagination-group>\n<noora-pagination-group current-page=\"2\" number-of-pages=\"2\"></noora-pagination-group>\n<noora-pagination-group current-page=\"3\" number-of-pages=\"20\"></noora-pagination-group>\n<noora-pagination-group current-page=\"18\" number-of-pages=\"20\"></noora-pagination-group>"
+    }
+  ]
+}

@@ -7,12 +7,13 @@ defmodule TuistWeb.DocsLive do
 
   alias Tuist.Docs
   alias Tuist.Docs.Paths
+  alias Tuist.Docs.Sidebar
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
 
-  @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
-  @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
   @overview_headings [
-    %{id: "learn-more", text: "Learn more about what Tuist offers", level: 2},
+    %{id: "what-do-you-want-to-do", text: "What do you want to do?", level: 2},
+    %{id: "learn-more", text: "Explore Tuist's capabilities", level: 2},
     %{id: "builds", text: "Builds", level: 2},
     %{id: "tests", text: "Tests", level: 2},
     %{id: "artifacts", text: "Artifacts", level: 2},
@@ -52,7 +53,10 @@ defmodule TuistWeb.DocsLive do
      |> assign(:markdown, overview_markdown(socket.assigns.locale, videos))
      |> assign(:page_title, "Docs · Tuist")
      |> assign(:head_title, "Docs · Tuist")
-     |> assign(:head_description, "Learn how to use Tuist to make mobile your competitive advantage.")}
+     |> assign(
+       :head_description,
+       "Build, test, and run Xcode and Gradle projects faster with Tuist's shared build infrastructure."
+     )}
   end
 
   defp handle_show(params, socket) do
@@ -69,8 +73,17 @@ defmodule TuistWeb.DocsLive do
             template -> String.replace(template, ":title", page.title)
           end
 
-        og_image_filename = Tuist.Docs.OgImage.slug_to_filename(path)
-        og_image_path = "/docs/images/og/generated/#{og_image_filename}"
+        head_image =
+          if Tuist.Environment.tuist_hosted?() do
+            og_image_path =
+              OpenGraph.image_path(:docs,
+                title: page.title,
+                description: page.description,
+                category: Sidebar.category_for_slug(page.slug)
+              )
+
+            Tuist.Environment.app_url(path: og_image_path)
+          end
 
         {:noreply,
          socket
@@ -81,7 +94,7 @@ defmodule TuistWeb.DocsLive do
          |> assign(:page_title, head_title)
          |> assign(:head_title, head_title)
          |> assign(:head_description, page.description)
-         |> assign(:head_image, Tuist.Environment.app_url(path: og_image_path))
+         |> assign(:head_image, head_image)
          |> assign(:head_twitter_card, "summary_large_image")}
     end
   end
@@ -90,7 +103,10 @@ defmodule TuistWeb.DocsLive do
     assigns =
       assigns
       |> assign(:install_path, docs_path("/#{assigns.locale}/guides/install-tuist"))
-      |> assign(:copy_check_icon, @copy_check_icon)
+      |> assign(:optimization_path, docs_path("/#{assigns.locale}/guides/get-started/optimization"))
+      |> assign(:observability_path, docs_path("/#{assigns.locale}/guides/get-started/observability"))
+      |> assign(:runners_path, docs_path("/#{assigns.locale}/guides/get-started/tuist-runners"))
+      |> assign(:ask_path, docs_path("/#{assigns.locale}/guides/get-started/ask"))
       |> assign(:headings, @overview_headings)
 
     ~H"""
@@ -104,115 +120,134 @@ defmodule TuistWeb.DocsLive do
       <div id="docs-overview">
         <%!-- Hero --%>
         <section data-part="hero">
-          <h1>{dgettext("docs", "Your mobile platform team, as a service")}</h1>
+          <h1>{dgettext("docs", "One platform for faster build toolchains")}</h1>
           <p>
             {dgettext(
               "docs",
-              "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping."
+              "Code is being produced faster and at greater volume than ever. Tuist plugs into existing build systems like Xcode and Gradle, providing the infrastructure that lets software integration and delivery keep pace."
             )}
           </p>
         </section>
 
-        <%!-- Hero cards --%>
-        <section data-part="hero-cards">
-          <div
-            id="docs-install-card"
-            data-part="hero-card"
-            data-clickable
-            phx-click={JS.patch(@install_path)}
-            phx-key="Enter"
-            role="link"
-            tabindex="0"
-            aria-label={dgettext("docs", "Install Tuist CLI")}
-          >
-            <div data-part="hero-card-bg"></div>
-            <h3>{dgettext("docs", "Install Tuist CLI")}</h3>
-            <div data-part="terminal-group" id="docs-install-terminal" phx-hook="DocsInstallTabs">
-              <div data-part="terminal">
-                <div data-part="terminal-header">
-                  <div data-part="terminal-tabs">
-                    <span
-                      data-part="terminal-tab"
-                      data-selected
-                      phx-click={JS.exec("event.stopPropagation()", to: "window")}
-                    >
-                      mise
-                    </span>
-                    <span
-                      data-part="terminal-tab"
-                      phx-click={JS.exec("event.stopPropagation()", to: "window")}
-                    >
-                      homebrew
-                    </span>
-                  </div>
-                  <button
-                    data-part="terminal-copy"
-                    aria-label={dgettext("docs", "Copy command")}
-                    phx-click={JS.exec("event.stopPropagation()", to: "window")}
-                  >
-                    <span data-part="copy-icon"><.copy /></span>
-                    <span data-part="copy-check-icon">{raw(@copy_check_icon)}</span>
-                  </button>
-                </div>
-                <div data-part="terminal-body">
-                  <code>mise install tuist</code>
-                </div>
-              </div>
-              <p data-part="hero-card-hint">
-                {dgettext("docs", "or follow the instructions to")}
-                <.link patch={@install_path} data-part="hero-card-link">
-                  {dgettext("docs", "install specific version of tuist")}
-                </.link>
-              </p>
-            </div>
+        <%!-- Starting paths --%>
+        <section data-part="start">
+          <div data-part="start-heading">
+            <h2 id="what-do-you-want-to-do">
+              {dgettext("docs", "What do you want to do?")}
+            </h2>
+            <p>
+              {dgettext(
+                "docs",
+                "Choose the outcome you want, then follow the path for your project and build system."
+              )}
+            </p>
           </div>
-          <.link navigate="/tuist/tuist" data-part="hero-card" data-variant="dashboard">
-            <div data-part="hero-card-bg"></div>
-            <h3>{dgettext("docs", "Explore dashboard")}</h3>
-            <div data-part="browser-mockup">
-              <div data-part="browser-bar">
-                <span data-part="browser-dot" data-color="red"></span>
-                <span data-part="browser-dot" data-color="yellow"></span>
-                <span data-part="browser-dot" data-color="green"></span>
+
+          <div data-part="journey-cards">
+            <.link
+              id="docs-observability-path"
+              patch={@observability_path}
+              data-part="feature-card"
+            >
+              <div data-part="image">
+                <span data-part="icon"><.search /></span>
+                <span data-part="title">{dgettext("docs", "Observe")}</span>
               </div>
-              <div data-part="browser-content">
-                <div data-part="browser-sidebar">
-                  <div data-part="browser-sidebar-items">
-                    <div data-part="sidebar-line"></div>
-                    <div data-part="sidebar-line"></div>
-                    <div data-part="sidebar-line"></div>
-                    <div data-part="sidebar-line"></div>
-                  </div>
-                </div>
-                <div data-part="browser-main">
-                  <div data-part="main-row" data-cols="4">
-                    <div data-part="main-block"></div>
-                    <div data-part="main-block"></div>
-                    <div data-part="main-block"></div>
-                    <div data-part="main-block"></div>
-                  </div>
-                  <div data-part="main-row" data-cols="2-wide">
-                    <div data-part="main-block" data-wide></div>
-                    <div data-part="main-block" data-narrow></div>
-                  </div>
-                  <div data-part="main-row" data-cols="2-equal">
-                    <div data-part="main-block" data-equal></div>
-                    <div data-part="main-block" data-equal></div>
-                  </div>
-                  <div data-part="sidebar-line" data-short></div>
-                </div>
+              <div data-part="body">
+                <p>
+                  {dgettext(
+                    "docs",
+                    "Understand build and test performance with insights into duration, failures, and regressions."
+                  )}
+                </p>
+                <span data-part="journey-link">
+                  {dgettext("docs", "Explore insights")}
+                  <.arrow_right />
+                </span>
               </div>
-            </div>
-          </.link>
+            </.link>
+
+            <.link
+              id="docs-optimization-path"
+              patch={@optimization_path}
+              data-part="feature-card"
+            >
+              <div data-part="image">
+                <span data-part="icon"><.database /></span>
+                <span data-part="title">{dgettext("docs", "Optimize")}</span>
+              </div>
+              <div data-part="body">
+                <p>
+                  {dgettext(
+                    "docs",
+                    "Reduce build and test times with module caching, selective testing, and test sharding."
+                  )}
+                </p>
+                <span data-part="journey-link">
+                  {dgettext("docs", "Optimize your workflow")}
+                  <.arrow_right />
+                </span>
+              </div>
+            </.link>
+
+            <.link id="docs-runners-path" patch={@runners_path} data-part="feature-card">
+              <div data-part="image">
+                <span data-part="icon"><.server /></span>
+                <span data-part="title">{dgettext("docs", "Run")}</span>
+              </div>
+              <div data-part="body">
+                <p>
+                  {dgettext(
+                    "docs",
+                    "Run your continuous integration and continuous delivery automations on managed macOS and Linux runners."
+                  )}
+                </p>
+                <span data-part="journey-link">
+                  {dgettext("docs", "Run on Tuist")}
+                  <.arrow_right />
+                </span>
+              </div>
+            </.link>
+
+            <.link id="docs-ask-path" patch={@ask_path} data-part="feature-card">
+              <div data-part="image">
+                <span data-part="icon"><.message_circle /></span>
+                <span data-part="title">{dgettext("docs", "Ask")}</span>
+              </div>
+              <div data-part="body">
+                <p>
+                  {dgettext(
+                    "docs",
+                    "Give coding agents access to project, build, and test context so they can answer questions and support decisions."
+                  )}
+                </p>
+                <span data-part="journey-link">
+                  {dgettext("docs", "Ask about your project")}
+                  <.arrow_right />
+                </span>
+              </div>
+            </.link>
+          </div>
+
+          <div data-part="secondary-actions">
+            <.link patch={@install_path}>
+              {dgettext("docs", "Install Tuist")}
+              <.arrow_right />
+            </.link>
+            <.link navigate="/tuist/tuist">
+              {dgettext("docs", "Explore dashboard")}
+              <.arrow_right />
+            </.link>
+          </div>
         </section>
 
         <%!-- What Tuist offers --%>
         <section data-part="section-intro">
-          <h1 id="learn-more">{dgettext("docs", "Learn more about what Tuist offers")}</h1>
+          <h1 id="learn-more">{dgettext("docs", "Explore Tuist's capabilities")}</h1>
           <p>
             {dgettext(
               "docs",
-              "Learn how to generate projects, automate your workflows, and scale your app development efficiently with Tuist."
+              "Speed up builds, improve test reliability, understand performance, and run workflows on infrastructure designed for your toolchain."
             )}
           </p>
         </section>
@@ -223,12 +258,13 @@ defmodule TuistWeb.DocsLive do
           <p>
             {dgettext(
               "docs",
-              "Skip the manual steps, auto-generate projects, speeds up builds, and explore insights with built-in analytics."
+              "Share build work across developer machines, continuous integration, runners, and coding agents, then use insights to find regressions."
             )}
           </p>
           <div data-part="feature-cards">
             <.link
-              patch={docs_path("/#{@locale}/guides/features/cache/module-cache")}
+              id="docs-cache-card"
+              patch={docs_path("/#{@locale}/guides/features/cache")}
               data-part="feature-card"
             >
               <div data-part="image">
@@ -239,7 +275,7 @@ defmodule TuistWeb.DocsLive do
                 <p>
                   {dgettext(
                     "docs",
-                    "Speeds up builds by caching compiled modules, cutting down load times in both local development and CI workflows."
+                    "Reuse build artifacts across Xcode and Gradle so work completed in one environment speeds up every other environment."
                   )}
                 </p>
               </div>
@@ -256,7 +292,7 @@ defmodule TuistWeb.DocsLive do
                 <p>
                   {dgettext(
                     "docs",
-                    "Monitor build performance across your CI infrastructure to catch slowdowns before they impact development."
+                    "Understand build performance across local and continuous integration environments before slowdowns affect your team."
                   )}
                 </p>
               </div>
@@ -270,7 +306,7 @@ defmodule TuistWeb.DocsLive do
           <p>
             {dgettext(
               "docs",
-              "Run only impacted tests based on your changes, faster feedback loops, less waiting, both locally and on CI."
+              "Run the tests that matter, detect flaky behavior, and understand test performance locally and in continuous integration."
             )}
           </p>
           <div data-part="feature-cards">
@@ -286,7 +322,7 @@ defmodule TuistWeb.DocsLive do
                 <p>
                   {dgettext(
                     "docs",
-                    "Run only the tests that matter by detecting changes since your last successful run, cutting down test times both locally and on CI."
+                    "Run only impacted tests by detecting changes since your last successful run, both locally and in continuous integration."
                   )}
                 </p>
               </div>
@@ -320,7 +356,7 @@ defmodule TuistWeb.DocsLive do
                 <p>
                   {dgettext(
                     "docs",
-                    "Track test performance, catch slow tests early, and debug CI failures through real-time logs."
+                    "Track test performance, catch slow tests early, and debug continuous integration failures through real-time logs."
                   )}
                 </p>
               </div>
@@ -334,7 +370,7 @@ defmodule TuistWeb.DocsLive do
           <p>
             {dgettext(
               "docs",
-              "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+              "Move from a successful build to useful feedback with shareable previews and bundle-size insights."
             )}
           </p>
           <div data-part="feature-cards">
@@ -347,7 +383,7 @@ defmodule TuistWeb.DocsLive do
                 <p>
                   {dgettext(
                     "docs",
-                    "Share your app instantly with a URL, no TestFlight or setup needed, so others can run it on their device or simulator in seconds."
+                    "Share your app with a link so others can run it on their device or simulator without TestFlight setup."
                   )}
                 </p>
               </div>
@@ -485,6 +521,18 @@ defmodule TuistWeb.DocsLive do
             </div>
             <p>{dgettext("docs", "Follow Tuist on LinkedIn for news and updates.")}</p>
           </a>
+          <a
+            href="https://x.com/tuistdev"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-part="community-card"
+          >
+            <div data-part="community-card-header">
+              <.brand_x />
+              <span>X</span>
+            </div>
+            <p>{dgettext("docs", "Follow us on X to stay up to date with our work.")}</p>
+          </a>
         </section>
       </div>
     </TuistWeb.Docs.Components.layout>
@@ -545,13 +593,18 @@ defmodule TuistWeb.DocsLive do
   end
 
   defp overview_markdown(locale, videos) do
-    module_cache_path = docs_path("/#{locale}/guides/features/cache/module-cache")
+    cache_path = docs_path("/#{locale}/guides/features/cache")
     build_insights_path = docs_path("/#{locale}/guides/features/build-insights")
     selective_testing_path = docs_path("/#{locale}/guides/features/selective-testing")
     flaky_tests_path = docs_path("/#{locale}/guides/features/test-insights/flaky-tests")
     test_insights_path = docs_path("/#{locale}/guides/features/test-insights")
     previews_path = docs_path("/#{locale}/guides/features/previews")
     install_path = docs_path("/#{locale}/guides/install-tuist")
+
+    optimization_path = docs_path("/#{locale}/guides/get-started/optimization")
+    observability_path = docs_path("/#{locale}/guides/get-started/observability")
+    runners_path = docs_path("/#{locale}/guides/get-started/tuist-runners")
+    ask_path = docs_path("/#{locale}/guides/get-started/ask")
 
     video_lines =
       if videos == [] do
@@ -573,59 +626,80 @@ defmodule TuistWeb.DocsLive do
 
     Enum.join(
       [
-        "# " <> dgettext("docs", "Your mobile platform team, as a service"),
+        "# " <> dgettext("docs", "One platform for faster build toolchains"),
         "",
         dgettext(
           "docs",
-          "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping."
+          "Code is being produced faster and at greater volume than ever. Tuist plugs into existing build systems like Xcode and Gradle, providing the infrastructure that lets software integration and delivery keep pace."
         ),
         "",
-        "## " <> dgettext("docs", "Install Tuist CLI"),
-        "",
-        "```sh",
-        "mise install tuist",
-        "```",
-        "",
-        markdown_link(dgettext("docs", "install specific version of tuist"), install_path),
-        "",
-        markdown_link(dgettext("docs", "Explore dashboard"), "/tuist/tuist"),
-        "",
-        "## " <> dgettext("docs", "Learn more about what Tuist offers"),
+        "## " <> dgettext("docs", "What do you want to do?"),
         "",
         dgettext(
           "docs",
-          "Learn how to generate projects, automate your workflows, and scale your app development efficiently with Tuist."
+          "Choose the outcome you want, then follow the path for your project and build system."
+        ),
+        "",
+        "- #{markdown_link(dgettext("docs", "Observe"), observability_path)}: " <>
+          dgettext(
+            "docs",
+            "Understand build and test performance with insights into duration, failures, and regressions."
+          ),
+        "- #{markdown_link(dgettext("docs", "Optimize"), optimization_path)}: " <>
+          dgettext(
+            "docs",
+            "Reduce build and test times with module caching, selective testing, and test sharding."
+          ),
+        "- #{markdown_link(dgettext("docs", "Run"), runners_path)}: " <>
+          dgettext(
+            "docs",
+            "Run your continuous integration and continuous delivery automations on managed macOS and Linux runners."
+          ),
+        "- #{markdown_link(dgettext("docs", "Ask"), ask_path)}: " <>
+          dgettext(
+            "docs",
+            "Give coding agents access to project, build, and test context so they can answer questions and support decisions."
+          ),
+        "",
+        markdown_link(dgettext("docs", "Install Tuist"), install_path),
+        markdown_link(dgettext("docs", "Explore dashboard"), "/tuist/tuist"),
+        "",
+        "## " <> dgettext("docs", "Explore Tuist's capabilities"),
+        "",
+        dgettext(
+          "docs",
+          "Speed up builds, improve test reliability, understand performance, and run workflows on infrastructure designed for your toolchain."
         ),
         "",
         "## " <> dgettext("docs", "Builds"),
         "",
         dgettext(
           "docs",
-          "Skip the manual steps, auto-generate projects, speeds up builds, and explore insights with built-in analytics."
+          "Share build work across developer machines, continuous integration, runners, and coding agents, then use insights to find regressions."
         ),
         "",
-        "- #{markdown_link(dgettext("docs", "Cache"), module_cache_path)}: " <>
+        "- #{markdown_link(dgettext("docs", "Cache"), cache_path)}: " <>
           dgettext(
             "docs",
-            "Speeds up builds by caching compiled modules, cutting down load times in both local development and CI workflows."
+            "Reuse build artifacts across Xcode and Gradle so work completed in one environment speeds up every other environment."
           ),
         "- #{markdown_link(dgettext("docs", "Insights"), build_insights_path)}: " <>
           dgettext(
             "docs",
-            "Monitor build performance across your CI infrastructure to catch slowdowns before they impact development."
+            "Understand build performance across local and continuous integration environments before slowdowns affect your team."
           ),
         "",
         "## " <> dgettext("docs", "Tests"),
         "",
         dgettext(
           "docs",
-          "Run only impacted tests based on your changes, faster feedback loops, less waiting, both locally and on CI."
+          "Run the tests that matter, detect flaky behavior, and understand test performance locally and in continuous integration."
         ),
         "",
         "- #{markdown_link(dgettext("docs", "Selective Testing"), selective_testing_path)}: " <>
           dgettext(
             "docs",
-            "Run only the tests that matter by detecting changes since your last successful run, cutting down test times both locally and on CI."
+            "Run only impacted tests by detecting changes since your last successful run, both locally and in continuous integration."
           ),
         "- #{markdown_link(dgettext("docs", "Flaky Tests"), flaky_tests_path)}: " <>
           dgettext(
@@ -635,20 +709,20 @@ defmodule TuistWeb.DocsLive do
         "- #{markdown_link(dgettext("docs", "Insights"), test_insights_path)}: " <>
           dgettext(
             "docs",
-            "Track test performance, catch slow tests early, and debug CI failures through real-time logs."
+            "Track test performance, catch slow tests early, and debug continuous integration failures through real-time logs."
           ),
         "",
         "## " <> dgettext("docs", "Artifacts"),
         "",
         dgettext(
           "docs",
-          "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+          "Move from a successful build to useful feedback with shareable previews and bundle-size insights."
         ),
         "",
         "- #{markdown_link(dgettext("docs", "Previews"), previews_path)}: " <>
           dgettext(
             "docs",
-            "Share your app instantly with a URL, no TestFlight or setup needed, so others can run it on their device or simulator in seconds."
+            "Share your app with a link so others can run it on their device or simulator without TestFlight setup."
           ),
         ""
       ] ++

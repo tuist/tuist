@@ -10,6 +10,7 @@
         "cli/**/*",
         "swifterpm/**/*",
         "cas-plugin/**/*",
+        "server/native/xcresult_nif/Sources/XCResultParser/**/*",
         "mise/tasks/cli/**/*",
         "mise/tasks/release/components.json",
         ".github/workflows/cli-release.yml",
@@ -114,6 +115,7 @@
       "include_paths": [
         "infra/cluster-api-provider-tuist/**/*",
         "infra/macos-host-bootstrap/**/*",
+        "infra/macos-log-shipper/**/*",
         "infra/tart-kubelet/**/*"
       ]
     },
@@ -170,6 +172,14 @@
       "cliff_config": "infra/stable-egress-controller/cliff.toml",
       "initial_version": "0.1.0",
       "include_paths": ["infra/stable-egress-controller/**/*"]
+    },
+    {
+      "name": "egress-tree-agent",
+      "tag_prefix": "egress-tree-agent@",
+      "tag_regex": "^egress-tree-agent@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "infra/egress-tree-agent/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["infra/egress-tree-agent/**/*"]
     },
     {
       "name": "grafana-datasource",

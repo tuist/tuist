@@ -186,9 +186,13 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
 
     /// Some static Objective-C xcframeworks keep their module map and headers in a `Headers/<ModuleName>/`
     /// subdirectory and re-import each other with the `<ModuleName/...>` prefix. Such a "nested"
-    /// layout is consumed through the xcframework's own module map with the `Headers` root (the
-    /// parent of the module subdirectory) on the search path, not a derived/rewritten copy, so
-    /// both the umbrella's and the headers' prefixed imports resolve and the module is defined once.
+    /// layout gets only the `Headers` root (the parent of the module subdirectory) on the search
+    /// path, so the prefixed imports resolve, and no `-fmodule-map-file`: clang discovers the module
+    /// map next to whichever headers win the search path. Naming one here would define the module
+    /// over the xcframework's headers even when Xcode's `ProcessXCFramework` has copied the same
+    /// headers into `$(BUILT_PRODUCTS_DIR)/include/<ModuleName>/`, which is searched first — the
+    /// module and its umbrella's imports would then come from two different copies, which clang
+    /// rejects as an incomplete umbrella or a shadowed module.
     func test_map_when_static_xcframework_library_with_nested_module_headers_linked_via_dynamic_xcframework() async throws {
         // Given
         let projectPath = try temporaryPath()
@@ -267,13 +271,6 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         name: "App",
                         settings: .test(
                             base: [
-                                "OTHER_SWIFT_FLAGS": [
-                                    "-Xcc",
-                                    "-fmodule-map-file=\"$(SRCROOT)/../NestedObjC.xcframework/ios-arm64/Headers/NestedObjC/module.modulemap\"",
-                                ],
-                                "OTHER_C_FLAGS": [
-                                    "-fmodule-map-file=\"$(SRCROOT)/../NestedObjC.xcframework/ios-arm64/Headers/NestedObjC/module.modulemap\"",
-                                ],
                                 "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../NestedObjC.xcframework/ios-arm64/Headers\""],
                             ]
                         )

@@ -11,6 +11,7 @@ defmodule TuistWeb.RunnersLive do
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Analytics
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
@@ -18,13 +19,24 @@ defmodule TuistWeb.RunnersLive do
 
   @table_limit 5
   @chart_limit 30
+  # Only work that reached a success/failure conclusion carries a real
+  # duration. Running, cancelled and skipped runs would draw as
+  # zero-height bars that scatter the real ones, and count for nothing
+  # in the success/failure legends. Both Recent cards narrow to these
+  # at the query, so each one's table, bars and legends describe the
+  # same set of rows.
+  @duration_conclusions ["success", "failure"]
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
-    if Authorization.authorize(:runners_read, current_user, selected_account) != :ok or
+    if Authorization.authorize(:account_dashboard_read, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
+    end
+
+    if connected?(socket) do
+      Tuist.PubSub.subscribe(Jobs.topic(selected_account.id))
     end
 
     {:ok,
@@ -33,7 +45,18 @@ defmodule TuistWeb.RunnersLive do
        :head_title,
        "#{dgettext("dashboard_runners", "Runners")} · #{selected_account.name} · Tuist"
      )
+     |> assign(:runner_concurrency, Concurrency.summaries(selected_account))
      |> assign(:repositories, Jobs.distinct_repositories_for_account(selected_account.id))}
+  end
+
+  @impl true
+  def handle_info({:runner_jobs_status_changed, _payload}, socket) do
+    {:noreply,
+     assign(
+       socket,
+       :runner_concurrency,
+       Concurrency.summaries(socket.assigns.selected_account)
+     )}
   end
 
   @impl true
@@ -46,6 +69,7 @@ defmodule TuistWeb.RunnersLive do
     workflow_duration_percentile = params["workflow-duration"] || "avg"
     repository = params["repository"] || "any"
     platform = platform_param(params["platform"])
+    concurrency_platform = concurrency_platform_param(params["concurrency-platform"])
 
     opts =
       [start_datetime: start_datetime, end_datetime: end_datetime]
@@ -57,6 +81,7 @@ defmodule TuistWeb.RunnersLive do
      |> assign(:uri, URI.parse(uri))
      |> assign(:repository, repository)
      |> assign(:platform, platform)
+     |> assign(:concurrency_platform, concurrency_platform)
      |> assign(:analytics_preset, preset)
      |> assign(:analytics_period, period)
      |> assign(:analytics_trend_label, trend_label(preset))
@@ -66,13 +91,20 @@ defmodule TuistWeb.RunnersLive do
      |> assign_recent_jobs(account.id, repository, platform)
      |> assign_recent_workflow_runs(account.id, repository, platform)
      |> assign_async(
-       [:jobs_count, :jobs_duration, :workflows_duration],
+       [:jobs_count, :jobs_duration, :workflows_duration, :concurrency_usage],
        fn ->
          {:ok,
           %{
             jobs_count: Analytics.jobs_count(account.id, opts),
             jobs_duration: Analytics.jobs_duration(account.id, opts),
-            workflows_duration: Analytics.workflows_duration(account.id, opts)
+            workflows_duration: Analytics.workflows_duration(account.id, opts),
+            concurrency_usage:
+              Concurrency.usage_over_time(
+                account.id,
+                start_datetime,
+                end_datetime,
+                :hour
+              )
           }}
        end
      )}
@@ -94,6 +126,9 @@ defmodule TuistWeb.RunnersLive do
   # plus the unset `any`.
   defp platform_param(value) when value in ["macos", "linux"], do: value
   defp platform_param(_), do: "any"
+
+  defp concurrency_platform_param(value) when value in ["macos", "linux"], do: value
+  defp concurrency_platform_param(_), do: "macos"
 
   @impl true
   def handle_event("select_widget", %{"widget" => widget}, socket) do
@@ -133,14 +168,15 @@ defmodule TuistWeb.RunnersLive do
 
   defp assign_recent_jobs(socket, account_id, repository, platform) do
     # The Recent jobs card mirrors the Recent Test Runs card on the
-    # Tests page — it's a chronicle of finished work, not a live
-    # status board. Filter to completed runs only so the bars carry
-    # a real duration and the success/failure legends count
-    # something other than zero. The chart spans up to
-    # `@chart_limit` so the bar trail conveys a trend, while the
-    # table below shows only the freshest `@table_limit` rows.
+    # Tests page — it's a chronicle of work that ran, not a live
+    # status board. Filter to jobs that completed with a
+    # `@duration_conclusions` conclusion so the bars carry a real
+    # duration and the success/failure legends count something other
+    # than zero. The chart spans up to `@chart_limit` so the bar trail
+    # conveys a trend, while the table below shows only the freshest
+    # `@table_limit` rows.
     opts =
-      [status: "completed", limit: @chart_limit]
+      [status: "completed", conclusion: @duration_conclusions, limit: @chart_limit]
       |> maybe_repository(repository)
       |> maybe_platform(platform)
 
@@ -149,14 +185,34 @@ defmodule TuistWeb.RunnersLive do
 
     socket
     |> assign(:recent_jobs, recent_jobs_table)
+    |> assign(:recent_jobs_hidden, hidden_recent_jobs?(recent_jobs_chart, account_id, repository, platform))
     |> assign(:recent_jobs_chart_data, recent_jobs_chart_data(recent_jobs_chart, socket.assigns.selected_account.name))
     |> assign(:recent_jobs_successful_count, Enum.count(recent_jobs_chart, &(&1.conclusion == "success")))
     |> assign(:recent_jobs_failed_count, Enum.count(recent_jobs_chart, &(&1.conclusion == "failure")))
   end
 
-  defp assign_recent_workflow_runs(socket, account_id, repository, platform) do
+  # An empty card no longer means "this account has never run a job" —
+  # it also happens when everything recent was skipped or cancelled.
+  # The distinction picks the empty state's copy and keeps `View more`
+  # live so those rows stay one click away on the Jobs page. Only worth
+  # a second query in the empty case, which is the only one that asks.
+  defp hidden_recent_jobs?([], account_id, repository, platform) do
     opts =
-      [limit: @chart_limit]
+      [limit: 1]
+      |> maybe_repository(repository)
+      |> maybe_platform(platform)
+
+    Jobs.list_for_account(account_id, opts) != []
+  end
+
+  defp hidden_recent_jobs?(_rows, _account_id, _repository, _platform), do: false
+
+  defp assign_recent_workflow_runs(socket, account_id, repository, platform) do
+    # Same contract as the Recent jobs card above: a run rolls up to
+    # `cancelled` or `skipped` when none of its jobs ran, so it carries
+    # no duration for the table and nothing for the bars or legends.
+    opts =
+      [conclusion: @duration_conclusions, limit: @chart_limit]
       |> maybe_repository(repository)
       |> maybe_platform(platform)
 
@@ -165,6 +221,10 @@ defmodule TuistWeb.RunnersLive do
 
     socket
     |> assign(:recent_workflow_runs, recent_workflow_runs_table)
+    |> assign(
+      :recent_workflow_runs_hidden,
+      hidden_recent_workflow_runs?(recent_workflow_runs_chart, account_id, repository, platform)
+    )
     |> assign(
       :recent_workflow_runs_chart_data,
       recent_workflow_runs_chart_data(recent_workflow_runs_chart, socket.assigns.selected_account.name)
@@ -179,11 +239,22 @@ defmodule TuistWeb.RunnersLive do
     )
   end
 
-  # Workflow-run bars mirror the recent-jobs chart: one bar per run,
-  # height in seconds, colour from the run-level conclusion. We URL
-  # the bar to the workflow detail page when the slug fully resolves
-  # so clicking drills down naturally; partial-info rows just don't
-  # carry a navigate target.
+  defp hidden_recent_workflow_runs?([], account_id, repository, platform) do
+    opts =
+      [limit: 1]
+      |> maybe_repository(repository)
+      |> maybe_platform(platform)
+
+    Jobs.list_recent_workflow_runs_for_account(account_id, opts) != []
+  end
+
+  defp hidden_recent_workflow_runs?(_rows, _account_id, _repository, _platform), do: false
+
+  # Workflow-run bars mirror the recent-jobs chart: one bar per
+  # succeeded/failed run, height in seconds, colour from the run-level
+  # conclusion. We URL the bar to the workflow detail page when the slug
+  # fully resolves so clicking drills down naturally; partial-info rows
+  # just don't carry a navigate target.
   defp recent_workflow_runs_chart_data(recent_workflow_runs, account_name) do
     recent_workflow_runs
     |> Enum.reverse()
@@ -200,6 +271,9 @@ defmodule TuistWeb.RunnersLive do
   defp run_duration_seconds(%{duration_ms: ms}) when is_integer(ms) and ms > 0, do: div(ms, 1000)
   defp run_duration_seconds(_), do: 0
 
+  # The card only ever plots `@duration_conclusions`; the rest are kept
+  # as defensive clauses so a colour is defined for every conclusion
+  # the rollup can produce.
   defp workflow_run_chart_color("success"), do: "var:noora-chart-primary"
   defp workflow_run_chart_color("failure"), do: "var:noora-chart-destructive"
   defp workflow_run_chart_color("cancelled"), do: "var:noora-chart-warning"
@@ -218,9 +292,10 @@ defmodule TuistWeb.RunnersLive do
 
   defp workflow_run_detail_url(_account_name, _row), do: nil
 
-  # Bars represent each recent job. Y is the duration in seconds (or
-  # zero for not-yet-started states), the bar colour mirrors the row's
-  # status badge so the chart reads at the same glance as the table.
+  # One bar per job, all of them succeeded or failed since the query
+  # narrows to `@duration_conclusions`. Y is the duration in seconds,
+  # the bar colour mirrors the row's status badge so the chart reads at
+  # the same glance as the table.
   defp recent_jobs_chart_data(recent_jobs, account_name) do
     recent_jobs
     |> Enum.reverse()
@@ -252,6 +327,8 @@ defmodule TuistWeb.RunnersLive do
 
   defp duration_seconds(_), do: 0
 
+  # As with `workflow_run_chart_color/1`, the card only ever plots
+  # `@duration_conclusions`; the other clauses stay defensive.
   defp chart_color_for(%{status: "completed", conclusion: "success"}), do: "var:noora-chart-primary"
   defp chart_color_for(%{status: "completed", conclusion: "failure"}), do: "var:noora-chart-destructive"
   defp chart_color_for(%{status: "completed", conclusion: "cancelled"}), do: "var:noora-chart-warning"
@@ -283,18 +360,25 @@ defmodule TuistWeb.RunnersLive do
     "?" <> Query.put(uri.query, "platform", platform)
   end
 
+  def concurrency_platform_patch(%URI{} = uri, platform) do
+    "?" <> Query.put(uri.query, "concurrency-platform", platform)
+  end
+
   def platform_label("macos"), do: dgettext("dashboard_runners", "macOS")
   def platform_label("linux"), do: dgettext("dashboard_runners", "Linux")
+  def platform_label(:macos), do: dgettext("dashboard_runners", "macOS")
+  def platform_label(:linux), do: dgettext("dashboard_runners", "Linux")
   def platform_label(_any), do: dgettext("dashboard_runners", "Any")
 
   @platforms ["macos", "linux"]
   def platforms, do: @platforms
 
   @doc """
-  Conclusion label for the Recent workflow_runs table — the rollup
-  in `list_recent_workflow_runs_for_account/2` may return `success`,
-  `failure`, `cancelled`, or `skipped`. Anything outside that set
-  collapses to "Unknown" so a stray value renders cleanly.
+  Conclusion label for the Recent workflow_runs table. The card asks
+  `list_recent_workflow_runs_for_account/2` for `@duration_conclusions`
+  only, but the rollup can also return `cancelled` or `skipped`, so
+  those keep a label; anything outside the set collapses to "Unknown"
+  so a stray value renders cleanly.
   """
   def conclusion_label("success"), do: dgettext("dashboard_runners", "Success")
   def conclusion_label("failure"), do: dgettext("dashboard_runners", "Failure")
@@ -398,6 +482,147 @@ defmodule TuistWeb.RunnersLive do
         else
           %{}
         end
+    }
+  end
+
+  @doc """
+  Builds the two resource charts shown for the selected platform.
+  """
+  def concurrency_charts(usage, summaries, platform) when platform in ["linux", "macos"] do
+    summaries_by_platform = Map.new(summaries, &{&1.platform, &1})
+    platform = String.to_existing_atom(platform)
+    summary = Map.fetch!(summaries_by_platform, platform)
+
+    [
+      concurrency_chart(
+        usage,
+        summary,
+        :vcpus,
+        "#{platform}-vcpus",
+        dgettext("dashboard_runners", "%{platform} vCPU", platform: platform_label(platform))
+      ),
+      concurrency_chart(
+        usage,
+        summary,
+        :memory_gb,
+        "#{platform}-memory",
+        dgettext("dashboard_runners", "%{platform} memory", platform: platform_label(platform))
+      )
+    ]
+  end
+
+  defp concurrency_chart(usage, summary, resource, id, title) do
+    platform_usage = Map.fetch!(usage, summary.platform)
+    values = Map.fetch!(platform_usage, resource)
+
+    limit =
+      case resource do
+        :vcpus -> summary.limit_vcpus
+        :memory_gb -> summary.limit_memory_gb
+      end
+
+    %{
+      id: id,
+      title: title,
+      dates: usage.dates,
+      values: values,
+      limit: limit,
+      limit_label: concurrency_limit_label(resource, limit),
+      usage_label: concurrency_usage_label(resource)
+    }
+  end
+
+  defp concurrency_limit_label(:vcpus, limit) do
+    dgettext("dashboard_runners", "%{limit} vCPU limit", limit: limit)
+  end
+
+  defp concurrency_limit_label(:memory_gb, limit) do
+    dgettext("dashboard_runners", "%{limit} GB limit", limit: limit)
+  end
+
+  defp concurrency_usage_label(:vcpus), do: dgettext("dashboard_runners", "Peak CPU")
+  defp concurrency_usage_label(:memory_gb), do: dgettext("dashboard_runners", "Peak memory")
+
+  @doc """
+  Colors buckets that reached the configured limit and overlays that
+  limit as a dashed line.
+  """
+  def concurrency_chart_series(values, limit, usage_label) do
+    [
+      %{
+        data: Enum.map(values, &concurrency_bar(&1, limit)),
+        itemStyle: %{color: "var:noora-chart-primary"},
+        name: usage_label,
+        type: "bar",
+        barMaxWidth: 18
+      },
+      %{
+        data: List.duplicate(limit, length(values)),
+        name: dgettext("dashboard_runners", "Limit"),
+        type: "line",
+        symbol: "none",
+        silent: true,
+        itemStyle: %{color: "var:noora-chart-destructive"},
+        lineStyle: %{
+          color: "var:noora-chart-destructive",
+          type: "dashed",
+          width: 1.5
+        }
+      }
+    ]
+  end
+
+  defp concurrency_bar(value, limit) when value >= limit do
+    %{value: value, itemStyle: %{color: "var:noora-chart-destructive"}}
+  end
+
+  defp concurrency_bar(value, _limit), do: value
+
+  @doc """
+  Shared ECharts options for concurrency resource charts.
+  """
+  def concurrency_chart_options(analytics_preset) do
+    %{
+      grid: %{left: 34, right: 24, top: 8, bottom: 36},
+      legend: %{
+        left: "left",
+        top: "bottom",
+        orient: "horizontal",
+        textStyle: %{
+          color: "var:noora-surface-label-secondary",
+          fontFamily: "monospace",
+          fontWeight: 400,
+          fontSize: 10,
+          lineHeight: 12
+        },
+        itemWidth: 10,
+        itemHeight: 4
+      },
+      xAxis: %{
+        boundaryGap: true,
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter:
+            if(analytics_preset == "last-24-hours",
+              do: "fn:toLocaleDateHour",
+              else: "fn:toLocaleDate"
+            ),
+          interval:
+            case analytics_preset do
+              "last-7-days" -> 23
+              "last-30-days" -> 47
+              _ -> "auto"
+            end,
+          hideOverlap: true,
+          padding: [8, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary"}
+      },
+      tooltip: %{dateFormat: "hour"}
     }
   end
 

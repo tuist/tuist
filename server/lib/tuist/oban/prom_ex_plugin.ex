@@ -1,19 +1,43 @@
 defmodule Tuist.Oban.PromExPlugin do
   @moduledoc """
   Oban metrics plugin emitting job event metrics (with extended
-  duration histogram buckets), queue length polling metrics, and
-  producer event metrics.
+  duration histogram buckets), queue length and queue age polling
+  metrics, and producer event metrics.
+
+  The polled gauges are read from the shared `oban_jobs` table rather
+  than from this node's own producers, so a queue consumed by a
+  separate deployment (`:process_xcresult` on the macOS fleet,
+  `:process_build` on the Linux processors) is still reported by every
+  node that runs this plugin. That is deliberate: it makes "the only
+  consumer of this queue is gone" observable from a node that is
+  itself healthy.
+
+  Those queue-level gauges answer "is this queue being drained at all".
+  They cannot answer "is every consumer of it healthy": one broken
+  consumer beside a working one leaves the queue draining normally. The
+  `node_last_attempt/completion_timestamp_seconds` pair covers that case
+  from the opposite direction, reported by each consumer about itself.
   """
   use PromEx.Plugin
 
   import Ecto.Query, only: [group_by: 3, select: 3]
 
+  alias Tuist.Environment
+
+  @job_start_event [:oban, :job, :start]
   @job_complete_event [:oban, :job, :stop]
   @job_exception_event [:oban, :job, :exception]
   @producer_complete_event [:oban, :producer, :stop]
   @producer_exception_event [:oban, :producer, :exception]
 
   @metric_prefix [:tuist, :oban]
+
+  @queue_length_event [:prom_ex, :plugin, :oban, :queue, :length, :count]
+  @queue_age_event [:prom_ex, :plugin, :oban, :queue, :oldest, :available, :age, :seconds]
+
+  # Process-dict key holding the set of queues reported on the previous
+  # poll, so a queue that drains to nothing still gets an explicit zero.
+  @queues_seen_key :tuist_oban_queue_metrics_seen_queues
 
   @job_duration_buckets [10, 100, 500, 1_000, 5_000, 20_000, 60_000, 300_000, 600_000, 1_800_000]
   @job_attempt_buckets [1, 5, 10]
@@ -87,6 +111,27 @@ defmodule Tuist.Oban.PromExPlugin do
         ]
       ),
       Event.build(
+        :oban_node_liveness_metrics,
+        [
+          last_value(
+            @metric_prefix ++ [:node, :last, :attempt, :timestamp, :seconds],
+            event_name: @job_start_event,
+            measurement: &current_unix_second/2,
+            description: "Unix timestamp of the last job this node started on the queue.",
+            tag_values: &node_liveness_tag_values/1,
+            tags: [:name, :queue, :node]
+          ),
+          last_value(
+            @metric_prefix ++ [:node, :last, :completion, :timestamp, :seconds],
+            event_name: @job_complete_event,
+            measurement: &current_unix_second/2,
+            description: "Unix timestamp of the last job this node completed on the queue.",
+            tag_values: &node_liveness_tag_values/1,
+            tags: [:name, :queue, :node]
+          )
+        ]
+      ),
+      Event.build(
         :oban_producer_event_metrics,
         [
           distribution(
@@ -133,10 +178,23 @@ defmodule Tuist.Oban.PromExPlugin do
         [
           last_value(
             @metric_prefix ++ [:queue, :length, :count],
-            event_name: [:prom_ex, :plugin, :oban, :queue, :length, :count],
+            event_name: @queue_length_event,
             description: "The total number of jobs in the queue in the designated state.",
             measurement: :count,
             tags: [:name, :queue, :state]
+          ),
+          # Rides the same scan as the length gauge. Depth alone reads
+          # identically for a queue that is never empty because arrivals
+          # are served promptly and a queue with no consumer at all:
+          # both sit at a non-zero count. Age separates them, and it is
+          # the signal that keeps climbing while nothing drains.
+          last_value(
+            @metric_prefix ++ [:queue, :oldest, :available, :age, :seconds],
+            event_name: @queue_age_event,
+            description:
+              "Age in seconds of the oldest job sitting in the `available` state for a queue (0 when nothing is available).",
+            measurement: :age_seconds,
+            tags: [:name, :queue]
           )
         ]
       )
@@ -147,46 +205,138 @@ defmodule Tuist.Oban.PromExPlugin do
     case Oban.Registry.whereis(Oban) do
       oban_pid when is_pid(oban_pid) ->
         config = Oban.Registry.config(Oban)
+        now = DateTime.utc_now()
 
         query =
           Oban.Job
           |> group_by([j], [j.queue, j.state])
-          |> select([j], {j.queue, j.state, count(j.id)})
+          |> select([j], {j.queue, j.state, count(j.id), min(j.scheduled_at)})
 
-        config
-        |> Oban.Repo.all(query)
-        |> include_zeros_for_missing_queue_states()
+        rows = Oban.Repo.all(config, query)
+        name = normalize_module_name(Oban)
+        queues = observed_queues(rows)
+
+        rows
+        |> include_zeros_for_missing_queue_states(queues)
         |> Enum.each(fn {{queue, state}, count} ->
+          :telemetry.execute(@queue_length_event, %{count: count}, %{name: name, queue: queue, state: state})
+        end)
+
+        oldest_available = oldest_available_scheduled_at(rows)
+
+        Enum.each(queues, fn queue ->
           :telemetry.execute(
-            [:prom_ex, :plugin, :oban, :queue, :length, :count],
-            %{count: count},
-            %{name: normalize_module_name(Oban), queue: queue, state: state}
+            @queue_age_event,
+            %{age_seconds: age_seconds(now, Map.get(oldest_available, queue))},
+            %{name: name, queue: queue}
           )
         end)
+
+        Process.put(@queues_seen_key, queues)
 
       _ ->
         :ok
     end
   end
 
-  defp include_zeros_for_missing_queue_states(query_result) do
+  # Every queue the gauges must report on this tick: the ones this node
+  # runs, the ones the scan saw rows for (a queue delegated to another
+  # deployment still has rows in the shared `oban_jobs` table), and the
+  # ones reported on the previous tick. The last set is load-bearing: a
+  # queue that fully drains stops appearing in the scan, and without an
+  # explicit zero `last_value` would hold its final non-zero sample
+  # forever, leaving a queue-age alert that never clears once it fires.
+  defp observed_queues(rows) do
+    configured = MapSet.new(configured_queues() ++ delegated_queues(), &to_string/1)
+    scanned = MapSet.new(rows, fn {queue, _state, _count, _oldest} -> queue end)
+
+    @queues_seen_key
+    |> Process.get(MapSet.new())
+    |> MapSet.union(configured)
+    |> MapSet.union(scanned)
+    |> MapSet.delete(nil)
+  end
+
+  # Queues this node deliberately does not run because a dedicated
+  # deployment consumes them. Reporting on them anyway is the point: a
+  # node that delegates is the one best placed to observe that the
+  # delegate has gone away, and it keeps the gauge present even during a
+  # window where the queue happens to hold no rows at all. Otherwise the
+  # series would simply be absent, which a threshold alert reads as
+  # healthy.
+  defp delegated_queues do
+    [
+      {:process_build, Environment.delegate_process_build?()},
+      {:process_xcresult, Environment.delegate_process_xcresult?()}
+    ]
+    |> Enum.filter(&elem(&1, 1))
+    |> Enum.map(&elem(&1, 0))
+  end
+
+  defp configured_queues do
     {_, opts} =
       Enum.find(Oban.config().plugins, {nil, [queues: Oban.config().queues]}, fn {plugin, _} ->
         plugin == Oban.Pro.Plugins.DynamicQueues
       end)
 
-    all_queues =
-      opts
-      |> Keyword.get(:queues, [])
-      |> Keyword.keys()
+    opts
+    |> Keyword.get(:queues, [])
+    |> Keyword.keys()
+  end
 
+  defp include_zeros_for_missing_queue_states(query_result, queues) do
     all_states = Oban.Job.states()
 
-    zeros = for queue <- all_queues, state <- all_states, into: %{}, do: {{to_string(queue), to_string(state)}, 0}
-    counts = for {queue, state, count} <- query_result, into: %{}, do: {{queue, state}, count}
+    zeros = for queue <- queues, state <- all_states, into: %{}, do: {{queue, to_string(state)}, 0}
+    counts = for {queue, state, count, _oldest} <- query_result, into: %{}, do: {{queue, state}, count}
 
     Map.merge(zeros, counts)
   end
+
+  # `available` is the only state whose `scheduled_at` is a "ready since"
+  # timestamp. `scheduled` and `retryable` carry a future run-at, and
+  # `executing` jobs are by definition being drained, so including them
+  # would report a healthy queue as stalled or a stalled one as healthy.
+  defp oldest_available_scheduled_at(rows) do
+    for {queue, "available", _count, oldest} <- rows, not is_nil(oldest), into: %{}, do: {queue, oldest}
+  end
+
+  # Clamped at 0 so clock skew between the node that inserted the job and
+  # the node polling cannot report a negative age, which would read as a
+  # healthy queue.
+  defp age_seconds(_now, nil), do: 0
+  defp age_seconds(now, %DateTime{} = scheduled_at), do: now |> DateTime.diff(scheduled_at, :second) |> max(0)
+
+  defp age_seconds(now, %NaiveDateTime{} = scheduled_at),
+    do: age_seconds(now, DateTime.from_naive!(scheduled_at, "Etc/UTC"))
+
+  # Absolute timestamps rather than a "seconds since" gauge, so the pair
+  # needs no state between events and no scan of `oban_jobs`. The elapsed
+  # time is `time() - <gauge>` at query time, which is also what makes a
+  # node that stops reporting fall out of the alert as absent rather than
+  # as a stale healthy-looking sample.
+  #
+  # Reported per node because the failure this pair exists to catch is
+  # per-consumer, not per-queue: on 2026-08-25 one of two xcresult
+  # processors took jobs for 14 hours and completed none, while its
+  # sibling kept `available` at 0. Every queue-level gauge, including
+  # `queue_oldest_available_age_seconds`, read perfectly healthy
+  # throughout.
+  #
+  # `node` is Oban's own node name, the same value it writes into
+  # `oban_jobs.attempted_by`, so a firing alert names the row you can go
+  # and query.
+  defp node_liveness_tag_values(metadata) do
+    config = config_from_metadata(metadata)
+
+    %{
+      name: normalize_module_name(config.name),
+      queue: metadata.job.queue,
+      node: config.node
+    }
+  end
+
+  defp current_unix_second(_measurements, _metadata), do: System.system_time(:second)
 
   defp job_complete_tag_values(metadata) do
     config = config_from_metadata(metadata)

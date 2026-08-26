@@ -1,0 +1,145 @@
+{
+  "name": "ButtonDropdown",
+  "tagName": "noora-button-dropdown",
+  "elementClassName": "NooraButtonDropdown",
+  "className": "noora-button-dropdown",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Combines a primary button action with an attached menu.",
+  "usage": "<noora-button-dropdown label=\"Create\">\n  <noora-dropdown-item value=\"project\">Project</noora-dropdown-item>\n</noora-button-dropdown>",
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the main action label."
+    },
+    {
+      "name": "size",
+      "property": "size",
+      "type": "string",
+      "values": ["medium", "large"],
+      "default": "large",
+      "description": "Controls the dimensions."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables both controls."
+    },
+    {
+      "name": "open",
+      "property": "open",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Controls whether the menu is open."
+    },
+    {
+      "name": "close-on-select",
+      "property": "closeOnSelect",
+      "type": "boolean",
+      "default": true,
+      "description": "Closes the menu after a selection."
+    },
+    {
+      "name": "keep-open",
+      "property": "keepOpen",
+      "type": "boolean",
+      "default": false,
+      "description": "Keeps the menu open after selection."
+    },
+    {
+      "name": "align",
+      "property": "align",
+      "type": "string",
+      "values": ["start", "end"],
+      "default": "start",
+      "description": "Aligns the menu to the button."
+    }
+  ],
+  "properties": [
+    {
+      "name": "items",
+      "type": "json",
+      "typescriptType": "Array<Record<string, unknown>>",
+      "default": [],
+      "description": "Defines menu items programmatically when declarative noora-dropdown-item children are not used."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "icon-left",
+      "description": "An icon before the main label."
+    },
+    {
+      "name": "icon-right",
+      "description": "An icon after the main label."
+    },
+    {
+      "name": "",
+      "description": "Declarative noora-dropdown-item children."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "main-button",
+      "description": "The main action."
+    },
+    {
+      "name": "trigger",
+      "description": "The menu trigger."
+    },
+    {
+      "name": "content",
+      "description": "The menu content."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-action",
+      "type": "CustomEvent<Record<string, never>>",
+      "description": "Emitted when the primary button is activated."
+    },
+    {
+      "name": "noora-open-change",
+      "type": "CustomEvent<{ open: boolean }>",
+      "description": "Emitted when the menu opens or closes."
+    },
+    {
+      "name": "noora-select",
+      "type": "CustomEvent<{ item: Record<string, unknown>; value: unknown }>",
+      "description": "Emitted when a menu item is selected."
+    }
+  ],
+  "notes": ["Selections emit a `noora-select` event."],
+  "examples": [
+    {
+      "id": "default",
+      "title": "Default",
+      "description": "Attach related options to a primary action.",
+      "markup": "<noora-button-dropdown label=\"Button\">\n  <noora-dropdown-item value=\"1\">Option 1</noora-dropdown-item>\n  <noora-dropdown-item value=\"2\">Option 2</noora-dropdown-item>\n  <noora-dropdown-item value=\"3\">Option 3</noora-dropdown-item>\n</noora-button-dropdown>"
+    },
+    {
+      "id": "sizes",
+      "title": "Sizes",
+      "description": "Button dropdowns are available in medium and large sizes.",
+      "markup": "<noora-button-dropdown label=\"Button\" size=\"medium\">\n  <noora-dropdown-item value=\"1\">Option 1</noora-dropdown-item>\n  <noora-dropdown-item value=\"2\">Option 2</noora-dropdown-item>\n</noora-button-dropdown>\n<noora-button-dropdown label=\"Button\" size=\"large\">\n  <noora-dropdown-item value=\"1\">Option 1</noora-dropdown-item>\n  <noora-dropdown-item value=\"2\">Option 2</noora-dropdown-item>\n</noora-button-dropdown>"
+    },
+    {
+      "id": "icons",
+      "title": "Icons",
+      "description": "Place icons on either side of the main action label.",
+      "markup": "<noora-button-dropdown label=\"Button\">\n  <noora-icon slot=\"icon-left\" name=\"chevron_left\"></noora-icon>\n  <noora-icon slot=\"icon-right\" name=\"chevron_right\"></noora-icon>\n  <noora-dropdown-item value=\"1\">Option 1</noora-dropdown-item>\n  <noora-dropdown-item value=\"2\">Option 2</noora-dropdown-item>\n</noora-button-dropdown>"
+    },
+    {
+      "id": "disabled",
+      "title": "Disabled",
+      "description": "The disabled state prevents both action and menu interaction.",
+      "markup": "<noora-button-dropdown disabled label=\"Button\">\n  <noora-dropdown-item value=\"1\">Option 1</noora-dropdown-item>\n  <noora-dropdown-item value=\"2\">Option 2</noora-dropdown-item>\n</noora-button-dropdown>"
+    }
+  ]
+}

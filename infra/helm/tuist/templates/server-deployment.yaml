@@ -2,6 +2,7 @@
 {{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
 {{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
 {{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
+{{- $registryRuntimeSecretName := .Values.registry.runtimeSecretName | default (include "tuist.componentName" (dict "root" . "component" "registry-runtime")) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -43,6 +44,7 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+      automountServiceAccountToken: {{ .Values.server.automountServiceAccountToken }}
       terminationGracePeriodSeconds: {{ .Values.server.terminationGracePeriodSeconds }}
       {{- include "tuist.podScheduling" . | nindent 6 }}
       {{- with .Values.server.affinity }}
@@ -61,6 +63,12 @@ spec:
         - name: server
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          {{- with .Values.server.seedAccountCredentials.secretName }}
+          volumeMounts:
+            - name: seed-account-credentials
+              mountPath: /var/run/tuist/seed-account
+              readOnly: true
+          {{- end }}
           command:
             - /app/bin/tuist
             - start
@@ -120,6 +128,47 @@ spec:
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            {{- if .Values.server.config.cacheTokenKey.signing }}
+            - name: TUIST_CACHE_TOKEN_SIGNING_ENABLED
+              value: "1"
+            {{- end }}
+            {{- if .Values.registry.enabled }}
+            - name: TUIST_REGISTRY_S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_REGISTRY_BUCKET
+            - name: TUIST_REGISTRY_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_ENDPOINT
+                  optional: true
+            - name: TUIST_REGISTRY_S3_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_HOST
+            - name: TUIST_REGISTRY_S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_REGION
+            - name: TUIST_REGISTRY_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_ACCESS_KEY_ID
+            - name: TUIST_REGISTRY_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_SECRET_ACCESS_KEY
+            {{- end }}
+            {{- if .Values.codebaseSearch.enabled }}
+            - name: TUIST_CODEBASE_SEARCH_URL
+              value: {{ printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "codebase-search")) .Values.codebaseSearch.service.port | quote }}
+            {{- end }}
             {{- with (.Values.server.artifactRetentionDays.cacheArtifacts | toString) }}
             - name: TUIST_CACHE_ARTIFACT_RETENTION_DAYS
               value: {{ . | quote }}
@@ -191,6 +240,20 @@ spec:
             # Pod actually polls, regardless of the helm release name.
             - name: TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX
               value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-linux") | quote }}
+            {{- with .Values.runnersFleetLinux.pools }}
+            # Operator-defined pools predate persisted runner resources.
+            # Inject their pod sizing so new replicas can account for queued
+            # jobs and live claims written by old replicas.
+            {{- $serverPools := list }}
+            {{- range . }}
+            {{- $podCPU := dig "pod" "cpuMilli" 4000 . | int }}
+            {{- $podMemory := dig "pod" "memoryMB" 16384 . | int }}
+            {{- $pool := dict "name" (.name | toString) "cpuMilli" $podCPU "memoryMB" $podMemory }}
+            {{- $serverPools = append $serverPools $pool }}
+            {{- end }}
+            - name: TUIST_RUNNER_LINUX_POOLS
+              value: {{ $serverPools | toJson | quote }}
+            {{- end }}
             {{- with .Values.runnersFleetLinux.shapes }}
             # Single source of truth for the shape catalog: inject the
             # same `runnersFleetLinux.shapes` list that renders the
@@ -324,6 +387,17 @@ spec:
             - name: TUIST_KURA_RUNTIME_IMAGE_TAG
               value: {{ .Values.kuraRuntime.image.tag | quote }}
             {{- end }}
+            {{- if .Values.kuraRuntime.rollout.expediteTag }}
+            - name: TUIST_KURA_ROLLOUT_EXPEDITE_TAG
+              value: {{ .Values.kuraRuntime.rollout.expediteTag | quote }}
+            {{- end }}
+            {{- if .Values.kuraRuntime.rollout.opsSlackWebhookSecret.name }}
+            - name: TUIST_OPS_SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kuraRuntime.rollout.opsSlackWebhookSecret.name | quote }}
+                  key: {{ .Values.kuraRuntime.rollout.opsSlackWebhookSecret.key | quote }}
+            {{- end }}
             - name: TUIST_KURA_TUIST_BASE_URL
               value: {{ printf "http://%s.%s.svc.cluster.local:%v" (include "tuist.componentName" (dict "root" . "component" "server")) .Release.Namespace (.Values.server.service.port | default 80) | quote }}
             {{- $redisUrl := include "tuist.redisUrl" . }}
@@ -341,6 +415,7 @@ spec:
             - name: TUIST_KURA_PEER_FAILOVER_IPS
               value: "{{- range $i, $e := .Values.server.kuraPeerFailoverIps }}{{ if $i }},{{ end }}{{ $e.region }}={{ $e.ip }}{{- end }}"
             {{- end }}
+            {{- include "tuist.opsClickHouseEnv" . | nindent 12 }}
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -398,4 +473,11 @@ spec:
                 command: ["sh", "-c", "sleep 10"]
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
+      {{- with .Values.server.seedAccountCredentials.secretName }}
+      volumes:
+        - name: seed-account-credentials
+          secret:
+            secretName: {{ . }}
+            optional: true
+      {{- end }}
 {{- end }}

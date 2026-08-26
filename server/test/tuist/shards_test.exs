@@ -2,10 +2,33 @@ defmodule Tuist.ShardsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import Ecto.Query
+
+  alias Tuist.ClickHouseRepo
+  alias Tuist.IngestRepo
   alias Tuist.Shards
+  alias Tuist.Shards.ShardPlanTestSuite
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
+
+  defp planned_suite_durations(plan) do
+    from(s in ShardPlanTestSuite,
+      where: s.shard_plan_id == ^plan.id,
+      select: {
+        fragment("concat(?, '/', ?)", s.module_name, s.test_suite_name),
+        s.estimated_duration_ms
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new()
+  end
+
+  defp planned_targets(result) do
+    result.shard_assignments
+    |> Enum.flat_map(fn assignment -> assignment["test_targets"] end)
+    |> MapSet.new()
+  end
 
   describe "create_shard_plan/2" do
     test "creates a shard plan with module-level granularity" do
@@ -195,6 +218,153 @@ defmodule Tuist.ShardsTest do
       refute Enum.any?(regular.download_urls, &String.ends_with?(&1, "/modules/NewTests.aar"))
     end
 
+    test "does not plan a suite the built products skip, even when history still has it" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppUITests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "OnboardingFlowTests", status: "success", duration: 6_000},
+              %{name: "CheckoutFlowTests", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "skipped-history-1",
+        modules: ["AppUITests"],
+        skipped_test_suites: ["AppUITests/OnboardingFlowTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      # The test plan disabled the suite, so the built products cannot run it. Resolving the module
+      # from history would resurrect it and hand a shard work that executes nothing.
+      assert planned_targets(result) == MapSet.new(["AppUITests/CheckoutFlowTests"])
+    end
+
+    test "does not plan a suite the built products both select and skip" do
+      project = ProjectsFixtures.project_fixture()
+
+      params = %{
+        reference: "skipped-selected-1",
+        modules: ["AppUITests"],
+        test_suites: ["AppUITests/OnboardingFlowTests", "AppUITests/CheckoutFlowTests"],
+        skipped_test_suites: ["AppUITests/OnboardingFlowTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      assert planned_targets(result) == MapSet.new(["AppUITests/CheckoutFlowTests"])
+    end
+
+    test "leaves a module whose every selected suite is skipped to the catch-all rather than history" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppUITests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "OnboardingFlowTests", status: "success", duration: 6_000},
+              %{name: "CheckoutFlowTests", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "skipped-selected-2",
+        modules: ["AppUITests"],
+        test_suites: ["AppUITests/OnboardingFlowTests"],
+        skipped_test_suites: ["AppUITests/OnboardingFlowTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      # The products limit the module to a suite that is then skipped, so it runs nothing. History
+      # must not step in: CheckoutFlowTests is outside what the products would run.
+      assert planned_targets(result) == MapSet.new([])
+    end
+
+    test "collapses to a single catch-all shard when every suite is skipped" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppUITests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "OnboardingFlowTests", status: "success", duration: 6_000},
+              %{name: "CheckoutFlowTests", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> true end)
+      stub(Tuist.Storage, :generate_download_url, fn key, _account -> key end)
+
+      params = %{
+        reference: "all-skipped-1",
+        modules: ["AppUITests"],
+        skipped_test_suites: ["AppUITests/OnboardingFlowTests", "AppUITests/CheckoutFlowTests"],
+        granularity: "suite",
+        shard_total: 4
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      # Nothing is left to distribute, so the requested shard count is ignored rather than spreading
+      # an empty plan over four shards, three of which would resolve to nothing at all.
+      assert result.shard_count == 1
+      assert planned_targets(result) == MapSet.new([])
+
+      # The one shard is the catch-all, and it still runs. An empty unit set means "nothing to
+      # distribute", which is also what a project with no recorded suites produces, so it cannot be
+      # read as "nothing to run". The shard carries no -only-testing and no skip list, which leaves
+      # the decision to the bundle's own SkipTestIdentifiers.
+      assert {:ok, shard} = Shards.get_shard(project, account, "all-skipped-1", 0, suite_catch_all?: true)
+      assert shard.modules == []
+      assert shard.suites == %{}
+      assert shard.skip == []
+      assert Enum.any?(shard.download_urls, &String.ends_with?(&1, "/modules/AppUITests.aar"))
+    end
+
     test "does not append a catch-all shard for module granularity" do
       project = ProjectsFixtures.project_fixture()
 
@@ -248,6 +418,397 @@ defmodule Tuist.ShardsTest do
 
       assert durations["AppTests/SlowSuite"] == 90_000
       assert durations["AppTests/FastSuite"] == 1_000
+    end
+
+    test "prices suites of a parallelizable module by the module's measured concurrency" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "ParallelTests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites:
+              Enum.map(1..4, fn index ->
+                %{name: "Suite#{index}", status: "success", duration: 20_000}
+              end)
+          },
+          %{
+            name: "SerialTests",
+            status: "success",
+            duration: 30_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "SlowSuite", status: "success", duration: 20_000},
+              %{name: "FastSuite", status: "success", duration: 10_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "suite-parallelism",
+        parallelizable_modules: ["ParallelTests"],
+        test_suites: [
+          "ParallelTests/Suite1",
+          "ParallelTests/Suite2",
+          "ParallelTests/Suite3",
+          "ParallelTests/Suite4",
+          "SerialTests/SlowSuite",
+          "SerialTests/FastSuite"
+        ],
+        granularity: "suite",
+        shard_total: 6
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      durations = planned_suite_durations(result.plan)
+
+      # ParallelTests finishes in 20s while its suites report 80s, so each suite costs a quarter of
+      # what it reports. SerialTests' suites already add up to its wall clock and stay as measured.
+      assert durations["ParallelTests/Suite1"] == 5_000
+      assert durations["ParallelTests/Suite4"] == 5_000
+      assert durations["SerialTests/SlowSuite"] == 20_000
+      assert durations["SerialTests/FastSuite"] == 10_000
+    end
+
+    test "packs a parallelizable module alongside other work instead of giving it a whole shard" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "ParallelTests",
+            status: "success",
+            duration: 30_000,
+            test_cases: [],
+            test_suites:
+              Enum.map(1..4, fn index ->
+                %{name: "Suite#{index}", status: "success", duration: 30_000}
+              end)
+          },
+          %{
+            name: "SerialTests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "SlowSuite", status: "success", duration: 10_000},
+              %{name: "FastSuite", status: "success", duration: 10_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "suite-parallelism-packing",
+        parallelizable_modules: ["ParallelTests"],
+        test_suites: [
+          "ParallelTests/Suite1",
+          "ParallelTests/Suite2",
+          "ParallelTests/Suite3",
+          "ParallelTests/Suite4",
+          "SerialTests/SlowSuite",
+          "SerialTests/FastSuite"
+        ],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      totals = Enum.map(result.shard_assignments, fn a -> a["estimated_duration_ms"] end)
+
+      # Unscaled, ParallelTests alone reports 120s against SerialTests' 20s and fills a shard by
+      # itself. Scaled to its 30s wall clock the plan is 50s of work that splits evenly.
+      assert Enum.sum(totals) == 50_000
+      assert Enum.max(totals) == 25_000
+    end
+
+    test "leaves a module the client did not declare parallelizable at its measured durations" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "ParallelTests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites:
+              Enum.map(1..4, fn index ->
+                %{name: "Suite#{index}", status: "success", duration: 20_000}
+              end)
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      suites = Enum.map(1..4, fn index -> "ParallelTests/Suite#{index}" end)
+
+      # History shows this module running four suites concurrently, but whether it still does is the
+      # client's to state. Without a declaration the measured concurrency is not applied at all,
+      # rather than being carried over from runs whose configuration may no longer hold.
+      undeclared =
+        Shards.create_shard_plan(project, %{
+          reference: "undeclared",
+          test_suites: suites,
+          granularity: "suite",
+          shard_total: 1
+        })
+
+      assert Map.values(planned_suite_durations(undeclared.plan)) == List.duplicate(20_000, 4)
+
+      declared =
+        Shards.create_shard_plan(project, %{
+          reference: "declared",
+          parallelizable_modules: ["ParallelTests"],
+          test_suites: suites,
+          granularity: "suite",
+          shard_total: 1
+        })
+
+      assert Map.values(planned_suite_durations(declared.plan)) == List.duplicate(5_000, 4)
+    end
+
+    test "prices a partial suite inventory by what the plan actually holds" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "ParallelTests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites:
+              Enum.map(1..4, fn index ->
+                %{name: "Suite#{index}", status: "success", duration: 20_000}
+              end)
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      # The module runs four suites concurrently in 20s, so history measures a factor of 4. A plan
+      # holding one of them still has to wait for that suite in full: the other three are not there
+      # to overlap with, so it cannot be priced at a quarter.
+      single =
+        Shards.create_shard_plan(project, %{
+          reference: "partial-one",
+          parallelizable_modules: ["ParallelTests"],
+          test_suites: ["ParallelTests/Suite1"],
+          granularity: "suite",
+          shard_total: 1
+        })
+
+      assert planned_suite_durations(single.plan) == %{"ParallelTests/Suite1" => 20_000}
+
+      # Two of the four overlap with each other and nothing else, so together they cost one suite.
+      pair =
+        Shards.create_shard_plan(project, %{
+          reference: "partial-two",
+          parallelizable_modules: ["ParallelTests"],
+          test_suites: ["ParallelTests/Suite1", "ParallelTests/Suite2"],
+          granularity: "suite",
+          shard_total: 1
+        })
+
+      assert planned_suite_durations(pair.plan) == %{
+               "ParallelTests/Suite1" => 10_000,
+               "ParallelTests/Suite2" => 10_000
+             }
+    end
+
+    test "measures concurrency from deduplicated rows" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites:
+              Enum.map(1..4, fn index ->
+                %{name: "Suite#{index}", status: "success", duration: 10_000}
+              end)
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      # Both tables are ReplacingMergeTree keyed on the row id, so a rewritten row leaves a second
+      # physical copy until the parts merge. A duplicated module row multiplies through the join
+      # into every one of its suites on top of the duplicated suite rows themselves.
+      IngestRepo.query!(
+        "INSERT INTO test_module_runs SELECT * FROM test_module_runs WHERE project_id = {project_id:Int64}",
+        %{project_id: project.id}
+      )
+
+      IngestRepo.query!(
+        "INSERT INTO test_suite_runs SELECT * FROM test_suite_runs WHERE project_id = {project_id:Int64}",
+        %{project_id: project.id}
+      )
+
+      result =
+        Shards.create_shard_plan(project, %{
+          reference: "deduplicated",
+          parallelizable_modules: ["AppTests"],
+          test_suites: [
+            "AppTests/Suite1",
+            "AppTests/Suite2",
+            "AppTests/Suite3",
+            "AppTests/Suite4"
+          ],
+          granularity: "suite",
+          shard_total: 1
+        })
+
+      # 40s of suites in a 20s module is a factor of 2. Counting the physical copies would read it
+      # as 4 or 8 and halve every suite.
+      assert planned_suite_durations(result.plan) == %{
+               "AppTests/Suite1" => 5_000,
+               "AppTests/Suite2" => 5_000,
+               "AppTests/Suite3" => 5_000,
+               "AppTests/Suite4" => 5_000
+             }
+    end
+
+    test "ignores concurrency measured from a module run with a single suite" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 1_000,
+            test_cases: [],
+            test_suites: [%{name: "OnlySuite", status: "success", duration: 40_000}]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "suite-single",
+        parallelizable_modules: ["AppTests"],
+        test_suites: ["AppTests/OnlySuite"],
+        granularity: "suite",
+        shard_total: 1
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      [assignment] = result.shard_assignments
+      assert assignment["estimated_duration_ms"] == 40_000
+    end
+
+    test "clamps concurrency so an inconsistently recorded module wall clock cannot zero it out" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 100,
+            test_cases: [],
+            test_suites:
+              Enum.map(1..20, fn index ->
+                %{name: "Suite#{index}", status: "success", duration: 40_000}
+              end)
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      suites = Enum.map(1..20, fn index -> "AppTests/Suite#{index}" end)
+
+      params = %{
+        reference: "suite-clamped",
+        parallelizable_modules: ["AppTests"],
+        test_suites: suites,
+        granularity: "suite",
+        shard_total: 1
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      durations = planned_suite_durations(result.plan)
+
+      # The raw ratio is 8000x. Twenty planned suites leave the per-plan cap at 20, so the clamp is
+      # what holds the divisor at 16 rather than pricing the module at nothing.
+      assert Map.values(durations) == List.duplicate(2_500, 20)
+    end
+
+    test "leaves module granularity timing untouched" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "ParallelTests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 20_000},
+              %{name: "SignupSuite", status: "success", duration: 20_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "module-untouched",
+        modules: ["ParallelTests"],
+        granularity: "module",
+        shard_total: 1
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      [assignment] = result.shard_assignments
+      assert assignment["estimated_duration_ms"] == 10_000
     end
 
     test "derives suite units from history when the client does not enumerate" do
@@ -335,6 +896,122 @@ defmodule Tuist.ShardsTest do
         |> MapSet.new()
 
       assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite", "AppTests/SignupSuite"]))
+    end
+
+    test "derives suite units from history on other branches when no preferred branch has any" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+
+      # Tests only ever run on pull-request branches, so the default branch has no history. The
+      # build run the current branch would be read from is unresolvable here (it is written through
+      # an async ingestion buffer in production and is typically still unflushed at plan time), so
+      # neither preferred branch resolves anything.
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/only-branch-with-history",
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 6_000},
+              %{name: "SignupSuite", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "history-derived-other-branch",
+        modules: ["AppTests"],
+        test_suites: nil,
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      assert result.shard_count == 2
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite", "AppTests/SignupSuite"]))
+    end
+
+    test "prefers the linked build branch inventory over history on unrelated branches" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/unrelated",
+        ran_at: NaiveDateTime.utc_now(),
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 7_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "UnrelatedSuite", status: "success", duration: 7_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/some-branch",
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day),
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 3_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "BranchOnlySuite", status: "success", duration: 3_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          is_ci: true,
+          git_branch: "feature/some-branch"
+        )
+
+      params = %{
+        reference: "linked-branch-beats-fallback",
+        modules: ["AppTests"],
+        test_suites: nil,
+        granularity: "suite",
+        shard_total: 2,
+        build_run_id: build.id
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      # The fallback must not pull in the newer run from the unrelated branch when the build's own
+      # branch has history.
+      assert MapSet.equal?(planned, MapSet.new(["AppTests/BranchOnlySuite"]))
     end
 
     test "prefers suite inventory from the linked build branch" do
@@ -582,6 +1259,505 @@ defmodule Tuist.ShardsTest do
       assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite"]))
     end
 
+    # A run the caller limited to a handful of a module's suites says nothing about what the module
+    # contains, so it can't stand in for the module's inventory. The reported project's default
+    # branch runs only such a job (an eight-suite smoke selection), which is what a branch with no
+    # history of its own would otherwise inherit.
+    test "ignores runs the caller limited to specific tests while fuller history exists" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      smoke_suites = ["SmokeCartSuite", "SmokeHomeSuite"]
+      full_suites = smoke_suites ++ ["CheckoutSuite", "OrderTrackingSuite", "SearchSuite"]
+
+      for ran_at <- [-2, -1] do
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          is_ci: true,
+          git_branch: "main",
+          only_test_identifiers: Enum.map(smoke_suites, &"AppTests/#{&1}"),
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), ran_at, :day),
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 4_000,
+              test_cases: [],
+              test_suites: Enum.map(smoke_suites, &%{name: &1, status: "success", duration: 2_000})
+            }
+          ]
+        )
+      end
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/full",
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day),
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites: Enum.map(full_suites, &%{name: &1, status: "success", duration: 4_000})
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "restricted-history",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 2,
+        git_branch: "feature/no-history-yet"
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      assert MapSet.equal?(
+               planned_targets(result),
+               MapSet.new(Enum.map(full_suites, &"AppTests/#{&1}"))
+             )
+    end
+
+    # Excluding a few tests still leaves a run that executed everything else, so it remains evidence
+    # of what the module holds. The union across runs covers whatever it was told to skip.
+    test "keeps runs the caller only excluded tests from" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        skip_test_identifiers: ["AppTests/FlakySuite"],
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 6_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "CartSuite", status: "success", duration: 3_000},
+              %{name: "CheckoutSuite", status: "success", duration: 3_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "skip-only-history",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 2,
+        git_branch: "main"
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      assert MapSet.equal?(
+               planned_targets(result),
+               MapSet.new(["AppTests/CartSuite", "AppTests/CheckoutSuite"])
+             )
+    end
+
+    # A module the built products limit to specific suites doesn't have to be guessed at: the client
+    # knows the selection and sends it, and it is the only thing that will run for that module.
+    # Modules the client selected nothing for still come from history.
+    test "plans the suites the client selected and resolves the rest from history" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 4_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "HistorySuite", status: "success", duration: 2_000},
+              %{name: "AnotherHistorySuite", status: "success", duration: 2_000}
+            ]
+          },
+          %{
+            name: "CoreTests",
+            status: "success",
+            duration: 2_000,
+            test_cases: [],
+            test_suites: [%{name: "CoreSuite", status: "success", duration: 2_000}]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "declared-suites",
+        modules: ["AppTests", "CoreTests"],
+        test_suites: ["AppTests/DeclaredSuite"],
+        granularity: "suite",
+        shard_total: 2,
+        git_branch: "main"
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      assert MapSet.equal?(
+               planned_targets(result),
+               MapSet.new(["AppTests/DeclaredSuite", "CoreTests/CoreSuite"])
+             )
+    end
+
+    # The reported failure: a UI test module whose suites are spread across the shards that ran
+    # them. Every shard of a run reports under one test run, they upload as each shard finishes, and
+    # the catch-all shard finishes last, so the newest run is a fraction of the module when the next
+    # plan is created. Reading only that run planned the fraction and left the rest to the catch-all
+    # shard, which then ran them all serially.
+    test "plans every suite of a sharded module while the newest run is still being ingested" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      branch = "feature/ui-tests"
+      previous_run_id = UUIDv7.generate()
+      previous_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :hour)
+      newest_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -30, :minute)
+
+      previous_run_shards = [
+        ["CoreFlowFoodStoreCSESuite"],
+        ["CoreFlowFoodStoreSuite", "StoreWallA11ySuite"],
+        ["CheckoutA11ySuite", "OrderTrackingA11ySuite"],
+        ["CartA11ySuite", "StoreA11ySuite", "HomeA11ySuite", "MealVoucherSuite", "RatingsSuite"]
+      ]
+
+      for {suites, shard_index} <- Enum.with_index(previous_run_shards) do
+        RunsFixtures.test_fixture(
+          id: previous_run_id,
+          project_id: project.id,
+          is_ci: true,
+          git_branch: branch,
+          ran_at: previous_ran_at,
+          shard_index: shard_index,
+          test_modules: [
+            %{
+              name: "UITests",
+              status: "success",
+              duration: 60_000,
+              test_cases: [],
+              test_suites: Enum.map(suites, &%{name: &1, status: "success", duration: 20_000})
+            }
+          ]
+        )
+      end
+
+      # The run in flight: shard 0 has uploaded, the shards holding everything else have not.
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: branch,
+        ran_at: newest_ran_at,
+        shard_index: 0,
+        test_modules: [
+          %{
+            name: "UITests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "CoreFlowFoodStoreCSESuite", status: "success", duration: 20_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "sharded-partial-ingestion",
+        modules: ["UITests"],
+        granularity: "suite",
+        shard_total: 4,
+        git_branch: branch
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      assert MapSet.equal?(
+               planned_targets(result),
+               MapSet.new(Enum.map(List.flatten(previous_run_shards), &"UITests/#{&1}"))
+             )
+
+      # Nothing is left over for the catch-all shard to absorb, which is what made the last shard
+      # run for 34 minutes while the others finished in three.
+      catch_all = Enum.find(result.shard_assignments, &(&1["index"] == 3))
+      assert length(catch_all["test_targets"]) < 5
+    end
+
+    # The other half of the reported failure: the branch under test runs the full UI suite while the
+    # default branch runs a smaller nightly job. The plan links a build run that the async ingestion
+    # buffer has not made readable yet, so the branch can only come from the parameter the CLI sends.
+    # Without it the plan is the nightly's inventory and everything else falls to the catch-all shard.
+    test "plans the branch's suites when the linked build run is not readable yet" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      branch = "feature/ui-tests"
+      nightly_suites = ["CoreFlowFoodStoreCSESuite", "CartA11ySuite"]
+      branch_suites = nightly_suites ++ ["MealVoucherSuite", "RatingsSuite", "HomeAdsSuite"]
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        test_modules: [
+          %{
+            name: "UITests",
+            status: "success",
+            duration: 40_000,
+            test_cases: [],
+            test_suites: Enum.map(nightly_suites, &%{name: &1, status: "success", duration: 20_000})
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: branch,
+        test_modules: [
+          %{
+            name: "UITests",
+            status: "success",
+            duration: 100_000,
+            test_cases: [],
+            test_suites: Enum.map(branch_suites, &%{name: &1, status: "success", duration: 20_000})
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      base_params = %{
+        modules: ["UITests"],
+        granularity: "suite",
+        shard_total: 3,
+        build_run_id: Ecto.UUID.generate()
+      }
+
+      unreadable_build_run =
+        Shards.create_shard_plan(project, Map.put(base_params, :reference, "unreadable-build-run"))
+
+      assert MapSet.equal?(
+               planned_targets(unreadable_build_run),
+               MapSet.new(Enum.map(nightly_suites, &"UITests/#{&1}"))
+             )
+
+      with_git_branch =
+        Shards.create_shard_plan(
+          project,
+          base_params |> Map.put(:reference, "git-branch-sent") |> Map.put(:git_branch, branch)
+        )
+
+      assert MapSet.equal?(
+               planned_targets(with_git_branch),
+               MapSet.new(Enum.map(branch_suites, &"UITests/#{&1}"))
+             )
+    end
+
+    test "unions the branch suite inventory across recent runs" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      older_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :day)
+      latest_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/sharded",
+        ran_at: older_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 3_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "CartSuite", status: "success", duration: 1_000},
+              %{name: "CheckoutSuite", status: "success", duration: 1_000},
+              %{name: "HomeSuite", status: "success", duration: 1_000}
+            ]
+          }
+        ]
+      )
+
+      # A sharded execution uploads one test run per shard job, and the catch-all shard finishes
+      # last, so moments after a build the newest run holds only a fraction of the module's suites.
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/sharded",
+        ran_at: latest_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 1_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "CartSuite", status: "success", duration: 1_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "union-branch-inventory",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 2,
+        git_branch: "feature/sharded"
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(
+               planned,
+               MapSet.new([
+                 "AppTests/CartSuite",
+                 "AppTests/CheckoutSuite",
+                 "AppTests/HomeSuite"
+               ])
+             )
+    end
+
+    test "unions the any-branch fallback suite inventory across recent runs" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      older_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :day)
+      latest_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/elsewhere",
+        ran_at: older_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 2_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "CartSuite", status: "success", duration: 1_000},
+              %{name: "CheckoutSuite", status: "success", duration: 1_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/elsewhere",
+        ran_at: latest_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 1_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "CartSuite", status: "success", duration: 1_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "union-fallback-inventory",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 2,
+        git_branch: "feature/no-history"
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(
+               planned,
+               MapSet.new(["AppTests/CartSuite", "AppTests/CheckoutSuite"])
+             )
+    end
+
+    test "prefers the git_branch param over the linked build run's branch" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 3_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "DefaultSuite", status: "success", duration: 3_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/current",
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 3_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "CurrentSuite", status: "success", duration: 3_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "git-branch-param-inventory",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 2,
+        git_branch: "feature/current"
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(planned, MapSet.new(["AppTests/CurrentSuite"]))
+    end
+
     test "stores build_run_id on the shard plan" do
       project = ProjectsFixtures.project_fixture()
       build_run_id = Ecto.UUID.generate()
@@ -759,6 +1935,49 @@ defmodule Tuist.ShardsTest do
   end
 
   describe "get_shard/4" do
+    test "returns the requested plan when multiple plans share a reference" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      requested_plan =
+        ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "reused-reference", granularity: "module")
+
+      latest_plan =
+        ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "reused-reference", granularity: "module")
+
+      ShardsFixtures.shard_plan_module_fixture(
+        shard_plan_id: requested_plan.id,
+        project_id: project.id,
+        shard_index: 0,
+        module_name: "RequestedTests"
+      )
+
+      ShardsFixtures.shard_plan_module_fixture(
+        shard_plan_id: latest_plan.id,
+        project_id: project.id,
+        shard_index: 0,
+        module_name: "LatestTests"
+      )
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+      stub(Tuist.Storage, :generate_download_url, fn key, _account -> key end)
+
+      assert {:ok, result} = Shards.get_shard_for_plan_id(project, account, requested_plan.id, 0)
+      assert result.shard_plan_id == requested_plan.id
+      assert result.modules == ["RequestedTests"]
+      assert String.contains?(result.download_url, requested_plan.id)
+    end
+
+    test "does not return a plan from another project by id" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      plan = ShardsFixtures.shard_plan_fixture(project_id: other_project.id, reference: "other-project")
+
+      assert {:error, :not_found} =
+               Shards.get_shard_for_plan_id(project, project.account, plan.id, 0)
+    end
+
     test "returns modules for module granularity" do
       project = ProjectsFixtures.project_fixture()
       account = project.account

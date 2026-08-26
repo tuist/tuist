@@ -22,9 +22,19 @@ defmodule TuistWeb.AgentAuthControllerTest do
     stub(Tuist.Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
     stub(Tuist.Environment, :email_icon_url, fn -> "https://tuist.dev/icon.png" end)
     stub(Tuist.Environment, :agent_auth_trusted_providers, fn -> [] end)
-    stub(Tuist.Environment, :app_url, fn -> "http://www.example.com" end)
+    stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+    stub(Tuist.Environment, :app_url, fn options ->
+      if Keyword.get(options, :route_type) == :app do
+        "http://www.example.com"
+      else
+        "https://tuist.dev#{Keyword.get(options, :path, "")}"
+      end
+    end)
+
     stub(AgentAuth, :hit, fn _conn -> {:allow, 1} end)
     stub(AgentAuth, :hit, fn _conn, _subject -> {:allow, 1} end)
+    stub(AgentAuth, :hit_registration, fn _conn, _registration_type -> {:allow, 1} end)
     :ok
   end
 
@@ -36,11 +46,13 @@ defmodule TuistWeb.AgentAuthControllerTest do
 
       assert get_resp_header(conn, "content-type") == ["text/markdown; charset=utf-8"]
       assert body =~ "# auth.md"
-      assert body =~ "## Discover"
-      assert body =~ "## Pick a method"
-      assert body =~ "## Claim ceremony"
+      assert body =~ "ask the user to confirm the exact address explicitly"
+      assert body =~ "Discover"
+      assert body =~ "Pick a registration method"
+      assert body =~ "Claim ceremony"
       assert body =~ "WWW-Authenticate: Bearer resource_metadata="
-      assert body =~ "http://www.example.com/agent/auth"
+      assert body =~ "http://www.example.com/agent/identity"
+      assert body =~ "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer"
       assert body =~ "https://tuist.dev/pricing"
       assert body =~ "mailto:contact@tuist.dev"
     end
@@ -250,6 +262,8 @@ defmodule TuistWeb.AgentAuthControllerTest do
       claim_view_conn = get(conn, "/agent/auth/claim/view", %{"token" => claim_view_token})
       claim_view_body = html_response(claim_view_conn, 200)
       otp = extract_otp(claim_view_body)
+      assert claim_view_body =~ ~s(id="agent-auth")
+      refute claim_view_body =~ "<style>"
 
       complete_conn = post(build_conn(), "/agent/auth/claim/complete", %{"claim_token" => claim_token, "otp" => otp})
 
@@ -365,7 +379,7 @@ defmodule TuistWeb.AgentAuthControllerTest do
   end
 
   defp extract_otp(html_body) do
-    [_, otp] = Regex.run(~r/<div class="otp">(\d{6})<\/div>/, html_body)
+    [_, otp] = Regex.run(~r/<div class="otp"[^>]*>\s*(\d{6})\s*<\/div>/, html_body)
     otp
   end
 

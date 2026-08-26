@@ -68,22 +68,28 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
         excludedTargets: Set<String>,
         destination: SimulatorDeviceAndRuntime?
     ) async throws -> [GraphTarget: TargetContentHash] {
-        if let exportHashedGraphPath = Environment.current.variables["TUIST_EXPORT_HASHED_GRAPH_PATH"],
-           let exportPath = try? AbsolutePath(validating: exportHashedGraphPath)
-        {
-            try await fileSystem.writeAsJSON(graph, at: exportPath)
-            Logger.current.debug("Graph used for hashing exported to \(exportPath.pathString)")
-        }
-
-        let version = versionFetcher.version()
-        let configuration = try defaultConfigurationFetcher.fetch(
+        // Hashes depend on the resolved configuration, never on whether it was named explicitly, came
+        // from the manifest, or fell back to the first debug configuration. A cache filled by
+        // `tuist cache --configuration X` has to stay readable by a run that resolves to X without the flag.
+        let resolvedConfiguration = try defaultConfigurationFetcher.fetch(
             configuration: configuration,
             defaultConfiguration: defaultConfiguration,
             graph: graph
         )
+        Logger.current.debug("Hashing targets against the configuration \(resolvedConfiguration)")
 
+        let hashingGraph = graphByScopingSettings(in: graph, to: resolvedConfiguration)
+
+        if let exportHashedGraphPath = Environment.current.variables["TUIST_EXPORT_HASHED_GRAPH_PATH"],
+           let exportPath = try? AbsolutePath(validating: exportHashedGraphPath)
+        {
+            try await fileSystem.writeAsJSON(hashingGraph, at: exportPath)
+            Logger.current.debug("Graph used for hashing exported to \(exportPath.pathString)")
+        }
+
+        let version = versionFetcher.version()
         let hashes = try await graphContentHasher.contentHashes(
-            for: graph,
+            for: hashingGraph,
             include: {
                 isGraphTargetHashable(
                     $0,
@@ -92,13 +98,57 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             },
             destination: destination,
             additionalStrings: [
-                configuration,
+                resolvedConfiguration,
                 try await SwiftVersionProvider.current.swiftlangVersion(),
                 version.rawValue,
             ]
         )
 
-        return hashes
+        return Dictionary(uniqueKeysWithValues: hashes.map { target, hash in
+            guard let project = graph.projects[target.path],
+                  let originalTarget = project.targets[target.target.name]
+            else {
+                return (target, hash)
+            }
+            return (
+                GraphTarget(path: target.path, target: originalTarget, project: project),
+                hash
+            )
+        })
+    }
+
+    private func graphByScopingSettings(in graph: Graph, to configuration: String) -> Graph {
+        var hashingGraph = graph
+        hashingGraph.projects = graph.projects.mapValues { project in
+            guard let buildConfiguration = project.settings.configurations.keys
+                .first(where: { $0.name.caseInsensitiveCompare(configuration) == .orderedSame })
+            else {
+                return project
+            }
+
+            var project = project
+            project.settings = settings(project.settings, scopedTo: buildConfiguration)
+            project.targets = project.targets.mapValues { target in
+                guard let targetSettings = target.settings else { return target }
+                var target = target
+                target.settings = settings(targetSettings, scopedTo: buildConfiguration)
+                return target
+            }
+            return project
+        }
+        return hashingGraph
+    }
+
+    private func settings(_ settings: Settings, scopedTo buildConfiguration: BuildConfiguration) -> Settings {
+        Settings(
+            base: settings.base,
+            baseDebug: buildConfiguration.variant == .debug ? settings.baseDebug : [:],
+            configurations: settings.configurations.filter { $0.key == buildConfiguration },
+            defaultSettings: settings.defaultSettings,
+            defaultConfiguration: settings.defaultConfiguration.flatMap {
+                $0.caseInsensitiveCompare(buildConfiguration.name) == .orderedSame ? $0 : nil
+            }
+        )
     }
 
     private func isGraphTargetHashable(

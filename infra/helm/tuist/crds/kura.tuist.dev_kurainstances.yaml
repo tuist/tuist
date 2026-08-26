@@ -119,6 +119,33 @@ spec:
                 egressGuaranteedMbps:
                   type: integer
                   format: int32
+                # Memory floor (MiB) — the pod's requests.memory, bin-packed
+                # against node allocatable and written to cgroup memory.min
+                # once the kubelet runs with MemoryQoS. Size from the idle
+                # footprint; over-reserving here starves the box.
+                memoryFloorMib:
+                  type: integer
+                  format: int32
+                  # Kura refuses to start on a floor it cannot fit its process
+                  # baseline (96 MiB), its minimum anon caches (48 MiB) and a
+                  # minimum admission reserve (32 MiB) inside, so a floor under
+                  # 176 MiB is a CrashLoopBackOff rather than a small instance.
+                  # Zero still means "use the controller default".
+                  x-kubernetes-validations:
+                    - rule: "self == 0 || self >= 176"
+                      message: "memoryFloorMib must be 0 (controller default) or at least 176, the smallest floor Kura can start on"
+                # Memory ceiling (MiB) — the pod's limits.memory, which is what
+                # Kura sizes its admission pools from at startup.
+                memoryCeilingMib:
+                  type: integer
+                  format: int32
+                # Ceilings oversubscribe the box. When true the pod also
+                # requests its ceiling as the tuist.dev/memory-ceiling-mib
+                # extended resource so the scheduler bounds that
+                # oversubscription. Only for node pools whose capacity the CAPI
+                # provider advertises.
+                memoryCeilingBinPacked:
+                  type: boolean
                 peerTLSSecretName:
                   type: string
                 # Enables controller-managed per-account peer mesh: a
@@ -175,8 +202,6 @@ spec:
                   items:
                     type: object
                     x-kubernetes-preserve-unknown-fields: true
-                extensionScript:
-                  type: string
             status:
               type: object
               properties:
@@ -201,3 +226,41 @@ spec:
                 lastReconciledAt:
                   type: string
                   format: date-time
+                rolloutHealth:
+                  type: object
+                  properties:
+                    ready:
+                      type: boolean
+                    serving:
+                      type: boolean
+                    ringConsistent:
+                      type: boolean
+                    backfillingPeers:
+                      type: integer
+                      format: int64
+                    backfillDegraded:
+                      type: boolean
+                    backfillBudgetExhaustedPeers:
+                      type: integer
+                      format: int64
+                    outboxMessages:
+                      type: integer
+                      format: int64
+                    fdTimeoutCount:
+                      type: integer
+                      format: int64
+                    peerConnectionFailures:
+                      type: integer
+                      format: int64
+                    memoryPressureState:
+                      type: integer
+                      format: int64
+                    sampledPods:
+                      type: integer
+                      format: int32
+                    expectedPods:
+                      type: integer
+                      format: int32
+                    sampledAt:
+                      type: string
+                      format: date-time

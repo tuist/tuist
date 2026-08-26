@@ -181,6 +181,17 @@ spec:
                   name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
                   key: object-storage-secret-key
             {{- end }}
+            # Per-Pod identity for error reports and Oban bookkeeping.
+            # Every VM booted from the Tart image carries the image's
+            # hostname, and the release runs with distribution disabled
+            # (no POD_IP reaches rel/env.sh.eex through the tart-kubelet
+            # env mount), so both Sentry's default server_name and Oban's
+            # `attempted_by` fall back to that one shared string and
+            # collapse the fleet into a single identity.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             {{- if .Values.xcresultProcessor.tailscale.enabled }}
             # Per-VM tailnet identity. tailscale-up.sh inside the VM
             # reads TAILSCALE_AUTH_KEY at boot and joins the tailnet
@@ -188,17 +199,27 @@ spec:
             # operator-managed pooler proxy hostname resolves. See
             # infra/xcresult-processor-image/tailscale-up.sh.
             #
-            # We share the macOS-fleet Tailscale auth key (same
+            # We share the macOS-fleet Tailscale credential (same
             # `tag:tuist-macmini-<env>` ACL binding the bootstrap
             # uses for the Mac mini hosts) rather than minting a
-            # separate VM key — the ACL grants the same outbound
-            # surface either way and one key per env keeps rotation
-            # simple.
+            # separate VM one, since the ACL grants the same outbound
+            # surface either way and one credential per env keeps the
+            # rotation surface small.
             - name: TAILSCALE_AUTH_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.xcresultProcessor.tailscale.authKeySecretName | default (include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon-tailscale")) }}
                   key: {{ .Values.xcresultProcessor.tailscale.authKeySecretKey | default "auth-key" }}
+            {{- with .Values.macosFleet.tailscale.tags }}
+            # Keys minted through an OAuth client are always tagged and
+            # carry no default tag, so the tag has to be named at join
+            # time; see tailscale-up.sh. Sourced from the fleet's tags
+            # because the VM shares the fleet's credential and ACL
+            # binding; a pre-auth key ignores this and applies the tag
+            # baked into the key instead.
+            - name: TAILSCALE_TAGS
+              value: {{ join "," . | quote }}
+            {{- end }}
             # Identity stamp on the tailnet device the VM registers
             # — defaults to the K8s Pod name (Downward API), which
             # the chart's Deployment template already binds to the

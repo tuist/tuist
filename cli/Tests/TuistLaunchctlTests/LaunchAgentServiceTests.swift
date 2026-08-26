@@ -12,6 +12,30 @@ import TuistTesting
 
 @testable import TuistLaunchctl
 
+/// Hands out one answer per call so a test can drive a poll to completion. The
+/// last answer repeats, so an over-eager poll fails on `consumed` rather than
+/// running off the end.
+private final class AnswerSequence: @unchecked Sendable {
+    private let lock = NSLock()
+    private let answers: [Bool]
+    private var index = 0
+
+    init(answers: [Bool]) {
+        self.answers = answers
+    }
+
+    var consumed: Int {
+        lock.withLock { index }
+    }
+
+    func next() -> Bool {
+        lock.withLock {
+            defer { index += 1 }
+            return answers[min(index, answers.count - 1)]
+        }
+    }
+}
+
 struct LaunchAgentServiceTests {
     private let subject: LaunchAgentService
     private let fileSystem = FileSystem()
@@ -20,8 +44,12 @@ struct LaunchAgentServiceTests {
     init() {
         subject = LaunchAgentService(
             fileSystem: fileSystem,
-            launchctlController: launchctlController
+            launchctlController: launchctlController,
+            bootoutTimeout: .milliseconds(500)
         )
+        given(launchctlController)
+            .isLoaded(label: .any)
+            .willReturn(false)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -129,6 +157,11 @@ struct LaunchAgentServiceTests {
         try await fileSystem.makeDirectory(at: expectedPlistPath.parentDirectory)
         try await fileSystem.writeText("existing plist", at: expectedPlistPath)
 
+        launchctlController.reset()
+        given(launchctlController)
+            .isLoaded(label: .value("tuist.test"))
+            .willReturn(true)
+
         given(launchctlController)
             .bootout(label: .value("tuist.test"))
             .willReturn()
@@ -153,7 +186,7 @@ struct LaunchAgentServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func setupLaunchAgent_continuesWhenUnloadFails() async throws {
+    func setupLaunchAgent_preservesExistingPlistAndThrowsWhenUnloadFails() async throws {
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
@@ -165,10 +198,41 @@ struct LaunchAgentServiceTests {
         try await fileSystem.makeDirectory(at: expectedPlistPath.parentDirectory)
         try await fileSystem.writeText("existing plist", at: expectedPlistPath)
 
+        launchctlController.reset()
+        given(launchctlController)
+            .isLoaded(label: .value("tuist.test"))
+            .willReturn(true)
+
         given(launchctlController)
             .bootout(label: .any)
             .willThrow(NSError(domain: "test", code: 1))
 
+        await #expect(throws: NSError.self) {
+            try await subject.setupLaunchAgent(
+                label: "tuist.test",
+                plistFileName: "tuist.test.plist",
+                programArguments: ["test-start"]
+            )
+        }
+
+        verify(launchctlController)
+            .bootstrap(plistPath: .any)
+            .called(0)
+        #expect(try await fileSystem.readTextFile(at: expectedPlistPath) == "existing plist")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupLaunchAgent_unloadsLoadedAgentWhenPlistIsMissing() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        launchctlController.reset()
+        given(launchctlController)
+            .isLoaded(label: .value("tuist.test"))
+            .willReturn(true)
+        given(launchctlController)
+            .bootout(label: .value("tuist.test"))
+            .willReturn()
         given(launchctlController)
             .bootstrap(plistPath: .any)
             .willReturn()
@@ -180,7 +244,10 @@ struct LaunchAgentServiceTests {
         )
 
         verify(launchctlController)
-            .bootstrap(plistPath: .value(expectedPlistPath))
+            .bootout(label: .value("tuist.test"))
+            .called(1)
+        verify(launchctlController)
+            .bootstrap(plistPath: .any)
             .called(1)
     }
 
@@ -263,6 +330,7 @@ struct LaunchAgentServiceTests {
         try await fileSystem.makeDirectory(at: plistPath.parentDirectory)
         try await fileSystem.writeText("existing plist", at: plistPath)
 
+        launchctlController.reset()
         given(launchctlController)
             .isLoaded(label: .value("tuist.test"))
             .willReturn(true)
@@ -291,6 +359,7 @@ struct LaunchAgentServiceTests {
         try await fileSystem.makeDirectory(at: plistPath.parentDirectory)
         try await fileSystem.writeText("existing plist", at: plistPath)
 
+        launchctlController.reset()
         given(launchctlController)
             .isLoaded(label: .value("tuist.test"))
             .willReturn(false)
@@ -321,6 +390,7 @@ struct LaunchAgentServiceTests {
             command: ["/bin/launchctl", "bootout", "gui/501/tuist.test"]
         )
 
+        launchctlController.reset()
         given(launchctlController)
             .isLoaded(label: .value("tuist.test"))
             .willReturn(true)
@@ -342,6 +412,7 @@ struct LaunchAgentServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func teardownLaunchAgent_succeedsWhenPlistIsMissing() async throws {
+        launchctlController.reset()
         given(launchctlController)
             .isLoaded(label: .value("tuist.test"))
             .willReturn(false)
@@ -382,5 +453,133 @@ struct LaunchAgentServiceTests {
         )
         let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
         #expect(plistContent.contains(currentMisePath.pathString.replacingOccurrences(of: "/private", with: "")))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupLaunchAgent_succeedsWhenBootstrapIsRefusedAndTheLabelIsInTheDomain() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        launchctlController.reset()
+        let answers = AnswerSequence(answers: [false, true])
+        given(launchctlController)
+            .isLoaded(label: .value("tuist.test"))
+            .willProduce { _ in answers.next() }
+        given(launchctlController)
+            .bootstrap(plistPath: .any)
+            .willThrow(
+                CommandError.terminated(
+                    5,
+                    stderr: "Bootstrap failed: 5: Input/output error",
+                    command: ["/bin/launchctl", "bootstrap", "gui/501", "/Users/test/Library/LaunchAgents/tuist.test.plist"]
+                )
+            )
+
+        try await subject.setupLaunchAgent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist",
+            programArguments: ["test-start"]
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupLaunchAgent_throwsWhenBootstrapIsRefusedAndTheLabelIsAbsent() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        let bootstrapError = CommandError.terminated(
+            5,
+            stderr: "Bootstrap failed: 5: Input/output error",
+            command: ["/bin/launchctl", "bootstrap", "gui/501", "/Users/test/Library/LaunchAgents/tuist.test.plist"]
+        )
+        given(launchctlController)
+            .bootstrap(plistPath: .any)
+            .willThrow(bootstrapError)
+
+        await #expect(
+            throws: LaunchAgentServiceError
+                .failedToLoadLaunchAgent(String(describing: bootstrapError))
+        ) {
+            try await subject.setupLaunchAgent(
+                label: "tuist.test",
+                plistFileName: "tuist.test.plist",
+                programArguments: ["test-start"]
+            )
+        }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupLaunchAgent_bootstrapsOnlyOnceTheBootedOutAgentHasLeftTheDomain() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        launchctlController.reset()
+        let answers = AnswerSequence(answers: [true, true, false])
+        given(launchctlController)
+            .isLoaded(label: .value("tuist.test"))
+            .willProduce { _ in answers.next() }
+        given(launchctlController)
+            .bootout(label: .value("tuist.test"))
+            .willReturn()
+        given(launchctlController)
+            .bootstrap(plistPath: .any)
+            .willReturn()
+
+        try await subject.setupLaunchAgent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist",
+            programArguments: ["test-start"]
+        )
+
+        #expect(answers.consumed == 3)
+        verify(launchctlController)
+            .bootstrap(plistPath: .any)
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupLaunchAgent_bootstrapsAnywayWhenTheBootedOutAgentNeverLeavesTheDomain() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        let subject = LaunchAgentService(
+            fileSystem: fileSystem,
+            launchctlController: launchctlController,
+            bootoutTimeout: .milliseconds(250)
+        )
+        launchctlController.reset()
+        let answers = AnswerSequence(answers: [true])
+        given(launchctlController)
+            .isLoaded(label: .value("tuist.test"))
+            .willProduce { _ in answers.next() }
+        given(launchctlController)
+            .bootout(label: .value("tuist.test"))
+            .willReturn()
+        given(launchctlController)
+            .bootstrap(plistPath: .any)
+            .willReturn()
+
+        try await subject.setupLaunchAgent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist",
+            programArguments: ["test-start"]
+        )
+
+        #expect(answers.consumed > 1, "the wait must poll rather than give up on the pre-bootout answer")
+        verify(launchctlController)
+            .bootstrap(plistPath: .any)
+            .called(1)
+    }
+
+    @Test func restartLaunchAgent_kickstartsLoadedAgent() async throws {
+        given(launchctlController)
+            .kickstart(label: .value("tuist.test"))
+            .willReturn()
+
+        try await subject.restartLaunchAgent(label: "tuist.test")
+
+        verify(launchctlController)
+            .kickstart(label: .value("tuist.test"))
+            .called(1)
     }
 }

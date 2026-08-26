@@ -55,6 +55,59 @@ defmodule TuistWeb.PreviewsLiveTest do
     assert has_element?(lv, "span", "AppTwo")
   end
 
+  test "ignores a stale pagination cursor on initial load", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    AppBuildsFixtures.preview_fixture(
+      project: project,
+      display_name: "AppOne",
+      supported_platforms: [:ios]
+    )
+
+    stale_cursor =
+      "g3QAAAABdxFpbnNlcnRlZF9hdF9uYWl2ZXQAAAAJdwttaWNyb3NlY29uZGgCYQBhAHcGc2Vjb25kYRF3CGNhbGVuZGFydxNFbGl4aXIuQ2FsZW5kYXIuSVNPdwVtb250aGEEdwpfX3N0cnVjdF9fdxRFbGl4aXIuTmFpdmVEYXRlVGltZXcEeWVhcmIAAAfpdwZtaW51dGVhHncEaG91cmEMdwNkYXlhDg=="
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/previews?before=#{stale_cursor}"
+      )
+
+    assert has_element?(lv, "#previews-table span", "AppOne")
+  end
+
+  test "preserves a matching pagination cursor on initial load", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    matching_cursor = Flop.Cursor.encode(%{inserted_at: ~N[2025-04-14 12:30:17]})
+
+    stub(Tuist.AppBuilds, :latest_previews_with_distinct_bundle_ids, fn _ -> [] end)
+
+    stub(Tuist.AppBuilds, :list_previews, fn attrs, _opts ->
+      assert attrs[:after] == matching_cursor
+
+      {[],
+       %Flop.Meta{
+         has_previous_page?: false,
+         has_next_page?: false,
+         start_cursor: nil,
+         end_cursor: nil
+       }}
+    end)
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/previews?after=#{matching_cursor}"
+      )
+
+    assert has_element?(lv, ".tuist-empty-state")
+  end
+
   test "lists previews when a preview has no git metadata", %{
     conn: conn,
     organization: organization,

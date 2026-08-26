@@ -55,7 +55,8 @@ public struct CompleteModuleCacheMultipartUploadService: CompleteModuleCacheMult
         let client = Client.authenticated(
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
-            serverAuthenticationController: serverAuthenticationController
+            serverAuthenticationController: serverAuthenticationController,
+            fullHandle: "\(accountHandle)/\(projectHandle)"
         )
 
         let response = try await client.completeModuleCacheMultipartUpload(
@@ -96,6 +97,11 @@ public struct CompleteModuleCacheMultipartUploadService: CompleteModuleCacheMult
             switch forbidden.body {
             case let .json(error):
                 throw CompleteModuleCacheMultipartUploadServiceError.forbidden(error.message)
+            }
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
+            case let .json(error):
+                throw CompleteModuleCacheMultipartUploadServiceError.badRequest(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw CompleteModuleCacheMultipartUploadServiceError.unknownError(statusCode)

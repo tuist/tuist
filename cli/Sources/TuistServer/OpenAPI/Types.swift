@@ -38,6 +38,11 @@ public protocol APIProtocol: Sendable {
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
     ///
+    /// The URL is signed from the request parameters alone, without a storage round trip, so
+    /// this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+    /// miss, or treat a failing download as the miss signal.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
     func downloadCacheArtifact(_ input: Operations.downloadCacheArtifact.Input) async throws -> Operations.downloadCacheArtifact.Output
@@ -239,9 +244,13 @@ public protocol APIProtocol: Sendable {
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
     ///
+    /// It is the only cache endpoint that reaches storage to answer, so it is what clients
+    /// should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+    /// checking storage and answers 200 either way.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
-    @available(*, deprecated)
     func cacheArtifactExists(_ input: Operations.cacheArtifactExists.Input) async throws -> Operations.cacheArtifactExists.Output
     /// List CAS outputs for a given build.
     ///
@@ -548,6 +557,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/runs/{run_id}/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUploadProject)`.
     func completeAnalyticsArtifactMultipartUploadProject(_ input: Operations.completeAnalyticsArtifactMultipartUploadProject.Input) async throws -> Operations.completeAnalyticsArtifactMultipartUploadProject.Output
+    /// Create a runner shell session.
+    ///
+    /// Creates an interactive shell session for a running runner job.
+    ///
+    /// - Remark: HTTP `POST /api/runners/interactive/shell`.
+    /// - Remark: Generated from `#/paths//api/runners/interactive/shell/post(createRunnerShellSession)`.
+    func createRunnerShellSession(_ input: Operations.createRunnerShellSession.Input) async throws -> Operations.createRunnerShellSession.Output
     /// Uploads a preview icon.
     ///
     /// The endpoint uploads a preview icon.
@@ -713,6 +729,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/automations/alerts`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/post(createAutomationAlert)`.
     func createAutomationAlert(_ input: Operations.createAutomationAlert.Input) async throws -> Operations.createAutomationAlert.Output
+    /// Exchange the current credential for a cache token.
+    ///
+    /// Returns a short-lived token that carries the authenticated subject's cache grants.
+    ///
+    /// Cache nodes verify it themselves and authorize from the grants it carries, so
+    /// clients holding a credential a cache node cannot verify locally (a CI project
+    /// token, for example) avoid a server round-trip per cache authorization. Exchange
+    /// it once and reuse it until it expires. It is only accepted by cache nodes; it is
+    /// not an API credential.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/cache/token`.
+    /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)`.
+    func getCacheToken(_ input: Operations.getCacheToken.Input) async throws -> Operations.getCacheToken.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -779,6 +809,11 @@ extension APIProtocol {
     /// Downloads an artifact from the cache.
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
+    ///
+    /// The URL is signed from the request parameters alone, without a storage round trip, so
+    /// this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+    /// miss, or treat a failing download as the miss signal.
+    ///
     ///
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
@@ -1273,9 +1308,13 @@ extension APIProtocol {
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
     ///
+    /// It is the only cache endpoint that reaches storage to answer, so it is what clients
+    /// should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+    /// checking storage and answers 200 either way.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
-    @available(*, deprecated)
     public func cacheArtifactExists(
         query: Operations.cacheArtifactExists.Input.Query,
         headers: Operations.cacheArtifactExists.Input.Headers = .init()
@@ -1801,10 +1840,12 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)`.
     public func getShard(
         path: Operations.getShard.Input.Path,
+        query: Operations.getShard.Input.Query = .init(),
         headers: Operations.getShard.Input.Headers = .init()
     ) async throws -> Operations.getShard.Output {
         try await getShard(Operations.getShard.Input(
             path: path,
+            query: query,
             headers: headers
         ))
     }
@@ -2058,6 +2099,21 @@ extension APIProtocol {
             path: path,
             headers: headers,
             body: body
+        ))
+    }
+    /// Create a runner shell session.
+    ///
+    /// Creates an interactive shell session for a running runner job.
+    ///
+    /// - Remark: HTTP `POST /api/runners/interactive/shell`.
+    /// - Remark: Generated from `#/paths//api/runners/interactive/shell/post(createRunnerShellSession)`.
+    public func createRunnerShellSession(
+        query: Operations.createRunnerShellSession.Input.Query,
+        headers: Operations.createRunnerShellSession.Input.Headers = .init()
+    ) async throws -> Operations.createRunnerShellSession.Output {
+        try await createRunnerShellSession(Operations.createRunnerShellSession.Input(
+            query: query,
+            headers: headers
         ))
     }
     /// Uploads a preview icon.
@@ -2465,6 +2521,28 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Exchange the current credential for a cache token.
+    ///
+    /// Returns a short-lived token that carries the authenticated subject's cache grants.
+    ///
+    /// Cache nodes verify it themselves and authorize from the grants it carries, so
+    /// clients holding a credential a cache node cannot verify locally (a CI project
+    /// token, for example) avoid a server round-trip per cache authorization. Exchange
+    /// it once and reuse it until it expires. It is only accepted by cache nodes; it is
+    /// not an API credential.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/cache/token`.
+    /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)`.
+    public func getCacheToken(
+        query: Operations.getCacheToken.Input.Query = .init(),
+        headers: Operations.getCacheToken.Input.Headers = .init()
+    ) async throws -> Operations.getCacheToken.Output {
+        try await getCacheToken(Operations.getCacheToken.Input(
+            query: query,
+            headers: headers
+        ))
+    }
 }
 
 /// Server URLs defined in the OpenAPI document.
@@ -2641,6 +2719,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/model_identifier`.
             public var model_identifier: Swift.String?
+            /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/only_test_identifiers`.
+            public var only_test_identifiers: [Swift.String]?
             /// The scheme used for the test run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/scheme`.
@@ -2653,6 +2735,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/shard_plan_id`.
             public var shard_plan_id: Swift.String?
+            /// The tests the caller asked this run to exclude.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/skip_test_identifiers`.
+            public var skip_test_identifiers: [Swift.String]?
             /// The status of the test run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/status`.
@@ -3174,9 +3260,11 @@ public enum Components {
             ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
             ///   - macos_version: The version of macOS used during the run.
             ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
+            ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
             ///   - scheme: The scheme used for the test run.
             ///   - shard_index: The zero-based shard index for this test result.
             ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
+            ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
             ///   - status: The status of the test run.
             ///   - test_modules: The test modules associated with the test run.
             ///   - xcode_version: The version of Xcode used during the run.
@@ -3197,9 +3285,11 @@ public enum Components {
                 is_ci: Swift.Bool,
                 macos_version: Swift.String? = nil,
                 model_identifier: Swift.String? = nil,
+                only_test_identifiers: [Swift.String]? = nil,
                 scheme: Swift.String? = nil,
                 shard_index: Swift.Int? = nil,
                 shard_plan_id: Swift.String? = nil,
+                skip_test_identifiers: [Swift.String]? = nil,
                 status: Components.Schemas.TestParams.statusPayload? = nil,
                 test_modules: Components.Schemas.TestParams.test_modulesPayload,
                 xcode_version: Swift.String? = nil
@@ -3220,9 +3310,11 @@ public enum Components {
                 self.is_ci = is_ci
                 self.macos_version = macos_version
                 self.model_identifier = model_identifier
+                self.only_test_identifiers = only_test_identifiers
                 self.scheme = scheme
                 self.shard_index = shard_index
                 self.shard_plan_id = shard_plan_id
+                self.skip_test_identifiers = skip_test_identifiers
                 self.status = status
                 self.test_modules = test_modules
                 self.xcode_version = xcode_version
@@ -3244,9 +3336,11 @@ public enum Components {
                 case is_ci
                 case macos_version
                 case model_identifier
+                case only_test_identifiers
                 case scheme
                 case shard_index
                 case shard_plan_id
+                case skip_test_identifiers
                 case status
                 case test_modules
                 case xcode_version
@@ -5087,6 +5181,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/build_run_id`.
             public var build_run_id: Swift.String?
+            /// The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/git_branch`.
+            public var git_branch: Swift.String?
             /// The UUID of the associated Gradle build.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/gradle_build_id`.
@@ -5106,6 +5204,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/modules`.
             public var modules: [Swift.String]?
+            /// Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/parallelizable_modules`.
+            public var parallelizable_modules: [Swift.String]?
             /// A unique shard plan reference, typically derived from CI environment.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/reference`.
@@ -5126,6 +5228,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/shard_total`.
             public var shard_total: Swift.Int?
+            /// Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/skipped_test_suites`.
+            public var skipped_test_suites: [Swift.String]?
             /// Test suite names (for suite-level granularity).
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/test_suites`.
@@ -5134,48 +5240,60 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - build_run_id: The UUID of the associated Xcode build run.
+            ///   - git_branch: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
             ///   - gradle_build_id: The UUID of the associated Gradle build.
             ///   - granularity: Sharding granularity level.
             ///   - modules: Test module names (for module-level granularity).
+            ///   - parallelizable_modules: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
             ///   - reference: A unique shard plan reference, typically derived from CI environment.
             ///   - shard_max: Maximum number of shards.
             ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
             ///   - shard_min: Minimum number of shards.
             ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
+            ///   - skipped_test_suites: Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
             ///   - test_suites: Test suite names (for suite-level granularity).
             public init(
                 build_run_id: Swift.String? = nil,
+                git_branch: Swift.String? = nil,
                 gradle_build_id: Swift.String? = nil,
                 granularity: Components.Schemas.CreateShardPlanParams.granularityPayload? = nil,
                 modules: [Swift.String]? = nil,
+                parallelizable_modules: [Swift.String]? = nil,
                 reference: Swift.String,
                 shard_max: Swift.Int? = nil,
                 shard_max_duration: Swift.Int? = nil,
                 shard_min: Swift.Int? = nil,
                 shard_total: Swift.Int? = nil,
+                skipped_test_suites: [Swift.String]? = nil,
                 test_suites: [Swift.String]? = nil
             ) {
                 self.build_run_id = build_run_id
+                self.git_branch = git_branch
                 self.gradle_build_id = gradle_build_id
                 self.granularity = granularity
                 self.modules = modules
+                self.parallelizable_modules = parallelizable_modules
                 self.reference = reference
                 self.shard_max = shard_max
                 self.shard_max_duration = shard_max_duration
                 self.shard_min = shard_min
                 self.shard_total = shard_total
+                self.skipped_test_suites = skipped_test_suites
                 self.test_suites = test_suites
             }
             public enum CodingKeys: String, CodingKey {
                 case build_run_id
+                case git_branch
                 case gradle_build_id
                 case granularity
                 case modules
+                case parallelizable_modules
                 case reference
                 case shard_max
                 case shard_max_duration
                 case shard_min
                 case shard_total
+                case skipped_test_suites
                 case test_suites
             }
         }
@@ -5479,7 +5597,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/name`.
             public var name: Swift.String
-            /// The plan associated with the organization
+            /// The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/plan`.
             @frozen public enum planPayload: String, Codable, Hashable, Sendable, CaseIterable {
@@ -5488,7 +5606,7 @@ public enum Components {
                 case enterprise = "enterprise"
                 case none = "none"
             }
-            /// The plan associated with the organization
+            /// The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/plan`.
             public var plan: Components.Schemas.Organization.planPayload
@@ -5518,7 +5636,7 @@ public enum Components {
             ///   - invitations: A list of organization invitations
             ///   - members: A list of organization members
             ///   - name: The organization's name
-            ///   - plan: The plan associated with the organization
+            ///   - plan: The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
             ///   - sso_enforced: Whether SSO is enforced for the organization
             ///   - sso_organization_id: The organization ID associated with the SSO provider
             ///   - sso_provider: The SSO provider set up for the organization
@@ -6481,6 +6599,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/current_page`.
             public var current_page: Swift.Int?
+            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/end_cursor`.
+            public var end_cursor: Swift.String?
             /// Whether there are more pages available.
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/has_next_page`.
@@ -6493,10 +6615,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/page_size`.
             public var page_size: Swift.Int
-            /// Total number of items.
+            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/start_cursor`.
+            public var start_cursor: Swift.String?
+            /// Total number of items. Always `nil` when using cursor-based pagination.
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/total_count`.
-            public var total_count: Swift.Int
+            public var total_count: Swift.Int?
             /// Total number of pages. Always `nil` when using cursor-based pagination.
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/total_pages`.
@@ -6505,31 +6631,39 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - current_page: Current page number. Always `nil` when using cursor-based pagination.
+            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
             ///   - has_next_page: Whether there are more pages available.
             ///   - has_previous_page: Whether there are previous pages available.
             ///   - page_size: Number of items per page.
-            ///   - total_count: Total number of items.
+            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+            ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
             public init(
                 current_page: Swift.Int? = nil,
+                end_cursor: Swift.String? = nil,
                 has_next_page: Swift.Bool,
                 has_previous_page: Swift.Bool,
                 page_size: Swift.Int,
-                total_count: Swift.Int,
+                start_cursor: Swift.String? = nil,
+                total_count: Swift.Int? = nil,
                 total_pages: Swift.Int? = nil
             ) {
                 self.current_page = current_page
+                self.end_cursor = end_cursor
                 self.has_next_page = has_next_page
                 self.has_previous_page = has_previous_page
                 self.page_size = page_size
+                self.start_cursor = start_cursor
                 self.total_count = total_count
                 self.total_pages = total_pages
             }
             public enum CodingKeys: String, CodingKey {
                 case current_page
+                case end_cursor
                 case has_next_page
                 case has_previous_page
                 case page_size
+                case start_cursor
                 case total_count
                 case total_pages
             }
@@ -6674,6 +6808,69 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case id
                 case inserted_at
+            }
+        }
+        /// Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/GenerationsIndexBefore`.
+        public typealias GenerationsIndexBefore = Swift.String
+        /// - Remark: Generated from `#/components/schemas/RunnerShellSession`.
+        public struct RunnerShellSession: Codable, Hashable, Sendable {
+            /// When the session expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerShellSession/expires_at`.
+            public var expires_at: Foundation.Date
+            /// The runner shell session ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerShellSession/session_id`.
+            public var session_id: Swift.Int
+            /// The current runner shell session state.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerShellSession/state`.
+            public var state: Swift.String
+            /// The WebSocket subprotocol token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerShellSession/websocket_protocol`.
+            public var websocket_protocol: Swift.String
+            /// The WebSocket URL to connect to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerShellSession/websocket_url`.
+            public var websocket_url: Swift.String
+            /// The GitHub Actions workflow job ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerShellSession/workflow_job_id`.
+            public var workflow_job_id: Swift.Int
+            /// Creates a new `RunnerShellSession`.
+            ///
+            /// - Parameters:
+            ///   - expires_at: When the session expires.
+            ///   - session_id: The runner shell session ID.
+            ///   - state: The current runner shell session state.
+            ///   - websocket_protocol: The WebSocket subprotocol token.
+            ///   - websocket_url: The WebSocket URL to connect to.
+            ///   - workflow_job_id: The GitHub Actions workflow job ID.
+            public init(
+                expires_at: Foundation.Date,
+                session_id: Swift.Int,
+                state: Swift.String,
+                websocket_protocol: Swift.String,
+                websocket_url: Swift.String,
+                workflow_job_id: Swift.Int
+            ) {
+                self.expires_at = expires_at
+                self.session_id = session_id
+                self.state = state
+                self.websocket_protocol = websocket_protocol
+                self.websocket_url = websocket_url
+                self.workflow_job_id = workflow_job_id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case expires_at
+                case session_id
+                case state
+                case websocket_protocol
+                case websocket_url
+                case workflow_job_id
             }
         }
         /// The URL to upload an artifact.
@@ -8061,7 +8258,7 @@ public enum Components {
                 case xcode_version
             }
         }
-        /// The page number to return.
+        /// Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.
         ///
         /// - Remark: Generated from `#/components/schemas/GenerationsIndexPage`.
         public typealias GenerationsIndexPage = Swift.Int
@@ -8252,22 +8449,30 @@ public enum Components {
         public struct CacheAccess: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CacheAccess/accounts`.
             public var accounts: [Swift.String]
+            /// Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheAccess/payment_required`.
+            public var payment_required: [Swift.String]
             /// - Remark: Generated from `#/components/schemas/CacheAccess/projects`.
             public var projects: [Swift.String]
             /// Creates a new `CacheAccess`.
             ///
             /// - Parameters:
             ///   - accounts:
+            ///   - payment_required: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
             ///   - projects:
             public init(
                 accounts: [Swift.String],
+                payment_required: [Swift.String],
                 projects: [Swift.String]
             ) {
                 self.accounts = accounts
+                self.payment_required = payment_required
                 self.projects = projects
             }
             public enum CodingKeys: String, CodingKey {
                 case accounts
+                case payment_required
                 case projects
             }
         }
@@ -8563,6 +8768,39 @@ public enum Components {
             case hit_local = "hit_local"
             case hit_remote = "hit_remote"
             case miss = "miss"
+        }
+        /// Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/GenerationsIndexAfter`.
+        public typealias GenerationsIndexAfter = Swift.String
+        /// A short-lived token that proves the subject's cache access
+        ///
+        /// - Remark: Generated from `#/components/schemas/CacheToken`.
+        public struct CacheToken: Codable, Hashable, Sendable {
+            /// Seconds until the token expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheToken/expires_in`.
+            public var expires_in: Swift.Int
+            /// The token to send to cache nodes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheToken/token`.
+            public var token: Swift.String
+            /// Creates a new `CacheToken`.
+            ///
+            /// - Parameters:
+            ///   - expires_in: Seconds until the token expires.
+            ///   - token: The token to send to cache nodes.
+            public init(
+                expires_in: Swift.Int,
+                token: Swift.String
+            ) {
+                self.expires_in = expires_in
+                self.token = token
+            }
+            public enum CodingKeys: String, CodingKey {
+                case expires_in
+                case token
+            }
         }
         /// - Remark: Generated from `#/components/schemas/CASOutputType`.
         @frozen public enum CASOutputType: String, Codable, Hashable, Sendable, CaseIterable {
@@ -9503,13 +9741,13 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact`.
         public struct AbsentCacheArtifact: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload`.
-            public struct errorPayloadPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload/code`.
+            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorsPayload`.
+            public struct errorsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorsPayload/code`.
                 public var code: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload/message`.
+                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorsPayload/message`.
                 public var message: Swift.String?
-                /// Creates a new `errorPayloadPayload`.
+                /// Creates a new `errorsPayloadPayload`.
                 ///
                 /// - Parameters:
                 ///   - code:
@@ -9526,19 +9764,19 @@ public enum Components {
                     case message
                 }
             }
-            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/error`.
-            public typealias errorPayload = [Components.Schemas.AbsentCacheArtifact.errorPayloadPayload]
-            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/error`.
-            public var error: Components.Schemas.AbsentCacheArtifact.errorPayload?
+            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errors`.
+            public typealias errorsPayload = [Components.Schemas.AbsentCacheArtifact.errorsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errors`.
+            public var errors: Components.Schemas.AbsentCacheArtifact.errorsPayload?
             /// Creates a new `AbsentCacheArtifact`.
             ///
             /// - Parameters:
-            ///   - error:
-            public init(error: Components.Schemas.AbsentCacheArtifact.errorPayload? = nil) {
-                self.error = error
+            ///   - errors:
+            public init(errors: Components.Schemas.AbsentCacheArtifact.errorsPayload? = nil) {
+                self.errors = errors
             }
             public enum CodingKeys: String, CodingKey {
-                case error
+                case errors
             }
         }
         /// The maximum number of issues to return in a single page.
@@ -12380,6 +12618,22 @@ public enum Operations {
         }
         @frozen public enum Output: Sendable, Hashable {
             public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/headers/cache-control`.
+                    public var cache_hyphen_control: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - cache_hyphen_control: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+                    public init(cache_hyphen_control: Swift.String? = nil) {
+                        self.cache_hyphen_control = cache_hyphen_control
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCacheEndpoints.Output.Ok.Headers
                 /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// List of available cache endpoints
@@ -12419,8 +12673,13 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getCacheEndpoints.Output.Ok.Body) {
+                public init(
+                    headers: Operations.getCacheEndpoints.Output.Ok.Headers = .init(),
+                    body: Operations.getCacheEndpoints.Output.Ok.Body
+                ) {
+                    self.headers = headers
                     self.body = body
                 }
             }
@@ -12533,6 +12792,11 @@ public enum Operations {
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
     ///
+    /// The URL is signed from the request parameters alone, without a storage round trip, so
+    /// this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+    /// miss, or treat a failing download as the miss signal.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
     public enum downloadCacheArtifact {
@@ -12630,7 +12894,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The artifact exists and is downloadable
+            /// A signed download URL was generated. The URL is returned without verifying that the artifact is stored, so this status does not imply a cache hit: a hash that was never uploaded is signed just the same, and the download then fails with a 404 at the storage provider.
             ///
             /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/200`.
             ///
@@ -12834,7 +13098,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The project or the cache artifact doesn't exist
+            /// The project doesn't exist
             ///
             /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/404`.
             ///
@@ -15720,6 +15984,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/model_identifier`.
                     public var model_identifier: Swift.String?
+                    /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/only_test_identifiers`.
+                    public var only_test_identifiers: [Swift.String]?
                     /// The scheme used for the test run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/scheme`.
@@ -15732,6 +16000,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_plan_id`.
                     public var shard_plan_id: Swift.String?
+                    /// The tests the caller asked this run to exclude.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/skip_test_identifiers`.
+                    public var skip_test_identifiers: [Swift.String]?
                     /// The status of the test run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/status`.
@@ -16253,9 +16525,11 @@ public enum Operations {
                     ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
                     ///   - macos_version: The version of macOS used during the run.
                     ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
+                    ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
                     ///   - scheme: The scheme used for the test run.
                     ///   - shard_index: The zero-based shard index for this test result.
                     ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
+                    ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
                     ///   - status: The status of the test run.
                     ///   - test_modules: The test modules associated with the test run.
                     ///   - xcode_version: The version of Xcode used during the run.
@@ -16276,9 +16550,11 @@ public enum Operations {
                         is_ci: Swift.Bool,
                         macos_version: Swift.String? = nil,
                         model_identifier: Swift.String? = nil,
+                        only_test_identifiers: [Swift.String]? = nil,
                         scheme: Swift.String? = nil,
                         shard_index: Swift.Int? = nil,
                         shard_plan_id: Swift.String? = nil,
+                        skip_test_identifiers: [Swift.String]? = nil,
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
                         test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload,
                         xcode_version: Swift.String? = nil
@@ -16299,9 +16575,11 @@ public enum Operations {
                         self.is_ci = is_ci
                         self.macos_version = macos_version
                         self.model_identifier = model_identifier
+                        self.only_test_identifiers = only_test_identifiers
                         self.scheme = scheme
                         self.shard_index = shard_index
                         self.shard_plan_id = shard_plan_id
+                        self.skip_test_identifiers = skip_test_identifiers
                         self.status = status
                         self.test_modules = test_modules
                         self.xcode_version = xcode_version
@@ -16323,9 +16601,11 @@ public enum Operations {
                         case is_ci
                         case macos_version
                         case model_identifier
+                        case only_test_identifiers
                         case scheme
                         case shard_index
                         case shard_plan_id
+                        case skip_test_identifiers
                         case status
                         case test_modules
                         case xcode_version
@@ -16602,6 +16882,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/responses/503/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTest.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTest.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// The test run could not be scheduled for processing
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/post(createTest)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.createTest.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.createTest.Output.ServiceUnavailable {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
                             response: self
                         )
                     }
@@ -18351,6 +18682,57 @@ public enum Operations {
                     }
                 }
             }
+            public struct InternalServerError: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/responses/500/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/responses/500/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateAutomationAlert.Output.InternalServerError.Body
+                /// Creates a new `InternalServerError`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateAutomationAlert.Output.InternalServerError.Body) {
+                    self.body = body
+                }
+            }
+            /// An internal server error occurred
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/put(updateAutomationAlert)/responses/500`.
+            ///
+            /// HTTP response code: `500 internalServerError`.
+            case internalServerError(Operations.updateAutomationAlert.Output.InternalServerError)
+            /// The associated value of the enum case if `self` is `.internalServerError`.
+            ///
+            /// - Throws: An error if `self` is not `.internalServerError`.
+            /// - SeeAlso: `.internalServerError`.
+            public var internalServerError: Operations.updateAutomationAlert.Output.InternalServerError {
+                get throws {
+                    switch self {
+                    case let .internalServerError(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "internalServerError",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -18930,6 +19312,10 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -18938,24 +19324,20 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
+                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
-                ///   - git_branch: Filter bundles by git branch.
                 public init(
+                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    page_size: Swift.Int? = nil
                 ) {
+                    self.git_branch = git_branch
                     self.page = page
                     self.page_size = page_size
-                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -21217,6 +21599,10 @@ public enum Operations {
                                     ///
                                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes`.
                                     public struct subhashesPayload: Codable, Hashable, Sendable {
+                                        /// Additional hashing inputs hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/additional_hashing_inputs`.
+                                        public var additional_hashing_inputs: Swift.String?
                                         /// Additional strings used in the hash
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/additional_strings`.
@@ -21284,6 +21670,7 @@ public enum Operations {
                                         /// Creates a new `subhashesPayload`.
                                         ///
                                         /// - Parameters:
+                                        ///   - additional_hashing_inputs: Additional hashing inputs hash
                                         ///   - additional_strings: Additional strings used in the hash
                                         ///   - buildable_folders: Buildable folders hash
                                         ///   - copy_files: Copy files hash
@@ -21301,6 +21688,7 @@ public enum Operations {
                                         ///   - target_scripts: Target scripts hash
                                         ///   - target_settings: Target settings hash
                                         public init(
+                                            additional_hashing_inputs: Swift.String? = nil,
                                             additional_strings: [Swift.String]? = nil,
                                             buildable_folders: Swift.String? = nil,
                                             copy_files: Swift.String? = nil,
@@ -21318,6 +21706,7 @@ public enum Operations {
                                             target_scripts: Swift.String? = nil,
                                             target_settings: Swift.String? = nil
                                         ) {
+                                            self.additional_hashing_inputs = additional_hashing_inputs
                                             self.additional_strings = additional_strings
                                             self.buildable_folders = buildable_folders
                                             self.copy_files = copy_files
@@ -21336,6 +21725,7 @@ public enum Operations {
                                             self.target_settings = target_settings
                                         }
                                         public enum CodingKeys: String, CodingKey {
+                                            case additional_hashing_inputs
                                             case additional_strings
                                             case buildable_folders
                                             case copy_files
@@ -21472,6 +21862,10 @@ public enum Operations {
                                     ///
                                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes`.
                                     public struct subhashesPayload: Codable, Hashable, Sendable {
+                                        /// Additional hashing inputs hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/additional_hashing_inputs`.
+                                        public var additional_hashing_inputs: Swift.String?
                                         /// Additional strings used in the hash
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/additional_strings`.
@@ -21539,6 +21933,7 @@ public enum Operations {
                                         /// Creates a new `subhashesPayload`.
                                         ///
                                         /// - Parameters:
+                                        ///   - additional_hashing_inputs: Additional hashing inputs hash
                                         ///   - additional_strings: Additional strings used in the hash
                                         ///   - buildable_folders: Buildable folders hash
                                         ///   - copy_files: Copy files hash
@@ -21556,6 +21951,7 @@ public enum Operations {
                                         ///   - target_scripts: Target scripts hash
                                         ///   - target_settings: Target settings hash
                                         public init(
+                                            additional_hashing_inputs: Swift.String? = nil,
                                             additional_strings: [Swift.String]? = nil,
                                             buildable_folders: Swift.String? = nil,
                                             copy_files: Swift.String? = nil,
@@ -21573,6 +21969,7 @@ public enum Operations {
                                             target_scripts: Swift.String? = nil,
                                             target_settings: Swift.String? = nil
                                         ) {
+                                            self.additional_hashing_inputs = additional_hashing_inputs
                                             self.additional_strings = additional_strings
                                             self.buildable_folders = buildable_folders
                                             self.copy_files = copy_files
@@ -21591,6 +21988,7 @@ public enum Operations {
                                             self.target_settings = target_settings
                                         }
                                         public enum CodingKeys: String, CodingKey {
+                                            case additional_hashing_inputs
                                             case additional_strings
                                             case buildable_folders
                                             case copy_files
@@ -22372,6 +22770,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json/sso_automatic_enrollment`.
+                    public var sso_automatic_enrollment: Swift.Bool?
                     /// When true, organization members must use SSO and cannot log in with email and password
                     ///
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json/sso_enforced`.
@@ -22395,19 +22797,23 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - sso_automatic_enrollment: When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
                     ///   - sso_enforced: When true, organization members must use SSO and cannot log in with email and password
                     ///   - sso_organization_id: The SSO organization ID to be associated with the SSO provider
                     ///   - sso_provider: The SSO provider to set up for the organization
                     public init(
+                        sso_automatic_enrollment: Swift.Bool? = nil,
                         sso_enforced: Swift.Bool? = nil,
                         sso_organization_id: Swift.String? = nil,
                         sso_provider: Operations.updateOrganization_space__lpar_2_rpar_.Input.Body.jsonPayload.sso_providerPayload? = nil
                     ) {
+                        self.sso_automatic_enrollment = sso_automatic_enrollment
                         self.sso_enforced = sso_enforced
                         self.sso_organization_id = sso_organization_id
                         self.sso_provider = sso_provider
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case sso_automatic_enrollment
                         case sso_enforced
                         case sso_organization_id
                         case sso_provider
@@ -22760,6 +23166,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json/sso_automatic_enrollment`.
+                    public var sso_automatic_enrollment: Swift.Bool?
                     /// When true, organization members must use SSO and cannot log in with email and password
                     ///
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json/sso_enforced`.
@@ -22783,19 +23193,23 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - sso_automatic_enrollment: When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
                     ///   - sso_enforced: When true, organization members must use SSO and cannot log in with email and password
                     ///   - sso_organization_id: The SSO organization ID to be associated with the SSO provider
                     ///   - sso_provider: The SSO provider to set up for the organization
                     public init(
+                        sso_automatic_enrollment: Swift.Bool? = nil,
                         sso_enforced: Swift.Bool? = nil,
                         sso_organization_id: Swift.String? = nil,
                         sso_provider: Operations.updateOrganization.Input.Body.jsonPayload.sso_providerPayload? = nil
                     ) {
+                        self.sso_automatic_enrollment = sso_automatic_enrollment
                         self.sso_enforced = sso_enforced
                         self.sso_organization_id = sso_organization_id
                         self.sso_provider = sso_provider
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case sso_automatic_enrollment
                         case sso_enforced
                         case sso_organization_id
                         case sso_provider
@@ -26215,6 +26629,11 @@ public enum Operations {
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
     ///
+    /// It is the only cache endpoint that reaches storage to answer, so it is what clients
+    /// should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+    /// checking storage and answers 200 either way.
+    ///
+    ///
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
     public enum cacheArtifactExists {
@@ -26522,13 +26941,13 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload`.
-                        public struct errorPayloadPayload: Codable, Hashable, Sendable {
-                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload/code`.
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorsPayload`.
+                        public struct errorsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorsPayload/code`.
                             public var code: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload/message`.
+                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorsPayload/message`.
                             public var message: Swift.String?
-                            /// Creates a new `errorPayloadPayload`.
+                            /// Creates a new `errorsPayloadPayload`.
                             ///
                             /// - Parameters:
                             ///   - code:
@@ -26545,19 +26964,19 @@ public enum Operations {
                                 case message
                             }
                         }
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/error`.
-                        public typealias errorPayload = [Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayloadPayload]
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/error`.
-                        public var error: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayload?
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errors`.
+                        public typealias errorsPayload = [Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errors`.
+                        public var errors: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorsPayload?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - error:
-                        public init(error: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayload? = nil) {
-                            self.error = error
+                        ///   - errors:
+                        public init(errors: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorsPayload? = nil) {
+                            self.errors = errors
                         }
                         public enum CodingKeys: String, CodingKey {
-                            case error
+                            case errors
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/application\/json`.
@@ -39799,6 +40218,21 @@ public enum Operations {
                 }
             }
             public var path: Operations.getShard.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The exact shard plan identifier. When present, it takes precedence over the reference.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/query/shard_plan_id`.
+                public var shard_plan_id: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - shard_plan_id: The exact shard plan identifier. When present, it takes precedence over the reference.
+                public init(shard_plan_id: Swift.String? = nil) {
+                    self.shard_plan_id = shard_plan_id
+                }
+            }
+            public var query: Operations.getShard.Input.Query
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/header`.
             public struct Headers: Sendable, Hashable {
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getShard.AcceptableContentType>]
@@ -39815,12 +40249,15 @@ public enum Operations {
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
             public init(
                 path: Operations.getShard.Input.Path,
+                query: Operations.getShard.Input.Query = .init(),
                 headers: Operations.getShard.Input.Headers = .init()
             ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
             }
         }
@@ -39871,6 +40308,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getShard.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getShard.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request parameters are invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.getShard.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.getShard.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
@@ -40502,22 +40990,30 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/cache/access/GET/responses/200/content/json/accounts`.
                         public var accounts: [Swift.String]
+                        /// Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/access/GET/responses/200/content/json/payment_required`.
+                        public var payment_required: [Swift.String]
                         /// - Remark: Generated from `#/paths/api/cache/access/GET/responses/200/content/json/projects`.
                         public var projects: [Swift.String]
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - accounts:
+                        ///   - payment_required: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
                         ///   - projects:
                         public init(
                             accounts: [Swift.String],
+                            payment_required: [Swift.String],
                             projects: [Swift.String]
                         ) {
                             self.accounts = accounts
+                            self.payment_required = payment_required
                             self.projects = projects
                         }
                         public enum CodingKeys: String, CodingKey {
                             case accounts
+                            case payment_required
                             case projects
                         }
                     }
@@ -42445,6 +42941,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/build_run_id`.
                     public var build_run_id: Swift.String?
+                    /// The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/git_branch`.
+                    public var git_branch: Swift.String?
                     /// The UUID of the associated Gradle build.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/gradle_build_id`.
@@ -42464,6 +42964,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/modules`.
                     public var modules: [Swift.String]?
+                    /// Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/parallelizable_modules`.
+                    public var parallelizable_modules: [Swift.String]?
                     /// A unique shard plan reference, typically derived from CI environment.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/reference`.
@@ -42484,6 +42988,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/shard_total`.
                     public var shard_total: Swift.Int?
+                    /// Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/skipped_test_suites`.
+                    public var skipped_test_suites: [Swift.String]?
                     /// Test suite names (for suite-level granularity).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/test_suites`.
@@ -42492,48 +43000,60 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - build_run_id: The UUID of the associated Xcode build run.
+                    ///   - git_branch: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
                     ///   - gradle_build_id: The UUID of the associated Gradle build.
                     ///   - granularity: Sharding granularity level.
                     ///   - modules: Test module names (for module-level granularity).
+                    ///   - parallelizable_modules: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
                     ///   - reference: A unique shard plan reference, typically derived from CI environment.
                     ///   - shard_max: Maximum number of shards.
                     ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
                     ///   - shard_min: Minimum number of shards.
                     ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
+                    ///   - skipped_test_suites: Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
                     ///   - test_suites: Test suite names (for suite-level granularity).
                     public init(
                         build_run_id: Swift.String? = nil,
+                        git_branch: Swift.String? = nil,
                         gradle_build_id: Swift.String? = nil,
                         granularity: Operations.createShardPlan.Input.Body.jsonPayload.granularityPayload? = nil,
                         modules: [Swift.String]? = nil,
+                        parallelizable_modules: [Swift.String]? = nil,
                         reference: Swift.String,
                         shard_max: Swift.Int? = nil,
                         shard_max_duration: Swift.Int? = nil,
                         shard_min: Swift.Int? = nil,
                         shard_total: Swift.Int? = nil,
+                        skipped_test_suites: [Swift.String]? = nil,
                         test_suites: [Swift.String]? = nil
                     ) {
                         self.build_run_id = build_run_id
+                        self.git_branch = git_branch
                         self.gradle_build_id = gradle_build_id
                         self.granularity = granularity
                         self.modules = modules
+                        self.parallelizable_modules = parallelizable_modules
                         self.reference = reference
                         self.shard_max = shard_max
                         self.shard_max_duration = shard_max_duration
                         self.shard_min = shard_min
                         self.shard_total = shard_total
+                        self.skipped_test_suites = skipped_test_suites
                         self.test_suites = test_suites
                     }
                     public enum CodingKeys: String, CodingKey {
                         case build_run_id
+                        case git_branch
                         case gradle_build_id
                         case granularity
                         case modules
+                        case parallelizable_modules
                         case reference
                         case shard_max
                         case shard_max_duration
                         case shard_min
                         case shard_total
+                        case skipped_test_suites
                         case test_suites
                     }
                 }
@@ -46968,6 +47488,452 @@ public enum Operations {
             }
         }
     }
+    /// Create a runner shell session.
+    ///
+    /// Creates an interactive shell session for a running runner job.
+    ///
+    /// - Remark: HTTP `POST /api/runners/interactive/shell`.
+    /// - Remark: Generated from `#/paths//api/runners/interactive/shell/post(createRunnerShellSession)`.
+    public enum createRunnerShellSession {
+        public static let id: Swift.String = "createRunnerShellSession"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/query`.
+            public struct Query: Sendable, Hashable {
+                /// A dashboard job URL, GitHub Actions job URL, or workflow job ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/query/job_ref`.
+                public var job_ref: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - job_ref: A dashboard job URL, GitHub Actions job URL, or workflow job ID.
+                public init(job_ref: Swift.String) {
+                    self.job_ref = job_ref
+                }
+            }
+            public var query: Operations.createRunnerShellSession.Input.Query
+            /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createRunnerShellSession.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createRunnerShellSession.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createRunnerShellSession.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.createRunnerShellSession.Input.Query,
+                headers: Operations.createRunnerShellSession.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// When the session expires.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/200/content/json/expires_at`.
+                        public var expires_at: Foundation.Date
+                        /// The runner shell session ID.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/200/content/json/session_id`.
+                        public var session_id: Swift.Int
+                        /// The current runner shell session state.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/200/content/json/state`.
+                        public var state: Swift.String
+                        /// The WebSocket subprotocol token.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/200/content/json/websocket_protocol`.
+                        public var websocket_protocol: Swift.String
+                        /// The WebSocket URL to connect to.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/200/content/json/websocket_url`.
+                        public var websocket_url: Swift.String
+                        /// The GitHub Actions workflow job ID.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/200/content/json/workflow_job_id`.
+                        public var workflow_job_id: Swift.Int
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - expires_at: When the session expires.
+                        ///   - session_id: The runner shell session ID.
+                        ///   - state: The current runner shell session state.
+                        ///   - websocket_protocol: The WebSocket subprotocol token.
+                        ///   - websocket_url: The WebSocket URL to connect to.
+                        ///   - workflow_job_id: The GitHub Actions workflow job ID.
+                        public init(
+                            expires_at: Foundation.Date,
+                            session_id: Swift.Int,
+                            state: Swift.String,
+                            websocket_protocol: Swift.String,
+                            websocket_url: Swift.String,
+                            workflow_job_id: Swift.Int
+                        ) {
+                            self.expires_at = expires_at
+                            self.session_id = session_id
+                            self.state = state
+                            self.websocket_protocol = websocket_protocol
+                            self.websocket_url = websocket_url
+                            self.workflow_job_id = workflow_job_id
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case expires_at
+                            case session_id
+                            case state
+                            case websocket_protocol
+                            case websocket_url
+                            case workflow_job_id
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/200/content/application\/json`.
+                    case json(Operations.createRunnerShellSession.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createRunnerShellSession.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createRunnerShellSession.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createRunnerShellSession.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Runner shell session
+            ///
+            /// - Remark: Generated from `#/paths//api/runners/interactive/shell/post(createRunnerShellSession)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createRunnerShellSession.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createRunnerShellSession.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createRunnerShellSession.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createRunnerShellSession.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The job reference is missing
+            ///
+            /// - Remark: Generated from `#/paths//api/runners/interactive/shell/post(createRunnerShellSession)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createRunnerShellSession.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createRunnerShellSession.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createRunnerShellSession.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createRunnerShellSession.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// The request is not authenticated
+            ///
+            /// - Remark: Generated from `#/paths//api/runners/interactive/shell/post(createRunnerShellSession)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createRunnerShellSession.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.createRunnerShellSession.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createRunnerShellSession.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createRunnerShellSession.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized
+            ///
+            /// - Remark: Generated from `#/paths//api/runners/interactive/shell/post(createRunnerShellSession)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createRunnerShellSession.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createRunnerShellSession.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createRunnerShellSession.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createRunnerShellSession.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The runner job was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/runners/interactive/shell/post(createRunnerShellSession)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createRunnerShellSession.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createRunnerShellSession.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runners/interactive/shell/POST/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createRunnerShellSession.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createRunnerShellSession.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// Shell access is unavailable for the runner job
+            ///
+            /// - Remark: Generated from `#/paths//api/runners/interactive/shell/post(createRunnerShellSession)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.createRunnerShellSession.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.createRunnerShellSession.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Uploads a preview icon.
     ///
     /// The endpoint uploads a preview icon.
@@ -50603,7 +51569,16 @@ public enum Operations {
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/query/page`.
+                @available(*, deprecated)
                 public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/query/after`.
+                public var after: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/query/before`.
+                public var before: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
@@ -50612,18 +51587,24 @@ public enum Operations {
                 ///   - git_commit_sha: Filter by git commit SHA.
                 ///   - page_size:
                 ///   - page:
+                ///   - after:
+                ///   - before:
                 public init(
                     git_ref: Swift.String? = nil,
                     git_branch: Swift.String? = nil,
                     git_commit_sha: Swift.String? = nil,
                     page_size: Swift.Int? = nil,
-                    page: Swift.Int? = nil
+                    page: Swift.Int? = nil,
+                    after: Swift.String? = nil,
+                    before: Swift.String? = nil
                 ) {
                     self.git_ref = git_ref
                     self.git_branch = git_branch
                     self.git_commit_sha = git_commit_sha
                     self.page_size = page_size
                     self.page = page
+                    self.after = after
+                    self.before = before
                 }
             }
             public var query: Operations.listGenerations.Input.Query
@@ -56578,6 +57559,327 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct InternalServerError: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/responses/500/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/responses/500/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createAutomationAlert.Output.InternalServerError.Body
+                /// Creates a new `InternalServerError`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createAutomationAlert.Output.InternalServerError.Body) {
+                    self.body = body
+                }
+            }
+            /// An internal server error occurred
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/post(createAutomationAlert)/responses/500`.
+            ///
+            /// HTTP response code: `500 internalServerError`.
+            case internalServerError(Operations.createAutomationAlert.Output.InternalServerError)
+            /// The associated value of the enum case if `self` is `.internalServerError`.
+            ///
+            /// - Throws: An error if `self` is not `.internalServerError`.
+            /// - SeeAlso: `.internalServerError`.
+            public var internalServerError: Operations.createAutomationAlert.Output.InternalServerError {
+                get throws {
+                    switch self {
+                    case let .internalServerError(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "internalServerError",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Exchange the current credential for a cache token.
+    ///
+    /// Returns a short-lived token that carries the authenticated subject's cache grants.
+    ///
+    /// Cache nodes verify it themselves and authorize from the grants it carries, so
+    /// clients holding a credential a cache node cannot verify locally (a CI project
+    /// token, for example) avoid a server round-trip per cache authorization. Exchange
+    /// it once and reuse it until it expires. It is only accepted by cache nodes; it is
+    /// not an API credential.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/cache/token`.
+    /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)`.
+    public enum getCacheToken {
+        public static let id: Swift.String = "getCacheToken"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/token/POST/query`.
+            public struct Query: Sendable, Hashable {
+                /// Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/token/POST/query/full_handle`.
+                public var full_handle: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - full_handle: Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account.
+                public init(full_handle: Swift.String? = nil) {
+                    self.full_handle = full_handle
+                }
+            }
+            public var query: Operations.getCacheToken.Input.Query
+            /// - Remark: Generated from `#/paths/api/cache/token/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheToken.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheToken.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getCacheToken.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.getCacheToken.Input.Query = .init(),
+                headers: Operations.getCacheToken.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// A short-lived token that proves the subject's cache access
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Seconds until the token expires.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/json/expires_in`.
+                        public var expires_in: Swift.Int
+                        /// The token to send to cache nodes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/json/token`.
+                        public var token: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - expires_in: Seconds until the token expires.
+                        ///   - token: The token to send to cache nodes.
+                        public init(
+                            expires_in: Swift.Int,
+                            token: Swift.String
+                        ) {
+                            self.expires_in = expires_in
+                            self.token = token
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case expires_in
+                            case token
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/application\/json`.
+                    case json(Operations.getCacheToken.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getCacheToken.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheToken.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheToken.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// A cache token for the authenticated subject
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getCacheToken.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getCacheToken.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheToken.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getCacheToken.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getCacheToken.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Code402: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/402/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/402/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheToken.Output.Code402.Body
+                /// Creates a new `Code402`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheToken.Output.Code402.Body) {
+                    self.body = body
+                }
+            }
+            /// The account has exhausted its plan's free tier
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)/responses/402`.
+            ///
+            /// HTTP response code: `402 code402`.
+            case code402(Operations.getCacheToken.Output.Code402)
+            /// The associated value of the enum case if `self` is `.code402`.
+            ///
+            /// - Throws: An error if `self` is not `.code402`.
+            /// - SeeAlso: `.code402`.
+            public var code402: Operations.getCacheToken.Output.Code402 {
+                get throws {
+                    switch self {
+                    case let .code402(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "code402",
                             response: self
                         )
                     }

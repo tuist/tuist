@@ -33,18 +33,23 @@ public protocol LaunchAgentServicing {
         label: String,
         plistFileName: String
     ) async throws
+
+    func restartLaunchAgent(label: String) async throws
 }
 
 public struct LaunchAgentService: LaunchAgentServicing {
     private let fileSystem: FileSysteming
     private let launchctlController: LaunchctlControlling
+    private let bootoutTimeout: Duration
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
-        launchctlController: LaunchctlControlling = LaunchctlController()
+        launchctlController: LaunchctlControlling = LaunchctlController(),
+        bootoutTimeout: Duration = .seconds(3)
     ) {
         self.fileSystem = fileSystem
         self.launchctlController = launchctlController
+        self.bootoutTimeout = bootoutTimeout
     }
 
     public func setupLaunchAgent(
@@ -64,16 +69,14 @@ public struct LaunchAgentService: LaunchAgentServicing {
             try await fileSystem.makeDirectory(at: launchAgentsDir)
         }
 
-        if try await fileSystem.exists(plistPath) {
+        if try await launchctlController.isLoaded(label: label) {
             Logger.current.debug("Existing LaunchAgent found. Booting out...")
+            try await launchctlController.bootout(label: label)
+            await waitUntilBootedOut(label: label)
+        }
+
+        if try await fileSystem.exists(plistPath) {
             try await fileSystem.remove(plistPath)
-            do {
-                try await launchctlController.bootout(label: label)
-            } catch {
-                Logger.current.debug(
-                    "Failed to boot out existing LaunchAgent: \(error.localizedDescription)"
-                )
-            }
         }
 
         let fullArguments = [tuistBinaryPath.pathString] + programArguments
@@ -102,19 +105,29 @@ public struct LaunchAgentService: LaunchAgentServicing {
             try await launchctlController.bootstrap(plistPath: plistPath)
             Logger.current.debug("Bootstrapped LaunchAgent")
         } catch let commandError as CommandError {
-            switch commandError {
-            case .terminated(5, _, _):
-                Logger.current
-                    .debug("LaunchAgent already bootstrapped by launchd, skipping explicit bootstrap")
-            default:
-                var message = String(describing: commandError)
-                if let stderrContent = try? await fileSystem.readTextFile(at: stderrLogPath),
-                   !stderrContent.isEmpty
-                {
-                    message += "\nDaemon stderr log:\n\(stderrContent)"
-                }
-                throw LaunchAgentServiceError.failedToLoadLaunchAgent(message)
+            // `5` is launchd's catch-all, covering both a label that is already
+            // bootstrapped and a plist it cannot load at all, so the code alone
+            // cannot decide. Ask the domain instead: the label being there means
+            // the bootstrap was redundant and setup has what it wanted.
+            //
+            // Deliberately narrower than the blanket tolerance this replaces
+            // (removed in #12014), which reported success for an agent that had
+            // genuinely failed to load. Do not widen it back to every `5`.
+            if case .terminated(5, _, _) = commandError,
+               await isLoadedIgnoringFailures(label: label)
+            {
+                Logger.current.debug(
+                    "launchctl refused to bootstrap \(label), which is already loaded: \(commandError)"
+                )
+                return
             }
+            var message = String(describing: commandError)
+            if let stderrContent = try? await fileSystem.readTextFile(at: stderrLogPath),
+               !stderrContent.isEmpty
+            {
+                message += "\nDaemon stderr log:\n\(stderrContent)"
+            }
+            throw LaunchAgentServiceError.failedToLoadLaunchAgent(message)
         } catch {
             var message = String(describing: error)
             if let stderrContent = try? await fileSystem.readTextFile(at: stderrLogPath),
@@ -126,6 +139,36 @@ public struct LaunchAgentService: LaunchAgentServicing {
         }
 
         Logger.current.debug("LaunchAgent configured and loaded successfully")
+    }
+
+    /// `bootout` returns once launchd has accepted the removal, not once the job
+    /// has left the domain, so a bootstrap issued straight after can still land
+    /// on the outgoing label. Waiting also stops a caller's readiness check from
+    /// passing against the previous daemon, which would report success for a
+    /// configuration that never took effect.
+    ///
+    /// Gives up rather than throwing: a label that outlives the wait leaves the
+    /// bootstrap facing the same ambiguity it already resolves against the
+    /// domain.
+    private func waitUntilBootedOut(label: String) async {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: bootoutTimeout)
+
+        while clock.now < deadline, !Task.isCancelled {
+            if await !isLoadedIgnoringFailures(label: label) { return }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+
+        Logger.current.debug("\(label) is still loaded after booting it out. Continuing.")
+    }
+
+    private func isLoadedIgnoringFailures(label: String) async -> Bool {
+        (try? await launchctlController.isLoaded(label: label)) ?? false
+    }
+
+    public func restartLaunchAgent(label: String) async throws {
+        try await launchctlController.kickstart(label: label)
+        Logger.current.debug("Restarted LaunchAgent \(label)")
     }
 
     public func teardownLaunchAgent(

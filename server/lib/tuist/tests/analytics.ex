@@ -615,6 +615,54 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
+  def test_run_average_duration_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    previous_start_datetime = DateTime.add(start_datetime, -days_delta, :day)
+
+    result =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^previous_start_datetime,
+        where: t.ran_at <= ^end_datetime,
+        select: %{
+          previous_average_duration:
+            fragment(
+              "avgOrNullIf(?, ? >= ? AND ? < ?)",
+              t.duration,
+              t.ran_at,
+              ^previous_start_datetime,
+              t.ran_at,
+              ^start_datetime
+            ),
+          current_average_duration:
+            fragment(
+              "avgOrNullIf(?, ? >= ? AND ? <= ?)",
+              t.duration,
+              t.ran_at,
+              ^start_datetime,
+              t.ran_at,
+              ^end_datetime
+            )
+        }
+      )
+      |> apply_test_run_filters(opts)
+      |> ClickHouseRepo.one()
+
+    previous_average_duration = normalize_average_duration(result && result.previous_average_duration)
+    current_average_duration = normalize_average_duration(result && result.current_average_duration)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_average_duration,
+          current_value: current_average_duration
+        ),
+      total_average_duration: current_average_duration
+    }
+  end
+
   defp test_run_aggregated_duration(project_id, start_datetime, end_datetime, opts) do
     is_ci = Keyword.get(opts, :is_ci)
     scheme = Keyword.get(opts, :scheme)
@@ -638,12 +686,13 @@ defmodule Tuist.Tests.Analytics do
 
     result = ClickHouseRepo.one(query)
 
-    case result do
-      nil -> 0.0
-      avg when is_float(avg) -> avg
-      avg -> avg * 1.0
-    end
+    normalize_average_duration(result)
   end
+
+  defp normalize_average_duration(nil), do: 0.0
+  defp normalize_average_duration(%Decimal{} = duration), do: Decimal.to_float(duration)
+  defp normalize_average_duration(duration) when is_float(duration), do: duration
+  defp normalize_average_duration(duration), do: duration * 1.0
 
   defp test_run_average_durations(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
     date_format = get_clickhouse_date_format(time_bucket)
@@ -1218,20 +1267,24 @@ defmodule Tuist.Tests.Analytics do
   end
 
   @doc """
-  Calculates the test reliability (success rate) for a specific test case by its UUID.
+  Calculates the test reliability (success rate) for a specific test case by its identifier.
   First attempts to calculate based on the project's default branch. If no runs exist on the
   default branch, falls back to calculating reliability across all branches.
   Returns the percentage of successful runs (0-100) or nil if no runs exist at all.
+
+  Options:
+    * `:start_datetime` / `:end_datetime` - bound the runs to a period. Unbounded when omitted.
   """
-  def test_case_reliability_by_id(test_case_id, default_branch) do
+  def test_case_reliability_by_id(project_id, test_case_id, default_branch, opts \\ []) do
     default_branch_query =
-      from(tcr in TestCaseRun,
-        where: tcr.test_case_id == ^test_case_id,
-        where: tcr.git_branch == ^default_branch,
-        select: %{
-          success_count: fragment("countIf(? = 'success')", tcr.status),
-          total_count: count(tcr.id)
-        }
+      apply_period_filter(
+        from(tcr in TestCaseRun,
+          where: tcr.project_id == ^project_id,
+          where: tcr.test_case_id == ^test_case_id,
+          where: tcr.git_branch == ^default_branch,
+          select: %{success_count: fragment("countIf(? = 'success')", tcr.status), total_count: count()}
+        ),
+        opts
       )
 
     result = ClickHouseRepo.one(default_branch_query)
@@ -1242,12 +1295,13 @@ defmodule Tuist.Tests.Analytics do
 
       _ ->
         all_branches_query =
-          from(tcr in TestCaseRun,
-            where: tcr.test_case_id == ^test_case_id,
-            select: %{
-              success_count: fragment("countIf(? = 'success')", tcr.status),
-              total_count: count(tcr.id)
-            }
+          apply_period_filter(
+            from(tcr in TestCaseRun,
+              where: tcr.project_id == ^project_id,
+              where: tcr.test_case_id == ^test_case_id,
+              select: %{success_count: fragment("countIf(? = 'success')", tcr.status), total_count: count()}
+            ),
+            opts
           )
 
         all_result = ClickHouseRepo.one(all_branches_query)
@@ -1263,51 +1317,337 @@ defmodule Tuist.Tests.Analytics do
   end
 
   @doc """
-  Gets analytics for a specific test case by its UUID including total runs, failed runs, and average duration.
+  Gets analytics for a specific test case by its identifier including total runs,
+  failed runs, flaky runs, and the duration distribution (average plus p50 / p90
+  / p99).
+
+  `failed_count` and `flaky_count` answer "how many runs failed at all" and "how
+  many flaked at all", so a run that did both is in both. `outcome_counts` answers
+  a different question: which single segment of the stacked bar a run belongs to,
+  under the precedence `test_case_run_series_by_id/3` uses (quarantined, then
+  flaky, then the status). Its members are mutually exclusive and sum to
+  `total_count`, which is what lets a card show a count and the segment it names
+  as the same number.
+
+  The percentiles come from the same pass over the same rows as the average, so
+  the detail page can offer the whole distribution for the cost it already paid
+  for the mean. They matter here for the same reason they do in the Test Cases
+  listing: a single stalled run drags the mean somewhere no run actually was.
+
+  Options:
+    * `:start_datetime` / `:end_datetime` - bound the runs to a period. Unbounded when omitted.
   """
-  def test_case_analytics_by_id(test_case_id, _opts \\ []) do
+  def test_case_analytics_by_id(project_id, test_case_id, opts \\ []) do
     query =
-      from(tcr in TestCaseRun,
-        where: tcr.test_case_id == ^test_case_id,
-        select: %{
-          total_count: count(tcr.id),
-          failed_count: fragment("countIf(? = 'failure')", tcr.status),
-          avg_duration: avg(tcr.duration)
-        }
+      apply_period_filter(
+        from(tcr in TestCaseRun,
+          where: tcr.project_id == ^project_id,
+          where: tcr.test_case_id == ^test_case_id,
+          select: %{
+            total_count: count(),
+            failed_count: fragment("countIf(? = 'failure')", tcr.status),
+            flaky_count: fragment("countIf(?)", tcr.is_flaky),
+            quarantined: fragment("countIf(?)", tcr.is_quarantined),
+            flaky: fragment("countIf(? AND NOT ?)", tcr.is_flaky, tcr.is_quarantined),
+            successful:
+              fragment(
+                "countIf(? = 'success' AND NOT ? AND NOT ?)",
+                tcr.status,
+                tcr.is_flaky,
+                tcr.is_quarantined
+              ),
+            failed:
+              fragment(
+                "countIf(? = 'failure' AND NOT ? AND NOT ?)",
+                tcr.status,
+                tcr.is_flaky,
+                tcr.is_quarantined
+              ),
+            skipped:
+              fragment(
+                "countIf(? = 'skipped' AND NOT ? AND NOT ?)",
+                tcr.status,
+                tcr.is_flaky,
+                tcr.is_quarantined
+              ),
+            avg_duration: avg(tcr.duration),
+            p50_duration: fragment("quantile(0.5)(?)", tcr.duration),
+            p90_duration: fragment("quantile(0.9)(?)", tcr.duration),
+            p99_duration: fragment("quantile(0.99)(?)", tcr.duration)
+          }
+        ),
+        opts
       )
 
     result = ClickHouseRepo.one(query)
 
     case result do
       nil ->
-        %{total_count: 0, failed_count: 0, avg_duration: 0}
+        %{
+          total_count: 0,
+          failed_count: 0,
+          flaky_count: 0,
+          outcome_counts: %{successful: 0, failed: 0, flaky: 0, quarantined: 0, skipped: 0},
+          avg_duration: 0,
+          p50_duration: 0,
+          p90_duration: 0,
+          p99_duration: 0
+        }
 
       %{total_count: total, failed_count: failed, avg_duration: avg} ->
         %{
           total_count: total,
           failed_count: failed,
-          avg_duration: normalize_duration(avg)
+          flaky_count: result.flaky_count,
+          outcome_counts: %{
+            successful: result.successful,
+            failed: result.failed,
+            flaky: result.flaky,
+            quarantined: result.quarantined,
+            skipped: result.skipped
+          },
+          avg_duration: normalize_duration(avg),
+          p50_duration: normalize_duration(result.p50_duration),
+          p90_duration: normalize_duration(result.p90_duration),
+          p99_duration: normalize_duration(result.p99_duration)
         }
     end
   end
 
   @doc """
-  Gets the flakiness rate for a specific test case.
-  Calculates the ratio of flaky runs to total runs in the last 30 days.
-  Returns 0.0 if there are no flaky runs or no data.
-  """
-  def get_test_case_flakiness_rate(%TestCase{id: test_case_id, project_id: project_id}) do
-    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+  The duration of a single test case over time, as an average and p50 / p90 /
+  p99 series bucketed to the selected period.
 
-    query =
+  Reads the same rows as `test_case_analytics_by_id/3`, bucketed rather than
+  aggregated whole, so the chart and the summary widgets above it cannot state
+  two different numbers for one window. The per-case daily aggregate table is
+  not used here for that reason: its quantile states answer a different question
+  (every test case in a project, ranked) and would disagree with the widgets by
+  the width of a reservoir sample.
+
+  Buckets with no runs carry `nil`, not `0`. A single test case runs on the days
+  it is exercised and not on the others, and a zero would draw the line to the
+  floor and read as "this test took no time that day" rather than "this test did
+  not run".
+
+  Options:
+    * `:start_datetime` - start of the window (default: 30 days ago).
+    * `:end_datetime` - end of the window (default: now). Leaving it out keeps
+      the upper bound open, so runs ingested during the current second still
+      count.
+  """
+  def test_case_duration_series_by_id(project_id, test_case_id, opts \\ []) do
+    {start_datetime, end_datetime, date_period, date_format, buckets} = series_window(opts)
+
+    rows =
+      apply_period_filter(
+        from(tcr in TestCaseRun,
+          where: tcr.project_id == ^project_id,
+          where: tcr.test_case_id == ^test_case_id,
+          group_by: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
+          select: %{
+            date: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
+            avg: avg(tcr.duration),
+            p50: fragment("quantile(0.5)(?)", tcr.duration),
+            p90: fragment("quantile(0.9)(?)", tcr.duration),
+            p99: fragment("quantile(0.99)(?)", tcr.duration)
+          }
+        ),
+        Keyword.merge(opts, start_datetime: start_datetime, end_datetime: end_datetime)
+      )
+
+    rows = ClickHouseRepo.all(rows)
+
+    %{
+      dates: buckets,
+      values: bucket_series(rows, :avg, buckets, date_period, nil, &normalize_duration/1),
+      p50_values: bucket_series(rows, :p50, buckets, date_period, nil, &normalize_duration/1),
+      p90_values: bucket_series(rows, :p90, buckets, date_period, nil, &normalize_duration/1),
+      p99_values: bucket_series(rows, :p99, buckets, date_period, nil, &normalize_duration/1)
+    }
+  end
+
+  @doc """
+  How a single test case's runs came out over time, bucketed to the selected
+  period: the total, the outcome each run had, and the flakiness rate.
+
+  Reads the same rows as `test_case_analytics_by_id/3` and
+  `get_test_case_flakiness_rate/2`, so the charts and the widgets above them
+  cannot state two different numbers for one window.
+
+  The outcome segments are mutually exclusive and sum to `run_counts`, which is
+  what lets them stack into one bar per bucket. A run can be quarantined and
+  flaky and failed at once, so it is counted under the most specific of those it
+  belongs to: quarantined first, since those runs gate nothing and their
+  failures are expected; then flaky, the more actionable label for a run that
+  did not settle; then the status the run finished with.
+
+  Counts are zero-filled: a bucket with no runs really did have no runs. The
+  flakiness rate is `nil` there instead, since a rate needs runs to be a rate
+  and a zero would claim the test ran and never flaked.
+
+  Options:
+    * `:start_datetime` - start of the window (default: 30 days ago).
+    * `:end_datetime` - end of the window (default: now).
+  """
+  def test_case_run_series_by_id(project_id, test_case_id, opts \\ []) do
+    {start_datetime, end_datetime, date_period, date_format, buckets} = series_window(opts)
+
+    rows =
       from(tcr in TestCaseRun,
         where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
-        where: tcr.inserted_at >= ^thirty_days_ago,
+        group_by: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
         select: %{
-          flaky_count: fragment("countIf(?)", tcr.is_flaky),
-          total_count: count(tcr.id)
+          date: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
+          total: count(),
+          flaky_total: fragment("countIf(?)", tcr.is_flaky),
+          quarantined: fragment("countIf(?)", tcr.is_quarantined),
+          flaky: fragment("countIf(? AND NOT ?)", tcr.is_flaky, tcr.is_quarantined),
+          successful:
+            fragment(
+              "countIf(? = 'success' AND NOT ? AND NOT ?)",
+              tcr.status,
+              tcr.is_flaky,
+              tcr.is_quarantined
+            ),
+          failed:
+            fragment(
+              "countIf(? = 'failure' AND NOT ? AND NOT ?)",
+              tcr.status,
+              tcr.is_flaky,
+              tcr.is_quarantined
+            ),
+          skipped:
+            fragment(
+              "countIf(? = 'skipped' AND NOT ? AND NOT ?)",
+              tcr.status,
+              tcr.is_flaky,
+              tcr.is_quarantined
+            )
         }
+      )
+      |> apply_period_filter(Keyword.merge(opts, start_datetime: start_datetime, end_datetime: end_datetime))
+      |> ClickHouseRepo.all()
+
+    # The rate counts every flaky run, including the quarantined ones the stack
+    # files elsewhere: it answers "how often did this test not settle", which
+    # quarantining a test does not change.
+    rate_rows = Enum.map(rows, &%{date: &1.date, rate: percentage(&1.flaky_total, &1.total)})
+
+    %{
+      dates: buckets,
+      run_counts: bucket_series(rows, :total, buckets, date_period, 0, & &1),
+      successful_counts: bucket_series(rows, :successful, buckets, date_period, 0, & &1),
+      failed_counts: bucket_series(rows, :failed, buckets, date_period, 0, & &1),
+      skipped_counts: bucket_series(rows, :skipped, buckets, date_period, 0, & &1),
+      flaky_counts: bucket_series(rows, :flaky, buckets, date_period, 0, & &1),
+      quarantined_counts: bucket_series(rows, :quarantined, buckets, date_period, 0, & &1),
+      flakiness_rates: bucket_series(rate_rows, :rate, buckets, date_period, nil, & &1)
+    }
+  end
+
+  @doc """
+  The success rate of a single test case over time, bucketed to the selected
+  period.
+
+  Scoped the way `test_case_reliability_by_id/4` scopes its number: runs on the
+  project's default branch, falling back to every branch when the default branch
+  has none in the window. The fallback is decided once for the whole window
+  rather than per bucket, so the chart and the widget describe the same set of
+  runs rather than each bucket silently choosing its own branch scope.
+
+  A bucket with no runs carries `nil`: not knowing whether a test passed is not
+  the same as knowing it failed every time.
+
+  Options:
+    * `:start_datetime` - start of the window (default: 30 days ago).
+    * `:end_datetime` - end of the window (default: now).
+  """
+  def test_case_reliability_series_by_id(project_id, test_case_id, default_branch, opts \\ []) do
+    {start_datetime, end_datetime, date_period, date_format, buckets} = series_window(opts)
+
+    rows =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.test_case_id == ^test_case_id,
+        group_by: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
+          branch_success: fragment("countIf(? = 'success' AND ? = ?)", tcr.status, tcr.git_branch, ^default_branch),
+          branch_total: fragment("countIf(? = ?)", tcr.git_branch, ^default_branch),
+          success: fragment("countIf(? = 'success')", tcr.status),
+          total: count()
+        }
+      )
+      |> apply_period_filter(Keyword.merge(opts, start_datetime: start_datetime, end_datetime: end_datetime))
+      |> ClickHouseRepo.all()
+
+    on_default_branch? = Enum.any?(rows, &(&1.branch_total > 0))
+
+    rate_rows =
+      Enum.map(rows, fn row ->
+        if on_default_branch? do
+          %{date: row.date, rate: percentage(row.branch_success, row.branch_total)}
+        else
+          %{date: row.date, rate: percentage(row.success, row.total)}
+        end
+      end)
+
+    %{dates: buckets, values: bucket_series(rate_rows, :rate, buckets, date_period, nil, & &1)}
+  end
+
+  defp series_window(opts) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+
+    date_format =
+      date_period
+      |> time_bucket_for_date_period()
+      |> time_bucket_to_clickhouse_interval()
+      |> get_clickhouse_date_format()
+
+    buckets = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
+
+    {start_datetime, end_datetime, date_period, date_format, buckets}
+  end
+
+  defp percentage(_part, 0), do: nil
+  defp percentage(part, whole), do: Float.round(part / whole * 100, 1)
+
+  defp bucket_series(rows, statistic, buckets, date_period, empty, mapper) do
+    values = Map.new(rows, &{normalise_date(&1.date, date_period), Map.fetch!(&1, statistic)})
+
+    Enum.map(buckets, fn bucket ->
+      case Map.get(values, normalise_date(bucket, date_period)) do
+        nil -> empty
+        value -> mapper.(value)
+      end
+    end)
+  end
+
+  @doc """
+  Gets the flakiness rate for a specific test case.
+  Calculates the ratio of flaky runs to total runs, defaulting to the last 30 days.
+  Returns 0.0 if there are no flaky runs or no data.
+
+  Options:
+    * `:start_datetime` / `:end_datetime` - bound the runs to a period.
+  """
+  def get_test_case_flakiness_rate(%TestCase{id: test_case_id, project_id: project_id}, opts \\ []) do
+    opts =
+      Keyword.put_new_lazy(opts, :start_datetime, fn -> DateTime.add(DateTime.utc_now(), -30, :day) end)
+
+    query =
+      apply_period_filter(
+        from(tcr in TestCaseRun,
+          where: tcr.project_id == ^project_id,
+          where: tcr.test_case_id == ^test_case_id,
+          select: %{flaky_count: fragment("countIf(?)", tcr.is_flaky), total_count: count(tcr.id)}
+        ),
+        opts
       )
 
     result = ClickHouseRepo.one(query)
@@ -1320,6 +1660,25 @@ defmodule Tuist.Tests.Analytics do
         0.0
     end
   end
+
+  defp apply_period_filter(query, opts) do
+    query
+    |> apply_start_datetime_filter(Keyword.get(opts, :start_datetime))
+    |> apply_end_datetime_filter(Keyword.get(opts, :end_datetime))
+  end
+
+  # Bounds `ran_at`, not `inserted_at`: xcresult processing is asynchronous, so
+  # ingestion time can trail execution by hours. The time-bucketed series bound
+  # `inserted_at` instead, which keeps a rendered series from being rewritten by
+  # late arrivals, but a scalar over a user-picked window has to agree with the
+  # "Ran at" column shown beside it.
+  defp apply_start_datetime_filter(query, nil), do: query
+
+  defp apply_start_datetime_filter(query, start_datetime), do: where(query, [tcr], tcr.ran_at >= ^start_datetime)
+
+  defp apply_end_datetime_filter(query, nil), do: query
+
+  defp apply_end_datetime_filter(query, end_datetime), do: where(query, [tcr], tcr.ran_at <= ^end_datetime)
 
   defp normalize_duration(nil), do: 0
   defp normalize_duration(value) when is_float(value), do: round(value)

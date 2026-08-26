@@ -20,6 +20,8 @@ public enum CleanProjectCacheServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
+    case unprocessableContent(String)
+    case freeTierExhausted(String)
     case internalServerError(String)
 
     public var errorDescription: String? {
@@ -28,6 +30,8 @@ public enum CleanProjectCacheServiceError: LocalizedError {
             return "The project cache could not be cleaned due to an unknown response of \(statusCode)."
         case let .unauthorized(message),
              let .forbidden(message),
+             let .freeTierExhausted(message),
+             let .unprocessableContent(message),
              let .internalServerError(message):
             return message
         }
@@ -47,7 +51,8 @@ public struct CleanProjectCacheService: CleanProjectCacheServicing {
         let client = Client.authenticated(
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
-            serverAuthenticationController: serverAuthenticationController
+            serverAuthenticationController: serverAuthenticationController,
+            fullHandle: "\(accountHandle)/\(projectHandle)"
         )
 
         let response = try await client.cleanProjectCache(
@@ -71,6 +76,16 @@ public struct CleanProjectCacheService: CleanProjectCacheServicing {
             switch forbidden.body {
             case let .json(error):
                 throw CleanProjectCacheServiceError.forbidden(error.message)
+            }
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
+            case let .json(error):
+                throw CleanProjectCacheServiceError.freeTierExhausted(error.message)
+            }
+        case let .unprocessableContent(unprocessableContent):
+            switch unprocessableContent.body {
+            case let .json(error):
+                throw CleanProjectCacheServiceError.unprocessableContent(error.message)
             }
         case let .internalServerError(internalServerError):
             switch internalServerError.body {

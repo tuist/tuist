@@ -3,6 +3,9 @@ package macos
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 
@@ -26,6 +30,7 @@ import (
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/scaleway"
+	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
 // recordUpdateFailure is the safety primitive that bounds the
@@ -105,28 +110,123 @@ func TestRecordUpdateFailure_TransitionsToFailedAtCap(t *testing.T) {
 	}
 }
 
+// Regression for the silent-wedge: the reconcile tail is reached on every
+// pass for a terminal machine (the drift gate skips, it does not return), so
+// an unconditional Phase="Ready" there reset the "Failed" recordUpdateFailure
+// had set. Machines then carried FailureReason while reporting Ready, and the
+// "stuck Failed" alert — which needs phase="Failed" held for 30m — stayed
+// green while hosts sat wedged on a stale tart-kubelet.
+func TestTerminalPhasePinned(t *testing.T) {
+	reason := "TartKubeletUpdateExceededRetries"
+	cases := []struct {
+		name          string
+		failureReason *string
+		want          bool
+	}{
+		{"terminal failure pins the phase", &reason, true},
+		{"healthy machine keeps advancing to Ready", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := terminalPhasePinned(tc.failureReason); got != tc.want {
+				t.Fatalf("terminalPhasePinned() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// A machine that exhausts its retry budget must still read as Failed after
+// later reconciles fall through the tail — the exact sequence that hid three
+// production hosts. Phase only returns to Ready once the terminal state is
+// lifted.
+func TestTerminalPhaseSurvivesSubsequentReconciles(t *testing.T) {
+	machine := &infrav1.ScalewayAppleSiliconMachine{}
+	for i := 0; i < 5; i++ {
+		recordUpdateFailure(machine, errors.New("dial :22 i/o timeout"), 5, "desired-hash", logr.Discard(), fakeRecorder())
+	}
+	if machine.Status.Phase != "Failed" {
+		t.Fatalf("Phase after cap: got %q, want Failed", machine.Status.Phase)
+	}
+
+	// Stand in for the reconcile tail running again on a terminal machine.
+	for i := 0; i < 3; i++ {
+		if !terminalPhasePinned(machine.Status.FailureReason) {
+			machine.Status.Phase = "Ready"
+		}
+	}
+	if machine.Status.Phase != "Failed" {
+		t.Fatalf("terminal phase must survive later reconciles; got %q", machine.Status.Phase)
+	}
+
+	clearUpdateFailure(machine, "host config drifted since the failure was recorded", logr.Discard(), fakeRecorder())
+	if terminalPhasePinned(machine.Status.FailureReason) {
+		t.Fatal("clearing the terminal failure must unpin the phase")
+	}
+}
+
 // Regression for the retry-cap defeat: a broken config never updates
 // Status.HostConfigHash, so the self-heal must key on the FAILED hash — else
 // every reconcile sees drift-vs-applied and clears the cap forever.
 func TestShouldClearTerminalFailure(t *testing.T) {
+	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
+	at := func(d time.Duration) *metav1.Time {
+		return &metav1.Time{Time: now.Add(d)}
+	}
 	cases := []struct {
-		name      string
-		desired   string
-		failed    string
-		terminal  bool
-		wantClear bool
+		name        string
+		desired     string
+		failed      string
+		terminal    bool
+		lastFailure *metav1.Time
+		retryAfter  time.Duration
+		wantClear   bool
 	}{
-		{"same broken config stays terminal (cap preserved)", "broken", "broken", true, false},
-		{"a new config clears and retries", "fixed", "broken", true, true},
-		{"not terminal never clears", "fixed", "broken", false, false},
-		{"empty desired hash never clears", "", "broken", true, false},
+		// Hash-drift exit.
+		{"same broken config stays terminal (cap preserved)", "broken", "broken", true, at(-time.Minute), 30 * time.Minute, false},
+		{"a new config clears and retries", "fixed", "broken", true, at(-time.Minute), 30 * time.Minute, true},
+		{"not terminal never clears", "fixed", "broken", false, at(-time.Hour), 30 * time.Minute, false},
+		{"empty desired hash never clears on drift", "", "broken", true, at(-time.Minute), 0, false},
+
+		// Cooldown exit — what recovers a host that was merely unreachable
+		// when the operator tried to push, and which hash drift alone leaves
+		// terminal (and stale) indefinitely while its Node keeps taking jobs.
+		{"cooldown elapsed re-arms the same config", "broken", "broken", true, at(-31 * time.Minute), 30 * time.Minute, true},
+		{"cooldown exactly elapsed re-arms", "broken", "broken", true, at(-30 * time.Minute), 30 * time.Minute, true},
+		{"inside the cooldown stays terminal", "broken", "broken", true, at(-29 * time.Minute), 30 * time.Minute, false},
+		{"zero retryAfter disables the re-arm", "broken", "broken", true, at(-24 * time.Hour), 0, false},
+		// Terminal CRs recorded before the timestamp field existed carry no
+		// stamp; they must not be stranded forever.
+		{"missing timestamp is treated as due", "broken", "broken", true, nil, 30 * time.Minute, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := shouldClearTerminalFailure(tc.desired, tc.failed, tc.terminal); got != tc.wantClear {
-				t.Fatalf("shouldClearTerminalFailure(%q,%q,%v) = %v; want %v", tc.desired, tc.failed, tc.terminal, got, tc.wantClear)
+			got := shouldClearTerminalFailure(tc.desired, tc.failed, tc.terminal, tc.lastFailure, tc.retryAfter, now)
+			if got != tc.wantClear {
+				t.Fatalf("shouldClearTerminalFailure(%q,%q,%v,%v,%v) = %v; want %v",
+					tc.desired, tc.failed, tc.terminal, tc.lastFailure, tc.retryAfter, got, tc.wantClear)
 			}
 		})
+	}
+}
+
+// The cooldown is measured from the last attempt, so every failure — not only
+// the one that crosses the cap — has to stamp the clock. Without this a host
+// that keeps failing would re-arm on a timestamp from its first attempt.
+func TestRecordUpdateFailure_StampsLastFailureTime(t *testing.T) {
+	machine := &infrav1.ScalewayAppleSiliconMachine{}
+	recordUpdateFailure(machine, errors.New("boom"), 5, "broken-hash", logr.Discard(), fakeRecorder())
+	first := machine.Status.LastUpdateFailureTime
+	if first == nil {
+		t.Fatal("expected LastUpdateFailureTime to be stamped on a non-terminal failure")
+	}
+	for i := 0; i < 4; i++ {
+		recordUpdateFailure(machine, errors.New("boom"), 5, "broken-hash", logr.Discard(), fakeRecorder())
+	}
+	if machine.Status.FailureReason == nil {
+		t.Fatal("expected the machine to be terminal after the cap")
+	}
+	if machine.Status.LastUpdateFailureTime.Before(first) {
+		t.Fatal("expected LastUpdateFailureTime to advance with later attempts")
 	}
 }
 
@@ -139,8 +239,13 @@ func TestClearUpdateFailure_ResetsTerminalState(t *testing.T) {
 		t.Fatal("precondition: expected terminal failure before clearing")
 	}
 
-	clearUpdateFailure(machine, logr.Discard(), fakeRecorder())
+	clearUpdateFailure(machine, "retry cooldown elapsed", logr.Discard(), fakeRecorder())
 
+	// The stamp is deliberately kept: it records when the host last failed, so
+	// a host that fails again isn't read as never-having-failed.
+	if machine.Status.LastUpdateFailureTime == nil {
+		t.Fatal("LastUpdateFailureTime: cleared, want retained")
+	}
 	if machine.Status.FailureReason != nil {
 		t.Fatalf("FailureReason: got %q, want nil", *machine.Status.FailureReason)
 	}
@@ -158,7 +263,7 @@ func TestClearUpdateFailure_ResetsTerminalState(t *testing.T) {
 func TestClearUpdateFailure_NoOpWhenClean(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	rec := record.NewFakeRecorder(10)
-	clearUpdateFailure(machine, logr.Discard(), rec)
+	clearUpdateFailure(machine, "retry cooldown elapsed", logr.Discard(), rec)
 	select {
 	case ev := <-rec.Events:
 		t.Fatalf("expected no event on a clean machine; got %q", ev)
@@ -498,7 +603,10 @@ func TestReconcileTailscaleEgressService_Create(t *testing.T) {
 	r.EgressProxyGroup = "macmini-egress"
 	r.EgressNamespace = "tailscale-operator"
 	r.EgressMagicDNSSuffix = "taild6d7bb.ts.net"
-	machine := &infrav1.ScalewayAppleSiliconMachine{ObjectMeta: metav1.ObjectMeta{Name: "macmini-1"}}
+	machine := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: "macmini-1"},
+		Spec:       infrav1.ScalewayAppleSiliconMachineSpec{FleetName: "tuist-macos-fleet"},
+	}
 	if err := r.reconcileTailscaleEgressService(context.Background(), machine); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -521,11 +629,16 @@ func TestReconcileTailscaleEgressService_Create(t *testing.T) {
 	if got.Labels["tuist.dev/macmini-egress"] != "true" {
 		t.Errorf("macmini-egress label = %q, want true", got.Labels["tuist.dev/macmini-egress"])
 	}
-	if len(got.Spec.Ports) != 3 {
-		t.Fatalf("Spec.Ports len = %d, want 3", len(got.Spec.Ports))
+	if got.Labels["tuist.dev/fleet"] != "tuist-macos-fleet" {
+		t.Errorf("fleet label = %q, want tuist-macos-fleet", got.Labels["tuist.dev/fleet"])
 	}
-	// Ports must include the metrics scrape endpoints and vnc-relay:5900
-	// for dashboard interactive access through the Tailscale egress Service.
+	if len(got.Spec.Ports) != 5 {
+		t.Fatalf("Spec.Ports len = %d, want 5", len(got.Spec.Ports))
+	}
+	// Ports must include the metrics scrape endpoints, pod-metrics:9091 for
+	// the Tart guests' own telemetry, vnc-relay:5900 for dashboard
+	// interactive access, and ssh:22 for the tart-kubelet drift update — all
+	// through the Tailscale egress Service.
 	portByName := map[string]int32{}
 	for _, p := range got.Spec.Ports {
 		portByName[p.Name] = p.Port
@@ -536,8 +649,37 @@ func TestReconcileTailscaleEgressService_Create(t *testing.T) {
 	if portByName["tart-kubelet"] != 8080 {
 		t.Errorf("tart-kubelet port = %d, want 8080", portByName["tart-kubelet"])
 	}
+	// Without this the guests' PromEx endpoint has no reachable route: the
+	// cluster CNI installs no route to a mini's CGNAT address, so scraping
+	// the Pod directly fails on every attempt.
+	if portByName["pod-metrics"] != 9091 {
+		t.Errorf("pod-metrics port = %d, want 9091", portByName["pod-metrics"])
+	}
 	if portByName["vnc-relay"] != DashboardVNCRelayPort {
 		t.Errorf("vnc-relay port = %d, want %d", portByName["vnc-relay"], DashboardVNCRelayPort)
+	}
+	if portByName["ssh"] != 22 {
+		t.Errorf("ssh port = %d, want 22 (tart-kubelet drift update over the tailnet)", portByName["ssh"])
+	}
+}
+
+// egressHost returns the tailnet egress DNS name the drift update dials
+// (in place of the mini's public IP, whose inbound :22 a running runner
+// filters). Empty when the tailnet egress is disabled, so the update
+// falls back to the public IP on OSS / self-hosted clusters.
+func TestEgressHost(t *testing.T) {
+	r := newReconciler(t)
+
+	if got := r.egressHost("macmini-1"); got != "" {
+		t.Errorf("egressHost with egress disabled = %q, want empty (public-IP fallback)", got)
+	}
+
+	r.EgressProxyGroup = "macmini-egress"
+	r.EgressNamespace = "tailscale-operator"
+	r.EgressMagicDNSSuffix = "taild6d7bb.ts.net"
+	want := "macmini-1.tailscale-operator.svc.cluster.local"
+	if got := r.egressHost("macmini-1"); got != want {
+		t.Errorf("egressHost = %q, want %q", got, want)
 	}
 }
 
@@ -595,6 +737,7 @@ func TestReconcileTailscaleEgressService_IdempotentAndPreservesOperatorRewrite(t
 // is loud in test output rather than silently doing nothing.
 type scalewayAPIStub struct {
 	servers        []*applesilicon.Server
+	listCalls      int
 	updateCalls    int
 	updatedNames   []string
 	reinstalledIDs []string
@@ -602,10 +745,22 @@ type scalewayAPIStub struct {
 	rebootedIDs    []string
 	rebootCalls    int
 	rebootError    error
+	// osCatalog is what ListOS returns; nil means "every image any
+	// fixture server is running", which is what a release path pinned
+	// to a live host's own image needs.
+	osCatalog        []*applesilicon.OS
+	reinstalledOsIDs []*string
 }
 
+// ListServers returns the whole fixture as one page. AdoptFromPool
+// treats a short page as the end of the listing, so a single call is
+// enough as long as the fixture stays under the client's page size.
 func (f *scalewayAPIStub) ListServers(*applesilicon.ListServersRequest, ...scw.RequestOption) (*applesilicon.ListServersResponse, error) {
-	return nil, errors.New("ListServers not implemented in stub")
+	f.listCalls++
+	return &applesilicon.ListServersResponse{
+		Servers:    f.servers,
+		TotalCount: uint32(len(f.servers)),
+	}, nil
 }
 
 func (f *scalewayAPIStub) GetServer(req *applesilicon.GetServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
@@ -636,10 +791,26 @@ func (f *scalewayAPIStub) ReinstallServer(req *applesilicon.ReinstallServerReque
 	for _, s := range f.servers {
 		if s.ID == req.ServerID {
 			f.reinstalledIDs = append(f.reinstalledIDs, s.ID)
+			f.reinstalledOsIDs = append(f.reinstalledOsIDs, req.OsID)
 			return s, nil
 		}
 	}
 	return nil, errors.New("not found")
+}
+
+func (f *scalewayAPIStub) ListOS(*applesilicon.ListOSRequest, ...scw.RequestOption) (*applesilicon.ListOSResponse, error) {
+	catalog := f.osCatalog
+	if catalog == nil {
+		seen := map[string]bool{}
+		for _, s := range f.servers {
+			if s.Os == nil || seen[s.Os.Name] {
+				continue
+			}
+			seen[s.Os.Name] = true
+			catalog = append(catalog, &applesilicon.OS{ID: "os-" + s.Os.Name, Name: s.Os.Name})
+		}
+	}
+	return &applesilicon.ListOSResponse{Os: catalog, TotalCount: uint32(len(catalog))}, nil
 }
 
 func (f *scalewayAPIStub) RebootServer(req *applesilicon.RebootServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
@@ -709,7 +880,7 @@ func TestReconcileDelete_LegacyCRWithoutPrefixSkipsRelease(t *testing.T) {
 			Finalizers: []string{MachineFinalizer},
 		},
 		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
-			// Empty AdoptPoolPrefix — predates the required-prefix contract.
+			// Empty AdoptPoolPrefix — a drifted MachineTemplate clones this shape.
 			Zone: "fr-par-1",
 		},
 		Status: infrav1.ScalewayAppleSiliconMachineStatus{ServerID: "srv-legacy"},
@@ -751,7 +922,7 @@ func TestReconcileDelete_LegacyCRUsesDefaultPrefix(t *testing.T) {
 			Finalizers: []string{MachineFinalizer},
 		},
 		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
-			// Empty AdoptPoolPrefix — predates the required-prefix contract.
+			// Empty AdoptPoolPrefix — a drifted MachineTemplate clones this shape.
 			Zone: "fr-par-1",
 		},
 		Status: infrav1.ScalewayAppleSiliconMachineStatus{ServerID: "srv-legacy"},
@@ -778,6 +949,89 @@ func startsWith(s, prefix string) bool {
 	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
 }
 
+// --- adopt-pool-prefix resolution ------------------------------------------
+
+// poolServer is a pre-ordered host in the shape AdoptFromPool accepts:
+// delivered, Ready, and matching the requested SKU + OS.
+func poolServer(id, name string) *applesilicon.Server {
+	return &applesilicon.Server{
+		ID:        id,
+		Name:      name,
+		Type:      "M2-L",
+		Delivered: true,
+		Status:    applesilicon.ServerStatusReady,
+		Os:        &applesilicon.OS{Name: "macos-tahoe-26.3"},
+	}
+}
+
+func newAdoptMachine(name string) *infrav1.ScalewayAppleSiliconMachine {
+	return &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "ns"},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
+			// Empty AdoptPoolPrefix — a drifted MachineTemplate clones this shape.
+			Type: "M2-L",
+			Zone: "fr-par-1",
+			OS:   "Tahoe",
+		},
+	}
+}
+
+// A CR cloned from a MachineTemplate that never received
+// `adoptPoolPrefix` must still adopt, against the operator-global
+// default. This is the path that keeps a MachineSet scale-up working
+// on a drifted template instead of failing the clone outright.
+func TestAcquireServer_FallsBackToControllerDefaultPrefix(t *testing.T) {
+	api := &scalewayAPIStub{servers: []*applesilicon.Server{poolServer("srv-pool-1", "tuist-pool-001")}}
+	machine := newAdoptMachine("macos-fleet-abc12")
+	r := newReconciler(t)
+	r.ScalewayClient = &scaleway.Client{API: api}
+	r.DefaultAdoptPoolPrefix = "tuist-pool-"
+
+	srv, requeue, err := r.acquireServer(context.Background(), machine)
+	if err != nil {
+		t.Fatalf("acquireServer: %v", err)
+	}
+	if requeue != 0 {
+		t.Fatalf("a successful adopt must not requeue; got %v", requeue)
+	}
+	if srv == nil || srv.ID != "srv-pool-1" {
+		t.Fatalf("expected to claim srv-pool-1; got %+v", srv)
+	}
+	if got := api.servers[0].Name; got != machine.Name {
+		t.Fatalf("claim must promote the server name to the Machine name; got %q", got)
+	}
+}
+
+// With neither a spec prefix nor an operator default there is no pool
+// to scan, and an unprefixed scan would claim a server belonging to
+// another fleet. Refuse and requeue rather than adopting something
+// arbitrary — the operator fixes this by setting either value, neither
+// of which needs the CR recreated.
+func TestAcquireServer_NoPrefixAnywhereRefusesToScan(t *testing.T) {
+	api := &scalewayAPIStub{servers: []*applesilicon.Server{poolServer("srv-pool-1", "tuist-pool-001")}}
+	machine := newAdoptMachine("macos-fleet-abc12")
+	r := newReconciler(t)
+	r.ScalewayClient = &scaleway.Client{API: api}
+
+	srv, requeue, err := r.acquireServer(context.Background(), machine)
+	if err != nil {
+		t.Fatalf("acquireServer must not return a hard error; got %v", err)
+	}
+	if srv != nil {
+		t.Fatalf("must not claim a host without a pool prefix; got %+v", srv)
+	}
+	if requeue == 0 {
+		t.Fatal("expected a requeue so the fix lands without recreating the CR")
+	}
+	if api.listCalls != 0 {
+		t.Fatalf("must not scan Scaleway at all; got %d ListServers calls", api.listCalls)
+	}
+	cond := conditions.Get(machine, shared.ProvisionedCondition)
+	if cond == nil || cond.Reason != "NoAdoptPoolPrefix" {
+		t.Fatalf("expected a NoAdoptPoolPrefix condition; got %+v", cond)
+	}
+}
+
 // --- handleBootstrapFailure ------------------------------------------------
 //
 // Tiered host recovery contract:
@@ -800,6 +1054,10 @@ type recoveryStub struct {
 	rebootErr    error
 	releaseCalls []recoveryReleaseCall
 	releaseErr   error
+	// unpublishedOS models Scaleway having retired an image: a
+	// release pinned to it comes back as ErrOSNotPublished, an
+	// unpinned one succeeds.
+	unpublishedOS string
 }
 
 type recoveryCall struct {
@@ -811,6 +1069,7 @@ type recoveryReleaseCall struct {
 	id         string
 	zone       string
 	poolPrefix string
+	osName     string
 }
 
 func (s *recoveryStub) RebootServer(_ context.Context, id, zone string) error {
@@ -821,8 +1080,11 @@ func (s *recoveryStub) RebootServer(_ context.Context, id, zone string) error {
 	return nil
 }
 
-func (s *recoveryStub) ReleaseToPool(_ context.Context, id, zone, poolPrefix string) error {
-	s.releaseCalls = append(s.releaseCalls, recoveryReleaseCall{id: id, zone: zone, poolPrefix: poolPrefix})
+func (s *recoveryStub) ReleaseToPool(_ context.Context, id, zone, poolPrefix string, pin scaleway.ReleasePin) error {
+	s.releaseCalls = append(s.releaseCalls, recoveryReleaseCall{id: id, zone: zone, poolPrefix: poolPrefix, osName: pin.Family})
+	if s.unpublishedOS != "" && pin.Family == s.unpublishedOS {
+		return fmt.Errorf("%w: %q not listed", scaleway.ErrOSNotPublished, pin.Family)
+	}
 	if s.releaseErr != nil {
 		return s.releaseErr
 	}
@@ -859,7 +1121,7 @@ func newBootstrapFailureMachine(serverID, poolPrefix string) *infrav1.ScalewayAp
 func TestHandleBootstrapFailure_IncrementsAttempts(t *testing.T) {
 	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
 	stub := &recoveryStub{}
-	res := handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	res := handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 
 	if machine.Status.BootstrapAttempts != 1 {
 		t.Fatalf("expected attempts=1, got %d", machine.Status.BootstrapAttempts)
@@ -884,7 +1146,7 @@ func TestHandleBootstrapFailure_RebootsAtThresholdOnce(t *testing.T) {
 	machine.Status.BootstrapAttempts = 2 // next call lands at 3
 	stub := &recoveryStub{}
 
-	res := handleBootstrapFailure(context.Background(), machine, errors.New("sudo locked"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	res := handleBootstrapFailure(context.Background(), machine, errors.New("sudo locked"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 	if res.RequeueAfter != 60*time.Second {
 		t.Fatalf("expected 60s requeue, got %v", res.RequeueAfter)
 	}
@@ -900,7 +1162,7 @@ func TestHandleBootstrapFailure_RebootsAtThresholdOnce(t *testing.T) {
 
 	// Drive attempts past the threshold without crossing maxAttempts.
 	// The reboot must not fire again because BootstrapRebootIssued is set.
-	res = handleBootstrapFailure(context.Background(), machine, errors.New("still wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	res = handleBootstrapFailure(context.Background(), machine, errors.New("still wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 	if len(stub.rebootCalls) != 1 {
 		t.Fatalf("reboot must be one-shot per host; got %d calls", len(stub.rebootCalls))
 	}
@@ -909,6 +1171,38 @@ func TestHandleBootstrapFailure_RebootsAtThresholdOnce(t *testing.T) {
 	}
 	if res.RequeueAfter != 60*time.Second {
 		t.Fatalf("expected 60s requeue on post-reboot retry, got %v", res.RequeueAfter)
+	}
+}
+
+func TestHandleBootstrapFailure_RetiredOSPinStillReleases(t *testing.T) {
+	// Every Machine created before an operator repoints its fleet
+	// carries the retired pin in its own spec. If an unsatisfiable pin
+	// failed the release, those Machines would wedge on delete — host
+	// still claimed and billing, finalizer never clearing — and the
+	// fleet could never shed one to get a correctly-pinned
+	// replacement. Release must fall through to the server type
+	// default instead.
+	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
+	machine.Spec.OS = "macos-tahoe-26.3"
+	machine.Status.BootstrapAttempts = 7
+	machine.Status.BootstrapRebootIssued = true
+
+	stub := &recoveryStub{unpublishedOS: "macos-tahoe-26.3"}
+	secrets := &secretCleanerStub{}
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, secrets, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
+
+	if len(stub.releaseCalls) != 2 {
+		t.Fatalf("expected the pinned release to be retried unpinned, got %d call(s): %+v",
+			len(stub.releaseCalls), stub.releaseCalls)
+	}
+	if stub.releaseCalls[0].osName != "macos-tahoe-26.3" {
+		t.Fatalf("first release should honour the fleet pin, got %q", stub.releaseCalls[0].osName)
+	}
+	if stub.releaseCalls[1].osName != "" {
+		t.Fatalf("retry should be unpinned so Scaleway picks the type default, got %q", stub.releaseCalls[1].osName)
+	}
+	if machine.Status.ServerID != "" {
+		t.Fatalf("host must be considered released so the Machine can finalize, got %q", machine.Status.ServerID)
 	}
 }
 
@@ -941,7 +1235,7 @@ func TestHandleBootstrapFailure_ReleasesToPoolAtMax(t *testing.T) {
 
 	stub := &recoveryStub{}
 	secrets := &secretCleanerStub{}
-	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, secrets, fakeRecorder(), logr.Discard(), 3, 8)
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, secrets, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 
 	if len(stub.releaseCalls) != 1 {
 		t.Fatalf("expected one release call at max attempts, got %d", len(stub.releaseCalls))
@@ -986,7 +1280,7 @@ func TestHandleBootstrapFailure_RebootRetriesAfterAPIError(t *testing.T) {
 	machine.Status.BootstrapAttempts = 2 // next call lands at 3
 	stub := &recoveryStub{rebootErr: errors.New("scaleway 503")}
 
-	handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 	if len(stub.rebootCalls) != 1 {
 		t.Fatalf("expected one reboot attempt on attempt 3, got %d", len(stub.rebootCalls))
 	}
@@ -998,7 +1292,7 @@ func TestHandleBootstrapFailure_RebootRetriesAfterAPIError(t *testing.T) {
 	// The reboot tier should fire again — that's the whole point of
 	// not consuming the one-shot flag on the prior error.
 	stub.rebootErr = nil
-	handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged again"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged again"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 	if len(stub.rebootCalls) != 2 {
 		t.Fatalf("expected retry-after-error to fire a second reboot at attempt 4, got %d total calls", len(stub.rebootCalls))
 	}
@@ -1021,7 +1315,7 @@ func TestHandleBootstrapFailure_ReleaseSwallowsSecretDeleteError(t *testing.T) {
 	stub := &recoveryStub{}
 	secrets := &secretCleanerStub{deleteErr: errors.New("api server unreachable")}
 
-	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, secrets, fakeRecorder(), logr.Discard(), 3, 8)
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, secrets, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 
 	if len(stub.releaseCalls) != 1 {
 		t.Fatalf("Scaleway release must still happen even when Secret delete errors; got %d release calls", len(stub.releaseCalls))
@@ -1041,7 +1335,7 @@ func TestHandleBootstrapFailure_ReleaseAPIErrorKeepsState(t *testing.T) {
 	machine.Status.BootstrapAttempts = 7
 	stub := &recoveryStub{releaseErr: errors.New("scaleway 503")}
 
-	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 
 	if machine.Status.ServerID != "srv-1" {
 		t.Fatalf("ServerID must persist when release fails; got %q", machine.Status.ServerID)
@@ -1060,7 +1354,7 @@ func TestHandleBootstrapFailure_RebootAPIErrorDoesNotConsumeOneShot(t *testing.T
 	machine.Status.BootstrapAttempts = 2
 	stub := &recoveryStub{rebootErr: errors.New("scaleway 503")}
 
-	handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 
 	if len(stub.rebootCalls) != 1 {
 		t.Fatalf("expected one reboot attempt despite error, got %d", len(stub.rebootCalls))
@@ -1081,7 +1375,7 @@ func TestHandleBootstrapFailure_LegacyCRWithoutPoolPrefixNeverReleases(t *testin
 	machine.Status.BootstrapAttempts = 7
 
 	stub := &recoveryStub{}
-	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 
 	if len(stub.releaseCalls) != 0 {
 		t.Fatalf("legacy CR (no pool prefix) must not trigger release; got %+v", stub.releaseCalls)
@@ -1099,10 +1393,322 @@ func TestHandleBootstrapFailure_DisabledThresholdsSkipBothTiers(t *testing.T) {
 	machine.Status.BootstrapAttempts = 100
 	stub := &recoveryStub{}
 
-	handleBootstrapFailure(context.Background(), machine, errors.New("boom"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 0, 0)
+	handleBootstrapFailure(context.Background(), machine, errors.New("boom"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 0, 0, machine.Spec.AdoptPoolPrefix)
 
 	if len(stub.rebootCalls) != 0 || len(stub.releaseCalls) != 0 {
 		t.Fatalf("zero thresholds must skip both tiers; got reboots=%+v releases=%+v",
 			stub.rebootCalls, stub.releaseCalls)
+	}
+}
+
+// The drift loop is only honest if what it pushes is what the operator stamps.
+// hostConfig builds what a given Mac mini receives; desiredHostConfigHash is
+// the fingerprint the reconciler writes to Status.HostConfigHash to mean "this
+// host is converged". If those two ever describe different configs the host is
+// recorded as running something it never received, and the skew is invisible
+// until something downstream needs the part that was dropped.
+//
+// That is not a hypothetical: node_exporter, the log shipper, the cache-volume
+// flags and the Tailscale tags were each lost this way, the last one freezing
+// the production fleet once the credential swap to a Tailscale OAuth client
+// made an untagged join impossible.
+//
+// The per-host/fleet-wide split itself is pinned in the bootstrap package
+// (TestWithPerHostReplacesExactlyThePerHostFields). What is checked here is the
+// operator's side of the contract: that both ends resolve the per-machine
+// fields the same way.
+func TestHostConfig_HashMatchesWhatIsStampedOnTheMachine(t *testing.T) {
+	r := &ScalewayAppleSiliconMachineReconciler{
+		FleetConfig: bootstrap.Config{
+			TartKubeletBinary:       []byte("tart-kubelet-binary"),
+			TailscaleBinaries:       []byte("tailscale-binaries"),
+			NodeExporterBinary:      []byte("node-exporter-binary"),
+			LogShipperBinary:        []byte("log-shipper-binary"),
+			LogShipURL:              "http://alloy.example.ts.net:3100/loki/api/v1/push",
+			LogShipEnv:              "production",
+			TailscaleTags:           []string{"tag:tuist-macmini-production"},
+			TailscaleAcceptRoutes:   true,
+			VMKuraEgressCIDR:        "10.128.0.0/12",
+			VMClusterDNSIP:          "10.96.0.10",
+			VMCachePNCIDR:           "172.16.0.0/22",
+			SSHIngressAllowCIDRs:    []string{"116.202.0.10/32"},
+			HostCPU:                 8,
+			HostMemoryMB:            14336,
+			MaxPods:                 3,
+			RunnerCacheVolumeGiB:    80,
+			CacheVolumeMasterCapGiB: 20,
+			CacheVolumeCASGiB:       11,
+			VNCRelayPort:            DashboardVNCRelayPort,
+		},
+	}
+
+	// Per-host values, all distinct from the fleet config's zeroes, so a field
+	// that leaks into the fingerprint cannot coincidentally match.
+	perHost := bootstrap.PerHost{
+		IP:                   "51.15.1.1",
+		SSHUser:              "m1",
+		UserPassword:         "sudo-password",
+		SSHPrivateKey:        []byte("ssh-private-key"),
+		NodeName:             "tuist-tuist-runners-fleet-mndbc-2t7nk",
+		ProviderID:           "scw-applesilicon://fr-par-1/c0b4b946",
+		Kubeconfig:           "apiVersion: v1\nkind: Config\n",
+		TailscaleAuthKey:     "tskey-client-secret",
+		VNCRelayHost:         "vnc-relay.example",
+		VMCachePNVLAN:        42,
+		KnownHostFingerprint: "SHA256:abc",
+		NodeLabels:           map[string]string{"tuist.dev/fleet": "runners"},
+		DisableVMGC:          true,
+	}
+
+	for _, tc := range []struct {
+		name    string
+		machine *infrav1.ScalewayAppleSiliconMachine
+	}{
+		{
+			name:    "fleet defaults",
+			machine: &infrav1.ScalewayAppleSiliconMachine{},
+		},
+		{
+			// The case a single fleet-wide hash got wrong: the operator pushed
+			// the overridden config and then stamped the fleet's hash on it, so
+			// the host read as converged to a config it had never been sent and
+			// a later change to the overridden field could not drift it.
+			name: "per-machine host size override",
+			machine: func() *infrav1.ScalewayAppleSiliconMachine {
+				m := &infrav1.ScalewayAppleSiliconMachine{}
+				m.Spec.HostCPU = 10
+				m.Spec.HostMemoryMB = 20480
+				return m
+			}(),
+		},
+		{
+			// A dual-guest SKU overrides every field the larger mini changes
+			// at once. Same hazard as above, wider: four resolvers now feed
+			// hostConfig, and any one of them missing from
+			// desiredHostConfigHash reproduces the converged-to-a-config-it-
+			// never-received bug for that field alone.
+			name: "per-machine dual-guest SKU",
+			machine: func() *infrav1.ScalewayAppleSiliconMachine {
+				m := &infrav1.ScalewayAppleSiliconMachine{}
+				m.Spec.HostCPU = 12
+				m.Spec.HostMemoryMB = 28672
+				m.Spec.MaxPods = 4
+				m.Spec.GuestCapacity = 2
+				m.Spec.RunnerCacheVolumeGiB = ptr.To(240)
+				return m
+			}(),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pushed := r.hostConfig(tc.machine, perHost)
+			if want, have := r.desiredHostConfigHash(tc.machine), bootstrap.HostConfigHash(pushed); want != have {
+				t.Fatalf("hash of pushed config = %s, stamped hash = %s\n"+
+					"the host would be recorded as converged to a config it never received", have, want)
+			}
+		})
+	}
+}
+
+// A per-machine override must actually move the fingerprint. Without this, a
+// hash that ignored the override would satisfy the test above trivially -- both
+// sides would agree on a value that does not describe the pushed config.
+func TestDesiredHostConfigHash_MovesWithPerMachineOverride(t *testing.T) {
+	r := &ScalewayAppleSiliconMachineReconciler{
+		FleetConfig: bootstrap.Config{HostCPU: 8, HostMemoryMB: 14336, MaxPods: 3},
+	}
+	base := &infrav1.ScalewayAppleSiliconMachine{}
+	overridden := &infrav1.ScalewayAppleSiliconMachine{}
+	overridden.Spec.HostCPU = 10
+
+	if r.desiredHostConfigHash(base) == r.desiredHostConfigHash(overridden) {
+		t.Fatal("a machine overriding HostCPU hashes the same as one on the fleet default; " +
+			"the override is not reaching the fingerprint")
+	}
+}
+
+// Every per-Machine SKU field has to move the fingerprint on its own. A field
+// resolved in hostConfig but absent from the hash pushes fine once and can
+// then never be changed again: the host reads as converged and the drift loop
+// has nothing to compare against.
+func TestDesiredHostConfigHash_MovesWithEverySKUField(t *testing.T) {
+	r := &ScalewayAppleSiliconMachineReconciler{
+		FleetConfig: bootstrap.Config{
+			HostCPU:              8,
+			HostMemoryMB:         14336,
+			MaxPods:              3,
+			RunnerCacheVolumeGiB: 80,
+			VNCRelayPort:         DashboardVNCRelayPort,
+		},
+		DefaultGuestCapacity: 1,
+	}
+	base := &infrav1.ScalewayAppleSiliconMachine{}
+
+	for name, set := range map[string]func(*infrav1.ScalewayAppleSiliconMachineSpec){
+		"HostCPU":              func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.HostCPU = 12 },
+		"HostMemoryMB":         func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.HostMemoryMB = 28672 },
+		"MaxPods":              func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.MaxPods = 4 },
+		"GuestCapacity":        func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.GuestCapacity = 2 },
+		"RunnerCacheVolumeGiB": func(s *infrav1.ScalewayAppleSiliconMachineSpec) { s.RunnerCacheVolumeGiB = ptr.To(240) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := &infrav1.ScalewayAppleSiliconMachine{}
+			set(&m.Spec)
+			if r.desiredHostConfigHash(base) == r.desiredHostConfigHash(m) {
+				t.Fatalf("a machine overriding %s hashes the same as one on the fleet default; "+
+					"the override is not reaching the fingerprint", name)
+			}
+		})
+	}
+}
+
+// The existing single-guest fleet must not drift when this operator ships.
+// GuestCapacity resolves to 1 for every Machine that does not set it, and the
+// plist renderer omits both guest-sized flags at that value, so the config a
+// live M2-L receives is byte-identical to what it already runs. If this ever
+// fails, deploying the operator silently rolls launchd on every mini in every
+// macOS fleet.
+func TestDesiredHostConfigHash_UnchangedForSingleGuestMachines(t *testing.T) {
+	fleet := bootstrap.Config{
+		TartKubeletBinary:       []byte("tart-kubelet-binary"),
+		HostCPU:                 8,
+		HostMemoryMB:            14336,
+		MaxPods:                 3,
+		RunnerCacheVolumeGiB:    80,
+		CacheVolumeMasterCapGiB: 20,
+		CacheVolumeCASGiB:       11,
+		VNCRelayPort:            DashboardVNCRelayPort,
+	}
+	r := &ScalewayAppleSiliconMachineReconciler{FleetConfig: fleet, DefaultGuestCapacity: 1}
+
+	// What the operator hashed before guest capacity existed: the fleet config
+	// as-is, with neither guest-sized field set.
+	if want, have := bootstrap.HostConfigHash(fleet), r.desiredHostConfigHash(&infrav1.ScalewayAppleSiliconMachine{}); want != have {
+		t.Fatalf("single-guest hash = %s, want the pre-existing %s; "+
+			"shipping this operator would drift every mini in the fleet", have, want)
+	}
+}
+
+// The relay port is pinned per host but a relay is per Pod, so the egress
+// Service has to front one port per guest. Without this the second guest on a
+// dual-guest mini binds a port the ProxyGroup does not forward — the relay
+// comes up, tart-kubelet advertises it on the Pod annotation, and the
+// dashboard session times out with nothing obviously wrong on the host.
+func TestReconcileTailscaleEgressService_DeclaresARelayPortPerGuest(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		guests    int
+		wantPorts map[string]int32
+	}{
+		{
+			name:      "single guest keeps the historical single port",
+			guests:    1,
+			wantPorts: map[string]int32{"vnc-relay": DashboardVNCRelayPort},
+		},
+		{
+			name:   "dual guest fronts both ports",
+			guests: 2,
+			wantPorts: map[string]int32{
+				"vnc-relay":   DashboardVNCRelayPort,
+				"vnc-relay-2": DashboardVNCRelayPort + 1,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newReconciler(t)
+			r.EgressProxyGroup = "macmini-egress"
+			r.EgressNamespace = "tailscale-operator"
+			r.EgressMagicDNSSuffix = "taild6d7bb.ts.net"
+			r.DefaultGuestCapacity = 1
+
+			machine := &infrav1.ScalewayAppleSiliconMachine{
+				ObjectMeta: metav1.ObjectMeta{Name: "macmini-1"},
+				Spec: infrav1.ScalewayAppleSiliconMachineSpec{
+					FleetName:     "tuist-runners-fleet",
+					GuestCapacity: tc.guests,
+				},
+			}
+			if err := r.reconcileTailscaleEgressService(context.Background(), machine); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			got := &corev1.Service{}
+			if err := r.Client.Get(context.Background(),
+				types.NamespacedName{Namespace: "tailscale-operator", Name: "macmini-1"}, got); err != nil {
+				t.Fatalf("get created service: %v", err)
+			}
+
+			relayPorts := map[string]int32{}
+			for _, p := range got.Spec.Ports {
+				if strings.HasPrefix(p.Name, "vnc-relay") {
+					relayPorts[p.Name] = p.Port
+				}
+			}
+			if !reflect.DeepEqual(relayPorts, tc.wantPorts) {
+				t.Errorf("relay ports = %v, want %v", relayPorts, tc.wantPorts)
+			}
+
+			// The scrape and SSH ports are what makes the mini reachable at
+			// all; a relay range that displaced one of them would take the
+			// fleet's metrics or its drift-update path down with it.
+			for _, name := range []string{"node-exporter", "tart-kubelet", "pod-metrics", "ssh"} {
+				found := false
+				for _, p := range got.Spec.Ports {
+					if p.Name == name {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("port %q missing from the egress Service", name)
+				}
+			}
+		})
+	}
+}
+
+// The cache quota resolves on presence, so an explicit 0 turns cache volumes
+// off on that host instead of collapsing into "unset" and inheriting a
+// non-zero fleet default. Staging a new SKU cold and enabling its cache once
+// validated depends on that distinction; with a scalar field the operator
+// would silently get 80 GiB on a host it asked to run cold.
+func TestRunnerCacheVolumeGiBFor_DistinguishesExplicitZeroFromUnset(t *testing.T) {
+	const fleetDefault = 80
+
+	for _, tc := range []struct {
+		name string
+		spec *int
+		want int
+	}{
+		{name: "unset inherits the fleet default", spec: nil, want: fleetDefault},
+		{name: "explicit zero disables cache volumes", spec: ptr.To(0), want: 0},
+		{name: "explicit value overrides", spec: ptr.To(240), want: 240},
+		// Not an intent anyone can have, and a negative quota would fail the
+		// diskutil call at bootstrap; degrade to the fleet default instead.
+		{name: "negative degrades to the fleet default", spec: ptr.To(-1), want: fleetDefault},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &infrav1.ScalewayAppleSiliconMachine{}
+			m.Spec.RunnerCacheVolumeGiB = tc.spec
+			if got := runnerCacheVolumeGiBFor(m, fleetDefault); got != tc.want {
+				t.Fatalf("runnerCacheVolumeGiBFor = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// An explicit 0 has to move the fingerprint too. If it hashed the same as
+// unset, a host switched to the cold path would read as already-converged and
+// never receive the launchd config that drops --runner-cache-root.
+func TestDesiredHostConfigHash_MovesWhenCacheVolumesAreExplicitlyDisabled(t *testing.T) {
+	r := &ScalewayAppleSiliconMachineReconciler{
+		FleetConfig:          bootstrap.Config{RunnerCacheVolumeGiB: 80, CacheVolumeMasterCapGiB: 20},
+		DefaultGuestCapacity: 1,
+	}
+	unset := &infrav1.ScalewayAppleSiliconMachine{}
+	disabled := &infrav1.ScalewayAppleSiliconMachine{}
+	disabled.Spec.RunnerCacheVolumeGiB = ptr.To(0)
+
+	if r.desiredHostConfigHash(unset) == r.desiredHostConfigHash(disabled) {
+		t.Fatal("a machine disabling cache volumes hashes the same as one on the fleet default; " +
+			"the host would never be told to stop using them")
 	}
 }

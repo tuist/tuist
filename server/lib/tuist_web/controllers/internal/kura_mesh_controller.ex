@@ -4,7 +4,6 @@ defmodule TuistWeb.Internal.KuraMeshController do
   alias Boruta.BasicAuth
   alias Boruta.Oauth.Authorization.Client
   alias Tuist.Accounts
-  alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Registrations
@@ -194,6 +193,13 @@ defmodule TuistWeb.Internal.KuraMeshController do
     end
   end
 
+  # The credential is Tuist's own control-plane client rather than a customer's,
+  # and it speaks for every instance the provisioner manages, including
+  # runner-cache nodes, which are provisioned on any plan. The self-hosted-cache
+  # entitlement gates customer-held credentials instead, in
+  # `SelfHostedClients.verify/2`. Gating here too would deny the peer view to
+  # managed instances whose account never claimed to self-host, and every
+  # instance in a mesh region blocks readiness on that view until it answers.
   defp authorize_control_plane_registration(client_id, client_secret, %{"tenant_id" => tenant_id})
        when is_binary(tenant_id) and tenant_id != "" do
     with {:ok, _client} <-
@@ -202,8 +208,7 @@ defmodule TuistWeb.Internal.KuraMeshController do
              source: %{type: "basic", value: client_secret},
              grant_type: "kura_registration"
            ),
-         %{} = account <- Accounts.get_account_by_handle(tenant_id),
-         true <- Entitlements.allows?(account, :self_hosted_cache) do
+         %{} = account <- Accounts.get_account_by_handle(tenant_id) do
       {:ok, account}
     else
       _ -> {:error, :unauthorized}

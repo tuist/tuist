@@ -1,0 +1,211 @@
+name: Tart push
+description: Push a large Tart image with bounded registry concurrency and jittered retries
+
+inputs:
+  local-name:
+    description: Local Tart virtual machine name
+    required: true
+  remote-names:
+    description: Newline-separated remote image names
+    required: true
+  attempts:
+    description: >-
+      Maximum number of push attempts. Attempts accumulate rather than
+      start over, so this is a progress budget and not just a way to wait
+      out a bad window.
+    required: false
+    default: "8"
+  concurrency:
+    description: >-
+      Number of disk layers Tart uploads at once. Chunks within a layer are
+      strictly sequential, so this is the only lever on upload throughput.
+      See the note on the push call below.
+    required: false
+    default: "4"
+  chunk-size:
+    description: >-
+      Upload chunk size in megabytes, or 0 for monolithic uploads. GHCR
+      rejects chunks of 4 megabytes and up, so 3 is the largest chunked
+      value it accepts. Monolithic was measured here and does not work at
+      this image size: see the comment on the push call below.
+    required: false
+    default: "3"
+
+runs:
+  using: composite
+  steps:
+    - name: Push Tart image
+      shell: bash
+      env:
+        TART_PUSH_LOCAL_NAME: ${{ inputs.local-name }}
+        TART_PUSH_REMOTE_NAMES: ${{ inputs.remote-names }}
+        TART_PUSH_ATTEMPTS: ${{ inputs.attempts }}
+        TART_PUSH_CONCURRENCY: ${{ inputs.concurrency }}
+        TART_PUSH_CHUNK_SIZE: ${{ inputs.chunk-size }}
+        # Tart can prune its local Open Container Initiative cache while
+        # staging a push. The workflow reclaims disk before reaching this
+        # action, so pruning during the upload adds risk without saving space.
+        TART_NO_AUTO_PRUNE: "1"
+      run: |
+        set -euo pipefail
+
+        require_positive_integer() {
+          local name="$1"
+          local value="$2"
+          if [[ ! "$value" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::${name} must be a positive integer, got '${value}'"
+            exit 1
+          fi
+        }
+
+        require_non_negative_integer() {
+          local name="$1"
+          local value="$2"
+          if [[ ! "$value" =~ ^(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::${name} must be a non-negative integer, got '${value}'"
+            exit 1
+          fi
+        }
+
+        probe_endpoint() {
+          local label="$1"
+          local url="$2"
+          local result
+
+          if result="$(
+            curl \
+              --silent \
+              --show-error \
+              --output /dev/null \
+              --connect-timeout 10 \
+              --max-time 20 \
+              --write-out "${label}: address=%{remote_ip} status=%{http_code} connect=%{time_connect}s secure=%{time_appconnect}s total=%{time_total}s" \
+              "$url"
+          )"; then
+            echo "$result"
+          else
+            echo "::warning::${label} probe failed: ${result}"
+          fi
+        }
+
+        probe_registry_path() {
+          probe_endpoint "registry" "https://ghcr.io/v2/"
+          probe_endpoint "blob delivery" "https://pkg-containers.githubusercontent.com/"
+        }
+
+        require_positive_integer "attempts" "$TART_PUSH_ATTEMPTS"
+        require_positive_integer "concurrency" "$TART_PUSH_CONCURRENCY"
+        require_non_negative_integer "chunk-size" "$TART_PUSH_CHUNK_SIZE"
+
+        remote_names=()
+        while IFS= read -r remote_name; do
+          if [ -n "$remote_name" ]; then
+            remote_names+=("$remote_name")
+          fi
+        done <<< "$TART_PUSH_REMOTE_NAMES"
+
+        if [ "${#remote_names[@]}" -eq 0 ]; then
+          echo "::error::At least one remote image name is required"
+          exit 1
+        fi
+
+        echo "Tart version: $(tart --version)"
+        echo "Host macOS version: $(sw_vers -productVersion)"
+        echo "Registry concurrency: ${TART_PUSH_CONCURRENCY}"
+        if [ "$TART_PUSH_CHUNK_SIZE" -eq 0 ]; then
+          echo "Upload mode: monolithic (one request per blob)"
+        else
+          echo "Upload mode: chunked, ${TART_PUSH_CHUNK_SIZE} megabytes per request"
+        fi
+        probe_registry_path
+
+        for ((attempt = 1; attempt <= TART_PUSH_ATTEMPTS; attempt++)); do
+          attempt_log="${RUNNER_TEMP:-/tmp}/tart-push-${GITHUB_RUN_ID:-local}-${attempt}.log"
+          echo "Tart push attempt ${attempt}/${TART_PUSH_ATTEMPTS} at $(date -u +%H:%M:%SZ)" >&2
+
+          # Chunk size stays at 3 megabytes. GHCR rejects chunks of 4MB
+          # and up, so this is already the largest chunk it accepts, and
+          # monolithic does not work at this image size: every attempt
+          # died with "The request timed out" partway through the disk
+          # (best attempt reached 42%). That error is a URLError raised
+          # by Tart's own client, not a registry response, and because
+          # Tart retries a failed blob whole, a monolithic stall costs
+          # the entire 512 MiB layer instead of one chunk.
+          #
+          # Throughput therefore comes from concurrency, not chunk size.
+          # A single stream measured 6.1 MB/s on the 2026-08-21 release
+          # (18.6 gigabytes of new layers in 50.6 minutes), where the
+          # link itself connects to ghcr.io in 11ms: roughly 370ms of
+          # every 489ms request is GHCR-side per-chunk cost, paid one
+          # chunk at a time. Running layers in parallel does not change
+          # how many requests the push makes in total, only how long it
+          # takes to make them, and the retry loop below already makes a
+          # throttle cheap. If GHCR's secondary rate limit does start
+          # biting, lower `concurrency` rather than reaching for a larger
+          # chunk or for monolithic.
+          #
+          # Retrying is worth more than it looks: Tart splits the disk
+          # into layers of at most 512 MiB, and skips any layer whose
+          # digest the registry already has (DiskV2.push does a
+          # blobExists HEAD per layer). Attempts therefore accumulate
+          # instead of starting over, and a failure costs only the layer
+          # in flight, whose upload session never closes and so never
+          # registers.
+          if tart push \
+            --concurrency "$TART_PUSH_CONCURRENCY" \
+            --chunk-size "$TART_PUSH_CHUNK_SIZE" \
+            "$TART_PUSH_LOCAL_NAME" \
+            "${remote_names[@]}" 2>&1 | tee "$attempt_log"; then
+            echo "Pushed ${remote_names[*]} on attempt ${attempt}"
+            exit 0
+          fi
+
+          # GHCR reports its secondary rate limit as a 403 whose OCI
+          # error code is DENIED, which the permissions match below
+          # reads as a credentials problem and fails the push outright.
+          # The throttle clears in minutes and the backoff already
+          # waits longer than that, so classify it first and let the
+          # retry loop ride it out. Ordering is the whole point here:
+          # both patterns match the same log line.
+          if grep -Eqi \
+            'secondary rate limit|too many requests|toomanyrequests|code: 429' \
+            "$attempt_log"; then
+            echo "::warning::Tart push hit a registry rate limit; retrying"
+          elif grep -Eqi \
+            'unauthorized|authentication required|denied|invalid reference' \
+            "$attempt_log"; then
+            echo "::error::Tart push failed with a non-retryable error"
+            exit 1
+          fi
+
+          probe_registry_path
+
+          if [ "$attempt" -eq "$TART_PUSH_ATTEMPTS" ]; then
+            echo "::error::Tart push failed ${TART_PUSH_ATTEMPTS} times"
+            exit 1
+          fi
+
+          # The ramp is capped at 5 minutes rather than 10. Sleeping
+          # longer made sense when a retry was assumed to start over,
+          # where the only thing waiting bought was a chance the
+          # condition had cleared. Layers persist between attempts, so
+          # wall clock spent uploading banks progress and wall clock
+          # spent sleeping does not, and 5 minutes already matches what
+          # GitHub asks for after a secondary rate limit.
+          #
+          # The budget is sized against the 90-minute timeout every
+          # caller puts on this step: 8 attempts sleep ~26 minutes plus
+          # jitter, leaving roughly 50 minutes of uploading. Raising
+          # `attempts` past that trades a clear "failed N times" error
+          # for a step killed mid-upload.
+          case "$attempt" in
+            1) base_delay=60 ;;
+            2) base_delay=120 ;;
+            3) base_delay=180 ;;
+            *) base_delay=300 ;;
+          esac
+          jitter=$((RANDOM % (base_delay / 2 + 1)))
+          delay=$((base_delay + jitter))
+          echo "::warning::Tart push attempt ${attempt} failed; waiting ${delay} seconds before retry"
+          sleep "$delay"
+        done

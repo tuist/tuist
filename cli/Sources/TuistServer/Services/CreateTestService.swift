@@ -29,7 +29,9 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             shardPlanId: String?,
-            shardIndex: Int?
+            shardIndex: Int?,
+            onlyTestIdentifiers: [String],
+            skipTestIdentifiers: [String]
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -39,6 +41,7 @@ import TuistHTTP
         case notFound(String)
         case unauthorized(String)
         case badRequest(String)
+        case serviceUnavailable(String)
 
         var errorDescription: String? {
             switch self {
@@ -46,7 +49,7 @@ import TuistHTTP
                 return
                     "The test run could not be uploaded due to an unknown server response of \(statusCode)."
             case let .forbidden(message), let .notFound(message), let .unauthorized(message),
-                 let .badRequest(message):
+                 let .badRequest(message), let .serviceUnavailable(message):
                 return message
             }
         }
@@ -81,7 +84,9 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             shardPlanId: String?,
-            shardIndex: Int?
+            shardIndex: Int?,
+            onlyTestIdentifiers: [String],
+            skipTestIdentifiers: [String]
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -241,9 +246,11 @@ import TuistHTTP
                             is_ci: isCI,
                             macos_version: macOSVersion,
                             model_identifier: modelIdentifier,
+                            only_test_identifiers: onlyTestIdentifiers,
                             scheme: testSummary.testPlanName,
                             shard_index: shardIndex,
                             shard_plan_id: shardPlanId,
+                            skip_test_identifiers: skipTestIdentifiers,
                             status: status,
                             test_modules: testModules,
                             xcode_version: xcodeVersion
@@ -279,6 +286,11 @@ import TuistHTTP
                 switch badRequestResponse.body {
                 case let .json(error):
                     throw CreateTestServiceError.badRequest(error.message)
+                }
+            case let .serviceUnavailable(serviceUnavailableResponse):
+                switch serviceUnavailableResponse.body {
+                case let .json(error):
+                    throw CreateTestServiceError.serviceUnavailable(error.message)
                 }
             }
         }

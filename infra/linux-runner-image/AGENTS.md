@@ -53,12 +53,56 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   JIT volume's backing filesystem every `TUIST_RUNNER_METRICS_INTERVAL`
   (default 15s) and POSTs to `…/pods/<pod>/metrics`. Best-effort;
   never affects the job.
+- `/usr/local/bin/runner-shell-agent` — interactive shell bridge.
+  Built from the Go source in `cmd/runner-shell-agent/`. The trusted
+  `shell` native sidecar waits for the poller to stage a JIT (claimed
+  job), polls the server for authorized shell sessions, and owns the
+  server WebSocket tunnel with the dispatch token mounted only there.
+  The runner container starts the same binary in PTY-server mode on a
+  shared Unix socket under the work volume, so the user-facing shell is
+  spawned inside the runner container and sees the job filesystem,
+  environment, and Docker socket rather than the sidecar environment.
 - `docker-ce-cli`, `docker-buildx-plugin`, `docker-compose-plugin`
   from the official Docker apt repo — client side only. The
   daemon runs in the `dind` native sidecar (`docker:dind`)
   attached to the same Pod by the runners-controller. The
   runner's `docker` group is pinned to GID 123 to match the
   socket GID dockerd creates in the sidecar.
+- `/usr/local/lib/android/sdk` — Android SDK, with `ANDROID_HOME`
+  and `ANDROID_SDK_ROOT` exported. Same path and same
+  bake-it-into-the-image posture as GitHub's hosted Ubuntu image,
+  because Gradle cannot even configure an Android project without
+  a platform + build-tools ("SDK location not found"). Platforms
+  and build-tools are selected by a version FLOOR
+  (`ANDROID_PLATFORM_MIN_VERSION` / `ANDROID_BUILD_TOOLS_MIN_VERSION`
+  build-args), not pinned: this image runs customer workflows, so
+  it cannot assume anyone's `compileSdk`. Everything Google
+  publishes at or above the floor is installed, which means new
+  platforms roll in on the next image rebuild with no version bump
+  anywhere — the same approach the hosted image takes with
+  `platform_min_version` / `build_tools_min_version`. Do NOT
+  re-pin these to whatever `android/` happens to target; that
+  breaks any customer on a newer platform.
+  No NDK is installed, and that is a standing decision rather than
+  a gap to close. It is the bulk of the hosted image's Android
+  footprint (three majors, roughly 10GB expanded) and only
+  native-code builds need it — a pure Kotlin/Java app never
+  touches it. Heavy toolchains that serve a minority of jobs
+  belong in per-account cache volumes, not in an image every job
+  on the fleet pulls. Note that those are macOS-only today
+  (`runnerCacheVolume` provisions APFS volumes on Mac minis via
+  tart-kubelet); until the Linux fleet has an equivalent, a
+  workflow that needs the NDK installs it per job with
+  `$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager ndk;<version>`,
+  which works because cmdline-tools ships here and the licenses are
+  already accepted.
+  `ANDROID_NDK_HOME` and its siblings are deliberately left unset.
+  The hosted image sets them, and customer builds do read them, but
+  a variable pointing at an NDK that is not installed fails deep
+  inside CMake instead of failing fast.
+  Resolved in the `android-sdk` builder stage (sdkmanager needs a
+  JVM) so no JDK lands in the final image — workflow steps get
+  theirs from mise.
 
 No `inject-env.sh`, no launchd plist, no VM-halt trap — kubelet
 projects env + SA token natively, container exit IS the

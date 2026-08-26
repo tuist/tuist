@@ -7,11 +7,13 @@ on:
     paths:
       - noora/**
       - .github/workflows/noora.yml
+      - .github/workflows/noora-release.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - noora/**
       - .github/workflows/noora.yml
+      - .github/workflows/noora-release.yml
   merge_group: {}
 
 permissions:
@@ -79,6 +81,9 @@ jobs:
         run: aube install
       - name: Check JS/CSS formatting
         run: aube exec prettier --check "js/**/*.js" "css/**/*.css"
+      - name: Check CSS custom property references
+        working-directory: ${{ github.workspace }}
+        run: mise run css:lint-tokens noora
 
   test:
     name: Test

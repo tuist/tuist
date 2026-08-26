@@ -21,14 +21,13 @@ struct EndpointLatencyService: EndpointLatencyServicing {
         request.setValue("0", forHTTPHeaderField: "Expires")
 
         #if os(macOS)
-            // Use URLSessionTaskMetrics for precise timing on macOS
+            // Use URLSessionTaskMetrics for precise timing on macOS. Route through the
+            // shared session so a configured CA certificate bundle is honored when probing
+            // private-CA endpoints; the metrics are captured via a per-task delegate.
             return await withCheckedContinuation { continuation in
                 let delegate = MetricsDelegate(continuation: continuation)
-                let session = URLSession(configuration: tuistURLSessionConfiguration(), delegate: delegate, delegateQueue: nil)
-                delegate.session = session
-
                 Task {
-                    _ = try? await session.data(for: request)
+                    _ = try? await URLSession.tuistShared.data(for: request, delegate: delegate)
                 }
             }
         #else
@@ -58,7 +57,6 @@ struct EndpointLatencyService: EndpointLatencyServicing {
 #if os(macOS)
     private final class MetricsDelegate: NSObject, URLSessionTaskDelegate {
         private let latencyContinuation: CheckedContinuation<TimeInterval?, Never>
-        var session: URLSession?
 
         init(continuation: CheckedContinuation<TimeInterval?, Never>) {
             latencyContinuation = continuation
@@ -70,11 +68,6 @@ struct EndpointLatencyService: EndpointLatencyServicing {
             task: URLSessionTask,
             didFinishCollecting metrics: URLSessionTaskMetrics
         ) {
-            defer {
-                session?.invalidateAndCancel()
-                session = nil
-            }
-
             if let httpResponse = task.response as? HTTPURLResponse,
                !(200 ... 299).contains(httpResponse.statusCode)
             {

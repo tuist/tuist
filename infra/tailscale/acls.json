@@ -15,12 +15,23 @@
 //                            setup.
 //   tag:tuist-macmini-<env>  Mac minis in a specific env's macOS
 //                            fleet (xcresult-processor, customer
-//                            runners, future fleets). Joined via
+//                            runners, future fleets), plus the
+//                            xcresult-processor Tart VMs that share
+//                            the fleet's credential. Joined via
 //                            infra/macos-host-bootstrap; the env
 //                            suffix is set by the operator-image
 //                            flag --tailscale-tags, which the chart
 //                            wires from macosFleet.tailscale.tags
-//                            per env values file.
+//                            per env values file. Like the k8s tag
+//                            below, each env joins with its own
+//                            OAuth client scoped to this tag,
+//                            never a pre-auth key, which Tailscale
+//                            caps at 90 days and which took the
+//                            xcresult queue offline when it lapsed
+//                            (2026-08-12). Tags declared here are
+//                            what an OAuth-minted key applies, so
+//                            a tag removed from tagOwners breaks
+//                            every subsequent join.
 //   tag:tuist-k8s-<env>      Tailscale K8s operator + the cluster-
 //                            side subnet-router Connector it
 //                            provisions, scoped to one env's
@@ -76,7 +87,13 @@
 		{"src": ["*"], "dst": ["*"], "ip": ["*"]},
 
 		// Per-env operator → matching-env Mac mini fleet on the
-		// three scrape ports:
+		// scrape ports plus SSH:
+		//   :22    tart-kubelet drift updates. The CAPI controller
+		//          rolls host config to already-bootstrapped minis
+		//          over the tailnet (reconcileTailscaleEgressService
+		//          fronts :22 on the ProxyGroup) because a running
+		//          runner mini filters inbound :22 on its public
+		//          interface, wedging the public-IP roll path.
 		//   :8080  controller-runtime metrics on tart-kubelet
 		//          (reconcile counts, errors, and the
 		//          tart_kubelet_vm_boot_duration_seconds histogram).
@@ -97,17 +114,17 @@
 		{
 			"src": ["tag:tuist-k8s-staging"],
 			"dst": ["tag:tuist-macmini-staging"],
-			"ip":  ["tcp:8080", "tcp:9091", "tcp:9100"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100"],
 		},
 		{
 			"src": ["tag:tuist-k8s-canary"],
 			"dst": ["tag:tuist-macmini-canary"],
-			"ip":  ["tcp:8080", "tcp:9091", "tcp:9100"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100"],
 		},
 		{
 			"src": ["tag:tuist-k8s-production"],
 			"dst": ["tag:tuist-macmini-production"],
-			"ip":  ["tcp:8080", "tcp:9091", "tcp:9100"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100"],
 		},
 
 		// Same-env Mac mini fleet → CNPG pooler proxy on tcp:5432.
@@ -128,17 +145,56 @@
 		{
 			"src": ["tag:tuist-macmini-staging"],
 			"dst": ["tag:tuist-k8s-staging"],
-			"ip":  ["tcp:5432"],
+			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
+			// proxy, for spans and logs. Both the Mac mini HOST and the
+			// Tart VMs on it push logs to 3100. The VMs have no route to
+			// the in-cluster receiver address other workloads use; the
+			// host's own launchd logs (tart-kubelet's reconciler, node
+			// agent and volume manager, shipped by
+			// infra/macos-log-shipper) cannot be tailed from the cluster
+			// at all, because a Pod on a macOS Node IS a VM.
+			// :443   the OCI registry holding the VM images. The
+			//        builders clone their base and push finished
+			//        images over this; without it the image
+			//        workflows lose their registry the moment the
+			//        catch-all grant above is removed.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
 		},
 		{
 			"src": ["tag:tuist-macmini-canary"],
 			"dst": ["tag:tuist-k8s-canary"],
-			"ip":  ["tcp:5432"],
+			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
+			// proxy, for spans and logs. Both the Mac mini HOST and the
+			// Tart VMs on it push logs to 3100. The VMs have no route to
+			// the in-cluster receiver address other workloads use; the
+			// host's own launchd logs (tart-kubelet's reconciler, node
+			// agent and volume manager, shipped by
+			// infra/macos-log-shipper) cannot be tailed from the cluster
+			// at all, because a Pod on a macOS Node IS a VM.
+			// :443   the OCI registry holding the VM images. The
+			//        builders clone their base and push finished
+			//        images over this; without it the image
+			//        workflows lose their registry the moment the
+			//        catch-all grant above is removed.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
 		},
 		{
 			"src": ["tag:tuist-macmini-production"],
 			"dst": ["tag:tuist-k8s-production"],
-			"ip":  ["tcp:5432"],
+			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
+			// proxy, for spans and logs. Both the Mac mini HOST and the
+			// Tart VMs on it push logs to 3100. The VMs have no route to
+			// the in-cluster receiver address other workloads use; the
+			// host's own launchd logs (tart-kubelet's reconciler, node
+			// agent and volume manager, shipped by
+			// infra/macos-log-shipper) cannot be tailed from the cluster
+			// at all, because a Pod on a macOS Node IS a VM.
+			// :443   the OCI registry holding the VM images. The
+			//        builders clone their base and push finished
+			//        images over this; without it the image
+			//        workflows lose their registry the moment the
+			//        catch-all grant above is removed.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
 		},
 
 		// Staging Mac mini fleet → the staging cluster's Service CIDR,
@@ -155,7 +211,7 @@
 		// `*.svc.cluster.local` names. Subnet-routed destinations are
 		// matched by CIDR, not by the router's tag, hence the literal
 		// prefix in dst. Per-account isolation is enforced at the Kura
-		// app layer (the tuist.lua tenant hook verifies the build's JWT),
+		// app layer (Kura's authorization verifies the build's JWT),
 		// same as for Linux runners.
 		//
 		// Staging only for now: all envs share this Service CIDR, so the
@@ -351,6 +407,24 @@
 				"10.128.0.10:4000",
 				"10.128.0.10:53",
 			],
+		},
+		// Host-log push path: every mini POSTs its tart-kubelet log to
+		// the same-env Alloy receiver's loki.source.api on 3100. The
+		// grant predates the host agent (the Tart guests used it for
+		// spans and logs), so this only pins it — a narrowing that
+		// dropped 3100 would silently take the macOS fleet's only
+		// queryable output offline, with a healthy-looking Node.
+		{
+			"src": "tag:tuist-macmini-staging",
+			"accept": ["tag:tuist-k8s-staging:3100"],
+		},
+		{
+			"src": "tag:tuist-macmini-canary",
+			"accept": ["tag:tuist-k8s-canary:3100"],
+		},
+		{
+			"src": "tag:tuist-macmini-production",
+			"accept": ["tag:tuist-k8s-production:3100"],
 		},
 		// Note: no test entries with autogroup-based src. Tailscale's
 		// test engine doesn't resolve `autogroup:*` as a concrete

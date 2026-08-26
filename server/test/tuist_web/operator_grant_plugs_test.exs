@@ -2,11 +2,13 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
   import Plug.Conn
 
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.OperatorGrant
+  alias TuistWeb.Router
 
   describe "redirect_to_ops_if_operator/2" do
     setup do
@@ -122,6 +124,10 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       grant = get_session(conn, "operator_grants")[account.name]
       assert grant.tier == :read
       assert grant.account_id == account.id
+
+      assert grant
+             |> Map.keys()
+             |> Enum.sort() == [:account_handle, :account_id, :exp, :jti, :sub, :tier]
     end
 
     test "rejects a grant when the session is not Google-authenticated", %{signer: signer} do
@@ -188,6 +194,102 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
 
       assert conn.halted
       assert get_session(conn, "operator_grants") == nil
+    end
+  end
+
+  describe "prune_operator_grants/2" do
+    test "removes expired grants and fields that are not needed for authorization" do
+      now = System.system_time(:second)
+
+      active_grant = %{
+        tier: :read,
+        account_id: 1,
+        account_handle: "active-account",
+        sub: "operator@tuist.dev",
+        reason: "investigating",
+        jti: "active-grant",
+        iat: now - 60,
+        exp: now + 600
+      }
+
+      expired_grant = %{active_grant | account_handle: "expired-account", jti: "expired-grant", exp: now - 1}
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Test.init_test_session(%{
+          "operator_grants" => %{
+            "active-account" => active_grant,
+            "expired-account" => expired_grant
+          }
+        })
+        |> OperatorGrant.prune_operator_grants([])
+
+      assert get_session(conn, "operator_grants") == %{
+               "active-account" => Map.take(active_grant, [:tier, :account_id, :account_handle, :sub, :jti, :exp])
+             }
+    end
+
+    test "deletes the operator grants session entry when every grant is expired" do
+      now = System.system_time(:second)
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Test.init_test_session(%{
+          "operator_grants" => %{
+            "expired-account" => %{
+              tier: :read,
+              account_id: 1,
+              account_handle: "expired-account",
+              sub: "operator@tuist.dev",
+              jti: "expired-grant",
+              exp: now - 1
+            }
+          }
+        })
+        |> OperatorGrant.prune_operator_grants([])
+
+      assert get_session(conn, "operator_grants") == nil
+    end
+
+    test "prunes expired grants in the Ueberauth request pipeline" do
+      assert_auth_pipeline_prunes_expired_grants(:ueberauth)
+    end
+
+    test "prunes expired grants in the unprotected authentication callback pipeline" do
+      assert_auth_pipeline_prunes_expired_grants(:unprotected_browser_app)
+    end
+
+    test "warns when the compacted session payload reaches the size guardrail" do
+      now = System.system_time(:second)
+
+      grants =
+        Map.new(1..40, fn index ->
+          handle = "account-#{index}"
+
+          {handle,
+           %{
+             tier: :read,
+             account_id: index,
+             account_handle: handle,
+             sub: "operator@tuist.dev",
+             reason: "removed during compaction",
+             jti: "grant-#{index}",
+             iat: now,
+             exp: now + 600
+           }}
+        end)
+
+      log =
+        capture_log(fn ->
+          conn =
+            Phoenix.ConnTest.build_conn()
+            |> Plug.Test.init_test_session(%{"operator_grants" => grants})
+            |> OperatorGrant.prune_operator_grants([])
+
+          assert map_size(get_session(conn, "operator_grants")) == 40
+        end)
+
+      assert log =~ "operator grant session payload is approaching the cookie size limit"
     end
   end
 
@@ -298,6 +400,172 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       sub: user.email,
       exp: Keyword.get(opts, :exp, now + 600)
     }
+  end
+
+  defp assert_auth_pipeline_prunes_expired_grants(pipeline) do
+    now = System.system_time(:second)
+
+    conn =
+      :get
+      |> Phoenix.ConnTest.build_conn("/")
+      |> Plug.Test.init_test_session(%{
+        "operator_grants" => %{
+          "expired-account" => %{
+            tier: :read,
+            account_id: 1,
+            account_handle: "expired-account",
+            sub: "operator@tuist.dev",
+            jti: "expired-grant",
+            exp: now - 1
+          }
+        }
+      })
+
+    conn = apply(Router, pipeline, [conn, []])
+
+    assert get_session(conn, "operator_grants") == nil
+  end
+
+  describe "accept_operator_grant_header/2" do
+    setup do
+      jwk = JOSE.JWK.generate_key({:okp, :Ed25519})
+      pub_pem = jwk |> JOSE.JWK.to_public() |> JOSE.JWK.to_pem() |> unwrap()
+
+      stub(Tuist.Environment, :operator_grant_public_key, fn -> pub_pem end)
+      stub(Tuist.Environment, :operator_grant_audience, fn -> "tuist-server" end)
+      stub(Tuist.Environment, :operator_grant_max_ttl_seconds, fn -> 3600 end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+
+      {:ok, signer: jwk}
+    end
+
+    test "attaches a grant for the operator it was minted for", %{conn: conn, signer: signer} do
+      project = ProjectsFixtures.project_fixture(preload: [:account])
+      operator = operator_user()
+      token = mint(signer, claims(project.account.name, operator.email))
+
+      conn =
+        conn
+        |> assign(:current_user, operator)
+        |> put_req_header("x-tuist-operator-grant", token)
+        |> OperatorGrant.accept_operator_grant_header([])
+
+      refute conn.halted
+      grant = conn.assigns.operator_grant_user.operator_grant
+      assert grant.tier == :read
+      assert grant.account_id == project.account.id
+      assert grant.sub == operator.email
+    end
+
+    # The grant is what lets a non-member operator read the account at all.
+    test "the attached grant authorizes that account and no other", %{conn: conn, signer: signer} do
+      project = ProjectsFixtures.project_fixture(preload: [:account])
+      other_project = ProjectsFixtures.project_fixture(preload: [:account])
+      operator = operator_user()
+      token = mint(signer, claims(project.account.name, operator.email))
+
+      conn =
+        conn
+        |> assign(:current_user, operator)
+        |> put_req_header("x-tuist-operator-grant", token)
+        |> OperatorGrant.accept_operator_grant_header([])
+
+      granted = conn.assigns.operator_grant_user
+
+      assert Tuist.Authorization.authorize(:run_read, granted, project) == :ok
+      refute Tuist.Authorization.authorize(:run_read, granted, other_project) == :ok
+    end
+
+    test "without the header the operator gets no grant", %{conn: conn} do
+      operator = operator_user()
+
+      conn =
+        conn
+        |> assign(:current_user, operator)
+        |> OperatorGrant.accept_operator_grant_header([])
+
+      refute conn.halted
+      refute Map.has_key?(conn.assigns, :operator_grant_user)
+    end
+
+    # The grant is a bearer token, so a leaked one must not become usable just
+    # because whoever holds it is also an operator.
+
+    test "rejects a grant minted for a different operator", %{conn: conn, signer: signer} do
+      project = ProjectsFixtures.project_fixture(preload: [:account])
+      operator = operator_user()
+      token = mint(signer, claims(project.account.name, "someone-else@tuist.dev"))
+
+      {conn, log} =
+        with_log(fn ->
+          conn
+          |> assign(:current_user, operator)
+          |> put_req_header("x-tuist-operator-grant", token)
+          |> OperatorGrant.accept_operator_grant_header([])
+        end)
+
+      assert conn.halted
+      assert conn.status == 401
+      assert log =~ "operator grant rejected"
+    end
+
+    test "rejects a grant presented by a non-operator", %{conn: conn, signer: signer} do
+      project = ProjectsFixtures.project_fixture(preload: [:account])
+      customer = AccountsFixtures.user_fixture(preload: [:account])
+      token = mint(signer, claims(project.account.name, customer.email))
+
+      conn =
+        conn
+        |> assign(:current_user, customer)
+        |> put_req_header("x-tuist-operator-grant", token)
+        |> OperatorGrant.accept_operator_grant_header([])
+
+      assert conn.halted
+      assert conn.status == 401
+    end
+
+    test "rejects a token signed by a different key", %{conn: conn} do
+      project = ProjectsFixtures.project_fixture(preload: [:account])
+      operator = operator_user()
+      other = JOSE.JWK.generate_key({:okp, :Ed25519})
+      token = mint(other, claims(project.account.name, operator.email))
+
+      conn =
+        conn
+        |> assign(:current_user, operator)
+        |> put_req_header("x-tuist-operator-grant", token)
+        |> OperatorGrant.accept_operator_grant_header([])
+
+      assert conn.halted
+      assert conn.status == 401
+    end
+
+    test "rejects a grant for an account that does not exist", %{conn: conn, signer: signer} do
+      operator = operator_user()
+      token = mint(signer, claims("no-such-account", operator.email))
+
+      conn =
+        conn
+        |> assign(:current_user, operator)
+        |> put_req_header("x-tuist-operator-grant", token)
+        |> OperatorGrant.accept_operator_grant_header([])
+
+      assert conn.halted
+      assert conn.status == 401
+    end
+
+    test "rejects a grant with no authenticated user", %{conn: conn, signer: signer} do
+      project = ProjectsFixtures.project_fixture(preload: [:account])
+      token = mint(signer, claims(project.account.name, "operator@tuist.dev"))
+
+      conn =
+        conn
+        |> put_req_header("x-tuist-operator-grant", token)
+        |> OperatorGrant.accept_operator_grant_header([])
+
+      assert conn.halted
+      assert conn.status == 401
+    end
   end
 
   defp operator_user do

@@ -20,6 +20,7 @@ public protocol PutCacheValueServicing: Sendable {
 public enum PutCacheValueServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
+    case freeTierExhausted(String)
     case forbidden(String)
     case notFound(String)
     case badRequest(String)
@@ -29,7 +30,8 @@ public enum PutCacheValueServiceError: LocalizedError {
         switch self {
         case let .unknownError(statusCode):
             return "The CAS value could not be stored due to an unknown Tuist response of \(statusCode)."
-        case let .unauthorized(message), let .forbidden(message), let .notFound(message), let .badRequest(message):
+        case let .unauthorized(message), let .forbidden(message), let .notFound(message), let .badRequest(message),
+             let .freeTierExhausted(message):
             return message
         case .putValueFailed:
             return "The CAS value storage failed due to an unknown error."
@@ -63,7 +65,8 @@ public struct PutCacheValueService: PutCacheValueServicing {
         let client = Client.authenticated(
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
-            serverAuthenticationController: serverAuthenticationController
+            serverAuthenticationController: serverAuthenticationController,
+            fullHandle: fullHandle
         )
         let handles = try fullHandleService.parse(fullHandle)
 
@@ -97,6 +100,11 @@ public struct PutCacheValueService: PutCacheValueServicing {
             switch unauthorized.body {
             case let .json(error):
                 throw PutCacheValueServiceError.unauthorized(error.message)
+            }
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
+            case let .json(error):
+                throw PutCacheValueServiceError.freeTierExhausted(error.message)
             }
         case let .badRequest(badRequest):
             switch badRequest.body {

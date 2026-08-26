@@ -56,16 +56,28 @@ packer {
 #   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
 #   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
 #   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
+#   /opt/tuist/runner-shell-agent               <- trusted interactive shell bridge
 #   /Applications/Xcode_<version>.app           <- inherited from the base
 #
-# The macos-tahoe-xcode base inherits macos-tahoe-base's `admin` user
-# with a `/Users/runner` symlink to `/Users/admin` plus a configured
-# `~/.zprofile` (brew shellenv, mise, rbenv init). Our flow creates
-# a real `runner` user that *also* points at `/Users/runner` —
-# sysadminctl can't overwrite the existing path, so it assigns a
-# fresh UID against the symlinked home. Both users end up sharing
-# `.zprofile`, which is how the runner's login shell sees the
-# brew-installed tools from the base.
+# The macos-tahoe-xcode base inherits macos-tahoe-base's `admin`
+# user and a `/Users/runner` placeholder. Our flow wipes that
+# placeholder and creates a real `runner` user with a home of its
+# own (see the addUser provisioner below), so `admin` and `runner`
+# are distinct accounts with distinct homes — the account that
+# builds the image is not the account that runs jobs.
+#
+# That split is the thing to keep in mind when changing this file.
+# Anything the base set up under `admin` is not automatically
+# usable by `runner`: the Homebrew prefix has to be handed over
+# explicitly, `~/.zprofile` has to be copied into the new home
+# (see the two provisioners below), and the sanity checks at the
+# end assert against `runner`, never `admin`.
+#
+# Those checks run as `sudo -u runner -H`. The `-H` is load-
+# bearing: macOS sudoers carries `env_keep += "HOME"`, so a plain
+# `sudo -u runner` leaves `HOME=/Users/admin` and the checks
+# silently exercise `admin`'s login shell and `admin`'s caches
+# while appearing to test the runtime account.
 #
 # Note that the runner is registered with GitHub at *job* time,
 # not image-build time — the image carries the runner binary but
@@ -101,8 +113,14 @@ variable "runner_version" {
   # deps; falling more than ~1 release behind would re-introduce
   # the v2.328-style deprecation risk so the cadence is
   # load-bearing.
+  #
+  # That cadence is only as good as Renovate's PR budget: a backlog
+  # of unreviewed PRs once filled the concurrency limit and this pin
+  # silently sat three releases behind until GitHub retired it. See
+  # renovate.json for the limits and the dependency dashboard that
+  # now make a withheld bump visible.
   # renovate: datasource=github-releases depName=actions/runner
-  default = "2.334.0"
+  default = "2.336.0"
 }
 
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
@@ -180,6 +198,57 @@ build {
       "echo 'admin' | sudo -S sysadminctl -addUser runner -fullName 'GitHub Actions Runner' -password runner -admin",
       "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",
       "echo 'admin' | sudo -S chown root:wheel /opt/tuist"
+    ]
+  }
+
+  # Hand the Homebrew prefix to `runner`. The base images install
+  # brew and its formulae as `admin`, so the prefix ends up owned
+  # by an account that never runs jobs — `brew install <formula>`
+  # from a workflow step then fails the writability audit with
+  # "/opt/homebrew is not writable" across ~16 directories.
+  #
+  # GitHub-hosted macOS images build and run under a single
+  # account, so the job user owns the prefix and unprivileged
+  # `brew install` just works. Customer workflows assume that.
+  # Reachability was never the problem (the login shell resolves
+  # `brew` fine, and the sanity check below has always covered
+  # it) — ownership was.
+  #
+  # This belongs here and not in macos-xcode-image: that base is
+  # shared with xcresult-processor, which keeps running as `admin`
+  # and drives brew-installed binaries itself (`sudo
+  # /opt/homebrew/bin/tailscaled install-system-daemon`). Chowning
+  # in the shared layer would fix this image and break that one.
+  #
+  # `runner:admin` matches Homebrew's own default ownership on
+  # macOS rather than inventing a scheme.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S chown -R runner:admin /opt/homebrew"
+    ]
+  }
+
+  # Hand the login-shell environment to `runner`. The cirruslabs
+  # base builds `~/.zprofile` for `admin` (Homebrew shellenv,
+  # rbenv init, LANG=en_US.UTF-8, node@24 on PATH) and symlinks
+  # `/Users/runner` at `/Users/admin`, so its runner user reads
+  # the same file. Wiping that symlink above gives `runner` a home
+  # created from macOS's user template, which carries no
+  # `.zprofile` at all — every login shell on this image (the
+  # LaunchAgent entrypoint, and therefore every workflow step
+  # shell that inherits its environment) would resolve none of the
+  # base's tooling.
+  #
+  # Copy rather than symlink back into admin's home: the accounts
+  # are separate here (see the header), and a job appending to its
+  # own `~/.zprofile` must not rewrite the provisioning user's.
+  # The file's contents are $HOME-independent, so the copy behaves
+  # identically under the new owner.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S install -m 0644 -o runner -g staff /Users/admin/.zprofile /Users/runner/.zprofile"
     ]
   }
 
@@ -274,22 +343,40 @@ build {
     destination = "/tmp/metrics-poll.sh"
   }
 
+  provisioner "file" {
+    source      = "${path.root}/build/runner-shell-agent"
+    destination = "/tmp/runner-shell-agent"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/runner-shell-agent-supervisor.sh"
+    destination = "/tmp/runner-shell-agent-supervisor.sh"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/runner-shell-agent.plist"
+    destination = "/tmp/dev.tuist.runner-shell-agent.plist"
+  }
+
   provisioner "shell" {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
-      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh"
+      "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent /opt/tuist/runner-shell-agent",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
+      "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.runner-shell-agent.plist /Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist",
+      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/dev.tuist.runner-shell-agent.plist"
     ]
   }
 
-  # Passwordless sudo for runner. The agent runs as the `runner`
-  # user in a real desktop session (LaunchAgent + auto-login),
-  # not as root, so the few privileged operations the agent needs
-  # — installing /etc/tuist.env from the kubelet env mount,
-  # halting the VM at job exit — go through sudo. Passwordless
-  # because the VM is ephemeral and single-tenant; the entire OS
-  # is the customer's job environment.
+  # Passwordless sudo for runner. The GitHub Actions runner runs as
+  # the `runner` user in a real desktop session (LaunchAgent +
+  # auto-login), so the few privileged operations the dispatch loop
+  # needs — installing /etc/tuist.env from the kubelet env mount,
+  # halting the VM at job exit — go through sudo. Passwordless because
+  # the VM is ephemeral and single-tenant; the entire OS is the
+  # customer's job environment.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
@@ -306,15 +393,33 @@ build {
   # password using Apple's well-known key) + the autoLoginUser
   # preference. The encoded payload for password "runner" is the
   # 6 password bytes followed by 6 zero-pad bytes, each XOR'd
-  # against the 12-byte Apple key — total 12 bytes (one full
-  # key-length block).
+  # against the 11-byte Apple key.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "printf '\\x0f\\xfc\\x3c\\x4d\\xb7\\xce\\xdd\\xea\\xa3\\xb9\\x1f\\xb5' > /tmp/kcpassword",
+      "printf '\\x0f\\xfc\\x3c\\x4d\\xb7\\xce\\xdd\\xea\\xa3\\xb9\\x1f\\x7d' > /tmp/kcpassword",
       "sudo install -m 0600 -o root -g wheel /tmp/kcpassword /etc/kcpassword",
       "rm -f /tmp/kcpassword",
-      "sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser runner"
+      "runner_uid=$(id -u runner)",
+      "sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser -string runner",
+      "sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUserUID -int \"$runner_uid\"",
+      "sudo defaults write /Library/Preferences/com.apple.loginwindow DisableFDEAutoLogin -bool false",
+      "sudo pmset -a sleep 0 displaysleep 0 disksleep 0",
+      "sudo defaults write /Library/Preferences/com.apple.screensaver idleTime -int 0",
+      "sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -int 0",
+      "sudo defaults write /Library/Preferences/com.apple.screensaver askForPasswordDelay -int 0",
+      "sudo defaults -currentHost write com.apple.screensaver idleTime -int 0",
+      "sudo defaults -currentHost write com.apple.screensaver askForPassword -int 0",
+      "sudo defaults -currentHost write com.apple.screensaver askForPasswordDelay -int 0",
+      "sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout.AutoLogOutDelay -int 0",
+      "sudo -u runner defaults write com.apple.screensaver idleTime -int 0",
+      "sudo -u runner defaults write com.apple.screensaver askForPassword -int 0",
+      "sudo -u runner defaults write com.apple.screensaver askForPasswordDelay -int 0",
+      "sudo -u runner defaults -currentHost write com.apple.screensaver idleTime -int 0",
+      "sudo -u runner defaults -currentHost write com.apple.screensaver askForPassword -int 0",
+      "sudo -u runner defaults -currentHost write com.apple.screensaver askForPasswordDelay -int 0",
+      "sudo sysadminctl -screenLock off -password runner || true",
+      "sudo /usr/bin/python3 - <<'CHECK'\nimport sys\nkey = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])\nwith open('/etc/kcpassword', 'rb') as f:\n    enc = f.read()\ndec = bytes(b ^ key[i % len(key)] for i, b in enumerate(enc))\nif dec.startswith(b'<sealed>'):\n    sys.stderr.write('kcpassword was replaced by macOS with <sealed>; runner auto-login would boot to the password screen\\n')\n    sys.exit(1)\nif dec != b'runner' + bytes(6):\n    sys.stderr.write('kcpassword does not decode to the runner auto-login payload\\n')\n    sys.exit(1)\nCHECK"
     ]
   }
 
@@ -346,9 +451,11 @@ build {
   # Sanity check: tools customers expect on a GitHub-parity macOS
   # runner have to be reachable from the agent's runtime
   # environment. The agent wraps its entrypoint in `zsh -lc`, so
-  # ~/.zprofile is sourced (Homebrew shellenv, mise, rbenv init,
-  # PATH additions for the macos-tahoe-xcode base's pre-installed
-  # tools). A future base-image bump that moves Homebrew's prefix
+  # the ~/.zprofile copied into the runner's home above is sourced
+  # (Homebrew shellenv, rbenv init, PATH additions for the
+  # macos-tahoe-xcode base's pre-installed tools) — which is why
+  # these run with `-H` and not against `admin`'s copy of the same
+  # file. A future base-image bump that moves Homebrew's prefix
   # or drops a formula would silently make tools unreachable from
   # step shells; resolve each tool against the same login-shell
   # environment so image-build CI fails loudly instead of customer
@@ -361,8 +468,31 @@ build {
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "sudo -u runner /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
-      "sudo -u runner /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'"
+      "sudo -u runner -H /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
+      "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'"
+    ]
+  }
+
+  # Sanity check: `brew` being on PATH says nothing about whether a
+  # workflow step can install with it. The check above passed for
+  # months while every `brew install` on this image failed on prefix
+  # ownership, so assert the operation rather than the binary.
+  # `hello` is Homebrew's own smoke-test formula: no dependencies,
+  # installs in seconds, and uninstalling leaves the image clean.
+  #
+  # HOMEBREW_NO_AUTO_UPDATE keeps the check off the network's
+  # critical path — it would otherwise re-fetch every tap and make
+  # image builds fail on transient GitHub blips. The chown is
+  # recursive, so tap writability moves with the prefix; what's
+  # actually at risk of regressing, and what this exercises, is
+  # writing into Cellar and the lock/var dirs. `brew` also writes
+  # its download and bootsnap caches under `$HOME`, which is the
+  # other half of why these run with `-H`.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew install hello' || { echo 'sanity check: unprivileged brew install failed for the runner user — Homebrew prefix ownership regression' >&2; exit 1; }",
+      "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew uninstall hello'"
     ]
   }
 }

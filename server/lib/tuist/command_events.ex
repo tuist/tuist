@@ -16,17 +16,22 @@ defmodule Tuist.CommandEvents do
   alias Tuist.Storage
   alias Tuist.Time
 
+  @optimized_list_index_fields [:id, :project_id, :ran_at, :duration, :hit_rate]
+
   def list_command_events(attrs, _opts \\ []) do
+    optimized_table = sort_optimized_table(attrs)
+
     queryable =
-      case sort_optimized_table(attrs) do
+      case optimized_table do
         nil -> Event
-        table -> from(_ in {table, Event})
+        table -> from(event in {table, Event}, select: struct(event, @optimized_list_index_fields))
       end
 
     {results, meta} = ClickHouseFlop.validate_and_run!(queryable, attrs, for: Event)
 
     results =
       results
+      |> hydrate_optimized_list_results(optimized_table)
       |> Enum.map(&Event.normalize_enums/1)
       |> attach_user_account_names()
 
@@ -344,18 +349,34 @@ defmodule Tuist.CommandEvents do
   end
 
   def account_month_usage(account_id, date \\ DateTime.utc_now()) do
-    beginning_of_month = Timex.beginning_of_month(date)
+    counted_from = usage_counted_from(account_id, date)
 
     project_ids = Repo.all(from(p in Project, where: p.account_id == ^account_id, select: p.id))
 
     ClickHouseRepo.one(
       from(c in Event,
         where: c.project_id in ^project_ids,
-        where: c.ran_at >= ^beginning_of_month,
+        where: c.ran_at >= ^counted_from,
         where: c.remote_cache_hits_count > 0 or c.remote_test_hits_count > 0,
         select: %{remote_cache_hits_count: count(c.id)}
       )
     )
+  end
+
+  # An account's free tier can be reset mid-month, which moves the start of the
+  # counting window forward. A reset older than the current month is inert, so
+  # the window returns to the month boundary once the month rolls over.
+  defp usage_counted_from(account_id, date) do
+    beginning_of_month = Timex.beginning_of_month(date)
+
+    reset_at =
+      Repo.one(from(a in Account, where: a.id == ^account_id, select: a.free_tier_reset_at))
+
+    if is_nil(reset_at) or DateTime.before?(reset_at, beginning_of_month) do
+      beginning_of_month
+    else
+      reset_at
+    end
   end
 
   def delete_account_events(account_id) do
@@ -391,11 +412,7 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  def get_yesterdays_remote_cache_hits_count_for_customer(customer_id) do
-    now = DateTime.utc_now()
-    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
-    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
-
+  def remote_cache_hits_count_for_customer(customer_id, %DateTime{} = period_start, %DateTime{} = period_end) do
     from(p in Project,
       join: a in Account,
       on: p.account_id == a.id,
@@ -411,7 +428,7 @@ defmodule Tuist.CommandEvents do
         ClickHouseRepo.one(
           from(e in Event,
             where:
-              e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday and
+              e.ran_at >= ^period_start and e.ran_at < ^period_end and
                 e.project_id in ^project_ids,
             select:
               sum(
@@ -497,10 +514,14 @@ defmodule Tuist.CommandEvents do
   end
 
   # Multiple rows may share the same build_run_id because the ID is derived
-  # from the `.xcactivitylog`, which Xcode can reuse across runs (e.g. a
-  # second `tuist test` that short-circuits before building picks up the
-  # previous log). We return the most recent event until we can source the
-  # build_run_id independently of the activity log.
+  # from the `.xcactivitylog`. In a split test run, every test execution event
+  # intentionally reuses the build phase's ID to link its test report to the
+  # build. Prefer the event without a test run so build details retain the
+  # command that produced the build, then fall back to the earliest event:
+  # whichever command produced the activity log necessarily ran before anything
+  # that reuses its ID. The fallback carries the decision on its own whenever
+  # `test_run_id` is absent, which is the case for a test execution whose
+  # xcresult upload never completed.
   #
   # Pass `project_id:` when known so the lookup hits the
   # `(project_id, name, ran_at)` primary key instead of relying solely on
@@ -511,7 +532,7 @@ defmodule Tuist.CommandEvents do
     Event
     |> scope_to_project(project_id)
     |> where([e], e.build_run_id == ^build_run_id)
-    |> order_by([e], desc: e.ran_at, desc: e.created_at)
+    |> order_by([e], desc: is_nil(e.test_run_id), asc: e.ran_at, asc: e.created_at)
     |> limit(1)
     |> ClickHouseRepo.one()
     |> case do
@@ -735,6 +756,13 @@ defmodule Tuist.CommandEvents do
     * `opts` - Options:
       * `:limit` - Number of events to consider (default: 100)
       * `:offset` - Number of events to skip (default: 0)
+      * `:git_branch` - Only consider events run on the given branch
+      * `:is_ci` - Only consider CI (`true`) or local (`false`) events
+      * `:min_sample_size` - Return `nil` unless the window matched at least this
+        many events. The reversed percentiles degenerate to `min(values)` on
+        short windows (the p90 index floors to 0 below 10 rows, p99 below 100),
+        so callers comparing two windows can use this to reject a window that
+        did not fill up.
 
   ## Returns
     The calculated metric value (0.0-1.0), or `nil` if no data available.
@@ -742,28 +770,51 @@ defmodule Tuist.CommandEvents do
   def cache_hit_rate_metric_by_count(project_id, metric, opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
+    git_branch = Keyword.get(opts, :git_branch)
+    is_ci = Keyword.get(opts, :is_ci)
 
-    hit_rates =
-      ClickHouseRepo.all(
-        from(e in Event,
-          where:
-            e.project_id == ^project_id and
-              e.cacheable_targets_count > 0,
-          order_by: [desc: e.ran_at],
-          limit: ^limit,
-          offset: ^offset,
-          select:
-            fragment(
-              "(? + ?) / ?",
-              e.local_cache_hits_count,
-              e.remote_cache_hits_count,
-              e.cacheable_targets_count
-            )
-        )
+    query =
+      from(e in Event,
+        where:
+          e.project_id == ^project_id and
+            e.cacheable_targets_count > 0,
+        order_by: [desc: e.ran_at],
+        limit: ^limit,
+        offset: ^offset,
+        select:
+          fragment(
+            "(? + ?) / ?",
+            e.local_cache_hits_count,
+            e.remote_cache_hits_count,
+            e.cacheable_targets_count
+          )
       )
 
-    calculate_metric_from_values(hit_rates, metric)
+    query =
+      if is_binary(git_branch) and git_branch != "" do
+        where(query, [e], e.git_branch == ^git_branch)
+      else
+        query
+      end
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [e], e.is_ci == true)
+        false -> where(query, [e], e.is_ci == false)
+      end
+
+    hit_rates = ClickHouseRepo.all(query)
+
+    if below_min_sample_size?(hit_rates, Keyword.get(opts, :min_sample_size)) do
+      nil
+    else
+      calculate_metric_from_values(hit_rates, metric)
+    end
   end
+
+  defp below_min_sample_size?(_values, nil), do: false
+  defp below_min_sample_size?(values, min_sample_size), do: length(values) < min_sample_size
 
   defp calculate_metric_from_values([], _metric), do: nil
 
@@ -1123,6 +1174,26 @@ defmodule Tuist.CommandEvents do
       user_name = if run.user_id, do: Map.get(user_map, run.user_id)
       {run.id, user_name}
     end)
+  end
+
+  defp hydrate_optimized_list_results(results, nil), do: results
+  defp hydrate_optimized_list_results([], _optimized_table), do: []
+
+  defp hydrate_optimized_list_results(results, _optimized_table) do
+    project_ids = results |> Enum.map(& &1.project_id) |> Enum.uniq()
+    ids = Enum.map(results, & &1.id)
+
+    events_by_key =
+      Event
+      |> where([event], event.project_id in ^project_ids and event.id in ^ids)
+      |> order_by([event], asc: event.project_id, asc: event.id, desc: event.updated_at)
+      # The optimized view can be ahead of the replica serving this canonical table read,
+      # so hydrate with sequential consistency.
+      |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
+      |> Enum.uniq_by(&{&1.project_id, &1.id})
+      |> Map.new(&{{&1.project_id, &1.id}, &1})
+
+    Enum.map(results, &Map.fetch!(events_by_key, {&1.project_id, &1.id}))
   end
 
   defp sort_optimized_table(%{order_by: [field | _]}) when field in [:duration, "duration"],

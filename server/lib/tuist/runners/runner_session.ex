@@ -16,8 +16,20 @@ defmodule Tuist.Runners.RunnerSession do
   schema "runner_sessions" do
     field :workflow_job_id, :integer
     field :fleet_name, :string
+    field :platform, Ecto.Enum, values: [:linux, :macos]
+    field :vcpus, :integer
+    field :memory_gb, :integer
+    # Cost-weighted machine factor in basis points, frozen at open time so
+    # a later rate-card change can't reprice usage that already happened.
+    field :billing_multiplier, :integer
+    field :job_started_at, :utc_datetime_usec
+    field :job_ended_at, :utc_datetime_usec
     field :pod_name, :string, default: ""
     field :runner_name, :string, default: ""
+    # The workflow_job GitHub actually ran on this runner, learned
+    # from the `in_progress` / `completed` webhook. Durable ground
+    # truth that outlives the pod; NULL until GitHub proves it.
+    field :executed_workflow_job_id, :integer
     field :repository, :string, default: ""
     field :workflow_name, :string, default: ""
     field :started_at, :utc_datetime_usec

@@ -88,10 +88,6 @@ impl RuntimeState {
         self.outbox_depth.store(depth, Ordering::Relaxed);
     }
 
-    pub fn outbox_depth(&self) -> usize {
-        self.outbox_depth.load(Ordering::Relaxed)
-    }
-
     pub fn request_drain(&self) -> bool {
         !self.draining.swap(true, Ordering::SeqCst)
     }
@@ -115,10 +111,6 @@ impl RuntimeState {
     pub fn peer_view_pending(&self) -> bool {
         self.peer_view_required.load(Ordering::SeqCst)
             && !self.peer_view_ready.load(Ordering::SeqCst)
-    }
-
-    pub fn clear_serving(&self) -> bool {
-        self.serving.swap(false, Ordering::SeqCst)
     }
 
     pub fn is_serving(&self) -> bool {

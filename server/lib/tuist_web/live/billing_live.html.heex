@@ -27,7 +27,9 @@
         </div>
         <.progress_bar
           value={@current_month_remote_cache_hits_count}
+          value_label={format_number(@current_month_remote_cache_hits_count)}
           max={200}
+          max_label={format_number(200)}
           title={dgettext("dashboard_account", "Remote cache hits:")}
         >
           <:description>
@@ -42,6 +44,30 @@
               />
               <span data-part="label">
                 {dgettext("dashboard_account", "about remote cache hits")}
+              </span>
+            </div>
+          </:description>
+        </.progress_bar>
+        <.progress_bar
+          :if={@runner_usage.enabled or @runner_usage.total_ms > 0}
+          id="runner-minutes-progress"
+          value={@runner_usage.minutes}
+          value_label={format_number(@runner_usage.minutes)}
+          max={@runner_usage.covered_minutes}
+          max_label={format_number(@runner_usage.covered_minutes)}
+          title={dgettext("dashboard_account", "Runner minutes:")}
+        >
+          <:description>
+            <div data-part="description">
+              <.link_button
+                navigate={~p"/#{@selected_account.name}/usage"}
+                label={dgettext("dashboard_account", "See the breakdown")}
+                variant="primary"
+                size="medium"
+                underline
+              />
+              <span data-part="label">
+                {runner_minutes_composition(@runner_usage)}
               </span>
             </div>
           </:description>
@@ -305,13 +331,16 @@
       </div>
     </div>
   </.card_section>
-  <.card_section data-part="billing-email-card-section">
+  <.card_section data-part="billing-details-card-section">
     <div data-part="header">
       <span data-part="title">
-        {dgettext("dashboard_account", "Billing email")}
+        {dgettext("dashboard_account", "Billing details")}
       </span>
       <span data-part="subtitle">
-        {dgettext("dashboard_account", "All billing correspondence will go to this email")}
+        {dgettext(
+          "dashboard_account",
+          "Update the company name, billing address, tax number, and email shown on your invoices."
+        )}
       </span>
     </div>
     <div data-part="content">
@@ -319,7 +348,7 @@
         href={~p"/#{@selected_account.name}/billing/manage"}
         target="_blank"
         variant="secondary"
-        label={dgettext("dashboard_account", "Update billing email")}
+        label={dgettext("dashboard_account", "Update billing details")}
         size="medium"
         data-part="update-button"
       >
@@ -328,7 +357,7 @@
         </:icon_right>
       </.button>
       <div data-part="email">
-        <.label label={dgettext("dashboard_account", "Email")} />
+        <.label label={dgettext("dashboard_account", "Billing email")} />
         <span data-part="billing-email">
           {@selected_account.billing_email}
         </span>

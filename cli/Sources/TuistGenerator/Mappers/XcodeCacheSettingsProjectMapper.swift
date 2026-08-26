@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Logging
 import Path
+import struct TSCUtility.Version
 import TuistConfig
 import TuistCore
 import TuistEnvironment
@@ -43,6 +44,22 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         var baseSettings = project.settings.base
 
         baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] = "YES"
+
+        // Without prefix mapping a cache key embeds absolute paths — DerivedData's
+        // above all — so the same compilation caches under a different key on every
+        // machine, and artifacts can't be replayed between developers or between
+        // local and CI. Xcode 27 (Swift 6.4) is the first build system to implement
+        // the source/build directory mappings, and Apple ships them off (the
+        // settings carry no default, for staged adoption), so opt in explicitly.
+        // Enabling them changes every key, but only ever at a boundary where the
+        // compiler version already invalidated the cache.
+        if await isPrefixMappingSupported() {
+            baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] = "YES"
+            baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] = "YES"
+            baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] = "YES"
+            baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] = "YES"
+        }
+
         if let fullHandle = tuist.fullHandle {
             if kuraEnabled {
                 // kura path: route Xcode's compilation caching through the Tuist
@@ -52,17 +69,39 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                 if let casPluginPath = try await resolvedCASPluginPath() {
                     baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] = "YES"
                     baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] = "YES"
-                    baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] = .string(casPluginPath.pathString)
+                    baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] = Self.pluginPathSetting(casPluginPath)
                     // Hand the plugin its per-project options as compiler flags, which
                     // reach every frontend — including an Xcode ⌘B build that carries
                     // no CLI environment — so the proxy can route (and honor the upload
-                    // policy) without the CLI. Swift only: clang/ObjC never loads the CAS
-                    // plugin (Xcode routes its compilation caching to the builtin CAS),
-                    // so C/ObjC is cached locally but never remote.
+                    // policy) without the CLI. These reach Swift only; the setting below
+                    // is what brings clang in.
                     baseSettings["OTHER_SWIFT_FLAGS"] = Self.appendingCASPluginOptions(
                         fullHandle: fullHandle,
                         upload: tuist.xcodeCache.upload,
                         to: baseSettings["OTHER_SWIFT_FLAGS"]
+                    )
+                    // This is what makes C/ObjC, precompiled modules and PCHs shareable,
+                    // and it is easy to mistake for the legacy daemon's socket setting.
+                    //
+                    // clang does not load a CAS plugin, so left alone it caches only into
+                    // Xcode's builtin CAS, which never leaves the machine. The build system
+                    // covers clang itself instead, but only where it considers a remote
+                    // cache present, and it decides that purely by `remoteServicePath != nil`
+                    // (swift-build's `CASOptions.hasRemoteCache`). That one flag gates both
+                    // halves: uploading a clang or module output after a successful compile,
+                    // and requesting the materialize-key task that fetches one back. Leave
+                    // this unset and neither happens, so every C/ObjC/PCM/PCH compile stays
+                    // local and a machine with a cold cache recompiles all of it. Measured on
+                    // mastodon against an empty CAS: 259/930 tasks cached without this,
+                    // 930/930 with it.
+                    //
+                    // The path points at the machine-wide proxy, not a per-project daemon,
+                    // and the plugin CONSUMES this option rather than forwarding it to the
+                    // wrapped Apple plugin, whose own remote client would otherwise run its
+                    // much slower choreography against this socket. So the flag flips
+                    // without handing Apple's client the connection.
+                    baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = .string(
+                        Environment.current.casProxySocketPathString()
                     )
                 } else {
                     // Kura is enabled but the bundled dylib is absent, so the build
@@ -94,6 +133,18 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         return (project, [])
     }
 
+    /// Whether the selected Xcode's build system implements the source/build
+    /// directory prefix mappings that make compilation-cache keys path-independent
+    /// (Xcode 27 / Swift 6.4 and later).
+    ///
+    /// A version that can't be determined degrades to `false` — the status quo,
+    /// path-dependent keys — rather than failing generation over a cache
+    /// optimization.
+    private func isPrefixMappingSupported() async -> Bool {
+        guard let version = try? await XcodeController.current.selectedVersion() else { return false }
+        return version >= Version(27, 0, 0)
+    }
+
     /// The first CAS plugin dylib candidate that exists on disk, or `nil` when
     /// none are present (the build then gets local-only compilation caching
     /// rather than a `COMPILATION_CACHE_PLUGIN_PATH` pointing at a missing file).
@@ -102,6 +153,18 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
             return candidate
         }
         return nil
+    }
+
+    /// The CAS plugin dylib's path as it is written into the build setting.
+    ///
+    /// `$HOME`-relative for the same reason as the proxy socket: the value is baked
+    /// into the generated pbxproj and reaches the target content hash through the
+    /// project's base settings, so a raw install path (Homebrew locally, mise on CI)
+    /// would give identical code a different module-cache key on every machine.
+    /// A plugin installed outside `$HOME` has no prefix to factor out and is written
+    /// verbatim.
+    private static func pluginPathSetting(_ path: AbsolutePath) -> SettingValue {
+        .string(Environment.current.homeRelativePathString(path))
     }
 
     /// Appends the plugin's per-project `-cas-plugin-option` flags

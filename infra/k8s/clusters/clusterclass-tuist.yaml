@@ -14,9 +14,17 @@ spec:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: HCloudMachineTemplate
         name: tuist-hcloud-hcloud-machinetemplate
+    deletion:
+      # The default ten-second timeout can expire during a brief control-plane
+      # interruption and leave a Node behind after its Machine is deleted.
+      # Zero keeps retrying until the workload control plane accepts deletion.
+      nodeDeletionTimeoutSeconds: 0
     healthCheck:
       checks:
-        nodeStartupTimeoutSeconds: 900
+        # New members currently reach the infrastructure-ready state but do
+        # not register a Node. Do not delete and recreate them indefinitely
+        # until that bootstrap defect has been diagnosed from the host.
+        nodeStartupTimeoutSeconds: 0
         unhealthyNodeConditions:
           - type: Ready
             status: Unknown
@@ -26,7 +34,10 @@ spec:
             timeoutSeconds: 300
       remediation:
         triggerIf:
-          unhealthyLessThanOrEqualTo: 33%
+          # Allow only one registered unhealthy member to be replaced at a
+          # time. An absolute limit does not change as the control plane
+          # moves between two and three Machines.
+          unhealthyLessThanOrEqualTo: 1
   infrastructure:
     templateRef:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
@@ -79,6 +90,73 @@ spec:
             apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
             kind: HetznerBareMetalMachineTemplate
             name: tuist-bare-metal-machinetemplate
+        rollout:
+          strategy:
+            type: RollingUpdate
+            rollingUpdate:
+              # CAPI defaults to `maxSurge: 1, maxUnavailable: 0` — build the
+              # replacement Machine, then delete the old one. That default
+              # cannot make progress on a bare-metal pool. Hosts here are
+              # pre-ordered and operator-managed, so at steady state every
+              # `HetznerBareMetalHost` is claimed and the surge Machine has
+              # nothing to land on: caph parks it `NoAvailableHost` ("all
+              # hosts are in use"), it never goes Ready, `maxUnavailable: 0`
+              # therefore never permits deleting an old Machine, and the
+              # freed host that would unblock it never appears. Self-
+              # sustaining deadlock — the production runner pool sat in it
+              # from 2026-06-17, receiving no template change for two months
+              # while still reporting healthy.
+              #
+              # Inverting the order makes a roll self-sufficient on a fully
+              # claimed pool: delete first, then reprovision the freed host.
+              #
+              # The cost is one node of capacity for the whole replacement,
+              # and that is dominated by the drain, not by provisioning.
+              # Runner Pods drain with `WaitCompleted`, so the node waits
+              # for its in-flight jobs before it is deleted — up to six
+              # hours for a Linux job — and `installimage` adds ~8-15 min
+              # after that. Budget most of a day for a two-host pool, not
+              # the quarter hour the provisioning time alone suggests.
+              #
+              # Accepted deliberately: the Linux pools run internal
+              # workflows only, so halved capacity for a stretch is a
+              # tolerable trade against paying rent on a permanently idle
+              # spare host. A spare would be the alternative — it restores
+              # `maxSurge: 1` and removes the dip entirely by building the
+              # replacement while the old node drains — and is the thing to
+              # revisit if customer workloads ever land on Linux.
+              #
+              # On the single-host staging and canary pools this is a full
+              # outage of Linux runners for the same window, which is the
+              # only option those pools have either way.
+              #
+              # `hcloud-worker` deliberately keeps the default: Hetzner Cloud
+              # provisions on demand, so a surge there always has somewhere
+              # to go and there is no reason to give up a zero-downtime roll.
+              maxSurge: 0
+              maxUnavailable: 1
+        deletion:
+          # Unbounded on purpose. Runner Pods are drained with
+          # `behavior: WaitCompleted` (see
+          # `infra/k8s/clusters/machinedrainrules.yaml`), so a drain waits
+          # for the node's in-flight CI jobs instead of evicting them, and
+          # a job can legitimately run for hours. Any finite timeout here
+          # is a promise to kill a customer's job once it is exceeded,
+          # which is the failure this whole arrangement exists to prevent.
+          #
+          # The risk this accepts is a drain that never finishes holding
+          # the roll open. That is deliberately handled by making it loud
+          # rather than by capping it: "Worker pool has a Machine it
+          # cannot delete" in `infra/helm/k8s-monitoring/alerts.md` fires
+          # on `status.replicas > spec.replicas`.
+          #
+          # Not `upToDateReplicas < spec.replicas`: that is the sibling
+          # "stuck mid-rollout" rule, and it covers the all-hosts-claimed
+          # wedge only. A roll blocked purely on deletion has already
+          # produced every up-to-date Machine it needs, so up-to-date
+          # equals spec and that rule stays quiet. tuist-md-processor sat
+          # in exactly that blind spot for 14 days from 2026-07-31.
+          nodeDrainTimeoutSeconds: 0
         healthCheck:
           checks:
             # Longer timeout than hcloud: rescue → installimage → reboot
@@ -224,6 +302,30 @@ spec:
         openAPIV3Schema:
           type: string
           default: ""
+    # Extra kubelet taints for a worker pool, in kubelet's
+    # `key=value:Effect,key=value:Effect` form. Set as a per-MachineDeployment
+    # override so a dedicated pool registers tainted and general workloads can't
+    # colonize it. Used to isolate the stable-egress gateway pool (md-egress):
+    # untainted, those 4 GB nodes hosted ingress-nginx/CoreDNS/Redis and were
+    # OOM-killed, which is what set off the 2026-07-30 egress outage. Only the
+    # DaemonSets that tolerate this taint (cilium, hcloud-csi, the egress
+    # host-configurer, and the monitoring agents) land there. Like
+    # workerNodeLabels this reaches the node at registration and survives
+    # MachineHealthCheck remediation.
+    - name: workerNodeTaints
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
+    # Resolver file for cloud-worker pods. It remains a per-cluster value
+    # because resolver paths depend on the operating-system configuration.
+    - name: workerResolvConf
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
     # Bare-metal cluster gate. Each per-cluster topology sets this
     # to its own env (`staging` / `canary` / `production`) so the
     # `HetznerBareMetalMachineTemplateClusterSelector` patch below
@@ -249,6 +351,14 @@ spec:
         openAPIV3Schema:
           type: string
           default: ExternalIP,Hostname,InternalDNS,ExternalDNS
+    # Rollout switch for a kubeadm control-plane join failure observed with
+    # ControlPlaneKubeletLocalMode on the Hetzner nodes. Keep this opt-in so
+    # each environment can validate the compatibility fallback separately.
+    - name: disableControlPlaneKubeletLocalMode
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: boolean
   patches:
     - name: HetznerClusterTemplateGeneral
       definitions:
@@ -389,6 +499,43 @@ spec:
               path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
               valueFrom:
                 template: '{"name":"node-labels","value":{{ .workerNodeLabels | quote }}}'
+    # Append per-pool kubelet taints to the worker bootstrap, mirroring the
+    # node-labels patch above. Adds `--register-with-taints=<workerNodeTaints>`
+    # for any MachineDeployment that sets the variable (no-op otherwise). This
+    # is how the stable-egress gateway pool registers tainted so only tolerating
+    # workloads schedule on it.
+    - name: KubeadmConfigTemplateWorkerNodeTaints
+      enabledIf: '{{ if ne .workerNodeTaints "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              valueFrom:
+                template: '{"name":"register-with-taints","value":{{ .workerNodeTaints | quote }}}'
+    # Configure the resolver file through the kubelet's supported flag for
+    # every cloud-worker MachineDeployment in a Cluster that sets the value.
+    - name: KubeadmConfigTemplateWorkerResolvConf
+      enabledIf: '{{ if ne .workerResolvConf "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              valueFrom:
+                template: '{"name":"resolv-conf","value":{{ .workerResolvConf | quote }}}'
     # Inject the per-cluster gate into the shared bare-metal HBMM
     # template. `hetzner-robot-controller` stamps each HBM with
     # `tuist.dev/cluster=<env>` based on the Robot server name; the
@@ -430,6 +577,25 @@ spec:
               path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs"
               valueFrom:
                 template: '[{"name": "kubelet-preferred-address-types", "value": {{ .kubeletPreferredAddressTypes | quote }} }]'
+    # kubeadm's local-mode join points the bootstrap kubelet at the new node's
+    # control-plane endpoint before that endpoint exists. On the affected
+    # Hetzner nodes, the kubelet cannot finish its certificate bootstrap, so
+    # the local etcd learner never starts and kubeadm aborts the join. This
+    # opt-in patch restores the established load-balancer bootstrap path per
+    # environment.
+    - name: DisableControlPlaneKubeletLocalMode
+      enabledIf: "{{ if .disableControlPlaneKubeletLocalMode }}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+            kind: KubeadmControlPlaneTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/featureGates"
+              valueFrom:
+                template: '{"ControlPlaneKubeletLocalMode": false}'
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: HetznerClusterTemplate
@@ -529,11 +695,11 @@ spec:
           # gets cleared. Critical fields below are required for kubelet
           # to talk to containerd (containerRuntimeEndpoint), watch
           # static pods (staticPodPath), and resolve in-cluster DNS
-          # (clusterDNS / clusterDomain). resolvConf is intentionally
-          # unset so kubelet falls back to the host's /etc/resolv.conf,
-          # which DHCP populates with Hetzner's resolvers (185.12.64.1,
-          # 185.12.64.2 + IPv6) — multi-IP, dual-stack, one network hop
-          # away.
+          # (clusterDNS / clusterDomain). resolvConf must point at the
+          # systemd-resolved upstream file. /etc/resolv.conf points at
+          # the host-local 127.0.0.53 stub, which is unreachable from a
+          # pod network namespace and makes CoreDNS detect a forwarding
+          # loop when it is scheduled on that node.
           - content: |
               apiVersion: kubelet.config.k8s.io/v1beta1
               kind: KubeletConfiguration
@@ -724,8 +890,9 @@ spec:
           owner: root:root
           path: /etc/sysctl.d/99-kubelet.conf
           permissions: "0744"
-        # See KCP files block above for why these fields are mandatory
-        # and why resolvConf is intentionally unset.
+        # See the control-plane files block above for why these fields
+        # are mandatory. The workerResolvConf ClusterClass variable supplies
+        # the kubelet's resolver-file flag.
         - content: |
             apiVersion: kubelet.config.k8s.io/v1beta1
             kind: KubeletConfiguration

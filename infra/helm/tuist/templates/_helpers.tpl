@@ -167,6 +167,66 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "object-stora
 {{- end -}}
 {{- end -}}
 
+{{/*
+S3 storage driver env for a CNCF `distribution` registry. Used by the
+Docker Hub pull-through cache (registryCache). Kept as a helper rather
+than inlined because the credential branching is fiddly and a second
+registry component would need exactly the same env.
+
+Call with the component's `s3` values:
+
+  {{- include "tuist.registryStorageEnv" (dict "root" . "s3" .Values.registryCache.s3) | nindent 12 }}
+*/}}
+{{- define "tuist.registryStorageEnv" -}}
+{{- $root := .root -}}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" $root -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" $root -}}
+- name: REGISTRY_STORAGE
+  value: s3
+- name: REGISTRY_STORAGE_S3_REGION
+  value: {{ include "tuist.objectStorageRegion" $root | quote }}
+- name: REGISTRY_STORAGE_S3_REGIONENDPOINT
+  value: {{ include "tuist.objectStorageEndpoint" $root | quote }}
+- name: REGISTRY_STORAGE_S3_FORCEPATHSTYLE
+  value: "true"
+# Embedded MinIO is plain http (:9000); external object stores
+# (Tigris) are https. Drive TLS off the storage mode so the S3
+# driver doesn't try to speak TLS to an http endpoint.
+- name: REGISTRY_STORAGE_S3_SECURE
+  value: {{ ternary "false" "true" (eq $root.Values.objectStorage.mode "embedded") | quote }}
+- name: REGISTRY_STORAGE_S3_BUCKET
+  value: {{ .s3.bucket | quote }}
+- name: REGISTRY_STORAGE_S3_ROOTDIRECTORY
+  value: {{ .s3.rootDirectory | quote }}
+{{- if and (eq $root.Values.objectStorage.mode "external") $root.Values.objectStorage.external.managedSecrets }}
+# Managed envs: the real S3 creds live in the ESO-synced
+# object-storage-external-secrets Secret. app-secrets carries
+# only the (empty) values-supplied key, so the registry must read
+# from here — same branch the server uses.
+- name: REGISTRY_STORAGE_S3_ACCESSKEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" $root "component" "object-storage-external-secrets") }}
+      key: object-storage-access-key
+- name: REGISTRY_STORAGE_S3_SECRETKEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" $root "component" "object-storage-external-secrets") }}
+      key: object-storage-secret-key
+{{- else if and $objectStorageAccessKey $objectStorageSecretKey }}
+- name: REGISTRY_STORAGE_S3_ACCESSKEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" $root "component" "app-secrets") }}
+      key: object-storage-access-key
+- name: REGISTRY_STORAGE_S3_SECRETKEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" $root "component" "app-secrets") }}
+      key: object-storage-secret-key
+{{- end }}
+{{- end -}}
+
 {{- define "tuist.objectStorageBucketDefault" -}}
 {{- if eq .Values.objectStorage.mode "embedded" -}}
 {{- .Values.objectStorage.embedded.buckets.default -}}
@@ -411,26 +471,41 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collect
 Kura OAuth introspection client env vars. The values are sourced from
 one of:
 
-  1. The kura-shared-secrets Secret in this release's namespace when this
+  1. An explicitly named Secret in this release's namespace when
+     server.kuraIntrospection.secretName is set.
+
+  2. The kura-shared-secrets Secret in this release's namespace when this
      release installs the kuraController (managed envs: one release runs
      both server and controller in their respective namespaces, the
      chart mirrors the Secret into the server namespace).
 
-  2. The kura-shared-secrets Secret in this release's namespace when
+  3. The kura-shared-secrets Secret in this release's namespace when
      server.kuraIntrospection.useSharedSecret is true (preview envs:
      the kuraController is installed once at platform level into the
      `kura` namespace, and the deploy workflow copies the Secret into
      this release's namespace before installing the chart).
 
-  3. The server-external-secrets ESO Secret when
+  4. The server-external-secrets ESO Secret when
      server.externalSecrets.kuraIntrospection.item is set.
 
 */}}
 {{- define "tuist.kuraIntrospectionEnv" -}}
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
 {{- $kuraSharedSecret := "kura-shared-secrets" -}}
+{{- $explicitSecret := .Values.server.kuraIntrospection.secretName | default "" -}}
 {{- $useShared := or (and .Values.kuraController.enabled .Values.kuraController.sharedSecrets.enabled .Values.kuraController.sharedSecrets.kuraIntrospection.enabled) .Values.server.kuraIntrospection.useSharedSecret -}}
-{{- if $useShared }}
+{{- if ne $explicitSecret "" }}
+- name: KURA_CONTROL_PLANE_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $explicitSecret | quote }}
+      key: KURA_CONTROL_PLANE_CLIENT_ID
+- name: KURA_CONTROL_PLANE_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $explicitSecret | quote }}
+      key: KURA_CONTROL_PLANE_CLIENT_SECRET
+{{- else if $useShared }}
 - name: KURA_CONTROL_PLANE_CLIENT_ID
   valueFrom:
     secretKeyRef:
@@ -456,32 +531,54 @@ one of:
 {{- end }}
 
 {{/*
-License env vars. Resolves to (in order):
-  1. ESO-managed Secret (server.externalSecrets.license.item set) — preview /
-     managed envs that sync the license from 1Password via
-     templates/external-secrets.yaml.
-  2. Chart-managed app-secrets Secret — when server.license.key is inlined.
+License env vars. Resolves to one mutually exclusive source:
+  1. ESO-managed Secret (server.externalSecrets.license.item or
+     server.externalSecrets.license.certificateItem set) for managed
+     environments that sync the license from 1Password.
+  2. Chart-managed app-secrets Secret when server.license.key or
+     server.license.certificateBase64 is inlined.
 */}}
 {{- define "tuist.licenseEnv" -}}
 {{- $appSecret := include "tuist.componentName" (dict "root" . "component" "app-secrets") -}}
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
-{{- $useEso := ne (.Values.server.externalSecrets.license.item | default "") "" -}}
-{{- if and $useEso .Values.server.license.key -}}
-{{- fail "server.externalSecrets.license.item and server.license.key are mutually exclusive — pick one license source." -}}
+{{- $useEsoKey := ne (.Values.server.externalSecrets.license.item | default "") "" -}}
+{{- $useEsoCertificate := ne (.Values.server.externalSecrets.license.certificateItem | default "") "" -}}
+{{- $useEsoVerifyKey := ne (.Values.server.externalSecrets.license.verifyKeyItem | default "") "" -}}
+{{- $useInlineKey := ne (.Values.server.license.key | default "") "" -}}
+{{- $useInlineCertificate := ne (.Values.server.license.certificateBase64 | default "") "" -}}
+{{- $useInlineVerifyKey := ne (.Values.server.license.verifyKey | default "") "" -}}
+{{- if and $useEsoKey $useEsoCertificate -}}
+{{- fail "server.externalSecrets.license.item and server.externalSecrets.license.certificateItem are mutually exclusive; pick one license source." -}}
 {{- end -}}
-{{- if or $useEso .Values.server.license.key }}
+{{- if and (or $useEsoKey $useEsoCertificate) (or $useInlineKey $useInlineCertificate) -}}
+{{- fail "external and inline license settings are mutually exclusive; pick one license source." -}}
+{{- end -}}
+{{- if and $useInlineKey $useInlineCertificate -}}
+{{- fail "server.license.key and server.license.certificateBase64 are mutually exclusive; pick one license source." -}}
+{{- end -}}
+{{- if not (or $useEsoKey $useEsoCertificate $useInlineKey $useInlineCertificate) -}}
+{{- fail "no Tuist license source is configured; set exactly one online key or air-gapped certificate source." -}}
+{{- end -}}
+{{- if or $useEsoKey $useInlineKey }}
 - name: TUIST_LICENSE_KEY
   valueFrom:
     secretKeyRef:
-      name: {{ ternary $esoSecret $appSecret $useEso | quote }}
+      name: {{ ternary $esoSecret $appSecret $useEsoKey | quote }}
       key: server-license-key
 {{- end }}
-{{- if .Values.server.license.certificateBase64 }}
+{{- if or $useEsoCertificate $useInlineCertificate }}
 - name: TUIST_LICENSE_CERTIFICATE_BASE64
   valueFrom:
     secretKeyRef:
-      name: {{ $appSecret | quote }}
+      name: {{ ternary $esoSecret $appSecret $useEsoCertificate | quote }}
       key: server-license-certificate-base64
+{{- end }}
+{{- if or $useEsoVerifyKey $useInlineVerifyKey }}
+- name: TUIST_LICENSE_VERIFY_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ ternary $esoSecret $appSecret $useEsoVerifyKey | quote }}
+      key: server-license-verify-key
 {{- end }}
 {{- end -}}
 
@@ -567,9 +664,33 @@ own way).
 {{- end -}}
 
 {{/*
-ClickHouse repo pool sizes are non-secret operational knobs. Render them from
-chart values so the server, migration, processor, and xcresult-processor pods
-stay aligned without relying on the runtime secret bundle.
+Stable credential and desired identifiers for the managed ClickHouse operator
+user. The migration job consumes the same values as the web server, so every
+release converges the database user before the new pods start.
+*/}}
+{{- define "tuist.opsClickHouseSecretName" -}}
+{{- .Values.server.config.opsClickHouse.existingSecret | default (include "tuist.componentName" (dict "root" . "component" "clickhouse-ops")) -}}
+{{- end -}}
+
+{{- define "tuist.opsClickHouseEnv" -}}
+{{- if and .Values.server.enabled .Values.server.config.opsClickHouse.enabled }}
+- name: TUIST_OPS_CLICKHOUSE_USERNAME
+  value: {{ required "server.config.opsClickHouse.username is required when enabled" .Values.server.config.opsClickHouse.username | quote }}
+- name: TUIST_OPS_CLICKHOUSE_ROLE
+  value: {{ required "server.config.opsClickHouse.role is required when enabled" .Values.server.config.opsClickHouse.role | quote }}
+- name: TUIST_OPS_CLICKHOUSE_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.opsClickHouseSecretName" . }}
+      key: {{ .Values.server.config.opsClickHouse.passwordKey | default "password" | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
+ClickHouse repo pool sizes and the shared user memory budget are non-secret
+operational knobs. Render them from chart values so the server, migration,
+processor, and xcresult-processor pods stay aligned without relying on the
+runtime secret bundle.
 */}}
 {{- define "tuist.clickhousePoolEnv" -}}
 {{- with .Values.clickhouse.poolSize }}
@@ -580,15 +701,19 @@ stay aligned without relying on the runtime secret bundle.
 - name: TUIST_CLICKHOUSE_BUFFER_POOL_SIZE
   value: {{ . | quote }}
 {{- end }}
+{{- with .Values.clickhouse.maxMemoryUsageForUserBytes }}
+- name: TUIST_CLICKHOUSE_MAX_MEMORY_USAGE_FOR_USER_BYTES
+  value: {{ . | quote }}
+{{- end }}
 {{- end -}}
 
 {{/*
 Stripe price IDs. These are not secrets (just identifiers for the products in
 Stripe), so they live in chart values as a readable plan -> category -> [ids]
-map instead of the secret store. `Tuist.Environment.stripe_prices/1` reads
-TUIST_STRIPE_PRICES as a JSON string, so the chart just JSON-encodes the map.
-Emits nothing when server.stripe.prices is empty (self-hosted installs without
-Stripe).
+map plus a top-level runner meter event name -> price id map instead of the
+secret store. `Tuist.Environment.stripe_prices/1` reads TUIST_STRIPE_PRICES as
+a JSON string, so the chart just JSON-encodes the map. Emits nothing when
+server.stripe.prices is empty (self-hosted installs without Stripe).
 */}}
 {{- define "tuist.stripePricesEnv" -}}
 {{- with .Values.server.stripe.prices }}

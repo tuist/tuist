@@ -23,7 +23,11 @@ APPLE_PASSWORD=$(op read "op://tuist/App Specific Password/password")
 TEAM_ID='U6LC622NKF'
 ASC_PROVIDER=PedroPieraBuendia211042238 # Obtained with xcrun altool -list-providers
 CERTIFICATE_NAME="Developer ID Application: Tuist GmbH (U6LC622NKF)"
-DERIVED_DATA_PATH=$TMP_DIR/derived-data
+# Until Xcode 27's prefix mapping lands, a compilation-cache key embeds the
+# DerivedData path, so a per-run temporary path gives every task a key no other
+# run can match and the build misses the cache entirely. Keep this stable and
+# repo-relative; $TMP_DIR stays for the keychain and certificate material.
+DERIVED_DATA_PATH=$BUILD_DIRECTORY/derived-data
 export TUIST_EE=1
 KEYCHAIN_PATH=$TMP_DIR/keychain.keychain
 KEYCHAIN_PASSWORD=$(uuidgen)
@@ -97,6 +101,14 @@ bundle_swift_runtime_libraries() {
     fi
 }
 
+strip_release_binaries() {
+    strip -rSTx \
+        "$BUILD_DIRECTORY/tuist" \
+        "$BUILD_DIRECTORY/ProjectDescription.framework/ProjectDescription" \
+        "$BUILD_DIRECTORY/libtuist_cas_plugin.dylib" \
+        "$BUILD_DIRECTORY/tuist-cas-proxy"
+}
+
 # Builds the cas-plugin (Xcode compilation-cache CAS plugin) as a universal
 # dylib, plus the per-machine proxy binary, both bundled next to `tuist`. The
 # CLI points Xcode's compilation caching at the dylib via
@@ -142,6 +154,9 @@ build_cas_plugin
 
 echo "$(format_subsection "Bundling Swift runtime libraries")"
 bundle_swift_runtime_libraries
+
+echo "$(format_subsection "Stripping release binaries")"
+strip_release_binaries
 
 echo "$(format_section "Copying assets")"
 

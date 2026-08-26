@@ -21,8 +21,10 @@ public enum SaveCacheCASServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
+    case freeTierExhausted(String)
     case notFound(String)
     case badRequest(String)
+    case unprocessableContent(String)
     case requestTimeout(String)
     case contentTooLarge(String)
     case internalServerError(String)
@@ -33,8 +35,10 @@ public enum SaveCacheCASServiceError: LocalizedError {
             return "The CAS artifact could not be uploaded due to an unknown Tuist response of \(statusCode)."
         case let .unauthorized(message),
              let .forbidden(message),
+             let .freeTierExhausted(message),
              let .notFound(message),
              let .badRequest(message),
+             let .unprocessableContent(message),
              let .requestTimeout(message),
              let .contentTooLarge(message),
              let .internalServerError(message):
@@ -70,10 +74,11 @@ public struct SaveCacheCASService: SaveCacheCASServicing {
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
             serverAuthenticationController: serverAuthenticationController,
-            session: .tuistCAS
+            session: .tuistCAS,
+            fullHandle: fullHandle
         )
         let handles = try fullHandleService.parse(fullHandle)
-        let response = try await client.saveCASArtifact(
+        let response = try await client.saveXcodeArtifact(
             .init(
                 path: .init(id: casId),
                 query: .init(
@@ -96,10 +101,10 @@ public struct SaveCacheCASService: SaveCacheCASServicing {
             case let .json(error):
                 throw SaveCacheCASServiceError.forbidden(error.message)
             }
-        case let .badRequest(badRequest):
-            switch badRequest.body {
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
             case let .json(error):
-                throw SaveCacheCASServiceError.badRequest(error.message)
+                throw SaveCacheCASServiceError.freeTierExhausted(error.message)
             }
         case let .requestTimeout(timeout):
             switch timeout.body {
@@ -115,6 +120,11 @@ public struct SaveCacheCASService: SaveCacheCASServicing {
             switch serverError.body {
             case let .json(error):
                 throw SaveCacheCASServiceError.internalServerError(error.message)
+            }
+        case let .unprocessableContent(unprocessableContent):
+            switch unprocessableContent.body {
+            case let .json(error):
+                throw SaveCacheCASServiceError.unprocessableContent(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw SaveCacheCASServiceError.unknownError(statusCode)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #MISE description="Bootstrap a freshly-provisioned workload cluster end-to-end (CNI, CCM, CSI, platform, monitoring, and app bits when needed). Idempotent."
-#USAGE arg "<cluster_name>" help="Cluster name (e.g. tuist-staging-2, tuist-canary, tuist, tuist-preview)"
-#USAGE arg "<env>" help="Helm values overlay (staging | canary | production | preview)"
+#USAGE arg "<cluster_name>" help="Cluster name (e.g. tuist-staging-2, tuist-canary, tuist, tuist-preview, tuist-pentest)"
+#USAGE arg "<env>" help="Helm values overlay (staging | canary | production | preview | pentest)"
 #USAGE arg "[kubeconfig_item]" help="Optional 1Password document title for the workload kubeconfig"
 
 # End-to-end workload-cluster bootstrap. Run AFTER:
@@ -11,13 +11,14 @@
 # What this does:
 #   1. Extract the workload kubeconfig + API endpoint from the mgmt
 #      cluster's ClusterCR + minted Secret.
-#   2. Install Cilium (must be first — nothing networks without it).
+#   2. Install Cilium.
 #   3. Create the legacy `hetzner` Secret on the workload cluster and
 #      wait for caph's `hcloud` Secret. HCCM + CSI read `hcloud`.
 #   4. Install hcloud-cloud-controller-manager (sets providerID,
 #      enables LoadBalancer Services).
-#   5. Install hcloud-csi-driver (for parity; no PVCs use it today).
-#   6. Wait for nodes to go Ready (CNI- and CCM-dependent).
+#   5. Wait for CAPI machines and workload nodes to go Ready (CNI- and
+#      CCM-dependent).
+#   6. Install hcloud-csi-driver (for parity; no PVCs use it today).
 #   7. Install the platform chart (cert-manager, ESO, external-dns,
 #      metrics-server, and ingress-nginx only for app-serving clusters).
 #   8. Install Cluster API core for the Mac mini fleet substrate.
@@ -25,7 +26,7 @@
 #      Secret + ClusterSecretStore so ESO can pull from 1Password.
 #  10. Install the monitoring chart (Grafana Cloud agent).
 #  11. App-serving clusters: pre-create the app namespace.
-#  12. App-serving clusters: install the Cloudflare origin cert TLS Secret.
+#  12. Non-pentest app clusters: install the shared Cloudflare origin cert TLS Secret.
 #  13. Smoke ingress + upload the workload kubeconfig to 1Password.
 #
 # Idempotent: re-running is safe; helm upgrades in-place, kubectl
@@ -35,8 +36,8 @@ set -euo pipefail
 
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
   echo "Usage: $0 <cluster_name> <env> [kubeconfig_item]" >&2
-  echo "  cluster_name:     tuist-staging-2, tuist-canary, tuist, tuist-preview" >&2
-  echo "  env:              staging | canary | production | preview" >&2
+  echo "  cluster_name:     tuist-staging-2, tuist-canary, tuist, tuist-preview, tuist-pentest" >&2
+  echo "  env:              staging | canary | production | preview | pentest" >&2
   echo "  kubeconfig_item:  optional 1Password document title, defaults to 'kubeconfig: tuist-<env>'" >&2
   exit 64
 fi
@@ -51,8 +52,8 @@ MGMT_KUBECONFIG="${MGMT_KUBECONFIG:-$HOME/.kube/tuist-mgmt.yaml}"
 WL_KUBECONFIG="$HOME/.kube/${CLUSTER_NAME}.yaml"
 
 case "$ENV" in
-  staging|canary|production|preview) ;;
-  *) echo "ERROR: env must be one of staging|canary|production|preview" >&2; exit 64 ;;
+  staging|canary|production|preview|pentest) ;;
+  *) echo "ERROR: env must be one of staging|canary|production|preview|pentest" >&2; exit 64 ;;
 esac
 
 # Map env -> 1Password vault name.
@@ -61,15 +62,24 @@ case "$ENV" in
   canary)     VAULT_NAME="tuist-k8s-canary"     ;  OP_TOKEN_ID="6o5lcwgudi6qtt2754svzh7jka" ;;
   production) VAULT_NAME="tuist-k8s-production" ;  OP_TOKEN_ID="gunhzznxo73w2p3hy6t46nihym" ;;
   preview)    VAULT_NAME="tuist-k8s-preview"    ;  OP_TOKEN_ID="skxlwhsvmnqqvrmiqzlxs7fqru" ;;
+  # Pentest credentials must be created specifically for this environment;
+  # do not reuse another environment's 1Password service account. The item
+  # identifier is supplied by the operator after provisioning the vault.
+  pentest)    VAULT_NAME="${PENTEST_VAULT_NAME:-tuist-k8s-pentest}" ; OP_TOKEN_ID="${PENTEST_OP_TOKEN_ID:-}" ;;
 esac
 # OP_TOKEN_ID points at the per-env "Service Account Auth Token: tuist-<env>-k8s"
 # 1P item, addressed by UUID because the colon in the title trips up `op read`.
+
+if [ "$ENV" = "pentest" ] && [ -z "$OP_TOKEN_ID" ]; then
+  echo "ERROR: PENTEST_OP_TOKEN_ID must identify the pentest-only 1Password service-account token." >&2
+  exit 64
+fi
 
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 err() { printf '\n\033[1;31mERROR: %s\033[0m\n' "$*" >&2; }
 
 upload_workload_kubeconfig() {
-  local kubeconfig_vault="tuist-k8s-${ENV}"
+  local kubeconfig_vault="$VAULT_NAME"
 
   if op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$kubeconfig_vault" >/dev/null 2>&1; then
     local existing_id
@@ -201,15 +211,7 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hccm hcloud/hcloud-cloud-cont
   --wait --timeout 3m
 
 # ---------------------------------------------------------------------------
-log "Step 5/13: install hcloud-csi-driver"
-
-KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hcloud-csi hcloud/hcloud-csi \
-  --namespace kube-system \
-  -f "$BOOTSTRAP_DIR/hcloud-csi-values.yaml" \
-  --wait --timeout 3m
-
-# ---------------------------------------------------------------------------
-log "Step 6/13: wait for CAPI machines and workload nodes to go Ready"
+log "Step 5/13: wait for CAPI machines and workload nodes to go Ready"
 
 echo -n "Waiting for $EXPECTED_MACHINE_COUNT CAPI Machines to exist"
 MACHINE_COUNT=0
@@ -239,7 +241,78 @@ if ! KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" wait --for=condition=
   exit 1
 fi
 
-KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Ready nodes --all --timeout=5m
+# A CAPI Machine's nodeRef is the authoritative relationship between a live
+# Machine and a workload Node. Previous failed provisioning attempts can leave
+# non-ready Node objects behind even after CAPI removed their Machines. They
+# must not make the bootstrap wait for every Node in the cluster forever, nor
+# remain as targets for the hcloud-csi-node DaemonSet below.
+ACTIVE_NODE_NAMES=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get machines.cluster.x-k8s.io \
+  -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" \
+  -o jsonpath='{range .items[*]}{.status.nodeRef.name}{"\n"}{end}' | awk 'NF')
+ACTIVE_NODE_COUNT=$(printf '%s\n' "$ACTIVE_NODE_NAMES" | awk 'NF { count += 1 } END { print count + 0 }')
+
+if [ "$ACTIVE_NODE_COUNT" -ne "$EXPECTED_MACHINE_COUNT" ]; then
+  err "Only $ACTIVE_NODE_COUNT/$EXPECTED_MACHINE_COUNT ready CAPI Machines have a workload Node reference."
+  exit 1
+fi
+
+# Do not remove an unreferenced workload Node while the management cluster
+# still has a corresponding Hetzner infrastructure object. A mismatch means
+# deletion is still reconciling and needs an operator's investigation rather
+# than a bootstrap shortcut.
+HCLOUD_MACHINE_COUNT=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get hcloudmachines.infrastructure.cluster.x-k8s.io \
+  -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+if [ "$HCLOUD_MACHINE_COUNT" -ne "$EXPECTED_MACHINE_COUNT" ]; then
+  err "Management cluster has $HCLOUD_MACHINE_COUNT/$EXPECTED_MACHINE_COUNT Hetzner infrastructure Machines for $CLUSTER_NAME."
+  err "Refusing to prune workload Nodes while infrastructure deletion is still reconciling."
+  exit 1
+fi
+
+ORPHANED_NODE_NAMES=""
+while IFS= read -r workload_node_name; do
+  [ -z "$workload_node_name" ] && continue
+  node_is_active=false
+  while IFS= read -r active_node_name; do
+    if [ "$workload_node_name" = "$active_node_name" ]; then
+      node_is_active=true
+      break
+    fi
+  done <<< "$ACTIVE_NODE_NAMES"
+
+  if [ "$node_is_active" = false ]; then
+    ORPHANED_NODE_NAMES="${ORPHANED_NODE_NAMES}${workload_node_name}"$'\n'
+  fi
+done < <(KUBECONFIG="$WL_KUBECONFIG" kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
+
+if [ -n "$ORPHANED_NODE_NAMES" ]; then
+  err "Found workload Node objects without a live CAPI Machine reference:"
+  printf '%s' "$ORPHANED_NODE_NAMES" >&2
+
+  if [ "${PRUNE_ORPHANED_NODES:-}" != "1" ]; then
+    err "After verifying these are stale, rerun with PRUNE_ORPHANED_NODES=1 to remove them."
+    exit 1
+  fi
+
+  while IFS= read -r orphaned_node_name; do
+    [ -z "$orphaned_node_name" ] && continue
+    KUBECONFIG="$WL_KUBECONFIG" kubectl delete node "$orphaned_node_name" --wait=false
+  done <<< "$ORPHANED_NODE_NAMES"
+fi
+
+while IFS= read -r active_node_name; do
+  KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Ready "node/$active_node_name" --timeout=5m
+done <<< "$ACTIVE_NODE_NAMES"
+
+# ---------------------------------------------------------------------------
+log "Step 6/13: install hcloud-csi-driver"
+
+# hcloud-csi-node is a DaemonSet. Helm's --wait therefore includes every
+# matching node in the readiness target. Waiting for CAPI first prevents a
+# fresh cluster from timing out while worker nodes are still joining.
+KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hcloud-csi hcloud/hcloud-csi \
+  --namespace kube-system \
+  -f "$BOOTSTRAP_DIR/hcloud-csi-values.yaml" \
+  --wait --timeout 3m
 
 # ---------------------------------------------------------------------------
 log "Step 7/13: install shared platform chart"
@@ -375,6 +448,10 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl create namespace "$APP_NAMESPACE" --dry-run=
   KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
 
 # ---------------------------------------------------------------------------
+# The pentest cluster uses certificate-manager DNS validation to issue separate
+# exact-host certificates. Do not copy the shared wildcard origin private key
+# into an environment intentionally exposed to external security testing.
+if [ "$ENV" != "pentest" ]; then
 log "Step 12/13: install Cloudflare origin cert as TLS Secret"
 
 # Cloudflare-proxied DNS (the orange cloud) requires the origin to
@@ -406,6 +483,9 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl -n "$APP_NAMESPACE" create secret tls tuist-
   --cert="$CERT_TMP" --key="$KEY_TMP" \
   --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
 rm -f "$CERT_TMP" "$KEY_TMP"
+else
+  log "Step 12/13: skip shared Cloudflare origin certificate for pentest"
+fi
 
 # ---------------------------------------------------------------------------
 log "Step 13/13: smoke ingress + upload workload kubeconfig to 1Password"
@@ -483,6 +563,7 @@ to point at $LB_IP.
   canary    -> canary.tuist.dev
   production -> tuist.dev (and any apex aliases)
   preview   -> ExternalDNS reconciles *.preview.tuist.dev from the ingress Service
+  pentest   -> pentest.tuist.dev (plus registry-pentest.tuist.dev and kura-pentest.tuist.dev)
 
 Verify the certificate and ingress on the new cluster (domain cut not needed for this):
   curl -k --resolve "staging.tuist.dev:443:$LB_IP" https://staging.tuist.dev/health

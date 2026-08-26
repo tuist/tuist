@@ -1,7 +1,10 @@
 import Command
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Testing
 import struct TSCUtility.Version
 import TuistAlert
 import TuistAutomation
@@ -169,7 +172,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -546,6 +551,15 @@ final class TestServiceTests: TuistUnitTestCase {
                     MapperEnvironment()
                 )
             }
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(
+                .test(target: .test(destinations: [.iPhone, .mac]))
+            )
         given(simulatorController)
             .findAvailableDevice(udid: .any)
             .willReturn(.test(device: .test(name: "Test iPhone")))
@@ -2850,110 +2864,6 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(testedSchemes, [])
     }
 
-    func test_run_without_scheme_uses_project_schemes_when_workspace_scheme_contains_hostless_unit_tests() async throws {
-        // Given
-        let appProjectPath = try temporaryPath().appending(component: "App")
-        let featureProjectPath = try temporaryPath().appending(component: "Feature")
-        let app = Target.test(name: "App", product: .app)
-        let appTests = Target.test(name: "AppTests", product: .unitTests)
-        let feature = Target.test(name: "Feature", product: .framework)
-        let featureTests = Target.test(name: "FeatureTests", product: .unitTests)
-        let appTestsReference = TargetReference(projectPath: appProjectPath, name: appTests.name)
-        let featureTestsReference = TargetReference(projectPath: featureProjectPath, name: featureTests.name)
-        let appScheme = Scheme.test(
-            name: "App",
-            testAction: .test(targets: [.test(target: appTestsReference)])
-        )
-        let featureScheme = Scheme.test(
-            name: "Feature",
-            testAction: .test(targets: [.test(target: featureTestsReference)])
-        )
-        let workspaceScheme = Scheme.test(
-            name: "Sample-Workspace",
-            testAction: .test(
-                targets: [
-                    .test(target: appTestsReference),
-                    .test(target: featureTestsReference),
-                ]
-            )
-        )
-        let appProject = Project.test(
-            path: appProjectPath,
-            targets: [app, appTests],
-            schemes: [appScheme]
-        )
-        let featureProject = Project.test(
-            path: featureProjectPath,
-            targets: [feature, featureTests],
-            schemes: [featureScheme]
-        )
-        let workspace = Workspace.test(
-            name: "Sample",
-            projects: [appProjectPath, featureProjectPath],
-            schemes: [workspaceScheme]
-        )
-        let graph = Graph.test(
-            workspace: workspace,
-            projects: [
-                appProjectPath: appProject,
-                featureProjectPath: featureProject,
-            ],
-            dependencies: [
-                .target(name: appTests.name, path: appProjectPath): [
-                    .target(name: app.name, path: appProjectPath),
-                ],
-                .target(name: featureTests.name, path: featureProjectPath): [
-                    .target(name: feature.name, path: featureProjectPath),
-                ],
-            ]
-        )
-
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(project: .testGeneratedProject()))
-        given(generatorFactory)
-            .testing(
-                config: .any,
-                testPlan: .any,
-                includedTargets: .any,
-                excludedTargets: .any,
-                skipUITests: .any,
-                skipUnitTests: .any,
-                configuration: .any,
-                ignoreBinaryCache: .any,
-                ignoreSelectiveTesting: .any,
-                cacheStorage: .any,
-                destination: .any,
-                schemeName: .any
-            )
-            .willReturn(generator)
-        given(generator)
-            .generateWithGraph(path: .any, options: .any)
-            .willProduce { path, _ in (path, graph, MapperEnvironment()) }
-        given(buildGraphInspector)
-            .testableSchemes(graphTraverser: .any)
-            .willReturn([appScheme, featureScheme, workspaceScheme])
-        given(buildGraphInspector)
-            .workspaceSchemes(graphTraverser: .any)
-            .willReturn([workspaceScheme])
-
-        // When
-        try await testRun(path: try temporaryPath())
-
-        // Then
-        XCTAssertEqual(testedSchemes, ["App", "Feature"])
-
-        // When
-        testedSchemes = []
-        try await testRun(
-            path: try temporaryPath(),
-            testTargets: [try TestIdentifier(target: "FeatureTests", class: nil)]
-        )
-
-        // Then
-        XCTAssertEqual(testedSchemes, ["Feature"])
-    }
-
     func test_run_skips_xcodebuild_when_passthrough_skip_testing_removes_all_selective_targets() async throws {
         // Given — selective testing has filtered the graph so that only "SkippedTarget"
         // remains in the scheme. The user also passes `-skip-testing:SkippedTarget` as a
@@ -3902,6 +3812,184 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    /// Builds a scheme whose test action contains `TargetA` (enabled) and `TargetB` (disabled),
+    /// both carrying a selective-testing hash. `makeTestAction` decides how the two testables are
+    /// attached so each test can pin a different branch of `testActionTargetReferences`.
+    private func givenSchemeWithSkippedTestable(
+        makeTestAction: (TestableTarget, TestableTarget) -> TestAction
+    ) throws -> AbsolutePath {
+        let projectPath = try temporaryPath().appending(component: "Project")
+        let targetA = TestableTarget.test(
+            target: TargetReference(projectPath: projectPath, name: "TargetA")
+        )
+        let targetB = TestableTarget.test(
+            target: TargetReference(projectPath: projectPath, name: "TargetB"),
+            skipped: true
+        )
+        let scheme = Scheme.test(name: "TestScheme", testAction: makeTestAction(targetA, targetB))
+
+        let graph: Graph = .test(
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(name: "TargetA", bundleId: "dev.tuist.TargetA"),
+                        .test(name: "TargetB", bundleId: "dev.tuist.TargetB"),
+                    ],
+                    schemes: [scheme]
+                ),
+            ]
+        )
+
+        var environment = MapperEnvironment()
+        environment.initialGraph = graph
+        environment.targetTestHashes = [
+            projectPath: [
+                "TargetA": "hash-a",
+                "TargetB": "hash-b",
+            ],
+        ]
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in (path, graph, environment) }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willProduce { scheme, _, _, _, _, _ in
+                GraphTarget.test(target: Target.test(name: scheme.name))
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        return projectPath
+    }
+
+    /// The disabled testable must be absent entirely — only `TargetA` may be reported, and it must
+    /// be reported as a miss rather than silently dropped along with the skipped one.
+    private func assertOnlyEnabledTargetReported(
+        projectPath: AbsolutePath,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+        XCTAssertEqual(
+            selectiveTestingCacheItems,
+            [
+                projectPath: [
+                    "TargetA": .test(
+                        name: "TargetA",
+                        hash: "hash-a",
+                        source: .miss
+                    ),
+                ],
+            ],
+            file: file,
+            line: line
+        )
+    }
+
+    func test_run_test_plan_does_not_report_skipped_targets_as_selective_testing_misses() async throws {
+        // Given
+        givenGenerator()
+        let testPlanPath = try AbsolutePath(validating: "/testPlan/TestPlan")
+        let projectPath = try givenSchemeWithSkippedTestable { targetA, targetB in
+            .test(
+                targets: [],
+                testPlans: [.init(path: testPlanPath, testTargets: [targetA, targetB], isDefault: true)]
+            )
+        }
+
+        // When: naming the plan exercises the named-plan branch.
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath(),
+            testPlanConfiguration: TestPlanConfiguration(testPlan: "TestPlan")
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["TestScheme"])
+        await assertOnlyEnabledTargetReported(projectPath: projectPath)
+    }
+
+    func test_run_default_test_plan_does_not_report_skipped_targets_as_selective_testing_misses() async throws {
+        // Given
+        givenGenerator()
+        let testPlanPath = try AbsolutePath(validating: "/testPlan/TestPlan")
+        let projectPath = try givenSchemeWithSkippedTestable { targetA, targetB in
+            .test(
+                targets: [],
+                testPlans: [.init(path: testPlanPath, testTargets: [targetA, targetB], isDefault: true)]
+            )
+        }
+
+        // When: testing without naming a plan falls through to the default-plan branch, which is
+        // what plain `tuist test MyScheme` hits.
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath()
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["TestScheme"])
+        await assertOnlyEnabledTargetReported(projectPath: projectPath)
+    }
+
+    func test_build_scheme_with_test_plans_does_not_report_skipped_targets_as_selective_testing_misses() async throws {
+        // Given
+        givenGenerator()
+        let testPlanPath = try AbsolutePath(validating: "/testPlan/TestPlan")
+        let projectPath = try givenSchemeWithSkippedTestable { targetA, targetB in
+            .test(
+                targets: [],
+                testPlans: [.init(path: testPlanPath, testTargets: [targetA, targetB], isDefault: true)]
+            )
+        }
+
+        // When: building without naming a plan exercises the branch that flattens every plan.
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath(),
+            action: .build
+        )
+
+        // Then: the scheme must still be built — dropping the skipped target must not drop the
+        // whole scheme, which is the failure mode this filter is meant to avoid.
+        XCTAssertEqual(testedSchemes, ["TestScheme"])
+        await assertOnlyEnabledTargetReported(projectPath: projectPath)
+    }
+
+    func test_run_scheme_without_test_plans_does_not_report_skipped_targets_as_selective_testing_misses() async throws {
+        // Given
+        givenGenerator()
+        let projectPath = try givenSchemeWithSkippedTestable { targetA, targetB in
+            .test(targets: [targetA, targetB], testPlans: nil)
+        }
+
+        // When: a scheme with no test plans falls through to the test-action targets branch.
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath()
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["TestScheme"])
+        await assertOnlyEnabledTargetReported(projectPath: projectPath)
+    }
+
     func test_build_scheme_with_test_plans_and_no_explicit_targets() async throws {
         // Given
         givenGenerator()
@@ -4169,7 +4257,9 @@ final class TestServiceTests: TuistUnitTestCase {
                     projectDerivedDataDirectory: .any,
                     config: .any,
                     shardPlanId: .any,
-                    shardIndex: .any
+                    shardIndex: .any,
+                    onlyTestIdentifiers: .any,
+                    skipTestIdentifiers: .any
                 )
                 .willThrow(TestError("Inspect failed"))
 
@@ -4718,6 +4808,342 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_testWithoutBuilding_fromBundle_routesSelectiveTestHashesToLocalStorage_whenNoUpload() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["MyTests": "abc123"]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        try JSONEncoder().encode(selectiveTestingGraph).write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .passed,
+                    duration: nil,
+                    testModules: [
+                        TestModule(
+                            name: "MyTests",
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testExample",
+                                    testSuite: nil,
+                                    module: "MyTests",
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
+            )
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
+
+        let localCacheStorage = MockCacheStoring()
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(localCacheStorage)
+        given(localCacheStorage)
+            .store(.any, cacheCategory: .any)
+            .willReturn([])
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                noUpload: true,
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then — hashes stored to the local cache, never the remote cache
+        verify(localCacheStorage)
+            .store(
+                .value([CacheStorableItem(name: "MyTests", hash: "abc123"): []]),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+        verify(cacheStorage)
+            .store(.any, cacheCategory: .any)
+            .called(0)
+    }
+
+    func test_run_testWithoutBuilding_shard_routesSelectiveTestHashesToLocalStorage_whenNoUpload() async throws {
+        // Given
+        let path = try temporaryPath()
+        let extractedTestProductsPath = path.appending(component: "Extracted.xctestproducts")
+        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        given(shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: ["AppTests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppTests"],
+                    selectiveTestingGraph: SelectiveTestingGraph(testTargetHashes: ["AppTests": "abc123"])
+                )
+            )
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .passed,
+                    duration: nil,
+                    testModules: [
+                        TestModule(
+                            name: "AppTests",
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testExample",
+                                    testSuite: nil,
+                                    module: "AppTests",
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
+            )
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
+
+        let localCacheStorage = MockCacheStoring()
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(localCacheStorage)
+        given(localCacheStorage)
+            .store(.any, cacheCategory: .any)
+            .willReturn([])
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                noUpload: true,
+                path: path,
+                action: .testWithoutBuilding,
+                shardIndex: 0
+            )
+        }
+
+        // Then — hashes stored to the local cache, never the remote cache
+        verify(localCacheStorage)
+            .store(
+                .value([CacheStorableItem(name: "AppTests", hash: "abc123"): []]),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+        verify(cacheStorage)
+            .store(.any, cacheCategory: .any)
+            .called(0)
+    }
+
+    func test_run_testWithoutBuilding_fromBundle_uploadsSelectiveTestHashesToRemote_byDefault() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["MyTests": "abc123"]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        try JSONEncoder().encode(selectiveTestingGraph).write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .passed,
+                    duration: nil,
+                    testModules: [
+                        TestModule(
+                            name: "MyTests",
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testExample",
+                                    testSuite: nil,
+                                    module: "MyTests",
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
+            )
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then — without --no-upload, hashes are persisted to the remote cache
+        verify(cacheStorage)
+            .store(
+                .value([CacheStorableItem(name: "MyTests", hash: "abc123"): []]),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+    }
+
+    func test_run_testWithoutBuilding_shard_uploadsSelectiveTestHashesToRemote_byDefault() async throws {
+        // Given
+        let path = try temporaryPath()
+        let extractedTestProductsPath = path.appending(component: "Extracted.xctestproducts")
+        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        given(shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: ["AppTests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppTests"],
+                    selectiveTestingGraph: SelectiveTestingGraph(testTargetHashes: ["AppTests": "abc123"])
+                )
+            )
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .passed,
+                    duration: nil,
+                    testModules: [
+                        TestModule(
+                            name: "AppTests",
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testExample",
+                                    testSuite: nil,
+                                    module: "AppTests",
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
+            )
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                shardIndex: 0
+            )
+        }
+
+        // Then — without --no-upload, hashes are persisted to the remote cache
+        verify(cacheStorage)
+            .store(
+                .value([CacheStorableItem(name: "AppTests", hash: "abc123"): []]),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+    }
+
     func test_run_testWithoutBuilding_restoresRunMetadata_fromBundle() async throws {
         // Given
         let path = try temporaryPath()
@@ -4938,7 +5364,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 ciHost: .any,
                 ciProvider: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -4983,7 +5411,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 ciHost: .any,
                 ciProvider: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .called(1)
     }
@@ -5244,6 +5674,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(shardPlanService)
             .plan(
                 xctestproductsPath: .any,
+                projectPath: .any,
                 reference: .any,
                 shardGranularity: .any,
                 shardMin: .any,
@@ -5280,6 +5711,7 @@ final class TestServiceTests: TuistUnitTestCase {
         verify(shardPlanService)
             .plan(
                 xctestproductsPath: .value(testProductsPath),
+                projectPath: .any,
                 reference: .any,
                 shardGranularity: .any,
                 shardMin: .any,
@@ -5417,6 +5849,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any,
                 reference: .any,
+                shardPlanId: .any,
                 testProductsPath: .any,
                 testProductsArchivePath: .any
             )
@@ -5460,65 +5893,6 @@ final class TestServiceTests: TuistUnitTestCase {
             .run(arguments: .matching { args in
                 args.containsConsecutive("-only-testing", "AppTests")
             })
-            .called(1)
-    }
-
-    func test_run_testWithoutBuilding_passesShardArchivePathToShardService() async throws {
-        // Given
-        let path = try temporaryPath()
-        let shardArchivePath = path.appending(component: "bundle.aar")
-        let extractedTestProductsPath = path.appending(component: "Extracted.xctestproducts")
-        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
-
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
-
-        given(shardService)
-            .shard(
-                shardIndex: .any,
-                fullHandle: .any,
-                serverURL: .any,
-                reference: .any,
-                testProductsPath: .any,
-                testProductsArchivePath: .any
-            )
-            .willReturn(
-                Shard(
-                    reference: "ref",
-                    shardPlanId: "plan-123",
-                    testProductsPath: extractedTestProductsPath,
-                    testIdentifiers: ["AppTests"],
-                    skipTestIdentifiers: [],
-                    modules: ["AppTests"],
-                    selectiveTestingGraph: nil
-                )
-            )
-
-        given(xcodebuildController)
-            .run(arguments: .any)
-            .willReturn()
-
-        // When
-        try await AlertController.$current.withValue(AlertController()) {
-            try await testRun(
-                path: path,
-                action: .testWithoutBuilding,
-                shardIndex: 1,
-                shardArchivePath: shardArchivePath
-            )
-        }
-
-        // Then
-        verify(shardService)
-            .shard(
-                shardIndex: .value(1),
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any,
-                reference: .any,
-                testProductsPath: .value(nil),
-                testProductsArchivePath: .value(shardArchivePath)
-            )
             .called(1)
     }
 
@@ -5789,6 +6163,7 @@ final class TestServiceTests: TuistUnitTestCase {
         passthroughXcodeBuildArguments: [String] = [],
         skipQuarantine: Bool = false,
         shardReference: String? = nil,
+        shardPlanId: String? = nil,
         shardGranularity: ShardGranularity = .module,
         shardMin: Int? = nil,
         shardMax: Int? = nil,
@@ -5826,6 +6201,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 skipQuarantine: skipQuarantine,
                 shardReference: shardReference,
+                shardPlanId: shardPlanId,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,
@@ -5844,6 +6220,818 @@ final class TestServiceTests: TuistUnitTestCase {
     func test_inferPlatformDestination_returns_nil_for_empty_schemes() {
         let graphTraverser = MockGraphTraversing()
         XCTAssertNil(subject.inferPlatformDestination(schemes: [], graphTraverser: graphTraverser))
+    }
+}
+
+@Suite
+struct TestServiceShardingTests {
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func without_building_passes_shard_plan_and_archive_path_to_shard_service() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(rootDirectory: temporaryDirectory)
+        let shardArchivePath = temporaryDirectory.appending(component: "bundle.aar")
+        let extractedTestProductsPath = temporaryDirectory.appending(component: "Extracted.xctestproducts")
+        try await FileSystem().makeDirectory(at: extractedTestProductsPath)
+
+        given(fixture.shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: ["AppTests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppTests"],
+                    selectiveTestingGraph: nil
+                )
+            )
+
+        try await AlertController.$current.withValue(AlertController()) {
+            try await fixture.run(
+                path: temporaryDirectory,
+                shardPlanId: "plan-123",
+                shardIndex: 1,
+                shardArchivePath: shardArchivePath
+            )
+        }
+
+        verify(fixture.shardService)
+            .shard(
+                shardIndex: .value(1),
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .value("plan-123"),
+                testProductsPath: .value(nil),
+                testProductsArchivePath: .value(shardArchivePath)
+            )
+            .called(1)
+    }
+}
+
+private struct TestServiceShardingFixture {
+    let shardService = MockShardServicing()
+
+    private let runMetadataStorage = RunMetadataStorage()
+    private let subject: TestService
+
+    init(rootDirectory: AbsolutePath) {
+        let cacheStorage = MockCacheStoring()
+        let cacheStorageFactory = MockCacheStorageFactorying()
+        let xcodebuildController = MockXcodeBuildControlling()
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        let configLoader = MockConfigLoading()
+        let xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
+        let serverEnvironmentService = MockServerEnvironmentServicing()
+
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(cacheStorage)
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(rootDirectory)
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(.test(destination: nil))
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(URL(string: "https://tuist.dev")!)
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        subject = TestService(
+            cacheStorageFactory: cacheStorageFactory,
+            xcodebuildController: xcodebuildController,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            configLoader: configLoader,
+            xcodeBuildArgumentParser: xcodeBuildArgumentParser,
+            serverEnvironmentService: serverEnvironmentService,
+            shardService: shardService,
+            uploadBuildRunService: nil
+        )
+    }
+
+    func run(
+        path: AbsolutePath,
+        shardPlanId: String,
+        shardIndex: Int,
+        shardArchivePath: AbsolutePath
+    ) async throws {
+        try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
+            try await subject.run(
+                runId: "run-id",
+                schemeName: nil,
+                clean: false,
+                noUpload: true,
+                configuration: nil,
+                path: path,
+                deviceName: nil,
+                platform: nil,
+                osVersion: nil,
+                action: .testWithoutBuilding,
+                rosetta: false,
+                skipUITests: false,
+                skipUnitTests: false,
+                resultBundlePath: nil,
+                derivedDataPath: nil,
+                retryCount: 0,
+                testTargets: [],
+                skipTestTargets: [],
+                testPlanConfiguration: nil,
+                ignoreBinaryCache: false,
+                ignoreSelectiveTesting: false,
+                generateOnly: false,
+                passthroughXcodeBuildArguments: [],
+                skipQuarantine: true,
+                shardPlanId: shardPlanId,
+                shardIndex: shardIndex,
+                shardArchivePath: shardArchivePath,
+                mode: .off
+            )
+        }
+    }
+}
+
+@Suite
+struct TestServiceSchemePlanningTests {
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func run_with_passthrough_destination_validates_explicit_platform() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceSchemePlanningFixture(
+            scenario: SchemePlanningScenario(rootDirectory: temporaryDirectory)
+        )
+
+        await #expect(throws: UnsupportedPlatformError.self) {
+            try await fixture.run(
+                path: temporaryDirectory,
+                platform: "unsupported",
+                passthroughXcodeBuildArguments: ["-destination", "id=device-id"]
+            )
+        }
+    }
+
+    @Test
+    func resolvePlatform_ignores_pre_action_targets() throws {
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let app = Target.test(name: "App", destinations: .iOS)
+        let tests = Target.test(
+            name: "BaseTests",
+            destinations: [.iPhone, .mac],
+            product: .unitTests
+        )
+        let codegenTool = Target.test(name: "CodegenTool", destinations: .macOS)
+        let appReference = TargetReference(projectPath: projectPath, name: app.name)
+        let testsReference = TargetReference(projectPath: projectPath, name: tests.name)
+        let codegenToolReference = TargetReference(projectPath: projectPath, name: codegenTool.name)
+        let scheme = Scheme.test(
+            name: "iOS",
+            buildAction: .test(
+                targets: [appReference, testsReference],
+                preActions: [
+                    ExecutionAction(
+                        title: "Generate code",
+                        scriptText: "generate-code",
+                        target: codegenToolReference,
+                        shellPath: "/bin/sh"
+                    ),
+                ]
+            ),
+            testAction: .test(targets: [.test(target: testsReference)]),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil
+        )
+        let graphTraverser = GraphTraverser(
+            graph: .test(
+                path: projectPath,
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [app, tests, codegenTool],
+                        schemes: [scheme]
+                    ),
+                ]
+            )
+        )
+        let graphTarget = try #require(
+            graphTraverser.target(path: projectPath, name: tests.name)
+        )
+
+        let platform = TestService.resolvePlatform(
+            for: graphTarget,
+            scheme: scheme,
+            testActionTargets: [testsReference],
+            graphTraverser: graphTraverser
+        )
+
+        #expect(platform == .iOS)
+    }
+
+    @Test
+    func resolvePlatform_uses_selected_test_plan_targets() throws {
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let tests = Target.test(
+            name: "BaseTests",
+            destinations: [.iPhone, .mac],
+            product: .unitTests
+        )
+        let iosTests = Target.test(
+            name: "iOSTests",
+            destinations: .iOS,
+            product: .unitTests
+        )
+        let testsReference = TargetReference(projectPath: projectPath, name: tests.name)
+        let iosTestsReference = TargetReference(projectPath: projectPath, name: iosTests.name)
+        let scheme = Scheme.test(
+            name: "SelectedPlan",
+            buildAction: .test(targets: [testsReference]),
+            testAction: .test(
+                targets: [],
+                testPlans: [
+                    TestPlan(
+                        path: projectPath.appending(component: "SelectedPlan.xctestplan"),
+                        testTargets: [
+                            .test(target: testsReference),
+                            .test(target: iosTestsReference),
+                        ],
+                        isDefault: false
+                    ),
+                ]
+            ),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil
+        )
+        let graphTraverser = GraphTraverser(
+            graph: .test(
+                path: projectPath,
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [tests, iosTests],
+                        schemes: [scheme]
+                    ),
+                ]
+            )
+        )
+        let graphTarget = try #require(
+            graphTraverser.target(path: projectPath, name: tests.name)
+        )
+        let selectedPlan = try #require(scheme.testAction?.testPlans?.first)
+
+        let platform = TestService.resolvePlatform(
+            for: graphTarget,
+            scheme: scheme,
+            testActionTargets: selectedPlan.testTargets.map(\.target),
+            graphTraverser: graphTraverser
+        )
+
+        #expect(platform == .iOS)
+    }
+
+    @Test
+    func resolvePlatform_leaves_multi_platform_test_target_ambiguous_without_a_scheme_constraint() throws {
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let tests = Target.test(
+            name: "BaseTests",
+            destinations: [.iPhone, .mac],
+            product: .unitTests
+        )
+        let testsReference = TargetReference(projectPath: projectPath, name: tests.name)
+        let scheme = Scheme.test(
+            name: "AllPlatforms",
+            buildAction: .test(targets: [testsReference]),
+            testAction: .test(targets: [.test(target: testsReference)]),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil
+        )
+        let graphTraverser = GraphTraverser(
+            graph: .test(
+                path: projectPath,
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [tests],
+                        schemes: [scheme]
+                    ),
+                ]
+            )
+        )
+        let graphTarget = try #require(
+            graphTraverser.target(path: projectPath, name: tests.name)
+        )
+
+        let platform = TestService.resolvePlatform(
+            for: graphTarget,
+            scheme: scheme,
+            testActionTargets: [testsReference],
+            graphTraverser: graphTraverser
+        )
+
+        #expect(platform == nil)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func run_uses_the_workspace_scheme_for_mixed_hosted_and_hostless_tests() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scenario = SchemePlanningScenario(rootDirectory: temporaryDirectory)
+        let fixture = TestServiceSchemePlanningFixture(scenario: scenario)
+        let resultBundlePath = temporaryDirectory.appending(component: "result.xcresult")
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await fixture.run(
+            path: temporaryDirectory,
+            resultBundlePath: resultBundlePath,
+            derivedDataPath: derivedDataPath
+        )
+
+        #expect(fixture.testRuns == [
+            CapturedTestRun(
+                scheme: "Sample-Workspace",
+                action: .test,
+                testTargets: [],
+                resultBundlePath: resultBundlePath,
+                derivedDataPath: derivedDataPath
+            ),
+        ])
+    }
+
+    /// A testable disabled in the workspace scheme drops out of scheme planning entirely. Here the
+    /// only hostless test target is the skipped one, so what remains is uniformly hosted, the
+    /// scheme no longer counts as mixed, and it is run whole instead of being split per target —
+    /// one invocation rather than two. Splitting on account of a target xcodebuild will not run
+    /// would only cost an extra invocation and result bundle.
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func run_ignores_skipped_testables_when_splitting_mixed_schemes() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scenario = SchemePlanningScenario(
+            rootDirectory: temporaryDirectory,
+            skipFeatureTestsInWorkspaceScheme: true
+        )
+        let fixture = TestServiceSchemePlanningFixture(scenario: scenario)
+        let resultBundlePath = temporaryDirectory.appending(component: "result.xcresult")
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await fixture.run(
+            path: temporaryDirectory,
+            resultBundlePath: resultBundlePath,
+            derivedDataPath: derivedDataPath
+        )
+
+        #expect(fixture.testRuns == [
+            CapturedTestRun(
+                scheme: "Sample-Workspace",
+                action: .test,
+                testTargets: [],
+                resultBundlePath: resultBundlePath,
+                derivedDataPath: derivedDataPath
+            ),
+        ])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func run_without_building_preserves_the_workspace_build_layout() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scenario = SchemePlanningScenario(
+            rootDirectory: temporaryDirectory,
+            includeHostlessTargetWithoutScheme: true
+        )
+        let fixture = TestServiceSchemePlanningFixture(scenario: scenario)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await fixture.run(
+            path: temporaryDirectory,
+            action: .testWithoutBuilding,
+            derivedDataPath: derivedDataPath
+        )
+
+        #expect(fixture.testRuns == [
+            CapturedTestRun(
+                scheme: "Sample-Workspace",
+                action: .testWithoutBuilding,
+                testTargets: [],
+                resultBundlePath: nil,
+                derivedDataPath: derivedDataPath
+            ),
+        ])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func run_excludes_passthrough_skips_from_invocations_and_hashes() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scenario = SchemePlanningScenario(rootDirectory: temporaryDirectory)
+        let fixture = TestServiceSchemePlanningFixture(scenario: scenario)
+
+        try await fixture.run(
+            path: temporaryDirectory,
+            passthroughXcodeBuildArguments: [
+                "-skip-testing:AppSnapshotTests",
+                "-skip-testing:FeatureTests",
+            ]
+        )
+
+        #expect(fixture.testRuns == [
+            CapturedTestRun(
+                scheme: "Sample-Workspace",
+                action: .test,
+                testTargets: [],
+                resultBundlePath: nil,
+                derivedDataPath: nil
+            ),
+        ])
+        verify(fixture.cacheStorage)
+            .store(
+                .value([CacheStorableItem(name: "AppTests", hash: "app-tests-hash"): []]),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+        verify(fixture.cacheStorage)
+            .store(
+                .value([CacheStorableItem(name: "AppSnapshotTests", hash: "app-snapshot-tests-hash"): []]),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(0)
+        verify(fixture.cacheStorage)
+            .store(
+                .value([CacheStorableItem(name: "FeatureTests", hash: "feature-tests-hash"): []]),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func run_with_explicit_test_target_filters_the_workspace_scheme() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scenario = SchemePlanningScenario(rootDirectory: temporaryDirectory)
+        let passthroughDerivedDataPath = temporaryDirectory.appending(component: "PassedDerivedData")
+        let fixture = TestServiceSchemePlanningFixture(scenario: scenario)
+
+        try await fixture.run(
+            path: temporaryDirectory,
+            testTargets: [try TestIdentifier(target: "FeatureTests")],
+            passthroughXcodeBuildArguments: [
+                "-derivedDataPath", passthroughDerivedDataPath.pathString,
+            ]
+        )
+
+        #expect(fixture.testRuns == [
+            CapturedTestRun(
+                scheme: "Sample-Workspace",
+                action: .test,
+                testTargets: [try TestIdentifier(target: "FeatureTests")],
+                resultBundlePath: nil,
+                derivedDataPath: nil
+            ),
+        ])
+    }
+}
+
+private struct SchemePlanningScenario {
+    let graph: Graph
+    let mapperEnvironment: MapperEnvironment
+    let rootDirectory: AbsolutePath
+    let testableSchemes: [Scheme]
+    let workspaceScheme: Scheme
+
+    init(
+        rootDirectory: AbsolutePath,
+        includeHostlessTargetWithoutScheme: Bool = false,
+        skipFeatureTestsInWorkspaceScheme: Bool = false
+    ) {
+        self.rootDirectory = rootDirectory
+        let appProjectPath = rootDirectory.appending(component: "App")
+        let featureProjectPath = rootDirectory.appending(component: "Feature")
+        let orphanProjectPath = rootDirectory.appending(component: "Orphan")
+        let app = Target.test(name: "App", product: .app)
+        let appTests = Target.test(name: "AppTests", product: .unitTests)
+        let appSnapshotTests = Target.test(name: "AppSnapshotTests", product: .unitTests)
+        let feature = Target.test(name: "Feature", product: .framework)
+        let featureTests = Target.test(name: "FeatureTests", product: .unitTests)
+        let orphan = Target.test(name: "Orphan", product: .framework)
+        let orphanTests = Target.test(name: "OrphanTests", product: .unitTests)
+        let appReference = TargetReference(projectPath: appProjectPath, name: app.name)
+        let featureReference = TargetReference(projectPath: featureProjectPath, name: feature.name)
+        let appTestsReference = TargetReference(projectPath: appProjectPath, name: appTests.name)
+        let appSnapshotTestsReference = TargetReference(projectPath: appProjectPath, name: appSnapshotTests.name)
+        let featureTestsReference = TargetReference(projectPath: featureProjectPath, name: featureTests.name)
+        let orphanTestsReference = TargetReference(projectPath: orphanProjectPath, name: orphanTests.name)
+        let appTestsScheme = Scheme.test(
+            name: "AppTests",
+            buildAction: .test(targets: [appReference]),
+            testAction: .test(targets: [.test(target: appTestsReference)])
+        )
+        let appSnapshotTestsScheme = Scheme.test(
+            name: "AppSnapshotTests",
+            buildAction: .test(targets: [appReference]),
+            testAction: .test(targets: [.test(target: appSnapshotTestsReference)])
+        )
+        let appAggregateScheme = Scheme.test(
+            name: "App-Aggregate",
+            testAction: .test(
+                targets: [
+                    .test(target: appTestsReference),
+                    .test(target: appSnapshotTestsReference),
+                ]
+            )
+        )
+        let featureScheme = Scheme.test(
+            name: "FeatureTests",
+            buildAction: .test(targets: [featureReference]),
+            testAction: .test(targets: [.test(target: featureTestsReference)]),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil
+        )
+        let featureSchemeWithAppBuildContext = Scheme.test(
+            name: "FeatureTests-WithApp",
+            buildAction: .test(targets: [appReference]),
+            testAction: .test(targets: [.test(target: featureTestsReference)]),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil
+        )
+        let allModulesScheme = Scheme.test(
+            name: "AllModules",
+            testAction: .test(
+                targets: [
+                    .test(target: appTestsReference),
+                    .test(target: appSnapshotTestsReference),
+                    .test(target: featureTestsReference),
+                ]
+            )
+        )
+        var workspaceTestTargets: [TestableTarget] = [
+            .test(target: appTestsReference),
+            .test(target: appSnapshotTestsReference),
+            .test(target: featureTestsReference, skipped: skipFeatureTestsInWorkspaceScheme),
+        ]
+        if includeHostlessTargetWithoutScheme {
+            workspaceTestTargets.append(.test(target: orphanTestsReference))
+        }
+        workspaceScheme = Scheme.test(
+            name: "Sample-Workspace",
+            testAction: .test(targets: workspaceTestTargets)
+        )
+        let appProject = Project.test(
+            path: appProjectPath,
+            targets: [app, appTests, appSnapshotTests],
+            schemes: [appTestsScheme, appSnapshotTestsScheme, appAggregateScheme, allModulesScheme]
+        )
+        let featureProject = Project.test(
+            path: featureProjectPath,
+            targets: [feature, featureTests],
+            schemes: [featureScheme]
+        )
+        let orphanProject = Project.test(
+            path: orphanProjectPath,
+            targets: [orphan, orphanTests]
+        )
+        let workspace = Workspace.test(
+            name: "Sample",
+            projects: [appProjectPath, featureProjectPath, orphanProjectPath],
+            schemes: [workspaceScheme]
+        )
+        graph = Graph.test(
+            workspace: workspace,
+            projects: [
+                appProjectPath: appProject,
+                featureProjectPath: featureProject,
+                orphanProjectPath: orphanProject,
+            ],
+            dependencies: [
+                .target(name: appTests.name, path: appProjectPath): [
+                    .target(name: app.name, path: appProjectPath),
+                ],
+                .target(name: appSnapshotTests.name, path: appProjectPath): [
+                    .target(name: app.name, path: appProjectPath),
+                ],
+                .target(name: featureTests.name, path: featureProjectPath): [
+                    .target(name: feature.name, path: featureProjectPath),
+                ],
+                .target(name: orphanTests.name, path: orphanProjectPath): [
+                    .target(name: orphan.name, path: orphanProjectPath),
+                ],
+            ]
+        )
+        var mapperEnvironment = MapperEnvironment()
+        mapperEnvironment.initialGraph = graph
+        mapperEnvironment.targetTestHashes = [
+            appProjectPath: [
+                "AppSnapshotTests": "app-snapshot-tests-hash",
+                "AppTests": "app-tests-hash",
+            ],
+            featureProjectPath: ["FeatureTests": "feature-tests-hash"],
+            orphanProjectPath: ["OrphanTests": "orphan-tests-hash"],
+        ]
+        self.mapperEnvironment = mapperEnvironment
+        testableSchemes = [
+            allModulesScheme,
+            appAggregateScheme,
+            appSnapshotTestsScheme,
+            appTestsScheme,
+            featureSchemeWithAppBuildContext,
+            featureScheme,
+            workspaceScheme,
+        ]
+    }
+}
+
+private struct CapturedTestRun: Equatable {
+    let scheme: String
+    let action: XcodeBuildTestAction
+    let testTargets: [TestIdentifier]
+    let resultBundlePath: AbsolutePath?
+    let derivedDataPath: AbsolutePath?
+}
+
+private final class TestRunCapture {
+    var runs: [CapturedTestRun] = []
+}
+
+private struct TestServiceSchemePlanningFixture {
+    let cacheStorage = MockCacheStoring()
+
+    private let capture: TestRunCapture
+    private let runMetadataStorage = RunMetadataStorage()
+    private let subject: TestService
+
+    var testRuns: [CapturedTestRun] {
+        capture.runs
+    }
+
+    init(scenario: SchemePlanningScenario) {
+        let capture = TestRunCapture()
+        self.capture = capture
+        let generator = MockGenerating()
+        let generatorFactory = MockGeneratorFactorying()
+        let cacheStorageFactory = MockCacheStorageFactorying()
+        let xcodebuildController = MockXcodeBuildControlling()
+        let buildGraphInspector = MockBuildGraphInspecting()
+        let simulatorController = MockSimulatorControlling()
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        let configLoader = MockConfigLoading()
+        let xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
+        let derivedDataLocator = MockDerivedDataLocating()
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willReturn(cacheStorage)
+        given(cacheStorage)
+            .store(.any, cacheCategory: .any)
+            .willReturn([])
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(scenario.rootDirectory)
+        given(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .willReturn(generator)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, scenario.graph, scenario.mapperEnvironment)
+            }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(scenario.testableSchemes)
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([scenario.workspaceScheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test())
+        given(buildGraphInspector)
+            .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
+            .willReturn([])
+        given(simulatorController)
+            .findAvailableDevice(
+                platform: .any,
+                version: .any,
+                minVersion: .any,
+                deviceName: .any
+            )
+            .willReturn(.test())
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(.test(derivedDataPath: nil, destination: nil))
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(scenario.rootDirectory.appending(component: "DerivedData"))
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, scheme, _, _, action, _, derivedDataPath, resultBundlePath, _, _, testTargets, _, _, _ in
+                capture.runs.append(
+                    CapturedTestRun(
+                        scheme: scheme,
+                        action: action,
+                        testTargets: testTargets,
+                        resultBundlePath: resultBundlePath,
+                        derivedDataPath: derivedDataPath
+                    )
+                )
+            }
+
+        subject = TestService(
+            generatorFactory: generatorFactory,
+            cacheStorageFactory: cacheStorageFactory,
+            xcodebuildController: xcodebuildController,
+            buildGraphInspector: buildGraphInspector,
+            simulatorController: simulatorController,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            configLoader: configLoader,
+            xcodeBuildArgumentParser: xcodeBuildArgumentParser,
+            derivedDataLocator: derivedDataLocator
+        )
+    }
+
+    func run(
+        path: AbsolutePath,
+        action: XcodeBuildTestAction = .test,
+        platform: String? = nil,
+        resultBundlePath: AbsolutePath? = nil,
+        derivedDataPath: AbsolutePath? = nil,
+        testTargets: [TestIdentifier] = [],
+        passthroughXcodeBuildArguments: [String] = []
+    ) async throws {
+        try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
+            try await subject.run(
+                runId: "run-id",
+                schemeName: nil,
+                clean: false,
+                noUpload: false,
+                configuration: nil,
+                path: path,
+                deviceName: nil,
+                platform: platform,
+                osVersion: nil,
+                action: action,
+                rosetta: false,
+                skipUITests: false,
+                skipUnitTests: false,
+                resultBundlePath: resultBundlePath,
+                derivedDataPath: derivedDataPath?.pathString,
+                retryCount: 0,
+                testTargets: testTargets,
+                skipTestTargets: [],
+                testPlanConfiguration: nil,
+                ignoreBinaryCache: false,
+                ignoreSelectiveTesting: false,
+                generateOnly: false,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                mode: .local
+            )
+        }
     }
 }
 

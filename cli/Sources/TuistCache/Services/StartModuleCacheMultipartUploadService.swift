@@ -53,7 +53,8 @@ public struct StartModuleCacheMultipartUploadService: StartModuleCacheMultipartU
         let client = Client.authenticated(
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
-            serverAuthenticationController: serverAuthenticationController
+            serverAuthenticationController: serverAuthenticationController,
+            fullHandle: "\(accountHandle)/\(projectHandle)"
         )
 
         let response = try await client.startModuleCacheMultipartUpload(
@@ -84,8 +85,13 @@ public struct StartModuleCacheMultipartUploadService: StartModuleCacheMultipartU
             case let .json(error):
                 throw StartModuleCacheMultipartUploadServiceError.forbidden(error.message)
             }
-        case let .badRequest(badRequest):
-            switch badRequest.body {
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
+            case let .json(error):
+                throw StartModuleCacheMultipartUploadServiceError.badRequest(error.message)
+            }
+        case let .unprocessableContent(unprocessableContent):
+            switch unprocessableContent.body {
             case let .json(error):
                 throw StartModuleCacheMultipartUploadServiceError.badRequest(error.message)
             }

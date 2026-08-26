@@ -31,6 +31,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
         :can_manage_automations,
         Authorization.authorize(:automation_alert_create, current_user, selected_project) == :ok
       )
+      |> assign(:flash_message, nil)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist")
       |> assign(
         :automation_channel_selection_url,
@@ -63,13 +64,15 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_threshold: "10")
     |> assign(create_automation_form_window_type: "last_days")
     |> assign(create_automation_form_window: "30d")
-    |> assign(create_automation_form_rolling_window_size: "100")
+    |> assign(create_automation_form_rolling_window_size: "75")
     |> assign(create_automation_form_events: ["marked_flaky"])
+    |> assign(create_automation_form_trigger_states: [])
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
     |> assign(create_automation_form_recovery_enabled: false)
     |> assign(create_automation_form_recovery_window_type: "last_days")
     |> assign(create_automation_form_recovery_window: "14d")
     |> assign(create_automation_form_recovery_rolling_window_size: "100")
+    |> assign(create_automation_form_recovery_states: [])
     |> assign(create_automation_form_recovery_actions: [default_remove_label_action()])
   end
 
@@ -119,13 +122,15 @@ defmodule TuistWeb.ProjectAutomationsLive do
       threshold: to_string(automation.trigger_config["threshold"] || ""),
       window_type: parse_window_type(automation.trigger_config["window_type"]),
       window: automation.trigger_config["window"] || "30d",
-      rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 100),
+      rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 75),
       events: parse_events(automation.trigger_config["events"]),
+      trigger_states: parse_states(automation.trigger_config["states"]),
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
       recovery_window_type: parse_window_type(automation.recovery_config["window_type"]),
       recovery_window: automation.recovery_config["window"] || "14d",
       recovery_rolling_window_size: to_string(automation.recovery_config["rolling_window_size"] || 100),
+      recovery_states: parse_states(automation.recovery_config["states"]),
       recovery_actions: automation.recovery_actions,
       enabled: automation.enabled
     }
@@ -142,6 +147,12 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   defp parse_window_type(window_type) when window_type in @window_types, do: window_type
   defp parse_window_type(_), do: "last_days"
+
+  defp parse_states(states) when is_list(states) do
+    Enum.filter(states, &(&1 in ["enabled", "muted", "skipped"]))
+  end
+
+  defp parse_states(_), do: []
 
   @impl true
   def handle_params(_params, _uri, socket) do
@@ -172,11 +183,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
         |> assign(create_automation_form_window: form.window)
         |> assign(create_automation_form_rolling_window_size: form.rolling_window_size)
         |> assign(create_automation_form_events: form.events)
+        |> assign(create_automation_form_trigger_states: form.trigger_states)
         |> assign(create_automation_form_trigger_actions: form.trigger_actions)
         |> assign(create_automation_form_recovery_enabled: form.recovery_enabled)
         |> assign(create_automation_form_recovery_window_type: form.recovery_window_type)
         |> assign(create_automation_form_recovery_window: form.recovery_window)
         |> assign(create_automation_form_recovery_rolling_window_size: form.recovery_rolling_window_size)
+        |> assign(create_automation_form_recovery_states: form.recovery_states)
         |> assign(create_automation_form_recovery_actions: form.recovery_actions)
         |> push_event("open-modal", %{id: "create-automation-modal"})
 
@@ -237,6 +250,15 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event("update_create_automation_form_threshold", %{"value" => value}, socket) do
     {:noreply, assign(socket, create_automation_form_threshold: value)}
+  end
+
+  def handle_event("toggle_create_automation_form_trigger_state", %{"data" => state}, socket) do
+    {:noreply,
+     assign(
+       socket,
+       :create_automation_form_trigger_states,
+       toggle_state(socket.assigns.create_automation_form_trigger_states, state)
+     )}
   end
 
   def handle_event("update_create_automation_form_window", %{"value" => value}, socket) do
@@ -325,6 +347,15 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_recovery_window: value)}
   end
 
+  def handle_event("toggle_create_automation_form_recovery_state", %{"data" => state}, socket) do
+    {:noreply,
+     assign(
+       socket,
+       :create_automation_form_recovery_states,
+       toggle_state(socket.assigns.create_automation_form_recovery_states, state)
+     )}
+  end
+
   def handle_event("update_create_automation_form_recovery_window_type", %{"data" => window_type}, socket) do
     if window_type in @window_types do
       {:noreply, assign(socket, create_automation_form_recovery_window_type: window_type)}
@@ -410,7 +441,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
                    assigns.current_user,
                    assigns.selected_project
                  ) do
-            Automations.create_alert(attrs)
+            Automations.create_alert(attrs, actor: assigns.current_user, source: "dashboard")
           end
 
         id ->
@@ -422,7 +453,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
                  ),
                {:ok, automation} <- Automations.get_alert(id),
                true <- automation.project_id == assigns.selected_project.id do
-            Automations.update_alert(automation, attrs)
+            Automations.update_alert(automation, attrs, actor: assigns.current_user, source: "dashboard")
           end
       end
 
@@ -449,10 +480,27 @@ defmodule TuistWeb.ProjectAutomationsLive do
     with :ok <- Authorization.authorize(:automation_alert_update, current_user, project),
          {:ok, automation} <- Automations.get_alert(id),
          true <- automation.project_id == project.id,
-         {:ok, _} <- Automations.update_alert(automation, %{enabled: not automation.enabled}) do
-      {:noreply, assign_automations(socket, project)}
+         {:ok, _} <-
+           Automations.update_alert(automation, %{enabled: not automation.enabled},
+             actor: current_user,
+             source: "dashboard"
+           ) do
+      {:noreply, socket |> assign(:flash_message, nil) |> assign_automations(project)}
     else
-      _ -> {:noreply, socket}
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply,
+         assign(
+           socket,
+           :flash_message,
+           {"error",
+            dgettext(
+              "dashboard_projects",
+              "This automation uses an unsupported trigger configuration. Edit it before enabling it."
+            )}
+         )}
+
+      _ ->
+        {:noreply, socket}
     end
   end
 
@@ -508,27 +556,33 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   defp trigger_config_for("test_updated", assigns) do
-    %{"events" => assigns.create_automation_form_events}
+    maybe_put_states(
+      %{"events" => assigns.create_automation_form_events},
+      assigns.create_automation_form_trigger_states
+    )
   end
 
   defp trigger_config_for(metric, assigns) do
-    build_trigger_config(
-      parse_threshold(metric, assigns.create_automation_form_threshold),
+    metric
+    |> parse_threshold(assigns.create_automation_form_threshold)
+    |> build_trigger_config(
       assigns.create_automation_form_comparison,
       assigns.create_automation_form_window_type,
       assigns.create_automation_form_window,
       assigns.create_automation_form_rolling_window_size
     )
+    |> maybe_put_states(assigns.create_automation_form_trigger_states)
   end
 
   defp recovery_config_for("test_updated", _assigns), do: %{}
 
   defp recovery_config_for(_metric, assigns) do
-    build_recovery_config(
-      assigns.create_automation_form_recovery_window_type,
+    assigns.create_automation_form_recovery_window_type
+    |> build_recovery_config(
       assigns.create_automation_form_recovery_window,
       assigns.create_automation_form_recovery_rolling_window_size
     )
+    |> maybe_put_states(assigns.create_automation_form_recovery_states)
   end
 
   defp build_trigger_config(threshold, comparison, "rolling", _window, rolling_window_size) do
@@ -536,7 +590,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "threshold" => threshold,
       "comparison" => comparison,
       "window_type" => "rolling",
-      "rolling_window_size" => parse_int(rolling_window_size, 100)
+      "rolling_window_size" => parse_int(rolling_window_size, 75)
     }
   end
 
@@ -561,6 +615,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "window_type" => "last_days",
       "window" => window
     }
+  end
+
+  defp maybe_put_states(config, []), do: config
+  defp maybe_put_states(config, states), do: Map.put(config, "states", states)
+
+  defp toggle_state(states, state) do
+    if state in states, do: List.delete(states, state), else: states ++ [state]
   end
 
   # The default `add_label flaky` / `remove_label flaky` trigger actions
@@ -725,7 +786,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
     dgettext(
       "dashboard_projects",
-      "When test reliability across branches %{symbol} %{threshold}% over %{window}",
+      "When test reliability on the default branch %{symbol} %{threshold}% over %{window}",
       symbol: symbol,
       threshold: threshold,
       window: window_summary(trigger_config)
@@ -774,13 +835,18 @@ defmodule TuistWeb.ProjectAutomationsLive do
   """
   def rolling_window_inputs_valid?(assigns) do
     is_nil(
-      rolling_size_error(assigns.create_automation_form_window_type, assigns.create_automation_form_rolling_window_size)
+      rolling_size_error(
+        assigns.create_automation_form_window_type,
+        assigns.create_automation_form_rolling_window_size,
+        Alert.max_rolling_trigger_window_size()
+      )
     ) and
       (not assigns.create_automation_form_recovery_enabled or
          is_nil(
            rolling_size_error(
              assigns.create_automation_form_recovery_window_type,
-             assigns.create_automation_form_recovery_rolling_window_size
+             assigns.create_automation_form_recovery_rolling_window_size,
+             Alert.max_rolling_window_size()
            )
          ))
   end
@@ -791,16 +857,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
   `error` attribute on the noora `text_input` so the same constraint that
   disables Save is visible inline on the field.
   """
-  def rolling_size_error("rolling", raw_size) do
-    max = Alert.max_rolling_window_size()
-
+  def rolling_size_error("rolling", raw_size, max) do
     case Integer.parse(to_string(raw_size)) do
       {n, ""} when n >= 1 and n <= max -> nil
       _ -> dgettext("dashboard_projects", "1–%{max}", max: max)
     end
   end
 
-  def rolling_size_error(_window_type, _raw_size), do: nil
+  def rolling_size_error(_window_type, _raw_size, _max), do: nil
 
   # Decode the signed channel-result token, then encrypt the webhook URL so
   # we never store it as plaintext inside the action JSON.

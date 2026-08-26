@@ -8,8 +8,12 @@ import Config
 # to bundle .js and .css sources.
 
 noora_source_path = Path.expand("../../noora", __DIR__)
+server_source_path = Path.expand("..", __DIR__)
+escaped_noora_source_path = Regex.escape(noora_source_path)
 deps_path = Path.expand("../deps", __DIR__)
 node_modules_path = Path.expand("../node_modules", __DIR__)
+build_path = Mix.Project.build_path()
+code_reloader_enabled = System.get_env("TUIST_DEV_DISABLE_CODE_RELOADER") not in ["1", "true"]
 
 # Base watchers for esbuild
 base_watchers = [
@@ -49,11 +53,11 @@ base_live_reload_patterns = [
   ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$",
   ~r"lib/tuist_web/marketing/(controllers|live|components)/.*(ex|heex)$",
   ~r"lib/tuist_web/docs/.*(ex|heex)$",
-  ~r"priv/marketing/blog/*/.*(md)$",
-  ~r"../../noora/lib/noora/.*(ex|heex)$",
-  ~r"../../noora/js/.*(js)$",
-  ~r"../../noora/css/.*(css)$",
-  ~r"../../noora/priv/static/.*(js|css)$"
+  ~r"priv/marketing/blog/.*\\.md$",
+  ~r"#{escaped_noora_source_path}/lib/noora/.*(ex|heex)$",
+  ~r"#{escaped_noora_source_path}/js/.*(js)$",
+  ~r"#{escaped_noora_source_path}/css/.*(css)$",
+  ~r"#{escaped_noora_source_path}/priv/static/.*(js|css)$"
 ]
 
 config :esbuild,
@@ -79,15 +83,19 @@ config :esbuild,
       "--loader:.jpg=dataurl",
       "--loader:.png=dataurl",
       "--loader:.webp=dataurl",
+      "--loader:.woff=file",
+      "--loader:.woff2=file",
+      "--loader:.ttf=file",
       "--target=es2017",
       "--outfile=../../priv/static/marketing/assets/bundle.js",
       "--external:/fonts/*",
       "--external:/images/*",
+      "--alias:@=.",
       "--alias:noora=#{noora_source_path}/js/index.js",
       "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
     ],
     cd: Path.expand("../assets/marketing", __DIR__),
-    env: %{"NODE_PATH" => deps_path}
+    env: %{"NODE_PATH" => "#{deps_path}:#{build_path}"}
   ],
   docs: [
     args: [
@@ -129,9 +137,11 @@ config :phoenix, :stacktrace_depth, 20
 
 config :phoenix_live_reload,
   dirs: [
-    "../../noora/lib",
-    "../../noora/js",
-    "../../noora/css"
+    server_source_path,
+    Path.join(noora_source_path, "lib"),
+    Path.join(noora_source_path, "js"),
+    Path.join(noora_source_path, "css"),
+    Path.join(noora_source_path, "priv/static")
   ]
 
 # Include HEEx debug annotations as HTML comments in rendered markup
@@ -154,6 +164,13 @@ config :tuist, Tuist.IngestRepo,
 
 config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
 
+config :tuist, Tuist.OpsClickHouseRepo,
+  hostname: "localhost",
+  port: 8123,
+  database: "tuist_development",
+  pool_size: 2,
+  settings: [readonly: 1]
+
 # Configure your database
 config :tuist, Tuist.Repo,
   hostname: "localhost",
@@ -167,13 +184,11 @@ config :tuist, TuistWeb.Endpoint,
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {127, 0, 0, 1}, port: 8080],
   check_origin: false,
-  code_reloader: true,
+  code_reloader: code_reloader_enabled,
   debug_errors: true,
   reloadable_apps: [:tuist, :noora],
-  watchers: base_watchers,
-  live_reload: [
-    patterns: base_live_reload_patterns
-  ]
+  watchers: if(code_reloader_enabled, do: base_watchers, else: []),
+  live_reload: if(code_reloader_enabled, do: [patterns: base_live_reload_patterns], else: [])
 
 # Enable dev routes for dashboard and mailbox
 config :tuist, dev_routes: true
@@ -183,3 +198,8 @@ config :tuist,
   generators: [timestamp_type: :utc_datetime],
   api_pipeline_producer_module: OffBroadwayMemory.Producer,
   api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
+
+# One session cookie per dev server. See `@session_options` in
+# `TuistWeb.Endpoint`: cookies ignore the port, so a shared name lets
+# concurrent worktree servers clobber each other's sessions.
+config :tuist, session_cookie_key: "_tuist_key_" <> (System.get_env("TUIST_SERVER_PORT") || "8080")

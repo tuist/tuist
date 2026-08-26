@@ -19,13 +19,17 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     case missingPathInLocalSwiftPackage(String)
     /// Thrown when dependencies were not installed before loading the graph SwiftPackageManagerGraph
     case installRequired
+    /// Thrown when a dependency's `Package.swift` cannot be loaded from the directory the
+    /// workspace state points at. Swift Package Manager reports this against its own working
+    /// directory without naming the dependency, so the package and folder are attached here.
+    case packageManifestLoadFailed(name: String, path: AbsolutePath, reason: String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
         case .unsupportedDependencyKind, .missingPathInLocalSwiftPackage:
             return .bug
-        case .installRequired:
+        case .installRequired, .packageManifestLoadFailed:
             return .abort
         }
     }
@@ -39,6 +43,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
             return "The local package \(name) does not contain the path in the generated `workspace-state.json` file."
         case .installRequired:
             return "We could not find external dependencies. Run `tuist install` before you continue."
+        case let .packageManifestLoadFailed(name, path, reason):
+            return "We could not load the manifest of the package \(name) at \(path.pathString): \(reason)"
         }
     }
 }
@@ -172,12 +178,24 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
                 }
 
-                let packageInfo = if let packageInfoCache,
-                                     let cachedPackageInfo = packageInfoCache.packageInfo(for: packageFolder)
+                let packageInfo: PackageInfo
+                if let packageInfoCache,
+                   let cachedPackageInfo = packageInfoCache.packageInfo(for: packageFolder)
                 {
-                    cachedPackageInfo
+                    packageInfo = cachedPackageInfo
                 } else {
-                    try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
+                    do {
+                        packageInfo = try await manifestLoader.loadPackage(
+                            at: packageFolder,
+                            disableSandbox: disableSandbox
+                        )
+                    } catch {
+                        throw SwiftPackageManagerGraphGeneratorError.packageManifestLoadFailed(
+                            name: name,
+                            path: packageFolder,
+                            reason: "\(error)"
+                        )
+                    }
                 }
                 let targetToArtifactPaths = try workspaceState.object.artifacts
                     .filter { $0.packageRef.identity == dependency.packageRef.identity }
@@ -208,33 +226,33 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         //
         // If multiple candidates exist, the highest-precedence source wins and the others are discarded.
         //
+        // Packages are grouped by identity rather than by the `name` their manifest declares, since unrelated
+        // packages are free to declare the same name (e.g. both `danielgindi/Charts` and forks of it declare
+        // `DGCharts`) and merging those would silently drop one package's products.
+        //
         // References:
         // - https://github.com/tuist/tuist/pull/7518
+        // - https://github.com/tuist/tuist/issues/11867
         // - https://community.tuist.dev/t/swift-package-registry-overriding-local-dependency-in-tuist-generated-project/902
-        packageInfos = Dictionary(grouping: packageInfos, by: {
-            if $0.kind == "registry" {
-                // A package is uniquely identified by a scoped identifier in the form scope.package-name.
-                return String($0.name.split(separator: ".").last ?? "").lowercased()
-            } else {
-                return $0.name.lowercased()
+        packageInfos = Dictionary(grouping: packageInfos, by: \.canonicalIdentity)
+            .compactMap { _, groupedPackageInfos in
+                if let localPackage = groupedPackageInfos.first(where: {
+                    Self.isLocalDependencyKind($0.kind)
+                }) {
+                    return localPackage
+                } else if let registryPackage = groupedPackageInfos.first(where: { $0.kind == "registry" }) {
+                    return registryPackage
+                } else {
+                    return groupedPackageInfos.first
+                }
             }
-        })
-        .compactMap { _, groupedPackageInfos in
-            if let localPackage = groupedPackageInfos.first(where: {
-                Self.isLocalDependencyKind($0.kind)
-            }) {
-                return localPackage
-            } else if let registryPackage = groupedPackageInfos.first(where: { $0.kind == "registry" }) {
-                return registryPackage
-            } else {
-                return groupedPackageInfos.first
-            }
-        }
 
-        let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
-        let packageToFolder = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
+        // Keyed by identity rather than by name: identities are unique across the deduplicated packages, while
+        // names are not. The key is only a handle to correlate these dictionaries with each other.
+        let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.id, $0.info) })
+        let packageToFolder = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.id, $0.folder) })
         let packageToTargetsToArtifactPaths = Dictionary(uniqueKeysWithValues: packageInfos.map {
-            ($0.name, $0.targetToArtifactPaths)
+            ($0.id, $0.targetToArtifactPaths)
         })
         let packagePrebuilts = try mapPackagePrebuilts(
             packageInfos: packageInfos,
@@ -276,10 +294,9 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             packageSettings: packageSettings
         )
 
-        let packageInfoDictionaryById = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.id, $0.info) })
         let enabledTraitsPerPackage = Self.enabledTraits(
             rootPackageInfo: rootPackage,
-            packageInfos: packageInfoDictionaryById
+            packageInfos: packageInfoDictionary
         )
 
         let packageModuleAliases = mutablePackageModuleAliases
@@ -292,7 +309,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     path: packageInfo.folder,
                     packageType: .external(
                         origin: Self.packageOrigin(for: packageInfo.kind),
-                        artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:],
+                        artifactPaths: packageToTargetsToArtifactPaths[packageInfo.id] ?? [:],
                         packagePrebuilts: packagePrebuilts,
                         derivedXCFrameworksPath: scratchDirectory.appending(
                             components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
@@ -313,7 +330,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                         nil
                     } else {
                         SwiftPackageManagerPaths
-                            .scratchDirectory(containingCheckout: packageInfo.folder)
+                            .scratchDirectory(containingPackageSource: packageInfo.folder)
                             .map { Path.path($0.pathString) }
                     }
                     result[.path(packageInfo.folder.pathString)] = DependenciesGraph.ExternalProject(
@@ -444,13 +461,25 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
 }
 
 private struct SwiftPackageManagerResolvedPackageInfo {
+    /// The Swift Package Manager identity of the package, lowercased.
     let id: String
+    /// The name the package's manifest declares. Not unique across packages.
     let name: String
     let folder: AbsolutePath
     let targetToArtifactPaths: [String: AbsolutePath]
     let info: PackageInfo
     let hash: String?
     let kind: String
+
+    /// The identity under which the same package resolved from different sources collapses into a single entry.
+    ///
+    /// Registry packages are identified by a scoped identifier in the form `scope.package-name`, while source
+    /// control and local packages are identified by the package name alone, so the scope is dropped to let the
+    /// two match.
+    var canonicalIdentity: String {
+        guard kind == "registry" else { return id }
+        return String(id.split(separator: ".").last ?? "")
+    }
 }
 
 private func mapPackagePrebuilts(

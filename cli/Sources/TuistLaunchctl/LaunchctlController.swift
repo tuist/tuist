@@ -12,6 +12,9 @@ public protocol LaunchctlControlling {
     /// Boots out a LaunchAgent by label from the current user's GUI domain.
     func bootout(label: String) async throws
 
+    /// Restarts a LaunchAgent by label in the current user's GUI domain.
+    func kickstart(label: String) async throws
+
     /// Returns whether a LaunchAgent with the given label is currently loaded in the
     /// current user's GUI domain.
     func isLoaded(label: String) async throws -> Bool
@@ -49,6 +52,19 @@ public struct LaunchctlController: LaunchctlControlling {
         .awaitCompletion()
     }
 
+    public func kickstart(label: String) async throws {
+        let uid = getuid()
+        _ = try await commandRunner.run(
+            arguments: [
+                "/bin/launchctl",
+                "kickstart",
+                "-k",
+                "gui/\(uid)/\(label)",
+            ]
+        )
+        .awaitCompletion()
+    }
+
     public func isLoaded(label: String) async throws -> Bool {
         let uid = getuid()
         do {
@@ -62,10 +78,24 @@ public struct LaunchctlController: LaunchctlControlling {
             .awaitCompletion()
             return true
         } catch let error as CommandError {
-            if case .terminated = error {
-                return false
-            }
-            throw error
+            guard case let .terminated(code, stderr, _) = error else { throw error }
+            guard Self.describesAMissingService(code: code, stderr: stderr) else { throw error }
+            return false
         }
+    }
+
+    /// `launchctl print` exits non-zero both for a service that is not there and
+    /// for every other failure, so only the missing-service termination may be
+    /// read as "not loaded". Reading the rest that way reports a loaded agent as
+    /// absent, which skips the bootout and leaves the bootstrap after it landing
+    /// on a live label.
+    ///
+    /// Matched on the code and the wording together because neither is a
+    /// contract: launchctl's status for a missing service is not stable across
+    /// macOS versions, and a reworded message under a known code still has to
+    /// resolve.
+    private static func describesAMissingService(code: Int32, stderr: String) -> Bool {
+        code == 113 || code == ESRCH
+            || stderr.lowercased().contains("could not find service")
     }
 }

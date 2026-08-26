@@ -2,12 +2,17 @@ use std::path::PathBuf;
 
 use tokio::fs;
 
-use crate::constants::{
-    DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
-    DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
-    DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
-    DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS,
-    DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
+use crate::{
+    constants::{
+        BACKFILL_BODIES_BATCH_BYTES, DEFAULT_BACKFILL_BATCH_BYTES, DEFAULT_BACKFILL_MARGIN_PERCENT,
+        DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS,
+        DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH,
+        DEFAULT_REPLICATION_UPLOAD_STALL_MS, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
+        DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS,
+        DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
+        MAX_INLINE_REPLICATION_BODY_BYTES, default_backfill_ready_ring_percent,
+    },
+    runtime::DataDirLock,
 };
 
 const KURA_PORT: &str = "KURA_PORT";
@@ -34,6 +39,8 @@ const KURA_ACCELERATED_FILE_SERVING_MODE: &str = "KURA_ACCELERATED_FILE_SERVING_
 const KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT: &str =
     "KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT";
 const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES";
+const KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED: &str =
+    "KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
@@ -42,10 +49,37 @@ const KURA_DRAIN_COMPLETION_TIMEOUT_MS: &str = "KURA_DRAIN_COMPLETION_TIMEOUT_MS
 const KURA_SEGMENT_HANDLE_CACHE_SIZE: &str = "KURA_SEGMENT_HANDLE_CACHE_SIZE";
 const KURA_MEMORY_SOFT_LIMIT_BYTES: &str = "KURA_MEMORY_SOFT_LIMIT_BYTES";
 const KURA_MEMORY_HARD_LIMIT_BYTES: &str = "KURA_MEMORY_HARD_LIMIT_BYTES";
+const KURA_SNAPSHOT_CACHE_MAX_BYTES: &str = "KURA_SNAPSHOT_CACHE_MAX_BYTES";
 const KURA_MANIFEST_CACHE_MAX_BYTES: &str = "KURA_MANIFEST_CACHE_MAX_BYTES";
 const KURA_MAX_KEYVALUE_BYTES: &str = "KURA_MAX_KEYVALUE_BYTES";
 const KURA_METADATA_STORE_MAX_OPEN_FILES: &str = "KURA_METADATA_STORE_MAX_OPEN_FILES";
 const KURA_METADATA_STORE_MAX_BACKGROUND_JOBS: &str = "KURA_METADATA_STORE_MAX_BACKGROUND_JOBS";
+// The process's own anonymous footprint outside every tracked cache and pool:
+// stacks, the allocator's retained arenas, and per-connection state. Measured at
+// ~74 MiB on idle instances (a ~150 MiB working set less their cache sizes);
+// rounded up so the derived admission budget errs small rather than committing
+// anon the floor does not cover.
+const PROCESS_ANON_BASELINE_BYTES: u64 = 96 * 1024 * 1024;
+
+// Lower bounds for the four anon caches the floor fit may shrink. Each is the
+// lower clamp its own ceiling-derived default already uses, so a fitted
+// instance lands inside the size range an untiered instance could already have
+// been given rather than somewhere new. The snapshot cache has no such clamp of
+// its own (its default floor is one byte), so it takes the manifest cache's.
+const MIN_ROCKSDB_BLOCK_CACHE_BYTES: usize = 16 * 1024 * 1024;
+const MIN_ROCKSDB_WRITE_BUFFER_POOL_BYTES: usize = 16 * 1024 * 1024;
+const MIN_MANIFEST_CACHE_BYTES: usize = 8 * 1024 * 1024;
+const MIN_SNAPSHOT_CACHE_BYTES: usize = 8 * 1024 * 1024;
+
+// What the fit holds back from the caches for admission itself. A quarter of
+// the floor, but never less than this: one response stream reserves up to four
+// encoded chunks (~2 MiB), and the REAPI materialization limit is half the
+// transient pool, so a pool below this cannot serve a handful of concurrent
+// readers or reach the 8 MiB response budget the REAPI paths are written
+// against. It bounds the caches rather than allocating anything, so on a floor
+// with room to spare it never binds.
+const MIN_ANON_ADMISSION_RESERVE_BYTES: u64 = 32 * 1024 * 1024;
+const KURA_MEMORY_FLOOR_BYTES: &str = "KURA_MEMORY_FLOOR_BYTES";
 const KURA_METADATA_STORE_READ_CACHE_BYTES: &str = "KURA_METADATA_STORE_READ_CACHE_BYTES";
 const KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES: &str =
     "KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES";
@@ -61,12 +95,9 @@ const KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD: &str =
     "KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD";
 const KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS: &str = "KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS";
 const KURA_CONTROL_PLANE_URL: &str = "KURA_CONTROL_PLANE_URL";
+const KURA_AUTH_TUIST_URL: &str = "KURA_AUTH_TUIST_URL";
 const KURA_CONTROL_PLANE_CLIENT_ID: &str = "KURA_CONTROL_PLANE_CLIENT_ID";
 const KURA_CONTROL_PLANE_CLIENT_SECRET: &str = "KURA_CONTROL_PLANE_CLIENT_SECRET";
-const KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: &str = "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL";
-const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID: &str = "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID";
-const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: &str =
-    "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET";
 const KURA_USAGE_WINDOW_SECS: &str = "KURA_USAGE_WINDOW_SECS";
 const KURA_USAGE_FLUSH_INTERVAL_MS: &str = "KURA_USAGE_FLUSH_INTERVAL_MS";
 const KURA_USAGE_DELIVERY_INTERVAL_MS: &str = "KURA_USAGE_DELIVERY_INTERVAL_MS";
@@ -77,20 +108,23 @@ const KURA_OUTBOX_MAX_DEPTH: &str = "KURA_OUTBOX_MAX_DEPTH";
 const KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: &str =
     "KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND";
 const KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS: &str = "KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS";
+const KURA_REPLICATION_UPLOAD_STALL_MS: &str = "KURA_REPLICATION_UPLOAD_STALL_MS";
 const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
-const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
-const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
+const KURA_MULTIPART_MAX_ACTIVE_UPLOADS: &str = "KURA_MULTIPART_MAX_ACTIVE_UPLOADS";
+const KURA_MULTIPART_MAX_STORED_BYTES: &str = "KURA_MULTIPART_MAX_STORED_BYTES";
+const KURA_BACKFILL_MARGIN_PERCENT: &str = "KURA_BACKFILL_MARGIN_PERCENT";
+const KURA_BACKFILL_READY_RING_PERCENT: &str = "KURA_BACKFILL_READY_RING_PERCENT";
+const KURA_BACKFILL_BATCH_BYTES: &str = "KURA_BACKFILL_BATCH_BYTES";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
 const KURA_SENTRY_DSN: &str = "KURA_SENTRY_DSN";
-const KURA_GEOIP_REFRESH_INTERVAL_SECS: &str = "KURA_GEOIP_REFRESH_INTERVAL_SECS";
-const DEFAULT_GEOIP_REFRESH_INTERVAL_SECS: u64 = 86_400;
 const KURA_NODE_COUNTRY: &str = "KURA_NODE_COUNTRY";
 const KURA_NODE_SUBDIVISION: &str = "KURA_NODE_SUBDIVISION";
 
 const BYTES_PER_MIB: u64 = 1024 * 1024;
+const MEMORY_WATERMARK_MIN_GAP_BYTES: u64 = 64 * BYTES_PER_MIB;
 const DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: u64 = 5_000;
 const DEFAULT_DRAIN_COMPLETION_TIMEOUT_MS: u64 = 240_000;
 const DEFAULT_MAX_KEYVALUE_BYTES: usize = 1024 * 1024;
@@ -99,6 +133,8 @@ const DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS: u64 = 100;
 const FALLBACK_HOST_FD_LIMIT: usize = 4096;
 const FALLBACK_HOST_MEMORY_LIMIT_BYTES: u64 = 1024 * BYTES_PER_MIB;
 const FALLBACK_HOST_CPU_COUNT: usize = 4;
+#[cfg(target_os = "linux")]
+const CGROUP_V1_UNLIMITED_THRESHOLD_BYTES: u64 = 1 << 53;
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -125,12 +161,28 @@ pub struct Config {
     /// TLS port for the co-hosted HTTP+gRPC surface, active when `public_tls` is set.
     pub https_port: u16,
     pub accelerated_file_serving: AcceleratedFileServingConfig,
+    /// When true, evicting a CAS blob cascades: the action-cache entries that
+    /// reference it are removed in the same atomic batch, so an entry never
+    /// outlives its blobs. Gated additionally on the node's blob-refs backfill
+    /// being complete (an incomplete reverse map must not drive deletes). The
+    /// serve-side presence gates stay on regardless as the backstop.
+    pub action_cache_eviction_cascade_enabled: bool,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
     pub segment_handle_cache_size: usize,
+    pub memory_limit_bytes: u64,
     pub memory_soft_limit_bytes: u64,
     pub memory_hard_limit_bytes: u64,
+    /// The pod's `requests.memory`, published by the orchestrator. `None` when
+    /// nothing publishes it (self-hosted, local runs, a controller too old to
+    /// set it), which keeps the ceiling-derived sizing.
+    pub memory_floor_bytes: Option<u64>,
+    /// Set when the anon caches had to be shrunk to fit under
+    /// `memory_floor_bytes`. `None` means they already fit, which is every
+    /// instance whose floor is generous relative to its ceiling.
+    pub anon_cache_fit: Option<AnonCacheFit>,
+    pub snapshot_cache_max_bytes: usize,
     pub manifest_cache_max_bytes: usize,
     pub max_keyvalue_bytes: usize,
     pub rocksdb_max_open_files: i32,
@@ -142,27 +194,44 @@ pub struct Config {
     pub outbox_max_depth: usize,
     pub replication_bandwidth_limit_bytes_per_second: u64,
     pub replication_public_latency_target_ms: u64,
+    /// How long an outbox artifact upload may produce no body chunk before the
+    /// attempt is abandoned. This is the only deadline on that path — the
+    /// upload client carries no read timeout — so it is tunable without a
+    /// rollout.
+    pub replication_upload_stall_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
-    pub bootstrap_timeout_ms: u64,
-    pub bootstrap_max_concurrent_peers: usize,
+    pub multipart_max_active_uploads: usize,
+    pub multipart_max_stored_bytes: u64,
+    /// Share of the age-ordered segment ring (counted from the newest) whose
+    /// boundary segment's seal-time stat becomes the backfill horizon; the
+    /// margin's share of the ring's time span is the window's structural
+    /// slack.
+    pub backfill_margin_percent: u64,
+    /// Segment-ring fullness (segment count vs the ring's desired total, as a
+    /// percentage) at which a node still running its initial backfill cycle
+    /// marks itself ready. Defaults to half the backfill margin
+    /// ([`default_backfill_ready_ring_percent`]); an explicit env value
+    /// overrides the derivation.
+    pub backfill_ready_ring_percent: u64,
+    /// Byte threshold a backfill pass composes one bodies batch against, and
+    /// the cutoff above which a listed entry is fetched through the
+    /// per-artifact endpoint instead of riding a batch. Never exceeds the
+    /// shared response ceiling ([`BACKFILL_BODIES_BATCH_BYTES`]).
+    pub backfill_batch_bytes: u64,
     pub analytics: Option<AnalyticsConfig>,
     pub usage: Option<UsageConfig>,
     pub otlp_traces_endpoint: Option<String>,
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
     pub sentry_dsn: Option<String>,
-    /// How often the in-process GeoIP database is refreshed against the
-    /// upstream DB-IP Lite dump. `0` disables background refresh — the
-    /// container-image copy is then used for the pod's lifetime.
-    pub geoip_refresh_interval_secs: u64,
-    /// Operator-provided ISO 3166-1 alpha-2 country code for the node.
-    /// When set, it short-circuits the egress-IP probe used to stamp
-    /// `geo.country.iso_code` on the OTel Resource.
+    /// Deployment-provided ISO 3166-1 alpha-2 country code for the node,
+    /// stamped as `geo.country.iso_code` on the OTel Resource. Derived from
+    /// the datacenter the node runs in; there is no runtime discovery behind
+    /// it, so an unset value simply leaves the attribute off.
     pub node_country_override: Option<String>,
-    /// Operator-provided ISO 3166-2 subdivision code for the node (e.g.
-    /// `US-CA`). When set, it short-circuits the egress-IP probe used to
-    /// stamp `geo.region.iso_code` on the OTel Resource.
+    /// Deployment-provided ISO 3166-2 subdivision code for the node (e.g.
+    /// `US-CA`), stamped as `geo.region.iso_code` on the OTel Resource.
     pub node_subdivision_override: Option<String>,
 }
 
@@ -260,7 +329,7 @@ impl HostResources {
                 .max(256),
             memory_limit_bytes: detect_memory_limit_bytes()
                 .unwrap_or(FALLBACK_HOST_MEMORY_LIMIT_BYTES)
-                .max(256 * BYTES_PER_MIB),
+                .max(1),
             cpu_count: detect_cpu_count().max(1),
         }
     }
@@ -279,12 +348,11 @@ impl DerivedRuntimeDefaults {
         let metadata_store_max_open_files =
             clamp_usize(usable_fds / 2, 128, 1024).min(i32::MAX as usize) as i32;
 
-        let memory_limit_bytes = host_resources.memory_limit_bytes.max(256 * BYTES_PER_MIB);
-        let memory_soft_limit_bytes =
-            round_down_to_mib(memory_limit_bytes * 70 / 100).max(128 * BYTES_PER_MIB);
-        let memory_hard_limit_bytes = round_down_to_mib(
-            (memory_limit_bytes * 85 / 100).max(memory_soft_limit_bytes + 64 * BYTES_PER_MIB),
-        );
+        let memory_limit_bytes = host_resources.memory_limit_bytes.max(1);
+        let memory_soft_limit_bytes = round_down_to_mib(memory_limit_bytes * 60 / 100).max(1);
+        let memory_hard_limit_bytes = round_down_to_mib(memory_limit_bytes * 85 / 100)
+            .max(memory_soft_limit_bytes.saturating_add(1))
+            .min(memory_limit_bytes.saturating_sub(1).max(1));
         let manifest_cache_max_bytes = clamp_bytes_to_usize(
             round_down_to_mib(memory_soft_limit_bytes / 16),
             8 * BYTES_PER_MIB,
@@ -331,7 +399,223 @@ impl DerivedRuntimeDefaults {
     }
 }
 
+/// The outcome of fitting the anon caches to the pod's memory floor.
+///
+/// Carried on the config so `run_with_config` can report it once tracing is up:
+/// the fit runs during parsing, which is before any subscriber exists.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AnonCacheFit {
+    /// What the caches would have held before fitting, caches only.
+    pub requested_bytes: u64,
+    /// What they hold after it.
+    pub fitted_bytes: u64,
+    /// The ceiling they were fitted to.
+    pub allowance_bytes: u64,
+}
+
+enum AnonCacheFitOutcome {
+    /// The configured caches already fit under the floor.
+    Fits,
+    Fitted {
+        sizes: [usize; ANON_CACHE_COUNT],
+        fit: AnonCacheFit,
+    },
+    /// Even at their minimum sizes the caches cannot fit, which means the floor
+    /// is too small to run Kura at all rather than too small for these caches.
+    Impossible {
+        allowance_bytes: u64,
+        minimum_bytes: u64,
+    },
+}
+
+const ANON_CACHE_COUNT: usize = 4;
+
+const ANON_CACHE_MINIMUMS: [usize; ANON_CACHE_COUNT] = [
+    MIN_ROCKSDB_BLOCK_CACHE_BYTES,
+    MIN_ROCKSDB_WRITE_BUFFER_POOL_BYTES,
+    MIN_MANIFEST_CACHE_BYTES,
+    MIN_SNAPSHOT_CACHE_BYTES,
+];
+
+/// How many bytes of the floor the caches may hold between them.
+///
+/// The floor is the only memory the pod is guaranteed (the orchestrator maps it
+/// onto cgroup v2 `memory.min`), and anon above it is what the kernel can only
+/// OOM-kill. Everything anonymous therefore has to fit inside it: the process
+/// baseline, these caches, and the admission budget that serves requests. This
+/// is what is left for the caches once the other two are set aside.
+///
+/// `reserve_bytes` is what admission keeps. A quarter of the floor is the
+/// preferred share; a floor too small to give that up falls back to the hard
+/// minimum before the fit gives up altogether, so the caches surrender their
+/// last bytes before a runnable instance is refused.
+fn anon_cache_allowance_bytes(floor_bytes: u64, reserve_bytes: u64) -> u64 {
+    floor_bytes
+        .saturating_sub(PROCESS_ANON_BASELINE_BYTES)
+        .saturating_sub(reserve_bytes)
+}
+
+/// Shrinks the anon caches until they fit under the floor's allowance.
+///
+/// Cache sizes are derived from the memory *ceiling* (or pinned outright by the
+/// orchestrator), while the admission budget is derived from the *floor*. On an
+/// instance whose ceiling is several times its floor, nothing relates the two,
+/// and caches sized for the ceiling can consume the whole floor — leaving
+/// admission a budget of zero, which reads downstream as a node that is Ready
+/// and serves nothing. Fitting them here keeps
+/// [`Config::anon_admission_budget_bytes`] positive by construction, so its
+/// subtraction stays exactly what it says it is.
+///
+/// Shrinks proportionally rather than by priority, so a cache the operator
+/// deliberately enlarged keeps its share of what room there is. An entry that
+/// reaches its own minimum stops shrinking and the remainder is retaken from
+/// the rest, which is why this iterates instead of scaling once.
+fn fit_anon_caches_to_floor(
+    floor_bytes: u64,
+    caches: [usize; ANON_CACHE_COUNT],
+) -> AnonCacheFitOutcome {
+    // A cache already configured below its own minimum is never grown to reach
+    // it, so it cannot be part of what the floor is required to cover either.
+    // Charging the fixed minimums instead would refuse a floor that comfortably
+    // fits what the operator actually asked for.
+    let minimums = effective_anon_cache_minimums(caches);
+    let minimum_bytes = sum_cache_bytes(&minimums);
+    // Resolve the allowance before anything is measured against it. A floor
+    // that cannot spare a quarter of itself gives admission back down to its
+    // hard minimum before the fit refuses, because refusing one that could have
+    // run is an outage where a smaller cache would have done. The fast path
+    // below has to test against that same resolved allowance: sizes produced
+    // under the fallback would otherwise never settle at `Fits`, and the fit
+    // would report a shrink of zero bytes on every restart.
+    let allowance_bytes = {
+        let preferred_reserve = (floor_bytes / 4).max(MIN_ANON_ADMISSION_RESERVE_BYTES);
+        let preferred = anon_cache_allowance_bytes(floor_bytes, preferred_reserve);
+        if minimum_bytes > preferred {
+            anon_cache_allowance_bytes(floor_bytes, MIN_ANON_ADMISSION_RESERVE_BYTES)
+        } else {
+            preferred
+        }
+    };
+    let requested_bytes = sum_cache_bytes(&caches);
+    if requested_bytes <= allowance_bytes {
+        return AnonCacheFitOutcome::Fits;
+    }
+    if minimum_bytes > allowance_bytes {
+        return AnonCacheFitOutcome::Impossible {
+            allowance_bytes,
+            minimum_bytes,
+        };
+    }
+
+    let mut sizes = caches;
+    // Each pass either lands under the allowance or pins at least one entry at
+    // its minimum, so it cannot run longer than there are entries.
+    for _ in 0..=ANON_CACHE_COUNT {
+        let total = sum_cache_bytes(&sizes);
+        if total <= allowance_bytes {
+            break;
+        }
+        let flexible_bytes: u64 = sizes
+            .iter()
+            .zip(minimums)
+            .filter(|(size, minimum)| **size > *minimum)
+            .map(|(size, _)| *size as u64)
+            .fold(0, u64::saturating_add);
+        if flexible_bytes == 0 {
+            break;
+        }
+        let pinned_bytes = total.saturating_sub(flexible_bytes);
+        let flexible_target = allowance_bytes.saturating_sub(pinned_bytes);
+        for (size, minimum) in sizes.iter_mut().zip(minimums) {
+            if *size > minimum {
+                let scaled = (*size as u64).saturating_mul(flexible_target) / flexible_bytes;
+                *size = (scaled as usize).max(minimum);
+            }
+        }
+    }
+
+    AnonCacheFitOutcome::Fitted {
+        sizes,
+        fit: AnonCacheFit {
+            requested_bytes,
+            fitted_bytes: sum_cache_bytes(&sizes),
+            allowance_bytes,
+        },
+    }
+}
+
+/// Sums cache sizes without wrapping.
+///
+/// The metadata store's block cache and write-buffer pool have no upper bound
+/// of their own, so an absurd override reaches this. A wrapping sum panics in
+/// debug and, in release, can wrap to a small enough total that the fit reports
+/// it already fits — passing the oversized cache straight through to the budget
+/// this exists to protect.
+fn sum_cache_bytes(sizes: &[usize]) -> u64 {
+    sizes
+        .iter()
+        .map(|&bytes| bytes as u64)
+        .fold(0, u64::saturating_add)
+}
+
+/// The minimum each cache is held at, bounded by what it was actually given.
+fn effective_anon_cache_minimums(caches: [usize; ANON_CACHE_COUNT]) -> [usize; ANON_CACHE_COUNT] {
+    let mut minimums = ANON_CACHE_MINIMUMS;
+    for (minimum, cache) in minimums.iter_mut().zip(caches) {
+        *minimum = (*minimum).min(cache);
+    }
+    minimums
+}
+
 impl Config {
+    /// The anonymous-memory budget admission may commit, derived from the pod's
+    /// memory floor.
+    ///
+    /// Anything above the floor is memory the pod was never guaranteed. The
+    /// kernel can take reclaimable pages back under contention, but anonymous
+    /// memory it can only OOM-kill, so committing anon above the floor trades a
+    /// retryable `503` for a dead pod. Bounding admission by the floor keeps the
+    /// floor-to-ceiling gap for page cache and mmap-served segments, which is
+    /// memory the kernel *can* reclaim.
+    ///
+    /// Subtracts the anon this process holds outside admission: the metadata
+    /// store's block cache and write-buffer pool, the manifest cache, the
+    /// action-cache snapshot cache, and a baseline for the process itself
+    /// (measured at ~150 MiB total on an idle instance, of which the caches are
+    /// the larger part).
+    ///
+    /// The block cache and the write-buffer pool are counted as two separate
+    /// allocations because that is now what they are. They used to overlap —
+    /// the write-buffer manager charged memtable growth to the block cache — so
+    /// subtracting both over-counted. Since #12556 the manager holds its own
+    /// budget, which makes this arithmetic right and also means raising
+    /// `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` genuinely narrows what
+    /// admission may hand out. That is the intended trade: a smaller admission
+    /// budget sheds load with a retryable `503`, where a pool too small to
+    /// absorb a write burst stalls every writer inside RocksDB instead.
+    ///
+    /// The snapshot cache counts for the same reason the manifest cache does:
+    /// it fills to its own ceiling and is never admitted through this budget,
+    /// so every byte of `KURA_SNAPSHOT_CACHE_MAX_BYTES` is anon this budget
+    /// must not hand out twice.
+    ///
+    /// The four cache sizes this subtracts from are fitted to the floor first
+    /// (see [`fit_anon_caches_to_floor`]), so the remainder is positive by
+    /// construction. Without that the subtraction saturates to zero on any
+    /// instance whose ceiling is several times its floor, since the caches are
+    /// sized from the ceiling and this is charged against the floor.
+    ///
+    /// `None` when nothing published a floor, which leaves the ceiling-derived
+    /// sizing in place.
+    pub fn anon_admission_budget_bytes(&self) -> Option<u64> {
+        let untracked = (self.rocksdb_block_cache_bytes as u64)
+            .saturating_add(self.rocksdb_write_buffer_manager_bytes as u64)
+            .saturating_add(self.manifest_cache_max_bytes as u64)
+            .saturating_add(self.snapshot_cache_max_bytes as u64)
+            .saturating_add(PROCESS_ANON_BASELINE_BYTES);
+        Some(self.memory_floor_bytes?.saturating_sub(untracked))
+    }
+
     pub fn from_env() -> Result<Self, String> {
         Self::from_lookup_with_resources(|key| std::env::var(key).ok(), HostResources::detect())
     }
@@ -399,7 +683,7 @@ impl Config {
         let peer_gateway_url = lookup(KURA_PEER_GATEWAY_URL)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
-        let peers = lookup(KURA_PEERS)
+        let peers: Vec<String> = lookup(KURA_PEERS)
             .map(|value| {
                 value
                     .split(',')
@@ -408,7 +692,7 @@ impl Config {
                     .map(ToOwned::to_owned)
                     .collect()
             })
-            .or_else(|| node_url.as_ref().map(|value| vec![value.clone()]));
+            .unwrap_or_default();
         let discovery_dns_name = lookup(KURA_DISCOVERY_DNS_NAME)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
@@ -477,6 +761,17 @@ impl Config {
                 max_concurrent: accelerated_file_serving_max_concurrent,
                 chunk_bytes: accelerated_file_serving_chunk_bytes,
             });
+        let action_cache_eviction_cascade_enabled = optional_parsed_value(
+            &mut lookup,
+            KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED,
+            &mut invalid,
+            |value| {
+                value.parse::<bool>().map_err(|_| {
+                    format!("{KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED} must be a valid bool")
+                })
+            },
+        )
+        .unwrap_or(true);
         let internal_tls_ca_cert_path = lookup(KURA_INTERNAL_TLS_CA_CERT_PATH)
             .map(PathBuf::from)
             .filter(|value| !value.as_os_str().is_empty());
@@ -598,7 +893,7 @@ impl Config {
                 "{KURA_SEGMENT_HANDLE_CACHE_SIZE} must be less than {KURA_FILE_DESCRIPTOR_POOL_SIZE} so transient file operations keep headroom"
             ));
         }
-        let memory_soft_limit_bytes = optional_parsed_value(
+        let memory_soft_limit_bytes_override = optional_parsed_value(
             &mut lookup,
             KURA_MEMORY_SOFT_LIMIT_BYTES,
             &mut invalid,
@@ -607,14 +902,26 @@ impl Config {
                     .parse::<u64>()
                     .map_err(|_| format!("{KURA_MEMORY_SOFT_LIMIT_BYTES} must be a valid u64"))
             },
-        )
-        .unwrap_or(derived_defaults.memory_soft_limit_bytes);
+        );
+        let memory_soft_limit_bytes =
+            memory_soft_limit_bytes_override.unwrap_or(derived_defaults.memory_soft_limit_bytes);
         if memory_soft_limit_bytes == 0 {
             invalid.push(format!(
                 "{KURA_MEMORY_SOFT_LIMIT_BYTES} must be greater than 0"
             ));
         }
-        let memory_hard_limit_bytes = optional_parsed_value(
+        let memory_floor_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_MEMORY_FLOOR_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_MEMORY_FLOOR_BYTES} must be a valid u64"))
+            },
+        )
+        .filter(|floor| *floor > 0);
+        let memory_hard_limit_bytes_override = optional_parsed_value(
             &mut lookup,
             KURA_MEMORY_HARD_LIMIT_BYTES,
             &mut invalid,
@@ -623,15 +930,64 @@ impl Config {
                     .parse::<u64>()
                     .map_err(|_| format!("{KURA_MEMORY_HARD_LIMIT_BYTES} must be a valid u64"))
             },
-        )
-        .unwrap_or_else(|| {
-            derived_defaults
-                .memory_hard_limit_bytes
-                .max(memory_soft_limit_bytes.saturating_add(64 * BYTES_PER_MIB))
+        );
+        let memory_hard_limit_bytes = memory_hard_limit_bytes_override.unwrap_or_else(|| {
+            if memory_soft_limit_bytes_override.is_some() {
+                derived_defaults
+                    .memory_hard_limit_bytes
+                    .max(memory_soft_limit_bytes.saturating_add(MEMORY_WATERMARK_MIN_GAP_BYTES))
+            } else {
+                derived_defaults.memory_hard_limit_bytes
+            }
         });
         if memory_hard_limit_bytes <= memory_soft_limit_bytes {
             invalid.push(format!(
                 "{KURA_MEMORY_HARD_LIMIT_BYTES} must be greater than {KURA_MEMORY_SOFT_LIMIT_BYTES}"
+            ));
+        }
+        let memory_limit_bytes = host_resources.memory_limit_bytes.max(1);
+        if memory_soft_limit_bytes >= memory_limit_bytes {
+            invalid.push(format!(
+                "{KURA_MEMORY_SOFT_LIMIT_BYTES} must be less than the detected runtime memory limit of {memory_limit_bytes} bytes"
+            ));
+        }
+        if memory_hard_limit_bytes >= memory_limit_bytes {
+            if memory_hard_limit_bytes_override.is_none()
+                && memory_soft_limit_bytes_override.is_some()
+            {
+                invalid.push(format!(
+                    "{KURA_MEMORY_SOFT_LIMIT_BYTES} must leave at least {MEMORY_WATERMARK_MIN_GAP_BYTES} bytes below the detected runtime memory limit of {memory_limit_bytes} bytes when {KURA_MEMORY_HARD_LIMIT_BYTES} is unset; lower {KURA_MEMORY_SOFT_LIMIT_BYTES} or set both watermarks explicitly"
+                ));
+            } else {
+                invalid.push(format!(
+                    "{KURA_MEMORY_HARD_LIMIT_BYTES} must be less than the detected runtime memory limit of {memory_limit_bytes} bytes"
+                ));
+            }
+        }
+        let mut snapshot_cache_max_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_SNAPSHOT_CACHE_MAX_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_SNAPSHOT_CACHE_MAX_BYTES} must be a valid usize"))
+            },
+        )
+        .unwrap_or_else(|| {
+            clamp_bytes_to_usize(
+                round_down_to_mib(memory_soft_limit_bytes / 4),
+                1,
+                256 * BYTES_PER_MIB,
+            )
+        });
+        if snapshot_cache_max_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_SNAPSHOT_CACHE_MAX_BYTES} must be greater than 0"
+            ));
+        } else if snapshot_cache_max_bytes as u64 >= memory_soft_limit_bytes {
+            invalid.push(format!(
+                "{KURA_SNAPSHOT_CACHE_MAX_BYTES} must be less than {KURA_MEMORY_SOFT_LIMIT_BYTES} so the cache leaves runtime headroom"
             ));
         }
         let manifest_cache_default = clamp_usize(
@@ -639,7 +995,7 @@ impl Config {
             (8 * BYTES_PER_MIB) as usize,
             (64 * BYTES_PER_MIB) as usize,
         );
-        let manifest_cache_max_bytes = optional_parsed_value(
+        let mut manifest_cache_max_bytes = optional_parsed_value(
             &mut lookup,
             KURA_MANIFEST_CACHE_MAX_BYTES,
             &mut invalid,
@@ -672,6 +1028,15 @@ impl Config {
         .unwrap_or(derived_defaults.max_keyvalue_bytes);
         if max_keyvalue_bytes == 0 {
             invalid.push(format!("{KURA_MAX_KEYVALUE_BYTES} must be greater than 0"));
+        } else if max_keyvalue_bytes as u64 > MAX_INLINE_REPLICATION_BODY_BYTES {
+            // Key-value entries are stored inline and replicated inline, and the
+            // inline replication receive path is bounded by
+            // MAX_INLINE_REPLICATION_BODY_BYTES. A larger key-value limit would
+            // let an entry be accepted locally but 413'd by every peer — the
+            // poison-outbox loop this ceiling exists to prevent.
+            invalid.push(format!(
+                "{KURA_MAX_KEYVALUE_BYTES} must be at most {MAX_INLINE_REPLICATION_BODY_BYTES} so inline entries stay replicable"
+            ));
         }
         let rocksdb_max_open_files = optional_parsed_value(
             &mut lookup,
@@ -705,7 +1070,7 @@ impl Config {
                 "{KURA_METADATA_STORE_MAX_BACKGROUND_JOBS} must be greater than 0"
             ));
         }
-        let rocksdb_block_cache_bytes = optional_parsed_value(
+        let mut rocksdb_block_cache_bytes = optional_parsed_value(
             &mut lookup,
             KURA_METADATA_STORE_READ_CACHE_BYTES,
             &mut invalid,
@@ -721,7 +1086,7 @@ impl Config {
                 "{KURA_METADATA_STORE_READ_CACHE_BYTES} must be greater than 0"
             ));
         }
-        let rocksdb_write_buffer_manager_bytes = optional_parsed_value(
+        let mut rocksdb_write_buffer_manager_bytes = optional_parsed_value(
             &mut lookup,
             KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES,
             &mut invalid,
@@ -737,7 +1102,7 @@ impl Config {
                 "{KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES} must be greater than 0"
             ));
         }
-        let rocksdb_write_buffer_size_bytes = optional_parsed_value(
+        let mut rocksdb_write_buffer_size_bytes = optional_parsed_value(
             &mut lookup,
             KURA_METADATA_STORE_WRITE_BUFFER_BYTES,
             &mut invalid,
@@ -757,7 +1122,7 @@ impl Config {
                 "{KURA_METADATA_STORE_WRITE_BUFFER_BYTES} must be less than or equal to {KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES}"
             ));
         }
-        let rocksdb_max_write_buffer_number = optional_parsed_value(
+        let mut rocksdb_max_write_buffer_number = optional_parsed_value(
             &mut lookup,
             KURA_METADATA_STORE_MAX_WRITE_BUFFERS,
             &mut invalid,
@@ -807,6 +1172,22 @@ impl Config {
             },
         )
         .unwrap_or(DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS);
+        let replication_upload_stall_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_REPLICATION_UPLOAD_STALL_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_REPLICATION_UPLOAD_STALL_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_REPLICATION_UPLOAD_STALL_MS);
+        if replication_upload_stall_ms == 0 {
+            invalid.push(format!(
+                "{KURA_REPLICATION_UPLOAD_STALL_MS} must be greater than 0"
+            ));
+        }
         let multipart_upload_ttl_ms = optional_parsed_value(
             &mut lookup,
             KURA_MULTIPART_UPLOAD_TTL_MS,
@@ -839,36 +1220,84 @@ impl Config {
                 "{KURA_MULTIPART_JANITOR_INTERVAL_MS} must be greater than 0"
             ));
         }
-        let bootstrap_timeout_ms = optional_parsed_value(
+        let multipart_max_active_uploads = optional_parsed_value(
             &mut lookup,
-            KURA_BOOTSTRAP_TIMEOUT_MS,
+            KURA_MULTIPART_MAX_ACTIVE_UPLOADS,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_MULTIPART_MAX_ACTIVE_UPLOADS} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS);
+        if multipart_max_active_uploads == 0 {
+            invalid.push(format!(
+                "{KURA_MULTIPART_MAX_ACTIVE_UPLOADS} must be greater than 0"
+            ));
+        }
+        let multipart_max_stored_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_MULTIPART_MAX_STORED_BYTES,
             &mut invalid,
             |value| {
                 value
                     .parse::<u64>()
-                    .map_err(|_| format!("{KURA_BOOTSTRAP_TIMEOUT_MS} must be a valid u64"))
+                    .map_err(|_| format!("{KURA_MULTIPART_MAX_STORED_BYTES} must be a valid u64"))
             },
         )
-        .unwrap_or(DEFAULT_BOOTSTRAP_TIMEOUT_MS);
-        if bootstrap_timeout_ms == 0 {
+        .unwrap_or(tmp_dir_max_bytes);
+        if multipart_max_stored_bytes == 0 {
             invalid.push(format!(
-                "{KURA_BOOTSTRAP_TIMEOUT_MS} must be greater than 0"
+                "{KURA_MULTIPART_MAX_STORED_BYTES} must be greater than 0"
             ));
         }
-        let bootstrap_max_concurrent_peers = optional_parsed_value(
+        let backfill_margin_percent = optional_parsed_value(
             &mut lookup,
-            KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS,
+            KURA_BACKFILL_MARGIN_PERCENT,
             &mut invalid,
             |value| {
-                value.parse::<usize>().map_err(|_| {
-                    format!("{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be a valid usize")
-                })
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BACKFILL_MARGIN_PERCENT} must be a valid u64"))
             },
         )
-        .unwrap_or(DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS);
-        if bootstrap_max_concurrent_peers == 0 {
+        .unwrap_or(DEFAULT_BACKFILL_MARGIN_PERCENT);
+        if backfill_margin_percent == 0 || backfill_margin_percent > 100 {
             invalid.push(format!(
-                "{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be greater than 0"
+                "{KURA_BACKFILL_MARGIN_PERCENT} must be between 1 and 100"
+            ));
+        }
+        let backfill_ready_ring_percent = optional_parsed_value(
+            &mut lookup,
+            KURA_BACKFILL_READY_RING_PERCENT,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BACKFILL_READY_RING_PERCENT} must be a valid u64"))
+            },
+        )
+        .unwrap_or_else(|| default_backfill_ready_ring_percent(backfill_margin_percent));
+        if backfill_ready_ring_percent == 0 || backfill_ready_ring_percent > 100 {
+            invalid.push(format!(
+                "{KURA_BACKFILL_READY_RING_PERCENT} must be between 1 and 100"
+            ));
+        }
+        let backfill_batch_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_BACKFILL_BATCH_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BACKFILL_BATCH_BYTES} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_BACKFILL_BATCH_BYTES);
+        if backfill_batch_bytes == 0 || backfill_batch_bytes > BACKFILL_BODIES_BATCH_BYTES {
+            invalid.push(format!(
+                "{KURA_BACKFILL_BATCH_BYTES} must be between 1 and {BACKFILL_BODIES_BATCH_BYTES}"
             ));
         }
         let analytics_server_url = lookup(KURA_ANALYTICS_SERVER_URL)
@@ -1080,17 +1509,26 @@ impl Config {
                 "{KURA_USAGE_OUTBOX_MAX_DEPTH} must be greater than 0"
             ));
         }
-        let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
-            .or_else(|| lookup(KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL))
-            .map(|value| value.trim().trim_end_matches('/').to_owned())
-            .filter(|value| !value.is_empty());
         let control_plane_client_id = lookup(KURA_CONTROL_PLANE_CLIENT_ID)
-            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID))
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
         let control_plane_client_secret = lookup(KURA_CONTROL_PLANE_CLIENT_SECRET)
-            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET))
             .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        // Usage reporting and authorization address the same server, so a node
+        // given credentials and only the authorization URL has still said where
+        // to report. On its own that URL says where to authorize and nothing
+        // more: reading it as a usage URL would half-configure the tuple below
+        // and stop a node that only authorizes from booting at all.
+        let has_credentials =
+            control_plane_client_id.is_some() && control_plane_client_secret.is_some();
+        let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
+            .or_else(|| {
+                has_credentials
+                    .then(|| lookup(KURA_AUTH_TUIST_URL))
+                    .flatten()
+            })
+            .map(|value| value.trim().trim_end_matches('/').to_owned())
             .filter(|value| !value.is_empty());
         let usage = match (
             control_plane_url,
@@ -1126,17 +1564,6 @@ impl Config {
                 None
             }
         };
-        let geoip_refresh_interval_secs = optional_parsed_value(
-            &mut lookup,
-            KURA_GEOIP_REFRESH_INTERVAL_SECS,
-            &mut invalid,
-            |value| {
-                value
-                    .parse::<u64>()
-                    .map_err(|_| format!("{KURA_GEOIP_REFRESH_INTERVAL_SECS} must be a valid u64"))
-            },
-        )
-        .unwrap_or(DEFAULT_GEOIP_REFRESH_INTERVAL_SECS);
         let node_country_override = lookup(KURA_NODE_COUNTRY)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
@@ -1178,9 +1605,7 @@ impl Config {
             }
         }
 
-        if let (Some(node_url), Some(peers), Some(internal_port)) =
-            (node_url.as_ref(), peers.as_ref(), internal_port)
-        {
+        if let (Some(node_url), Some(internal_port)) = (node_url.as_ref(), internal_port) {
             let expected_scheme = if peer_tls.is_some() { "https" } else { "http" };
             let scheme_error = if peer_tls.is_some() {
                 format!("{KURA_NODE_URL} must use https when peer mTLS is enabled")
@@ -1240,6 +1665,52 @@ impl Config {
             }
         }
 
+        // Fit the anon caches to the floor before the config is sealed. This runs
+        // last because it has to see the final values, operator overrides
+        // included: the orchestrator pins all four on managed instances, and
+        // those pinned sizes are exactly the ones that can overrun a small
+        // floor. Shrinking the write-buffer pool cascades into the per-buffer
+        // size and the buffer count, which the pool bounds.
+        let mut anon_cache_fit = None;
+        if let Some(floor_bytes) = memory_floor_bytes {
+            match fit_anon_caches_to_floor(
+                floor_bytes,
+                [
+                    rocksdb_block_cache_bytes,
+                    rocksdb_write_buffer_manager_bytes,
+                    manifest_cache_max_bytes,
+                    snapshot_cache_max_bytes,
+                ],
+            ) {
+                AnonCacheFitOutcome::Fits => {}
+                AnonCacheFitOutcome::Fitted { sizes, fit } => {
+                    [
+                        rocksdb_block_cache_bytes,
+                        rocksdb_write_buffer_manager_bytes,
+                        manifest_cache_max_bytes,
+                        snapshot_cache_max_bytes,
+                    ] = sizes;
+                    rocksdb_write_buffer_size_bytes =
+                        rocksdb_write_buffer_size_bytes.min(rocksdb_write_buffer_manager_bytes);
+                    rocksdb_max_write_buffer_number = rocksdb_max_write_buffer_number.min(
+                        clamp_usize(
+                            rocksdb_write_buffer_manager_bytes
+                                / rocksdb_write_buffer_size_bytes.max(1),
+                            2,
+                            8,
+                        ) as i32,
+                    );
+                    anon_cache_fit = Some(fit);
+                }
+                AnonCacheFitOutcome::Impossible {
+                    allowance_bytes,
+                    minimum_bytes,
+                } => invalid.push(format!(
+                    "{KURA_MEMORY_FLOOR_BYTES} of {floor_bytes} bytes leaves {allowance_bytes} bytes for the metadata-store, manifest and snapshot caches, which need at least {minimum_bytes} bytes between them; raise the floor"
+                )),
+            }
+        }
+
         if !missing.is_empty() || !invalid.is_empty() {
             let mut errors = Vec::new();
             if !missing.is_empty() {
@@ -1264,7 +1735,7 @@ impl Config {
             cas_capacity_bytes,
             node_url: node_url.expect("node_url should be present when configuration is valid"),
             peer_gateway_url,
-            peers: peers.expect("peers should be present when configuration is valid"),
+            peers,
             discovery_dns_name,
             global_discovery_dns_name,
             peer_tls,
@@ -1272,12 +1743,17 @@ impl Config {
             https_port,
             accelerated_file_serving: accelerated_file_serving
                 .expect("accelerated_file_serving should be present when configuration is valid"),
+            action_cache_eviction_cascade_enabled,
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
             segment_handle_cache_size,
+            memory_limit_bytes,
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
+            memory_floor_bytes,
+            anon_cache_fit,
+            snapshot_cache_max_bytes,
             manifest_cache_max_bytes,
             max_keyvalue_bytes,
             rocksdb_max_open_files,
@@ -1289,10 +1765,14 @@ impl Config {
             outbox_max_depth,
             replication_bandwidth_limit_bytes_per_second,
             replication_public_latency_target_ms,
+            replication_upload_stall_ms,
             multipart_upload_ttl_ms,
             multipart_janitor_interval_ms,
-            bootstrap_timeout_ms,
-            bootstrap_max_concurrent_peers,
+            multipart_max_active_uploads,
+            multipart_max_stored_bytes,
+            backfill_margin_percent,
+            backfill_ready_ring_percent,
+            backfill_batch_bytes,
             analytics,
             usage,
             otlp_traces_endpoint,
@@ -1302,22 +1782,30 @@ impl Config {
                 "otel_deployment_environment should be present when configuration is valid",
             ),
             sentry_dsn,
-            geoip_refresh_interval_secs,
             node_country_override,
             node_subdivision_override,
         })
     }
 
-    pub async fn ensure_directories(&self) -> Result<(), std::io::Error> {
+    pub async fn ensure_data_dir_for_lock(&self) -> Result<(), std::io::Error> {
+        fs::create_dir_all(&self.data_dir).await
+    }
+
+    pub async fn ensure_directories(
+        &self,
+        _data_dir_lock: &DataDirLock,
+    ) -> Result<(), std::io::Error> {
         // Reclaim transient staging from a previous run before opening the store.
-        // Everything under tmp_dir (in-flight uploads, multipart parts, bootstrap
-        // staging) is dead once the process restarts, and a failed transfer can
-        // leave a partial file behind. Left to accumulate they fill the data disk
-        // and RocksDB then fails to open with "No space left on device", wedging
-        // the pod in a crash loop. Clearing them here — before Store::open — lets
-        // such a pod free space and recover on the next start instead of staying
-        // stuck out-of-space.
-        for staging in ["uploads", "parts", "bootstrap"] {
+        // Everything under tmp_dir (in-flight uploads, multipart parts, peer
+        // catch-up staging) is dead once the process restarts, and a failed
+        // transfer can leave a partial file behind. Left to accumulate they fill
+        // the data disk and RocksDB then fails to open with "No space left on
+        // device", wedging the pod in a crash loop. Clearing them here — before
+        // Store::open — lets such a pod free space and recover on the next start
+        // instead of staying stuck out-of-space. `bootstrap` is the retired
+        // legacy walker's staging directory: still swept (an upgrading node can
+        // carry its leftovers in) but no longer recreated.
+        for staging in ["uploads", "parts", "bootstrap", "backfill"] {
             let path = self.tmp_dir.join(staging);
             match fs::remove_dir_all(&path).await {
                 Ok(()) => {}
@@ -1327,7 +1815,7 @@ impl Config {
         }
         fs::create_dir_all(self.tmp_dir.join("uploads")).await?;
         fs::create_dir_all(self.tmp_dir.join("parts")).await?;
-        fs::create_dir_all(self.tmp_dir.join("bootstrap")).await?;
+        fs::create_dir_all(self.tmp_dir.join("backfill")).await?;
         fs::create_dir_all(self.data_dir.join("rocksdb")).await?;
         fs::create_dir_all(self.data_dir.join("blobs")).await?;
         fs::create_dir_all(self.data_dir.join("segments")).await?;
@@ -1408,9 +1896,12 @@ fn detect_memory_limit_bytes() -> Option<u64> {
 fn detect_cgroup_memory_limit_bytes() -> Option<u64> {
     #[cfg(target_os = "linux")]
     {
-        for path in [
-            "/sys/fs/cgroup/memory.max",
-            "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+        for (path, unlimited_threshold_bytes) in [
+            ("/sys/fs/cgroup/memory.max", None),
+            (
+                "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+                Some(CGROUP_V1_UNLIMITED_THRESHOLD_BYTES),
+            ),
         ] {
             let Ok(raw) = std::fs::read_to_string(path) else {
                 continue;
@@ -1421,6 +1912,7 @@ fn detect_cgroup_memory_limit_bytes() -> Option<u64> {
             }
             if let Ok(value) = trimmed.parse::<u64>()
                 && value > 0
+                && unlimited_threshold_bytes.is_none_or(|threshold| value < threshold)
             {
                 return Some(value);
             }
@@ -1513,6 +2005,541 @@ mod tests {
         Config::from_lookup_with_resources(|key| merged.get(key).cloned(), TEST_HOST_RESOURCES)
     }
 
+    /// A managed instance of the given memory profile: the floor and ceiling
+    /// the Kubernetes controller renders, plus the four cache sizes it pins on
+    /// every managed pod regardless of profile.
+    fn managed_profile_config(floor_mib: u64, ceiling_mib: u64) -> Result<Config, String> {
+        let mut merged = base_values();
+        for (key, value) in [
+            (
+                KURA_MEMORY_FLOOR_BYTES,
+                (floor_mib * BYTES_PER_MIB).to_string(),
+            ),
+            (KURA_SNAPSHOT_CACHE_MAX_BYTES, "67108864".to_owned()),
+            (KURA_MANIFEST_CACHE_MAX_BYTES, "33554432".to_owned()),
+            (KURA_METADATA_STORE_READ_CACHE_BYTES, "33554432".to_owned()),
+            (
+                KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES,
+                "33554432".to_owned(),
+            ),
+        ] {
+            merged.insert(key.to_owned(), value);
+        }
+        Config::from_lookup_with_resources(
+            |key| merged.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 65536,
+                memory_limit_bytes: ceiling_mib * BYTES_PER_MIB,
+                cpu_count: 8,
+            },
+        )
+    }
+
+    const MIB: usize = BYTES_PER_MIB as usize;
+
+    fn anon_cache_bytes(config: &Config) -> u64 {
+        (config.rocksdb_block_cache_bytes as u64)
+            + config.rocksdb_write_buffer_manager_bytes as u64
+            + config.manifest_cache_max_bytes as u64
+            + config.snapshot_cache_max_bytes as u64
+    }
+
+    // The standard profile (`server/lib/tuist/kura/regions.ex`) is what Air and
+    // every unrecognised plan get, and its floor is small enough that the
+    // controller-pinned caches used to consume all of it. A zero budget is not a
+    // degraded node: every response stream, upload and REAPI materialization is
+    // admitted against it, so the pod reports Ready and serves nothing.
+    #[test]
+    fn the_standard_memory_profile_keeps_an_admission_budget() {
+        let config = managed_profile_config(256, 768).expect("standard profile must be runnable");
+        let budget = config
+            .anon_admission_budget_bytes()
+            .expect("a published floor derives a budget");
+        assert!(
+            budget >= MIN_ANON_ADMISSION_RESERVE_BYTES,
+            "standard profile budget was {budget} bytes"
+        );
+        assert!(config.anon_cache_fit.is_some());
+    }
+
+    // The profiles whose floors already cover their caches must come through
+    // byte-identical, so the fit cannot reshape an instance that was working.
+    #[test]
+    fn profiles_with_room_to_spare_are_left_alone() {
+        for (floor_mib, ceiling_mib) in [(512, 3072), (1024, 4096), (2048, 4096)] {
+            let config = managed_profile_config(floor_mib, ceiling_mib).expect("config");
+            assert_eq!(
+                config.anon_cache_fit, None,
+                "profile {floor_mib}/{ceiling_mib} was fitted"
+            );
+            assert_eq!(config.rocksdb_block_cache_bytes, 32 * 1024 * 1024);
+            assert_eq!(config.rocksdb_write_buffer_manager_bytes, 32 * 1024 * 1024);
+            assert_eq!(config.manifest_cache_max_bytes, 32 * 1024 * 1024);
+            assert_eq!(config.snapshot_cache_max_bytes, 64 * 1024 * 1024);
+        }
+    }
+
+    // Kura's own defaults scale with the ceiling, so an instance whose ceiling
+    // is several times its floor overruns the floor without the controller
+    // pinning anything at all. The fit has to cover that case too, or the
+    // budget depends on an orchestrator that happens to publish smaller caches.
+    #[test]
+    fn ceiling_derived_defaults_are_fitted_to_a_smaller_floor() {
+        let mut merged = base_values();
+        merged.insert(
+            KURA_MEMORY_FLOOR_BYTES.to_owned(),
+            (512 * BYTES_PER_MIB).to_string(),
+        );
+        let config = Config::from_lookup_with_resources(
+            |key| merged.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 65536,
+                memory_limit_bytes: 3072 * BYTES_PER_MIB,
+                cpu_count: 8,
+            },
+        )
+        .expect("config");
+        assert!(config.anon_cache_fit.is_some());
+        assert!(
+            config
+                .anon_admission_budget_bytes()
+                .expect("floor published")
+                >= MIN_ANON_ADMISSION_RESERVE_BYTES
+        );
+    }
+
+    // Every managed profile fits with room above the minimums, so the clamp only
+    // shows itself when one cache is large enough to squeeze the rest onto their
+    // floors. Asserting equality there is what gives this test the power to fail
+    // if the clamp is dropped; a `>=` against an unclamped fit passes either way.
+    #[test]
+    fn the_fit_holds_every_cache_at_or_above_its_minimum() {
+        let sizes = match fit_anon_caches_to_floor(
+            256 * BYTES_PER_MIB,
+            [17 * MIB, 17 * MIB, 9 * MIB, 200 * MIB],
+        ) {
+            AnonCacheFitOutcome::Fitted { sizes, .. } => sizes,
+            _ => panic!("caches well over the allowance must be fitted"),
+        };
+        assert_eq!(sizes[0], MIN_ROCKSDB_BLOCK_CACHE_BYTES);
+        assert_eq!(sizes[1], MIN_ROCKSDB_WRITE_BUFFER_POOL_BYTES);
+        assert_eq!(sizes[2], MIN_MANIFEST_CACHE_BYTES);
+        assert!(sizes[3] > MIN_SNAPSHOT_CACHE_BYTES);
+
+        let config = managed_profile_config(256, 768).expect("config");
+        assert!(config.rocksdb_block_cache_bytes >= MIN_ROCKSDB_BLOCK_CACHE_BYTES);
+        assert!(config.rocksdb_write_buffer_manager_bytes >= MIN_ROCKSDB_WRITE_BUFFER_POOL_BYTES);
+        assert!(config.manifest_cache_max_bytes >= MIN_MANIFEST_CACHE_BYTES);
+        assert!(config.snapshot_cache_max_bytes >= MIN_SNAPSHOT_CACHE_BYTES);
+    }
+
+    // The per-buffer size and the buffer count are both bounded by the pool, so
+    // shrinking the pool without them would leave a config the metadata store
+    // rejects at open.
+    #[test]
+    fn shrinking_the_write_buffer_pool_cascades() {
+        let config = managed_profile_config(256, 768).expect("config");
+        assert!(config.anon_cache_fit.is_some());
+        assert!(
+            config.rocksdb_write_buffer_size_bytes <= config.rocksdb_write_buffer_manager_bytes
+        );
+        assert!(config.rocksdb_max_write_buffer_number >= 2);
+        assert!(
+            (config.rocksdb_max_write_buffer_number as usize)
+                * config.rocksdb_write_buffer_size_bytes
+                <= config.rocksdb_write_buffer_manager_bytes
+                    + config.rocksdb_write_buffer_size_bytes
+        );
+    }
+
+    // Shrinking is proportional, so an operator who deliberately enlarged one
+    // cache keeps its share of whatever room the floor leaves. Ordering alone
+    // does not say that: a policy that drained the three small caches to their
+    // minimums and left the rest to the snapshot cache would also come out
+    // ordered. The ratio is the property, so compare it by cross-multiplying
+    // (integer division makes an equality on the quotient too brittle).
+    #[test]
+    fn the_fit_shrinks_the_caches_in_proportion() {
+        let config = managed_profile_config(256, 768).expect("config");
+        // The controller pins the snapshot cache at twice the other three.
+        assert_eq!(
+            config.snapshot_cache_max_bytes / config.manifest_cache_max_bytes,
+            2
+        );
+        for (fitted, requested) in [
+            (config.rocksdb_block_cache_bytes, 32 * MIB),
+            (config.rocksdb_write_buffer_manager_bytes, 32 * MIB),
+            (config.manifest_cache_max_bytes, 32 * MIB),
+            (config.snapshot_cache_max_bytes, 64 * MIB),
+        ] {
+            let scaled = (config.snapshot_cache_max_bytes as u64) * (requested as u64);
+            let reference = (fitted as u64) * (64 * MIB as u64);
+            let tolerance = (64 * MIB as u64) * 4;
+            assert!(
+                scaled.abs_diff(reference) <= tolerance,
+                "cache fitted to {fitted} from {requested} is off the shared ratio"
+            );
+        }
+    }
+
+    // A floor too small for the process baseline plus the minimum caches cannot
+    // run Kura at all. Refusing at parse time is the honest answer: booting
+    // would produce the Ready-but-serving-nothing node this fit exists to
+    // prevent, and the message names the one knob that fixes it.
+    #[test]
+    fn a_floor_too_small_to_run_is_refused() {
+        let mut merged = base_values();
+        merged.insert(
+            KURA_MEMORY_FLOOR_BYTES.to_owned(),
+            (128 * BYTES_PER_MIB).to_string(),
+        );
+        let error = Config::from_lookup_with_resources(
+            |key| merged.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 65536,
+                memory_limit_bytes: 768 * BYTES_PER_MIB,
+                cpu_count: 8,
+            },
+        )
+        .expect_err("a 128 MiB floor cannot run Kura");
+        assert!(error.contains(KURA_MEMORY_FLOOR_BYTES), "{error}");
+        assert!(error.contains("raise the floor"), "{error}");
+    }
+
+    // No floor published means no floor-derived sizing, which is what a
+    // self-hosted install or a controller too old to set it gets.
+    #[test]
+    fn an_unpublished_floor_leaves_the_caches_alone() {
+        let config = config_from(&[]).expect("config");
+        assert_eq!(config.memory_floor_bytes, None);
+        assert_eq!(config.anon_cache_fit, None);
+        assert_eq!(config.anon_admission_budget_bytes(), None);
+    }
+
+    #[test]
+    fn the_fit_lands_within_the_allowance_it_reports() {
+        let config = managed_profile_config(256, 768).expect("config");
+        let fit = config.anon_cache_fit.expect("fitted");
+        assert_eq!(anon_cache_bytes(&config), fit.fitted_bytes);
+        assert!(fit.fitted_bytes <= fit.allowance_bytes);
+        assert!(fit.fitted_bytes < fit.requested_bytes);
+    }
+
+    // Between a floor that cannot spare a quarter of itself and one too small to
+    // run at all sits a band that only boots because the fit hands admission
+    // back down to its hard minimum. No managed profile lands here, so nothing
+    // else covers the branch that keeps such a floor runnable.
+    #[test]
+    fn a_floor_too_small_for_the_preferred_reserve_still_runs() {
+        let caches = [32 * MIB, 32 * MIB, 32 * MIB, 64 * MIB];
+        let floor_bytes = 180 * BYTES_PER_MIB;
+        let sizes = match fit_anon_caches_to_floor(floor_bytes, caches) {
+            AnonCacheFitOutcome::Fitted { sizes, .. } => sizes,
+            AnonCacheFitOutcome::Fits => panic!("caches over the allowance must be fitted"),
+            AnonCacheFitOutcome::Impossible { .. } => {
+                panic!("a floor that can run on the minimum reserve must not be refused")
+            }
+        };
+        // The caches gave up everything above the reserve, so admission lands on
+        // exactly the minimum the fallback exists to preserve.
+        assert_eq!(
+            floor_bytes - PROCESS_ANON_BASELINE_BYTES - sum_cache_bytes(&sizes),
+            MIN_ANON_ADMISSION_RESERVE_BYTES
+        );
+    }
+
+    // The fallback allowance is also what a second fit has to measure against.
+    // Checking the preferred allowance instead leaves a config fitted through
+    // the fallback reporting a shrink of zero bytes on every restart.
+    #[test]
+    fn a_fallback_reserve_fit_settles() {
+        let sizes = match fit_anon_caches_to_floor(
+            180 * BYTES_PER_MIB,
+            [32 * MIB, 32 * MIB, 32 * MIB, 64 * MIB],
+        ) {
+            AnonCacheFitOutcome::Fitted { sizes, .. } => sizes,
+            _ => panic!("expected a fitted config"),
+        };
+        match fit_anon_caches_to_floor(180 * BYTES_PER_MIB, sizes) {
+            AnonCacheFitOutcome::Fits => {}
+            AnonCacheFitOutcome::Fitted { sizes: again, .. } => {
+                panic!("a fitted config was fitted again: {sizes:?} -> {again:?}")
+            }
+            AnonCacheFitOutcome::Impossible { .. } => panic!("a fitted config became impossible"),
+        }
+    }
+
+    // One cache large enough to pin the others at their minimums cannot be
+    // resolved by scaling once: the bytes freed by the entries that stopped
+    // shrinking have to be retaken from the one that did not.
+    #[test]
+    fn the_fit_redistributes_after_an_entry_pins_at_its_minimum() {
+        let allowance = 256 * BYTES_PER_MIB
+            - PROCESS_ANON_BASELINE_BYTES
+            - (256 * BYTES_PER_MIB / 4).max(MIN_ANON_ADMISSION_RESERVE_BYTES);
+        let (sizes, fit) = match fit_anon_caches_to_floor(
+            256 * BYTES_PER_MIB,
+            [17 * MIB, 17 * MIB, 9 * MIB, 200 * MIB],
+        ) {
+            AnonCacheFitOutcome::Fitted { sizes, fit } => (sizes, fit),
+            _ => panic!("expected a fitted config"),
+        };
+        // A single proportional pass would have scaled every entry by the same
+        // ratio and left the three small ones under their minimums; clamping
+        // them back up would then have overshot the allowance.
+        assert_eq!(sizes[0], MIN_ROCKSDB_BLOCK_CACHE_BYTES);
+        assert_eq!(sizes[1], MIN_ROCKSDB_WRITE_BUFFER_POOL_BYTES);
+        assert_eq!(sizes[2], MIN_MANIFEST_CACHE_BYTES);
+        assert_eq!(fit.fitted_bytes, sum_cache_bytes(&sizes));
+        // The snapshot cache absorbed the shortfall rather than the fit giving up.
+        assert_eq!(fit.fitted_bytes, allowance);
+    }
+
+    // The metadata-store caches have no upper bound of their own. A wrapping sum
+    // panics in debug and, in release, wraps small enough to report that an
+    // absurd cache already fits — passing it straight through to the budget the
+    // fit exists to protect.
+    #[test]
+    fn an_absurd_cache_override_is_fitted_rather_than_overflowing() {
+        let mut merged = base_values();
+        for (key, value) in [
+            (KURA_MEMORY_FLOOR_BYTES, (256 * BYTES_PER_MIB).to_string()),
+            (KURA_METADATA_STORE_READ_CACHE_BYTES, usize::MAX.to_string()),
+            (
+                KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES,
+                usize::MAX.to_string(),
+            ),
+        ] {
+            merged.insert(key.to_owned(), value);
+        }
+        let config = Config::from_lookup_with_resources(
+            |key| merged.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 65536,
+                memory_limit_bytes: 768 * BYTES_PER_MIB,
+                cpu_count: 8,
+            },
+        )
+        .expect("an absurd cache must be fitted, not rejected or overflowed");
+        assert_eq!(
+            config.rocksdb_block_cache_bytes,
+            MIN_ROCKSDB_BLOCK_CACHE_BYTES
+        );
+        assert_eq!(
+            config.rocksdb_write_buffer_manager_bytes,
+            MIN_ROCKSDB_WRITE_BUFFER_POOL_BYTES
+        );
+        assert!(
+            config
+                .anon_admission_budget_bytes()
+                .expect("floor published")
+                >= MIN_ANON_ADMISSION_RESERVE_BYTES
+        );
+    }
+
+    // A cache is never grown to reach its minimum, so the floor is not required
+    // to cover one either. Charging the fixed minimums regardless refuses an
+    // operator running small caches on a floor that fits them with the reserve
+    // intact — an outage on a configuration that would have served.
+    #[test]
+    fn caches_below_their_minimums_are_not_charged_the_minimums() {
+        let floor_bytes = 170 * BYTES_PER_MIB;
+        let caches = [2 * MIB, 2 * MIB, 2 * MIB, 100 * MIB];
+        let sizes = match fit_anon_caches_to_floor(floor_bytes, caches) {
+            AnonCacheFitOutcome::Fitted { sizes, .. } => sizes,
+            AnonCacheFitOutcome::Fits => panic!("caches over the allowance must be fitted"),
+            AnonCacheFitOutcome::Impossible { minimum_bytes, .. } => panic!(
+                "refused for needing {minimum_bytes} bytes, more than the {} it was given",
+                sum_cache_bytes(&caches)
+            ),
+        };
+        // The three small caches keep what they were given rather than being
+        // charged (or raised to) a minimum they never asked for.
+        assert_eq!(sizes[0], 2 * MIB);
+        assert_eq!(sizes[1], 2 * MIB);
+        assert_eq!(sizes[2], 2 * MIB);
+        // Charged the fixed 48 MiB instead, this floor has no allowance that
+        // covers it and the instance is refused; charged the 8 MiB these caches
+        // actually need, it runs with more than the reserve to spare.
+        assert!(
+            floor_bytes - PROCESS_ANON_BASELINE_BYTES - sum_cache_bytes(&sizes)
+                >= MIN_ANON_ADMISSION_RESERVE_BYTES
+        );
+    }
+
+    // Fitting twice must be a no-op, or a config round-tripped through the
+    // parser would shrink a little more each time.
+    #[test]
+    fn the_fit_is_idempotent() {
+        let config = managed_profile_config(256, 768).expect("config");
+        match fit_anon_caches_to_floor(
+            config.memory_floor_bytes.expect("floor"),
+            [
+                config.rocksdb_block_cache_bytes,
+                config.rocksdb_write_buffer_manager_bytes,
+                config.manifest_cache_max_bytes,
+                config.snapshot_cache_max_bytes,
+            ],
+        ) {
+            AnonCacheFitOutcome::Fits => {}
+            other => panic!(
+                "a fitted config was fitted again: {:?}",
+                match other {
+                    AnonCacheFitOutcome::Fitted { sizes, .. } => format!("{sizes:?}"),
+                    _ => "impossible".to_owned(),
+                }
+            ),
+        }
+    }
+
+    // The property that matters is round-tripping the whole parser, not just the
+    // sizing function: the Fitted branch also re-derives the per-buffer size and
+    // the buffer count, so a config re-parsed from its own fitted values has to
+    // come back unchanged in those too.
+    #[test]
+    fn a_fitted_config_reparses_unchanged() {
+        let fitted = managed_profile_config(256, 768).expect("config");
+        let mut merged = base_values();
+        for (key, value) in [
+            (KURA_MEMORY_FLOOR_BYTES, (256 * BYTES_PER_MIB).to_string()),
+            (
+                KURA_SNAPSHOT_CACHE_MAX_BYTES,
+                fitted.snapshot_cache_max_bytes.to_string(),
+            ),
+            (
+                KURA_MANIFEST_CACHE_MAX_BYTES,
+                fitted.manifest_cache_max_bytes.to_string(),
+            ),
+            (
+                KURA_METADATA_STORE_READ_CACHE_BYTES,
+                fitted.rocksdb_block_cache_bytes.to_string(),
+            ),
+            (
+                KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES,
+                fitted.rocksdb_write_buffer_manager_bytes.to_string(),
+            ),
+            (
+                KURA_METADATA_STORE_WRITE_BUFFER_BYTES,
+                fitted.rocksdb_write_buffer_size_bytes.to_string(),
+            ),
+            (
+                KURA_METADATA_STORE_MAX_WRITE_BUFFERS,
+                fitted.rocksdb_max_write_buffer_number.to_string(),
+            ),
+        ] {
+            merged.insert(key.to_owned(), value);
+        }
+        let reparsed = Config::from_lookup_with_resources(
+            |key| merged.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 65536,
+                memory_limit_bytes: 768 * BYTES_PER_MIB,
+                cpu_count: 8,
+            },
+        )
+        .expect("a fitted config must re-parse");
+        assert_eq!(reparsed.anon_cache_fit, None);
+        assert_eq!(
+            reparsed.snapshot_cache_max_bytes,
+            fitted.snapshot_cache_max_bytes
+        );
+        assert_eq!(
+            reparsed.manifest_cache_max_bytes,
+            fitted.manifest_cache_max_bytes
+        );
+        assert_eq!(
+            reparsed.rocksdb_block_cache_bytes,
+            fitted.rocksdb_block_cache_bytes
+        );
+        assert_eq!(
+            reparsed.rocksdb_write_buffer_manager_bytes,
+            fitted.rocksdb_write_buffer_manager_bytes
+        );
+        assert_eq!(
+            reparsed.rocksdb_write_buffer_size_bytes,
+            fitted.rocksdb_write_buffer_size_bytes
+        );
+        assert_eq!(
+            reparsed.rocksdb_max_write_buffer_number,
+            fitted.rocksdb_max_write_buffer_number
+        );
+        assert_eq!(
+            reparsed.anon_admission_budget_bytes(),
+            fitted.anon_admission_budget_bytes()
+        );
+    }
+
+    #[test]
+    fn keyvalue_limit_is_bounded_by_the_inline_replication_ceiling() {
+        let at_limit = MAX_INLINE_REPLICATION_BODY_BYTES.to_string();
+        let config = config_from(&[(KURA_MAX_KEYVALUE_BYTES, at_limit.as_str())])
+            .expect("a key-value limit at the inline ceiling is allowed");
+        assert_eq!(
+            config.max_keyvalue_bytes as u64,
+            MAX_INLINE_REPLICATION_BODY_BYTES
+        );
+
+        let over_limit = (MAX_INLINE_REPLICATION_BODY_BYTES + 1).to_string();
+        let error = config_from(&[(KURA_MAX_KEYVALUE_BYTES, over_limit.as_str())])
+            .expect_err("a key-value limit above the inline ceiling must fail");
+        assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));
+    }
+
+    // The authorization URL on its own says where to authorize, not that usage
+    // should be reported. Treating it as a usage URL half-configures the tuple
+    // and stops the node booting, which is what the end-to-end nodes do: they
+    // authorize from a token and have no control-plane credentials at all.
+    #[test]
+    fn the_authorization_url_alone_leaves_usage_reporting_off() {
+        let config = config_from(&[(KURA_AUTH_TUIST_URL, "http://127.0.0.1:1")])
+            .expect("a node that only authorizes must still start");
+
+        assert!(config.usage.is_none());
+    }
+
+    // The configuration the self-hosting guides tell operators to write: the
+    // authorization URL plus control-plane credentials, and no
+    // KURA_CONTROL_PLANE_URL. Usage reporting reads the same server, so this
+    // has to resolve rather than trip the all-or-nothing check.
+    #[test]
+    fn usage_reporting_accepts_the_authorization_url_as_its_control_plane_url() {
+        let config = config_from(&[
+            (KURA_AUTH_TUIST_URL, "https://tuist.acme.internal"),
+            (KURA_CONTROL_PLANE_CLIENT_ID, "client-id"),
+            (KURA_CONTROL_PLANE_CLIENT_SECRET, "client-secret"),
+        ])
+        .expect("the documented self-hosted configuration must start");
+
+        let usage = config.usage.expect("usage reporting should be configured");
+        assert_eq!(usage.control_plane_url, "https://tuist.acme.internal");
+    }
+
+    #[test]
+    fn an_explicit_control_plane_url_still_wins() {
+        let config = config_from(&[
+            (KURA_CONTROL_PLANE_URL, "https://usage.acme.internal"),
+            (KURA_AUTH_TUIST_URL, "https://tuist.acme.internal"),
+            (KURA_CONTROL_PLANE_CLIENT_ID, "client-id"),
+            (KURA_CONTROL_PLANE_CLIENT_SECRET, "client-secret"),
+        ])
+        .expect("config should build");
+
+        let usage = config.usage.expect("usage reporting should be configured");
+        assert_eq!(usage.control_plane_url, "https://usage.acme.internal");
+    }
+
+    // Credentials without any URL at all is still a half-configured node.
+    #[test]
+    fn credentials_without_any_server_url_are_still_rejected() {
+        let error = config_from(&[
+            (KURA_CONTROL_PLANE_CLIENT_ID, "client-id"),
+            (KURA_CONTROL_PLANE_CLIENT_SECRET, "client-secret"),
+        ])
+        .expect_err("credentials with no server URL must fail");
+
+        assert!(error.contains(KURA_CONTROL_PLANE_URL));
+    }
+
     #[test]
     fn from_lookup_reports_all_missing_variables() {
         let error = Config::from_lookup_with_resources(|_| None, TEST_HOST_RESOURCES)
@@ -1537,19 +2564,21 @@ mod tests {
             config_from(&[]).expect("expected config defaults to derive from host resources");
 
         assert_eq!(config.internal_port, 7443);
-        assert_eq!(
-            config.peers,
-            vec!["http://kura.example.com:7443".to_owned()]
-        );
+        assert!(config.peers.is_empty());
         assert_eq!(config.file_descriptor_pool_size, 1792);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.drain_completion_timeout_ms, 240_000);
         assert_eq!(config.segment_handle_cache_size, 224);
-        assert_eq!(config.memory_soft_limit_bytes, 716 * BYTES_PER_MIB);
+        assert_eq!(config.memory_limit_bytes, 1024 * BYTES_PER_MIB);
+        assert_eq!(config.memory_soft_limit_bytes, 614 * BYTES_PER_MIB);
         assert_eq!(config.memory_hard_limit_bytes, 870 * BYTES_PER_MIB);
         assert_eq!(
+            config.snapshot_cache_max_bytes,
+            (153 * BYTES_PER_MIB) as usize
+        );
+        assert_eq!(
             config.manifest_cache_max_bytes,
-            (44 * BYTES_PER_MIB) as usize
+            (38 * BYTES_PER_MIB) as usize
         );
         assert_eq!(config.max_keyvalue_bytes, 1024 * 1024);
         assert_eq!(config.rocksdb_max_open_files, 1024);
@@ -1572,7 +2601,16 @@ mod tests {
             512 * BYTES_PER_MIB
         );
         assert_eq!(config.tmp_dir_max_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
+        assert_eq!(
+            config.multipart_max_active_uploads,
+            DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS
+        );
+        assert_eq!(config.multipart_max_stored_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
         assert_eq!(config.replication_public_latency_target_ms, 100);
+        assert_eq!(
+            config.replication_upload_stall_ms,
+            DEFAULT_REPLICATION_UPLOAD_STALL_MS
+        );
         assert_eq!(
             config.accelerated_file_serving,
             AcceleratedFileServingConfig {
@@ -1599,6 +2637,110 @@ mod tests {
     }
 
     #[test]
+    fn memory_watermarks_stay_below_small_runtime_limits() {
+        let defaults = DerivedRuntimeDefaults::from_host_resources(HostResources {
+            file_descriptor_limit: 4096,
+            memory_limit_bytes: 128 * BYTES_PER_MIB,
+            cpu_count: 2,
+        });
+
+        assert_eq!(defaults.memory_soft_limit_bytes, 76 * BYTES_PER_MIB);
+        assert_eq!(defaults.memory_hard_limit_bytes, 108 * BYTES_PER_MIB);
+        assert!(defaults.memory_hard_limit_bytes < 128 * BYTES_PER_MIB);
+    }
+
+    #[test]
+    fn from_lookup_preserves_proportional_watermarks_for_small_runtime_limits() {
+        let values = base_values();
+        let config = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 256 * BYTES_PER_MIB,
+                cpu_count: 2,
+            },
+        )
+        .expect("expected proportional memory defaults to remain valid");
+
+        assert_eq!(config.memory_soft_limit_bytes, 153 * BYTES_PER_MIB);
+        assert_eq!(config.memory_hard_limit_bytes, 217 * BYTES_PER_MIB);
+    }
+
+    #[test]
+    fn from_lookup_keeps_headroom_after_an_explicit_soft_watermark() {
+        let mut values = base_values();
+        values.insert(
+            KURA_MEMORY_SOFT_LIMIT_BYTES.to_owned(),
+            (160 * BYTES_PER_MIB).to_string(),
+        );
+        let config = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 256 * BYTES_PER_MIB,
+                cpu_count: 2,
+            },
+        )
+        .expect("expected the explicit soft watermark to remain valid");
+
+        assert_eq!(config.memory_soft_limit_bytes, 160 * BYTES_PER_MIB);
+        assert_eq!(config.memory_hard_limit_bytes, 224 * BYTES_PER_MIB);
+    }
+
+    #[test]
+    fn anon_admission_budget_subtracts_the_snapshot_cache() {
+        let mut values = base_values();
+        values.insert(
+            KURA_MEMORY_FLOOR_BYTES.to_owned(),
+            (1024 * BYTES_PER_MIB).to_string(),
+        );
+        values.insert(
+            KURA_SNAPSHOT_CACHE_MAX_BYTES.to_owned(),
+            (256 * BYTES_PER_MIB).to_string(),
+        );
+        let config = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 4096 * BYTES_PER_MIB,
+                cpu_count: 6,
+            },
+        )
+        .expect("a floor-and-ceiling memory configuration should be valid");
+
+        let untracked = (config.rocksdb_block_cache_bytes as u64)
+            .saturating_add(config.rocksdb_write_buffer_manager_bytes as u64)
+            .saturating_add(config.manifest_cache_max_bytes as u64)
+            .saturating_add(config.snapshot_cache_max_bytes as u64)
+            .saturating_add(PROCESS_ANON_BASELINE_BYTES);
+        assert_eq!(
+            config.anon_admission_budget_bytes(),
+            Some(1024 * BYTES_PER_MIB - untracked)
+        );
+    }
+
+    #[test]
+    fn from_lookup_explains_an_explicit_soft_watermark_without_runtime_headroom() {
+        let mut values = base_values();
+        values.insert(
+            KURA_MEMORY_SOFT_LIMIT_BYTES.to_owned(),
+            (200 * BYTES_PER_MIB).to_string(),
+        );
+        let error = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 256 * BYTES_PER_MIB,
+                cpu_count: 2,
+            },
+        )
+        .expect_err("expected the unsafe soft watermark to fail");
+
+        assert!(error.contains(KURA_MEMORY_SOFT_LIMIT_BYTES));
+        assert!(error.contains("set both watermarks explicitly"));
+    }
+
+    #[test]
     fn from_lookup_parses_overrides() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
@@ -1617,6 +2759,7 @@ mod tests {
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
             (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
             (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_SNAPSHOT_CACHE_MAX_BYTES, "33554432"),
             (KURA_TMP_DIR_MAX_BYTES, "1073741824"),
             (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
             (KURA_MAX_KEYVALUE_BYTES, "1048576"),
@@ -1631,6 +2774,9 @@ mod tests {
                 "10485760",
             ),
             (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "75"),
+            (KURA_REPLICATION_UPLOAD_STALL_MS, "90000"),
+            (KURA_MULTIPART_MAX_ACTIVE_UPLOADS, "64"),
+            (KURA_MULTIPART_MAX_STORED_BYTES, "536870912"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1662,6 +2808,7 @@ mod tests {
         assert_eq!(config.segment_handle_cache_size, 16);
         assert_eq!(config.memory_soft_limit_bytes, 268_435_456);
         assert_eq!(config.memory_hard_limit_bytes, 536_870_912);
+        assert_eq!(config.snapshot_cache_max_bytes, 33_554_432);
         assert_eq!(config.tmp_dir_max_bytes, 1_073_741_824);
         assert_eq!(config.manifest_cache_max_bytes, 16_777_216);
         assert_eq!(config.max_keyvalue_bytes, 1_048_576);
@@ -1685,6 +2832,9 @@ mod tests {
             10_485_760
         );
         assert_eq!(config.replication_public_latency_target_ms, 75);
+        assert_eq!(config.replication_upload_stall_ms, 90_000);
+        assert_eq!(config.multipart_max_active_uploads, 64);
+        assert_eq!(config.multipart_max_stored_bytes, 536_870_912);
         assert_eq!(config.analytics, None);
         assert_eq!(
             config.otlp_traces_endpoint.as_deref(),
@@ -1693,33 +2843,76 @@ mod tests {
         assert_eq!(config.otel_service_name, "kura-eu");
         assert_eq!(config.otel_deployment_environment, "staging");
         assert_eq!(config.sentry_dsn, None);
-        assert_eq!(
-            config.geoip_refresh_interval_secs,
-            DEFAULT_GEOIP_REFRESH_INTERVAL_SECS
-        );
     }
 
     #[test]
-    fn from_lookup_parses_geoip_refresh_interval_override() {
-        let config = config_from(&[
-            (KURA_PORT, "4500"),
-            (KURA_TENANT_ID, "acme"),
-            (KURA_REGION, "eu_west"),
-            (KURA_TMP_DIR, "/tmp/kura"),
-            (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "http://kura.example.com:7443"),
-            (KURA_PEERS, "http://kura-a.example.com:7443"),
-            (KURA_GEOIP_REFRESH_INTERVAL_SECS, "3600"),
-            (
-                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-                "https://otel.example.com/v1/traces",
-            ),
-            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
-            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
-        ])
-        .expect("expected geoip config to parse");
+    fn from_lookup_parses_backfill_margin_percent() {
+        let config = config_from(&[]).expect("default backfill margin should be valid");
+        assert_eq!(
+            config.backfill_margin_percent,
+            DEFAULT_BACKFILL_MARGIN_PERCENT
+        );
 
-        assert_eq!(config.geoip_refresh_interval_secs, 3_600);
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "25")])
+            .expect("an in-range backfill margin should be valid");
+        assert_eq!(config.backfill_margin_percent, 25);
+
+        for out_of_range in ["0", "101"] {
+            let error = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, out_of_range)])
+                .expect_err("an out-of-range backfill margin must fail");
+            assert!(error.contains(KURA_BACKFILL_MARGIN_PERCENT));
+        }
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_ready_ring_percent() {
+        let config = config_from(&[]).expect("default backfill ready percent should be valid");
+        assert_eq!(
+            config.backfill_ready_ring_percent,
+            DEFAULT_BACKFILL_MARGIN_PERCENT / 2,
+            "the default derives from the margin, not a fixed value"
+        );
+
+        // The derivation follows an overridden margin.
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "30")])
+            .expect("an in-range backfill margin should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 15);
+
+        // A 1% margin derives the 1 floor rather than 0.
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "1")])
+            .expect("a 1% backfill margin should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 1);
+
+        // An explicit value overrides the derivation.
+        let config = config_from(&[
+            (KURA_BACKFILL_MARGIN_PERCENT, "30"),
+            (KURA_BACKFILL_READY_RING_PERCENT, "60"),
+        ])
+        .expect("an in-range backfill ready percent should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 60);
+
+        for out_of_range in ["0", "101"] {
+            let error = config_from(&[(KURA_BACKFILL_READY_RING_PERCENT, out_of_range)])
+                .expect_err("an out-of-range backfill ready percent must fail");
+            assert!(error.contains(KURA_BACKFILL_READY_RING_PERCENT));
+        }
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_batch_bytes() {
+        let config = config_from(&[]).expect("default backfill batch bytes should be valid");
+        assert_eq!(config.backfill_batch_bytes, DEFAULT_BACKFILL_BATCH_BYTES);
+
+        let config = config_from(&[(KURA_BACKFILL_BATCH_BYTES, "1048576")])
+            .expect("an in-range backfill batch threshold should be valid");
+        assert_eq!(config.backfill_batch_bytes, 1_048_576);
+
+        let above_ceiling = (BACKFILL_BODIES_BATCH_BYTES + 1).to_string();
+        for out_of_range in ["0", above_ceiling.as_str()] {
+            let error = config_from(&[(KURA_BACKFILL_BATCH_BYTES, out_of_range)])
+                .expect_err("an out-of-range backfill batch threshold must fail");
+            assert!(error.contains(KURA_BACKFILL_BATCH_BYTES));
+        }
     }
 
     #[test]
@@ -1789,6 +2982,7 @@ mod tests {
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "invalid"),
             (KURA_MEMORY_SOFT_LIMIT_BYTES, "invalid"),
             (KURA_MEMORY_HARD_LIMIT_BYTES, "invalid"),
+            (KURA_SNAPSHOT_CACHE_MAX_BYTES, "invalid"),
             (KURA_TMP_DIR_MAX_BYTES, "invalid"),
             (KURA_MANIFEST_CACHE_MAX_BYTES, "invalid"),
             (KURA_MAX_KEYVALUE_BYTES, "invalid"),
@@ -1804,6 +2998,7 @@ mod tests {
             (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "invalid"),
             (KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND, "invalid"),
             (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "invalid"),
+            (KURA_REPLICATION_UPLOAD_STALL_MS, "invalid"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1821,6 +3016,7 @@ mod tests {
         assert!(error.contains(KURA_SEGMENT_HANDLE_CACHE_SIZE));
         assert!(error.contains(KURA_MEMORY_SOFT_LIMIT_BYTES));
         assert!(error.contains(KURA_MEMORY_HARD_LIMIT_BYTES));
+        assert!(error.contains(KURA_SNAPSHOT_CACHE_MAX_BYTES));
         assert!(error.contains(KURA_TMP_DIR_MAX_BYTES));
         assert!(error.contains(KURA_MANIFEST_CACHE_MAX_BYTES));
         assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));
@@ -1836,6 +3032,14 @@ mod tests {
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
         assert!(error.contains(KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND));
         assert!(error.contains(KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS));
+        assert!(error.contains(KURA_REPLICATION_UPLOAD_STALL_MS));
+    }
+
+    #[test]
+    fn from_lookup_rejects_zero_replication_upload_stall_ms() {
+        let error = config_from(&[(KURA_REPLICATION_UPLOAD_STALL_MS, "0")])
+            .expect_err("expected a zero upload stall window to fail");
+        assert!(error.contains(KURA_REPLICATION_UPLOAD_STALL_MS));
     }
 
     #[test]
@@ -2369,20 +3573,35 @@ mod tests {
         // real data file, to prove ensure_directories reclaims the former without
         // touching the latter.
         let stale = config.tmp_dir.join("bootstrap").join("leftover");
+        let stale_backfill = config.tmp_dir.join("backfill").join("bodies-leftover");
         let kept = config.data_dir.join("rocksdb").join("CURRENT");
         fs::create_dir_all(stale.parent().unwrap()).await.unwrap();
+        fs::create_dir_all(stale_backfill.parent().unwrap())
+            .await
+            .unwrap();
         fs::create_dir_all(kept.parent().unwrap()).await.unwrap();
         fs::write(&stale, b"stale").await.unwrap();
+        fs::write(&stale_backfill, b"stale").await.unwrap();
         fs::write(&kept, b"keep").await.unwrap();
 
         config
-            .ensure_directories()
+            .ensure_data_dir_for_lock()
+            .await
+            .expect("failed to create data directory");
+        let data_dir_lock =
+            DataDirLock::acquire(&config.data_dir).expect("failed to acquire test writer lock");
+        config
+            .ensure_directories(&data_dir_lock)
             .await
             .expect("failed to create Kura directories");
 
         assert!(config.tmp_dir.join("uploads").exists());
         assert!(config.tmp_dir.join("parts").exists());
-        assert!(config.tmp_dir.join("bootstrap").exists());
+        assert!(config.tmp_dir.join("backfill").exists());
+        assert!(
+            !config.tmp_dir.join("bootstrap").exists(),
+            "the retired legacy walker's staging directory must not be recreated"
+        );
         assert!(config.data_dir.join("rocksdb").exists());
         assert!(config.data_dir.join("blobs").exists());
         assert!(config.data_dir.join("segments").exists());
@@ -2392,6 +3611,21 @@ mod tests {
             !stale.exists(),
             "stale staging must be reclaimed on startup"
         );
+        assert!(
+            !stale_backfill.exists(),
+            "stale backfill spool must be reclaimed on startup"
+        );
         assert!(kept.exists(), "persistent data must be preserved");
+
+        let active = config.tmp_dir.join("uploads").join("active");
+        fs::write(&active, b"in-flight").await.unwrap();
+        assert!(
+            DataDirLock::acquire(&config.data_dir).is_err(),
+            "a second runtime must fail before staging cleanup"
+        );
+        assert!(
+            active.exists(),
+            "the rejected runtime must not remove the active owner's staging"
+        );
     }
 }

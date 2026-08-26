@@ -4,6 +4,32 @@ defmodule Tuist.Runners.CatalogTest do
 
   alias Tuist.Runners.Catalog
 
+  describe "billing_multiplier/3" do
+    test "each platform's baseline machine is exactly one compute unit" do
+      assert Catalog.billing_multiplier(:linux, 2, 8) == Catalog.compute_unit_basis_points()
+      assert Catalog.billing_multiplier(:macos, 6, 14) == Catalog.compute_unit_basis_points()
+    end
+
+    test "doubling both resources doubles the multiplier" do
+      assert Catalog.billing_multiplier(:linux, 4, 16) == 2 * Catalog.billing_multiplier(:linux, 2, 8)
+      assert Catalog.billing_multiplier(:linux, 8, 32) == 4 * Catalog.billing_multiplier(:linux, 2, 8)
+      assert Catalog.billing_multiplier(:macos, 12, 28) == 2 * Catalog.billing_multiplier(:macos, 6, 14)
+    end
+
+    test "weights CPU more heavily than memory" do
+      # Same total resources rebalanced toward CPU has to cost more, since
+      # CPU is roughly two thirds of a machine's cost.
+      assert Catalog.billing_multiplier(:linux, 4, 8) > Catalog.billing_multiplier(:linux, 2, 16)
+    end
+
+    test "carries no platform premium, so each platform's Price sets its own rate" do
+      # The premium lives in the Stripe Price, not the multiplier. A macOS
+      # unit and a Linux unit are each one minute on their own baseline, so
+      # the same shape weighs less on the platform whose baseline is bigger.
+      assert Catalog.billing_multiplier(:macos, 2, 8) < Catalog.billing_multiplier(:linux, 2, 8)
+    end
+  end
+
   describe "fleet_name_prefixes/1" do
     test "Linux covers both legacy and shape-catalog pool naming" do
       # Both prefixes are what `runner_jobs.fleet_name` can carry on a
@@ -60,6 +86,93 @@ defmodule Tuist.Runners.CatalogTest do
       assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.0.1"}) ==
                "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-0-1"
     end
+
+    test ":macos default shape keeps the shape-free pool name" do
+      # The pools that existed before the catalog gained a second macOS
+      # shape must not be renamed: a `queued` row's `fleet_name` is what a
+      # runner claims against, so a rename strands in-flight work.
+      default = Catalog.default_shape(:macos)
+
+      assert Catalog.pool_name(%{
+               platform: :macos,
+               xcode_version: "26.5",
+               vcpus: default.vcpus,
+               memory_gb: default.memory_gb
+             }) == "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-5"
+    end
+
+    test ":macos non-default shapes append the shape key" do
+      shape = non_default_macos_shape()
+
+      assert Catalog.pool_name(%{
+               platform: :macos,
+               xcode_version: "26.5",
+               vcpus: shape.vcpus,
+               memory_gb: shape.memory_gb
+             }) ==
+               "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-5-#{shape.vcpus}vcpu-#{shape.memory_gb}gb"
+    end
+  end
+
+  describe "resources_for_fleet/1" do
+    test "resolves Linux pool names through the configured shape catalog" do
+      Enum.each(Catalog.shapes(:linux), fn shape ->
+        fleet_name = Catalog.pool_name(Map.put(shape, :platform, :linux))
+
+        assert Catalog.resources_for_fleet(fleet_name) ==
+                 {:ok, %{platform: :linux, vcpus: shape.vcpus, memory_gb: shape.memory_gb}}
+      end)
+    end
+
+    test "uses platform defaults for legacy Linux and macOS rows" do
+      linux = Catalog.default_shape(:linux)
+      macos = Catalog.default_shape(:macos)
+
+      assert Catalog.resources_for_fleet("linux-amd64") ==
+               {:ok, %{platform: :linux, vcpus: linux.vcpus, memory_gb: linux.memory_gb}}
+
+      assert Catalog.resources_for_fleet("macos-26-5") ==
+               {:ok, %{platform: :macos, vcpus: macos.vcpus, memory_gb: macos.memory_gb}}
+    end
+
+    test "resolves a macOS pool name through the configured shape catalog" do
+      default = Catalog.default_shape(:macos)
+      shape = non_default_macos_shape()
+
+      Enum.each([default, shape], fn s ->
+        fleet_name =
+          Catalog.pool_name(%{
+            platform: :macos,
+            xcode_version: "26.5",
+            vcpus: s.vcpus,
+            memory_gb: s.memory_gb
+          })
+
+        assert Catalog.resources_for_fleet(fleet_name) ==
+                 {:ok, %{platform: :macos, vcpus: s.vcpus, memory_gb: s.memory_gb}}
+      end)
+    end
+
+    test "does not infer resources from an unconfigured Linux pool suffix" do
+      fleet_name = "#{Tuist.Environment.runners_linux_pool_name_prefix()}-999vcpu-999gb"
+
+      assert Catalog.resources_for_fleet(fleet_name) == {:error, :invalid_resources}
+    end
+
+    test "resolves an operator-defined Linux pool from its configured resources" do
+      fleet_name = "#{Tuist.Environment.runners_linux_pool_name_prefix()}-ubuntu-22-04"
+
+      stub(Catalog, :linux_fleet_resources, fn ->
+        [%{fleet_name: fleet_name, platform: :linux, vcpus: 6, memory_gb: 18}]
+      end)
+
+      assert Catalog.resources_for_fleet(fleet_name) ==
+               {:ok, %{platform: :linux, vcpus: 6, memory_gb: 18}}
+    end
+
+    test "rejects an unknown fleet" do
+      assert Catalog.resources_for_fleet("windows-large") == {:error, :invalid_resources}
+    end
   end
 
   describe "parse_shapes_json/1" do
@@ -86,6 +199,21 @@ defmodule Tuist.Runners.CatalogTest do
       assert :error = Catalog.parse_shapes_json("not json")
       assert :error = Catalog.parse_shapes_json("{}")
       assert :error = Catalog.parse_shapes_json(nil)
+    end
+  end
+
+  describe "parse_linux_pools_json/1" do
+    test "parses operator-defined pool resources" do
+      json = ~s([{"name":"ubuntu-22-04","cpuMilli":5500,"memoryMB":17408}])
+
+      assert Catalog.parse_linux_pools_json(json) == [
+               %{name: "ubuntu-22-04", cpu_milli: 5500, memory_mb: 17_408}
+             ]
+    end
+
+    test "rejects pools without positive resource values" do
+      assert Catalog.parse_linux_pools_json(~s([{"name":"ubuntu","cpuMilli":0,"memoryMB":1024}])) == :error
+      assert Catalog.parse_linux_pools_json("not json") == :error
     end
   end
 
@@ -147,5 +275,16 @@ defmodule Tuist.Runners.CatalogTest do
       refute Catalog.fleet_on_cluster_network?("linux-amd64")
       refute Catalog.fleet_on_cluster_network?("macos-26-5")
     end
+  end
+
+  # The catalog ships more than one macOS shape (see
+  # `config/config.exs`); the tests above assert on whichever entry is
+  # not the default rather than pinning a specific one.
+  defp non_default_macos_shape do
+    shape = Enum.find(Catalog.shapes(:macos), &(not &1.default?))
+
+    refute is_nil(shape), "the macOS shape catalog needs a non-default shape for this test"
+
+    shape
   end
 end

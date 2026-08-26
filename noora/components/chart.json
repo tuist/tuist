@@ -1,0 +1,115 @@
+{
+  "name": "Chart",
+  "tagName": "noora-chart",
+  "elementClassName": "NooraChart",
+  "className": "noora-chart",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Renders an Apache ECharts visualization from declarative configuration elements.",
+  "usage": "<noora-chart aria-label=\"Build activity\"><noora-chart-axis dimension=\"x\" type=\"category\"><noora-chart-category>Mon</noora-chart-category><noora-chart-category>Tue</noora-chart-category></noora-chart-axis><noora-chart-axis dimension=\"y\" type=\"value\"></noora-chart-axis><noora-chart-series type=\"line\"><noora-chart-point value=\"2\"></noora-chart-point><noora-chart-point value=\"5\"></noora-chart-point></noora-chart-series></noora-chart>",
+  "previewLayout": "stack",
+  "attributes": [
+    {
+      "name": "renderer",
+      "property": "renderer",
+      "type": "string",
+      "values": ["canvas", "svg"],
+      "default": "canvas",
+      "description": "Chooses the chart renderer."
+    },
+    {
+      "name": "tooltip-trigger",
+      "property": "tooltipTrigger",
+      "type": "string",
+      "values": ["axis", "item"],
+      "default": "axis",
+      "description": "Shows a tooltip for an axis or an individual item."
+    },
+    {
+      "name": "hide-tooltip",
+      "property": "hideTooltip",
+      "type": "boolean",
+      "default": false,
+      "description": "Hides the chart tooltip."
+    },
+    {
+      "name": "hide-legend",
+      "property": "hideLegend",
+      "type": "boolean",
+      "default": false,
+      "description": "Hides the chart legend."
+    },
+    {
+      "name": "aria-label",
+      "property": "_ariaLabel",
+      "publicProperty": false,
+      "type": "string",
+      "description": "Provides an accessible chart label."
+    }
+  ],
+  "properties": [
+    {
+      "name": "options",
+      "type": "json",
+      "typescriptType": "Record<string, unknown>",
+      "default": {},
+      "description": "Sets an Apache ECharts configuration object when programmatic configuration is needed."
+    }
+  ],
+  "readonlyProperties": [
+    {
+      "name": "chart",
+      "type": "unknown | null",
+      "description": "The underlying Apache ECharts instance."
+    }
+  ],
+  "slots": [
+    {
+      "name": "",
+      "description": "Declarative grid, axis, and series configuration elements."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "container",
+      "description": "The chart wrapper."
+    },
+    {
+      "name": "chart",
+      "description": "The chart drawing surface."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-chart-select",
+      "type": "CustomEvent<{ item: unknown; parameters: unknown }>",
+      "description": "Emitted when an interactive chart item is selected. Prevent the default action to stop navigation for items with a link target."
+    }
+  ],
+  "notes": [
+    "Set an explicit block size on the element or its chart part.",
+    "Use declarative configuration elements for markup-authored charts.",
+    "Declarative charts use the same grid, axis, tooltip, legend, color, and typography defaults as the Phoenix LiveView chart component.",
+    "The options property remains available for charts assembled or updated by JavaScript.",
+    "Declarative configuration elements take precedence when both forms are provided."
+  ],
+  "examples": [
+    {
+      "id": "multi-series-line",
+      "title": "Multi-series line",
+      "description": "Compare multiple effectiveness series over time.",
+      "markup": "<noora-chart hide-legend aria-label=\"Cache and test effectiveness\" style=\"width: 600px; height: 300px\">\n  <noora-chart-axis dimension=\"x\" type=\"category\">\n    <noora-chart-category>Aug</noora-chart-category>\n    <noora-chart-category>Sep</noora-chart-category>\n    <noora-chart-category>Oct</noora-chart-category>\n    <noora-chart-category>Nov</noora-chart-category>\n    <noora-chart-category>Dec</noora-chart-category>\n  </noora-chart-axis>\n  <noora-chart-axis dimension=\"y\" type=\"value\" min=\"0\" max=\"100\" label-format=\"{value}%\"></noora-chart-axis>\n  <noora-chart-series name=\"Binary cache effectiveness\" type=\"line\" symbol=\"none\">\n    <noora-chart-point value=\"32\"></noora-chart-point>\n    <noora-chart-point value=\"38\"></noora-chart-point>\n    <noora-chart-point value=\"42\"></noora-chart-point>\n    <noora-chart-point value=\"48\"></noora-chart-point>\n    <noora-chart-point value=\"64\"></noora-chart-point>\n  </noora-chart-series>\n  <noora-chart-series name=\"Selective test effectiveness\" type=\"line\" symbol=\"none\">\n    <noora-chart-point value=\"48\"></noora-chart-point>\n    <noora-chart-point value=\"52\"></noora-chart-point>\n    <noora-chart-point value=\"45\"></noora-chart-point>\n    <noora-chart-point value=\"56\"></noora-chart-point>\n    <noora-chart-point value=\"62\"></noora-chart-point>\n  </noora-chart-series>\n</noora-chart>"
+    },
+    {
+      "id": "horizontal-bars",
+      "title": "Horizontal bar comparison",
+      "description": "Compare build optimization durations on a horizontal scale.",
+      "markup": "<noora-chart aria-label=\"Optimization duration comparison\" style=\"width: 500px; height: 146px\">\n  <noora-chart-grid height=\"76\" width=\"400\"></noora-chart-grid>\n  <noora-chart-axis dimension=\"x\" type=\"value\" label-format=\"{value}h\" label-margin=\"25\"></noora-chart-axis>\n  <noora-chart-axis dimension=\"y\" type=\"category\" no-boundary-gap>\n    <noora-chart-category>Selective Test</noora-chart-category>\n    <noora-chart-category>Build Cache</noora-chart-category>\n  </noora-chart-axis>\n  <noora-chart-series type=\"bar\" bar-gap=\"-100%\" bar-width=\"24\" border-radius=\"7\">\n    <noora-chart-point value=\"19\"></noora-chart-point>\n    <noora-chart-point value=\"22\"></noora-chart-point>\n  </noora-chart-series>\n  <noora-chart-series type=\"bar\" bar-width=\"24\" border-radius=\"7\">\n    <noora-chart-point value=\"7.2\"></noora-chart-point>\n    <noora-chart-point value=\"9\"></noora-chart-point>\n  </noora-chart-series>\n</noora-chart>"
+    },
+    {
+      "id": "test-duration",
+      "title": "Test run duration",
+      "description": "Use semantic colors to distinguish successful and failed runs.",
+      "markup": "<noora-chart hide-legend hide-tooltip aria-label=\"Test run duration\" style=\"width: 700px; height: 300px\">\n  <noora-chart-axis dimension=\"x\" type=\"category\" hidden></noora-chart-axis>\n  <noora-chart-axis dimension=\"y\" type=\"value\"></noora-chart-axis>\n  <noora-chart-series type=\"bar\" bar-width=\"8\">\n    <noora-chart-point value=\"28\" color=\"var:noora-chart-primary\"></noora-chart-point>\n    <noora-chart-point value=\"23\" color=\"var:noora-chart-primary\"></noora-chart-point>\n    <noora-chart-point value=\"37\" color=\"var:noora-chart-tertiary\"></noora-chart-point>\n    <noora-chart-point value=\"22\" color=\"var:noora-chart-primary\"></noora-chart-point>\n    <noora-chart-point value=\"32\" color=\"var:noora-chart-tertiary\"></noora-chart-point>\n  </noora-chart-series>\n</noora-chart>"
+    }
+  ]
+}

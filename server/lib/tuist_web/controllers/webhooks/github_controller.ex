@@ -1,7 +1,10 @@
 defmodule TuistWeb.Webhooks.GitHubController do
   use TuistWeb, :controller
 
+  alias Tuist.Bundles
   alias Tuist.Environment
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.Runners.Workers.DispatchWorker
   alias Tuist.VCS
 
@@ -229,13 +232,38 @@ defmodule TuistWeb.Webhooks.GitHubController do
   # Actions that the dispatch pipeline persists or claims against.
   # `waiting` is GitHub's self-hosted-runner state for jobs waiting
   # on capacity, so it must reach the worker even though the UI labels
-  # the same job as queued. Every other action (notably `in_progress`,
-  # ~33 % of `workflow_job` traffic) falls through to the catch-all
-  # `:ignored` branch in the worker. Short-circuiting here removes
-  # the Oban.insert (and its Postgres write) for those events, which
-  # under burst load was costing us ~one PG checkout per webhook for
-  # work the worker was going to discard anyway.
+  # the same job as queued. `in_progress` is the first event carrying
+  # the `runner_name` GitHub actually placed the job on — the only
+  # real-time proof of the runner↔job binding, which the worker binds
+  # onto the runner's claim and session so metrics attribute to the
+  # job that ran. Any remaining action falls through to the catch-all
+  # `:ignored` branch in the worker; short-circuiting those here
+  # removes the Oban.insert (and its Postgres write) for events the
+  # worker would discard anyway.
   @dispatchable_workflow_job_actions ~w(queued waiting completed)
+
+  # `in_progress` is the only action we admit conditionally. It carries the
+  # `runner_name` GitHub actually placed the job on — the sole real-time
+  # proof of the runner↔job binding — but it also fires for every job of
+  # every installation, including VCS-only customers whose jobs run on
+  # GitHub-hosted runners and can never match one of our claims. Admitting
+  # it unconditionally would restore exactly the per-event Oban insert this
+  # short-circuit exists to avoid, for traffic that always ends in
+  # `:unknown_runner`. `workflow_job.labels` is in the payload here, so a
+  # job that cannot possibly target a Tuist pool is dropped at the door and
+  # the binding is kept only for jobs that can actually match.
+  @tuist_runner_label_prefix "tuist-"
+
+  defp dispatchable_workflow_job?("in_progress", params) do
+    params
+    |> get_in(["workflow_job", "labels"])
+    |> List.wrap()
+    |> Enum.any?(fn label ->
+      is_binary(label) and String.starts_with?(String.downcase(label), @tuist_runner_label_prefix)
+    end)
+  end
+
+  defp dispatchable_workflow_job?(action, _params), do: action in @dispatchable_workflow_job_actions
 
   defp handle_workflow_job(conn, params) do
     installation_id =
@@ -251,7 +279,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
       is_nil(installation_id) ->
         conn |> put_status(:ok) |> json(%{status: "ok"})
 
-      action not in @dispatchable_workflow_job_actions ->
+      not dispatchable_workflow_job?(action, params) ->
         conn |> put_status(:ok) |> json(%{status: "ok"})
 
       true ->
@@ -326,25 +354,23 @@ defmodule TuistWeb.Webhooks.GitHubController do
          conn,
          %{
            "action" => "requested_action",
-           "check_run" => %{"id" => check_run_id, "name" => "tuist/bundle-size"},
+           "check_run" => %{"id" => check_run_id, "name" => "tuist/bundle-size"} = check_run,
            "requested_action" => %{"identifier" => "accept_bundle_size"},
            "installation" => %{"id" => installation_id},
            "repository" => %{"full_name" => repository_full_name}
          } = params
        ) do
     installation_id = to_string(installation_id)
+    sender = sender_from_params(params)
 
     with {:ok, installation} <- lookup_installation_by_id(conn, params, installation_id) do
-      VCS.update_check_run(%{
+      check_run_params = %{
         repository_full_handle: repository_full_name,
         check_run_id: check_run_id,
-        installation: installation,
-        conclusion: "success",
-        output: %{
-          title: "Bundle size increase accepted",
-          summary: "The bundle size increase was manually accepted."
-        }
-      })
+        installation: installation
+      }
+
+      resolve_bundle_size_approval(check_run, check_run_params, sender, repository_full_name)
     end
 
     conn
@@ -357,6 +383,157 @@ defmodule TuistWeb.Webhooks.GitHubController do
     |> put_status(:ok)
     |> json(%{status: "ok"})
   end
+
+  defp sender_from_params(%{"sender" => %{"id" => id, "login" => login}}), do: %{id: to_string(id), handle: login}
+  defp sender_from_params(_params), do: %{id: nil, handle: nil}
+
+  # GitHub replaces a check run's `output` wholesale on update rather than
+  # merging, so anything we send has to carry the size report with it or the
+  # report is gone. The refusal is separated from it by a rule we own, which
+  # also lets a repeated press replace the previous refusal instead of
+  # stacking them.
+  @refusal_separator "\n\n---\n\n"
+
+  # A check run with no `external_id` predates the stamping and carries no
+  # bundle reference, so the project it belongs to is unknowable. Rather than
+  # accept those unconditionally, which would leave every pull request open at
+  # deploy time permanently unguarded, ask whether any project backed by this
+  # repository restricts approvals at all. Where none does, the answer would
+  # have been "accept" anyway; where one does, somebody asked for a gate and
+  # an unverifiable press should not pass it.
+  #
+  # A check run that does carry an id is a different case. Failing to resolve
+  # it means the bundle read came back empty, not that the project has no
+  # policy. `bundles` lives in ClickHouse, where a read is not guaranteed to
+  # see a recent write, and a bundle can also age out of retention, so this is
+  # reachable without anyone doing anything wrong. It leaves the check failing
+  # and invites another press.
+  defp resolve_bundle_size_approval(check_run, check_run_params, sender, repository_full_name) do
+    case check_run["external_id"] do
+      bundle_id when is_binary(bundle_id) and bundle_id != "" ->
+        authorize_stamped_check_run(bundle_id, check_run, check_run_params, sender)
+
+      _ ->
+        authorize_unstamped_check_run(check_run, check_run_params, sender, repository_full_name)
+    end
+  end
+
+  defp authorize_stamped_check_run(bundle_id, check_run, check_run_params, sender) do
+    case project_for_bundle(bundle_id) do
+      {:ok, project} ->
+        case Bundles.authorize_bundle_size_approval(project, sender) do
+          :ok ->
+            Bundles.record_bundle_size_approval(%{bundle_id: bundle_id, project_id: project.id, sender: sender})
+            accept_bundle_size(check_run_params, sender)
+
+          {:error, reason} ->
+            reject_bundle_size(check_run_params, check_run, sender, reason)
+        end
+
+      {:error, :not_found} ->
+        reject_bundle_size(check_run_params, check_run, sender, :bundle_not_found)
+    end
+  end
+
+  defp authorize_unstamped_check_run(check_run, check_run_params, sender, repository_full_name) do
+    if repository_restricts_bundle_size_approvals?(repository_full_name) do
+      reject_bundle_size(check_run_params, check_run, sender, :check_run_predates_policy)
+    else
+      accept_bundle_size(check_run_params, sender)
+    end
+  end
+
+  defp repository_restricts_bundle_size_approvals?(repository_full_name) do
+    repository_full_name
+    |> Projects.projects_by_vcs_repository_full_handle(preload: [])
+    |> Enum.any?(&(&1.bundle_size_approval_policy != :everyone))
+  end
+
+  defp project_for_bundle(bundle_id) do
+    with project_id when is_integer(project_id) <- Bundles.get_bundle_project_id(bundle_id),
+         %Project{} = project <- Projects.get_project_by_id(project_id) do
+      {:ok, project}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp accept_bundle_size(check_run_params, sender) do
+    VCS.update_check_run(
+      Map.merge(check_run_params, %{
+        conclusion: "success",
+        output: %{
+          title: "Bundle size increase accepted",
+          summary: accepted_summary(sender)
+        }
+      })
+    )
+  end
+
+  # Leaves the check run failing and re-sends the action so whoever is
+  # allowed to accept still has a button to press, with the size report still
+  # under it so they can see what they would be accepting.
+  defp reject_bundle_size(check_run_params, check_run, sender, reason) do
+    VCS.update_check_run(
+      Map.merge(check_run_params, %{
+        conclusion: "action_required",
+        output: %{
+          title: existing_output(check_run, "title") || "Bundle size increase not accepted",
+          summary: summary_with_refusal(existing_output(check_run, "summary"), rejected_summary(sender, reason))
+        },
+        actions: [
+          %{
+            label: "Accept",
+            description: "Accept the bundle size increase",
+            identifier: "accept_bundle_size"
+          }
+        ]
+      })
+    )
+  end
+
+  defp existing_output(%{"output" => output}, key) when is_map(output) do
+    case output[key] do
+      value when is_binary(value) and value != "" -> value
+      _ -> nil
+    end
+  end
+
+  defp existing_output(_check_run, _key), do: nil
+
+  defp summary_with_refusal(nil, refusal), do: refusal
+
+  defp summary_with_refusal(existing, refusal) do
+    case existing |> String.split(@refusal_separator) |> List.first() |> String.trim() do
+      "" -> refusal
+      report -> report <> @refusal_separator <> refusal
+    end
+  end
+
+  defp accepted_summary(%{handle: nil}), do: "The bundle size increase was manually accepted."
+  defp accepted_summary(%{handle: handle}), do: "The bundle size increase was accepted by @#{handle}."
+
+  defp rejected_summary(_sender, :bundle_not_found) do
+    "This check run could not be matched to its bundle, so who may accept could not be checked. Press Accept again in a moment."
+  end
+
+  defp rejected_summary(_sender, :check_run_predates_policy) do
+    "This check run was created before approvals were restricted for this repository, so who may accept cannot be checked. Push a new commit to get a check run that can be."
+  end
+
+  defp rejected_summary(sender, :not_an_approver) do
+    "#{who(sender)} is not allowed to accept bundle size increases for this project. A project admin can change who is, under Settings > Bundles in Tuist."
+  end
+
+  # Any denial reason without its own wording still has to produce a check run
+  # update: falling through to a FunctionClauseError here would 500 the
+  # webhook and leave the check run without the button it needs.
+  defp rejected_summary(sender, _reason) do
+    "#{who(sender)} is not allowed to accept bundle size increases for this project."
+  end
+
+  defp who(%{handle: nil}), do: "This GitHub account"
+  defp who(%{handle: handle}), do: "@#{handle}"
 
   defp delete_github_app_installation(conn, body, installation_id) do
     case lookup_installation_by_id(conn, body, installation_id) do

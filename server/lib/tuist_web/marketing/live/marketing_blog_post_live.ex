@@ -9,6 +9,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
 
   alias Tuist.Marketing.Blog
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Localization
 
   on_mount {TuistWeb.Authentication, :mount_current_user}
@@ -28,6 +29,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
     end
 
     author = Blog.get_authors()[post.author]
+    post_image_url = post_image_url(post)
 
     current_path = if(is_nil(uri.query), do: uri.path, else: "#{uri.path}?#{uri.query}")
 
@@ -42,8 +44,9 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
       |> assign(:head_fediverse_creator, author["fediverse_username"])
       |> assign(
         :head_image,
-        Blog.get_post_image_url(post)
+        post_image_url
       )
+      |> assign(:post_image_url, post_image_url)
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign_structured_data(get_blog_post_structured_markup_data(post))
       |> assign_structured_data(
@@ -55,6 +58,14 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
       )
 
     {:noreply, socket}
+  end
+
+  defp post_image_url(post) do
+    path =
+      post.og_image_path ||
+        OpenGraph.image_path(:marketing_text, title: post.title)
+
+    Tuist.Environment.app_url(path: path, marketing: true)
   end
 
   def render_post_body(post, assigns) do

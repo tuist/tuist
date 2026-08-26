@@ -8,6 +8,7 @@
     import TuistCI
     import TuistCore
     import TuistEnvironment
+    import TuistGit
     import TuistLogging
     import TuistServer
     import TuistSupport
@@ -16,6 +17,7 @@
     public protocol ShardPlanServicing {
         func plan(
             xctestproductsPath: AbsolutePath,
+            projectPath: AbsolutePath,
             reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -69,6 +71,7 @@
         private let fileArchiver: FileArchivingFactorying
         private let shardMatrixOutputService: ShardMatrixOutputServicing
         private let appleArchiver: AppleArchiving
+        private let gitController: GitControlling
 
         public init(
             createShardPlanService: CreateShardPlanServicing = CreateShardPlanService(),
@@ -82,7 +85,8 @@
             fileSystem: FileSysteming = FileSystem(),
             fileArchiver: FileArchivingFactorying = FileArchivingFactory(),
             shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
-            appleArchiver: AppleArchiving = AppleArchiver()
+            appleArchiver: AppleArchiving = AppleArchiver(),
+            gitController: GitControlling = GitController()
         ) {
             self.createShardPlanService = createShardPlanService
             self.startShardUploadService = startShardUploadService
@@ -94,10 +98,12 @@
             self.fileArchiver = fileArchiver
             self.shardMatrixOutputService = shardMatrixOutputService
             self.appleArchiver = appleArchiver
+            self.gitController = gitController
         }
 
         public func plan(
             xctestproductsPath: AbsolutePath,
+            projectPath: AbsolutePath,
             reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -123,6 +129,9 @@
             }
             let xcTestRun: XCTestRun = try await fileSystem.readPlistFile(at: xcTestRunPath)
             let modules = xcTestRun.testModules
+            let parallelizableModules = xcTestRun.parallelizableTestModules
+            let selectedTestSuites = xcTestRun.selectedTestSuiteIdentifiers()
+            let skippedTestSuites = xcTestRun.skippedTestSuiteIdentifiers()
 
             guard !modules.isEmpty else {
                 throw ShardPlanServiceError.noTestModulesFound
@@ -132,7 +141,12 @@
             // catch-all shard guarantees any suite without history still runs. The client therefore no
             // longer enumerates suites by booting every test bundle on the simulator (slow and flaky on
             // large plans — it could take an hour) and sends only the module universe from the
-            // deterministic `.xctestrun`.
+            // deterministic `.xctestrun`, plus the suites that bundle limits a module to, which are
+            // known exactly and don't need inferring.
+            //
+            // The suites the bundle skips go with them. A test plan that disables tests still builds
+            // the target, so it stays in the module universe, and without the skips the server would
+            // resolve its suites from history and plan work the products cannot run.
             Logger.current.notice("Creating shard plan with \(modules.count) test module(s)", metadata: .section)
 
             let shardPlan = try await createShardPlanService.createShardPlan(
@@ -140,16 +154,25 @@
                 serverURL: serverURL,
                 reference: reference,
                 modules: modules,
-                testSuites: nil,
+                parallelizableModules: parallelizableModules,
+                testSuites: selectedTestSuites.isEmpty ? nil : selectedTestSuites,
+                skippedTestSuites: skippedTestSuites.isEmpty ? nil : skippedTestSuites,
                 shardMin: shardMin,
                 shardMax: shardMax,
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
                 shardGranularity: shardGranularity,
-                buildRunId: buildRunId
+                buildRunId: buildRunId,
+                gitBranch: try await gitBranch(projectPath: projectPath)
             )
 
-            Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
+            // The identifier is what a workflow passes to the shard jobs as `--shard-plan-id`, and
+            // the generated matrices below carry it; printing it once here covers the providers
+            // whose output can't.
+            Logger.current.notice(
+                "Shard plan \(shardPlan.id) created: \(shardPlan.shard_count) shards",
+                metadata: .section
+            )
 
             if let archivePath {
                 try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
@@ -169,6 +192,14 @@
             try await shardMatrixOutputService.output(shardPlan)
 
             return shardPlan
+        }
+
+        /// The branch of the checkout the tests were built from, which the server reads the suite
+        /// inventory from. The server can't derive it from the linked build run: that row is written
+        /// through an async ingestion buffer and is usually still unreadable when the plan is created
+        /// moments later, which silently falls the inventory back to the project's default branch.
+        private func gitBranch(projectPath: AbsolutePath) async throws -> String? {
+            try? await gitController.gitInfo(workingDirectory: projectPath).branch
         }
 
         /// Uploads the shard test products split so each shard downloads only what it needs: a single

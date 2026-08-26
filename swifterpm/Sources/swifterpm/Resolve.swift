@@ -159,6 +159,11 @@ enum PackageResolver {
         if disableSandbox {
             arguments.append("--disable-sandbox")
         }
+        // The child solves the graph, which means it fetches availability and
+        // manifests from the same registries this process authenticates against. Its
+        // environment is inherited, so `SWIFTPM_NETRC_DATA` already reaches it, but
+        // the flags are ours alone until they are forwarded.
+        arguments.append(contentsOf: Environment.netrc.swiftPackageArguments)
         switch scmToRegistryTransformation {
         case .disabled:
             arguments.append("--disable-scm-to-registry-transformation")
@@ -209,9 +214,17 @@ enum PackageResolver {
         let resolvedFileExists = try await fileSystem.exists(resolvedFileURL.absolutePath)
         if readOnly {
             guard resolvedFileExists else {
-                throw ToolError.message(
-                    "Package.resolved is required when forcing resolved versions, but no file exists at \(resolvedFileURL.path)"
-                )
+                // A missing Package.resolved under `--force-resolved-versions`
+                // is the normal shape of an all-local package graph: there are
+                // no versioned pins to force, and SwiftPM's own
+                // `swift package resolve --force-resolved-versions` succeeds as a
+                // no-op there and writes no lockfile. Match that with an empty pin
+                // set instead of erroring. A graph that genuinely needs a lockfile
+                // (unpinned remote dependencies) still fails, because
+                // `assertResolvedFileUpToDate` delegates the check back to SwiftPM
+                // once the checkouts are materialized. The version is unobserved
+                // here since empty pins are never serialized on this path.
+                return ResolvedPins(originHash: nil, pins: [], version: 3)
             }
             // The pins are trusted as-is here; whether they're still in sync with
             // the manifest is verified by `assertResolvedFileUpToDate`, which the

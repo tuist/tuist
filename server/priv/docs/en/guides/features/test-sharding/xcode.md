@@ -21,9 +21,9 @@ Test sharding for Xcode projects uses `tuist xcodebuild build-for-testing` to cr
 Test sharding follows a two-phase workflow:
 
 1. **Build phase:** Tuist reads the test modules from the built `.xctestrun` file and creates a **shard plan** on the server. The server uses historical test timing data from the last 30 days to distribute tests across shards so each shard takes roughly the same amount of time. The build phase outputs a **shard matrix** that your CI system uses to spawn parallel runners.
-2. **Test phase:** Each CI runner receives a **shard index** and executes that shard's test selection.
+2. **Test phase:** Each continuous integration runner receives a **shard index** and the exact **shard plan identifier**, then executes that plan's test selection.
 
-With suite granularity, the server chooses known suites per module: for each module in the current `.xctestrun`, it uses the latest CI run on the build branch that included that module, falling back to the project's default branch for modules without branch history. This keeps selective testing runs from hiding modules that were skipped in the latest branch run.
+With suite granularity, the server chooses known suites per module: for each module in the current `.xctestrun`, it unions the suites of the last few CI runs on the branch being built, falling back to the project's default branch for modules without branch history. Reading several runs rather than the latest one matters because a sharded run uploads one test run per shard as each shard finishes, so the most recent run holds only the fraction of the module that has been ingested so far, and because it keeps selective testing runs from hiding suites that were skipped in the latest branch run.
 
 When `--shard-granularity suite` is used, Tuist balances known suites across the requested shard count and uses the final shard as the catch-all. For example, `--shard-total 5` produces shard indexes `0` through `4`, with shard index `4` as the catch-all. Regular shards run with `-only-testing` for their assigned suites. The final shard runs without `-only-testing` and passes `-skip-testing` for every suite assigned to the earlier shards, so it runs its planned suites plus newly added suites or suites missing from historical inventory. Module granularity does not need a catch-all because the `.xctestrun` file provides the module list.
 
@@ -71,6 +71,7 @@ tuist xcodebuild test \
 | Flag | Environment variable | Description |
 |------|---------------------|-------------|
 | `--shard-index <N>` | `TUIST_SHARD_INDEX` | Zero-based index of the shard to execute |
+| `--shard-plan-id <IDENTIFIER>` | `TUIST_SHARD_PLAN_ID` | Exact shard plan identifier emitted by the build phase. Generated provider outputs include this value automatically |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Unique identifier for the shard plan (auto-derived on supported CI providers) |
 | `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Path to a locally managed shard archive; Tuist extracts it instead of downloading test products from remote storage |
 
@@ -120,10 +121,10 @@ jobs:
     runs-on: macos-latest
     strategy:
       fail-fast: false
-      matrix:
-        shard: ${{ fromJson(needs.build.outputs.matrix).shard }}
+      matrix: ${{ fromJson(needs.build.outputs.matrix) }}
     env:
       TUIST_SHARD_INDEX: ${{ matrix.shard }}
+      TUIST_SHARD_PLAN_ID: ${{ matrix.shard_plan_id }}
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
@@ -182,7 +183,7 @@ test-shards:
 
 ### CircleCI {#circleci}
 
-Tuist generates a `.tuist-shard-continuation.json` with parameters for the [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation):
+Tuist generates a `.tuist-shard-continuation.json` with parameters for the [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation). The `shard-plan-id` parameter must be declared in your continued configuration:
 
 ```yaml
 # .circleci/config.yml
@@ -227,6 +228,9 @@ parameters:
   shard-count:
     type: integer
     default: 0
+  shard-plan-id:
+    type: string
+    default: ""
 
 jobs:
   test-shard:
@@ -241,6 +245,7 @@ jobs:
           name: Run shard
           command: |
             export TUIST_SHARD_INDEX=<< parameters.shard-index >>
+            export TUIST_SHARD_PLAN_ID=<< pipeline.parameters.shard-plan-id >>
             tuist auth login
             tuist xcodebuild test \
               -scheme MyScheme \
@@ -274,7 +279,7 @@ steps:
       queue: macos
 ```
 
-Each generated step has `TUIST_SHARD_INDEX` set in its environment. Add the test command to each shard step using a shared script:
+Each generated step has `TUIST_SHARD_INDEX` and `TUIST_SHARD_PLAN_ID` set in its environment. Add the test command to each shard step using a shared script:
 
 ```bash
 # .buildkite/shard-step.sh
@@ -287,7 +292,7 @@ tuist xcodebuild test \
 
 ### Codemagic {#codemagic}
 
-Codemagic does not support dynamic matrix jobs, so define a separate workflow per shard. Tuist writes `TUIST_SHARD_MATRIX` and `TUIST_SHARD_COUNT` to the `CM_ENV` file for use within each workflow:
+Codemagic does not support dynamic matrix jobs, so define a separate workflow per shard. Tuist writes `TUIST_SHARD_MATRIX` and `TUIST_SHARD_COUNT` to the `CM_ENV` file for use within the build workflow. Codemagic's `CM_ENV` is workflow-scoped, so the exact shard plan identifier does not cross workflow boundaries; test workflows fall back to reference-based shard lookup:
 
 ```yaml
 # codemagic.yaml
@@ -356,7 +361,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-On Bitrise, Tuist writes `.tuist-shard-matrix.json` to the `BITRISE_DEPLOY_DIR`, making it available as a build artifact for downstream pipeline stages. Use Bitrise Pipelines with pre-defined parallel workflows:
+On Bitrise, Tuist writes `.tuist-shard-matrix.json` (including `shard_plan_id`) to the `BITRISE_DEPLOY_DIR`, making it available as a build artifact for downstream pipeline stages. Each test workflow extracts the plan ID from the downloaded artifact using `envman` so it reaches the test command's environment:
 
 ```yaml
 # bitrise.yml
@@ -390,11 +395,19 @@ workflows:
                   -scheme MyScheme \
                   -destination 'platform=iOS Simulator,name=iPhone 16' \
                   --shard-total 5
+      - deploy-to-bitrise-io: {}
 
   test-shard-0: &shard-workflow
     envs:
       - TUIST_SHARD_INDEX: 0
     steps:
+      - pull-intermediate-files: {}
+      - script:
+          title: Set shard plan ID from artifact
+          inputs:
+            - content: |
+                PLAN_ID=$(jq -r '.shard_plan_id' "$BITRISE_DEPLOY_DIR/.tuist-shard-matrix.json")
+                envman add --key TUIST_SHARD_PLAN_ID --value "$PLAN_ID"
       - script:
           title: Run shard
           inputs:
@@ -526,10 +539,10 @@ jobs:
     runs-on: namespace-profile-default-macos
     strategy:
       fail-fast: false
-      matrix:
-        shard: ${{ fromJson(needs.build.outputs.matrix).shard }}
+      matrix: ${{ fromJson(needs.build.outputs.matrix) }}
     env:
       TUIST_SHARD_INDEX: ${{ matrix.shard }}
+      TUIST_SHARD_PLAN_ID: ${{ matrix.shard_plan_id }}
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2

@@ -41,11 +41,13 @@
   );
   display: flex;
   position: relative;
+  box-sizing: border-box;
   justify-content: center;
 
   align-items: center;
   gap: var(--noora-spacing-5);
   padding: var(--noora-spacing-5) var(--noora-spacing-11);
+  min-width: 0;
   width: 100%;
   overflow-x: hidden;
   color: var(--noora-banner-label);
@@ -83,7 +85,6 @@
 
   & [data-part="description"] {
     font: var(--noora-font-body-medium);
-    line-height: var(--noora-body-medium-line-height);
   }
 
   & [data-part="dismiss-icon"] {

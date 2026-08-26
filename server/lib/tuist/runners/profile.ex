@@ -12,10 +12,11 @@ defmodule Tuist.Runners.Profile do
     * `:linux` — `(vcpus, memory_gb)`, picked from
       `Tuist.Runners.Catalog.shapes(:linux)`.
     * `:macos` — `(vcpus, memory_gb)` plus an `xcode_version`,
-      picked from `Catalog.shapes(:macos)` (M2-L is the only shape
-      today) and `Catalog.xcode_versions/0`. The Xcode
-      version pins the runner image's `:macos-<dashes>-<semver>`
-      tag.
+      picked from `Catalog.shapes(:macos)` and
+      `Catalog.xcode_versions/0`. The pool is keyed on both, so a
+      profile resolves to the pool running that shape on that Xcode.
+      The Xcode version pins the runner image's
+      `:macos-<dashes>-<semver>` tag.
 
   Backed by [priv/repo/migrations/20260527130000_create_runner_profiles.exs](priv/repo/migrations/20260527130000_create_runner_profiles.exs)
   and [priv/repo/migrations/20260602144624_add_platform_and_xcode_to_runner_profiles.exs](priv/repo/migrations/20260602144624_add_platform_and_xcode_to_runner_profiles.exs).

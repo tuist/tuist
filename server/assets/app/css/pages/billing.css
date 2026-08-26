@@ -114,6 +114,11 @@
 
         & > #billing-upgrade-modal {
           align-self: flex-end;
+          /* The usage column beside this one grows with however many
+             metered resources it lists, so the button is pushed to the
+             bottom rather than left floating wherever the feature list
+             happens to end. */
+          margin-top: auto;
 
           & [data-part="content"] {
             padding: var(--noora-spacing-8);
@@ -127,8 +132,12 @@
     }
   }
 
-  & > [data-part="usage-card"] {
-    & > [data-part="usage-card-section"] {
+  & > [data-part="usage-card"],
+  & > [data-part="runner-usage-card"],
+  & > [data-part="prepaid-credit-card"] {
+    & > [data-part="usage-card-section"],
+    & > [data-part="runner-usage-card-section"],
+    & > [data-part="prepaid-credit-card-section"] {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-8);
@@ -153,7 +162,7 @@
     }
   }
 
-  & > [data-part="billing-email-card-section"],
+  & > [data-part="billing-details-card-section"],
   & > [data-part="billing-payment-method-card-section"] {
     display: flex;
     flex-direction: row;
@@ -265,7 +274,7 @@
     }
   }
 
-  & > [data-part="billing-email-card-section"] {
+  & > [data-part="billing-details-card-section"] {
     & > [data-part="content"] {
       & > [data-part="update-button"] {
         align-self: flex-end;

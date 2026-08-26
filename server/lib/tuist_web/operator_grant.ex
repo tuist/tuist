@@ -10,34 +10,43 @@ defmodule TuistWeb.OperatorGrant do
     * `verify/1` — verifies that token OFFLINE with the configured
       Ed25519 public key (no runtime call to ops). EdDSA-strict, with
       `exp`, max-TTL ceiling, and `iss`/`aud` pinning.
+    * `prune_operator_grants/2` — removes expired grants and fields that
+      are not needed for authorization before the session cookie is written.
     * `accept_operator_grant/2` — a plug in `:browser_app` that takes
       the `?operator_grant=` token on the redirect-back, verifies it,
-      pins the resolved `account_id` into the claims, stores them in
+      pins the resolved `account_id` into the claims, stores the minimal
+      authorization fields in
       the session, and immediately redirects to strip the token from
       the URL (so it never lands in a rendered page, Referer, or the
       observability logs).
     * `load_operator_grant/2` + `on_mount(:load, …)` — attach the
       session grant for the current `account_handle` onto
       `current_user.operator_grant` (controller and LiveView paths).
+    * `accept_operator_grant_header/2` — the same handoff for surfaces
+      with no cookie session: a plug in `:mcp` that takes the grant from
+      the `x-tuist-operator-grant` header, verifies it, pins the account,
+      and attaches it for this request only. Nothing is stored, so the
+      caller presents the grant on every call.
     * `redirect_to_ops_if_operator/2` — a plug that bounces a
       non-member operator with no grant to the reason form instead of
       404ing them.
 
-  The grant claims stored on the user are a normalised, atom-keyed map
-  the authorization checks rely on:
+  The session stores only the normalised, atom-keyed fields that the
+  authorization checks and audit logging rely on:
 
       %{tier: :read | :admin, account_id: integer, account_handle: string,
-        sub: string, reason: string, jti: string, iat: integer, exp: integer}
+        sub: string, jti: string, exp: integer}
 
   Revocation is by short TTL (re-checked on every request) plus signing
   key rotation as the break-glass; there is deliberately no server→ops
   call.
   """
 
-  import Phoenix.Controller, only: [redirect: 2, current_url: 1]
+  import Phoenix.Controller, only: [redirect: 2, current_url: 1, json: 2]
   import Plug.Conn
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Environment
   alias Tuist.Projects.Project
@@ -46,12 +55,15 @@ defmodule TuistWeb.OperatorGrant do
 
   @issuer "ops.tuist.dev"
   @session_key "operator_grants"
+  @session_grant_keys [:tier, :account_id, :account_handle, :sub, :jti, :exp]
+  @session_payload_warning_bytes 3_000
   # Tolerance for clock drift between the ops signer and this server.
   @clock_skew_seconds 60
   # Account handles are alphanumeric + dashes (mirrors the server's name
   # validation). Reject anything else so a `%`/`_` in the grant can't be
   # resolved as a SQL LIKE wildcard by `get_account_by_handle/1`.
   @account_handle_regex ~r/^[a-zA-Z0-9-]+$/
+  @grant_header "x-tuist-operator-grant"
 
   # --- verification ------------------------------------------------------
 
@@ -174,6 +186,33 @@ defmodule TuistWeb.OperatorGrant do
   # --- handoff plug (runs in :browser_app) -------------------------------
 
   @doc """
+  Removes expired grants and compacts active grants before the browser
+  session is written back to the cookie.
+  """
+  def prune_operator_grants(conn, _opts) do
+    case get_session(conn, @session_key) do
+      grants when is_map(grants) ->
+        compacted_grants = compact_active_grants(grants)
+
+        cond do
+          compacted_grants == grants ->
+            conn
+
+          map_size(compacted_grants) == 0 ->
+            delete_session(conn, @session_key)
+
+          true ->
+            conn
+            |> put_session(@session_key, compacted_grants)
+            |> maybe_warn_session_payload_size()
+        end
+
+      _ ->
+        conn
+    end
+  end
+
+  @doc """
   If the request carries `?operator_grant=`, verify it, pin the
   account, store it in the session, and redirect to the same path with
   the token stripped. No-ops otherwise.
@@ -194,11 +233,12 @@ defmodule TuistWeb.OperatorGrant do
       grants =
         conn
         |> get_session(@session_key)
-        |> normalize_grants()
-        |> Map.put(grant_key(claims.account_handle), Map.put(claims, :account_id, account_id))
+        |> compact_active_grants()
+        |> Map.put(grant_key(claims.account_handle), session_grant(claims, account_id))
 
       conn
       |> put_session(@session_key, grants)
+      |> maybe_warn_session_payload_size()
       |> redirect(to: stripped_path(conn))
       |> halt()
     else
@@ -237,8 +277,43 @@ defmodule TuistWeb.OperatorGrant do
 
   defp emails_match?(_, _), do: false
 
-  defp normalize_grants(grants) when is_map(grants), do: grants
-  defp normalize_grants(_), do: %{}
+  defp compact_active_grants(grants) when is_map(grants) do
+    now = System.system_time(:second)
+
+    Enum.reduce(grants, %{}, fn
+      {handle, %{exp: exp} = grant}, compacted when is_binary(handle) and is_integer(exp) and exp > now ->
+        Map.put(compacted, grant_key(handle), Map.take(grant, @session_grant_keys))
+
+      _, compacted ->
+        compacted
+    end)
+  end
+
+  defp compact_active_grants(_), do: %{}
+
+  defp session_grant(claims, account_id) do
+    claims
+    |> Map.take(@session_grant_keys)
+    |> Map.put(:account_id, account_id)
+  end
+
+  defp maybe_warn_session_payload_size(conn) do
+    payload_size =
+      conn
+      |> get_session()
+      |> :erlang.term_to_binary()
+      |> Base.url_encode64(padding: false)
+      |> byte_size()
+
+    if payload_size >= @session_payload_warning_bytes do
+      Logger.warning("operator grant session payload is approaching the cookie size limit",
+        session_payload_bytes: payload_size,
+        warning_threshold_bytes: @session_payload_warning_bytes
+      )
+    end
+
+    conn
+  end
 
   defp stripped_path(conn) do
     query =
@@ -247,6 +322,84 @@ defmodule TuistWeb.OperatorGrant do
       |> URI.encode_query()
 
     if query == "", do: conn.request_path, else: conn.request_path <> "?" <> query
+  end
+
+  # --- handoff plug (runs in :mcp) ---------------------------------------
+
+  @doc """
+  Honour a grant presented in the `#{@grant_header}` header, for surfaces
+  authenticated by a token rather than a cookie.
+
+  The browser handoff stores the grant in the session because a person clicks
+  through many pages after justifying access once. A token-authenticated caller
+  has nowhere to keep it, so the grant is attached for this request only and
+  presented again on the next one — which also means it cannot outlive its `exp`
+  in a cookie.
+
+  A header that is present but not honoured fails the request rather than
+  falling through unauthenticated. The browser flow strips the token and carries
+  on because a person will see the page they landed on and can retry; an agent
+  would instead see a bare "you do not have access" and have no way to tell a
+  rejected grant from a missing one.
+  """
+  def accept_operator_grant_header(conn, _opts) do
+    case get_req_header(conn, @grant_header) do
+      [token | _] when is_binary(token) and token != "" -> attach_header_grant(conn, token)
+      _ -> conn
+    end
+  end
+
+  defp attach_header_grant(conn, token) do
+    with {:ok, claims} <- verify(token),
+         %User{} = user <- operator_from_conn(conn),
+         :ok <- check_header_subject_is_operator(user, claims),
+         %{id: account_id} <- Accounts.get_account_by_handle(claims.account_handle) do
+      log_grant_context(claims)
+      assign(conn, :operator_grant_user, %{user | operator_grant: session_grant(claims, account_id)})
+    else
+      _ ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "operator_grant_rejected"})
+        |> halt()
+    end
+  end
+
+  # An OAuth access token authenticates as the account it was issued for, so the
+  # human is on `current_subject.issued_by` and `current_user` is never assigned
+  # — the shape every Atlas request and every direct OAuth client arrives in.
+  # `current_user` is only populated for a browser session or a claimed agent
+  # credential, so both are consulted.
+  defp operator_from_conn(conn) do
+    case conn.assigns do
+      %{current_user: %User{} = user} -> user
+      %{current_subject: %AuthenticatedAccount{issued_by: %User{} = user}} -> user
+      _ -> nil
+    end
+  end
+
+  # Same bearer-token reasoning as the browser handoff: honour the grant only
+  # for the confirmed operator named in `sub`.
+  #
+  # The browser also requires that the session authenticated through Google
+  # (`auth_method == :google`). There is no session here, and no equivalent
+  # signal on an access token — but the grant itself is the artifact of that
+  # authentication: ops.tuist.dev mints it only for an authenticated operator,
+  # signs it, and binds it to `sub` with a short TTL, all verified above. A
+  # second Google login *to this server* would prove nothing about the one that
+  # produced the grant, and requiring it would reject freshly minted grants from
+  # operators who authenticated only at ops.
+  #
+  # What remains unestablished is that the *credential presenting* the grant was
+  # itself Google-authenticated. That needs the authentication method bound to
+  # the token, which is not reachable without changing the OAuth dependency.
+  defp check_header_subject_is_operator(%User{email: email} = user, %{sub: sub}) do
+    if Accounts.tuist_operator?(user) and emails_match?(email, sub) do
+      :ok
+    else
+      Logger.warning("operator grant rejected: subject does not match the authenticated user")
+      {:error, :subject_mismatch}
+    end
   end
 
   # --- grant loading (controller + LiveView) -----------------------------

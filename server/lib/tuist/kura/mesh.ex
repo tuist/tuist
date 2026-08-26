@@ -36,7 +36,7 @@ defmodule Tuist.Kura.Mesh do
   # the mesh's entire safety margin: the moment a peer is withheld, every
   # node's next heartbeat drops it from the dynamic view and its queued
   # replication messages are dropped immediately, so the window stays many
-  # missed heartbeats wide to keep a blip from costing a full re-bootstrap
+  # missed heartbeats wide to keep a blip from costing a full backfill
   # on recovery.
   @stale_peer_after_minutes 30
   # There is no CRL/OCSP in Kura's peer verifier, so a node is revoked by no
@@ -204,7 +204,7 @@ defmodule Tuist.Kura.Mesh do
   A deactivated, purged, or never-enrolled node is told `mesh_member: false`
   and recovers by re-enrolling — enrollment is the only path that creates or
   restores membership, and a recovery re-enrollment is the node's signal to
-  re-bootstrap the data it missed while out of the mesh.
+  backfill the data it missed while out of the mesh.
 
   The membership check and the marker bump are a single statement so a
   concurrent sweep or purge cannot be overwritten (or answered for) between a

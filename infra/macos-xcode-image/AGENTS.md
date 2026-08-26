@@ -52,8 +52,9 @@ ghcr.io/tuist/tuist-xcresult-processor:<server-semver>
 ```
 
 Why split this layer out: the Xcode install is ~30 min of work
-(unxip, license accept, runFirstLaunch, downloadAllPlatforms). If
-that lived in the runner-image / xcresult-processor packer files,
+(unxip, license accept, runFirstLaunch, downloadAllPlatforms, and
+download Metal Toolchain). If that lived in the runner-image /
+xcresult-processor packer files,
 every `fix(runner-image): ...` commit on main would pay the cost
 again. With the split, Layer 2 builds re-clone Layer 1 and lay a
 thin runtime on top — ~2 min instead of ~30.
@@ -66,6 +67,8 @@ thin runtime on top — ~2 min instead of ~30.
   the same bundle.
 - iOS / tvOS / watchOS / visionOS simulator runtimes from
   `xcodebuild -downloadAllPlatforms`.
+- The Metal compiler toolchain from
+  `xcodebuild -downloadComponent MetalToolchain`.
 - Dev tools via brew: `xcodes`, `xcbeautify`, `swiftformat`,
   `swiftlint`, `swiftgen`, `licenseplist`, `mint`, `carthage`,
   `fastlane`, `cocoapods`, `libimobiledevice`, `ideviceinstaller`,
@@ -87,6 +90,25 @@ from `ghcr.io/tuist/xcode-xips:<version>` via oras — an in-house
 mirror that holds every Xcode .xip we've published. CAPI-managed
 builder Macs can rotate without breaking CI; the workflow has no
 session state to lose.
+
+**Why this one stays on GHCR.** Every image this workflow *publishes*
+goes to the Tuist OCI registry on the tailnet, but the .xip mirror it
+*reads* deliberately does not follow, and it is the only artifact in
+the set that is not anonymously pullable (hence the explicit `oras
+login ghcr.io` in the workflow). The reason is the writer, not the
+reader: the mirror's only writer is `mise run xcode-mirror:upload`
+running on a maintainer's Mac over a home link. Measured from one with
+the same 512 MB blob, that push is 136s to GHCR against 481s to the
+tailnet-only registry: a ten-minute upload one way, closer to forty
+the other. Worse, a fresh Tailscale session starts on a DERP relay and
+only upgrades to a direct path once NAT traversal succeeds; over the
+relay these uploads fail outright rather than merely crawl, which is
+exactly what an occasional, once-per-Xcode-release task gets. GHCR's
+rate limits were never the problem for a single-blob artifact pushed a
+handful of times a year. They were the problem for the ~50 GB images,
+and those are pushed from a builder over a datacenter link and do go
+to our registry. Revisit only if the upload path stops being a
+maintainer laptop.
 
 The mirror is operator-populated. Apple's `developer.apple.com`
 auth requires a real Apple ID + post-2FA cookies that we can't

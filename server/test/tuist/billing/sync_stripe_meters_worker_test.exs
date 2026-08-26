@@ -29,6 +29,8 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
 
     date = ~U[2024-04-30 10:20:30Z]
     stub(DateTime, :utc_now, fn -> date end)
+    period_start = DateTime.to_unix(~U[2024-04-29 00:00:00.000000Z], :microsecond)
+    period_end = DateTime.to_unix(~U[2024-04-30 00:00:00.000000Z], :microsecond)
 
     # Create events for yesterday (2024-04-29) for all accounts
     CommandEventsFixtures.command_event_fixture(
@@ -53,12 +55,20 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
     # Then
     assert_enqueued(
       worker: SyncCustomerStripeMetersWorker,
-      args: %{customer_id: first_account_customer_id}
+      args: %{
+        customer_id: first_account_customer_id,
+        period_start: period_start,
+        period_end: period_end
+      }
     )
 
     assert_enqueued(
       worker: SyncCustomerStripeMetersWorker,
-      args: %{customer_id: second_account_customer_id}
+      args: %{
+        customer_id: second_account_customer_id,
+        period_start: period_start,
+        period_end: period_end
+      }
     )
 
     all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
@@ -76,6 +86,8 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
 
     date = ~U[2024-04-30 10:20:30Z]
     stub(DateTime, :utc_now, fn -> date end)
+    period_start = DateTime.to_unix(~U[2024-04-29 00:00:00.000000Z], :microsecond)
+    period_end = DateTime.to_unix(~U[2024-04-30 00:00:00.000000Z], :microsecond)
 
     {:ok, _} =
       Tuist.Billing.create_token_usage(%{
@@ -94,7 +106,11 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
     # Then
     assert_enqueued(
       worker: SyncCustomerStripeMetersWorker,
-      args: %{customer_id: customer_with_tokens}
+      args: %{
+        customer_id: customer_with_tokens,
+        period_start: period_start,
+        period_end: period_end
+      }
     )
 
     all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
@@ -110,6 +126,8 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
 
     date = ~U[2024-04-30 10:20:30Z]
     stub(DateTime, :utc_now, fn -> date end)
+    period_start = DateTime.to_unix(~U[2024-04-29 00:00:00.000000Z], :microsecond)
+    period_end = DateTime.to_unix(~U[2024-04-30 00:00:00.000000Z], :microsecond)
 
     CommandEventsFixtures.command_event_fixture(
       project_id: project.id,
@@ -134,9 +152,141 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
     SyncStripeMetersWorker.perform(%Oban.Job{args: %{}})
 
     # Then
-    assert_enqueued(worker: SyncCustomerStripeMetersWorker, args: %{customer_id: customer_id})
+    assert_enqueued(
+      worker: SyncCustomerStripeMetersWorker,
+      args: %{customer_id: customer_id, period_start: period_start, period_end: period_end}
+    )
 
     all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
     assert length(all_jobs) == 1
+  end
+
+  test "reports an explicit window when the caller supplies a closed whole day" do
+    customer_id = "account-explicit-#{UUIDv7.generate()}"
+    AccountsFixtures.user_fixture(customer_id: customer_id)
+
+    # A closed day that is deliberately not yesterday, so the assertion
+    # proves the boundaries came from the args rather than the clock.
+    period_start = ~U[2026-07-04 00:00:00.000000Z]
+    period_end = ~U[2026-07-05 00:00:00.000000Z]
+
+    assert :ok =
+             SyncStripeMetersWorker.perform(%Oban.Job{
+               args: %{
+                 "period_start" => DateTime.to_unix(period_start, :microsecond),
+                 "period_end" => DateTime.to_unix(period_end, :microsecond)
+               }
+             })
+
+    jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
+    job = Enum.find(jobs, &(&1.args["customer_id"] == customer_id))
+
+    assert job.args["period_start"] == DateTime.to_unix(period_start, :microsecond)
+    assert job.args["period_end"] == DateTime.to_unix(period_end, :microsecond)
+  end
+
+  test "discards a window that has not closed yet" do
+    customer_id = "account-open-#{UUIDv7.generate()}"
+    AccountsFixtures.user_fixture(customer_id: customer_id)
+
+    # Snapshotting a live day would post partial usage under the identifier
+    # for the whole day, and the nightly run's full report would then be
+    # deduplicated away — losing every minute earned after the snapshot.
+    today = DateTime.utc_now() |> DateTime.to_date() |> DateTime.new!(~T[00:00:00.000000])
+    tomorrow = DateTime.add(today, 1, :day)
+
+    assert {:discard, :window_has_not_closed_yet} =
+             SyncStripeMetersWorker.perform(%Oban.Job{
+               args: %{
+                 "period_start" => DateTime.to_unix(today, :microsecond),
+                 "period_end" => DateTime.to_unix(tomorrow, :microsecond)
+               }
+             })
+
+    assert all_enqueued(worker: SyncCustomerStripeMetersWorker) == []
+  end
+
+  test "discards a closed window narrower than a whole day" do
+    customer_id = "account-partial-#{UUIDv7.generate()}"
+    AccountsFixtures.user_fixture(customer_id: customer_id)
+
+    # This window's identifier is one the cron will never produce, so the
+    # cron's whole-day run would report the same usage a second time.
+    assert {:discard, :window_not_aligned_to_utc_midnight} =
+             SyncStripeMetersWorker.perform(%Oban.Job{
+               args: %{
+                 "period_start" => DateTime.to_unix(~U[2026-07-04 00:00:00.000000Z], :microsecond),
+                 "period_end" => DateTime.to_unix(~U[2026-07-04 16:00:00.000000Z], :microsecond)
+               }
+             })
+
+    assert all_enqueued(worker: SyncCustomerStripeMetersWorker) == []
+  end
+
+  test "discards a multi-day window even when both bounds are midnights" do
+    customer_id = "account-span-#{UUIDv7.generate()}"
+    AccountsFixtures.user_fixture(customer_id: customer_id)
+
+    # Aligned but two days wide. The cron reports each day separately, so
+    # this identifier is again one it never produces.
+    assert {:discard, :window_is_not_one_whole_day} =
+             SyncStripeMetersWorker.perform(%Oban.Job{
+               args: %{
+                 "period_start" => DateTime.to_unix(~U[2026-07-04 00:00:00.000000Z], :microsecond),
+                 "period_end" => DateTime.to_unix(~U[2026-07-06 00:00:00.000000Z], :microsecond)
+               }
+             })
+
+    assert all_enqueued(worker: SyncCustomerStripeMetersWorker) == []
+  end
+
+  test "discards a window not aligned to UTC midnight" do
+    customer_id = "account-unaligned-#{UUIDv7.generate()}"
+    AccountsFixtures.user_fixture(customer_id: customer_id)
+
+    assert {:discard, :window_not_aligned_to_utc_midnight} =
+             SyncStripeMetersWorker.perform(%Oban.Job{
+               args: %{
+                 "period_start" => DateTime.to_unix(~U[2026-07-04 09:30:00.000000Z], :microsecond),
+                 "period_end" => DateTime.to_unix(~U[2026-07-05 09:30:00.000000Z], :microsecond)
+               }
+             })
+
+    assert all_enqueued(worker: SyncCustomerStripeMetersWorker) == []
+  end
+
+  test "spreads the customer fan-out over time instead of releasing it in one burst" do
+    # More customers than one second's worth of fan-out, so the assertion
+    # sees an actual spread rather than a single batch that happens to fit.
+    customer_ids =
+      Enum.map(1..12, fn index ->
+        customer_id = "account-spread-#{index}-#{UUIDv7.generate()}"
+        AccountsFixtures.user_fixture(customer_id: customer_id)
+        customer_id
+      end)
+
+    period_start = ~U[2026-07-04 00:00:00.000000Z]
+    period_end = ~U[2026-07-05 00:00:00.000000Z]
+
+    assert :ok =
+             SyncStripeMetersWorker.perform(%Oban.Job{
+               args: %{
+                 "period_start" => DateTime.to_unix(period_start, :microsecond),
+                 "period_end" => DateTime.to_unix(period_end, :microsecond)
+               }
+             })
+
+    jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
+
+    assert jobs |> Enum.map(& &1.args["customer_id"]) |> Enum.sort() == Enum.sort(customer_ids)
+
+    # Every customer job spends a Stripe request on a subscription lookup
+    # before its meter jobs post their events. Released together they
+    # arrive as one burst and Stripe answers most of it with HTTP 429, so
+    # the fan-out has to land in per-second batches instead.
+    batches = jobs |> Enum.group_by(& &1.scheduled_at) |> Map.values()
+
+    assert length(batches) > 1
+    assert batches |> Enum.map(&length/1) |> Enum.max() < length(jobs)
   end
 end

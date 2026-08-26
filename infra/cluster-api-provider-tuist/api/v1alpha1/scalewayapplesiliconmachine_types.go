@@ -37,9 +37,26 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// +kubebuilder:default=fr-par-1
 	Zone string `json:"zone,omitempty"`
 
-	// OS is the Scaleway-provided macOS image name. The controller
-	// resolves this to an OS UUID via `scw apple-silicon os list`.
-	// +kubebuilder:default=macos-tahoe-26.3
+	// OS is the macOS release family the fleet runs — "Tahoe",
+	// "Sequoia", "Sonoma". Adoption accepts any pool host in the family
+	// and release reinstalls onto the family's newest published image,
+	// so the fleet tracks Scaleway's point releases instead of chasing
+	// them.
+	//
+	// Deliberately not a point release. Scaleway retires point releases
+	// without notice and reimages released hosts onto the server type's
+	// current default, so an exact pin drifts out from under the fleet
+	// and no pool host can satisfy it again — that is how staging lost
+	// its whole runner pool in Aug 2026 while sitting on
+	// macos-tahoe-26.3.
+	//
+	// A value naming a specific image is refused at adoption with an
+	// InvalidOSPin condition rather than widened to its family —
+	// silently granting any Tahoe host to someone who asked for 26.5
+	// would be worse than saying no. Release is deliberately lenient:
+	// Machines predating this carry exact pins in their own specs and
+	// have to be able to drain.
+	// +kubebuilder:default=Tahoe
 	OS string `json:"os,omitempty"`
 
 	// FleetName groups Machines that share an SSH key. Set by the
@@ -76,12 +93,125 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// +optional
 	HostMemoryMB int `json:"hostMemoryMB,omitempty"`
 
+	// GuestCapacity is how many Tart guests this host is expected to
+	// run concurrently. Falls back to the operator's
+	// `--tartkubelet-guest-capacity` global default (1) when unset.
+	//
+	// This is the SKU's INTENT, not an enforcement point. What
+	// actually bounds the guest count is (a) kube-scheduler fitting
+	// Pods into HostCPU/HostMemoryMB and (b) Tart refusing to start a
+	// third VM per Apple's SLA. GuestCapacity exists because several
+	// host-level resources are sized per guest and would otherwise
+	// each need their own field:
+	//
+	//   * the VNC relay port range — a pinned relay port is per-host
+	//     but a relay is per-Pod, so a second guest needs a second
+	//     port (and the per-Mac egress Service has to declare it).
+	//   * the disk-pressure goldens floor — a host running guests from
+	//     two pools wants one golden per pool, or reclaiming under
+	//     pressure strands a pool into a full cold image pull.
+	//
+	// Keep it consistent with HostCPU/HostMemoryMB: the value should be
+	// what those two actually admit at the fleet's Pod shape. Setting
+	// it higher does not create capacity, it only over-provisions the
+	// per-guest resources above; setting it lower silently degrades the
+	// second guest (no relay port, a golden it has to re-pull).
+	// +optional
+	GuestCapacity int `json:"guestCapacity,omitempty"`
+
+	// MaxPods is the Pod ceiling tart-kubelet advertises on its Node
+	// (`--max-pods`). Falls back to the operator's
+	// `--tartkubelet-max-pods` global default (2) when unset.
+	//
+	// It counts EVERY Pod bound to the Node, not just Tart-VM Pods,
+	// and a Pod stays bound after it finishes — a terminal Pod holds
+	// its slot until GC collects it. Measured on the live fleet
+	// (2026-08-25): a single-guest host was carrying its Running Pod
+	// plus the previous rollout's Succeeded one. So size this as
+	// guests x 2 + 1: each guest slot can transiently hold its running
+	// Pod and one not-yet-collected predecessor, and the +1 is margin.
+	// 3 for a single-guest host, 5 for a dual-guest one.
+	//
+	// Keep the margin. HostCPU/HostMemoryMB bind the guest count before
+	// MaxPods does, so a higher value admits no extra guest; but a node
+	// sitting exactly at its ceiling rejects Pods with "Too many pods"
+	// while the autoscaler still counts its slots as available, so it
+	// keeps targeting a node that cannot take them until GC catches up.
+	//
+	// No allowance for host-system Pods. hcloud-csi-node, the usual
+	// suspect, is kept off macOS by a `kubernetes.io/os NotIn [darwin]`
+	// required nodeAffinity — not by the macOS taint, which its blanket
+	// `Exists` tolerations ignore — and nothing else targets these
+	// Nodes.
+	//
+	// This is not where Apple's 2-guest SLA is enforced and does not
+	// need to be: Tart refuses to start a third VM, and
+	// HostCPU/HostMemoryMB bind the guest count before MaxPods does.
+	// The error costs are lopsided — too low stalls a real guest slot
+	// until GC catches up, too high admits nothing extra — so it is
+	// sized for the worst case.
+	// +optional
+	MaxPods int `json:"maxPods,omitempty"`
+
+	// RunnerCacheVolumeGiB is the quota (GiB) of the dedicated APFS
+	// volume host bootstrap provisions to hold per-account cache-volume
+	// images. Unset (nil) falls back to the operator's
+	// `--runner-cache-volume-gib` global default; an explicit 0
+	// disables cache volumes on this host entirely (every VM boots on
+	// the cold path).
+	//
+	// A pointer, unlike its sibling sizing fields, because 0 is a
+	// meaningful value here and nonsense for them — a host with no CPU
+	// or no Pod ceiling does not exist, but a host with cache volumes
+	// switched off is an ordinary thing to want. With a scalar the two
+	// states collapse and an operator asking a SKU to run cold gets the
+	// fleet default instead, silently. That matters when bringing a new
+	// SKU into a fleet whose global is already non-zero: staging the
+	// host cold first and enabling the cache once it is validated is
+	// how this feature was rolled out in the first place.
+	//
+	// Per-Machine because the right quota is a function of the SKU's
+	// disk, and the SKUs differ by 4x: the 512 GB M2-L has no room
+	// above ~80 GiB once the ~85 GB goldens and a job VM's transient
+	// CoW growth are accounted for, while a 2 TB M4 can hold several
+	// times that. Resident masters scale as
+	// `gib / masterCapGib - (liveBranches + 1)`, and a dual-guest host
+	// can have two live branches, so a host that runs two VMs needs a
+	// LARGER quota than a single-guest host just to hold the same
+	// number of accounts hot.
+	//
+	// The provisioning script never resizes an existing volume (see
+	// renderRunnerCacheVolumeScript), so changing this on a live host
+	// is inert until that host is replaced. That is why it is safe to
+	// vary per Machine even though it participates in the host-config
+	// hash: a drifted host re-runs an idempotent script that early-
+	// returns on the already-mounted volume.
+	// +optional
+	RunnerCacheVolumeGiB *int `json:"runnerCacheVolumeGiB,omitempty"`
+
 	// AdoptPoolPrefix is the Scaleway-side name prefix the controller
-	// scans when claiming a Mac mini for this Machine. Required:
-	// the controller has no auto-order path. Operators pre-order
-	// capacity in the Scaleway console because Mac mini inventory is
-	// frequently out of stock and Apple's 24h licensing floor makes
-	// speculative ordering expensive.
+	// scans when claiming a Mac mini for this Machine. The controller
+	// has no auto-order path, so a prefix must resolve from somewhere:
+	// this field, or the operator-global `--default-adopt-pool-prefix`
+	// when it is unset. Operators pre-order capacity in the Scaleway
+	// console because Mac mini inventory is frequently out of stock
+	// and Apple's 24h licensing floor makes speculative ordering
+	// expensive.
+	//
+	// Optional on purpose, even though every chart-rendered
+	// MachineTemplate sets it. A required field here is a schema
+	// constraint on a resource CAPI *clones*, so a MachineTemplate
+	// that lacks it fails `InfrastructureTemplateCloningFailed` on
+	// every MachineSet scale-up — and the drift that produces such a
+	// template is invisible until the next scale-up, which is
+	// typically an operator recovering a host by deleting its Machine.
+	// That turned a routine roll into an unrecoverable fleet: the CR
+	// the MachineSet needs to create is the one the apiserver rejects,
+	// and no elevation short of break-glass can repair a
+	// MachineTemplate. Accepting an empty value and resolving the
+	// operator default instead keeps scale-up working on a drifted
+	// template and confines the blast radius to a missing default,
+	// which the controller surfaces as a `NoAdoptPoolPrefix` event.
 	//
 	// Operator workflow:
 	//
@@ -107,8 +237,8 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// scan once Scaleway flips it back to `Delivered + Ready`.
 	// Physical destruction is operator-owned via the Scaleway
 	// console so the 24h billing floor doesn't leak into deploy flows.
-	// +kubebuilder:validation:MinLength=1
-	AdoptPoolPrefix string `json:"adoptPoolPrefix"`
+	// +optional
+	AdoptPoolPrefix string `json:"adoptPoolPrefix,omitempty"`
 }
 
 // GHActionsRunnerConfig tells the reconciler what GitHub Actions
@@ -135,13 +265,24 @@ type GHActionsRunnerConfig struct {
 	// +kubebuilder:default="self-hosted,macos,bare-metal,vm-image-builder"
 	GHRunnerLabels string `json:"ghRunnerLabels,omitempty"`
 
-	// GHRunnerVersion pins the actions/runner release the
-	// reconciler downloads onto the host. Keep in sync with
-	// `runner_version` in infra/runner-image/runner.pkr.hcl so the
-	// runner agent baked into the runner-image guest matches the
-	// agent running on the host that bakes that image.
-	// +kubebuilder:default="2.334.0"
-	GHRunnerVersion string `json:"ghRunnerVersion,omitempty"`
+	// GHRunnerVersion is the actions/runner release the reconciler
+	// downloads the first time it bootstraps a host. The host agent
+	// is configured without `--disableupdate`, so it self-updates
+	// from there; changing this on an already-bootstrapped host is a
+	// no-op (installActionsRunner short-circuits on a healthy runner,
+	// and HostConfigHash deliberately excludes GHActionsRunner).
+	//
+	// Required, and deliberately without a default unlike its
+	// siblings: GitHub retires runner releases on a rolling deadline,
+	// so a default baked into the API would rot into a version GitHub
+	// refuses. The chart is the single source of truth
+	// (`buildersFleet.ghRunnerVersion`), Renovate bumps it alongside
+	// `runner_version` in infra/runner-image/runner.pkr.hcl, and a CR
+	// that omits it is rejected instead of silently seeding a
+	// years-old agent.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	GHRunnerVersion string `json:"ghRunnerVersion"`
 
 	// GHAppSecretName is the name of a Secret in the same namespace
 	// carrying the GitHub App credentials the reconciler uses to
@@ -237,6 +378,21 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// every 60s indefinitely with no terminal-failure signal.
 	// +optional
 	TartKubeletUpdateAttempts int32 `json:"tartKubeletUpdateAttempts,omitempty"`
+
+	// LastUpdateFailureTime is when the drift loop last recorded an
+	// update failure for this host. It exists so the terminal Failed
+	// state can expire: FailedHostConfigHash alone only lifts it when a
+	// NEW config ships, which is right for a config the host rejected
+	// but wrong for the far more common verdict — the host was simply
+	// unreachable (`dial tcp ...:22: i/o timeout`). Those hosts stayed
+	// terminal indefinitely while remaining Ready and schedulable, so
+	// they kept running jobs on a host config frozen at whatever the
+	// operator last managed to push. Re-arming after a cooldown lets a
+	// host that has since come back take the current config on its own,
+	// while a genuinely broken config still backs off to a handful of
+	// attempts per cooldown instead of hammering every reconcile.
+	// +optional
+	LastUpdateFailureTime *metav1.Time `json:"lastUpdateFailureTime,omitempty"`
 
 	// BootstrapAttempts counts consecutive bootstrap (Stage 2)
 	// failures on the currently-adopted host. Reset to zero on a

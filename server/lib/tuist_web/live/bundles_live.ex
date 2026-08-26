@@ -41,19 +41,12 @@ defmodule TuistWeb.BundlesLive do
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
-    params = Query.query_params(uri)
+    params = uri |> Query.query_params() |> Query.clear_cursors_on_initial_load(socket.assigns)
     uri = URI.new!("?" <> URI.encode_query(params))
 
     bundles_sort_order = params["bundles-sort-order"] || "desc"
     bundles_sort_by = params["bundles-sort-by"] || "created-at"
     bundles_type = params["bundles-type"] || "any"
-
-    params =
-      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
-        Query.clear_cursors(params)
-      else
-        params
-      end
 
     bundle_size_apps = Bundles.distinct_project_app_bundles(project)
     bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)

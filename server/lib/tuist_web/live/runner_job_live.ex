@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerJobLive do
 
   import TuistWeb.Components.RunnerJobMetricsCharts
 
+  alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.FeatureFlags
@@ -35,7 +36,7 @@ defmodule TuistWeb.RunnerJobLive do
         _session,
         %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket
       ) do
-    if Authorization.authorize(:runners_read, current_user, selected_account) != :ok or
+    if Authorization.authorize(:account_dashboard_read, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
       raise NotFoundError,
             dgettext(
@@ -95,16 +96,18 @@ defmodule TuistWeb.RunnerJobLive do
   @impl true
   def handle_params(_params, uri, socket) do
     params = Query.query_params(uri)
+    terminal_simulation? = terminal_simulation?(params)
     step = params["step"]
     cleaned_params = Map.delete(params, "step")
-    selected_tab = selected_tab(params["tab"] || "overview", socket.assigns.interactive)
+    selected_tab = selected_tab(params["tab"] || "overview", socket.assigns.interactive, terminal_simulation?)
 
     socket =
       socket
+      |> assign(:terminal_simulation?, terminal_simulation?)
       |> assign(:selected_tab, selected_tab)
       |> assign(:uri, URI.new!("?" <> URI.encode_query(cleaned_params)))
       |> maybe_expand_step(step, cleaned_params)
-      |> maybe_auto_request_vnc_session()
+      |> maybe_auto_request_interactive_sessions()
 
     {:noreply, socket}
   end
@@ -309,11 +312,14 @@ defmodule TuistWeb.RunnerJobLive do
 
   @doc """
   The step window associated with build or test insights.
+
+  `run_windows` maps a build run's id to the wall-clock window taken from its
+  command event; see `step_insights/4`.
   """
-  def insight_step_window(steps, runs, kind) do
+  def insight_step_window(steps, runs, kind, run_windows \\ %{}) do
     steps
     |> Enum.filter(fn step ->
-      Enum.any?(runs, &step_overlaps_run?(step, &1, kind))
+      Enum.any?(runs, &step_overlaps_run?(step, &1, kind, run_windows))
     end)
     |> step_window()
   end
@@ -417,9 +423,19 @@ defmodule TuistWeb.RunnerJobLive do
 
   def test_status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
 
-  def step_insights(step, build_runs, test_runs) do
+  @doc """
+  The build and test runs attributed to a step.
+
+  `run_windows` maps a build run's id to `%{min:, max:}` in epoch milliseconds,
+  built from the run's command event. A build row carries no timestamp of its
+  own — `inserted_at` is stamped when the CLI's POST lands, which is a couple of
+  seconds after the build ended, since the xcactivitylog is bundled and uploaded
+  first. Attributing off that anchor drags the window past the step the build
+  ran in and into the ones that follow it.
+  """
+  def step_insights(step, build_runs, test_runs, run_windows \\ %{}) do
     %{
-      build_runs: matching_step_build_runs(step, build_runs),
+      build_runs: matching_step_build_runs(step, build_runs, run_windows),
       test_runs: matching_step_test_runs(step, test_runs)
     }
   end
@@ -470,6 +486,7 @@ defmodule TuistWeb.RunnerJobLive do
         |> assign(:insights_projects_by_id, %{})
         |> assign(:linked_build_runs, [])
         |> assign(:linked_test_runs, [])
+        |> assign(:linked_build_run_windows, %{})
         |> assign(:linked_build_module_cache_summary, module_cache_summary([]))
         |> assign(:linked_test_selective_testing_summary, selective_testing_summary([]))
 
@@ -477,7 +494,7 @@ defmodule TuistWeb.RunnerJobLive do
         build_runs = Jobs.list_runner_build_runs(projects, job.workflow_run_id)
         test_runs = Jobs.list_runner_test_runs(projects, job.workflow_run_id)
 
-        build_command_events = build_runs |> Jobs.command_events_for_runs(:build) |> Enum.reject(&is_nil/1)
+        build_command_events = Jobs.command_events_for_runs(build_runs, :build)
         test_command_events = test_runs |> Jobs.command_events_for_runs(:test) |> Enum.reject(&is_nil/1)
 
         socket
@@ -485,27 +502,70 @@ defmodule TuistWeb.RunnerJobLive do
         |> assign(:insights_projects_by_id, Map.new(projects, &{&1.id, &1}))
         |> assign(:linked_build_runs, build_runs)
         |> assign(:linked_test_runs, test_runs)
-        |> assign(:linked_build_module_cache_summary, module_cache_summary(build_command_events))
+        |> assign(:linked_build_run_windows, build_run_windows(build_runs, build_command_events))
+        |> assign(:linked_build_module_cache_summary, module_cache_summary(Enum.reject(build_command_events, &is_nil/1)))
         |> assign(:linked_test_selective_testing_summary, selective_testing_summary(test_command_events))
     end
   end
 
-  defp matching_step_build_runs(step, build_runs) do
-    Enum.filter(build_runs, &step_overlaps_run?(step, &1, :build))
+  # `Jobs.command_events_for_runs/2` returns one entry per run, in order, so the
+  # zip pairs each build with its own event.
+  defp build_run_windows(build_runs, command_events) do
+    build_runs
+    |> Enum.zip(command_events)
+    |> Enum.reduce(%{}, fn {run, command_event}, acc ->
+      case command_event_window(command_event) do
+        nil -> acc
+        window -> Map.put(acc, run.id, window)
+      end
+    end)
+  end
+
+  defp command_event_window(%{ran_at: ran_at, duration: duration}) do
+    case timestamp_epoch_ms(ran_at) do
+      nil -> nil
+      started_at -> %{min: started_at, max: started_at + max(duration || 0, 0)}
+    end
+  end
+
+  defp command_event_window(_), do: nil
+
+  defp matching_step_build_runs(step, build_runs, run_windows) do
+    Enum.filter(build_runs, &step_overlaps_run?(step, &1, :build, run_windows))
   end
 
   defp matching_step_test_runs(step, test_runs) do
-    Enum.filter(test_runs, &step_overlaps_run?(step, &1, :test))
+    Enum.filter(test_runs, &step_overlaps_run?(step, &1, :test, %{}))
   end
 
-  defp step_overlaps_run?(step, run, kind) do
-    case {step_timestamp_window(step), insight_run_window(run, kind)} do
-      {%{min: step_start, max: step_end}, %{min: run_start, max: run_end}} ->
-        step_start <= run_end and run_start <= step_end
-
-      _ ->
-        false
+  defp step_overlaps_run?(step, run, kind, run_windows) do
+    case {step_timestamp_window(step), insight_run_window(run, kind, run_windows)} do
+      {%{} = step_window, %{} = run_window} -> meaningful_overlap?(step_window, run_window)
+      _ -> false
     end
+  end
+
+  # A step is attributed a run when the two windows overlap by at least half of
+  # the shorter one. GitHub reports step boundaries at whole-second granularity
+  # and runner jobs fan out concurrent steps that share a second, so a bare
+  # intersection test hands a run a chip on every step it brushes — including
+  # ones it only touches for milliseconds.
+  defp meaningful_overlap?(%{min: step_start, max: step_end} = step_window, %{min: run_start, max: run_end} = run_window) do
+    overlap = min(step_end, run_end) - max(step_start, run_start)
+    shortest = min(step_end - step_start, run_end - run_start)
+
+    cond do
+      # An instant — a 0ms step, or a run with no measured duration — has no
+      # overlap to weigh, so it counts only where it falls strictly inside the
+      # other window. Sharing a boundary is not evidence it ran there.
+      shortest == 0 -> strictly_within?(step_window, run_window)
+      overlap <= 0 -> false
+      true -> overlap * 2 >= shortest
+    end
+  end
+
+  defp strictly_within?(%{min: a_start, max: a_end}, %{min: b_start, max: b_end}) do
+    (a_start > b_start and a_end < b_end) or (b_start > a_start and b_end < a_end)
   end
 
   defp step_timestamp_window(%{started_at: %DateTime{} = started_at, completed_at: %DateTime{} = completed_at}) do
@@ -513,6 +573,12 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   defp step_timestamp_window(_), do: nil
+
+  defp insight_run_window(%{id: id} = run, :build, run_windows) do
+    Map.get(run_windows, id) || insight_run_window(run, :build)
+  end
+
+  defp insight_run_window(run, kind, _run_windows), do: insight_run_window(run, kind)
 
   defp insight_run_window(%{inserted_at: inserted_at, duration: duration}, :build) do
     case timestamp_epoch_ms(inserted_at) do
@@ -548,9 +614,21 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp timestamp_epoch_ms(_), do: nil
 
-  def interactive_tab_visible?(%{can_read?: true, macos?: true, running?: true, pod_available?: true}), do: true
+  def terminal_tab_visible?(_interactive, true), do: true
 
-  def interactive_tab_visible?(_), do: false
+  def terminal_tab_visible?(%{can_read?: true, running?: true, pod_available?: true, shell_requestable?: true}, _),
+    do: true
+
+  def terminal_tab_visible?(_, _), do: false
+
+  def vnc_tab_visible?(%{can_read?: true, macos?: true, running?: true, pod_available?: true, vnc_requestable?: true}),
+    do: true
+
+  def vnc_tab_visible?(_), do: false
+
+  def interactive_tab_visible?(interactive) do
+    terminal_tab_visible?(interactive, false) or vnc_tab_visible?(interactive)
+  end
 
   def interactive_vnc_unavailable_reason(%{can_read?: false}),
     do: dgettext("dashboard_runners", "You are not authorized to request interactive access.")
@@ -594,6 +672,7 @@ defmodule TuistWeb.RunnerJobLive do
     socket =
       socket
       |> refresh_vnc_relay_state()
+      |> refresh_interactive_state()
       |> schedule_interactive_refresh()
 
     {:noreply, socket}
@@ -637,6 +716,18 @@ defmodule TuistWeb.RunnerJobLive do
 
   def handle_event("request_vnc_session", _params, socket) do
     {:noreply, request_vnc_session(socket)}
+  end
+
+  def handle_event("request_shell_session", _params, socket) do
+    {:noreply, request_shell_session(socket)}
+  end
+
+  def handle_event("interactive_vnc_disconnected", _params, socket) do
+    {:noreply, close_interactive_session(socket, :vnc)}
+  end
+
+  def handle_event("interactive_shell_disconnected", _params, socket) do
+    {:noreply, close_interactive_session(socket, :shell)}
   end
 
   def handle_event("load_older", _params, %{assigns: %{oldest_line: nil}} = socket), do: {:noreply, socket}
@@ -691,7 +782,48 @@ defmodule TuistWeb.RunnerJobLive do
     end
   end
 
-  defp maybe_auto_request_vnc_session(%{assigns: %{selected_tab: "interactive"}} = socket) do
+  defp request_shell_session(socket) do
+    %{
+      current_user: current_user,
+      selected_account: selected_account,
+      job: job,
+      interactive: interactive
+    } = socket.assigns
+
+    cond do
+      not interactive.can_read? ->
+        socket
+
+      not interactive.shell_requestable? ->
+        socket
+
+      true ->
+        case InteractiveSessions.request_shell(job, selected_account, current_user) do
+          {:ok, session} ->
+            socket
+            |> assign(:shell_session_token, session.token)
+            |> refresh_interactive_state()
+            |> schedule_interactive_refresh()
+
+          {:error, _reason} ->
+            socket
+        end
+    end
+  end
+
+  defp maybe_auto_request_interactive_sessions(
+         %{assigns: %{selected_tab: "terminal", terminal_simulation?: true}} = socket
+       ), do: socket
+
+  defp maybe_auto_request_interactive_sessions(%{assigns: %{selected_tab: "terminal"}} = socket) do
+    if connected?(socket) do
+      request_shell_session(socket)
+    else
+      socket
+    end
+  end
+
+  defp maybe_auto_request_interactive_sessions(%{assigns: %{selected_tab: "vnc"}} = socket) do
     if connected?(socket) do
       request_vnc_session(socket)
     else
@@ -699,7 +831,40 @@ defmodule TuistWeb.RunnerJobLive do
     end
   end
 
-  defp maybe_auto_request_vnc_session(socket), do: socket
+  defp maybe_auto_request_interactive_sessions(socket), do: socket
+
+  # A public account lets anyone mount this LiveView, and any client can push
+  # the disconnect event regardless of which tabs were rendered, so re-check
+  # `:runners_read` here rather than trusting that the interactive tabs were
+  # visible. `close_for_job/5` additionally scopes the close to the user who
+  # holds the session.
+  defp close_interactive_session(%{assigns: %{interactive: %{can_read?: false}}} = socket, kind)
+       when kind in [:vnc, :shell] do
+    socket
+  end
+
+  defp close_interactive_session(%{assigns: %{current_user: %User{} = current_user}} = socket, kind)
+       when kind in [:vnc, :shell] do
+    %{selected_account: selected_account, job: job} = socket.assigns
+
+    _ =
+      InteractiveSessions.close_for_job(
+        selected_account.id,
+        job.workflow_job_id,
+        kind,
+        current_user,
+        "browser_disconnect"
+      )
+
+    socket
+    |> clear_interactive_session_token(kind)
+    |> refresh_interactive_state()
+  end
+
+  defp close_interactive_session(socket, kind) when kind in [:vnc, :shell], do: socket
+
+  defp clear_interactive_session_token(socket, :vnc), do: assign(socket, :vnc_session_token, nil)
+  defp clear_interactive_session_token(socket, :shell), do: assign(socket, :shell_session_token, nil)
 
   defp request_vnc_relay(session, %{vnc_dev_placeholder?: true}) do
     InteractiveSessions.mark_vnc_relay_ready(session, "127.0.0.1", 5900)
@@ -709,8 +874,16 @@ defmodule TuistWeb.RunnerJobLive do
     InteractiveSessions.request_vnc_relay(session)
   end
 
-  defp schedule_interactive_refresh(%{assigns: %{selected_tab: "interactive", interactive: interactive}} = socket) do
+  defp schedule_interactive_refresh(%{assigns: %{selected_tab: "vnc", interactive: interactive}} = socket) do
     if connected?(socket) and match?(%{state: :requested}, interactive.vnc_session) do
+      Process.send_after(self(), :refresh_interactive_access, @interactive_refresh_ms)
+    end
+
+    socket
+  end
+
+  defp schedule_interactive_refresh(%{assigns: %{selected_tab: "terminal", interactive: interactive}} = socket) do
+    if connected?(socket) and match?(%{state: :requested}, interactive.shell_session) do
       Process.send_after(self(), :refresh_interactive_access, @interactive_refresh_ms)
     end
 
@@ -841,13 +1014,25 @@ defmodule TuistWeb.RunnerJobLive do
   defp oldest_line_number([]), do: nil
   defp oldest_line_number([first | _]), do: first.line_number
 
-  defp selected_tab("interactive", interactive) do
-    if interactive_tab_visible?(interactive), do: "interactive", else: "overview"
+  defp selected_tab("interactive", interactive, terminal_simulation?) do
+    selected_tab("terminal", interactive, terminal_simulation?)
   end
 
-  defp selected_tab("logs", _interactive), do: "logs"
-  defp selected_tab("metrics", _interactive), do: "metrics"
-  defp selected_tab(_, _interactive), do: "overview"
+  defp selected_tab("terminal", interactive, terminal_simulation?) do
+    if terminal_tab_visible?(interactive, terminal_simulation?), do: "terminal", else: "overview"
+  end
+
+  defp selected_tab("vnc", interactive, _terminal_simulation?) do
+    if vnc_tab_visible?(interactive), do: "vnc", else: "overview"
+  end
+
+  defp selected_tab("logs", _interactive, _terminal_simulation?), do: "logs"
+  defp selected_tab("metrics", _interactive, _terminal_simulation?), do: "metrics"
+  defp selected_tab(_, _interactive, _terminal_simulation?), do: "overview"
+
+  defp terminal_simulation?(params) do
+    Environment.dev?() and Environment.truthy?(params["terminal_simulation"])
+  end
 
   defp maybe_expand_step(socket, step, cleaned_params) when is_binary(step) do
     case Integer.parse(step) do
@@ -880,48 +1065,82 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp refresh_interactive_state(socket) do
     %{selected_account: selected_account, current_user: current_user, job: job} = socket.assigns
-    token = socket.assigns[:vnc_session_token]
-    assign(socket, :interactive, interactive_state(selected_account, current_user, job, token))
+    vnc_token = socket.assigns[:vnc_session_token]
+    shell_token = socket.assigns[:shell_session_token]
+    assign(socket, :interactive, interactive_state(selected_account, current_user, job, vnc_token, shell_token))
   end
 
-  defp interactive_state(selected_account, current_user, job, vnc_session_token \\ nil) do
-    macos? = Catalog.fleet_platform(job.fleet_name) == :macos
+  defp interactive_state(selected_account, current_user, job, vnc_session_token \\ nil, shell_session_token \\ nil) do
+    platform = Catalog.fleet_platform(job.fleet_name)
+    macos? = platform == :macos
+    linux? = platform == :linux
     running? = job.status in ["claimed", "running"]
     pod_available? = is_binary(job.pod_name) and job.pod_name != ""
 
+    # `:runners_read`, not the page's `:account_dashboard_read`: attaching to a
+    # running VM stays members-only even when the account is public.
     can_read? = Authorization.authorize(:runners_read, current_user, selected_account) == :ok
 
     vnc_requestable? = can_read? and InteractiveSessions.vnc_requestable?(job)
     vnc_dev_placeholder? = Environment.dev?() and vnc_requestable?
+    shell_requestable? = can_read? and InteractiveSessions.shell_requestable?(job)
 
     vnc_session =
       selected_account.id
       |> InteractiveSessions.current_for_job(job.workflow_job_id, :vnc)
       |> with_vnc_session_token(vnc_session_token)
 
-    vnc_websocket_path =
-      if not vnc_dev_placeholder? and vnc_session_ready?(vnc_session) and is_binary(vnc_session_token) do
-        "/#{selected_account.name}/runners/interactive/vnc"
-      end
+    shell_session =
+      selected_account.id
+      |> InteractiveSessions.current_for_job(job.workflow_job_id, :shell)
+      |> with_shell_session_token(shell_session_token)
 
     %{
       can_read?: can_read?,
       macos?: macos?,
+      linux?: linux?,
       running?: running?,
       pod_available?: pod_available?,
       vnc_requestable?: vnc_requestable?,
       vnc_dev_placeholder?: vnc_dev_placeholder?,
       vnc_session: vnc_session,
       vnc_session_ready?: vnc_session_ready?(vnc_session),
-      vnc_websocket_path: vnc_websocket_path,
-      vnc_websocket_token: vnc_session_token
+      vnc_websocket_path: vnc_websocket_path(selected_account, vnc_dev_placeholder?, vnc_session, vnc_session_token),
+      vnc_websocket_token: vnc_session_token,
+      shell_requestable?: shell_requestable?,
+      shell_session: shell_session,
+      shell_websocket_path: shell_websocket_path(selected_account, shell_session, shell_session_token),
+      shell_websocket_token: shell_session_token
     }
+  end
+
+  defp vnc_websocket_path(selected_account, vnc_dev_placeholder?, vnc_session, vnc_session_token) do
+    if vnc_websocket_available?(vnc_dev_placeholder?, vnc_session, vnc_session_token) do
+      "/#{selected_account.name}/runners/interactive/vnc"
+    end
+  end
+
+  defp vnc_websocket_available?(vnc_dev_placeholder?, vnc_session, vnc_session_token) do
+    not vnc_dev_placeholder? and vnc_session_ready?(vnc_session) and is_binary(vnc_session_token)
+  end
+
+  defp shell_websocket_path(selected_account, shell_session, shell_session_token) do
+    if shell_session_connectable?(shell_session) and is_binary(shell_session_token) do
+      "/#{selected_account.name}/runners/interactive/shell"
+    end
   end
 
   defp with_vnc_session_token(nil, _token), do: nil
   defp with_vnc_session_token(session, token) when is_binary(token), do: %{session | token: token}
   defp with_vnc_session_token(session, _token), do: session
 
+  defp with_shell_session_token(nil, _token), do: nil
+  defp with_shell_session_token(session, token) when is_binary(token), do: %{session | token: token}
+  defp with_shell_session_token(session, _token), do: session
+
   defp vnc_session_ready?(%{state: state}) when state in [:ready, :active], do: true
   defp vnc_session_ready?(_), do: false
+
+  defp shell_session_connectable?(%{state: state}) when state in [:ready, :active], do: true
+  defp shell_session_connectable?(_), do: false
 end

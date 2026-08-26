@@ -24,6 +24,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -34,6 +36,32 @@ import (
 )
 
 const (
+	// RuntimeClassRevisionAnnotation is the deterministic revision Helm
+	// derives from the Linux RuntimeClass name and fixed overhead. The
+	// RunnerPool carries the desired revision and each Pod records the
+	// revision used at creation so the controller can roll old admission
+	// accounting without inspecting mutable cluster state.
+	RuntimeClassRevisionAnnotation = "tuist.dev/runtime-class-revision"
+
+	// ReservationTaintKey is the taint the controller puts on a node it
+	// is draining to make room for a pool whose Pods no node can seat
+	// right now. Its value is the pool the node is being held for, and
+	// every runner Pod tolerates that key at its OWN pool's value — so a
+	// reserved node stops admitting everyone else's Pods while the seat
+	// it is clearing accumulates, and admits the reserved pool's Pod the
+	// moment it fits.
+	//
+	// NoSchedule, never NoExecute: the Pods already on the node are
+	// running customer jobs and must finish. The controller retires the
+	// IDLE ones itself, which is the only eviction a reservation does.
+	//
+	// A dedicated taint rather than a cordon. Cordoning would make the
+	// node indistinguishable from one Cluster API is replacing, and
+	// `reapIdlePodsOnCordonedNodes` would then retire the reserved pool's
+	// own Pod the moment it landed and was still warm-polling — the
+	// reservation would eat its own result.
+	ReservationTaintKey = "tuist.dev/reserved-for"
+
 	// jitMountPath is where the JIT-handoff emptyDir is mounted in
 	// both the poller (rw) and runner (ro) containers. Deliberately
 	// not under /var/run — the dind sidecar owns that mount in the
@@ -42,6 +70,12 @@ const (
 	// jitFilePath is the file the poller writes the minted JIT to and
 	// the runner reads it from.
 	jitFilePath = jitMountPath + "/jit"
+	// shellSocketPath is shared through the work volume. The trusted
+	// shell sidecar owns server authentication, but the PTY child is
+	// spawned by a tiny socket server inside the runner container so
+	// the terminal sees the same filesystem, environment, and Docker
+	// socket as the running job.
+	shellSocketPath = "/home/runner/actions-runner/_work/.tuist-runner-shell.sock"
 )
 
 // Build returns the Pod manifest the controller stamps on the API
@@ -190,6 +224,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				Name: "tuist-runner-token",
 				VolumeSource: corev1.VolumeSource{
 					Projected: &corev1.ProjectedVolumeSource{
+						DefaultMode: ptr(int32(0o400)),
 						Sources: []corev1.VolumeProjection{{
 							ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
 								Audience:          "tuist-runners-dispatch",
@@ -206,12 +241,26 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_OUTPUT_PATH", Value: jitFilePath},
 		)
 
-		// The runner container runs run-job.sh: read the staged JIT
-		// and exec ./run.sh under it. It carries no dispatch env and
-		// no token mount.
-		runnerCommand = []string{"/usr/local/bin/run-job.sh"}
-		runnerEnv = []corev1.EnvVar{{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath}}
-		runnerMounts = []corev1.VolumeMount{{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true}}
+		// The runner container starts the local PTY socket server and
+		// then runs run-job.sh: read the staged JIT and exec ./run.sh
+		// under it. It carries no dispatch env and no token mount; the
+		// shell sidecar connects to the local socket only after the
+		// server has authorized a terminal session for this job.
+		runnerCommand = []string{
+			"sh",
+			"-c",
+			"TUIST_RUNNER_SHELL_PTY_SERVER=1 /usr/local/bin/runner-shell-agent & exec /usr/local/bin/run-job.sh",
+		}
+		runnerEnv = []corev1.EnvVar{
+			{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
+			{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
+			{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: "/home/runner/actions-runner/_work"},
+		}
+		volumes = append(volumes, corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}})
+		runnerMounts = []corev1.VolumeMount{
+			{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
+			{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+		}
 
 		// Linux pods get a dockerd sidecar (k8s 1.29+ native sidecar:
 		// initContainer with restartPolicy=Always). The runner stays
@@ -232,7 +281,6 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			}
 			volumes = append(volumes,
 				corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-				corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 				// Node-disk emptyDir holding a sparse disk.img file.
 				// The dind sidecar loop-mounts that file as an ext4
 				// filesystem onto /var/lib/docker so dockerd's
@@ -255,7 +303,6 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			)
 			runnerMounts = append(runnerMounts,
 				corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},
-				corev1.VolumeMount{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
 			)
 			runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "DOCKER_HOST", Value: "unix:///var/run/docker.sock"})
 			initContainers = append(initContainers, corev1.Container{
@@ -349,6 +396,37 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
 		})
 
+		// Interactive shell bridge: a trusted native sidecar that
+		// holds the dispatch token, waits for a claimed job, polls the
+		// server for authorized shell sessions, and brokers the server-
+		// owned WebSocket tunnel to the runner container's local PTY
+		// socket. The user-facing shell is spawned inside the runner
+		// container, while the dispatch token remains mounted only here.
+		shellEnv := append(append([]corev1.EnvVar{}, dispatchEnv...),
+			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
+			corev1.EnvVar{Name: "TUIST_RUNNER_TOKEN_PATH", Value: "/var/run/secrets/tuist-runner/token"},
+			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
+			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: "/home/runner/actions-runner/_work"},
+		)
+		initContainers = append(initContainers, corev1.Container{
+			Name:    "shell",
+			Image:   pool.Spec.Image,
+			Command: []string{"sh", "-c"},
+			Args: []string{
+				"sed -i '/runner ALL=(ALL) NOPASSWD/d' /etc/sudoers || true; exec /usr/local/bin/runner-shell-agent",
+			},
+			Env:           shellEnv,
+			RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
+				{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
+				{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+			},
+			// Root only for the trusted agent: it reads the root-only
+			// token and then drops PTY children to the runner user.
+			SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
+		})
+
 		// poller runs after the dind sidecar (when present) so it
 		// waits on the dind startupProbe exactly as the single runner
 		// container did before the split.
@@ -387,6 +465,11 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		// `io.katacontainers.*` pod annotations.
 		annotations["io.katacontainers.config.hypervisor.kernel_params"] = "psi=1"
 	}
+	if linuxPod && pool.Spec.RuntimeClass != "" {
+		if revision := pool.Annotations[RuntimeClassRevisionAnnotation]; revision != "" {
+			annotations[RuntimeClassRevisionAnnotation] = revision
+		}
+	}
 
 	// Mirror the actions/runner diagnostic log (_diag) to the runner
 	// container's stdout so it reaches Loki through the pod-log pipeline.
@@ -396,6 +479,18 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// its _diag log is the only record, and it dies with the reaped Pod.
 	// Streaming _diag makes that exit reason durable.
 	runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT", Value: "1"})
+
+	// Idle-runner reaping: the runner image's idle watchdog terminates a
+	// runner that registered but never had a job assigned once this many
+	// seconds elapse without an ACTIONS_RUNNER_HOOK_JOB_STARTED marker.
+	// Only injected when set (>0); the image treats an absent/0 value as
+	// "watchdog disabled". See RunnerPoolSpec.IdleTimeoutSeconds.
+	if pool.Spec.IdleTimeoutSeconds > 0 {
+		runnerEnv = append(runnerEnv, corev1.EnvVar{
+			Name:  "TUIST_RUNNER_IDLE_TIMEOUT_SECONDS",
+			Value: strconv.Itoa(int(pool.Spec.IdleTimeoutSeconds)),
+		})
+	}
 
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -574,6 +669,7 @@ func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Tolera
 					Value:    "bare-metal",
 					Effect:   corev1.TaintEffectNoSchedule,
 				},
+				reservationToleration(pool),
 			}
 	default:
 		return map[string]string{
@@ -586,6 +682,39 @@ func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Tolera
 					Operator: corev1.TolerationOpExists,
 					Effect:   corev1.TaintEffectNoSchedule,
 				},
+				reservationToleration(pool),
 			}
 	}
 }
+
+// reservationToleration lets a pool's Pods land on a node reserved for
+// that same pool, and only that pool. Every runner Pod carries it, on
+// both platforms, so the reservation mechanism needs no per-pool opt-in
+// and an operator can reserve for any pool without a redeploy.
+//
+// Pods created before this toleration existed keep scheduling normally;
+// they simply cannot use a reservation, and the reservation releases on
+// its timeout if one is held for such a Pod.
+func reservationToleration(pool *tuistv1.RunnerPool) corev1.Toleration {
+	return corev1.Toleration{
+		Key:      ReservationTaintKey,
+		Operator: corev1.TolerationOpEqual,
+		Value:    ReservationValue(pool.Name),
+		Effect:   corev1.TaintEffectNoSchedule,
+	}
+}
+
+// ReservationValue is the taint/toleration value identifying a pool.
+// Pool names are readable and almost always short enough to use as-is,
+// which keeps `kubectl describe node` self-explanatory; a name too long
+// to be a valid label value falls back to a digest so the mechanism
+// still works rather than producing a node the apiserver rejects.
+func ReservationValue(poolName string) string {
+	if len(poolName) <= 63 && labelValue.MatchString(poolName) {
+		return poolName
+	}
+	sum := sha256.Sum256([]byte(poolName))
+	return fmt.Sprintf("pool-%x", sum[:8])
+}
+
+var labelValue = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$`)

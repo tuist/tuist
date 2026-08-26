@@ -34,12 +34,8 @@ defmodule TuistWeb.Marketing.Localization do
       Gettext.put_locale(locale)
 
       conn
-      |> put_session(:locale, locale)
-      |> put_resp_cookie("user_locale_preference", locale,
-        max_age: 60 * 60 * 24 * 365,
-        http_only: true,
-        same_site: "Lax"
-      )
+      |> maybe_put_locale_session(locale)
+      |> maybe_put_locale_cookie(locale)
     end
   end
 
@@ -118,6 +114,32 @@ defmodule TuistWeb.Marketing.Localization do
     |> get_req_header("accept-language")
     |> List.first()
     |> Locale.locale_from_accept_language()
+  end
+
+  # Marketing responses declare `public, max-age=60, stale-while-revalidate=86400`,
+  # but a CDN will not store a response carrying `Set-Cookie`. Re-stamping an
+  # unchanged locale on every request made the entire marketing site
+  # uncacheable at the edge, so only write when the value actually changes.
+  defp maybe_put_locale_session(conn, locale) do
+    if get_session(conn, :locale) == locale do
+      conn
+    else
+      put_session(conn, :locale, locale)
+    end
+  end
+
+  defp maybe_put_locale_cookie(conn, locale) do
+    conn = fetch_cookies(conn)
+
+    if Map.get(conn.req_cookies, "user_locale_preference") == locale do
+      conn
+    else
+      put_resp_cookie(conn, "user_locale_preference", locale,
+        max_age: 60 * 60 * 24 * 365,
+        http_only: true,
+        same_site: "Lax"
+      )
+    end
   end
 
   defp has_user_locale_preference?(conn) do

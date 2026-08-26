@@ -8,9 +8,43 @@
 #     -f infra/helm/tuist/values-managed-staging.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+# Sweeps this env's abandoned tailnet devices only; production and canary run
+# their own. Starts in dry-run -- read a run's logs, then set dryRun: false.
+tailscaleDeviceReaper:
+  enabled: true
+  tags:
+    - tag:tuist-macmini-staging
+    - tag:tuist-k8s-staging
+
+# Grafana Cloud PDC agent — on in staging first. The signing token lives in this
+# env's vault as PDC_AGENT/password; cluster + hostedGrafanaId come from
+# values-managed-common.yaml. Gives Grafana Cloud a tunnel to the in-cluster CNPG
+# Postgres so the Product Usage dashboard can query it via Grafana's
+# built-in Postgres datasource as the read-only `tuist_ops_ro` role.
+pdcAgent:
+  enabled: true
+  # Staging serves one dashboard; a brief tunnel gap here is acceptable, so
+  # it stays at one replica rather than paying for three.
+  replicas: 1
+  # Pin the tunnel to the CNPG read-only service. Without this the agent
+  # permits any destination reachable from its pod, not just Postgres.
+  permitRemoteOpen:
+    - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
+
 kuraController:
   telemetry:
     deploymentEnvironment: staging
+
+# Shared per-node egress HTB tree on the kura bare-metal pools. Both staging
+# boxes advertise tuist.dev/egress-mbps (1000), and the staging regions set
+# egress_burst_mbps, so the controller renders the tuist.dev/egress-class pod
+# annotation the agent consumes. The image tag is resolved at deploy time
+# from the highest reachable egress-tree-agent@<semver> tag; pin an in-flight
+# `sha-<git-sha>` build with server-deployment.yml's egress_tree_agent_image_tag
+# input.
+egressTreeAgent:
+  enabled: true
+  nodePools: [kura-dedibox, kura-ca-east]
 
 registry:
   publicHost: registry-staging.tuist.dev
@@ -49,6 +83,10 @@ server:
       value: https://registry-staging.tuist.dev/swift
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
+    # Must equal the first tier of the runner Price above (2 minutes).
+    # Production leaves this unset and takes the 100 minute default.
+    - name: TUIST_RUNNER_FREE_MONTHLY_MINUTES
+      value: "2"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
@@ -56,13 +94,51 @@ server:
       # `kura-dedibox` pool (the eu-central cutover). `scw-fr-par-runners` is the
       # macOS-serving private runner-cache region: a Scaleway fr-par Linux node
       # pool next to the Mac mini fleet, on its own `kura-scw-fr-par` pool, so
-      # the Macs' cache traffic never crosses the WAN. The former Linux
-      # runner-cache region `hetzner-staging-runners` is dropped: it lived on the
-      # Hetzner ccx13 `kura` pool that the cutover deletes, and no customers use
-      # the staging Linux runner cache. `ca-east` (Canada East / OVHcloud BHS) is
+      # the Macs' cache traffic never crosses the WAN. Linux runners have no
+      # private cache region: the former `hetzner-staging-runners` lived on the
+      # Hetzner ccx13 `kura` pool the cutover deleted, no customers used the
+      # staging Linux runner cache, and the region spec is gone with the pool.
+      # `ca-east` (Canada East / OVHcloud BHS) is
       # the OVH bare-metal validation region — a geographic id; OVH is an
       # implementation detail behind it (ovhFleet below, replicas 1).
       value: eu-central,scw-fr-par-runners,ca-east
+    # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
+    # Staging rollouts run expedited except while progressive mode is
+    # being exercised behind the kura_rollout_orchestration flag.
+    - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
+      value: tuist
+    # Drill phase (spec #79 rollout plan): staging exercises progressive
+    # pacing through real releases before production enablement. Remove
+    # once production runs progressive by default and the drills are
+    # done.
+    - name: TUIST_KURA_ROLLOUT_PACING
+      value: progressive
+    - name: TUIST_KURA_AIR_REGION
+      # Staging has no `us-east` pool, so every Air account would resolve to a
+      # region whose instances could never schedule, and the Air-only 60-day
+      # pressure rule could not be exercised at all. Run the free tier on the
+      # `ca-east` OVH validation box instead. Production omits this and serves
+      # us-east. Only Air moves: a paid account restricted to Europe or the
+      # USA chose that, and no deployment setting may relocate it.
+      value: ca-east
+    - name: TUIST_KURA_INACTIVE_DAYS
+      # Production reclaims after 90 days, which no environment can wait out,
+      # so the archival half of the lifecycle would first run for real against
+      # customer instances. Staging runs a one-day window and a zero-day
+      # tracking grace so a deploy, one build, and a day of quiet exercise the
+      # whole cycle: drain, teardown, archive, and cold return on the next
+      # request. The grace period guards against archiving on freshly
+      # backfilled demand, which is not a concern here.
+      value: "1"
+    - name: TUIST_KURA_PRESSURE_INACTIVE_DAYS
+      value: "1"
+    - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
+      value: "0"
+    - name: TUIST_KURA_ARCHIVAL_SWEEP_CRON
+      # Matches the one-day window above. The production default is @daily,
+      # which suits a 90-day window but would leave a staging instance
+      # eligible for up to another day before the sweep looked at it.
+      value: "*/5 * * * *"
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
@@ -116,6 +192,36 @@ server:
   # JSON-encodes this into TUIST_STRIPE_PRICES.
   stripe:
     prices:
+      # macOS is billable here so runner billing can be exercised end to
+      # end before production sees it. The Price is graduated: the first
+      # 120000 compute-unit milliseconds (2 minutes on the 6 vCPU / 14 GB
+      # baseline) are free, and beyond that each millisecond costs
+      # 0.000125 cents, which is $0.075 per baseline machine-minute.
+      #
+      # Two minutes rather than production's hundred so the free tier and
+      # the dispatch cap can both be reached in one short job instead of
+      # burning an hour and a half of real Mac time. It must stay in step
+      # with TUIST_RUNNER_FREE_MONTHLY_MINUTES below: this Price decides
+      # what is charged, that env var decides when dispatch stops, and
+      # moving one without the other either cuts accounts off before they
+      # can be charged or charges them after they were cut off.
+      #
+      # Tiers are in raw meter units rather than minutes because Stripe
+      # refuses `tiers` and `transform_quantity` together, so an invoice
+      # line reads in milliseconds. The dashboard renders minutes.
+      #
+      # Linux stays reporting-only: its Meter exists and receives usage,
+      # but with no agreed rate there is no Price to point at, and an
+      # empty id means no subscription can carry a Linux runner item, so
+      # nothing can be charged for it.
+      #
+      # Never blank an id that has already gone live: a plan change would
+      # then stop recognising that subscription item as a runner item and
+      # delete it, taking the cycle's accrued usage with it. Pause billing
+      # by removing the item, not by emptying this map.
+      runners:
+        runner_linux_compute_unit_milliseconds: ""
+        runner_macos_compute_unit_milliseconds: "price_1U6UUkLlKoN51ecznSpfuCBI"
       air:
         usage: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
         flat_monthly: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
@@ -191,6 +297,9 @@ objectStorage:
 clickhouse:
   poolSize: "15"
   bufferPoolSize: "15"
+  # Keep the shared application-user memory guard active outside production so
+  # query and ingestion retry behavior is covered during rollout.
+  maxMemoryUsageForUserBytes: "4294967296"
 
 cache:
   extraEnv:
@@ -317,11 +426,32 @@ processor:
       memory: "1536Mi"
 
 swiftRegistrySync:
+  # Staging walks the same full catalog production does, so it inherits
+  # production's batch size too. See the extended rationale in
+  # values-managed-production.yaml.
+  syncLimit: "600"
+  # Same GitHub App authentication as production; see the rationale there.
+  githubAppInstallation: tuist
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: stag
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  # Unlike canary, staging sets no syncAllowlist, so it walks the same full
+  # catalog production does while inheriting the 512Mi/1Gi common default
+  # that was only ever meant for an allowlisted env. That is the exact
+  # condition production hit after #12136 - idle working set 750-850Mi,
+  # per-release peaks 930-995Mi - and staging reproduces the same OOMKill
+  # loop across every replacement pod. Matching production's sizing rather
+  # than allowlisting staging keeps it a real rehearsal of the production
+  # sync path. See the extended rationale in values-managed-production.yaml.
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "4Gi"
 
 xcresultProcessor:
   # Single replica in staging, matching macosFleet.replicas=1.
@@ -455,6 +585,17 @@ ovhFleet:
 macosFleet:
   enabled: true
   replicas: 1
+  # The minis drop inbound :22 from everything except the tailnet, loopback
+  # and this list, so internet SSH scan traffic can't exhaust launchd's ssh
+  # listen backlog. That socket binds *:22, so an exhausted backlog takes the
+  # operator's tailnet fallback down with the public path and the host stops
+  # accepting config pushes entirely. This is the cluster's stable egress
+  # Floating IP, which the capi entry in the platform chart's
+  # ciliumEgressGateway routes the operator through; keep the two in lockstep.
+  # Dropping it here is safe (the drift loop falls back to the tailnet) but
+  # costs the public dial path, the only one that can update Tailscale itself.
+  sshIngressAllowCIDRs:
+    - 78.47.186.71/32
   # Per-account cache volumes, validated on staging first. The quota is an
   # APFS ceiling (shares the container's free space, not a reservation)
   # fenced by admission + watermark eviction. A real Tuist cache master is
@@ -462,8 +603,22 @@ macosFleet:
   # 40 GiB holds ~16 masters — ample for the 1-2 accounts staging runs.
   # Operator-wide, so it also provisions a (harmless, unused) volume on the
   # xcresult host.
+  # Staging is the proving ground for the cache volume: it carries the
+  # fail-safe guest (a share it cannot write is abandoned for a local cold
+  # cache instead of failing the job) plus cache_diag, so a bad share costs
+  # warmth and names itself in the runner log — the guard that was missing
+  # when host-side checks alone (volume provisioned, config converged) let a
+  # broken share reach prod and break every macOS job on 2026-07-16.
   runnerCacheVolume:
     gib: 40
+    # Fold the Xcode compilation cache (CAS) into the per-account image.
+    # masterCapGib 28 is the sparse per-master ceiling; of it the CAS gets
+    # 16 GiB, the binary cache ~10, and a ~2 GiB reserve stays free (the
+    # split cacheImageSplit(28, 16) pins). The guest is fail-safe (an
+    # unusable store falls back to a VM-local cold compilation cache, never
+    # fails the job), so a bad budget costs warmth, not the build.
+    masterCapGib: 28
+    casGib: 16
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
   # pool of `tuist-pool-*` hosts; the controller claims the first
@@ -484,6 +639,14 @@ macosFleet:
     # is the single advertiser of 10.128.0.0/12 on the shared tailnet
     # — keep it that way until per-env CIDRs (or 4via6) land.
     acceptRoutes: true
+  # The receiver's tailnet hostname is set by
+  # infra/helm/k8s-monitoring/values-staging.yaml. Query as
+  # {job="tuist-macos-tart-kubelet", env="staging"}; every line also carries
+  # `instance` (the Machine/Node name) and `level`.
+  hostLogs:
+    enabled: true
+    url: http://tuist-alloy-receiver-staging.taild6d7bb.ts.net:3100/loki/api/v1/push
+    env: staging
   # Firewall half of the runner-cache path: allow VM egress to the
   # staging Service CIDR on the Kura ports + kube-dns on 53. CIDR per
   # infra/k8s/clusters/cluster-staging.yaml; DNS IP is kube-dns's
@@ -574,7 +737,7 @@ runnersFleet:
   # needs to deviate from it.
   #
   # Every active profile runs through the runners-controller's
-  # fleet allocator, which apportions the `hostCount` slot budget
+  # fleet allocator, which apportions the fleet's guest-slot budget
   # across all macOS pools in this fleet using the same three-tier
   # (floor / load / headroom) policy that backs the Linux pools.
   # `minWarmPoolFloor` is the always-on warm guarantee; sum across

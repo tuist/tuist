@@ -190,6 +190,245 @@ struct GraphLinterTests {
         )
     }
 
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_when_scheme_codeCoverageTarget_references_localPackage() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let packagePath: AbsolutePath = "/package"
+
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "App")]),
+            testAction: .test(
+                targets: [TestableTarget(target: TargetReference(projectPath: path, name: "AppTests"))],
+                coverage: true,
+                codeCoverageTargets: [TargetReference(projectPath: packagePath, name: "PackageTarget")]
+            ),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: path,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "App", dependencies: [.package(product: "PackageTarget", type: .runtime)]),
+                Target.test(name: "AppTests"),
+            ],
+            packages: [.local(path: packagePath)]
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(
+            result ==
+                []
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_when_scheme_codeCoverageTarget_is_not_a_consumed_localPackage_product() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let packagePath: AbsolutePath = "/package"
+
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "App")]),
+            testAction: .test(
+                targets: [TestableTarget(target: TargetReference(projectPath: path, name: "AppTests"))],
+                coverage: true,
+                // The name of the package target backing the product, not the product itself.
+                codeCoverageTargets: [TargetReference(projectPath: packagePath, name: "PackageTargetCore")]
+            ),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: path,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "App", dependencies: [.package(product: "PackageTarget", type: .runtime)]),
+                Target.test(name: "AppTests"),
+            ],
+            packages: [.local(path: packagePath)]
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(
+            result ==
+                [LintingIssue(
+                    reason: "Cannot find targets PackageTargetCore (../package)  defined in SomeScheme",
+                    severity: .warning,
+                    category: .schemeTargetNotFound
+                )]
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_when_localPackage_reference_is_not_exclusive_to_codeCoverage() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let packagePath: AbsolutePath = "/package"
+        let packageTargetReference = TargetReference(projectPath: packagePath, name: "PackageTarget")
+
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [
+                TargetReference(projectPath: path, name: "App"),
+                packageTargetReference,
+            ]),
+            testAction: .test(
+                targets: [TestableTarget(target: TargetReference(projectPath: path, name: "AppTests"))],
+                coverage: true,
+                codeCoverageTargets: [packageTargetReference]
+            ),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: path,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "App", dependencies: [.package(product: "PackageTarget", type: .runtime)]),
+                Target.test(name: "AppTests"),
+            ],
+            packages: [.local(path: packagePath)]
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(
+            result ==
+                [LintingIssue(
+                    reason: "Cannot find targets PackageTarget (../package)  defined in SomeScheme",
+                    severity: .warning,
+                    category: .schemeTargetNotFound
+                )]
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_when_scheme_codeCoverageTarget_references_unknown_target() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "App")]),
+            testAction: .test(
+                targets: [TestableTarget(target: TargetReference(projectPath: path, name: "AppTests"))],
+                coverage: true,
+                codeCoverageTargets: [TargetReference(projectPath: path, name: "UnknownTarget")]
+            ),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: path,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "App"),
+                Target.test(name: "AppTests"),
+            ]
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(
+            result ==
+                [LintingIssue(
+                    reason: "Cannot find targets UnknownTarget (.)  defined in SomeScheme",
+                    severity: .warning,
+                    category: .schemeTargetNotFound
+                )]
+        )
+    }
+
     @Test(.inTemporaryDirectory, .withMockedXcodeController) func lint_when_no_version_available() async throws {
         // Given
         let path: AbsolutePath = "/project"
@@ -351,6 +590,32 @@ struct GraphLinterTests {
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: appExtension.name, path: path): Set([.target(name: bundle.name, path: path)]),
+            .target(name: bundle.name, path: path): Set([]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(result.isEmpty == true)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func lint_appClip_canDependOnBundle() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let appClip = Target.empty(name: "app_clip", product: .appClip)
+        let bundle = Target.empty(name: "bundle", product: .bundle)
+        let project = Project.empty(path: path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: appClip.name, path: path): Set([.target(name: bundle.name, path: path)]),
             .target(name: bundle.name, path: path): Set([]),
         ]
 
@@ -748,6 +1013,45 @@ struct GraphLinterTests {
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: staticFramework.name, path: path): Set([]),
             .target(name: watchAppTests.name, path: path): Set([.target(name: staticFramework.name, path: path)]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(got.isEmpty == true)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_when_visionOS_UITests_depends_on_app() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.empty(
+            name: "App",
+            destinations: .visionOS,
+            product: .app
+        )
+        let appTests = Target.empty(
+            name: "AppUITests",
+            destinations: .visionOS,
+            product: .uiTests,
+            dependencies: [.target(name: app.name)]
+        )
+        let project = Project.test(path: path, targets: [app, appTests])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: path): Set([]),
+            .target(name: appTests.name, path: path): Set([.target(name: app.name, path: path)]),
         ]
 
         let graph = Graph.test(

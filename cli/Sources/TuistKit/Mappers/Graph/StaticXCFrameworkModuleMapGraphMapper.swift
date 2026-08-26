@@ -12,7 +12,12 @@ import XcodeGraph
 /// This mapper sets the right setting for downstream targets that depend on static xcframeworks linked by dynamic
 /// xcframeworks.
 /// See this PR for more context: https://github.com/tuist/tuist/pull/6757
-public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
+public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint:disable:this type_body_length
+    private struct ConditionedXCFramework {
+        let xcframework: GraphDependency.XCFramework
+        let condition: PlatformCondition?
+    }
+
     private let fileSystem: FileSysteming
     private let manifestFilesLocator: ManifestFilesLocating
     private let configLoader: ConfigLoading
@@ -44,19 +49,21 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         ) { graphTarget in
             let target = graphTarget.target
             let project = graphTarget.project
+            let targetDependency = GraphDependency.target(name: target.name, path: project.path)
             let staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies = graphTraverser
                 .staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
                     path: project.path,
                     name: target.name
                 )
                 .sorted()
-                .compactMap { dependency -> GraphDependency.XCFramework? in
-                    switch dependency {
-                    case let .xcframework(xcframework):
-                        return xcframework
-                    default:
-                        return nil
-                    }
+                .compactMap { dependency -> ConditionedXCFramework? in
+                    guard case let .xcframework(xcframework) = dependency,
+                          case let .condition(condition) = graphTraverser.combinedCondition(
+                              to: dependency,
+                              from: targetDependency
+                          )
+                    else { return nil }
+                    return ConditionedXCFramework(xcframework: xcframework, condition: condition)
                 }
 
             // Static Swift xcframeworks reached through a dynamic xcframework are not relinked
@@ -69,8 +76,14 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     name: target.name
                 )
                 .sorted()
-                .compactMap { dependency -> GraphDependency.XCFramework? in
-                    if case let .xcframework(xcframework) = dependency { return xcframework } else { return nil }
+                .compactMap { dependency -> ConditionedXCFramework? in
+                    guard case let .xcframework(xcframework) = dependency,
+                          case let .condition(condition) = graphTraverser.combinedCondition(
+                              to: dependency,
+                              from: targetDependency
+                          )
+                    else { return nil }
+                    return ConditionedXCFramework(xcframework: xcframework, condition: condition)
                 }
 
             guard !staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.isEmpty
@@ -79,6 +92,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
 
             let staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies =
                 staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
+                    .map(\.xcframework)
                     .filter { $0.containsLibrary() }
 
             sideEffects += try await generateModuleMapAndUmbrellaHeader(
@@ -88,7 +102,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
 
             let staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies =
                 staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
-                    .filter { !$0.containsLibrary() }
+                    .filter { !$0.xcframework.containsLibrary() }
 
             var settings = SettingsDictionary()
             let xcframeworksRequiringPerSDKSearchPaths =
@@ -97,10 +111,12 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             if !xcframeworksRequiringPerSDKSearchPaths.isEmpty {
                 var pathsBySDKCondition: [String: [String]] = [:]
 
-                for xcframework in xcframeworksRequiringPerSDKSearchPaths {
+                for conditionedXCFramework in xcframeworksRequiringPerSDKSearchPaths {
+                    let xcframework = conditionedXCFramework.xcframework
                     for library in xcframework.infoPlist.libraries {
                         let platform = library.platform.graphPlatform
                         guard target.supportedPlatforms.contains(platform) else { continue }
+                        guard library.applies(to: conditionedXCFramework.condition) else { continue }
 
                         let path =
                             "\"$(SRCROOT)/\(xcframework.path.appending(component: library.identifier).relative(to: project.path).pathString)\""
@@ -117,29 +133,36 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             }
 
             if !staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.isEmpty {
-                settings["OTHER_SWIFT_FLAGS"] = .array(
-                    staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
-                        [
-                            "-Xcc",
-                            moduleMapFlag(
-                                for: xcframework,
-                                derivedDirectory: derivedDirectory,
-                                project: project
-                            ),
-                        ]
-                    }
-                )
-                settings["OTHER_C_FLAGS"] = .array(
-                    staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
-                        [
-                            moduleMapFlag(
-                                for: xcframework,
-                                derivedDirectory: derivedDirectory,
-                                project: project
-                            ),
-                        ]
-                    }
-                )
+                // Only flat layouts point at a module map. Nested ones are left for clang to
+                // discover from whichever `Headers` root wins the search path, so that the module
+                // and the headers its umbrella imports always come from the same directory.
+                let flatXCFrameworks = staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies
+                    .filter { Self.nestedModuleMap(for: $0) == nil }
+                if !flatXCFrameworks.isEmpty {
+                    settings["OTHER_SWIFT_FLAGS"] = .array(
+                        flatXCFrameworks.flatMap { xcframework -> [String] in
+                            [
+                                "-Xcc",
+                                moduleMapFlag(
+                                    for: xcframework,
+                                    derivedDirectory: derivedDirectory,
+                                    project: project
+                                ),
+                            ]
+                        }
+                    )
+                    settings["OTHER_C_FLAGS"] = .array(
+                        flatXCFrameworks.flatMap { xcframework -> [String] in
+                            [
+                                moduleMapFlag(
+                                    for: xcframework,
+                                    derivedDirectory: derivedDirectory,
+                                    project: project
+                                ),
+                            ]
+                        }
+                    )
+                }
                 settings["HEADER_SEARCH_PATHS"] = .array(
                     staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies
                         .compactMap { xcframework -> String? in
@@ -202,23 +225,31 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
     /// root (the subdirectory's parent) on the search path so those prefixed imports resolve;
     /// "flat" xcframeworks keep their headers directly next to the module map. Returns the
     /// xcframework's module map when the layout is nested.
+    ///
+    /// Nested layouts are deliberately *not* passed to clang with `-fmodule-map-file`. Whenever
+    /// anything else still references the xcframework, Xcode's `ProcessXCFramework` copies the
+    /// same headers into `$(BUILT_PRODUCTS_DIR)/include/<ModuleName>/`, which is searched ahead of
+    /// `HEADER_SEARCH_PATHS`. Naming a module map here would define the module over one copy of
+    /// the headers while `#import <ModuleName/Header.h>` resolved to the other, which clang
+    /// reports as `umbrella header for module 'X' does not include header 'Y.h'` or, once that
+    /// copy makes a second module map reachable, `import of shadowed module`. Leaving the module
+    /// map out lets clang discover it next to whichever headers actually win the search path, so
+    /// the module is always defined over the copy its umbrella imports.
     private static func nestedModuleMap(for xcframework: GraphDependency.XCFramework) -> AbsolutePath? {
         guard let moduleMap = xcframework.moduleMaps.first else { return nil }
         return moduleMap.parentDirectory.basename == xcframework.path.basenameWithoutExt ? moduleMap : nil
     }
 
+    /// Only called for flat layouts, which point at the derived module map whose umbrella header was
+    /// rewritten to drop the `<ModuleName/...>` prefix so it resolves against the module map's own
+    /// directory.
     private func moduleMapFlag(
         for xcframework: GraphDependency.XCFramework,
         derivedDirectory: AbsolutePath,
         project: Project
     ) -> String {
         let name = xcframework.path.basenameWithoutExt
-        // Nested layouts point at the xcframework's own module map: its umbrella imports the
-        // headers with the `<ModuleName/...>` prefix, which resolves against the `Headers` root.
-        // Flat layouts point at the derived module map, whose umbrella header was rewritten to
-        // drop the prefix so it resolves against the module map's own directory.
-        let moduleMapPath = Self.nestedModuleMap(for: xcframework)
-            ?? derivedDirectory.appending(components: name, "Headers", "module.modulemap")
+        let moduleMapPath = derivedDirectory.appending(components: name, "Headers", "module.modulemap")
         return "-fmodule-map-file=\"$(SRCROOT)/\(moduleMapPath.relative(to: project.path).pathString)\""
     }
 
@@ -485,6 +516,26 @@ extension XCFrameworkInfoPlist.Library {
             return "sdk=macosx*"
         case nil:
             return "sdk=\(graphPlatform.xcodeSdkRoot)*"
+        }
+    }
+
+    fileprivate func applies(to condition: PlatformCondition?) -> Bool {
+        guard let condition else { return true }
+        return condition.platformFilters.contains(platformFilter)
+    }
+
+    private var platformFilter: PlatformFilter {
+        switch platformVariant {
+        case .maccatalyst:
+            return .catalyst
+        case .simulator, nil:
+            switch platform {
+            case .iOS: return .ios
+            case .macOS: return .macos
+            case .tvOS: return .tvos
+            case .watchOS: return .watchos
+            case .visionOS: return .visionos
+            }
         }
     }
 }

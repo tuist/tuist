@@ -39,9 +39,8 @@ type KuraInstanceSpec struct {
 	// (which carries role=preview:NoSchedule) instead of pinning to a
 	// dedicated Kura node pool, so the preview lifecycle does not depend on
 	// Kura-specific capacity.
-	Tolerations     []corev1.Toleration `json:"tolerations,omitempty"`
-	ExtraEnv        []corev1.EnvVar     `json:"extraEnv,omitempty"`
-	ExtensionScript string              `json:"extensionScript,omitempty"`
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+	ExtraEnv    []corev1.EnvVar     `json:"extraEnv,omitempty"`
 
 	// Private marks a region with no public endpoint, reachable only
 	// over the cluster's internal Service DNS (today: the runner-cache
@@ -86,6 +85,51 @@ type KuraInstanceSpec struct {
 	// Pairs with the `kubernetes.io/egress-bandwidth` PodAnnotation, which is the
 	// burst ceiling. Zero on cloud regions whose NIC isn't shared.
 	EgressGuaranteedMbps int32 `json:"egressGuaranteedMbps,omitempty"`
+
+	// MemoryFloorMib is the memory, in MiB, this instance reserves as its
+	// `requests.memory`. It is the standing reservation the scheduler bin-packs
+	// against node allocatable, and — once the kubelet runs with MemoryQoS — the
+	// value it writes to the container's cgroup `memory.min`, making the floor
+	// unreclaimable rather than advisory. Size it from the instance's idle
+	// footprint, not its peak: over-reserving here is what exhausts a box's
+	// schedulable memory. Zero falls back to defaultMemoryFloorMib.
+	//
+	// The CRD constrains this to 0 or >= 176 MiB. Kura fits its anon caches
+	// inside the floor at startup and refuses a floor that cannot also hold its
+	// process baseline and a minimum admission reserve, so a smaller value
+	// crash-loops the pod instead of running it small.
+	MemoryFloorMib int32 `json:"memoryFloorMib,omitempty"`
+
+	// MemoryCeilingMib is the memory, in MiB, this instance may reach at peak.
+	// It becomes `limits.memory`, which is the number that matters most to the
+	// runtime: Kura derives every admission pool from its cgroup limit at
+	// startup, so this sets how large a client burst the instance absorbs before
+	// it sheds with 503. Those pools are semaphores rather than allocations, so
+	// headroom here is only consumed under load.
+	//
+	// The ceiling is deliberately allowed to exceed the floor, which means the
+	// ceilings on a shared box oversubscribe its memory. Floors are guaranteed
+	// by the sum(requests) <= allocatable invariant; everything above a floor is
+	// best-effort, arbitrated by kernel reclaim. MemoryCeilingBinPacked is what
+	// bounds that oversubscription.
+	//
+	// Zero falls back to defaultMemoryCeilingMib. Values below the floor are
+	// clamped up to it, since a limit under the request is rejected by the API.
+	MemoryCeilingMib int32 `json:"memoryCeilingMib,omitempty"`
+
+	// MemoryCeilingBinPacked makes the pod additionally request its ceiling as
+	// the `tuist.dev/memory-ceiling-mib` extended resource (request == limit;
+	// extended resources are integer and non-overcommittable), so the scheduler
+	// packs ceilings against a node budget the CAPI provider advertises as a
+	// bounded multiple of allocatable. Without it the sum of ceilings on a box
+	// is unbounded and a dense enough node hands the kernel more to reclaim than
+	// it can, turning a burst into an OOM kill.
+	//
+	// It is separate from MemoryCeilingMib because a pod that requests an
+	// extended resource its node does not advertise never schedules: only the
+	// node pools the CAPI provider patches can turn this on, while every region
+	// still wants a right-sized ceiling.
+	MemoryCeilingBinPacked bool `json:"memoryCeilingBinPacked,omitempty"`
 
 	// Mesh enables controller-managed cross-region peering for this
 	// instance. The controller maintains a per-account CA
@@ -141,6 +185,44 @@ type KuraInstanceSpec struct {
 	MeshPeerFailoverIP string `json:"meshPeerFailoverIp,omitempty"`
 }
 
+// KuraInstanceRolloutHealth aggregates the per-pod `/status/rollout` reports
+// with explicit per-field semantics, because no single worst-of rule
+// reproduces the standalone rollout gate:
+//   - Ready and Serving are conjunctions across the expected pods, so a sick
+//     or unsampled standby drags the aggregate down,
+//   - RingConsistent is an explicit all-pods-agree flag over the ring-member
+//     count. The runtime's `generation` is a process-local change counter
+//     (each pod increments its own and resets on restart), so absolute
+//     values are never comparable across pods; the ring size the pods have
+//     converged on is,
+//   - BackfillingPeers and OutboxMessages are sums,
+//   - FDTimeoutCount and PeerConnectionFailures are sums with per-pod reset
+//     clamping, so a pod restart never makes the published counter go
+//     backwards,
+//   - MemoryPressureState is the maximum,
+//   - SampledAt is the OLDEST per-pod sample, so a pod whose report is a
+//     frozen snapshot reads as stale instead of silently passing.
+type KuraInstanceRolloutHealth struct {
+	Ready            bool  `json:"ready"`
+	Serving          bool  `json:"serving"`
+	RingConsistent   bool  `json:"ringConsistent"`
+	BackfillingPeers int64 `json:"backfillingPeers"`
+	// BackfillDegraded is true when any pod reports its initial backfill
+	// cycle as degraded, and BackfillBudgetExhaustedPeers sums the peers
+	// blocked by real failures. Backfill merely being in flight is expected
+	// after a rollout restarts a pod, so these — not BackfillingPeers — are
+	// what says catch-up is failing to progress.
+	BackfillDegraded             bool         `json:"backfillDegraded"`
+	BackfillBudgetExhaustedPeers int64        `json:"backfillBudgetExhaustedPeers"`
+	OutboxMessages               int64        `json:"outboxMessages"`
+	FDTimeoutCount               int64        `json:"fdTimeoutCount"`
+	PeerConnectionFailures       int64        `json:"peerConnectionFailures"`
+	MemoryPressureState          int64        `json:"memoryPressureState"`
+	SampledPods                  int32        `json:"sampledPods"`
+	ExpectedPods                 int32        `json:"expectedPods"`
+	SampledAt                    *metav1.Time `json:"sampledAt,omitempty"`
+}
+
 type KuraInstanceStatus struct {
 	Phase            string       `json:"phase,omitempty"`
 	PublicURL        string       `json:"publicURL,omitempty"`
@@ -149,6 +231,11 @@ type KuraInstanceStatus struct {
 	ReadyReplicas    int32        `json:"readyReplicas,omitempty"`
 	Message          string       `json:"message,omitempty"`
 	LastReconciledAt *metav1.Time `json:"lastReconciledAt,omitempty"`
+
+	// RolloutHealth is the aggregate of the per-pod `/status/rollout`
+	// reports, published for the control plane's health-gated progressive
+	// rollout. Absent until at least one reconcile has sampled the pods.
+	RolloutHealth *KuraInstanceRolloutHealth `json:"rolloutHealth,omitempty"`
 
 	// NodePort exposure (spec.exposeNodePort): the address clients
 	// outside the pod network dial. NodeAddress is the

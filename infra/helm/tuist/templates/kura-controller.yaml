@@ -74,6 +74,12 @@ rules:
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [pods]
+    # delete lets a new Kura image replace pods that cannot pass readiness on
+    # the previous image. Ready pods remain under the StatefulSet's ordinary
+    # ordered rollout.
+    verbs: [get, list, watch, delete]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: [endpointslices]
     verbs: [get, list, watch]
   # delete: self-heal a wedged instance by recreating its StatefulSet and
   # dropping data PVCs that can never bind (storage-class drift on the immutable
@@ -202,6 +208,48 @@ subjects:
     namespace: {{ $namespace }}
 {{- if .Values.server.enabled }}
 ---
+# The ops account page reads what a region has left: its nodes' allocatable disk
+# and egress, and what is already reserved on the box an account's instances sit
+# on. Both are cluster-scoped, so they cannot live in the namespaced server Role
+# below — and they are deliberately not the controller's -node-reads role, which
+# also carries persistentvolumes update/patch. The server is internet-facing;
+# read-only is the whole of what it needs here.
+#
+# The pod list is cluster-wide because an extended resource is reserved against
+# the node rather than against a namespace, so a box's reservations can only be
+# summed by reading every pod on it. That exposes every namespace's pod specs
+# (inline env values, args) to the server — a conscious grant, list only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $serverRoleName }}-cluster-reads
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $serverRoleName }}-cluster-reads
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $serverRoleName }}-cluster-reads
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -265,6 +313,10 @@ spec:
         {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 8 }}
     spec:
       serviceAccountName: {{ $name }}
+      # Kura creates one Service per cache instance. Injecting every Service
+      # as environment variables can exceed the process argument limit and
+      # prevent the controller from starting when it is most needed.
+      enableServiceLinks: false
       {{- with .Values.kuraController.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
@@ -448,6 +500,38 @@ spec:
     - secretKey: kura_sentry_dsn
       remoteRef:
         key: "{{ required "kuraController.sentry.externalSecret.item is required when sentry externalSecret is enabled" .Values.kuraController.sentry.externalSecret.item }}/{{ .Values.kuraController.sentry.externalSecret.field | default "KURA_SENTRY_DSN" }}"
+{{- end }}
+{{- if .Values.kuraController.cacheTokenPublicKey.externalSecret.enabled }}
+---
+# The public half of the cache-token keypair. Merged into the same Secret the
+# controller already envFroms, so a node picks it up on its next roll with no
+# change to the pod spec. Only the public half ever reaches a node: it reads
+# the tokens the server signs and cannot mint one, which is what makes it safe
+# on a node that is reachable from the internet.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kura-cache-token-key
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+spec:
+  refreshInterval: {{ .Values.kuraController.cacheTokenPublicKey.externalSecret.refreshInterval | default "1h" | quote }}
+  secretStoreRef:
+    name: {{ .Values.kuraController.cacheTokenPublicKey.externalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.kuraController.cacheTokenPublicKey.externalSecret.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: kura-shared-secrets
+    creationPolicy: Merge
+    template:
+      engineVersion: v2
+      data:
+        KURA_AUTH_JWT_PUBLIC_KEY: "{{ `{{ .kura_cache_token_public_key | trim }}` }}"
+  data:
+    - secretKey: kura_cache_token_public_key
+      remoteRef:
+        key: "{{ required "kuraController.cacheTokenPublicKey.externalSecret.item is required when cacheTokenPublicKey externalSecret is enabled" .Values.kuraController.cacheTokenPublicKey.externalSecret.item }}/{{ .Values.kuraController.cacheTokenPublicKey.externalSecret.field | default "KURA_AUTH_JWT_PUBLIC_KEY" }}"
 {{- end }}
 {{- end }}
 

@@ -14,7 +14,7 @@ defmodule Tuist.Automations.Actions.RemoveLabelActionTest do
     test "unmarks the given test case as flaky" do
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       assert :ok =
                RemoveLabelAction.execute(
@@ -38,7 +38,7 @@ defmodule Tuist.Automations.Actions.RemoveLabelActionTest do
     test "no-ops for unsupported labels without touching the DB" do
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       assert :ok =
                RemoveLabelAction.execute(
