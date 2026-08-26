@@ -1654,8 +1654,14 @@ defmodule Tuist.KuraTest do
 
       assert owner.id == primary.id
       refute owner.id == secondary.id
-      assert Kura.client_endpoint_url(account, primary) == Regions.stable_public_url(account.name)
-      assert Kura.client_endpoint_url(account, secondary) == secondary.url
+
+      # The primary's own address is replaced by the account's name; the
+      # secondary keeps its regional one, so a client still picks between
+      # regions.
+      assert Kura.substitute_stable_endpoint([primary.url, secondary.url], account) == [
+               Regions.stable_public_url(account.name),
+               secondary.url
+             ]
     end
 
     test "ignores a private runner cache" do
@@ -1671,25 +1677,39 @@ defmodule Tuist.KuraTest do
   end
 
   describe "order_endpoints_by_origin/3" do
-    test "orders the region-independent endpoint by the region that answers on it" do
-      # It names no region, so without this it would sort behind every regional
-      # endpoint however near its instance actually is.
+    test "puts the region nearest the caller first for a multi-region account" do
       account = stable_host_account()
       primary = stable_host_instance(account, "eu-central", :active)
       secondary = stable_host_instance(account, "us-east", :active)
       {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
       {:ok, _row} = PlacerRegions.put_secondary(account, "us-east")
 
-      endpoints = [
-        %{url: Kura.client_endpoint_url(account, secondary)},
-        %{url: Kura.client_endpoint_url(account, primary)}
-      ]
+      endpoints = [%{url: secondary.url}, %{url: primary.url}]
 
       assert [%{url: first} | _] = Kura.order_endpoints_by_origin(endpoints, account, "FR")
-      assert first == Regions.stable_public_url(account.name)
+      assert first == primary.url
 
       assert [%{url: first} | _] = Kura.order_endpoints_by_origin(endpoints, account, "US-VA")
       assert first == secondary.url
+    end
+
+    test "the ordering survives the region-independent name being substituted in" do
+      # Ordering runs on the stored regional URLs and substitution replaces one
+      # of them afterwards, so the nearest region still comes first and the
+      # account's own name is what stands in for it.
+      account = stable_host_account()
+      primary = stable_host_instance(account, "eu-central", :active)
+      secondary = stable_host_instance(account, "us-east", :active)
+      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _row} = PlacerRegions.put_secondary(account, "us-east")
+
+      ordered =
+        [%{url: secondary.url}, %{url: primary.url}]
+        |> Kura.order_endpoints_by_origin(account, "FR")
+        |> Enum.map(& &1.url)
+        |> Kura.substitute_stable_endpoint(account)
+
+      assert ordered == [Regions.stable_public_url(account.name), secondary.url]
     end
 
     test "leaves an empty list alone" do

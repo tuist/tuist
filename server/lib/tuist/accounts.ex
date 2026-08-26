@@ -2592,7 +2592,7 @@ defmodule Tuist.Accounts do
       %Account{} = account ->
         Demand.record(account.id, origin)
 
-        case kura_cache_endpoint_urls(account, Origins.value(origin)) do
+        case account |> kura_cache_endpoint_urls(Origins.value(origin)) |> Kura.substitute_stable_endpoint(account) do
           [] ->
             %{
               endpoints: absent_kura_endpoint_urls(account),
@@ -2633,7 +2633,7 @@ defmodule Tuist.Accounts do
     # memory and flushed periodically, so this stays one ETS insert.
     Demand.record(account.id)
 
-    case kura_cache_endpoint_urls(account) do
+    case account |> kura_cache_endpoint_urls() |> Kura.substitute_stable_endpoint(account) do
       [] -> absent_kura_endpoint_urls(account)
       endpoints -> endpoints
     end

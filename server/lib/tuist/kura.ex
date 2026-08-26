@@ -369,7 +369,7 @@ defmodule Tuist.Kura do
 
   def order_endpoints_by_origin([endpoint], _account, _origin), do: [endpoint]
 
-  def order_endpoints_by_origin(endpoints, %Account{name: handle} = account, origin) do
+  def order_endpoints_by_origin(endpoints, %Account{name: handle}, origin) do
     regions_by_url =
       Regions.all()
       |> Enum.reject(&Regions.private?/1)
@@ -380,7 +380,6 @@ defmodule Tuist.Kura do
         end
       end)
       |> Map.new()
-      |> put_stable_url_region(account)
 
     Enum.sort_by(endpoints, fn endpoint ->
       case Map.fetch(regions_by_url, endpoint.url) do
@@ -390,18 +389,6 @@ defmodule Tuist.Kura do
         :error -> {1, 0}
       end
     end)
-  end
-
-  # The region-independent URL names no region, so it would otherwise sort
-  # behind every regional one. It belongs to whichever instance currently
-  # answers on it, and is as near or far as that instance's region.
-  defp put_stable_url_region(regions_by_url, %Account{name: handle} = account) do
-    with url when is_binary(url) <- Regions.stable_public_url(handle),
-         %Server{region: region} <- stable_host_owner(account) do
-      Map.put(regions_by_url, url, region)
-    else
-      _ -> regions_by_url
-    end
   end
 
   @doc """
@@ -1643,7 +1630,7 @@ defmodule Tuist.Kura do
   defp ensure_cache_endpoint_for_region(account, %Server{region: region_id} = server) do
     case Regions.fetch(region_id) do
       {:ok, region} ->
-        if Regions.private?(region), do: :ok, else: ensure_cache_endpoint(account, client_endpoint_url(account, server))
+        if Regions.private?(region), do: :ok, else: ensure_cache_endpoint(account, server.url)
 
       {:error, _reason} ->
         {:error, {:unknown_region, server.region}}
@@ -1651,22 +1638,27 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  The URL this instance is advertised to clients as.
+  Substitutes the account's region-independent name for the regional one it
+  currently answers on, in a list of endpoint URLs.
 
-  The account's region-independent name for whichever instance answers on it,
-  and the instance's own regional name for the rest. Handing out the stable
-  name is the point of having one: `tuist bazel setup` writes whatever this
-  returns into `.bazelrc.tuist` and never resolves again, so a client that
-  takes it away in a file keeps working when the account moves region.
+  Applied when the endpoints are handed out rather than when they are stored,
+  so the mirror of `kura_servers` keeps naming instances by their own
+  addresses and nothing about publishing, pruning or the warm-handoff sharing
+  rule has to know about a name that moves.
 
-  The regional name keeps being served either way — the instance answers on
-  both — so a client still holding one from before is not broken by the
-  switch, it simply stops being handed one.
+  Handing out the region-independent name is the point of having one: `tuist
+  bazel setup` writes what it is given into `.bazelrc.tuist` and never
+  resolves again, so a client that takes it away in a file keeps working when
+  the account moves region. The regional name keeps being served either way,
+  so a client still holding one is not broken by the switch, it simply stops
+  being handed one.
   """
-  def client_endpoint_url(%Account{} = account, %Server{} = server) do
-    case stable_host_owner(account) do
-      %Server{id: id} when id == server.id -> Regions.stable_public_url(account.name) || server.url
-      _other -> server.url
+  def substitute_stable_endpoint(urls, %Account{name: handle} = account) do
+    with stable when is_binary(stable) <- Regions.stable_public_url(handle),
+         %Server{url: regional} when is_binary(regional) <- stable_host_owner(account) do
+      urls |> Enum.map(&if(&1 == regional, do: stable, else: &1)) |> Enum.uniq()
+    else
+      _ -> urls
     end
   end
 
