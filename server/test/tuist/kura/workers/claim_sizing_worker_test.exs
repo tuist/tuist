@@ -81,4 +81,58 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
     assert PlacerClaims.claim_for(account) == "50Gi"
     assert [%ClaimProposal{status: :applied, resolved_by: "automatic"}] = Repo.all(ClaimProposal)
   end
+
+  test "the unattended budget is spent per hour, not per pass", %{account: account} do
+    stub(Tuist.FeatureFlags, :kura_claim_sizing_automatic?, fn -> true end)
+
+    # Five automatic applies already this hour: the fleet's unattended budget
+    # is gone, so a pass that would otherwise apply does nothing. This is what
+    # keeps the blast radius fixed while the sweep runs every ten minutes.
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    for _ <- 1..5 do
+      other = AccountsFixtures.organization_fixture().account
+
+      Repo.insert!(%ClaimProposal{
+        account_id: other.id,
+        region: "us-east",
+        direction: :grow,
+        current_claim_size: "8Gi",
+        recommended_claim_size: "16Gi",
+        status: :applied,
+        resolved_by: "automatic",
+        resolved_at: DateTime.add(now, -600, :second)
+      })
+    end
+
+    assert :ok = perform_job(ClaimSizingWorker, %{})
+
+    assert PlacerClaims.claim_for(account) == nil
+    assert %ClaimProposal{status: :open} = ClaimProposals.open_proposal_for(account)
+  end
+
+  test "operator applies do not consume the unattended budget", %{account: account} do
+    stub(Tuist.FeatureFlags, :kura_claim_sizing_automatic?, fn -> true end)
+
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    for _ <- 1..5 do
+      other = AccountsFixtures.organization_fixture().account
+
+      Repo.insert!(%ClaimProposal{
+        account_id: other.id,
+        region: "us-east",
+        direction: :grow,
+        current_claim_size: "8Gi",
+        recommended_claim_size: "16Gi",
+        status: :applied,
+        resolved_by: "ops@tuist.dev",
+        resolved_at: DateTime.add(now, -600, :second)
+      })
+    end
+
+    assert :ok = perform_job(ClaimSizingWorker, %{})
+
+    assert PlacerClaims.claim_for(account) == "50Gi"
+  end
 end

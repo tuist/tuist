@@ -61,6 +61,20 @@ defmodule Tuist.Kura.ClaimProposals do
     |> Repo.all()
   end
 
+  @doc """
+  How many proposals the sweep applied on its own since `datetime`. The
+  unattended-resize budget is measured against this, so the bound is a rate
+  rather than a per-pass count and does not move when the sweep's cadence
+  does. Operator applies are excluded: the budget guards what happens with
+  nobody watching.
+  """
+  def automatic_applies_since(%DateTime{} = datetime) do
+    ClaimProposal
+    |> where([proposal], proposal.status == :applied and proposal.resolved_by == "automatic")
+    |> where([proposal], proposal.resolved_at >= ^datetime)
+    |> Repo.aggregate(:count)
+  end
+
   def dismiss(%ClaimProposal{} = proposal, resolved_by) do
     case resolve_if_open(proposal, :dismissed, resolved_by) do
       {:ok, dismissed} -> {:ok, dismissed}

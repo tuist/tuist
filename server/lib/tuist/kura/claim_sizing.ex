@@ -69,7 +69,12 @@ defmodule Tuist.Kura.ClaimSizing do
     # version of it, so this is a single value and the ceiling below is where
     # the plans differ.
     retention_floor_days: 3,
-    ceiling: %{air: "16Gi", pro: "50Gi", enterprise: "200Gi"},
+    # Air and Pro share a ceiling: a free account's working set is not smaller
+    # for being free, and capping it lower would have made the shared promise
+    # unkeepable for exactly the accounts with the least room to absorb the
+    # churn. What still separates them is where they start (Air at the
+    # validated minimum) and how many confirmed steps it takes to get here.
+    ceiling: %{air: "50Gi", pro: "50Gi", enterprise: "200Gi"},
     # The confirmation ladder, ordered shortest window first, so the most
     # severe rung a reading satisfies is the one that decides it.
     #
@@ -78,12 +83,21 @@ defmodule Tuist.Kura.ClaimSizing do
     # the absolute arm deliberately does not, so "gone before the next
     # morning's build" stays extreme whatever the floor is tuned to.
     #
-    # `min_ring_turnover` is what buys the single-day rung: evicted bytes
-    # worth this many times the whole claim. Today's rollup is live, so that
-    # rung can fire within an hour of onset when the loss is severe enough to
-    # prove itself that fast, and cannot fire at all on a thin day that only
-    # looks alarming.
+    # `min_ring_turnover` is what buys the single-day rungs: evicted bytes
+    # worth this many times the whole claim. Today's rollup is live, so those
+    # rungs fire as soon as the loss proves itself, and cannot fire at all on
+    # a thin day that only looks alarming.
+    #
+    # The required volume relaxes as the shed age gets worse, because the two
+    # are evidence of the same thing and the shed age is the stronger half.
+    # An hour of retention already rules out ordinary operation, so one full
+    # ring lost confirms it; eight hours is bad but survivable long enough to
+    # be a heavy week, so that rung wants two. Since a ring turns over about
+    # once per span it holds, this is also what keeps the reaction time
+    # proportional: an hour-old ring proves a single turnover in about an
+    # hour, not in the two it would need at the lower rung.
     grow_windows: [
+      %{shed_age_under: {:seconds, 3_600}, window_days: 1, min_ring_turnover: 1.0},
       %{shed_age_under: {:seconds, 28_800}, window_days: 1, min_ring_turnover: 2.0},
       %{shed_age_under: {:seconds, 28_800}, window_days: 2},
       %{shed_age_under: {:floor_fraction, 0.1}, window_days: 2},

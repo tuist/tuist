@@ -150,6 +150,35 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert evidence["qualifying_threshold_seconds"] == 28_800
     end
 
+    test "catastrophic shedding needs only one ring lost to confirm" do
+      # Under an hour of retention already rules out ordinary operation, so
+      # the volume half of the evidence relaxes: one full ring is enough
+      # where eight-hour shedding would have to prove two. Because a ring
+      # turns over about once per span it holds, that is also roughly an
+      # hour of real time rather than two.
+      rollups = 1 |> churn_at(@today, 20 * 60, 30 * 60) |> Enum.map(&Map.put(&1, :evicted_bytes, 33 * @gibibyte))
+
+      assert {:grow, "50Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
+      assert evidence["window_days"] == 1
+      assert evidence["ring_turnover"] == 1.1
+      assert evidence["qualifying_threshold_seconds"] == 3_600
+    end
+
+    test "catastrophic shedding still needs a whole ring lost" do
+      # Half a ring under an hour old is a burst, not a verdict.
+      rollups = 1 |> churn_at(@today, 20 * 60, 30 * 60) |> Enum.map(&Map.put(&1, :evicted_bytes, 15 * @gibibyte))
+
+      assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
+    end
+
+    test "an hour-old ring does not get the relaxed volume once it is merely severe" do
+      # Ninety minutes clears the catastrophic rung, so the account falls to
+      # the eight-hour rung and owes the full two rings again.
+      rollups = 1 |> churn_at(@today, 90 * 60, 2 * 3_600) |> Enum.map(&Map.put(&1, :evicted_bytes, 33 * @gibibyte))
+
+      assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
+    end
+
     test "a single severe day acts when the account cycled its whole ring twice over" do
       # Volume replaces elapsed time on the shortest rung: 75Gi evicted
       # against a 30Gi claim is two and a half rings lost in a day, while the
@@ -168,8 +197,9 @@ defmodule Tuist.Kura.ClaimSizingTest do
     end
 
     test "every plan confirms on the same evidence and differs only in where it lands" do
-      # Same churn, same rung, same window: the plan changes the ceiling the
-      # projection is clamped to and nothing else.
+      # Same churn, same rung, same window on every plan. Air and Pro land
+      # apart here only because they start apart and each step is clamped,
+      # not because Air is allowed less in the end.
       rollups = churn_at(2, @today, 7 * 3_600, 12 * 3_600)
 
       for {plan, current, expected} <- [{:air, "8Gi", "16Gi"}, {:pro, "30Gi", "50Gi"}, {:enterprise, "60Gi", "120Gi"}] do
@@ -232,18 +262,24 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert ClaimSizing.evaluate(context(rollups: marginal_churn(5, @today))) == :none
     end
 
-    test "air grows within its narrow band" do
-      # A 12-hour ring against the shared 3-day floor projects far past the
-      # step bound, so Air lands on the step and its own ceiling, both 16Gi.
+    test "air climbs to the shared ceiling one clamped step at a time" do
+      # A 12-hour ring against the 3-day floor projects far past the step
+      # bound, so each pass doubles rather than jumping. Air is not capped
+      # short of Pro any more; it just starts lower, so it takes more
+      # separately confirmed steps to arrive.
       rollups =
         churn_days(14, @today,
           median_shed_age_seconds: 1_800,
           median_ring_span_seconds: div(@day_seconds, 2)
         )
 
-      context = context(plan: :air, current_claim_size: "8Gi", rollups: rollups)
+      for {current, expected} <- [{"8Gi", "16Gi"}, {"16Gi", "32Gi"}, {"32Gi", "50Gi"}] do
+        context = context(plan: :air, current_claim_size: current, rollups: rollups)
 
-      assert {:grow, "16Gi", _evidence} = ClaimSizing.evaluate(context)
+        assert {:grow, ^expected, _evidence} = ClaimSizing.evaluate(context)
+      end
+
+      assert ClaimSizing.evaluate(context(plan: :air, current_claim_size: "50Gi", rollups: rollups)) == :none
     end
 
     test "an account already at its plan ceiling gets no proposal" do
