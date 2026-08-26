@@ -200,7 +200,22 @@ defmodule Tuist.Kura.Placement do
     rung = plan_policy.retire
     window = window_range(context.today, rung.window_days)
     totals = totals_in(runs, window)
+    total = totals |> Map.values() |> Enum.sum()
 
+    # An account with nothing attributed anywhere is not an account whose
+    # regions are misplaced; it is one nobody could locate, or one that has
+    # gone quiet everywhere. Reading that as "this region is unused" would
+    # retire every secondary in the fleet on the strength of no evidence at
+    # all, which is exactly what the rollout looks like before origins are
+    # being attributed.
+    if total == 0 do
+      nil
+    else
+      retire_candidate(context, rung, totals, total, runs, window)
+    end
+  end
+
+  defp retire_candidate(context, rung, totals, total, runs, window) do
     # Never the primary, and never the last one serving: retirement reclaims a
     # spare region, it does not take an account's cache away.
     context.serving
@@ -216,7 +231,6 @@ defmodule Tuist.Kura.Placement do
 
       region ->
         region_runs = Map.get(totals, region, 0)
-        total = totals |> Map.values() |> Enum.sum()
 
         {:retire, region, evidence("demand_below_floor", rung, region_runs, total, active_days(runs, region, window))}
     end

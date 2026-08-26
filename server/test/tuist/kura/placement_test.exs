@@ -248,6 +248,22 @@ defmodule Tuist.Kura.PlacementTest do
       assert Placement.evaluate(context) == :none
     end
 
+    test "gives up nothing when the account has no attributed traffic at all" do
+      # Before origins are being attributed, every account looks like this. An
+      # account nobody could locate is not one whose regions are misplaced, and
+      # reading it as one would retire every secondary in the fleet.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-central"],
+          held_since: %{"eu-central" => Date.add(@today, -120)},
+          rollups: []
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
     test "does not give up a region younger than the retirement window" do
       # A region opened on a fortnight's traffic carries less than the
       # retirement window's worth of runs on the day it opens. Without the age
