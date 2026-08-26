@@ -10,7 +10,6 @@ defmodule Tuist.Kura.ClaimProposalsTest do
   alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
-  alias Tuist.Kura.StorageClaims
   alias Tuist.Kura.StorageRollup
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -181,14 +180,6 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert [%ClaimProposal{status: :superseded, resolved_by: "sweep"}] = Repo.all(ClaimProposal)
     end
 
-    test "an account with an operator override is invisible", %{account: account} do
-      seed_churn_rollups(account, 14, @today)
-      assert :ok = StorageClaims.put_override(account, "40Gi")
-
-      assert {:ok, %{evaluated: 0, open: 0}} = ClaimProposals.sweep(@today)
-      assert ClaimProposals.open_proposal_for(account) == nil
-    end
-
     test "resolves every account's plan without a query per account" do
       # The sweep asks each account for its plan on every pass, and
       # `Billing.effective_plan/1` only answers from memory when subscriptions
@@ -232,7 +223,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert dismissed.status == :dismissed
       assert dismissed.resolved_by == "ops@tuist.dev"
       assert PlacerClaims.claim_for(account) == nil
-      assert StorageClaims.effective_claim_size(account) == "8Gi"
+      assert PlacerClaims.effective_claim_size(account) == "8Gi"
     end
 
     test "a stale struct cannot dismiss an already applied proposal", %{account: account} do
@@ -278,7 +269,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert raised_server.id == server.id
       assert Repo.get!(Server, server.id).storage_claim_size == "16Gi"
       assert PlacerClaims.claim_for(account) == "16Gi"
-      assert StorageClaims.effective_claim_size(account) == "16Gi"
+      assert PlacerClaims.effective_claim_size(account) == "16Gi"
 
       resolved = Repo.get!(ClaimProposal, proposal.id)
       assert resolved.status == :applied
@@ -290,16 +281,16 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert {:ok, %{open: 0}} = ClaimProposals.sweep(@today)
     end
 
-    test "an operator override that appeared since supersedes instead of applying", %{account: account} do
+    test "a claim that moved since the proposal supersedes instead of applying", %{account: account} do
       seed_churn_rollups(account, 14, @today)
       {:ok, _summary} = ClaimProposals.sweep(@today)
       proposal = ClaimProposals.open_proposal_for(account)
 
-      assert :ok = StorageClaims.put_override(account, "45Gi")
+      assert :ok = PlacerClaims.put(account, "24Gi")
 
       assert {:error, :stale_proposal} = Kura.apply_claim_proposal(proposal, "ops@tuist.dev")
       assert Repo.get!(ClaimProposal, proposal.id).status == :superseded
-      assert PlacerClaims.claim_for(account) == nil
+      assert PlacerClaims.claim_for(account) == "24Gi"
     end
 
     test "an already resolved proposal does not apply twice", %{account: account} do

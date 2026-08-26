@@ -1,12 +1,31 @@
 defmodule Tuist.Kura.PlacerClaims do
   @moduledoc """
-  The claims automatic sizing chose. Below the operator override and above the
-  plan constant in `Tuist.Kura.StorageClaims.effective_claim_size/1`.
+  The claims automatic sizing chose, and the resolution around them: an
+  account's instances are built at the sized claim when it has one and its
+  plan's constant otherwise.
   """
 
   alias Tuist.Accounts.Account
+  alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.PlacerClaim
+  alias Tuist.Kura.Regions
   alias Tuist.Repo
+
+  @doc """
+  The claim an account's storage-governed instances are built at.
+  """
+  def effective_claim_size(%Account{} = account) do
+    claim_for(account) || plan_claim_size(account)
+  end
+
+  @doc """
+  The claim the account's plan starts it at, which sizing then moves.
+  """
+  def plan_claim_size(%Account{} = account) do
+    %{claim_size: claim_size} = Regions.storage_profile(AccountPolicies.sizing_plan(account))
+
+    claim_size
+  end
 
   @doc """
   The claim sizing chose for the account, or `nil` when it never sized it.

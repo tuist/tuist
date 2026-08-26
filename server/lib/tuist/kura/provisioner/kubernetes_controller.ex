@@ -780,7 +780,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp storage_claim(account, %Regions{} = region, %Server{}) do
     if Regions.storage_governed?(region) do
       # The plan's claim, deliberately, and not the account's claim override
-      # (`Tuist.Kura.StorageClaims`). Reading an override means reading a table,
+      # (`Tuist.Kura.PlacerClaims`). Reading a sized claim means reading a table,
       # and this renders on every reconcile tick from an account the caller
       # already holds; the plan resolves from that account in memory. Nothing is
       # lost by it: a governed region pins a claim on every path that creates

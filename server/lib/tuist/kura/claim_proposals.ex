@@ -4,8 +4,8 @@ defmodule Tuist.Kura.ClaimProposals do
   recommendation opens a proposal, a changed one supersedes it, a withdrawn
   one closes it. Applying is `Tuist.Kura.apply_claim_proposal/2`.
 
-  An operator claim override makes an account invisible here, which is the
-  per-account off switch.
+  Pausing is fleet-wide (`Tuist.FeatureFlags.kura_claim_sizing_paused?/0`);
+  there is no per-account exemption.
   """
 
   import Ecto.Query
@@ -20,8 +20,6 @@ defmodule Tuist.Kura.ClaimProposals do
   alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
-  alias Tuist.Kura.StorageClaim
-  alias Tuist.Kura.StorageClaims
   alias Tuist.Kura.StorageRollup
   alias Tuist.Repo
 
@@ -54,7 +52,7 @@ defmodule Tuist.Kura.ClaimProposals do
       |> pinned_claims()
       |> Map.get(account_id)
 
-    pinned || PlacerClaims.claim_for(account) || StorageClaims.plan_claim_size(account)
+    pinned || PlacerClaims.claim_for(account) || PlacerClaims.plan_claim_size(account)
   end
 
   @doc """
@@ -175,7 +173,7 @@ defmodule Tuist.Kura.ClaimProposals do
     current =
       Map.get(inputs.pinned_claims, account.id) ||
         (placer_claim && placer_claim.claim_size) ||
-        StorageClaims.plan_claim_size(account)
+        PlacerClaims.plan_claim_size(account)
 
     context = %{
       plan: AccountPolicies.sizing_plan(account),
@@ -250,14 +248,7 @@ defmodule Tuist.Kura.ClaimProposals do
       # `Billing.effective_plan/1` queries per account without this.
       |> Repo.preload(subscriptions: active_subscriptions())
 
-    overridden =
-      StorageClaim
-      |> where([claim], claim.account_id in ^Enum.map(accounts, & &1.id))
-      |> select([claim], claim.account_id)
-      |> Repo.all()
-      |> MapSet.new()
-
-    Enum.reject(accounts, &MapSet.member?(overridden, &1.id))
+    accounts
   end
 
   defp active_subscriptions do

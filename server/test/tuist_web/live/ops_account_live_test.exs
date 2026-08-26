@@ -126,12 +126,12 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert html =~ "10Gi"
   end
 
-  test "resolves an unpinned instance in a per-account region against the override", %{conn: conn, user: user} do
+  test "resolves an unpinned instance in a per-account region against the sized claim", %{conn: conn, user: user} do
     stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
 
     # A governed region pins at creation, so this row is the state the resolution
     # exists to cover rather than one the product creates. It holds whatever the
-    # account resolves to, which is the override once there is one.
+    # account resolves to, which is the sized claim once there is one.
     Repo.insert!(%Server{
       account_id: user.account.id,
       region: "us-east",
@@ -144,7 +144,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
     assert html =~ "8Gi"
 
-    {:ok, _} = Kura.update_storage_claim_override(user.account, %{"kura_storage_claim_size" => "24Gi"})
+    :ok = Tuist.Kura.PlacerClaims.put(user.account, "24Gi")
 
     {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
     assert html =~ "24Gi"

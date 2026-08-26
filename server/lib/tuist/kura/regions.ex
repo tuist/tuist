@@ -507,7 +507,7 @@ defmodule Tuist.Kura.Regions do
 
   Air's claim, deliberately: the ladder's floor is already the smallest claim we
   are willing to run an instance on, and an operator override
-  (`Tuist.Kura.StorageClaims`) is not a reason to go under it. Tying the two
+  (`Tuist.Kura.PlacerClaims`) is not a reason to go under it. Tying the two
   together rather than repeating a number means the bound follows the ladder if
   the ladder moves, which it has.
 
