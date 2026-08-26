@@ -160,6 +160,37 @@ defmodule Tuist.Kura.RolloutsTest do
       assert second.image_tag == "0.7.0"
     end
 
+    test "an older tag does not supersede a newer rollout while the deploy is still settling" do
+      # A rolling deploy runs two server cohorts at once, each reading its own
+      # desired tag from the environment, and every replica mints rollouts.
+      # Unguarded, the two supersede each other every tick.
+      create_active_server()
+
+      assert :ok = Rollouts.sync()
+      newer = Rollouts.active_rollout()
+      assert newer.image_tag == @target_tag
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> @baseline_tag end)
+      assert :ok = Rollouts.sync()
+
+      assert Repo.get!(Rollout, newer.id).status == :running
+      assert Rollouts.active_rollout().id == newer.id
+    end
+
+    test "an older tag supersedes once the deploy has settled, so a rollback still lands" do
+      create_active_server()
+
+      assert :ok = Rollouts.sync()
+      newer = Rollouts.active_rollout()
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> @baseline_tag end)
+      back_date(newer, :inserted_at, 11 * 60)
+      assert :ok = Rollouts.sync()
+
+      assert Repo.get!(Rollout, newer.id).status == :superseded
+      assert Repo.exists?(where(Rollout, [r], r.image_tag == ^@baseline_tag))
+    end
+
     test "a server with an open install deployment does not abort the tick" do
       # The rollout mints deployments while holding the rollout row lock, and
       # `Kura.create_deployment/3` rolls back when the server already has one
@@ -559,10 +590,12 @@ defmodule Tuist.Kura.RolloutsTest do
 
     # Drives one converged, soak-eligible server to the point where the gate
     # is the only thing deciding, then reports whether the wave advanced.
-    # Each call mints its own rollout (a fresh target tag supersedes the
-    # previous one) so several verdicts can be taken in a single test.
+    # Each call mints its own rollout (a newer target tag supersedes the
+    # previous one) so several verdicts can be taken in a single test. The
+    # tag has to move forward: an older one cannot displace a newer rollout
+    # while the deploy is still settling.
     defp gate_verdict(baseline_health, post_health) do
-      target = "0.6.#{System.unique_integer([:positive])}"
+      target = "0.6.#{System.unique_integer([:positive, :monotonic])}"
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> target end)
 
       %{account: account, server: server} = create_active_server()

@@ -68,6 +68,7 @@ defmodule Tuist.Kura.Rollouts do
   # `:provisioning` on the tag `provisioning_image_tag/2` picks, and it
   # re-enters convergence.
   @terminal_server_statuses [:destroying, :destroyed, :drain_pending, :archived]
+  @deploy_settle_seconds 10 * 60
   @open_deployment_statuses [:pending, :running]
 
   # Wave sizing over the non-canary accounts, ordered by recent usage
@@ -392,14 +393,44 @@ defmodule Tuist.Kura.Rollouts do
         rollout
 
       %Rollout{} = active ->
-        supersede(active, tag)
-        create_rollout(tag, active)
+        if supersedable?(active, tag) do
+          supersede(active, tag)
+          create_rollout(tag, active)
+        else
+          active
+        end
 
       nil ->
         case latest_rollout() do
           %Rollout{image_tag: ^tag} = rollout -> rollout
           previous -> create_rollout(tag, previous)
         end
+    end
+  end
+
+  # The desired tag is read per pod from the environment, and every replica
+  # mints rollouts. A rolling deploy that changes the tag therefore runs two
+  # cohorts at once, and each one sees the fleet drifting away from its own
+  # tag: they supersede each other every tick, cancelling and re-minting
+  # deployments, until the last old pod dies. The fleet is left on whichever
+  # tag applied last, which is not necessarily the surviving rollout's, so
+  # the rollout then reports a target the fleet is not running.
+  #
+  # An older tag cannot displace a newer one while the deploy is still
+  # settling, which breaks the loop: the old cohort stops superseding and
+  # cooperates on the newer rollout instead. Past that window the guard
+  # lifts, so a deliberate rollback to an older tag still takes effect —
+  # delayed, at most, by the remainder of the window. Tags that are not
+  # comparable versions keep the previous behaviour.
+  defp supersedable?(%Rollout{} = active, tag) do
+    not older_tag?(tag, active.image_tag) or
+      DateTime.diff(now(), active.inserted_at, :second) >= @deploy_settle_seconds
+  end
+
+  defp older_tag?(tag, active_tag) do
+    case {Version.parse(tag), Version.parse(active_tag)} do
+      {{:ok, candidate}, {:ok, current}} -> Version.compare(candidate, current) == :lt
+      _ -> false
     end
   end
 
