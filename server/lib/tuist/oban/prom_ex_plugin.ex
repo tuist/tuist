@@ -11,6 +11,12 @@ defmodule Tuist.Oban.PromExPlugin do
   node that runs this plugin. That is deliberate: it makes "the only
   consumer of this queue is gone" observable from a node that is
   itself healthy.
+
+  Those queue-level gauges answer "is this queue being drained at all".
+  They cannot answer "is every consumer of it healthy": one broken
+  consumer beside a working one leaves the queue draining normally. The
+  `node_last_attempt/completion_timestamp_seconds` pair covers that case
+  from the opposite direction, reported by each consumer about itself.
   """
   use PromEx.Plugin
 
@@ -18,6 +24,7 @@ defmodule Tuist.Oban.PromExPlugin do
 
   alias Tuist.Environment
 
+  @job_start_event [:oban, :job, :start]
   @job_complete_event [:oban, :job, :stop]
   @job_exception_event [:oban, :job, :exception]
   @producer_complete_event [:oban, :producer, :stop]
@@ -100,6 +107,27 @@ defmodule Tuist.Oban.PromExPlugin do
             reporter_options: [buckets: @job_attempt_buckets],
             tag_values: &job_exception_tag_values/1,
             tags: [:name, :queue, :state, :worker]
+          )
+        ]
+      ),
+      Event.build(
+        :oban_node_liveness_metrics,
+        [
+          last_value(
+            @metric_prefix ++ [:node, :last, :attempt, :timestamp, :seconds],
+            event_name: @job_start_event,
+            measurement: &current_unix_second/2,
+            description: "Unix timestamp of the last job this node started on the queue.",
+            tag_values: &node_liveness_tag_values/1,
+            tags: [:name, :queue, :node]
+          ),
+          last_value(
+            @metric_prefix ++ [:node, :last, :completion, :timestamp, :seconds],
+            event_name: @job_complete_event,
+            measurement: &current_unix_second/2,
+            description: "Unix timestamp of the last job this node completed on the queue.",
+            tag_values: &node_liveness_tag_values/1,
+            tags: [:name, :queue, :node]
           )
         ]
       ),
@@ -281,6 +309,34 @@ defmodule Tuist.Oban.PromExPlugin do
 
   defp age_seconds(now, %NaiveDateTime{} = scheduled_at),
     do: age_seconds(now, DateTime.from_naive!(scheduled_at, "Etc/UTC"))
+
+  # Absolute timestamps rather than a "seconds since" gauge, so the pair
+  # needs no state between events and no scan of `oban_jobs`. The elapsed
+  # time is `time() - <gauge>` at query time, which is also what makes a
+  # node that stops reporting fall out of the alert as absent rather than
+  # as a stale healthy-looking sample.
+  #
+  # Reported per node because the failure this pair exists to catch is
+  # per-consumer, not per-queue: on 2026-08-25 one of two xcresult
+  # processors took jobs for 14 hours and completed none, while its
+  # sibling kept `available` at 0. Every queue-level gauge, including
+  # `queue_oldest_available_age_seconds`, read perfectly healthy
+  # throughout.
+  #
+  # `node` is Oban's own node name, the same value it writes into
+  # `oban_jobs.attempted_by`, so a firing alert names the row you can go
+  # and query.
+  defp node_liveness_tag_values(metadata) do
+    config = config_from_metadata(metadata)
+
+    %{
+      name: normalize_module_name(config.name),
+      queue: metadata.job.queue,
+      node: config.node
+    }
+  end
+
+  defp current_unix_second(_measurements, _metadata), do: System.system_time(:second)
 
   defp job_complete_tag_values(metadata) do
     config = config_from_metadata(metadata)
