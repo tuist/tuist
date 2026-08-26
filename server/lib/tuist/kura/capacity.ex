@@ -291,65 +291,76 @@ defmodule Tuist.Kura.Capacity do
   defp measure_egress_placement(region_id) do
     with {:ok, region} <- Regions.fetch(region_id),
          selector when is_binary(selector) <- Regions.node_label_selector(region),
-         {:ok, %{"items" => node_items}} <- Client.list_nodes(selector),
-         {:ok, pods} <- Client.list_pods(@namespace, "#{@managed_by_selector},tuist.dev/region=#{region_id}") do
-      nodes =
-        node_items
-        |> Enum.filter(&ready?/1)
-        |> Enum.reduce(%{}, fn node, acc ->
-          case {node_name(node), egress_mbps(node)} do
-            {name, mbps} when is_binary(name) and is_integer(mbps) ->
-              Map.put(acc, name, %{allocatable_mbps: mbps, reserved_mbps: 0})
-
-            _ ->
-              acc
-          end
-        end)
-
-      pods = Enum.reject(pods, &terminal?/1)
-
-      %{nodes: reserve_pod_egress(nodes, pods), accounts: account_egress_placement(pods)}
+         {:ok, %{"items" => node_items}} <- Client.list_nodes(selector) do
+      node_items
+      |> Enum.filter(&ready?/1)
+      |> Enum.reduce_while(%{nodes: %{}, accounts: %{}}, fn node, acc ->
+        case {node_name(node), egress_mbps(node)} do
+          {name, mbps} when is_binary(name) and is_integer(mbps) -> measure_node_egress(acc, name, mbps)
+          _ -> {:cont, acc}
+        end
+      end)
+      |> case do
+        nil -> nil
+        %{accounts: accounts} = placement -> %{placement | accounts: close_account_placement(accounts)}
+      end
     else
       _ -> nil
     end
   end
 
-  # Only pods the scheduler has already placed count against a node: an
-  # unscheduled one is exactly the pod this measurement exists to make room for.
-  defp reserve_pod_egress(nodes, pods) do
-    Enum.reduce(pods, nodes, fn pod, acc ->
-      with node when is_binary(node) <- pod_node_name(pod),
-           %{reserved_mbps: reserved} = entry <- Map.get(acc, node) do
-        Map.put(acc, node, %{entry | reserved_mbps: reserved + pod_egress_mbps(pod)})
+  # One list per box, cluster-wide, rather than one list of the pods this control
+  # plane labels: what bounds a tenant's floor is everything reserved on its box,
+  # whoever put it there, and a narrower list overstates the room left by
+  # whatever it does not see.
+  #
+  # A box that cannot be read abandons the whole measurement rather than
+  # answering from the ones that could — a region reading as roomier than it is
+  # would be worse than reading as unknown, which falls back to the advertised
+  # budget.
+  defp measure_node_egress(acc, node, allocatable_mbps) do
+    case Client.list_pods_on_node(node) do
+      {:ok, pods} ->
+        # The field selector already narrows this to the box, and a pod holds a
+        # node's resources from the moment it is bound rather than when it
+        # starts. Re-checking the binding here keeps that invariant next to the
+        # arithmetic that depends on it, instead of in a query string.
+        pods = Enum.filter(pods, &(pod_node_name(&1) == node and not terminal?(&1)))
+
+        nodes =
+          Map.put(acc.nodes, node, %{
+            allocatable_mbps: allocatable_mbps,
+            reserved_mbps: pods |> Enum.map(&pod_egress_mbps/1) |> Enum.sum()
+          })
+
+        {:cont, %{nodes: nodes, accounts: account_egress_placement(pods, acc.accounts)}}
+
+      {:error, _reason} ->
+        {:halt, nil}
+    end
+  end
+
+  # Which account each pod belongs to, and what it holds where, accumulated
+  # across the region's boxes. Only pods that carry the controller's account
+  # label are anybody's — everything else on a box is simply reserved against it.
+  defp account_egress_placement(pods, accounts) do
+    Enum.reduce(pods, accounts, fn pod, acc ->
+      with handle when is_binary(handle) <- pod_account_handle(pod),
+           node when is_binary(node) <- pod_node_name(pod) do
+        entry = Map.get(acc, handle, %{nodes: %{}, replicas: 0})
+
+        Map.put(acc, handle, %{
+          nodes: Map.update(entry.nodes, node, pod_egress_mbps(pod), &(&1 + pod_egress_mbps(pod))),
+          replicas: entry.replicas + 1
+        })
       else
         _ -> acc
       end
     end)
   end
 
-  defp account_egress_placement(pods) do
-    pods
-    |> Enum.reduce(%{}, fn pod, acc ->
-      case pod_account_handle(pod) do
-        handle when is_binary(handle) ->
-          entry = Map.get(acc, handle, %{nodes: %{}, replicas: 0})
-
-          nodes =
-            case pod_node_name(pod) do
-              node when is_binary(node) ->
-                Map.update(entry.nodes, node, pod_egress_mbps(pod), &(&1 + pod_egress_mbps(pod)))
-
-              _ ->
-                entry.nodes
-            end
-
-          Map.put(acc, handle, %{nodes: nodes, replicas: entry.replicas + 1})
-
-        _ ->
-          acc
-      end
-    end)
-    |> Map.new(fn {handle, entry} -> {handle, %{entry | nodes: Map.to_list(entry.nodes)}} end)
+  defp close_account_placement(accounts) do
+    Map.new(accounts, fn {handle, entry} -> {handle, %{entry | nodes: Map.to_list(entry.nodes)}} end)
   end
 
   defp node_name(%{"metadata" => %{"name" => name}}), do: name

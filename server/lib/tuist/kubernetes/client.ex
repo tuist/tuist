@@ -256,6 +256,25 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  LISTs Pods on `node`, across every namespace.
+
+  Kura egress capacity reads this rather than a namespace-and-label list because
+  what bounds a tenant's floor is everything reserved on its box, whoever put it
+  there. A list narrowed to the pods this control plane knows about would answer
+  the question it can already answer, and silently overstate the room left by
+  whatever it does not label.
+
+  The server SA is granted cluster-wide `pods: [list]` by the
+  kura-controller's node-reads ClusterRole.
+  """
+  def list_pods_on_node(node) when is_binary(node) do
+    case request(:get, "/api/v1/pods", query: %{"fieldSelector" => "spec.nodeName=#{node}"}) do
+      {:ok, %{"items" => items}} -> {:ok, items}
+      {:error, _} = err -> err
+    end
+  end
+
+  @doc """
   GETs a single Pod by name from `namespace`. The dispatch endpoint
   reads `spec.containers[0].image` to compare the polling Pod's
   image against the RunnerPool's spec.image — when the chart bumps

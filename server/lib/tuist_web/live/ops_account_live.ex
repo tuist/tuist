@@ -434,6 +434,11 @@ defmodule TuistWeb.OpsAccountLive do
     # The rows share one form element; each row's inputs carry their own names,
     # so this outer form exists only to own the submit.
     |> assign(:kura_egress_form, to_form(%{}, as: "egress"))
+    # The outcome of the last Save, rendered inside the section rather than as a
+    # page flash: it is about this table, and a banner at the top of the page
+    # sits nowhere near the rows it is talking about. assign_new so a save that
+    # re-reads the section keeps the message it just produced.
+    |> assign_new(:kura_egress_result, fn -> nil end)
   end
 
   # One entry per egress-governed region the account holds an instance in. Each
@@ -498,18 +503,23 @@ defmodule TuistWeb.OpsAccountLive do
         {:noreply,
          socket
          |> assign(:kura_egress_regions, put_region_errors(socket.assigns.kura_egress_regions, invalid))
-         |> put_flash(:error, dgettext("dashboard", "Kura egress limits could not be updated."))}
+         |> assign(:kura_egress_result, %{status: "error", title: kura_egress_limits_error_message(invalid)})}
 
       {rows, []} ->
         rows
         |> Enum.filter(fn {region, _attrs, {:ok, pair}} -> changed?(account, region, pair) end)
-        |> Enum.reduce(socket, fn {region, attrs, _result}, acc ->
+        |> Enum.flat_map(fn {region, attrs, _result} ->
           case Kura.update_egress_limits_override(account, region, attrs) do
-            {:ok, result} -> put_flash(acc, :info, kura_egress_limits_message(result))
-            {:error, _changeset} -> acc
+            {:ok, result} -> [result]
+            {:error, _changeset} -> []
           end
         end)
-        |> then(&{:noreply, assign_kura(&1, account)})
+        |> then(fn results ->
+          socket
+          |> assign_kura(account)
+          |> assign(:kura_egress_result, kura_egress_limits_result(results))
+        end)
+        |> then(&{:noreply, &1})
     end
   end
 
@@ -537,30 +547,50 @@ defmodule TuistWeb.OpsAccountLive do
     end)
   end
 
-  # Says what an operator can go and check rather than that a row was written,
-  # and says the part they have to weigh: the floor is a pod request and the
-  # ceiling a pod annotation, so the account's replicas in that region are
+  # One Save can change several regions, so the result is one message about all
+  # of them rather than a stack of them: it names the regions and totals the
+  # instances, which is what an operator goes and checks.
+  #
+  # Says the part they have to weigh, too: the floor is a pod request and the
+  # ceiling a pod annotation, so the account's replicas in those regions are
   # recreated to take the new pair. They keep their volumes, so this is a restart
   # behind the standby rather than a cache rebuild.
-  # Emptying both fields is how a region goes back to its own numbers, so that
-  # case gets its own message rather than reporting a value that is not there.
-  defp kura_egress_limits_message(%{floor_mbps: nil, burst_mbps: nil, region: region, servers: servers}) do
-    dngettext(
-      "dashboard",
-      "%{region} egress limits reset to its defaults. %{count} instance is recreated to pick them up.",
-      "%{region} egress limits reset to its defaults. %{count} instances are recreated to pick them up.",
-      length(servers),
-      region: region.display_name
-    )
+  #
+  # Nothing changed is its own answer. A Save over an untouched table writes
+  # nothing, and reporting a recreate that is not happening would be a lie the
+  # operator would go looking for.
+  defp kura_egress_limits_result([]) do
+    %{status: "information", title: dgettext("dashboard", "No egress limits changed.")}
   end
 
-  defp kura_egress_limits_message(%{region: region, servers: servers}) do
+  defp kura_egress_limits_result(results) do
+    regions = results |> Enum.map(& &1.region.display_name) |> Enum.sort() |> Enum.join(", ")
+    servers = results |> Enum.flat_map(& &1.servers) |> length()
+
+    %{
+      status: "success",
+      title:
+        dngettext(
+          "dashboard",
+          "Egress limits updated in %{regions}. %{count} instance is recreated to pick them up.",
+          "Egress limits updated in %{regions}. %{count} instances are recreated to pick them up.",
+          servers,
+          regions: regions
+        )
+    }
+  end
+
+  # Named regions again, for the same reason: with several rows on screen, "could
+  # not be updated" leaves the operator hunting for which one the form rejected.
+  defp kura_egress_limits_error_message(invalid) do
+    regions = invalid |> Enum.map(fn {region, _attrs, _result} -> region.display_name end) |> Enum.sort()
+
     dngettext(
       "dashboard",
-      "%{region} egress limits updated. %{count} instance is recreated to pick them up.",
-      "%{region} egress limits updated. %{count} instances are recreated to pick them up.",
-      length(servers),
-      region: region.display_name
+      "Nothing was saved: %{regions} was rejected.",
+      "Nothing was saved: %{regions} were rejected.",
+      length(regions),
+      regions: Enum.join(regions, ", ")
     )
   end
 

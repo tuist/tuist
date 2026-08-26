@@ -212,6 +212,128 @@ defmodule Tuist.Kura.CapacityTest do
     }
   end
 
+  # What bounds a tenant's egress floor is everything reserved on its box, so
+  # this is read per node and cluster-wide: a list narrowed to the pods this
+  # control plane labels would miss whatever else the box carries and report the
+  # box as roomier than it is.
+  describe "egress_headroom/2" do
+    setup do
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+      :ok
+    end
+
+    test "counts every pod on the box against it, not just the account's" do
+      stub_egress_nodes(%{"box-1" => 500})
+
+      stub(Client, :list_pods_on_node, fn "box-1" ->
+        {:ok,
+         [
+           egress_pod("tuist", 25),
+           egress_pod("tuist", 25),
+           egress_pod("neighbour", 150),
+           # No account label and no relation to Kura at all -- it still holds
+           # 100 Mbps of the box, and the scheduler will not hand that out twice.
+           unlabelled_egress_pod(100)
+         ]}
+      end)
+
+      assert %{node: "box-1", allocatable_mbps: 500, available_mbps: 250, replicas: 2} =
+               Capacity.egress_headroom(@region, "tuist")
+    end
+
+    # The account's own reservation is handed back replica by replica as the
+    # rollout goes, so it is not spent from its own point of view.
+    test "adds the account's own reservation back" do
+      stub_egress_nodes(%{"box-1" => 500})
+      stub(Client, :list_pods_on_node, fn "box-1" -> {:ok, [egress_pod("tuist", 200), egress_pod("tuist", 200)]} end)
+
+      assert %{available_mbps: 500} = Capacity.egress_headroom(@region, "tuist")
+    end
+
+    # An unscheduled pod holds nothing on a node -- it is exactly the pod the
+    # measurement exists to make room for.
+    test "ignores a pod the scheduler has not placed" do
+      stub_egress_nodes(%{"box-1" => 500})
+
+      stub(Client, :list_pods_on_node, fn "box-1" ->
+        {:ok, [egress_pod("tuist", 25), egress_pod("neighbour", 300, node: nil)]}
+      end)
+
+      assert %{available_mbps: 500} = Capacity.egress_headroom(@region, "tuist")
+    end
+
+    test "takes the box with least room for the account" do
+      stub_egress_nodes(%{"box-1" => 500, "box-2" => 500})
+
+      stub(Client, :list_pods_on_node, fn
+        "box-1" -> {:ok, [egress_pod("tuist", 25, node: "box-1"), egress_pod("neighbour", 100, node: "box-1")]}
+        "box-2" -> {:ok, [egress_pod("tuist", 25, node: "box-2"), egress_pod("neighbour", 300, node: "box-2")]}
+      end)
+
+      assert %{node: "box-2", available_mbps: 200} = Capacity.egress_headroom(@region, "tuist")
+    end
+
+    test "is unknown for an account with nothing on the region's boxes" do
+      stub_egress_nodes(%{"box-1" => 500})
+      stub(Client, :list_pods_on_node, fn "box-1" -> {:ok, [egress_pod("neighbour", 150)]} end)
+
+      assert Capacity.egress_headroom(@region, "tuist") == nil
+    end
+
+    # Answering from the boxes that could be read would report a region as
+    # roomier than it is, which is worse than reporting it as unknown: unknown
+    # falls back to the advertised budget, and the form still refuses a floor it
+    # cannot place.
+    test "is unknown when a box cannot be read" do
+      stub_egress_nodes(%{"box-1" => 500})
+      stub(Client, :list_pods_on_node, fn "box-1" -> {:error, :unavailable} end)
+
+      assert Capacity.egress_headroom(@region, "tuist") == nil
+    end
+  end
+
+  defp stub_egress_nodes(allocatable_by_node) do
+    stub(Client, :list_nodes, fn _selector ->
+      {:ok,
+       %{
+         "items" =>
+           Enum.map(allocatable_by_node, fn {name, mbps} ->
+             %{
+               "metadata" => %{"name" => name},
+               "status" => %{
+                 "conditions" => [%{"type" => "Ready", "status" => "True"}],
+                 "allocatable" => %{"tuist.dev/egress-mbps" => Integer.to_string(mbps)}
+               }
+             }
+           end)
+       }}
+    end)
+  end
+
+  defp egress_pod(handle, mbps, opts \\ []) do
+    node = Keyword.get(opts, :node, "box-1")
+
+    %{
+      "metadata" => %{"labels" => %{"tuist.dev/account" => handle}},
+      "status" => %{"phase" => "Running"},
+      "spec" =>
+        Enum.into(if(node, do: %{"nodeName" => node}, else: %{}), %{
+          "containers" => [%{"resources" => %{"requests" => %{"tuist.dev/egress-mbps" => Integer.to_string(mbps)}}}]
+        })
+    }
+  end
+
+  defp unlabelled_egress_pod(mbps) do
+    %{
+      "metadata" => %{"labels" => %{}},
+      "status" => %{"phase" => "Running"},
+      "spec" => %{
+        "nodeName" => "box-1",
+        "containers" => [%{"resources" => %{"requests" => %{"tuist.dev/egress-mbps" => Integer.to_string(mbps)}}}]
+      }
+    }
+  end
+
   describe "occupancy/1" do
     test "reports what the region has reserved against what it has" do
       installed(2)

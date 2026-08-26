@@ -309,6 +309,68 @@ defmodule TuistWeb.OpsAccountLiveTest do
              %{floor_mbps: nil, burst_mbps: 200}
   end
 
+  # One Save can change several regions, so it says so once, naming them and
+  # totalling the instances — a stack of per-region banners at the top of the
+  # page is both further from the table and harder to read.
+  test "reports every region a single save changed, inside the card", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    kura_server(user, "us-east")
+    kura_server(user, "eu-central")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{
+          "us-east" => %{"kura_egress_floor_mbps" => "60", "kura_egress_burst_mbps" => "400"},
+          "eu-central" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
+        }
+      })
+      |> render_submit()
+
+    assert html =~ "kura-egress-limits-result"
+    assert html =~ "EU Central, US East"
+    assert html =~ "2 instances are recreated to pick them up"
+  end
+
+  # A Save over an untouched table writes nothing, and saying instances are
+  # being recreated would send the operator looking for a rollout that is not
+  # happening.
+  test "says so when a save changes nothing", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    kura_server(user, "us-east")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => ""}}
+      })
+      |> render_submit()
+
+    assert html =~ "No egress limits changed."
+  end
+
+  # Recreating an account's cache instances is not something to discover after
+  # clicking, so the form asks first.
+  test "confirms before saving", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    kura_server(user, "us-east")
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert html =~ "data-confirm"
+    assert html =~ "Saving recreates this account&#39;s Kura instances"
+  end
+
   # One Save covers the table, and a typo in one row must not half-apply the
   # others: nothing is written until every row casts.
   test "writes no region when another region's row is invalid", %{conn: conn, user: user} do

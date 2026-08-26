@@ -133,6 +133,14 @@ rules:
   - apiGroups: [""]
     resources: [persistentvolumes]
     verbs: [get, list, watch, update, patch]
+  # Cluster-wide pod list, for the ops page's egress headroom: what bounds a
+  # tenant's floor is everything reserved on its box, and a list narrowed to one
+  # namespace would miss whatever else the box carries and overstate the room
+  # left. list only, and the reader is the server -- the controller has its own
+  # namespaced pod rules above.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -150,11 +158,11 @@ subjects:
     name: {{ $name }}
     namespace: {{ $namespace }}
   # The server reads the same node capacity the controller does, for the ops
-  # account page: the disk a region has left (Tuist.Kura.Capacity) and the egress
-  # budget its smallest box advertises, which is the only bound an operator's
-  # per-account egress override is validated against. Nodes are cluster-scoped,
-  # so this is the binding that has to name the server too — without it the form
-  # shows "unknown" and silently skips the check.
+  # account page: the disk a region has left (Tuist.Kura.Capacity), the egress
+  # budget each box advertises, and what is already reserved on the box an
+  # account's instances sit on. Nodes and a cluster-wide pod list are both
+  # cluster-scoped, so this is the binding that has to name the server too —
+  # without it the form shows "unknown" and silently skips the check.
   - kind: ServiceAccount
     name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
     namespace: {{ .Release.Namespace }}
