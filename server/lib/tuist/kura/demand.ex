@@ -48,6 +48,7 @@ defmodule Tuist.Kura.Demand do
   alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionLifecycle
+  alias Tuist.Kura.Origins
   alias Tuist.Repo
 
   @table __MODULE__
@@ -65,8 +66,18 @@ defmodule Tuist.Kura.Demand do
   in the caller's connection. Tests run that way (`config/test.exs`, matching
   `Tuist.Ingestion.Bufferable`) so a process-wide buffer cannot carry one
   test's demand into another's transaction.
+
+  `origin` is where the request came from, and is counted separately by
+  `Tuist.Kura.Origins`: this clock says the account wants cache, those counts
+  say where from. A `nil` origin still records demand — an account the edge
+  could not locate keeps its instance warm exactly as before, it just does not
+  vote on where the instance goes.
   """
-  def record(account_id) when is_integer(account_id) do
+  def record(account_id, origin \\ nil)
+
+  def record(account_id, origin) when is_integer(account_id) do
+    Origins.record_demand(account_id, origin)
+
     if Environment.kura_demand_write_through_repo?() do
       persist([{account_id, System.system_time(:second)}])
       :ok
@@ -78,7 +89,7 @@ defmodule Tuist.Kura.Demand do
     ArgumentError -> :ok
   end
 
-  def record(_account_id), do: :ok
+  def record(_account_id, _origin), do: :ok
 
   @doc """
   Drains this node's buffer into `kura_account_region_lifecycles`. Called on
@@ -99,6 +110,12 @@ defmodule Tuist.Kura.Demand do
   the writes stay in the caller's transaction and connection.
   """
   def flush do
+    # Origins first, and in the same connection: resolution reads the day's
+    # counts, so an account whose very first request this is gets placed from
+    # its own origin rather than from the default it would resolve to a moment
+    # before the counts landed.
+    Origins.flush()
+
     if Environment.kura_demand_write_through_repo?(), do: {:ok, 0}, else: drain()
   end
 
@@ -226,18 +243,24 @@ defmodule Tuist.Kura.Demand do
       |> Map.keys()
       |> accounts_with_subscriptions()
 
-    resolutions = AccountPolicies.resolve_all(accounts)
+    resolutions = AccountPolicies.serving_regions_all(accounts)
 
     Enum.flat_map(accounts, fn account ->
       case Map.fetch!(resolutions, account.id) do
-        {:ok, %{service_region: service_region}} ->
-          [
+        # One row per region the account is served from. An account placement
+        # has expanded is warm in every one of them off the same demand, which
+        # is what makes a secondary hold its place: the inactivity rules read
+        # the account's clock, and whether a secondary is still worth its slot
+        # is a placement decision measured on its region's own traffic, not
+        # something to infer from a clock every region shares.
+        {:ok, service_regions} ->
+          Enum.map(service_regions, fn service_region ->
             %{
               account_id: account.id,
               service_region: service_region,
               last_cache_demand_at: Map.fetch!(demand_at_by_account, account.id)
             }
-          ]
+          end)
 
         # An account whose plan or region cannot be resolved has no
         # account-region instance to keep warm, so there is nothing to record.

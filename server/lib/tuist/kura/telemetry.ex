@@ -33,6 +33,7 @@ defmodule Tuist.Kura.Telemetry do
   def event_name_archive_cancelled, do: @prefix ++ [:archive_cancelled]
   def event_name_archived, do: @prefix ++ [:archived]
   def event_name_resolution_refused, do: @prefix ++ [:resolution_refused]
+  def event_name_placement_preference_unmet, do: @prefix ++ [:placement_preference_unmet]
 
   def provisioned(plan, region, cold_return?) do
     :telemetry.execute(event_name_provisioned(), %{count: 1}, %{
@@ -78,6 +79,28 @@ defmodule Tuist.Kura.Telemetry do
     :telemetry.execute(event_name_resolution_refused(), %{count: 1}, %{
       plan: to_string(plan),
       reason: to_string(reason)
+    })
+  end
+
+  @doc """
+  Counts a placement that could not use the region nearest the traffic, with
+  the region it wanted and the one it settled for (`"none"` when nothing was
+  available at all).
+
+  This is the procurement signal: an account served further away than it could
+  be, because the nearest region is unserved or carries no budget for its
+  plan. Sustained counts on one pair are the quantified case for funding that
+  region, which is how the Air-in-Europe question gets answered by measurement
+  rather than by argument.
+
+  `origin` is tagged because it is a coarse label the mapping table already
+  enumerates, so the series is bounded by the table rather than by traffic.
+  """
+  def placement_preference_unmet(origin, wanted, served) do
+    :telemetry.execute(event_name_placement_preference_unmet(), %{count: 1}, %{
+      origin: origin,
+      wanted: wanted,
+      served: served || "none"
     })
   end
 end

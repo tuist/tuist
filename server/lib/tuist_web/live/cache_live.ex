@@ -14,7 +14,6 @@ defmodule TuistWeb.CacheLive do
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Registrations
   alias Tuist.Kura.SelfHostedClients
-  alias Tuist.Kura.Server
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -46,87 +45,6 @@ defmodule TuistWeb.CacheLive do
   def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
   @impl true
-  def handle_event("open-add-cache-server", _params, socket) do
-    {:noreply, push_event(socket, "open-modal", %{id: "add-cache-server-modal"})}
-  end
-
-  def handle_event("close-add-cache-server-modal", _params, socket) do
-    socket =
-      socket
-      |> push_event("close-modal", %{id: "add-cache-server-modal"})
-      |> assign(:add_cache_server_form, default_server_form(socket.assigns.available_regions))
-
-    {:noreply, socket}
-  end
-
-  def handle_event("create_cache_server", params, %{assigns: %{cache_enabled: true}} = socket) do
-    case {region_from_params(params, socket.assigns.available_regions), socket.assigns.latest_version} do
-      {nil, _} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, dgettext("dashboard_account", "Select a region before deploying."))
-         |> push_event("close-modal", %{id: "add-cache-server-modal"})}
-
-      {_region, nil} ->
-        {:noreply,
-         socket
-         |> put_flash(
-           :error,
-           dgettext(
-             "dashboard_account",
-             "No runtime image is configured right now. Try again after the next server deploy."
-           )
-         )
-         |> push_event("close-modal", %{id: "add-cache-server-modal"})}
-
-      {region, version} ->
-        attrs = %{
-          account_id: socket.assigns.selected_account.id,
-          region: region,
-          image_tag: version_image_tag(version)
-        }
-
-        create_cache_server(socket, attrs)
-    end
-  end
-
-  def handle_event("create_cache_server", _params, socket), do: {:noreply, socket}
-
-  def handle_event("destroy_cache_server", %{"id" => id}, %{assigns: %{cache_enabled: true}} = socket) do
-    socket = push_event(socket, "close-modal", %{id: "destroy-cache-server-modal-#{id}"})
-
-    case Kura.get_server(socket.assigns.selected_account.id, id) do
-      nil ->
-        {:noreply, put_flash(socket, :error, dgettext("dashboard_account", "Cache server not found."))}
-
-      %Server{} = server ->
-        {:ok, _} = Kura.destroy_server(server)
-
-        {:noreply,
-         socket
-         |> put_flash(:info, dgettext("dashboard_account", "Destroying cache server..."))
-         |> load_servers_state()}
-    end
-  end
-
-  def handle_event("destroy_cache_server", _params, socket), do: {:noreply, socket}
-
-  def handle_event("close-destroy-cache-server-modal-" <> id, _params, socket) do
-    {:noreply, push_event(socket, "close-modal", %{id: "destroy-cache-server-modal-#{id}"})}
-  end
-
-  def handle_event("retry_cache_server", %{"id" => id}, %{assigns: %{cache_enabled: true}} = socket) do
-    with %Server{} = server <- Kura.get_server(socket.assigns.selected_account.id, id),
-         version when not is_nil(version) <- socket.assigns.latest_version,
-         {:ok, _} <- Kura.retry_server(server, version_image_tag(version)) do
-      {:noreply, load_servers_state(socket)}
-    else
-      _ -> {:noreply, socket}
-    end
-  end
-
-  def handle_event("retry_cache_server", _params, socket), do: {:noreply, socket}
-
   def handle_event(
         "select_cache_upload_policy",
         %{"policy" => policy},
@@ -231,36 +149,38 @@ defmodule TuistWeb.CacheLive do
   defp load_servers_state(%{assigns: %{cache_enabled: false}} = socket) do
     socket
     |> assign(:servers, [])
-    |> assign(:regions, [])
-    |> assign(:available_regions, [])
-    |> assign(:latest_version, nil)
     |> assign(:managed_cache_visible?, false)
-    |> assign(:add_cache_server_form, default_server_form([]))
+    |> assign(:serving_state, :absent)
   end
 
-  defp load_servers_state(socket, opts \\ []) do
+  defp load_servers_state(socket, _opts \\ []) do
     account = socket.assigns.selected_account
 
     # Customer-facing list only. Private runner-cache nodes are
-    # control-plane-managed (provisioned/torn down by the identity rule) —
-    # surfacing them here would expose an in-cluster URL and a Destroy button
-    # that just fights the reconciler.
+    # control-plane-managed (provisioned/torn down by the identity rule), so
+    # surfacing them here would report a cache the account cannot use.
     servers =
       account.id
       |> Kura.list_servers_for_account()
       |> Enum.reject(&Regions.private?(Regions.get(&1.region)))
 
-    regions = Regions.selectable()
-    available_regions = available_regions(regions, servers)
-    latest = Keyword.get_lazy(opts, :latest_version, fn -> List.first(Kura.latest_versions(1)) end)
-
     socket
     |> assign(:servers, servers)
-    |> assign(:regions, regions)
-    |> assign(:available_regions, available_regions)
-    |> assign(:latest_version, latest)
-    |> assign(:managed_cache_visible?, servers != [] or available_regions != [])
-    |> assign(:add_cache_server_form, default_server_form(available_regions))
+    # A deployment serving no public region runs nobody's cache, so there is
+    # no managed cache to report the state of.
+    |> assign(:managed_cache_visible?, servers != [] or Enum.any?(Regions.available(), &(not Regions.private?(&1))))
+    |> assign(:serving_state, serving_state(servers))
+  end
+
+  # What the account is told, which is whether its cache is working — not where
+  # it runs or how many there are. Naming a region here would invite a request
+  # to change it, and placement is not a request the account can make.
+  defp serving_state(servers) do
+    cond do
+      Enum.any?(servers, &(&1.status == :active)) -> :active
+      Enum.any?(servers, &(&1.status in [:provisioning, :replicating, :failed])) -> :preparing
+      true -> :absent
+    end
   end
 
   defp reset_self_hosted_client_modal(socket) do
@@ -283,142 +203,6 @@ defmodule TuistWeb.CacheLive do
 
   defp cache_enabled?(account) do
     FeatureFlags.kura_enabled?(account)
-  end
-
-  defp available_regions(regions, servers) do
-    occupied_regions = MapSet.new(servers, & &1.region)
-    Enum.reject(regions, &MapSet.member?(occupied_regions, &1.id))
-  end
-
-  defp region_from_params(params, available_regions) do
-    # Only honor a submitted region that is actually offered to this account
-    # right now — params are client-controlled, and a crafted LiveView event
-    # could otherwise name a private (runner-cache) or already-occupied region
-    # that `Kura.create_server/1` accepts.
-    available_ids = MapSet.new(available_regions, & &1.id)
-
-    [
-      get_in(params, ["server", "region"]),
-      params["region"]
-    ]
-    |> Enum.find(&present?/1)
-    |> case do
-      nil -> single_available_region_id(available_regions)
-      region -> if MapSet.member?(available_ids, region), do: region
-    end
-  end
-
-  defp single_available_region_id([region]), do: region.id
-  defp single_available_region_id(_regions), do: nil
-
-  defp version_image_tag(%{image_tag: image_tag}), do: image_tag
-  defp version_image_tag(%{version: "kura@" <> image_tag}), do: image_tag
-  defp version_image_tag(%{version: image_tag}), do: image_tag
-
-  defp present?(value), do: is_binary(value) and value != ""
-
-  defp default_server_form([]), do: to_form(%{"region" => nil}, as: :server)
-
-  defp default_server_form([region | _]) do
-    to_form(%{"region" => region.id}, as: :server)
-  end
-
-  defp create_cache_server(socket, attrs) do
-    case Kura.create_server(attrs) do
-      {:ok, server} ->
-        {:noreply,
-         socket
-         |> put_flash(
-           :info,
-           dgettext("dashboard_account", "Deploying cache server in %{region}...", region: server.region)
-         )
-         |> push_event("close-modal", %{id: "add-cache-server-modal"})
-         |> load_servers_state(latest_version: socket.assigns.latest_version)}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply,
-         socket
-         |> put_flash(
-           :error,
-           dgettext("dashboard_account", "Failed to deploy cache server: %{reason}", reason: format_errors(changeset))
-         )
-         |> push_event("close-modal", %{id: "add-cache-server-modal"})}
-
-      {:error, reason} ->
-        {:noreply,
-         socket
-         |> put_flash(
-           :error,
-           dgettext("dashboard_account", "Failed to deploy cache server: %{reason}", reason: inspect(reason))
-         )
-         |> push_event("close-modal", %{id: "add-cache-server-modal"})}
-    end
-  end
-
-  defp format_errors(%Ecto.Changeset{errors: errors}) do
-    Enum.map_join(errors, ", ", fn {field, {msg, _}} -> "#{field} #{msg}" end)
-  end
-
-  defp server_rows(servers) do
-    Enum.map(servers, &%{id: "server-#{&1.id}", type: :server, region_id: &1.region, server: &1})
-  end
-
-  defp row_region_id(row), do: row.region_id
-
-  defp row_server?(%{type: :server}), do: true
-  defp row_server?(_row), do: false
-
-  # Retry is offered only on first-time deploys that never reached `:active`
-  # (current_image_tag is nil): no traffic depends on the row, so atomically
-  # tombstoning it and starting fresh is safe. Drift failures on a
-  # previously-active server skip this — retrying would tear down the cache
-  # endpoint that's still serving the old image.
-  defp row_retry?(%{type: :server, server: %{status: :failed, current_image_tag: nil}}), do: true
-  defp row_retry?(_row), do: false
-
-  defp row_status_label(%{type: :server, server: server}), do: display_status_label(server)
-
-  defp row_status_color(%{type: :server, server: server}), do: display_status_color(server)
-
-  defp row_domain_label(%{type: :server, server: server}) do
-    server.url || dgettext("dashboard_account", "Pending")
-  end
-
-  defp display_status_label(server) do
-    if show_deploying?(server),
-      do: dgettext("dashboard_account", "Deploying"),
-      else: server_status_label(server.status)
-  end
-
-  defp display_status_color(server) do
-    if show_deploying?(server),
-      do: "information",
-      else: server_status_color(server.status)
-  end
-
-  defp server_status_label(:replicating), do: dgettext("dashboard_account", "Replicating")
-  defp server_status_label(:active), do: dgettext("dashboard_account", "Active")
-  defp server_status_label(:failed), do: dgettext("dashboard_account", "Failed")
-  defp server_status_label(:destroying), do: dgettext("dashboard_account", "Destroying")
-  defp server_status_label(:destroyed), do: dgettext("dashboard_account", "Destroyed")
-
-  defp server_status_color(:replicating), do: "information"
-  defp server_status_color(:active), do: "success"
-  defp server_status_color(:failed), do: "destructive"
-  defp server_status_color(:destroying), do: "warning"
-  defp server_status_color(:destroyed), do: "neutral"
-
-  # :replicating is intentionally NOT here: it has its own "Replicating" label and
-  # "information" color via server_status_label/2 + server_status_color/1. Forcing
-  # the "Deploying" short-circuit here would shadow that label.
-  defp show_deploying?(%{status: :provisioning}), do: true
-  defp show_deploying?(_), do: false
-
-  defp region_label(region_id) do
-    case Regions.get(region_id) do
-      nil -> region_id
-      region -> region.display_name
-    end
   end
 
   attr(:cache_write_policy, :atom, required: true)
@@ -507,215 +291,62 @@ defmodule TuistWeb.CacheLive do
     """
   end
 
-  attr(:servers, :list, required: true)
-  attr(:available_regions, :list, required: true)
-  attr(:add_cache_server_form, Form, required: true)
-  attr(:latest_version, :map, default: nil)
+  attr(:serving_state, :atom, required: true)
 
   def cache_servers_section(assigns) do
     ~H"""
     <div class="cache-section" data-part="servers-card">
       <div data-part="header">
         <div data-part="title-group">
-          <span data-part="title">{dgettext("dashboard_account", "Servers")}</span>
+          <span data-part="title">{dgettext("dashboard_account", "Managed cache")}</span>
           <span data-part="subtitle">
             {dgettext(
               "dashboard_account",
-              "Deploy regional cache servers managed by Tuist. Each region can have at most one server."
+              "Tuist runs your cache for you and keeps it close to where your builds run, following them if they move."
             )}
           </span>
         </div>
-        <div :if={Enum.any?(@available_regions)} data-part="actions">
-          <.modal
-            id="add-cache-server-modal"
-            title={dgettext("dashboard_account", "Deploy server")}
-            header_size="large"
-            on_dismiss="close-add-cache-server-modal"
-          >
-            <:trigger :let={attrs}>
-              <.button
-                id="add-cache-server-button"
-                label={dgettext("dashboard_account", "Deploy server")}
-                variant="secondary"
-                size="medium"
-                type="button"
-                {attrs}
-              />
-            </:trigger>
-            <.form
-              for={@add_cache_server_form}
-              id="add-cache-server-form"
-              phx-submit="create_cache_server"
-            >
-              <.line_divider />
-              <div data-part="modal-content">
-                <label data-part="select-label">{dgettext("dashboard_account", "Region")}</label>
-                <%= case @available_regions do %>
-                  <% [region] -> %>
-                    <input
-                      type="hidden"
-                      name={@add_cache_server_form[:region].name}
-                      value={region.id}
-                    />
-                    <div data-part="selected-region">
-                      <.icon name="world" />
-                      <span>{region.display_name}</span>
-                    </div>
-                  <% _ -> %>
-                    <.select
-                      id="add-cache-server-region"
-                      field={@add_cache_server_form[:region]}
-                      label={dgettext("dashboard_account", "Region")}
-                      disabled={Enum.empty?(@available_regions)}
-                    >
-                      <:item
-                        :for={region <- @available_regions}
-                        value={region.id}
-                        label={region.display_name}
-                        icon="world"
-                      />
-                    </.select>
-                <% end %>
-                <p data-part="hint">
-                  <%= case @latest_version do %>
-                    <% nil -> %>
-                      {dgettext(
-                        "dashboard_account",
-                        "No runtime image is configured right now. Try again after the next server deploy."
-                      )}
-                    <% version -> %>
-                      {dgettext("dashboard_account", "New servers start on")}
-                      <strong>{version.version}</strong>
-                      {dgettext("dashboard_account", "(current deploy).")}
-                  <% end %>
-                </p>
-              </div>
-              <.line_divider />
-            </.form>
-            <:footer>
-              <.modal_footer>
-                <:action>
-                  <.button
-                    type="button"
-                    label={dgettext("dashboard_account", "Cancel")}
-                    variant="secondary"
-                    phx-click="close-add-cache-server-modal"
-                  />
-                </:action>
-                <:action>
-                  <%= case @available_regions do %>
-                    <% [region] -> %>
-                      <button
-                        type="button"
-                        class="noora-button"
-                        data-variant="primary"
-                        data-size="large"
-                        data-icon-only="false"
-                        phx-click="create_cache_server"
-                        phx-value-region={region.id}
-                        disabled={is_nil(@latest_version)}
-                      >
-                        <span>{dgettext("dashboard_account", "Deploy")}</span>
-                      </button>
-                    <% _ -> %>
-                      <.button
-                        type="submit"
-                        form="add-cache-server-form"
-                        label={dgettext("dashboard_account", "Deploy")}
-                        variant="primary"
-                        disabled={is_nil(@latest_version) or Enum.empty?(@available_regions)}
-                      />
-                  <% end %>
-                </:action>
-              </.modal_footer>
-            </:footer>
-          </.modal>
-        </div>
       </div>
-      <.table id="cache-servers-table" rows={server_rows(@servers)}>
-        <:col :let={row} label={dgettext("dashboard_account", "Region")}>
-          <.text_cell label={region_label(row_region_id(row))} />
-        </:col>
-        <:col :let={row} label={dgettext("dashboard_account", "Status")}>
-          <.badge_cell label={row_status_label(row)} color={row_status_color(row)} style="light-fill" />
-        </:col>
-        <:col :let={row} label={dgettext("dashboard_account", "Domain")}>
-          <.text_cell label={row_domain_label(row)} />
-        </:col>
-        <:col :let={row} label="">
-          <.button
-            :if={row_retry?(row)}
-            type="button"
-            label={dgettext("dashboard_account", "Retry")}
-            variant="primary"
-            size="medium"
-            phx-click="retry_cache_server"
-            phx-value-id={row.server.id}
-            disabled={is_nil(@latest_version)}
-          />
-          <.modal
-            :if={row_server?(row) and row.server.status not in [:destroying, :destroyed]}
-            id={"destroy-cache-server-modal-#{row.server.id}"}
-            title={dgettext("dashboard_account", "Destroy cache server")}
-            header_type="icon"
-            header_size="small"
-            on_dismiss={"close-destroy-cache-server-modal-#{row.server.id}"}
-          >
-            <:trigger :let={attrs}>
-              <.button
-                type="button"
-                label={dgettext("dashboard_account", "Destroy")}
-                variant="destructive"
-                size="medium"
-                {attrs}
-              />
-            </:trigger>
-            <:header_icon>
-              <.trash />
-            </:header_icon>
-            <.line_divider />
-            <p data-part="destroy-server-message">
+      <div data-part="serving-status">
+        <%= case @serving_state do %>
+          <% :active -> %>
+            <.badge
+              label={dgettext("dashboard_account", "Active")}
+              color="success"
+              style="light-fill"
+            />
+            <span data-part="serving-description">
               {dgettext(
                 "dashboard_account",
-                "Destroy the cache server in %{region}? This removes the account's cache endpoint for that region.",
-                region: row.server.region
+                "Your cache is serving builds. Nothing to configure."
               )}
-            </p>
-            <:footer>
-              <.modal_footer>
-                <:action>
-                  <.button
-                    label={dgettext("dashboard_account", "Cancel")}
-                    variant="secondary"
-                    type="button"
-                    phx-click={"close-destroy-cache-server-modal-#{row.server.id}"}
-                  />
-                </:action>
-                <:action>
-                  <.button
-                    label={dgettext("dashboard_account", "Destroy")}
-                    variant="destructive"
-                    type="button"
-                    phx-click="destroy_cache_server"
-                    phx-value-id={row.server.id}
-                  />
-                </:action>
-              </.modal_footer>
-            </:footer>
-          </.modal>
-        </:col>
-        <:empty_state>
-          <.table_empty_state
-            title={dgettext("dashboard_account", "No cache servers yet")}
-            subtitle={
-              dgettext(
+            </span>
+          <% :preparing -> %>
+            <.badge
+              label={dgettext("dashboard_account", "Setting up")}
+              color="attention"
+              style="light-fill"
+            />
+            <span data-part="serving-description">
+              {dgettext(
                 "dashboard_account",
-                "Deploy one to cache build artifacts closer to your builds."
-              )
-            }
-          />
-        </:empty_state>
-      </.table>
+                "Your cache is being set up. Builds keep working while it warms up."
+              )}
+            </span>
+          <% :absent -> %>
+            <.badge
+              label={dgettext("dashboard_account", "Not running yet")}
+              color="neutral"
+              style="light-fill"
+            />
+            <span data-part="serving-description">
+              {dgettext(
+                "dashboard_account",
+                "Your cache starts the first time a build uses it."
+              )}
+            </span>
+        <% end %>
+      </div>
     </div>
     """
   end

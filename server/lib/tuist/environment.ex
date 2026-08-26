@@ -443,6 +443,48 @@ defmodule Tuist.Environment do
   def kura_air_region(storage_region) when storage_region in [:all, :usa],
     do: air_region_env("TUIST_KURA_AIR_REGION", "us-east")
 
+  @doc """
+  Every region with an Air budget, which is the set Air placement chooses
+  from. Air in a region costs a storage slot on a tier that pays for none, so
+  a region serves Air only once someone funds it; an account whose residency
+  admits no funded region is refused, and the refusal is what quantifies the
+  case for funding one.
+
+  `TUIST_KURA_AIR_REGIONS` names the set. Without it the set is whatever the
+  single-region variables name, so a deployment that has configured neither
+  keeps serving Air exactly where it does today.
+  """
+  def kura_air_region_ids do
+    case System.get_env("TUIST_KURA_AIR_REGIONS") do
+      value when value in [nil, ""] ->
+        Enum.reject([kura_air_region(:all), kura_air_region(:europe)], &is_nil/1)
+
+      value ->
+        value |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+    end
+  end
+
+  @doc """
+  How many placement proposals the sweep may apply on its own in a day.
+
+  Zero unless `TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY` names a number,
+  so placement proposes and an operator applies until someone decides
+  otherwise. A placement transition costs a region's worth of cache refill,
+  which is why this starts stopped where claim sizing does not.
+  """
+  def kura_placement_automatic_applies_per_day do
+    case System.get_env("TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY") do
+      value when value in [nil, ""] ->
+        0
+
+      value ->
+        case Integer.parse(value) do
+          {count, _rest} when count >= 0 -> count
+          _ -> 0
+        end
+    end
+  end
+
   defp air_region_env(variable, default) do
     case System.get_env(variable) do
       nil -> default

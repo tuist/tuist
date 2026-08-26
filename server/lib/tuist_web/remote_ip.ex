@@ -35,6 +35,10 @@ defmodule TuistWeb.RemoteIp do
     {{0x2C0F, 0xF248, 0, 0, 0, 0, 0, 0}, 32}
   ]
 
+  # The countries that host more than one candidate cache region, and so are
+  # the only ones a subdivision tells us anything extra about.
+  @subdivided_countries ["US", "CA"]
+
   def get(conn) do
     forwarded_for = header(conn, "x-forwarded-for")
     cloudflare_ip = cloudflare_ip(conn, forwarded_for)
@@ -42,6 +46,56 @@ defmodule TuistWeb.RemoteIp do
 
     cloudflare_ip || forwarded_ip || format_ip(conn.remote_ip)
   end
+
+  @doc """
+  The coarsest label for where a request came from that still tells the
+  candidate cache regions apart: an ISO 3166-1 country, narrowed to an
+  ISO 3166-2 subdivision in the countries holding more than one region.
+  `nil` when the edge reported no location or the hop reporting it is not
+  trusted.
+
+  Read from what the edge already resolved rather than from an address
+  database carried in the process. A database is resident memory on every
+  node for the whole fleet's lifetime, which is what took geographic lookup
+  out of the cache nodes; the label here costs a header read.
+
+  The address itself is never returned, so a caller cannot persist one by
+  reaching through this.
+  """
+  def origin(conn) do
+    with true <- trusted_cloudflare_hop?(conn.remote_ip, header(conn, "x-forwarded-for")),
+         country when is_binary(country) <- country_code(conn) do
+      subdivide(conn, country)
+    else
+      _ -> nil
+    end
+  end
+
+  defp country_code(conn) do
+    with value when not is_nil(value) <- header(conn, "cf-ipcountry"),
+         code when code not in ["XX", "T1"] <- String.upcase(value),
+         true <- code =~ ~r/\A[A-Z]{2}\z/ do
+      code
+    else
+      _ -> nil
+    end
+  end
+
+  # The subdivision header rides a Cloudflare managed transform rather than the
+  # default header set, so an unconfigured zone degrades to the country. That
+  # answers a coarser question rather than a wrong one: it still separates
+  # Europe from the United States, only not the two United States regions.
+  defp subdivide(conn, country) when country in @subdivided_countries do
+    with value when not is_nil(value) <- header(conn, "cf-region-code"),
+         code = String.upcase(value),
+         true <- code =~ ~r/\A[A-Z0-9]{1,3}\z/ do
+      country <> "-" <> code
+    else
+      _ -> country
+    end
+  end
+
+  defp subdivide(_conn, country), do: country
 
   defp cloudflare_ip(conn, forwarded_for) do
     with value when not is_nil(value) <- header(conn, "cf-connecting-ip"),

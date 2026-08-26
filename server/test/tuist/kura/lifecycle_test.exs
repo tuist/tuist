@@ -12,6 +12,7 @@ defmodule Tuist.Kura.LifecycleTest do
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Lifecycle
+  alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -1010,6 +1011,113 @@ defmodule Tuist.Kura.LifecycleTest do
         "containers" => [%{"resources" => %{"requests" => %{"ephemeral-storage" => "#{gib}Gi"}}}]
       }
     }
+  end
+
+  describe "placement retirements" do
+    setup do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      :ok
+    end
+
+    test "drains a region placement is leaving once somewhere else is serving" do
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      destination = active_instance_in(account, "eu-central")
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+
+      assert reload(source).status == :drain_pending
+      assert reload(destination).status == :active
+    end
+
+    test "waits while the account is served from nowhere else" do
+      # Taking the only instance would be an outage rather than a move. The
+      # destination is provisioned by the ordinary demand path first.
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+
+      assert reload(source).status == :active
+    end
+
+    test "waits while the destination is still coming up" do
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      destination = active_instance_in(account, "eu-central")
+      {:ok, _provisioning} = Kura.record_observation(destination, %{status: :replicating, current_image_tag: @image_tag})
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+
+      assert reload(source).status == :active
+    end
+
+    test "drops the placement row once the instance is gone, freeing the region" do
+      account = account(plan: :enterprise)
+      _destination = active_instance_in(account, "eu-central")
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+
+      assert PlacerRegions.claimed_regions(account) == ["eu-central"]
+    end
+  end
+
+  describe "provisioning across the regions placement chose" do
+    test "provisions every region the account is served from, not just the primary" do
+      stub(Environment, :kura_available_region_ids, fn -> [@region, "eu-central"] end)
+      stub_region_nodes([{@region, [@node_allocatable_bytes]}, {"eu-central", [@node_allocatable_bytes]}])
+
+      account = account(plan: :enterprise)
+      {:ok, _primary} = PlacerRegions.put_primary(account, @region)
+      {:ok, _secondary} = PlacerRegions.put_secondary(account, "eu-central")
+      with_demand(account, 0)
+      {:ok, _} = Demand.upsert(account.id, "eu-central", ago(0))
+
+      Lifecycle.reconcile()
+
+      assert account |> servers_for() |> Enum.map(& &1.region) |> Enum.sort() == ["eu-central", @region]
+    end
+
+    test "does not provision a region placement has left" do
+      # A retiring region keeps its lifecycle row until the drain finishes, and
+      # provisioning from it would rebuild exactly what the retirement removes.
+      account = account(plan: :enterprise)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+      with_demand(account, 0)
+
+      Lifecycle.reconcile()
+
+      assert servers_for(account) == []
+    end
+  end
+
+  defp active_instance_in(account, region) do
+    Repo.insert!(%Server{
+      account_id: account.id,
+      region: region,
+      status: :active,
+      url: "https://#{account.name}-#{region}-1.kura.tuist.dev",
+      current_image_tag: @image_tag,
+      provisioner_node_ref: "kura-#{account.id}-#{region}",
+      storage_claim_size: "8Gi"
+    })
   end
 
   defp stub_region_nodes(nodes_by_region) do

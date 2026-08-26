@@ -345,6 +345,7 @@ defmodule Tuist.Application do
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         Tuist.Kura.Demand,
+        Tuist.Kura.Origins,
         TuistCommon.GitHub.RateLimit,
         TuistWeb.Telemetry
       ] ++

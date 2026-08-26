@@ -18,6 +18,7 @@ defmodule TuistWeb.API.CacheController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
   alias TuistWeb.Headers
+  alias TuistWeb.RemoteIp
 
   plug(
     TuistWeb.Plugs.CastAndValidate,
@@ -100,7 +101,7 @@ defmodule TuistWeb.API.CacheController do
     %{endpoints: endpoints, provisioning: provisioning} =
       params[:account_handle]
       |> authorized_account_handle(conn)
-      |> Accounts.get_cache_resolution_for_handle(technology(conn))
+      |> Accounts.get_cache_resolution_for_handle(technology(conn), RemoteIp.origin(conn))
 
     max_age = if provisioning, do: @provisioning_cache_max_age, else: @serving_cache_max_age
 
