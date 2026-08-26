@@ -57,6 +57,27 @@ jobs:
           install_args: "erlang elixir"
           working_directory: server
 
+      # `actions/checkout` runs `git clean -ffdx` on this host's persistent
+      # workspace, which deletes `server/deps`, `server/_build` and both NIF
+      # `.build` directories, so every run compiled the two Swift NIFs and the
+      # whole Elixir dependency tree cold. Pointing the caches outside the
+      # workspace puts them out of the clean's reach.
+      #
+      # Keyed by runner name because a runner process runs one job at a time:
+      # two jobs landing on the same host (this one and the release job in
+      # `server-production-deployment.yml`) can then never share a cache and
+      # cannot race on the release directory.
+      - name: Point build caches outside the workspace
+        run: |
+          set -euo pipefail
+          cache_root="${HOME}/.cache/tuist-ci/server-macos-release/${RUNNER_NAME// /_}"
+          mkdir -p "${cache_root}/nif"
+          {
+            echo "MIX_BUILD_ROOT=${cache_root}/mix-build"
+            echo "MIX_DEPS_PATH=${cache_root}/mix-deps"
+            echo "TUIST_NIF_BUILD_ROOT=${cache_root}/nif"
+          } >> "$GITHUB_ENV"
+
       # 1. Build the macOS Erlang release. Includes both the xcresult NIF
       # (used by xcresult-processor mode) and the xcactivitylog NIF
       # (used by build-processor mode). Both are macOS-only and both
@@ -69,29 +90,25 @@ jobs:
         working-directory: server
         run: |
           set -euo pipefail
+          RELEASE_DIR="${MIX_BUILD_ROOT}/prod/rel/tuist"
           MIX_ENV=prod mix deps.get --only prod
           # `mix release` doesn't invoke the per-NIF build.sh scripts;
           # run them explicitly so the .so / .dylib land in priv/native
           # before the release tarball is assembled.
           ./native/xcresult_nif/build.sh
           ./native/xcactivitylog_nif/build.sh
-          # The bare-metal Mac mini reuses a single $TUIST_MIX_BUILD_ROOT
-          # across runs, which is mostly fine — except mix's mtime-based
-          # incremental compile occasionally keeps a stale .beam after a
-          # rebase. `--force` recompiles every .ex regardless; the BEAM
-          # build is fast enough (~30s) that the safety is worth more
-          # than the saved time.
+          # The build root persists across runs. That is mostly fine, except
+          # that mix's mtime-based incremental compile occasionally keeps a
+          # stale .beam after a rebase. `--force` recompiles every .ex
+          # regardless; the BEAM build is fast enough (~30s) that the safety
+          # is worth more than the saved time.
           MIX_ENV=prod mix compile --force --warnings-as-errors
+          # `mix release --overwrite` writes over the release directory
+          # without emptying it first, so a file dropped since the previous
+          # release would survive in a persistent build root and get baked
+          # into the image.
+          rm -rf "$RELEASE_DIR"
           MIX_ENV=prod mix release tuist --overwrite
-          # mix.exs honors $TUIST_MIX_BUILD_ROOT (set on the bare-metal
-          # runner to share the BEAM build cache across jobs). When it's
-          # set, the release lands at $TUIST_MIX_BUILD_ROOT/server/prod/
-          # rel/tuist; when unset, plain ./_build/prod/rel/tuist.
-          if [ -n "${TUIST_MIX_BUILD_ROOT:-}" ]; then
-            RELEASE_DIR="${TUIST_MIX_BUILD_ROOT}/server/prod/rel/tuist"
-          else
-            RELEASE_DIR="$(pwd)/_build/prod/rel/tuist"
-          fi
           echo "dir=${RELEASE_DIR}" >> "$GITHUB_OUTPUT"
 
       - name: Package release tarball
