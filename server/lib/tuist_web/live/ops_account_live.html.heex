@@ -84,6 +84,9 @@
       <p data-part="kura-claim-proposal-evidence">
         {kura_claim_proposal_evidence(@kura_claim_proposal)}
       </p>
+      <p data-part="kura-claim-proposal-basis">
+        {kura_claim_proposal_basis(@kura_claim_proposal)}
+      </p>
       <div data-part="actions">
         <.button
           type="button"
@@ -109,7 +112,7 @@
       <p data-part="kura-storage-claim-description">
         {dgettext(
           "dashboard",
-          "Claims are sized automatically from measured shedding and occupancy. Growing rebuilds volumes one replica at a time behind the standby that keeps serving; shrinking keeps the cache and evicts down."
+          "Disk is sized automatically: the claim grows when the cache starts discarding work sooner than the plan promises to keep it, and shrinks when it goes a long time without filling up. Growing rebuilds volumes one replica at a time behind the standby that keeps serving; shrinking keeps the cache and evicts down."
         )}
       </p>
       <p :if={@kura_sized_claim} data-part="kura-sized-claim">

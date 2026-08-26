@@ -30,18 +30,25 @@ defmodule Tuist.Kura.ClaimSizing do
   the floor is tuned, and the backstop should not drift when an operator
   changes what the floor means.
 
-  The shortest rung is bought with volume rather than time, which is also
-  what makes the ladder react faster the worse things get. A window counts
-  daily rollup rows, and today's row is live — refreshed from the raw
-  telemetry every sweep — so the rung that reads a single day reads a
-  partial one, and the real latency floor is the hourly sweep rather than
-  the calendar. What holds that rung back is evidence, not waiting: it asks
-  for evicted bytes worth twice the whole claim. Because a ring turns over
-  about once per span of content it holds, that proof accumulates at the
-  rate the account is actually thrashing — a ring shedding at thirty
-  minutes reaches it in about an hour, one shedding at eight hours takes
-  most of a day — so response time falls out of severity without another
-  rung to tune.
+  A window is counted in rollup rows, and one row is one UTC calendar day of
+  telemetry for one account-region: the grain `Tuist.Kura.StorageRollups`
+  aggregates to, not a promise about elapsed time. Today's row is live,
+  recomputed from the raw telemetry on every sweep, so a one-row window reads
+  however much of today has happened. `window_days: 2` therefore means "the
+  signal held on two consecutive dates", which can be anything from minutes
+  either side of a midnight to a full two days. Anywhere a duration is what
+  the reader actually wants — an operator looking at a proposal, a threshold
+  in this policy — say the duration; rows are the mechanism, not the unit.
+
+  The shortest rungs are bought with volume rather than elapsed time, which
+  is what makes the ladder react faster the worse things get. They ask for
+  evicted bytes worth a multiple of the whole claim, and because a ring turns
+  over about once per span of content it holds, that proof accumulates at the
+  rate the account is actually thrashing: a ring shedding at half an hour
+  proves a full turnover in about an hour, one shedding at eight hours takes
+  most of a day. Response time falls out of severity without another rung to
+  tune, and the real latency floor is the sweep interval rather than the
+  calendar.
 
   Shrinking keeps its long single window on purpose: an oversized ring costs
   a reclaimable slot and nobody's build, so there is no urgency to trade

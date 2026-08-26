@@ -453,12 +453,15 @@ defmodule TuistWeb.OpsAccountLive do
   # The proposal's evidence differs by direction: growth argues from how young
   # the shed content was against the plan's retention floor, shrinking from
   # how empty the ring stayed.
+  # Written for an operator deciding whether to trust the proposal: what the
+  # cache is doing, what it is supposed to do instead, and how much evidence
+  # sits behind it. No policy vocabulary — the windows and thresholds are ours,
+  # not something the reader should have to look up.
   defp kura_claim_proposal_evidence(%{direction: :grow, evidence: evidence}) do
     dgettext(
       "dashboard",
-      "Evicted content was a median %{shed_age} old over %{days} days in %{region}; the plan's retention floor is %{floor}.",
+      "The cache in %{region} is discarding work a median of %{shed_age} after it was written, when it should keep everything for at least %{floor}.",
       shed_age: humanize_seconds(evidence["median_shed_age_seconds"]),
-      days: evidence["window_days"],
       region: evidence["region"],
       floor: humanize_seconds(evidence["retention_floor_seconds"])
     )
@@ -467,11 +470,32 @@ defmodule TuistWeb.OpsAccountLive do
   defp kura_claim_proposal_evidence(%{direction: :shrink, evidence: evidence}) do
     dgettext(
       "dashboard",
-      "Ring occupancy stayed under %{threshold}%% for %{days} days in %{region} (peak %{peak}%%).",
-      threshold: evidence["occupancy_threshold_percent"],
-      days: evidence["window_days"],
+      "The cache in %{region} has not filled past %{peak}%% of the disk it reserves, and has discarded nothing.",
       region: evidence["region"],
       peak: evidence["max_occupancy_percent"]
+    )
+  end
+
+  # The second line: how much observation stands behind the first. Days are
+  # what the measurements are grouped into, so an operator can see whether this
+  # is one bad afternoon or a standing pattern.
+  defp kura_claim_proposal_basis(%{direction: :grow, evidence: evidence}) do
+    dngettext(
+      "dashboard",
+      "Seen on %{count} day of measurements (%{bytes} discarded, %{turnover}x the whole cache).",
+      "Seen on %{count} consecutive days of measurements (%{bytes} discarded, %{turnover}x the whole cache).",
+      evidence["window_days"],
+      bytes: ByteFormatter.format_bytes(evidence["evicted_bytes"] || 0),
+      turnover: evidence["ring_turnover"] || 0
+    )
+  end
+
+  defp kura_claim_proposal_basis(%{direction: :shrink, evidence: evidence}) do
+    dngettext(
+      "dashboard",
+      "Seen on %{count} day of measurements.",
+      "Seen on %{count} consecutive days of measurements.",
+      evidence["window_days"]
     )
   end
 

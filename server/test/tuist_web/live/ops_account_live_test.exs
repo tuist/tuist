@@ -557,7 +557,12 @@ defmodule TuistWeb.OpsAccountLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
       assert html =~ "Sizing proposes growing the disk claim from 8Gi to 16Gi."
-      assert html =~ "retention floor"
+      # The evidence reads as what the cache is doing and what it should be
+      # doing instead, with no policy vocabulary an operator would have to
+      # look up.
+      assert html =~ "discarding work a median of 12.0 hours after it was written"
+      assert html =~ "should keep everything for at least 1.0 days"
+      assert html =~ "Seen on 14 consecutive days of measurements"
       assert html =~ "Apply proposal"
     end
 
