@@ -220,6 +220,36 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
                ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
     end
 
+    test "keeps a runner error failing even though it carries no test modules", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      # A target whose .xctest cannot be loaded, or a runner that cannot launch, is lifted out of
+      # the test cases by the parser, so the module list is empty while the run genuinely failed.
+      expect_local_parse(%{
+        "test_plan_name" => "AppTests",
+        "status" => "failure",
+        "duration" => 12_500,
+        "test_modules" => [],
+        "run_destinations" => [],
+        "errors" => [
+          %{"target" => "AppModuleTests", "message" => "Failed to create a bundle instance."}
+        ]
+      })
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.status == "failure"
+        assert attrs.test_modules == []
+        assert [%{"target" => "AppModuleTests"}] = attrs.run_errors
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+    end
+
     test "passes failure status through unchanged", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
       expect_local_parse(parsed_data_with_failure())
