@@ -299,10 +299,38 @@ defmodule Tuist.SCIMTest do
       %{organization: organization, admin: admin, regular: regular}
     end
 
-    test "list_groups/1 returns the two synthetic groups", %{organization: org} do
-      assert [%{id: "admins", members: admins}, %{id: "users", members: users}] = SCIM.list_groups(org)
+    test "provision_user/2 accepts the viewer role", %{organization: org} do
+      # When
+      {:ok, viewer} = SCIM.provision_user(org, %{user_name: "g-viewer@example.com", role: :viewer})
+
+      # Then
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(viewer, org)
+    end
+
+    test "list_groups/1 returns one synthetic group per role", %{organization: org} do
+      assert [
+               %{id: "admins", members: admins},
+               %{id: "users", members: users},
+               %{id: "viewers", members: viewers}
+             ] = SCIM.list_groups(org)
+
       assert [_ | _] = admins
       assert [_ | _] = users
+      assert viewers == []
+    end
+
+    test "patch_group/3 add op on the viewers group makes a member read-only", %{
+      organization: org,
+      regular: regular
+    } do
+      ops = [%{"op" => "add", "value" => [%{"value" => to_string(regular.id)}]}]
+
+      {:ok, group} = SCIM.patch_group(org, "viewers", ops)
+
+      assert group.id == "viewers"
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(regular, org)
+      assert Accounts.organization_viewer?(regular, org)
+      refute Accounts.organization_user?(regular, org)
     end
 
     test "patch_group/3 add op promotes a user", %{organization: org, regular: regular} do

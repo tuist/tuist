@@ -14,9 +14,10 @@ defmodule Tuist.SCIM do
   when SCIM POSTs an email that already exists globally. Attached users
   receive an email notification so they can audit/leave if unexpected.
 
-  Groups are synthetic: each organization exposes exactly two groups, "Admins"
-  and "Users", which mirror the existing role hierarchy. Group membership ops
-  (PATCH) translate into role assignments on the organization.
+  Groups are synthetic: each organization exposes one group per organization
+  role, "Admins", "Users", and "Viewers", which mirror the existing role
+  hierarchy. Group membership ops (PATCH) translate into role assignments on
+  the organization.
   """
   import Ecto.Query
 
@@ -38,6 +39,9 @@ defmodule Tuist.SCIM do
 
   @group_admins "admins"
   @group_users "users"
+  @group_viewers "viewers"
+
+  @groups %{@group_admins => :admin, @group_users => :user, @group_viewers => :viewer}
 
   ## Tokens
 
@@ -331,7 +335,7 @@ defmodule Tuist.SCIM do
 
   defp update_user_role_if_needed(user, organization, role) do
     case Accounts.get_user_role_in_organization(user, organization) do
-      %{name: name} when name in ["admin", "user"] ->
+      %{name: name} when name in ["admin", "user", "viewer"] ->
         if to_string(role) == name do
           {:ok, :unchanged}
         else
@@ -392,7 +396,7 @@ defmodule Tuist.SCIM do
 
   defp maybe_update_email(multi, _user, _attrs), do: multi
 
-  defp maybe_update_role(multi, user, organization, %{role: role}) when role in [:admin, :user] do
+  defp maybe_update_role(multi, user, organization, %{role: role}) when role in [:admin, :user, :viewer] do
     Multi.run(multi, :role, fn _repo, _ ->
       :ok = Accounts.add_user_to_organization(user, organization, role: role)
 
@@ -457,12 +461,13 @@ defmodule Tuist.SCIM do
       "admins" -> :admin
       "user" -> :user
       "users" -> :user
+      "viewer" -> :viewer
+      "viewers" -> :viewer
       _ -> nil
     end
   end
 
-  defp normalize_role(:admin), do: :admin
-  defp normalize_role(:user), do: :user
+  defp normalize_role(role) when role in [:admin, :user, :viewer], do: role
   defp normalize_role(other) when is_binary(other), do: normalize_role_string(other) || :user
   defp normalize_role(_), do: :user
 
@@ -507,11 +512,13 @@ defmodule Tuist.SCIM do
   ## Groups
 
   def list_groups(%Organization{} = organization) do
-    [build_group(organization, :admin), build_group(organization, :user)]
+    Enum.map([:admin, :user, :viewer], &build_group(organization, &1))
   end
 
-  def get_group(%Organization{} = organization, @group_admins), do: {:ok, build_group(organization, :admin)}
-  def get_group(%Organization{} = organization, @group_users), do: {:ok, build_group(organization, :user)}
+  def get_group(%Organization{} = organization, group_id) when is_map_key(@groups, group_id) do
+    {:ok, build_group(organization, Map.fetch!(@groups, group_id))}
+  end
+
   def get_group(_organization, _id), do: {:error, :not_found}
 
   defp build_group(%Organization{} = organization, role) do
@@ -532,11 +539,13 @@ defmodule Tuist.SCIM do
 
   defp group_id(:admin), do: @group_admins
   defp group_id(:user), do: @group_users
+  defp group_id(:viewer), do: @group_viewers
   defp group_label(:admin), do: "Admins"
   defp group_label(:user), do: "Users"
+  defp group_label(:viewer), do: "Viewers"
 
-  def patch_group(%Organization{} = organization, group_id, ops) when group_id in [@group_admins, @group_users] do
-    role = if group_id == @group_admins, do: :admin, else: :user
+  def patch_group(%Organization{} = organization, group_id, ops) when is_map_key(@groups, group_id) do
+    role = Map.fetch!(@groups, group_id)
 
     Enum.each(ops, fn op -> apply_group_op(organization, role, op) end)
     get_group(organization, group_id)

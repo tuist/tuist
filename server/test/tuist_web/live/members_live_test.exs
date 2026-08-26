@@ -445,4 +445,53 @@ defmodule TuistWeb.MembersLiveTest do
       assert html =~ user2.email
     end
   end
+
+  describe "viewer role" do
+    setup do
+      stub(Environment, :mail_configured?, fn -> false end)
+      :ok
+    end
+
+    test "invites a member as a viewer", %{conn: conn, account: account, organization: organization} do
+      # Given
+      invitee = AccountsFixtures.user_fixture(email: "viewer@example.com")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      # When
+      lv
+      |> element("#invite-member-form")
+      |> render_submit(%{"invitation" => %{"invitee_email" => "viewer@example.com", "role" => "viewer"}})
+
+      # Then
+      invitation = Accounts.get_invitation_by_invitee_email_and_organization("viewer@example.com", organization)
+      assert invitation.role == "viewer"
+
+      Accounts.accept_invitation(%{
+        invitation: invitation,
+        invitee: invitee,
+        organization: organization
+      })
+
+      assert Accounts.organization_viewer?(invitee, organization)
+    end
+
+    test "changes an existing member's role to viewer", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      # Given
+      member = AccountsFixtures.user_fixture(handle: "member#{System.unique_integer([:positive])}")
+      Accounts.add_user_to_organization(member, organization)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      # When
+      render_hook(lv, "select-member-role", %{"member_id" => "#{member.id}", "role" => "viewer"})
+      render_hook(lv, "save-member-role", %{"member-id" => "#{member.id}"})
+
+      # Then
+      assert Accounts.organization_viewer?(member, organization)
+      refute Accounts.organization_user?(member, organization)
+    end
+  end
 end

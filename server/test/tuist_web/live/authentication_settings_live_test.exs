@@ -560,6 +560,51 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       assert updated_organization.sso_automatic_enrollment
     end
 
+    test "persists the role automatic enrollment grants", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :oauth2, %{
+          sso_organization_id: "https://login.vendor.example",
+          sso_login_domain: "customer.example",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret",
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        })
+
+      expect(SSOLoginDomainVerification, :verified?, fn _domain, token ->
+        assert token == configured_organization.sso_login_domain_verification_token
+        true
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+      render_hook(lv, "verify_sso_login_domain")
+      render_hook(lv, "toggle_sso_automatic_enrollment")
+      render_hook(lv, "select_sso_default_role", %{"value" => ["viewer"]})
+
+      lv
+      |> form("#sso-form", %{
+        "sso" => %{
+          "oauth2_site" => "https://login.vendor.example",
+          "sso_login_domain" => "customer.example",
+          "oauth2_client_id" => "test_client_id",
+          "oauth2_client_secret" => "",
+          "oauth2_authorize_url" => "https://login.vendor.example/authorize",
+          "oauth2_token_url" => "https://login.vendor.example/token",
+          "oauth2_user_info_url" => "https://login.vendor.example/userinfo"
+        }
+      })
+      |> render_submit()
+
+      {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
+      assert updated_organization.sso_default_role == "viewer"
+      assert Accounts.sso_default_role(updated_organization) == "viewer"
+    end
+
     test "turns off automatic enrollment and enforcement when switching to an unverified custom provider", %{
       conn: conn,
       account: account,

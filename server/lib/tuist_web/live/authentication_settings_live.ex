@@ -17,6 +17,10 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   @oauth2_form_providers ["okta", "oauth2", "entra"]
   @form_providers ["google" | @oauth2_form_providers]
 
+  # Automatic enrollment never mints an admin, so only the two non-privileged
+  # roles are offered here.
+  @sso_default_roles Accounts.organization_role_names() -- ["admin"]
+
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if Authorization.authorize(:account_update, current_user, selected_account) != :ok do
@@ -39,6 +43,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       |> assign(sso_enabled: sso_enabled)
       |> assign(sso_enforced: organization.sso_enforced)
       |> assign(sso_automatic_enrollment: organization.sso_automatic_enrollment)
+      |> assign(sso_default_role: Accounts.sso_default_role(organization))
       |> assign(flash_message: nil, field_errors: %{})
       |> assign_form_from_organization(organization)
       |> assign_saved_state()
@@ -112,6 +117,13 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       |> compute_has_changes()
       |> then(&{:noreply, &1})
     end
+  end
+
+  def handle_event("select_sso_default_role", %{"value" => [role]}, socket) when role in @sso_default_roles do
+    socket
+    |> assign(sso_default_role: role, flash_message: nil, field_errors: %{})
+    |> compute_has_changes()
+    |> then(&{:noreply, &1})
   end
 
   def handle_event("select_provider", %{"value" => [provider]}, socket) when provider in @form_providers do
@@ -381,7 +393,8 @@ defmodule TuistWeb.AuthenticationSettingsLive do
             sso_provider: :google,
             sso_organization_id: domain,
             sso_enforced: socket.assigns.sso_enforced,
-            sso_automatic_enrollment: socket.assigns.sso_automatic_enrollment
+            sso_automatic_enrollment: socket.assigns.sso_automatic_enrollment,
+            sso_default_role: socket.assigns.sso_default_role
           })
 
         {:noreply,
@@ -405,7 +418,8 @@ defmodule TuistWeb.AuthenticationSettingsLive do
         selected_provider,
         form_params,
         socket.assigns.sso_enforced,
-        socket.assigns.sso_automatic_enrollment
+        socket.assigns.sso_automatic_enrollment,
+        socket.assigns.sso_default_role
       )
 
     case Accounts.update_sso_configuration(organization.id, sso_provider, attrs) do
@@ -459,7 +473,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     end)
   end
 
-  defp build_oauth2_attrs(selected_provider, form, sso_enforced, sso_automatic_enrollment) do
+  defp build_oauth2_attrs(selected_provider, form, sso_enforced, sso_automatic_enrollment, sso_default_role) do
     {sso_organization_id, authorize_url, token_url, user_info_url} =
       extract_oauth2_urls(selected_provider, form)
 
@@ -468,6 +482,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       sso_enforced: sso_enforced,
       sso_login_domain: normalize_domain(form["sso_login_domain"]),
       sso_automatic_enrollment: sso_automatic_enrollment,
+      sso_default_role: sso_default_role,
       oauth2_client_id: String.trim(form["oauth2_client_id"] || ""),
       oauth2_authorize_url: authorize_url,
       oauth2_token_url: token_url,
@@ -573,6 +588,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
         sso_enabled: socket.assigns.sso_enabled,
         sso_enforced: socket.assigns.sso_enforced,
         sso_automatic_enrollment: socket.assigns.sso_automatic_enrollment,
+        sso_default_role: socket.assigns.sso_default_role,
         selected_provider: socket.assigns.selected_provider,
         form_params: socket.assigns.current_form_params
       },
@@ -646,6 +662,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       socket.assigns.sso_enabled != saved.sso_enabled or
         socket.assigns.sso_enforced != saved.sso_enforced or
         socket.assigns.sso_automatic_enrollment != saved.sso_automatic_enrollment or
+        socket.assigns.sso_default_role != saved.sso_default_role or
         socket.assigns.selected_provider != saved.selected_provider or
         socket.assigns.current_form_params != saved.form_params
 

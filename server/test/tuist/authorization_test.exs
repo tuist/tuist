@@ -1556,4 +1556,104 @@ defmodule Tuist.AuthorizationTest do
     # Then
     assert Authorization.authorize(:ops_read, user, :ops) == :ok
   end
+
+  describe "viewer role" do
+    setup do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      viewer = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+
+      %{organization: organization, account: account, project: project, viewer: viewer}
+    end
+
+    test "can read a project's tests", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:test_read, viewer, project) == :ok
+    end
+
+    test "cannot update a test case, which is how test cases get quarantined", %{
+      project: project,
+      viewer: viewer
+    } do
+      assert Authorization.authorize(:test_update, viewer, project) == {:error, :forbidden}
+    end
+
+    test "can read a project's runs and builds", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:run_read, viewer, project) == :ok
+      assert Authorization.authorize(:build_read, viewer, project) == :ok
+    end
+
+    test "cannot create or update a project's runs", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:run_create, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:run_update, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:build_create, viewer, project) == {:error, :forbidden}
+    end
+
+    test "can reach a private project's dashboards and URLs", %{
+      account: account,
+      project: project,
+      viewer: viewer
+    } do
+      assert Authorization.authorize(:dashboard_read, viewer, project) == :ok
+      assert Authorization.authorize(:project_url_access, viewer, project) == :ok
+      assert Authorization.authorize(:account_dashboard_read, viewer, account) == :ok
+    end
+
+    test "can read a project's command events", %{project: project, viewer: viewer} do
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      assert Authorization.authorize(:command_event_read, viewer, command_event) == :ok
+    end
+
+    test "cannot write to the project or account cache", %{
+      account: account,
+      project: project,
+      viewer: viewer
+    } do
+      assert Authorization.authorize(:project_cache_read, viewer, project) == :ok
+      assert Authorization.authorize(:project_cache_create, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:project_cache_update, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:account_cache_read, viewer, account) == :ok
+      assert Authorization.authorize(:account_cache_create, viewer, account) == {:error, :forbidden}
+    end
+
+    test "cannot manage the project, the organization, or its members", %{
+      account: account,
+      project: project,
+      viewer: viewer
+    } do
+      assert Authorization.authorize(:project_create, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:project_update, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:project_delete, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:organization_update, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:member_update, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:member_delete, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:invitation_create, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:account_update, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:account_delete, viewer, account) == {:error, :forbidden}
+    end
+
+    test "cannot manage automation alerts but can read them", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:automation_alert_read, viewer, project) == :ok
+      assert Authorization.authorize(:automation_alert_create, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:automation_alert_update, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:automation_alert_delete, viewer, project) == {:error, :forbidden}
+    end
+
+    test "cannot create or delete previews but can read them", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:preview_read, viewer, project) == :ok
+      assert Authorization.authorize(:preview_create, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:preview_delete, viewer, project) == {:error, :forbidden}
+    end
+
+    test "cannot create or delete account tokens but can read them", %{
+      account: account,
+      viewer: viewer
+    } do
+      assert Authorization.authorize(:account_token_read, viewer, account) == :ok
+      assert Authorization.authorize(:account_token_create, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:account_token_delete, viewer, account) == {:error, :forbidden}
+    end
+  end
 end

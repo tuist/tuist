@@ -7,6 +7,7 @@ defmodule Tuist.Accounts.Invitation do
   import Ecto.Changeset
 
   alias Tuist.Accounts.Organization
+  alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
   alias Tuist.Time
 
@@ -17,6 +18,7 @@ defmodule Tuist.Accounts.Invitation do
     field(:token, :string)
     field(:invitee_email, :string)
     field(:inviter_type, :string, default: "User")
+    field(:role, :string, default: "user")
     belongs_to(:inviter, User, foreign_key: :inviter_id)
     belongs_to(:organization, Organization)
 
@@ -26,9 +28,10 @@ defmodule Tuist.Accounts.Invitation do
 
   def create_changeset(invitation, attrs \\ %{}) do
     invitation
-    |> cast(attrs, [:token, :invitee_email, :inviter_id, :organization_id])
+    |> cast(attrs, [:token, :invitee_email, :inviter_id, :organization_id, :role])
     |> update_change(:invitee_email, &String.downcase/1)
-    |> validate_required([:token, :invitee_email, :inviter_id, :organization_id])
+    |> validate_required([:token, :invitee_email, :inviter_id, :organization_id, :role])
+    |> validate_inclusion(:role, Role.names())
     |> unique_constraint(:token, name: "index_invitations_on_token")
     |> unique_constraint([:invitee_email, :organization_id])
   end
