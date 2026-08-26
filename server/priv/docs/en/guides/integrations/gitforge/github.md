@@ -18,11 +18,6 @@ After that, you can add a project connection between your GitHub repository and 
 
 ![An image that shows adding the project connection](/images/guides/integrations/gitforge/github/add-project-connection.png)
 
-> [!NOTE]
-> **Self-hosted servers**
->
-> The steps above apply to `https://tuist.dev`. A self-hosted Tuist server cannot install that App, so register a GitHub App for your deployment and set the `TUIST_GITHUB_APP_*` environment variables first, following <.localized_link href="/guides/server/self-host/server#platform-github">Git platform configuration</.localized_link>. Until then, the **Install GitHub App** button on the integrations page is disabled.
-
 > [!TIP]
 > **Ip Allowlisting**
 >
