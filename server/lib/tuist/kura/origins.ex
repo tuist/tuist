@@ -29,6 +29,7 @@ defmodule Tuist.Kura.Origins do
   alias Tuist.Environment
   alias Tuist.Kura.OriginMap
   alias Tuist.Kura.OriginRollup
+  alias Tuist.Kura.Telemetry
   alias Tuist.Repo
 
   @table __MODULE__
@@ -120,6 +121,7 @@ defmodule Tuist.Kura.Origins do
   defp schedule_flush(interval), do: Process.send_after(self(), :flush, interval)
 
   defp record(account_id, origin, position) when is_integer(account_id) and is_binary(origin) do
+    Telemetry.origin_attribution(signal(position), true)
     key = {account_id, origin, Date.utc_today()}
 
     if Environment.kura_demand_write_through_repo?() do
@@ -133,8 +135,19 @@ defmodule Tuist.Kura.Origins do
     ArgumentError -> :ok
   end
 
-  # An unattributed request is counted nowhere: see the moduledoc.
+  # An unattributed request is counted nowhere: see the moduledoc. It is still
+  # counted as a request nobody could place, because otherwise an edge that
+  # stopped reporting locations is indistinguishable from a quiet fleet.
+  defp record(account_id, _origin, position) when is_integer(account_id) do
+    Telemetry.origin_attribution(signal(position), false)
+
+    :ok
+  end
+
   defp record(_account_id, _origin, _position), do: :ok
+
+  defp signal(@demand_position), do: :resolution
+  defp signal(@run_position), do: :run
 
   defp counts_for(@demand_position), do: {1, 0}
   defp counts_for(@run_position), do: {0, 1}

@@ -34,6 +34,7 @@ defmodule Tuist.Kura.Telemetry do
   def event_name_archived, do: @prefix ++ [:archived]
   def event_name_resolution_refused, do: @prefix ++ [:resolution_refused]
   def event_name_placement_preference_unmet, do: @prefix ++ [:placement_preference_unmet]
+  def event_name_origin_attribution, do: @prefix ++ [:origin_attribution]
 
   def provisioned(plan, region, cold_return?) do
     :telemetry.execute(event_name_provisioned(), %{count: 1}, %{
@@ -101,6 +102,28 @@ defmodule Tuist.Kura.Telemetry do
       origin: origin,
       wanted: wanted,
       served: served || "none"
+    })
+  end
+
+  @doc """
+  Counts one request placement tried to attribute, by whether the edge could
+  place it and which signal it was.
+
+  Whether the origin signal is working at all is otherwise unobservable: an
+  unattributed request is counted nowhere by design, so a deployment whose
+  edge stopped sending the location header would look exactly like a quiet
+  fleet, and placement would silently fall back to the default region for
+  everyone. The ratio of these two is the health of the signal.
+
+  Deliberately not tagged by origin or account. This counts requests rather
+  than aggregating them, so a tag with any breadth would put per-request
+  geography into a metrics series, which is the thing the design keeps out of
+  everything downstream.
+  """
+  def origin_attribution(signal, attributed?) do
+    :telemetry.execute(event_name_origin_attribution(), %{count: 1}, %{
+      signal: to_string(signal),
+      attributed: to_string(attributed?)
     })
   end
 end
