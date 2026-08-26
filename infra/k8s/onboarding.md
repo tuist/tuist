@@ -435,7 +435,7 @@ Environment. That Environment also needs `PENTEST_USER_EMAIL` and
 `PENTEST_USER_PASSWORD`; these are used once to create the assessment account.
 
 After bootstrap, run the **Pentest Platform Reconcile** workflow. It installs
-the cluster platform required by the application and package registry.
+the cluster platform required by the application.
 
 Deploy through **Pentest Deployment** with an `expires_at` timestamp. The
 scheduled cleanup removes the application namespace after that time. Extending
