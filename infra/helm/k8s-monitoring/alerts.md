@@ -1069,27 +1069,43 @@ queue genuinely was being drained, just not by both consumers. It was
 found by hand, from `oban_jobs.attempted_by`.
 
 ```promql
-(
-  time() - max by (cluster, env, queue, node) (
-    tuist_oban_node_last_attempt_timestamp_seconds{
-      queue=~"process_xcresult|process_build"
-    }
-  ) < 900
-)
-unless
-(
-  time() - max by (cluster, env, queue, node) (
-    tuist_oban_node_last_completion_timestamp_seconds{
-      queue=~"process_xcresult|process_build"
-    }
-  ) < 900
-)
+count by (cluster, env, queue, node) (
+  (
+    time() - max by (cluster, env, queue, node) (
+      tuist_oban_node_last_attempt_timestamp_seconds{
+        cluster="tuist-production",
+        queue=~"process_xcresult|process_build"
+      }
+    ) < 900
+  )
+  unless
+  (
+    time() - max by (cluster, env, queue, node) (
+      tuist_oban_node_last_completion_timestamp_seconds{
+        cluster="tuist-production",
+        queue=~"process_xcresult|process_build"
+      }
+    ) < 900
+  )
+) > 0
 ```
 
 - Pending period: 5 minutes
+- Keep firing for: 5 minutes
 - Severity: critical
 - Summary: `{{ $labels.node }} has been taking {{ $labels.queue }} jobs
-  without completing any for over 15 minutes in {{ $labels.cluster }}`
+  without completing any for over 15 minutes`
+
+The `count by` wrapper exists to give the threshold something to compare.
+The inner expression's own value is seconds since the node's last
+attempt, which is bounded by the `< 900` filter and can legitimately be
+`0`, so thresholding it directly would need a negative bound to mean
+"any series at all". Wrapping yields exactly `1` per wedged consumer and
+`> 0` then reads as what it is.
+
+Production only, unlike the queue rule above, because this one pages.
+A wedged consumer on canary or staging is worth knowing about and is not
+worth waking someone for; neither serves customer traffic.
 
 Read it as: this node started a job recently, and did not finish one
 recently. Both halves are load-bearing. Without the attempt clause an
