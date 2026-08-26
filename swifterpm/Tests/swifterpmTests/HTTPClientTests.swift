@@ -103,7 +103,7 @@ struct HTTPClientTests {
         let url = try #require(
             URL(string: "https://user:pass@storage.example/a/b.zip?token=secret#frag"))
 
-        let redacted = HTTPStatusError.redactingCredentials(url)
+        let redacted = HTTPClient.StatusError.redactingCredentials(url)
 
         #expect(redacted == "https://storage.example/a/b.zip")
     }
@@ -135,7 +135,7 @@ struct HTTPClientTests {
 
         let bounded = try #require(
             makeStatusError(statusCode: 429, headers: ["Retry-After": "86400"]))
-        #expect(bounded.retryAfter == HTTPStatusError.maximumRetryAfter)
+        #expect(bounded.retryAfter == HTTPClient.StatusError.maximumRetryAfter)
 
         let absent = try #require(makeStatusError(statusCode: 429))
         #expect(absent.retryAfter == nil)
@@ -163,7 +163,7 @@ struct HTTPClientTests {
                 headers: ["Retry-After": "Thu, 27 Aug 2026 01:19:31 GMT"],
                 now: now
             ))
-        #expect(bounded.retryAfter == HTTPStatusError.maximumRetryAfter)
+        #expect(bounded.retryAfter == HTTPClient.StatusError.maximumRetryAfter)
 
         let past = try #require(
             makeStatusError(
@@ -188,13 +188,13 @@ struct HTTPClientTests {
         respondingURL: URL? = nil,
         requestedURL: URL = URL(string: "https://tuist.dev/registry.zip")!,
         now: Date = Date()
-    ) -> HTTPStatusError? {
+    ) -> HTTPClient.StatusError? {
         let response = HTTPURLResponse(
             url: respondingURL ?? requestedURL,
             statusCode: statusCode,
             httpVersion: "HTTP/1.1",
             headerFields: headers
         )!
-        return HTTPStatusError(response: response, requestedURL: requestedURL, now: now)
+        return HTTPClient.StatusError(response: response, requestedURL: requestedURL, now: now)
     }
 }
