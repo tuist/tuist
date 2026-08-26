@@ -64,13 +64,6 @@ public func parseXCActivityLog(
     case let .success(parsed):
         do {
             let jsonData = try JSONEncoder().encode(parsed)
-            guard jsonData.count <= Int32.max else {
-                return writeMessage(
-                    "parsed output is \(jsonData.count) bytes, which exceeds the \(Int32.max)-byte NIF limit",
-                    outputPtr: outputPtr,
-                    outputLen: outputLen
-                )
-            }
             let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: jsonData.count)
             jsonData.withUnsafeBytes { rawBytes in
                 buffer.initialize(from: rawBytes.bindMemory(to: CChar.self).baseAddress!, count: jsonData.count)
@@ -86,8 +79,6 @@ public func parseXCActivityLog(
     }
 }
 
-private let maximumMessageBytes = 64 * 1024
-
 // Writes a plain UTF-8 error message into the output buffer. The C bridge
 // surfaces the bytes as an Erlang binary in `{:error, <<message>>}`, so a
 // raw string is enough — no JSON wrapping needed on this path.
@@ -96,7 +87,7 @@ private func writeMessage(
     outputPtr: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>,
     outputLen: UnsafeMutablePointer<Int32>
 ) -> Int32 {
-    let bytes = Array(message.utf8.prefix(maximumMessageBytes))
+    let bytes = Array(message.utf8)
     let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: max(bytes.count, 1))
     for (i, byte) in bytes.enumerated() {
         buffer[i] = CChar(bitPattern: byte)
