@@ -225,6 +225,16 @@ defmodule Tuist.Billing do
   # Read locally rather than from Stripe: it is our own record of when
   # the account stopped being on a trial, and the subscription carries no
   # trace of when its runner item was added.
+  #
+  # Like the Stripe boundaries beside it, this one is read live and can
+  # move: restarting a trial clears the end and cancelling again stamps a
+  # new one, just as a renewal moves `current_period_start`. Re-reporting
+  # a day whose boundaries have since moved therefore splits it
+  # differently from the original run, and since the meter identifier is
+  # derived from the window, Stripe reads the result as new usage rather
+  # than as a retry. That belongs to every boundary here rather than to
+  # this one, and closing it means recording the windows a reporting run
+  # used instead of recomputing them.
   defp trial_boundaries(%Account{runner_trial_ended_at: nil}), do: []
   defp trial_boundaries(%Account{runner_trial_ended_at: ended_at}), do: [ended_at]
 
