@@ -459,7 +459,7 @@ defmodule TuistWeb.OpsAccountLive do
             display_name: region.display_name,
             defaults: Kura.default_egress_limits(account, region),
             effective: Kura.effective_egress_limits(account, region),
-            node_mbps: Kura.region_node_egress_budget_mbps(region),
+            node_mbps: Kura.region_node_egress_budget_mbps(account, region),
             headroom: Kura.region_egress_headroom(account, region),
             form: kura_egress_limits_form(account, region)
           }

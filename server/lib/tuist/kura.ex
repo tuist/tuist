@@ -297,7 +297,7 @@ defmodule Tuist.Kura do
   The egress budget the region's smallest box advertises, which is what a floor
   or ceiling has to fit inside.
   """
-  defdelegate region_node_egress_budget_mbps(region), to: EgressLimits, as: :node_budget_mbps
+  defdelegate region_node_egress_budget_mbps(account, region), to: EgressLimits, as: :node_budget_mbps
 
   @doc """
   What the box the account's instances in a region sit on can still be asked

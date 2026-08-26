@@ -135,7 +135,7 @@ defmodule Tuist.Kura.EgressLimits do
     |> EgressLimit.validate_mbps(@floor_field)
     |> EgressLimit.validate_mbps(@burst_field)
     |> EgressLimit.validate_floor_under_burst(@floor_field, @burst_field)
-    |> validate_against_node_budget(region)
+    |> validate_against_node_budget(account, region)
     |> validate_against_node_headroom(account, region)
   end
 
@@ -259,8 +259,8 @@ defmodule Tuist.Kura.EgressLimits do
   # a floor is a scheduler request, and one no node can satisfy leaves the
   # replicas Pending with their volumes pinned to a box they no longer fit. The
   # ceiling reserves nothing and stays settable either way.
-  defp validate_against_node_budget(changeset, %Regions{} = region) do
-    case node_budget_mbps(region) do
+  defp validate_against_node_budget(changeset, %Account{} = account, %Regions{} = region) do
+    case node_budget_mbps(account, region) do
       nil ->
         case Changeset.get_field(changeset, @floor_field) do
           value when is_integer(value) ->
@@ -320,10 +320,20 @@ defmodule Tuist.Kura.EgressLimits do
   end
 
   @doc """
-  The egress budget, in Mbit/s, the region's smallest box advertises, or `nil`
-  when it cannot be read. This is the only bound an override has.
+  What the box this account's instances sit on advertises, or — where they sit
+  on none yet, and the scheduler may place them anywhere — what the region's
+  smallest box advertises. `nil` when neither can be read.
+
+  The named box, not the region's smallest, because the row and its bound
+  describe that box: an account on a 1 Gbit/s box reading "500 Mbps" from a
+  smaller sibling it will never be placed on is describing nothing.
   """
-  def node_budget_mbps(%Regions{id: region_id}), do: Capacity.egress_budget_mbps(region_id)
+  def node_budget_mbps(%Account{} = account, %Regions{id: region_id} = region) do
+    case node_headroom(account, region) do
+      %{allocatable_mbps: allocatable} -> allocatable
+      nil -> Capacity.egress_budget_mbps(region_id)
+    end
+  end
 
   defp governed_region?(region_id) do
     case Regions.fetch(region_id) do

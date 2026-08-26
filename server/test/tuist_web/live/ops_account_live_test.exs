@@ -563,6 +563,27 @@ defmodule TuistWeb.OpsAccountLiveTest do
     refute html =~ "25 / 1500 Mbps"
   end
 
+  # The row's numbers all describe one box, so its limit has to be that box's.
+  # Reading the region's smallest sibling — a box the account will never be
+  # placed on, its volumes being where they are — describes nothing, and reads
+  # as "unknown" whenever that sibling is out of the pool.
+  test "shows the limit of the box the account is on, not the region's smallest", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> nil end)
+
+    stub(Capacity, :egress_headroom, fn "us-east", _handle ->
+      %{node: "roomy", allocatable_mbps: 1000, available_mbps: 430, replicas: 2, boxes: 1}
+    end)
+
+    kura_server(user, "us-east")
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert html =~ "1000 Mbps"
+    assert html =~ "up to 215"
+    refute html =~ "unknown"
+  end
+
   # A split account is bound by its tightest box, which reads as an unexplained
   # drop unless the row says the replicas are not all in one place.
   test "says when an account's replicas are spread across boxes", %{conn: conn, user: user} do
