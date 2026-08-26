@@ -446,6 +446,12 @@ defmodule TuistWeb.Router do
   end
 
   scope "/", TuistWeb do
+    pipe_through [:open_api]
+
+    get "/api/kura/rollout-status", KuraRolloutStatusController, :show
+  end
+
+  scope "/", TuistWeb do
     pipe_through [:open_api, :browser_app, :require_authenticated_user]
 
     get "/agent/identity/claim", AgentAuthController, :protocol_claim_page
@@ -883,6 +889,9 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :ops}
       ] do
       live "/", TuistWeb.OpsCacheLive
+      live "/kura", TuistWeb.OpsKuraLive
+      live "/kura/rollouts", TuistWeb.OpsKuraRolloutsLive
+      live "/kura/rollouts/:id", TuistWeb.OpsKuraRolloutLive
       live "/accounts", TuistWeb.OpsAccountsLive
       live "/accounts/:id", TuistWeb.OpsAccountLive
       live "/accounts/:id/kura/deployments/:deployment_id", TuistWeb.OpsAccountKuraDeploymentLive

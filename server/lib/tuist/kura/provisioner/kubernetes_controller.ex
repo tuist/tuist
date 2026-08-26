@@ -186,6 +186,74 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
+  def rollout_health(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, %{"status" => %{"rolloutHealth" => health}}} when is_map(health) ->
+        {:ok, parse_rollout_health(health)}
+
+      {:ok, _} ->
+        {:ok, nil}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # The controller publishes the aggregate with explicit per-field
+  # semantics (conjunctions, sums with reset clamping, max pressure,
+  # oldest sample); this only normalizes the wire shape. Missing numeric
+  # fields default to 0 and missing booleans to false so an old
+  # controller that publishes a partial aggregate reads as unhealthy
+  # rather than crashing the gate.
+  defp parse_rollout_health(health) when is_map(health) do
+    %{
+      ready: health["ready"] == true,
+      serving: health["serving"] == true,
+      ring_consistent: health["ringConsistent"] == true,
+      backfilling_peers: integer_field(health, "backfillingPeers"),
+      backfill_degraded: health["backfillDegraded"] == true,
+      backfill_budget_exhausted_peers: integer_field(health, "backfillBudgetExhaustedPeers"),
+      outbox_messages: integer_field(health, "outboxMessages"),
+      fd_timeout_count: counter_field(health, "fdTimeoutCount"),
+      peer_connection_failures: counter_field(health, "peerConnectionFailures"),
+      memory_pressure_state: integer_field(health, "memoryPressureState"),
+      sampled_pods: integer_field(health, "sampledPods"),
+      expected_pods: integer_field(health, "expectedPods"),
+      sampled_at: datetime_field(health, "sampledAt")
+    }
+  end
+
+  # The cumulative failure counters are read as `nil` when the aggregate does
+  # not carry them, not as 0. They are the two fields the gate compares a
+  # server against its own pre-upgrade baseline, and a runtime too old to
+  # emit one reports the same absence as a runtime reporting none — recording
+  # that as a baseline of 0 would make the first error after the upgrade read
+  # as a regression from a baseline that was never measured. A `nil` baseline
+  # simply skips the comparison until there is one to make.
+  defp counter_field(health, key) do
+    case Map.get(health, key) do
+      value when is_integer(value) -> value
+      _ -> nil
+    end
+  end
+
+  defp integer_field(health, key) do
+    case Map.get(health, key) do
+      value when is_integer(value) -> value
+      _ -> 0
+    end
+  end
+
+  defp datetime_field(health, key) do
+    with value when is_binary(value) <- Map.get(health, key),
+         {:ok, datetime, _offset} <- DateTime.from_iso8601(value) do
+      datetime
+    else
+      _ -> nil
+    end
+  end
+
+  @impl true
   def current_manifest_revision(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
       {:ok, %{"metadata" => %{"annotations" => %{@manifest_revision_annotation => revision}}}} -> {:ok, revision}
