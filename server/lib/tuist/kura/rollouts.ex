@@ -993,12 +993,32 @@ defmodule Tuist.Kura.Rollouts do
   defp mark_convergences(rollout) do
     timestamp = now()
 
-    converged_ids =
+    scoped =
       RolloutServer
       |> join(:inner, [rs], s in assoc(rs, :kura_server))
-      |> where([rs], rs.kura_rollout_id == ^rollout.id and is_nil(rs.converged_at))
-      |> where([_rs, s], s.observed_image_tag == ^rollout.image_tag)
+      |> where([rs], rs.kura_rollout_id == ^rollout.id)
       |> where([_rs, s], s.status not in ^@terminal_server_statuses)
+
+    converged_ids =
+      scoped
+      |> where([rs], is_nil(rs.converged_at))
+      |> where([_rs, s], s.observed_image_tag == ^rollout.image_tag)
+      |> select([rs], rs.id)
+      |> Repo.all()
+
+    # Convergence is a statement about what the fleet is running now, not a
+    # milestone it passed once. A server can drift back off the target after
+    # it converged — anything that re-applies the manifest from a tag other
+    # than this rollout's overwrites the image, and the instance rolls back
+    # to it. Left latched, the rollout counts that server as converged for
+    # the rest of its life: the wave completes, later waves proceed, and the
+    # rollout reports success while the old image is still serving. Clearing
+    # it holds the wave open instead, so the deadline surfaces an image that
+    # will not stay applied.
+    drifted_ids =
+      scoped
+      |> where([rs], not is_nil(rs.converged_at))
+      |> where([_rs, s], is_nil(s.observed_image_tag) or s.observed_image_tag != ^rollout.image_tag)
       |> select([rs], rs.id)
       |> Repo.all()
 
@@ -1006,6 +1026,12 @@ defmodule Tuist.Kura.Rollouts do
       RolloutServer
       |> where([rs], rs.id in ^converged_ids)
       |> Repo.update_all(set: [converged_at: timestamp, updated_at: timestamp])
+    end
+
+    if drifted_ids != [] do
+      RolloutServer
+      |> where([rs], rs.id in ^drifted_ids)
+      |> Repo.update_all(set: [converged_at: nil, updated_at: timestamp])
     end
 
     :ok

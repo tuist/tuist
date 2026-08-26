@@ -653,6 +653,37 @@ defmodule Tuist.Kura.RolloutsTest do
       :ok
     end
 
+    test "a server that drifts back off the target stops counting as converged" do
+      # Anything that re-applies the manifest from a tag other than this
+      # rollout's overwrites the image and the instance rolls back to it.
+      # A latched convergence would let the wave complete, and every later
+      # wave proceed, while the old image is still serving.
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health()} end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+      assert :ok = Rollouts.sync()
+      assert rollout_server(Repo.get!(Rollout, rollout.id), canary_server).converged_at
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @baseline_tag)
+      assert :ok = Rollouts.sync()
+      refute rollout_server(Repo.get!(Rollout, rollout.id), canary_server).converged_at
+
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).current_wave == 0
+
+      # It counts again once the target is actually what is running.
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+      assert :ok = Rollouts.sync()
+      assert rollout_server(Repo.get!(Rollout, rollout.id), canary_server).converged_at
+    end
+
     test "a wave scoped before the controller published health recovers once it does" do
       # The deploy that ships this rolls the server and the Kura controller
       # together, so a wave can be scoped while no `status.rolloutHealth`
