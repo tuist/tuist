@@ -85,6 +85,29 @@ defmodule Tuist.Kura.OriginsTest do
     end
   end
 
+  describe "traffic_mix/2" do
+    test "reports each origin with the region it maps to, busiest first", %{account: account} do
+      Origins.upsert_many([row(account, "FR", 10, 2), row(account, "US-OR", 30, 1)])
+
+      assert [
+               %{origin: "US-OR", region: "us-west", run_count: 30, demand_count: 1},
+               %{origin: "FR", region: "eu-central", run_count: 10, demand_count: 2}
+             ] = Origins.traffic_mix(account, 14)
+    end
+
+    test "leaves out what fell outside the window", %{account: account} do
+      old = Date.add(Date.utc_today(), -20)
+
+      Origins.upsert_many([row(account, "FR", 1, 0), Map.put(row(account, "SG", 99, 0), :date, old)])
+
+      assert [%{origin: "FR"}] = Origins.traffic_mix(account, 14)
+    end
+
+    test "is empty for an account nothing has been attributed to", %{account: account} do
+      assert Origins.traffic_mix(account, 14) == []
+    end
+  end
+
   defp rollup(account, origin) do
     Repo.get_by(OriginRollup, account_id: account.id, origin: origin, date: Date.utc_today())
   end

@@ -25,7 +25,9 @@ defmodule Tuist.Kura.Origins do
 
   import Ecto.Query
 
+  alias Tuist.Accounts.Account
   alias Tuist.Environment
+  alias Tuist.Kura.OriginMap
   alias Tuist.Kura.OriginRollup
   alias Tuist.Repo
 
@@ -75,6 +77,30 @@ defmodule Tuist.Kura.Origins do
   backfill and the tests write through here; the request path buffers.
   """
   def upsert_many(rows) when is_list(rows), do: upsert_all(rows)
+
+  @doc """
+  The account's traffic mix over the last `days`, one entry per origin with
+  its totals and the region it maps to, busiest first.
+
+  What an operator reads to see the evidence a placement decision was or was
+  not taken on, before any proposal exists to explain it.
+  """
+  def traffic_mix(%Account{id: account_id}, days) do
+    since = Date.add(Date.utc_today(), -(days - 1))
+
+    OriginRollup
+    |> where([rollup], rollup.account_id == ^account_id and rollup.date >= ^since)
+    |> group_by([rollup], rollup.origin)
+    |> select([rollup], %{
+      origin: rollup.origin,
+      run_count: type(sum(rollup.run_count), :integer),
+      demand_count: type(sum(rollup.demand_count), :integer),
+      last_seen_on: max(rollup.date)
+    })
+    |> Repo.all()
+    |> Enum.map(&Map.put(&1, :region, &1.origin |> OriginMap.candidates() |> hd()))
+    |> Enum.sort_by(&{-&1.run_count, -&1.demand_count, &1.origin})
+  end
 
   @impl GenServer
   def init(opts) do

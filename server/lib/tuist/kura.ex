@@ -30,6 +30,7 @@ defmodule Tuist.Kura do
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.EgressLimits
   alias Tuist.Kura.OriginMap
+  alias Tuist.Kura.Origins
   alias Tuist.Kura.PlacementProposal
   alias Tuist.Kura.PlacementProposals
   alias Tuist.Kura.PlacerClaims
@@ -354,6 +355,12 @@ defmodule Tuist.Kura do
   Every region the account is served from, primary first.
   """
   defdelegate placement_regions(account), to: PlacerRegions, as: :all_for
+
+  @doc """
+  Where the account's cache traffic came from over the last `days`, busiest
+  first.
+  """
+  defdelegate placement_traffic_mix(account, days), to: Origins, as: :traffic_mix
 
   @doc """
   The egress floor and ceiling an account's instances in `region` are shaped at,

@@ -491,6 +491,10 @@ defmodule TuistWeb.OpsAccountLive do
   # The rows, the forms and the numbers the rows resolve against move together:
   # an applied proposal re-pins instances and re-resolves their limits, so a
   # table left on the old assign would show values that no longer exist.
+  # Long enough to cover the shortest decision window, so an operator sees the
+  # same evidence the shortest-fused transition reads.
+  @kura_traffic_mix_days 14
+
   defp assign_kura(socket, account) do
     servers = Kura.list_servers_for_account(account.id)
 
@@ -509,6 +513,7 @@ defmodule TuistWeb.OpsAccountLive do
     |> assign(:kura_claim_history, Kura.claim_sizing_history(account, @kura_claim_history_limit))
     |> assign(:kura_disk_usage, Kura.latest_storage_snapshots(account))
     |> assign(:kura_placement_regions, Kura.placement_regions(account))
+    |> assign(:kura_traffic_mix, Kura.placement_traffic_mix(account, @kura_traffic_mix_days))
     |> assign(:kura_placement_proposal, Kura.placement_proposal_for(account))
     |> assign(:kura_placement_history, Kura.placement_history(account, @kura_claim_history_limit))
   end

@@ -118,6 +118,29 @@
           "Placement has recorded nothing for this account; it is served from wherever its instances already are."
         )}
       </p>
+      <.table :if={@kura_traffic_mix != []} id="kura-traffic-mix-table" rows={@kura_traffic_mix}>
+        <:col :let={origin} label={dgettext("dashboard", "Traffic from")}>
+          <.text_cell label={origin.origin} />
+        </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Nearest region")}>
+          <.text_cell label={origin.region} />
+        </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Runs")}>
+          <.text_cell label={Integer.to_string(origin.run_count)} />
+        </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Resolutions")}>
+          <.text_cell label={Integer.to_string(origin.demand_count)} />
+        </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Last seen")}>
+          <.text_cell label={Timex.from_now(origin.last_seen_on)} />
+        </:col>
+      </.table>
+      <p :if={@kura_traffic_mix == []} data-part="kura-traffic-mix-empty">
+        {dgettext(
+          "dashboard",
+          "No cache traffic has been attributed to this account in the last two weeks."
+        )}
+      </p>
     </.card_section>
     <.card_section :if={@kura_placement_proposal}>
       <p data-part="kura-placement-proposal-summary">
