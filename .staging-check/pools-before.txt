@@ -1,0 +1,5 @@
+tuist-tuist-runner-pool-macos-26-0-1|6000|14336|shape-macos-26-0-1|1|1
+tuist-tuist-runner-pool-macos-26-3|6000|14336|shape-macos-26-3|1|1
+tuist-tuist-runner-pool-macos-26-4-1|6000|14336|shape-macos-26-4-1|1|1
+tuist-tuist-runner-pool-macos-26-5|6000|14336|shape-macos-26-5|1|0
+tuist-tuist-runner-pool-macos-26-6|6000|14336|shape-macos-26-6|1|1
