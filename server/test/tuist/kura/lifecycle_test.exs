@@ -1064,6 +1064,45 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(source).status == :active
     end
 
+    test "carries an Enterprise retirement through rather than cancelling it" do
+      # Enterprise is never archived for inactivity, so the drain resolution
+      # cancels any drain it finds on one. A placement retirement is not that
+      # drain: it left this region because its traffic no longer earns a slot
+      # here, which the inactivity rules get no say in.
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      _destination = active_instance_in(account, "eu-central")
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+      assert reload(source).status == :drain_pending
+
+      Lifecycle.reconcile()
+
+      assert reload(source).status == :drain_pending
+      assert reload_lifecycle(account).drain_started_at
+    end
+
+    test "tears the retired instance down once its drain window has elapsed" do
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      _destination = active_instance_in(account, "eu-central")
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+      elapse_drain(account)
+
+      Lifecycle.reconcile()
+
+      assert reload_lifecycle(account).teardown_started_at
+    end
+
     test "drops the placement row once the instance is gone, freeing the region" do
       account = account(plan: :enterprise)
       _destination = active_instance_in(account, "eu-central")

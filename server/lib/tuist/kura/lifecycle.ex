@@ -599,11 +599,21 @@ defmodule Tuist.Kura.Lifecycle do
   # demand came back (cancel) or the drain window elapsed (issue teardown).
   defp reconcile_drain_pending(%Regions{id: region_id}) do
     drain_cutoff = DateTime.add(now(), -Kura.drain_seconds(), :second)
+    draining = region_id |> draining_instances() |> Enum.take(@max_archival_transitions_per_pass)
+    retiring = placement_retirements(region_id, Enum.map(draining, fn {server, _lifecycle} -> server.account_id end))
 
-    region_id
-    |> draining_instances()
-    |> Enum.take(@max_archival_transitions_per_pass)
-    |> Enum.each(&resolve_drain(&1, drain_cutoff))
+    Enum.each(draining, &resolve_drain(&1, drain_cutoff, retiring))
+  end
+
+  # Accounts whose instance in this region is draining because placement
+  # decided to leave it, rather than because the region went quiet.
+  defp placement_retirements(region_id, account_ids) do
+    PlacerRegion
+    |> where([placer], placer.region == ^region_id and placer.status == :retiring)
+    |> where([placer], placer.account_id in ^account_ids)
+    |> select([placer], placer.account_id)
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   defp draining_instances(region_id) do
@@ -621,7 +631,30 @@ defmodule Tuist.Kura.Lifecycle do
     )
   end
 
-  defp resolve_drain({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}, drain_cutoff) do
+  # Two drains reach here with different owners. The inactivity rules get no
+  # say in one they did not start: their cancels both answer "has this account
+  # gone quiet?", and placement left a region for a different reason — its
+  # traffic no longer earns a slot there, which is a judgement about one region
+  # rather than about the account. Enterprise is where the difference bites,
+  # because it is never archived for inactivity and would otherwise cancel
+  # every retirement it was given on the next tick.
+  defp resolve_drain({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}, drain_cutoff, retiring) do
+    if MapSet.member?(retiring, server.account_id) do
+      resolve_placement_retirement(server, lifecycle, drain_cutoff)
+    else
+      resolve_inactivity_drain(server, lifecycle, drain_cutoff)
+    end
+  end
+
+  defp resolve_placement_retirement(server, lifecycle, drain_cutoff) do
+    cond do
+      is_nil(lifecycle.drain_started_at) -> start_drain_clock(lifecycle)
+      drain_window_elapsed?(lifecycle, drain_cutoff) -> start_teardown(server, lifecycle)
+      true -> :ok
+    end
+  end
+
+  defp resolve_inactivity_drain(%Server{} = server, %AccountRegionLifecycle{} = lifecycle, drain_cutoff) do
     plan = Billing.effective_plan(server.account)
 
     cond do
