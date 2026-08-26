@@ -40,7 +40,12 @@ ingressCertificate:
 
 cert-manager:
   enabled: true
-  installCRDs: true
+  # CRDs are reconciled by k8s:install-platform before Helm runs. Keeping
+  # them outside the release prevents Helm from trying to adopt CRDs created
+  # during a recovery bootstrap.
+  installCRDs: false
+  crds:
+    enabled: false
   prometheus:
     enabled: true
 
