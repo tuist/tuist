@@ -262,6 +262,28 @@ defmodule Tuist.Kura.CapacityTest do
       assert %{available_mbps: 500} = Capacity.egress_headroom(@region, "tuist")
     end
 
+    # A box can carry pods of the same account that belong to something else —
+    # another region's instance, or a self-hosted deployment's own. They hold
+    # whatever they hold against the box, but they are not replicas of the
+    # instance being sized, and counting them divides the box by too many. On a
+    # lab node three such pods turned a limit of 500 into one of 200.
+    test "counts as replicas only the account's pods in this region" do
+      stub_egress_nodes(%{"box-1" => 1000})
+
+      stub(Client, :list_pods_on_node, fn "box-1" ->
+        {:ok,
+         [
+           egress_pod("tuist", 200),
+           egress_pod("tuist", 200),
+           egress_pod("tuist", 0, region: "local"),
+           egress_pod("tuist", 0, region: "local"),
+           egress_pod("tuist", 0, region: "local")
+         ]}
+      end)
+
+      assert %{available_mbps: 1000, replicas: 2} = Capacity.egress_headroom(@region, "tuist")
+    end
+
     test "takes the box with least room for the account" do
       stub_egress_nodes(%{"box-1" => 500, "box-2" => 500})
 
@@ -312,9 +334,10 @@ defmodule Tuist.Kura.CapacityTest do
 
   defp egress_pod(handle, mbps, opts \\ []) do
     node = Keyword.get(opts, :node, "box-1")
+    region = Keyword.get(opts, :region, @region)
 
     %{
-      "metadata" => %{"labels" => %{"tuist.dev/account" => handle}},
+      "metadata" => %{"labels" => %{"tuist.dev/account" => handle, "tuist.dev/region" => region}},
       "status" => %{"phase" => "Running"},
       "spec" =>
         Enum.into(if(node, do: %{"nodeName" => node}, else: %{}), %{

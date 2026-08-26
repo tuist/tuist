@@ -111,12 +111,6 @@
         for={@kura_egress_form}
         id="kura-egress-limits-form"
         phx-submit="update_kura_egress_limits"
-        data-confirm={
-          dgettext(
-            "dashboard",
-            "Saving recreates this account's Kura instances in the regions you changed. They keep their volumes and restart one at a time behind the standby, so no cache is lost. Continue?"
-          )
-        }
       >
         <.table id="account-kura-egress-table" rows={@kura_egress_regions}>
           <:col :let={region} label={dgettext("dashboard", "Region")}>
@@ -164,10 +158,21 @@
           title={@kura_egress_result.title}
         />
         <div data-part="actions">
+          <%!-- data-confirm belongs on the button, never on the form: what
+                implements it here is phoenix_html's polyfill, which walks up
+                the DOM from whatever was clicked and confirms on the first
+                ancestor carrying the attribute. On the form that means every
+                click inside it — including into a field — asks the question. --%>
           <.button
             type="submit"
             variant="primary"
             label={dgettext("dashboard", "Save egress limits")}
+            data-confirm={
+              dgettext(
+                "dashboard",
+                "Saving recreates this account's Kura instances in the regions you changed. They keep their volumes and restart one at a time behind the standby, so no cache is lost. Continue?"
+              )
+            }
           />
         </div>
       </.form>

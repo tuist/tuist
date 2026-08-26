@@ -296,8 +296,11 @@ defmodule Tuist.Kura.Capacity do
       |> Enum.filter(&ready?/1)
       |> Enum.reduce_while(%{nodes: %{}, accounts: %{}}, fn node, acc ->
         case {node_name(node), egress_mbps(node)} do
-          {name, mbps} when is_binary(name) and is_integer(mbps) -> measure_node_egress(acc, name, mbps)
-          _ -> {:cont, acc}
+          {name, mbps} when is_binary(name) and is_integer(mbps) ->
+            measure_node_egress(acc, name, mbps, region_id)
+
+          _ ->
+            {:cont, acc}
         end
       end)
       |> case do
@@ -318,7 +321,7 @@ defmodule Tuist.Kura.Capacity do
   # answering from the ones that could — a region reading as roomier than it is
   # would be worse than reading as unknown, which falls back to the advertised
   # budget.
-  defp measure_node_egress(acc, node, allocatable_mbps) do
+  defp measure_node_egress(acc, node, allocatable_mbps, region_id) do
     case Client.list_pods_on_node(node) do
       {:ok, pods} ->
         # The field selector already narrows this to the box, and a pod holds a
@@ -333,7 +336,7 @@ defmodule Tuist.Kura.Capacity do
             reserved_mbps: pods |> Enum.map(&pod_egress_mbps/1) |> Enum.sum()
           })
 
-        {:cont, %{nodes: nodes, accounts: account_egress_placement(pods, acc.accounts)}}
+        {:cont, %{nodes: nodes, accounts: account_egress_placement(pods, acc.accounts, region_id)}}
 
       {:error, _reason} ->
         {:halt, nil}
@@ -343,9 +346,17 @@ defmodule Tuist.Kura.Capacity do
   # Which account each pod belongs to, and what it holds where, accumulated
   # across the region's boxes. Only pods that carry the controller's account
   # label are anybody's — everything else on a box is simply reserved against it.
-  defp account_egress_placement(pods, accounts) do
+  #
+  # Scoped to this region as well as to the account, which the node-wide list no
+  # longer does on its own. A box can carry pods of the same account that belong
+  # to something else — another region's instance, or a self-hosted deployment's
+  # own — and counting those as replicas of the instance being sized divides the
+  # box by too many. Observed on a lab node: three unrelated pods labelled with
+  # the account turned a limit of 500 into one of 200.
+  defp account_egress_placement(pods, accounts, region_id) do
     Enum.reduce(pods, accounts, fn pod, acc ->
       with handle when is_binary(handle) <- pod_account_handle(pod),
+           ^region_id <- pod_region(pod),
            node when is_binary(node) <- pod_node_name(pod) do
         entry = Map.get(acc, handle, %{nodes: %{}, replicas: 0})
 
@@ -371,6 +382,9 @@ defmodule Tuist.Kura.Capacity do
 
   defp pod_account_handle(%{"metadata" => %{"labels" => %{"tuist.dev/account" => handle}}}), do: handle
   defp pod_account_handle(_pod), do: nil
+
+  defp pod_region(%{"metadata" => %{"labels" => %{"tuist.dev/region" => region_id}}}), do: region_id
+  defp pod_region(_pod), do: nil
 
   defp pod_egress_mbps(%{"spec" => %{"containers" => containers}}) when is_list(containers) do
     Enum.reduce(containers, 0, fn container, total -> total + container_egress_mbps(container) end)

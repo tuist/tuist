@@ -367,8 +367,19 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-    assert html =~ "data-confirm"
-    assert html =~ "Saving recreates this account&#39;s Kura instances"
+    # On the button, not the form: phoenix_html implements data-confirm by
+    # walking up from the clicked element, so on the form every click into a
+    # field would ask the question too.
+    button =
+      ~r/<button.*?<\/button>/s
+      |> Regex.scan(html)
+      |> List.flatten()
+      |> Enum.find(&(&1 =~ "Save egress limits"))
+
+    assert button =~ "data-confirm"
+    assert button =~ "Saving recreates this account&#39;s Kura instances"
+
+    refute Regex.run(~r/<form[^>]*id="kura-egress-limits-form"[^>]*data-confirm/, html)
   end
 
   # One Save covers the table, and a typo in one row must not half-apply the
