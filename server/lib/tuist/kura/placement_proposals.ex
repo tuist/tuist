@@ -154,8 +154,25 @@ defmodule Tuist.Kura.PlacementProposals do
       placer_regions: placer_regions,
       open_proposals: open_proposals,
       live_regions: live_regions(account_ids),
+      instance_ages: instance_ages(account_ids),
       relocations: relocation_counts(account_ids, today, policy)
     }
+  end
+
+  # The oldest live instance per account-region, which is how long the account
+  # has actually been served from there.
+  defp instance_ages(account_ids) do
+    Server
+    |> where([server], server.account_id in ^account_ids)
+    |> where([server], server.region in ^public_region_ids())
+    |> where([server], server.status not in ^Tuist.Kura.volumeless_statuses() and server.move_phase == :none)
+    |> group_by([server], [server.account_id, server.region])
+    |> select([server], {server.account_id, server.region, min(server.inserted_at)})
+    |> Repo.all()
+    |> Enum.group_by(&elem(&1, 0), fn {_account_id, region, inserted_at} ->
+      {region, DateTime.to_date(inserted_at)}
+    end)
+    |> Map.new(fn {account_id, entries} -> {account_id, Map.new(entries)} end)
   end
 
   defp converge_account(account, inputs, today, policy) do
@@ -171,6 +188,7 @@ defmodule Tuist.Kura.PlacementProposals do
       primary: primary_from(placer_rows, live),
       serving: serving_from(placer_rows, live),
       retiring: for(row <- placer_rows, row.status == :retiring, do: row.region),
+      held_since: held_since(placer_rows, Map.get(inputs.instance_ages, account.id, %{})),
       relocations_in_window: Map.get(inputs.relocations, account.id, 0),
       today: today
     }
@@ -278,6 +296,13 @@ defmodule Tuist.Kura.PlacementProposals do
   # account not yet reached by the backfill is read from.
   defp serving_from([], live), do: live
   defp serving_from(rows, _live), do: Enum.map(rows, & &1.region)
+
+  # When the account started holding each region. The placement row is the
+  # answer once one exists, and the instance's own age is what an account the
+  # backfill never reached is read from.
+  defp held_since(placer_rows, instance_ages) do
+    Map.merge(instance_ages, Map.new(placer_rows, &{&1.region, DateTime.to_date(&1.inserted_at)}))
+  end
 
   defp primary_from([], live), do: List.first(live)
 

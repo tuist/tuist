@@ -98,6 +98,12 @@ defmodule Tuist.Kura.PlacementTest do
       assert Placement.evaluate(context) == :none
     end
 
+    test "does not relocate an account with nothing to relocate from" do
+      context = context(primary: nil, serving: [], rollups: daily("FR", 30, 20))
+
+      assert Placement.evaluate(context) == :none
+    end
+
     test "does not relocate into a region already retiring" do
       context =
         context(
@@ -242,6 +248,36 @@ defmodule Tuist.Kura.PlacementTest do
       assert Placement.evaluate(context) == :none
     end
 
+    test "does not give up a region younger than the retirement window" do
+      # A region opened on a fortnight's traffic carries less than the
+      # retirement window's worth of runs on the day it opens. Without the age
+      # gate it would be given up immediately and reopened by the same evidence
+      # the next fortnight.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-central"],
+          held_since: %{"eu-central" => Date.add(@today, -14)},
+          rollups: daily("US-VA", 90, 500) ++ daily("FR", 14, 10)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "gives it up once it has had the window and stayed quiet" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-central"],
+          held_since: %{"eu-central" => Date.add(@today, -120)},
+          rollups: daily("US-VA", 90, 500) ++ daily("FR", 14, 10)
+        )
+
+      assert {:retire, "eu-central", _evidence} = Placement.evaluate(context)
+    end
+
     test "the gap between the two floors is what keeps a region from flapping" do
       # A region between the retirement floor and the expansion floor is left
       # exactly as it is, whichever side it is currently on.
@@ -277,6 +313,7 @@ defmodule Tuist.Kura.PlacementTest do
       primary: nil,
       serving: [],
       retiring: [],
+      held_since: %{},
       relocations_in_window: 0,
       today: @today
     })

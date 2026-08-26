@@ -95,6 +95,9 @@ defmodule Tuist.Kura.Placement do
     * `:serving` - every region it holds, primary and retiring ones included
     * `:retiring` - the ones already on their way out, which no transition
       proposes anything further about until they are gone
+    * `:held_since` - when the account started holding each region, so a region
+      younger than the retirement window is not given up before it has had the
+      window to prove itself
     * `:relocations_in_window` - applied relocations inside the cap's window
     * `:today` - the evaluation date
 
@@ -127,6 +130,11 @@ defmodule Tuist.Kura.Placement do
   end
 
   defp relocate(_context, %{relocate: nil}, _runs), do: nil
+
+  # Nothing to relocate from. Reachable only for an account whose every
+  # instance is a warm handoff's transient row, which is not a placement to
+  # move.
+  defp relocate(%{primary: nil}, _plan_policy, _runs), do: nil
 
   defp relocate(context, plan_policy, runs) do
     if context.relocations_in_window >= plan_policy.max_relocations_per_window do
@@ -197,7 +205,10 @@ defmodule Tuist.Kura.Placement do
     # spare region, it does not take an account's cache away.
     context.serving
     |> Enum.reject(&(&1 == context.primary or &1 in context.retiring))
-    |> Enum.filter(&(Map.get(totals, &1, 0) <= rung.max_runs_per_day * rung.window_days))
+    |> Enum.filter(fn region ->
+      held_long_enough?(context, region, rung.window_days) and
+        Map.get(totals, region, 0) <= rung.max_runs_per_day * rung.window_days
+    end)
     |> Enum.min_by(&Map.get(totals, &1, 0), fn -> nil end)
     |> case do
       nil ->
@@ -208,6 +219,19 @@ defmodule Tuist.Kura.Placement do
         total = totals |> Map.values() |> Enum.sum()
 
         {:retire, region, evidence("demand_below_floor", rung, region_runs, total, active_days(runs, region, window))}
+    end
+  end
+
+  # A region cannot have spent the retirement window below the floor if the
+  # account has not held it that long. Without this the two floors do not
+  # actually straddle anything: a region opened on a fortnight's traffic
+  # carries less than the retirement window's worth of runs on the very day it
+  # opens, so it would be given up again immediately and reopened by the same
+  # evidence the next fortnight.
+  defp held_long_enough?(context, region, window_days) do
+    case Map.get(context.held_since, region) do
+      nil -> true
+      held_since -> Date.diff(context.today, held_since) >= window_days
     end
   end
 

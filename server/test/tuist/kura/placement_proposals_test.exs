@@ -187,6 +187,26 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       assert account |> AccountPolicies.serving_regions() |> Enum.sort() == ["eu-central", "us-east"]
     end
 
+    test "does not propose giving up the region it just expanded into" do
+      # End to end on the flapping guard: the fortnight of traffic that opens a
+      # region is less than the retirement window's worth, so without the age
+      # gate the very next sweep would propose closing it again.
+      account = paid_account()
+      insert_server!(account, "us-east")
+      seed_runs(account, "US-VA", 14, 500)
+      seed_runs(account, "FR", 14, 40)
+      {:ok, _summary} = PlacementProposals.sweep(@today)
+
+      {:ok, _outcome} =
+        account |> PlacementProposals.open_proposal_for() |> Kura.apply_placement_proposal("operator@tuist.dev")
+
+      assert account |> PlacerRegions.serving_regions() |> Enum.sort() == ["eu-central", "us-east"]
+
+      {:ok, _second} = PlacementProposals.sweep(@today)
+
+      assert PlacementProposals.open_proposal_for(account) == nil
+    end
+
     test "refuses a proposal whose premises have changed" do
       account = paid_account()
       insert_server!(account, "us-east")
