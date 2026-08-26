@@ -42,6 +42,11 @@ For CI environments that support OpenID Connect (OIDC), Tuist can authenticate a
 
 See the <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> for provider-specific configuration examples.
 
+> [!IMPORTANT]
+> **Self-hosted servers need their own GitHub App**
+>
+> Step 1 requires an installed GitHub App, and a self-hosted Tuist server cannot install the App that runs on `https://tuist.dev`. Register a GitHub App for your deployment and set the `TUIST_GITHUB_APP_*` environment variables first, following <.localized_link href="/guides/server/self-host/server#platform-github">Git platform configuration</.localized_link>. Without a repository connection, the token exchange responds with `No projects linked to the repository`.
+
 ### OIDC token scopes {#oidc-token-scopes}
 
 OIDC tokens are granted the `ci` scope group, which provides access to all projects connected to the repository. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
