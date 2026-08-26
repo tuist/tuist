@@ -91,6 +91,10 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         let serverURL: URL = .test()
         let commandEventID = UUID().uuidString
 
+        given(xcresultToolController)
+            .verifyReadable(.any)
+            .willReturn(())
+
         #if canImport(TuistAppleArchiver)
             // On macOS the result_bundle path goes through AppleArchive, not the zip
             // `FileArchiver`. Stub compress to write an .aar file so the downstream
@@ -253,6 +257,97 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             .init(number: 1, contentLength: 20)
         )
         XCTAssertEqual(gotUploadPartURL, uploadPartURL)
+    }
+
+    func test_uploadResultBundle_warns_when_the_bundle_is_not_readable() async throws {
+        try await withMockedDependencies {
+            // Given
+            let temporaryDirectory = try temporaryPath()
+            let resultBundle = temporaryDirectory.appending(component: "artifact.xcresult")
+            try await FileSystem().makeDirectory(at: resultBundle)
+            let serverURL: URL = .test()
+            let commandEventID = UUID().uuidString
+
+            given(xcresultToolController)
+                .verifyReadable(.value(resultBundle))
+                .willThrow(TestError("item missing for id 0~abc"))
+
+            #if canImport(TuistAppleArchiver)
+                given(appleArchiver)
+                    .compress(
+                        directory: .value(resultBundle),
+                        to: .any,
+                        excludePatterns: .value([]),
+                        preservesBaseDirectory: .value(true)
+                    )
+                    .willProduce { _, archivePath, _, _ in
+                        try Data("fake-aar".utf8).write(to: archivePath.url)
+                    }
+            #else
+                let fileArchiver = MockFileArchiving()
+                given(fileArchiverFactory)
+                    .makeFileArchiver(for: .value([resultBundle]))
+                    .willReturn(fileArchiver)
+                let artifactArchivePath = temporaryDirectory.appending(component: "artifact.zip")
+                try await FileSystem().touch(artifactArchivePath)
+                given(fileArchiver)
+                    .zip(name: .value("artifact"))
+                    .willReturn(artifactArchivePath)
+            #endif
+
+            given(multipartUploadStartAnalyticsService)
+                .uploadAnalyticsArtifact(
+                    .value(.init(type: .resultBundle)),
+                    accountHandle: .any,
+                    projectHandle: .any,
+                    commandEventId: .any,
+                    serverURL: .any
+                )
+                .willReturn("upload-id")
+
+            given(multipartUploadArtifactService)
+                .multipartUploadArtifact(
+                    artifactPath: .any,
+                    generateUploadURL: .any,
+                    updateProgress: .any
+                )
+                .willReturn([(etag: "etag", partNumber: 1)])
+
+            given(multipartUploadCompleteAnalyticsService)
+                .uploadAnalyticsArtifact(
+                    .any,
+                    accountHandle: .any,
+                    projectHandle: .any,
+                    commandEventId: .any,
+                    uploadId: .any,
+                    parts: .any,
+                    serverURL: .any
+                )
+                .willReturn(())
+
+            // When
+            try await subject.uploadResultBundle(
+                resultBundle,
+                fullHandle: "account/project",
+                commandEventId: commandEventID,
+                serverURL: serverURL
+            )
+
+            // Then: the reason the results will be missing is reported locally, and the
+            // upload still happens so the run is not silently dropped.
+            XCTAssertPrinterContains("item missing for id 0~abc", at: .warning, >=)
+            verify(multipartUploadCompleteAnalyticsService)
+                .uploadAnalyticsArtifact(
+                    .any,
+                    accountHandle: .any,
+                    projectHandle: .any,
+                    commandEventId: .any,
+                    uploadId: .any,
+                    parts: .any,
+                    serverURL: .any
+                )
+                .called(1)
+        }
     }
 
     func test_upload_session() async throws {

@@ -208,6 +208,21 @@
             )
         }
 
+        /// The server parses the uploaded bundle with `xcresulttool`, and a bundle
+        /// it cannot read produces a run with no test results. Reporting the tool's
+        /// own reason here puts it in front of whoever ran the tests, on the machine
+        /// that produced the bundle. The upload still runs, so the run reaches the
+        /// server and settles there rather than going missing.
+        private func warnIfResultBundleIsNotReadable(_ resultBundle: AbsolutePath) async {
+            do {
+                try await xcresultToolController.verifyReadable(resultBundle)
+            } catch {
+                Logger.current.warning(
+                    "The result bundle at \(resultBundle.pathString) can't be read, so this run's test results won't be available: \(error)"
+                )
+            }
+        }
+
         public func uploadResultBundle(
             _ resultBundle: AbsolutePath,
             fullHandle: String,
@@ -262,6 +277,7 @@
             let archiveStart = Date()
             switch artifact.type {
             case .resultBundle:
+                await warnIfResultBundleIsNotReadable(passedArtifactPath)
                 #if canImport(TuistAppleArchiver)
                     // AppleArchive (LZFSE) is substantially faster than deflate for xcresult
                     // bundles and skips the pre-copy the zip path needs. The server-side
