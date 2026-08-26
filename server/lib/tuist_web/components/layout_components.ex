@@ -20,7 +20,11 @@ defmodule TuistWeb.LayoutComponents do
       :if={!Map.get(assigns, :support_chat_disabled?, false)}
       defer
       nonce={get_csp_nonce()}
-      src={Tuist.Environment.atlas_support_chat_url() <> "/support/chat.js"}
+      src={
+        URI.parse("https://atlas.tuist.dev")
+        |> URI.append_path("/support/chat.js")
+        |> URI.to_string()
+      }
     >
     </script>
     """

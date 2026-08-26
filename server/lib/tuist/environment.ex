@@ -10,7 +10,6 @@ defmodule Tuist.Environment do
   @dev_all_locales Application.compile_env(:tuist, :dev_all_locales, false)
 
   @runtime_envs ~w(prod can stag preview)
-  @default_atlas_support_chat_url "https://atlas.tuist.dev"
   @default_database_schema "public"
   @postgres_identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/
   @agent_auth_default_trusted_providers [
@@ -1522,17 +1521,6 @@ defmodule Tuist.Environment do
       URI.to_string(%{URI.parse(get_url(:production)) | path: path})
     else
       URI.to_string(%{URI.parse(app_base_url(secrets)) | path: path})
-    end
-  end
-
-  def atlas_support_chat_url(url \\ System.get_env("TUIST_ATLAS_SUPPORT_CHAT_URL")) do
-    case URI.parse(url || @default_atlas_support_chat_url) do
-      %URI{scheme: scheme, host: host} = uri when scheme in ["http", "https"] and is_binary(host) ->
-        URI.to_string(%URI{scheme: scheme, host: host, port: uri.port})
-
-      _ ->
-        raise ArgumentError,
-              "TUIST_ATLAS_SUPPORT_CHAT_URL must be an HTTP or HTTPS origin"
     end
   end
 

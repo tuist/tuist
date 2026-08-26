@@ -6,10 +6,6 @@ defmodule TuistWeb.Components.LayoutComponentsTest do
   alias TuistWeb.LayoutComponents
   alias TuistWeb.Router
 
-  test "normalizes the configured Atlas support chat URL" do
-    assert Tuist.Environment.atlas_support_chat_url("http://localhost:3274/") == "http://localhost:3274"
-  end
-
   test "loads the Atlas support chat and permits it in the content security policy" do
     html = render_component(&LayoutComponents.head_support_chat_script/1, %{})
     content_security_policy = Router.csp_opts(%{})
