@@ -288,29 +288,24 @@ defmodule Tuist.Kura do
   def latest_storage_snapshots(%Account{id: account_id}), do: StorageTelemetry.latest_snapshots(account_id)
 
   @doc """
-  The account's claim override, or `nil` when its plan still decides.
+  The account's operator claim override, or `nil` when sizing decides.
+
+  Reading half of the console-only override pair; see
+  `update_storage_claim_override/2` for why it has no dashboard behind it.
   """
   defdelegate storage_claim_override(account), to: StorageClaims, as: :override_for
 
   @doc """
-  The claim the account's plan gives it, which is what applies when it carries
-  no override.
-  """
-  defdelegate plan_storage_claim(account), to: StorageClaims, as: :plan_claim_size
-
-  @doc """
-  The smallest claim an override may set.
-  """
-  defdelegate minimum_storage_claim, to: Regions
-
-  @doc """
-  Builds a changeset for the ops claim-override form.
-  """
-  defdelegate change_storage_claim_override(account, attrs \\ %{}), to: StorageClaims, as: :change_override
-
-  @doc """
   Sets or clears an account's claim override and applies it to the instances it
   already has running.
+
+  Console-only, deliberately. Claims are sized from measured shedding and
+  occupancy now, so the dashboard form this used to back was removed: an
+  operator typing a number was the thing automatic sizing replaced. What the
+  override still is, is the per-account off switch — an account carrying one
+  is invisible to the sweep — so it survives for the case sizing gets wrong
+  and wants a human answer with a reason attached, reached from a console
+  rather than a button.
 
   Re-pinning the running rows is the whole of "apply this now". The pinned claim
   is what renders into the manifest, so an override that only moved the
