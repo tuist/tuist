@@ -53,9 +53,10 @@ func TestBuild_MacOSScheduling(t *testing.T) {
 	if got, want := pod.Spec.NodeSelector["tuist.dev/fleet"], "fleet-x"; got != want {
 		t.Errorf("nodeSelector fleet = %q, want %q", got, want)
 	}
-	if len(pod.Spec.Tolerations) != 1 || pod.Spec.Tolerations[0].Key != "tuist.dev/macos" {
-		t.Errorf("Tolerations = %+v, want one tuist.dev/macos toleration", pod.Spec.Tolerations)
+	if len(pod.Spec.Tolerations) != 2 || pod.Spec.Tolerations[0].Key != "tuist.dev/macos" {
+		t.Errorf("Tolerations = %+v, want tuist.dev/macos plus the reservation toleration", pod.Spec.Tolerations)
 	}
+	assertReservationToleration(t, pod, "pool-1")
 }
 
 func TestBuild_MacOSGoldenAffinity(t *testing.T) {
@@ -131,13 +132,14 @@ func TestBuild_LinuxScheduling(t *testing.T) {
 	if _, present := pod.Spec.NodeSelector["tuist.dev/runtime"]; present {
 		t.Errorf("nodeSelector should NOT carry tuist.dev/runtime on Linux pools")
 	}
-	if len(pod.Spec.Tolerations) != 1 {
-		t.Fatalf("Tolerations = %+v, want exactly 1 (bare-metal runner-tier)", pod.Spec.Tolerations)
+	if len(pod.Spec.Tolerations) != 2 {
+		t.Fatalf("Tolerations = %+v, want the bare-metal runner-tier plus the reservation toleration", pod.Spec.Tolerations)
 	}
 	tol := pod.Spec.Tolerations[0]
 	if tol.Key != "tuist.dev/runner-tier" || tol.Value != "bare-metal" || tol.Effect != "NoSchedule" {
 		t.Errorf("Toleration = %+v, want {Key:tuist.dev/runner-tier Value:bare-metal Effect:NoSchedule}", tol)
 	}
+	assertReservationToleration(t, pod, "pool-1")
 }
 
 func TestBuild_LinuxMetricsSidecar(t *testing.T) {
@@ -745,4 +747,43 @@ func hasVolume(volumes []corev1.Volume, name string) bool {
 		}
 	}
 	return false
+}
+
+// A runner Pod tolerates a reservation held for its OWN pool and no
+// other, which is what makes a reserved node stop admitting everyone
+// else while the seats it is clearing accumulate.
+func assertReservationToleration(t *testing.T, pod *corev1.Pod, poolName string) {
+	t.Helper()
+
+	for _, tol := range pod.Spec.Tolerations {
+		if tol.Key != ReservationTaintKey {
+			continue
+		}
+		if tol.Value != poolName {
+			t.Errorf("reservation toleration value = %q, want the pool's own name %q", tol.Value, poolName)
+		}
+		if tol.Operator != corev1.TolerationOpEqual {
+			t.Errorf("reservation toleration operator = %q, want Equal so it matches only this pool", tol.Operator)
+		}
+		if tol.Effect != corev1.TaintEffectNoSchedule {
+			t.Errorf("reservation toleration effect = %q, want NoSchedule", tol.Effect)
+		}
+		return
+	}
+	t.Errorf("no %s toleration on the Pod: %+v", ReservationTaintKey, pod.Spec.Tolerations)
+}
+
+func TestReservationValueFallsBackToADigestForUnusableNames(t *testing.T) {
+	long := strings.Repeat("a", 80)
+	got := ReservationValue(long)
+
+	if got == long {
+		t.Fatalf("a name too long for a label value must not be used verbatim")
+	}
+	if len(got) > 63 {
+		t.Fatalf("ReservationValue = %q (%d chars), want a valid label value", got, len(got))
+	}
+	if ReservationValue(long) != got {
+		t.Fatalf("ReservationValue must be deterministic")
+	}
 }

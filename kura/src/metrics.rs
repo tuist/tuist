@@ -41,6 +41,7 @@ pub struct Metrics {
     artifact_writes: Family<ArtifactOpLabels, Counter>,
     artifact_read_bytes: Family<ArtifactOpLabels, Counter>,
     artifact_write_bytes: Family<ArtifactOpLabels, Counter>,
+    artifact_write_size_bytes: Family<ArtifactRouteLabels, Histogram>,
     artifact_egress_completions: Family<ArtifactOpLabels, Counter>,
     artifact_egress_bytes: Family<ArtifactOpLabels, Counter>,
     artifact_egress_duration: Family<ArtifactRouteLabels, Histogram>,
@@ -196,6 +197,7 @@ pub struct Metrics {
     mmap_partial_page_exemptions: Counter,
     promotion_queue_depth: Gauge,
     promotion_failures: Counter,
+    peer_connection_failures: Counter,
     promotion_drops: Family<RefreshTriggerLabels, Counter>,
 }
 
@@ -203,12 +205,14 @@ pub struct Metrics {
 struct RolloutSnapshot {
     outbox_messages: AtomicU64,
     fd_timeout_count: AtomicU64,
+    peer_connection_failure_count: AtomicU64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RolloutMetricsSnapshot {
     pub outbox_messages: u64,
     pub fd_timeout_count: u64,
+    pub peer_connection_failure_count: u64,
 }
 
 /// The limits that can refuse a public request, one label value each.
@@ -274,6 +278,10 @@ impl Metrics {
         let action_cache_cascade_removed = Counter::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
+        let artifact_write_size_bytes =
+            Family::<ArtifactRouteLabels, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_buckets(4096.0, 2.0, 20))
+            });
         let artifact_egress_completions = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_egress_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_egress_duration =
@@ -469,6 +477,7 @@ impl Metrics {
         let mmap_partial_page_exemptions = Counter::default();
         let promotion_queue_depth = Gauge::default();
         let promotion_failures = Counter::default();
+        let peer_connection_failures = Counter::default();
         let promotion_drops = Family::<RefreshTriggerLabels, Counter>::default();
         let process_start_time_seconds = Gauge::<i64>::default();
         process_start_time_seconds.set(
@@ -537,6 +546,11 @@ impl Metrics {
             "kura_artifact_write_bytes_total",
             "Artifact write throughput by producer and result",
             artifact_write_bytes.clone(),
+        );
+        registry.register(
+            "kura_artifact_write_size_bytes",
+            "Size of each stored artifact by producer. For producer=\"module\" this is the per-upload payload that stages to the tmp dir, so its upper quantiles size the staging reserve and the TmpBudget::try_reserve floor",
+            artifact_write_size_bytes.clone(),
         );
         registry.register(
             "kura_artifact_egress_completions_total",
@@ -1249,6 +1263,11 @@ impl Metrics {
             promotion_failures.clone(),
         );
         registry.register(
+            "kura_peer_connection_failures_total",
+            "Peer-plane request failures: outbox replication deliveries and backfill passes that errored against a peer",
+            peer_connection_failures.clone(),
+        );
+        registry.register(
             "kura_promotion_drops_total",
             "Promotions dropped for lack of queue room, by the trigger that queued them",
             promotion_drops.clone(),
@@ -1282,6 +1301,7 @@ impl Metrics {
             action_cache_cascade_removed,
             artifact_read_bytes,
             artifact_write_bytes,
+            artifact_write_size_bytes,
             artifact_egress_completions,
             artifact_egress_bytes,
             artifact_egress_duration,
@@ -1425,6 +1445,7 @@ impl Metrics {
             mmap_partial_page_exemptions,
             promotion_queue_depth,
             promotion_failures,
+            peer_connection_failures,
             promotion_drops,
         };
 
@@ -1544,6 +1565,11 @@ impl Metrics {
             self.artifact_write_bytes
                 .get_or_create(&labels)
                 .inc_by(bytes);
+            self.artifact_write_size_bytes
+                .get_or_create(&ArtifactRouteLabels {
+                    producer: producer.as_str().to_owned(),
+                })
+                .observe(bytes as f64);
         }
     }
 
@@ -1694,6 +1720,16 @@ impl Metrics {
                 operation: operation.to_owned(),
             })
             .observe(duration.as_secs_f64());
+        if result == "error" {
+            self.note_peer_connection_failure();
+        }
+    }
+
+    fn note_peer_connection_failure(&self) {
+        self.peer_connection_failures.inc();
+        self.rollout_snapshot
+            .peer_connection_failure_count
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn record_replication_apply(&self, source: &str, item_type: &str, outcome: &str) {
@@ -1982,6 +2018,11 @@ impl Metrics {
                 event: event.to_owned(),
             })
             .inc();
+        // A pass that failed is a request that errored against a peer, the
+        // successor to the bootstrap-run error the rollout gate used to read.
+        if event == "failed" {
+            self.note_peer_connection_failure();
+        }
     }
 
     pub fn update_backfill_cycle_peers(&self, backfilling: usize, budget_exhausted: usize) {
@@ -2427,6 +2468,10 @@ impl Metrics {
                 .rollout_snapshot
                 .fd_timeout_count
                 .load(Ordering::Relaxed),
+            peer_connection_failure_count: self
+                .rollout_snapshot
+                .peer_connection_failure_count
+                .load(Ordering::Relaxed),
         }
     }
 
@@ -2812,6 +2857,35 @@ mod tests {
     }
 
     #[test]
+    fn module_write_sizes_are_bucketed_by_producer_alone() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        metrics.record_artifact_write(ArtifactProducer::Module, "ok", 21 * 1024 * 1024);
+        metrics.record_artifact_write(ArtifactProducer::Module, "error", 0);
+
+        let rendered = metrics.render();
+        let lines: Vec<&str> = rendered
+            .lines()
+            .filter(|line| line.starts_with("kura_artifact_write_size_bytes"))
+            .collect();
+
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("producer=\"module\""))
+        );
+        // A failed write carries no payload, so it must not land in the zero
+        // bucket and drag the quantiles that size the staging reserve down.
+        assert!(lines.iter().any(
+            |line| line.starts_with("kura_artifact_write_size_bytes_count") && line.ends_with(" 1")
+        ));
+        // The June 2026 series blowup came from a high-cardinality label on a
+        // Kura histogram; the size distribution stays producer-scoped.
+        assert!(lines.iter().all(|line| !line.contains("tenant")
+            && !line.contains("namespace")
+            && !line.contains("result=")));
+    }
+
+    #[test]
     fn render_includes_recorded_metrics() {
         let metrics = Metrics::new("eu-west".into(), "acme".into());
         metrics.record_http("/up".into(), StatusCode::OK, Duration::from_millis(10));
@@ -2954,6 +3028,7 @@ mod tests {
         );
         assert!(rendered.contains("kura_artifact_reads_total"));
         assert!(rendered.contains("kura_artifact_write_bytes_total"));
+        assert!(rendered.contains("kura_artifact_write_size_bytes_bucket"));
         assert!(rendered.contains("kura_artifact_egress_completions_total"));
         assert!(rendered.contains("kura_artifact_egress_bytes_total"));
         assert!(rendered.contains("kura_artifact_egress_duration_seconds"));

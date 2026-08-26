@@ -485,11 +485,20 @@ observability:
   # the platform chart. The chart's embedded observability stack stays off.
   enabled: false
 
-# macOS Profile catalog — shared across every managed env. The
-# catalog (which shapes / Xcode versions exist) doesn't differ per
-# env today; per-env files only declare `xcodeOverrides` keyed by
+# macOS Profile catalog: the baseline shared across every managed
+# env. `xcodeVersions` is an image-matrix fact and is the same
+# everywhere; per-env files declare `xcodeOverrides` keyed by
 # `xcodeVersion`, where they tune `replicas`, pod sizing, and
 # autoscaling for the local fleet.
+#
+# `shapes` is the baseline that EVERY env can run, because a shape is
+# only runnable where a host SKU can fit it and the fleets differ:
+# staging and canary are M2-L only, production also has M4-XL hosts.
+# An env with the bigger SKU overrides this list wholesale (Helm
+# replaces lists rather than merging them). See
+# `values-managed-production.yaml`. Leaving a shape here that an env
+# cannot host would offer it in that env's Profiles dropdown and queue
+# any job picking it forever.
 #
 # - `runner-pool.yaml` iterates `xcodeVersions` here and merges the
 #   matching per-env `xcodeOverrides[<version>]` to render each pool.

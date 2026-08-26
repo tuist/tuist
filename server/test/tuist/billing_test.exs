@@ -10,6 +10,7 @@ defmodule Tuist.BillingTest do
   alias Tuist.Billing.Customer
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Environment
+  alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -1124,6 +1125,83 @@ defmodule Tuist.BillingTest do
       assert Billing.usage_windows(account, period_start, period_end) == {:error, error}
     end
 
+    test "splits the window where a runner trial ended inside it", %{account: account} do
+      # The day a trial is cancelled is reported as one event stamped at
+      # the day's end, which postdates the runner item the cancellation
+      # adds — so Stripe billed the whole day, including the minutes the
+      # trial still covered. Splitting puts those in an event of their
+      # own, stamped before the item existed.
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      trial_end = ~U[2026-07-16 11:15:00Z]
+
+      account = runner_trial_ended(account, trial_end)
+      subscription_with_stripe(account, %{current_period_start: DateTime.to_unix(~U[2026-07-01 00:00:00Z])})
+
+      assert Billing.usage_windows(account, period_start, period_end) ==
+               {:ok,
+                [
+                  {period_start, trial_end},
+                  {trial_end, period_end}
+                ]}
+    end
+
+    test "keeps the window whole when the trial ended outside it", %{account: account} do
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+
+      account = runner_trial_ended(account, ~U[2026-07-12 11:15:00Z])
+      subscription_with_stripe(account, %{current_period_start: DateTime.to_unix(~U[2026-07-01 00:00:00Z])})
+
+      assert Billing.usage_windows(account, period_start, period_end) == {:ok, [{period_start, period_end}]}
+    end
+
+    test "splits at a trial end and a renewal falling in the same window", %{account: account} do
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      renewal = ~U[2026-07-16 06:00:00Z]
+      trial_end = ~U[2026-07-16 18:00:00Z]
+
+      account = runner_trial_ended(account, trial_end)
+      subscription_with_stripe(account, %{current_period_start: DateTime.to_unix(renewal)})
+
+      assert Billing.usage_windows(account, period_start, period_end) ==
+               {:ok,
+                [
+                  {period_start, renewal},
+                  {renewal, trial_end},
+                  {trial_end, period_end}
+                ]}
+    end
+
+    test "splits at a trial end for an account with no subscription", %{account: account} do
+      # Nothing is invoiced for such an account either way, but the split
+      # is the same one the reporting path takes everywhere else, and a
+      # boundary that appears only for subscribers is a boundary that has
+      # to be reasoned about twice.
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      trial_end = ~U[2026-07-16 11:15:00Z]
+
+      account = runner_trial_ended(account, trial_end)
+
+      assert Billing.usage_windows(account, period_start, period_end) ==
+               {:ok,
+                [
+                  {period_start, trial_end},
+                  {trial_end, period_end}
+                ]}
+    end
+
+    defp runner_trial_ended(account, at) do
+      account
+      |> Ecto.Changeset.change(
+        runner_trial_started_at: at |> DateTime.add(-30, :day) |> DateTime.truncate(:second),
+        runner_trial_ended_at: DateTime.truncate(at, :second)
+      )
+      |> Repo.update!()
+    end
+
     defp subscription_with_stripe(account, stripe_attrs, opts \\ []) do
       subscription_id = "sub-#{UUIDv7.generate()}"
 
@@ -1206,14 +1284,14 @@ defmodule Tuist.BillingTest do
       period_end = ~U[2025-01-02 00:00:00Z]
 
       org = AccountsFixtures.organization_fixture()
-      account = Tuist.Repo.get_by!(Account, organization_id: org.id)
-      account = Tuist.Repo.update!(Account.billing_changeset(account, %{customer_id: "cust_" <> UUIDv7.generate()}))
+      account = Repo.get_by!(Account, organization_id: org.id)
+      account = Repo.update!(Account.billing_changeset(account, %{customer_id: "cust_" <> UUIDv7.generate()}))
 
       other_org = AccountsFixtures.organization_fixture()
-      other_account = Tuist.Repo.get_by!(Account, organization_id: other_org.id)
+      other_account = Repo.get_by!(Account, organization_id: other_org.id)
 
       other_account =
-        Tuist.Repo.update!(Account.billing_changeset(other_account, %{customer_id: "cust_" <> UUIDv7.generate()}))
+        Repo.update!(Account.billing_changeset(other_account, %{customer_id: "cust_" <> UUIDv7.generate()}))
 
       # Yesterday usage for target account (should be included)
       {:ok, _} =

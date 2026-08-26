@@ -27,13 +27,9 @@ kubectl create namespace platform
 kubectl -n platform create secret generic cloudflare-api-token \
   --from-literal=api-token="$CLOUDFLARE_API_TOKEN"
 
-# 3. Fetch chart dependencies.
-helm dependency update infra/helm/platform
-
-# 4. Install the platform with the right provider overlay.
-helm upgrade --install platform infra/helm/platform \
-  -n platform \
-  -f infra/helm/platform/values-hetzner.yaml
+# 3. Install the platform through the managed-cluster task. It reconciles the
+# cert-manager custom resource definitions before Helm renders the ClusterIssuer.
+mise -C infra run k8s:install-platform "$KUBECONFIG" tuist-<environment>
 ```
 
 Other clouds can plug in by adding a `values-<provider>.yaml` overlay that
@@ -192,4 +188,4 @@ kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.o
 - The main ingress-nginx LoadBalancer is annotated for Hetzner Cloud (Nuremberg region) by default. Managed Tuist cluster overlays pin it explicitly to `fsn1`, matching the general worker pools; regional Kura LoadBalancers are pinned separately.
 - Production Kura ingress controllers are shared per region. Their LoadBalancers are placed in `fsn1`, `ash`, and `hil` and their pods are pinned to the matching Kura node pools.
 - external-dns is scoped by `txtOwnerId: tuist-platform` — one cluster, one TXT prefix. Run it with `policy: sync` only if you're happy with it deleting DNS records that aren't tracked by any Ingress.
-- cert-manager CRDs are installed by the subchart (`installCRDs: true`). If another tool manages them, turn that off.
+- cert-manager custom resource definitions are reconciled by `k8s:install-platform` before the Helm release. A direct Helm install is supported only after another tool has applied those definitions.

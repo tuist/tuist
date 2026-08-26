@@ -104,7 +104,7 @@ msgstr ""
 msgid "Download macOS app"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:542
+#: lib/tuist_web/components/app_layout_components.ex:548
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr ""
@@ -116,12 +116,12 @@ msgstr ""
 msgid "Error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:557
+#: lib/tuist_web/components/app_layout_components.ex:563
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:535
+#: lib/tuist_web/components/app_layout_components.ex:541
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr ""
@@ -137,7 +137,7 @@ msgstr ""
 msgid "Go to dashboard"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:565
+#: lib/tuist_web/components/app_layout_components.ex:571
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
@@ -160,7 +160,7 @@ msgid "Invalid installation request. Please try again."
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:386
-#: lib/tuist_web/components/app_layout_components.ex:529
+#: lib/tuist_web/components/app_layout_components.ex:535
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr ""
@@ -170,7 +170,7 @@ msgstr ""
 msgid "Learn more"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:523
+#: lib/tuist_web/components/app_layout_components.ex:529
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr ""
@@ -301,7 +301,7 @@ msgstr ""
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:549
+#: lib/tuist_web/components/app_layout_components.ex:555
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr ""
@@ -387,8 +387,8 @@ msgstr ""
 msgid "Too many requests."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:589
-#: lib/tuist_web/components/app_layout_components.ex:632
+#: lib/tuist_web/components/app_layout_components.ex:595
+#: lib/tuist_web/components/app_layout_components.ex:638
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr ""
@@ -635,7 +635,7 @@ msgstr ""
 msgid "Dashboard"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:505
+#: lib/tuist_web/components/app_layout_components.ex:511
 #: lib/tuist_web/live/ops_accounts_live.ex:18
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
@@ -917,6 +917,7 @@ msgstr ""
 msgid "Japan"
 msgstr ""
 
+#: lib/tuist_web/components/app_layout_components.ex:504
 #: lib/tuist_web/live/ops_account_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Kura"
@@ -1432,7 +1433,7 @@ msgstr ""
 msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:517
+#: lib/tuist_web/components/app_layout_components.ex:523
 #: lib/tuist_web/live/ops_database_live.html.heex:3
 #: lib/tuist_web/live/ops_database_live.html.heex:58
 #, elixir-autogen, elixir-format
@@ -1818,7 +1819,7 @@ msgstr ""
 msgid "Usage"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:613
+#: lib/tuist_web/components/app_layout_components.ex:619
 #, elixir-autogen, elixir-format
 msgid "Documentation"
 msgstr ""
@@ -2119,10 +2120,27 @@ msgstr ""
 msgid "%{account} no longer holds any prepaid runner minutes."
 msgstr ""
 
+#: lib/tuist_web/live/ops_kura_rollouts_live.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Kura Rollout History"
+msgstr ""
+
+#: lib/tuist_web/live/ops_kura_live.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Kura Rollouts"
+msgstr ""
+
 #: lib/tuist_web/live/ops_account_live.ex:509
 #, elixir-autogen, elixir-format
 msgid "%{count} days"
 msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "%{count} decision"
+msgid_plural "%{count} decisions"
+msgstr[0] ""
+msgstr[1] ""
 
 #: lib/tuist_web/live/ops_account_live.ex:510
 #, elixir-autogen, elixir-format
@@ -2154,6 +2172,23 @@ msgstr ""
 msgid "Automatic sizing set this account's claim to %{claim}."
 msgstr ""
 
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:23
+#: lib/tuist_web/live/ops_account_live.html.heex:167
+#, elixir-autogen, elixir-format
+msgid "By"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:16
+#: lib/tuist_web/live/ops_account_live.html.heex:160
+#, elixir-autogen, elixir-format
+msgid "Change"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:113
+#, elixir-autogen, elixir-format
+msgid "Disk is sized automatically: the claim grows when the cache starts discarding work sooner than the plan promises to keep it, and shrinks when it goes a long time without filling up. Growing rebuilds volumes one replica at a time behind the standby that keeps serving; shrinking keeps the cache and evicts down."
+msgstr ""
+
 #: lib/tuist_web/live/ops_account_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Disk used"
@@ -2164,9 +2199,30 @@ msgstr ""
 msgid "Dismiss"
 msgstr ""
 
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "History"
+msgstr ""
+
 #: lib/tuist_web/live/ops_account_live.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "No pod has reported its disk in the last week."
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:35
+#, elixir-autogen, elixir-format
+msgid "No sizing decisions"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:522
+#, elixir-autogen, elixir-format
+msgid "Not resolved yet"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:19
+#: lib/tuist_web/live/ops_account_live.html.heex:163
+#, elixir-autogen, elixir-format
+msgid "Outcome"
 msgstr ""
 
 #: lib/tuist_web/live/ops_account_live.html.heex:126
@@ -2179,9 +2235,40 @@ msgstr ""
 msgid "Reported"
 msgstr ""
 
+#: lib/tuist_web/live/ops_account_live.ex:486
+#, elixir-autogen, elixir-format
+msgid "Seen on %{count} day of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
+msgid_plural "Seen on %{count} consecutive days of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/tuist_web/live/ops_account_live.ex:497
+#, elixir-autogen, elixir-format
+msgid "Seen on %{count} day of measurements."
+msgid_plural "Seen on %{count} consecutive days of measurements."
+msgstr[0] ""
+msgstr[1] ""
+
 #: lib/tuist_web/live/ops_account_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Segments"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.ex:24
+#: lib/tuist_web/live/ops_account_live.ex:525
+#, elixir-autogen, elixir-format
+msgid "Sizing"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:3
+#: lib/tuist_web/live/ops_account_live.html.heex:148
+#, elixir-autogen, elixir-format
+msgid "Sizing decisions"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Sizing has not decided anything for this account yet."
 msgstr ""
 
 #: lib/tuist_web/live/ops_account_live.ex:220
@@ -2199,55 +2286,24 @@ msgstr ""
 msgid "Sizing proposes shrinking the disk claim from %{current} to %{recommended}."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:202
+#: lib/tuist_web/live/ops_account_live.ex:474
 #, elixir-autogen, elixir-format
-msgid "The proposal no longer applies; the next sizing sweep re-evaluates the account."
+msgid "The cache in %{region} has not filled past %{peak}% of the disk it reserves, and has discarded nothing."
 msgstr ""
-
-#: lib/tuist_web/live/ops_account_live.ex:505
-#, elixir-autogen, elixir-format
-msgid "unknown"
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_live.html.heex:113
-#, elixir-autogen, elixir-format
-msgid "Disk is sized automatically: the claim grows when the cache starts discarding work sooner than the plan promises to keep it, and shrinks when it goes a long time without filling up. Growing rebuilds volumes one replica at a time behind the standby that keeps serving; shrinking keeps the cache and evicts down."
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_live.ex:486
-#, elixir-autogen, elixir-format
-msgid "Seen on %{count} day of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
-msgid_plural "Seen on %{count} consecutive days of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
-msgstr[0] ""
-msgstr[1] ""
-
-#: lib/tuist_web/live/ops_account_live.ex:497
-#, elixir-autogen, elixir-format
-msgid "Seen on %{count} day of measurements."
-msgid_plural "Seen on %{count} consecutive days of measurements."
-msgstr[0] ""
-msgstr[1] ""
 
 #: lib/tuist_web/live/ops_account_live.ex:464
 #, elixir-autogen, elixir-format
 msgid "The cache in %{region} is discarding work a median of %{shed_age} after it was written, when it should keep everything for at least %{floor}."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:16
-#: lib/tuist_web/live/ops_account_live.html.heex:160
+#: lib/tuist_web/live/ops_account_live.ex:202
 #, elixir-autogen, elixir-format
-msgid "Change"
+msgid "The proposal no longer applies; the next sizing sweep re-evaluates the account."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:19
-#: lib/tuist_web/live/ops_account_live.html.heex:163
+#: lib/tuist_web/live/ops_account_live.html.heex:151
 #, elixir-autogen, elixir-format
-msgid "Outcome"
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_live.ex:474
-#, elixir-autogen, elixir-format
-msgid "The cache in %{region} has not filled past %{peak}% of the disk it reserves, and has discarded nothing."
+msgid "View more"
 msgstr ""
 
 #: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:13
@@ -2262,9 +2318,19 @@ msgstr ""
 msgid "Why"
 msgstr ""
 
+#: lib/tuist_web/live/ops_account_live.ex:517
+#, elixir-autogen, elixir-format
+msgid "applied"
+msgstr ""
+
 #: lib/tuist_web/live/ops_account_live.ex:533
 #, elixir-autogen, elixir-format
 msgid "discarding work after %{shed_age}, target %{floor}"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:518
+#, elixir-autogen, elixir-format
+msgid "dismissed"
 msgstr ""
 
 #: lib/tuist_web/live/ops_account_live.ex:540
@@ -2277,67 +2343,12 @@ msgstr ""
 msgid "superseded"
 msgstr ""
 
+#: lib/tuist_web/live/ops_account_live.ex:505
+#, elixir-autogen, elixir-format
+msgid "unknown"
+msgstr ""
+
 #: lib/tuist_web/live/ops_account_live.ex:520
 #, elixir-autogen, elixir-format
 msgid "waiting"
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:23
-#: lib/tuist_web/live/ops_account_live.html.heex:167
-#, elixir-autogen, elixir-format
-msgid "By"
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_live.ex:522
-#, elixir-autogen, elixir-format
-msgid "Not resolved yet"
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_kura_sizing_live.ex:24
-#: lib/tuist_web/live/ops_account_live.ex:525
-#, elixir-autogen, elixir-format
-msgid "Sizing"
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_live.ex:517
-#, elixir-autogen, elixir-format
-msgid "applied"
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_live.ex:518
-#, elixir-autogen, elixir-format
-msgid "dismissed"
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:6
-#, elixir-autogen, elixir-format
-msgid "%{count} decision"
-msgid_plural "%{count} decisions"
-msgstr[0] ""
-msgstr[1] ""
-
-#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:10
-#, elixir-autogen, elixir-format
-msgid "History"
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:3
-#: lib/tuist_web/live/ops_account_live.html.heex:148
-#, elixir-autogen, elixir-format
-msgid "Sizing decisions"
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:37
-#, elixir-autogen, elixir-format
-msgid "Sizing has not decided anything for this account yet."
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_live.html.heex:151
-#, elixir-autogen, elixir-format
-msgid "View more"
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:35
-#, elixir-autogen, elixir-format
-msgid "No sizing decisions"
 msgstr ""

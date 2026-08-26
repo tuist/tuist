@@ -1454,11 +1454,6 @@ msgstr ""
 msgid "Test reliability"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:787
-#, elixir-autogen, elixir-format
-msgid "When test reliability across branches %{symbol} %{threshold}% over %{window}"
-msgstr ""
-
 #: lib/tuist_web/live/project_notifications_live.ex:621
 #, elixir-autogen, elixir-format
 msgid "Branch is required."
@@ -1780,4 +1775,9 @@ msgstr ""
 #: lib/tuist_web/live/project_bundle_settings_live.ex:261
 #, elixir-autogen, elixir-format
 msgid "That is not a valid GitHub username."
+msgstr ""
+
+#: lib/tuist_web/live/project_automations_live.ex:787
+#, elixir-autogen, elixir-format
+msgid "When test reliability on the default branch %{symbol} %{threshold}% over %{window}"
 msgstr ""

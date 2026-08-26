@@ -341,6 +341,22 @@ kuraRuntime:
   image:
     repository: ghcr.io/tuist/kura
     tag: ""
+  rollout:
+    # Image tag the deploy explicitly asks to expedite (all-at-once
+    # fan-out at rollout creation, for rollbacks to a tag that already
+    # completed a rollout in the environment). Set per deploy via the
+    # workflow's kura_expedite input — never committed — and matched
+    # against exactly this tag so it cannot leak onto a later rollout.
+    expediteTag: ""
+    # Webhook the rollout lifecycle posts to (start, pause with the failing
+    # signal, completion, supersede, expedite). Context only — Grafana is the
+    # paging authority — so an unset secret leaves the notifications off
+    # rather than failing anything. Point it at a Secret carrying the URL;
+    # it is deliberately not a plain value, since a webhook URL is a
+    # credential.
+    opsSlackWebhookSecret:
+      name: ""
+      key: ops-slack-webhook-url
   # An optional per-release KuraInstance, rendered into `instance.namespace`
   # (the cluster-wide namespace the controller watches). Off by default:
   # managed environments provision Kura through the server's reconciler, which
@@ -1991,10 +2007,58 @@ runnersFleet:
   # to `machineGroups` therefore changes capacity, not the catalog —
   # and `memoryGb` here is the divisor the autoscaler uses to turn a
   # host's advertised memory into guest slots.
+  #
+  # Every entry renders one pool per `xcodeVersions` entry. Exactly one
+  # entry must carry `default: true`. That one keeps the shape-free pool
+  # name `<release>-runner-pool-macos-<xcode-dashes>`; the others append
+  # `-<vcpus>vcpu-<gb>gb`. So the default shape is not just a preselect
+  # in the profile form: changing which entry carries it renames live
+  # pools, and a `queued` job's `fleet_name` names the pool a runner
+  # claims it from. Don't move it on a fleet with traffic.
+  #
+  # Two constraints bound what can go in this list, and neither is
+  # enforced by the chart:
+  #
+  #   1. Keep `memoryGb / vcpus` equal across shapes, and equal to a
+  #      host group's `hostMemoryMB / hostCPU`. The autoscaler's macOS
+  #      budget is the fleet's advertised memory divided by a pool's
+  #      `podMemoryMB`, which only equals what kube-scheduler will place
+  #      when memory is the dimension that binds guest count on every
+  #      host. A shape with more memory per vCPU than the host
+  #      advertises forces `hostMemoryMB` up, at which point CPU binds
+  #      instead and the budget over-counts every SMALLER shape's slots,
+  #      producing Pods the allocator keeps asking for and the scheduler
+  #      never places. At the M2-L's 6 vCPU / 14 GB that ratio is
+  #      2389 MB per vCPU, which is what makes 12 vCPU / 28 GB the
+  #      consistent way to sell an M4-XL's cores.
+  #   2. A shape larger than the smallest host in the fleet is
+  #      over-promised by that same fleet-wide sum, since it counts
+  #      memory on hosts too small to place it. The runners-controller
+  #      corrects for this by counting each node's own min(cpu, memory)
+  #      quotient and capping every pool sharing the shape at that sum,
+  #      which `autoscaling.maxReplicas` cannot do on its own — it is
+  #      per pool, and a shape renders one pool per Xcode version. Still
+  #      set `maxReplicas` to the number of hosts that can seat the
+  #      shape, as the per-pool bound.
+  #
+  # Which SKUs a given environment owns is therefore part of what its
+  # catalog can offer, so managed envs override this list per env rather
+  # than sharing one. See `values-managed-common.yaml`.
   shapes:
     - vcpus: 6
       memoryGb: 14
       default: true
+    # A non-default entry may carry its own `autoscaling` block, which
+    # is the only place a shape's scaling is configured (`xcodeOverrides`
+    # tunes the default shape's pools). Without one the pool renders
+    # static at replicas 0.
+    #
+    # - vcpus: 12
+    #   memoryGb: 28
+    #   autoscaling:
+    #     enabled: true
+    #     minWarmPoolFloor: 0
+    #     maxReplicas: 2          # hosts that can fit it, not fleet slots
   # macOS Xcode catalog. Each entry renders a `RunnerPool` CR named
   # `<release>-runner-pool-macos-<xcode-dashes>` with image
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.

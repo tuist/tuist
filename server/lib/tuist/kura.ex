@@ -31,6 +31,7 @@ defmodule Tuist.Kura do
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.Rollouts
   alias Tuist.Kura.Server
   alias Tuist.Kura.StorageTelemetry
   alias Tuist.Repo
@@ -115,8 +116,12 @@ defmodule Tuist.Kura do
   def version_label(image_tag) when is_binary(image_tag), do: image_tag
 
   @doc """
-  Creates deployments for active Kura servers that are behind the
-  latest released Kura runtime image tag.
+  Creates deployments for active Kura servers that are behind the latest
+  released Kura runtime image tag, a bounded batch per tick. This is the
+  kill-switch fallback used when
+  `Tuist.FeatureFlags.kura_rollout_orchestration_enabled?/0` is off; the
+  health-gated wave machinery lives in `Tuist.Kura.Rollouts`, and it
+  replaces the at-most-once invariant below with rollout-scoped attempts.
 
   Each `(server, image_tag)` pair is scheduled at most once. A newer image
   supersedes an open deployment for an older image so a rollout that cannot
@@ -427,7 +432,10 @@ defmodule Tuist.Kura do
   `attrs` keys: `:account_id`, `:region`, `:image_tag`.
   """
   def create_server(attrs) do
-    attrs = normalize_attrs(attrs)
+    attrs =
+      attrs
+      |> normalize_attrs()
+      |> inherit_rollout_image_tag()
 
     with {:ok, region} <- fetch_region(attrs[:region]),
          {:ok, account} <- sizing_account(attrs),
@@ -461,6 +469,16 @@ defmodule Tuist.Kura do
       %{}
     end
   end
+
+  # Servers created mid-rollout inherit their account's wave state (the
+  # rollout's baseline tag until the wave completes, the target after)
+  # instead of jumping straight to whatever tag the caller resolved. See
+  # `Tuist.Kura.Rollouts.provisioning_image_tag/2`.
+  defp inherit_rollout_image_tag(%{account_id: account_id, image_tag: image_tag} = attrs) when is_binary(image_tag) do
+    %{attrs | image_tag: Rollouts.provisioning_image_tag(account_id, image_tag)}
+  end
+
+  defp inherit_rollout_image_tag(attrs), do: attrs
 
   defp validate_provisioner_node_ref(account, ref) do
     cond do
@@ -1376,6 +1394,14 @@ defmodule Tuist.Kura do
   history is visible in /ops alongside the retry.
   """
   def retry_server(%Server{status: :failed, current_image_tag: nil} = server, image_tag) when is_binary(image_tag) do
+    # A retry re-provisions from scratch, so it inherits the account's
+    # rollout wave state exactly like a fresh server does in
+    # `create_server/1`: the baseline tag until the account's wave
+    # completes, the target after. Resolved here rather than at each call
+    # site — the dashboard's Retry actions pass the configured runtime tag,
+    # which during a paused rollout is the tag flagged suspect.
+    image_tag = Rollouts.provisioning_image_tag(server.account_id, image_tag)
+
     with {:ok, region} <- Regions.fetch(server.region),
          {:ok, server} <- retry_server_transaction(server, region, image_tag) do
       server = Repo.preload(server, :deployments, force: true)
@@ -1684,20 +1710,35 @@ defmodule Tuist.Kura do
   ## Deployments
 
   @doc """
-  Inserts a `Deployment` record for the reconciler to apply.
+  Inserts a `Deployment` record for the reconciler to apply. Pass
+  `rollout_id:` to attribute the deployment to the rollout that minted it
+  (see `Tuist.Kura.Rollouts`).
   """
-  def create_deployment(%Server{} = server, image_tag) when is_binary(image_tag) do
+  def create_deployment(%Server{} = server, image_tag, opts \\ []) when is_binary(image_tag) do
     with {:ok, region} <- Regions.fetch(server.region) do
-      Repo.transaction(fn ->
-        locked_server = lock_server_or_rollback(server)
+      # No `Repo.rollback/1` on the expected error paths, unlike the other
+      # deployment writers here. Callers run this inside a transaction of
+      # their own — `Tuist.Kura.Rollouts` mints deployments while holding
+      # the rollout row lock — and a nested rollback is not isolated: it
+      # aborts the outer transaction, so the caller's `{:error, reason}`
+      # arm never runs and its next statement raises, taking the rest of
+      # the reconcile tick with it. Nothing is written before the guards,
+      # so returning the error leaves the caller's transaction intact and
+      # releases the row lock when it commits.
+      case Repo.transaction(fn -> insert_locked_deployment(server, region, image_tag, opts) end) do
+        {:ok, inner} -> inner
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
 
-        with :ok <- ensure_no_open_deployment(locked_server.id),
-             {:ok, deployment} <- insert_deployment(locked_server, region, image_tag) do
-          deployment
-        else
-          {:error, reason} -> Repo.rollback(reason)
-        end
-      end)
+  defp insert_locked_deployment(server, region, image_tag, opts) do
+    with %Server{} = locked_server <- lock_server(server.id, server.account_id),
+         :ok <- ensure_no_open_deployment(locked_server.id) do
+      insert_deployment(locked_server, region, image_tag, opts)
+    else
+      nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -1772,11 +1813,12 @@ defmodule Tuist.Kura do
     end)
   end
 
-  defp insert_deployment(%Server{} = server, region, image_tag) do
+  defp insert_deployment(%Server{} = server, region, image_tag, opts \\ []) do
     %{
       cluster_id: deployment_cluster_id(region),
       image_tag: image_tag,
-      kura_server_id: server.id
+      kura_server_id: server.id,
+      kura_rollout_id: opts[:rollout_id]
     }
     |> Deployment.create_changeset()
     |> Repo.insert()
