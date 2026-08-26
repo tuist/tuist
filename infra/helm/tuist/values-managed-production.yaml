@@ -1158,11 +1158,19 @@ runnersFleet:
   # pegged all 6 vCPUs. Cores are the constraint; 28 GB is already 2.7x
   # the largest working set ever measured.
   #
-  # NO PRICE ATTACHED YET. A 12 vCPU guest takes the whole M4-XL
-  # (12 of 12 advertised cores), so it costs EUR 0.49/h against EUR
-  # 0.245 for a 6 vCPU slot on the same host: 2x the cost for 2x the
-  # billing multiplier, which is coincidence, not a pricing decision.
-  # Settle the rate card before this is offered to accounts.
+  # Priced at 2x the baseline, which is exactly what that multiplier
+  # already produces: $0.15 per machine-minute on demand and $0.12
+  # prepaid, against $0.075 / $0.06 for the 6 vCPU shape. No Stripe
+  # work is needed for it. Usage is reported gross into the single
+  # macOS meter weighted by `Catalog.billing_multiplier/3`, and prepaid
+  # is a money-denominated credit grant rather than a minutes ledger,
+  # so a new shape prices itself and the 1.25x funding ratio is
+  # untouched (see `Tuist.Runners.Prepaid`).
+  #
+  # Cost tracks it: a 12 vCPU guest takes the whole M4-XL, EUR 0.49/h
+  # against EUR 0.245 for a 6 vCPU slot on the same host. Revenue and
+  # cost both double, so the margin matches the baseline shape's on
+  # this SKU.
   shapes:
     - vcpus: 6
       memoryGb: 14
