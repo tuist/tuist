@@ -1,10 +1,8 @@
 defmodule Tuist.Kura.StorageRollups do
   @moduledoc """
-  Maintains the day-grain Postgres rollups claim sizing reads, from the raw
-  ClickHouse telemetry Kura nodes deliver. The sweep refreshes a trailing
-  range every run, so today's row converges as the day accumulates and a
-  late-delivered batch (nodes retry with at-least-once semantics) lands on
-  the next refresh.
+  Maintains the day-grain Postgres rollups claim sizing reads. The sweep
+  refreshes a trailing range every run, so today's row converges as the day
+  accumulates and late-delivered batches land on the next refresh.
   """
 
   import Ecto.Query
@@ -60,9 +58,7 @@ defmodule Tuist.Kura.StorageRollups do
     |> Repo.all()
   end
 
-  # Every row carries the full column set (insert_all needs homogeneous
-  # keys): a day with only evictions has nil snapshot columns and vice versa,
-  # which is exactly the shape the policy reads.
+  # Homogeneous keys: `insert_all` requires them.
   defp merge_aggregates(evictions, snapshots) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 

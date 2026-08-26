@@ -1,9 +1,7 @@
 defmodule Tuist.Kura.ClaimProposal do
   @moduledoc """
-  A claim change the sizing sweep wants for an account, carried through the
-  rollout phases as one record: written and left open (shadow), confirmed by
-  an operator (supervised), or applied by the sweep itself (automatic).
-  Resolved proposals are the audit trail of what sizing did and why.
+  A claim change the sizing sweep wants, carried through every rollout phase
+  as one record. Resolved proposals are the audit trail.
   """
 
   use Ecto.Schema

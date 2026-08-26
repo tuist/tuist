@@ -1,9 +1,7 @@
 defmodule Tuist.Kura.PlacerClaims do
   @moduledoc """
-  Reads and writes the claims automatic sizing chose. Sits below the operator
-  override in `Tuist.Kura.StorageClaims.effective_claim_size/1` and above the
-  plan constant; an account with an operator override is invisible to sizing,
-  so a row here only ever takes effect for unoverridden accounts.
+  The claims automatic sizing chose. Below the operator override and above the
+  plan constant in `Tuist.Kura.StorageClaims.effective_claim_size/1`.
   """
 
   alias Tuist.Accounts.Account

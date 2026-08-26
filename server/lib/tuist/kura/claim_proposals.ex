@@ -1,16 +1,11 @@
 defmodule Tuist.Kura.ClaimProposals do
   @moduledoc """
-  Runs the claim sizing sweep and keeps its proposal records.
+  Runs the claim sizing sweep and keeps its proposal records: a fresh
+  recommendation opens a proposal, a changed one supersedes it, a withdrawn
+  one closes it. Applying is `Tuist.Kura.apply_claim_proposal/2`.
 
-  The sweep evaluates every account with live instances in storage-governed
-  regions through `Tuist.Kura.ClaimSizing` and converges the proposal set:
-  a fresh recommendation opens a proposal, a changed one supersedes the open
-  one, a withdrawn one closes it. Acting on a proposal is not this module's
-  job — `Tuist.Kura.apply_claim_proposal/2` is, whether an operator confirmed
-  it or the automatic flag let the sweep call it directly.
-
-  Accounts with an operator claim override are invisible to the sweep; the
-  override is the per-account off switch for everything here.
+  An operator claim override makes an account invisible here, which is the
+  per-account off switch.
   """
 
   import Ecto.Query
@@ -63,11 +58,8 @@ defmodule Tuist.Kura.ClaimProposals do
   end
 
   @doc """
-  How many proposals the sweep applied on its own since `datetime`. The
-  unattended-resize budget is measured against this, so the bound is a rate
-  rather than a per-pass count and does not move when the sweep's cadence
-  does. Operator applies are excluded: the budget guards what happens with
-  nobody watching.
+  How many proposals the sweep applied on its own since `datetime`. Operator
+  applies are excluded: the budget guards what happens unattended.
   """
   def automatic_applies_since(%DateTime{} = datetime) do
     ClaimProposal
@@ -83,9 +75,6 @@ defmodule Tuist.Kura.ClaimProposals do
     end
   end
 
-  # One set-based query per input kind rather than several queries per
-  # account: the sweep's cost then scales with the result sizes instead of
-  # the account count.
   defp sweep_inputs(accounts, today, policy) do
     account_ids = Enum.map(accounts, & &1.id)
     governed = governed_region_ids()
@@ -118,8 +107,7 @@ defmodule Tuist.Kura.ClaimProposals do
     open = Map.get(inputs.open_proposals, account.id)
     placer_claim = Map.get(inputs.placer_claims, account.id)
 
-    # Sizeable accounts carry no operator override, so the effective claim is
-    # the sized claim or the plan's, resolvable from the batched inputs.
+    # No operator override here, so the claim resolves from the batched inputs.
     current = (placer_claim && placer_claim.claim_size) || StorageClaims.plan_claim_size(account)
 
     context = %{
@@ -167,10 +155,7 @@ defmodule Tuist.Kura.ClaimProposals do
     resolve_if_open(proposal, :superseded, resolved_by)
   end
 
-  # The caller's struct can be stale: an apply may have resolved the proposal
-  # between the read and this write, and writing through the struct would
-  # overwrite whichever resolution won the race. Resolving is therefore a
-  # conditional update keyed on the row still being open.
+  # The caller's struct can be stale, so resolution is conditional on the row.
   defp resolve_if_open(%ClaimProposal{id: id}, status, resolved_by) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
@@ -184,9 +169,6 @@ defmodule Tuist.Kura.ClaimProposals do
     end
   end
 
-  # Accounts with a non-volumeless instance in a storage-governed region and
-  # no operator override. Only there does a claim govern disk, and an
-  # override means a human already decided.
   defp sizeable_accounts do
     governed = governed_region_ids()
 
@@ -198,11 +180,7 @@ defmodule Tuist.Kura.ClaimProposals do
       |> select([server, account], account)
       |> distinct(true)
       |> Repo.all()
-      # Preloaded because `Tuist.Billing.effective_plan/1` resolves from a
-      # loaded list without touching the database and queries per account
-      # without one. The sweep asks every account for its plan on every pass,
-      # so unloaded that is the one part of it whose cost scales with both the
-      # account count and the tick rate.
+      # `Billing.effective_plan/1` queries per account without this.
       |> Repo.preload(subscriptions: active_subscriptions())
 
     overridden =
@@ -215,15 +193,12 @@ defmodule Tuist.Kura.ClaimProposals do
     Enum.reject(accounts, &MapSet.member?(overridden, &1.id))
   end
 
-  # Only the rows `effective_plan/1` looks at, so the preload stays bounded by
-  # what an account currently holds rather than by everything it ever held.
   defp active_subscriptions do
     from(subscription in Subscription, where: subscription.status in ["active", "trialing"])
   end
 
-  # Governance is a property of the region's configuration, not of which
-  # regions the runtime exposes: an instance row in a storage-governed region
-  # is sizeable wherever the control plane runs.
+  # Region configuration, not runtime availability: a governed region is
+  # sizeable wherever the control plane runs.
   defp governed_region_ids do
     Regions.all()
     |> Enum.filter(&Regions.storage_governed?/1)

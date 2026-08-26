@@ -1,67 +1,17 @@
 defmodule Tuist.Kura.ClaimSizing do
   @moduledoc """
-  The pure decision core of automatic claim sizing: one account's day-grain
-  storage rollups in, at most one recommended claim change out.
+  Decides one account's disk claim from its storage rollups. Pure: rollups in,
+  at most one recommended change out.
 
-  The driving metric is shed age — how soon after being written an artifact
-  was evicted under size pressure. One retention floor applies to every plan:
-  content younger than it being shed means the claim is too small, and the
-  ring span at eviction says how much history the current claim buys, which
-  is what the grow target is projected from. The shrink signal is occupancy:
-  an oversized ring never fills and never evicts, so evictions alone cannot
-  show it.
+  Growth is driven by shed age (how soon after being written content was
+  evicted), shrinking by occupancy, because an oversized ring never evicts and
+  so produces no shed age at all. Confirmation scales with severity: the worse
+  the shedding, the shorter the window, and the shortest rungs are bought with
+  evicted volume rather than elapsed time.
 
-  Plans do not get different sizing behaviour, only different room. Every
-  account is measured against the same promise and confirmed on the same
-  ladder; the ceiling is where a plan changes the answer, by bounding how
-  far the claim may grow to keep that promise.
-
-  Growth confirmation scales with severity rather than being a fixed wait.
-  A confirmation window exists to rule out noise, and how much confirmation a
-  reading needs depends on how bad it is: a ring shedding just under its
-  floor is a marginal reading that could be a busy fortnight, while a ring
-  shedding at a small fraction of its floor is unambiguous and costs the
-  customer a rebuild of everything it drops in the meantime. The ladder is
-  ordered shortest window first and the first qualifying rung decides.
-
-  Severity is read two ways. The fractional arm tracks the floor, so
-  recalibrating the promise moves the ladder with it. The absolute arm does
-  not move: content that does not survive a working day is extreme however
-  the floor is tuned, and the backstop should not drift when an operator
-  changes what the floor means.
-
-  A window is counted in rollup rows, and one row is one UTC calendar day of
-  telemetry for one account-region: the grain `Tuist.Kura.StorageRollups`
-  aggregates to, not a promise about elapsed time. Today's row is live,
-  recomputed from the raw telemetry on every sweep, so a one-row window reads
-  however much of today has happened. `window_days: 2` therefore means "the
-  signal held on two consecutive dates", which can be anything from minutes
-  either side of a midnight to a full two days. Anywhere a duration is what
-  the reader actually wants — an operator looking at a proposal, a threshold
-  in this policy — say the duration; rows are the mechanism, not the unit.
-
-  The shortest rungs are bought with volume rather than elapsed time, which
-  is what makes the ladder react faster the worse things get. They ask for
-  evicted bytes worth a multiple of the whole claim, and because a ring turns
-  over about once per span of content it holds, that proof accumulates at the
-  rate the account is actually thrashing: a ring shedding at half an hour
-  proves a full turnover in about an hour, one shedding at eight hours takes
-  most of a day. Response time falls out of severity without another rung to
-  tune, and the real latency floor is the sweep interval rather than the
-  calendar.
-
-  Shrinking keeps its long single window on purpose: an oversized ring costs
-  a reclaimable slot and nobody's build, so there is no urgency to trade
-  confidence for.
-
-  The rest is hysteresis: steps are clamped to at most double or halve, and
-  targets are bounded by the per-plan ceiling and the validated minimum
-  claim. Consecutive resizes are paced by the evidence itself rather than a
-  flat cooldown: only days after the last resize count, both because they are
-  the only days that measure the ring the current claim actually bought, and
-  so each direction waits exactly its own window. Purity is what makes the
-  shadow phase free: the sweep evaluates every account and stores the output,
-  and acting on it is a separate decision.
+  Windows count rollup rows, one row being one UTC day per account-region.
+  Today's row is live, so a one-row window can be satisfied in minutes. Rows
+  are the mechanism; give any reader a duration.
   """
 
   alias Tuist.Kura.Regions
@@ -70,44 +20,10 @@ defmodule Tuist.Kura.ClaimSizing do
   @seconds_per_day 86_400
 
   @default_policy %{
-    # One promise for every plan: a cache should hold what was written to it
-    # for at least this long before size pressure can take it. What a plan
-    # buys is how far the claim may grow to keep that promise, not a weaker
-    # version of it, so this is a single value and the ceiling below is where
-    # the plans differ.
     retention_floor_days: 3,
-    # Air and Pro share a ceiling: a free account's working set is not smaller
-    # for being free, and capping it lower would have made the shared promise
-    # unkeepable for exactly the accounts with the least room to absorb the
-    # churn. What still separates them is where they start (Air at the
-    # validated minimum) and how many confirmed steps it takes to get here.
-    #
-    # Powers of two, matching the starting constants in `Tuist.Kura.Regions`,
-    # because a step is clamped at twice the current claim: a ladder of
-    # doubles lands exactly on each ceiling, while an off-ladder value leaves
-    # a final step mostly clamped away.
     ceiling: %{air: "64Gi", pro: "64Gi", enterprise: "256Gi"},
-    # The confirmation ladder, ordered shortest window first, so the most
-    # severe rung a reading satisfies is the one that decides it.
-    #
-    # `shed_age_under` is either `{:seconds, n}` or `{:floor_fraction, f}`.
-    # The fractional arm moves with the floor when the floor is recalibrated;
-    # the absolute arm deliberately does not, so "gone before the next
-    # morning's build" stays extreme whatever the floor is tuned to.
-    #
-    # `min_ring_turnover` is what buys the single-day rungs: evicted bytes
-    # worth this many times the whole claim. Today's rollup is live, so those
-    # rungs fire as soon as the loss proves itself, and cannot fire at all on
-    # a thin day that only looks alarming.
-    #
-    # The required volume relaxes as the shed age gets worse, because the two
-    # are evidence of the same thing and the shed age is the stronger half.
-    # An hour of retention already rules out ordinary operation, so one full
-    # ring lost confirms it; eight hours is bad but survivable long enough to
-    # be a heavy week, so that rung wants two. Since a ring turns over about
-    # once per span it holds, this is also what keeps the reaction time
-    # proportional: an hour-old ring proves a single turnover in about an
-    # hour, not in the two it would need at the lower rung.
+    # Ordered shortest window first; the first rung a reading satisfies wins.
+    # The absolute arm does not move when the floor is recalibrated.
     grow_windows: [
       %{shed_age_under: {:seconds, 3_600}, window_days: 1, min_ring_turnover: 1.0},
       %{shed_age_under: {:seconds, 28_800}, window_days: 1, min_ring_turnover: 2.0},
@@ -160,11 +76,7 @@ defmodule Tuist.Kura.ClaimSizing do
     end
   end
 
-  # Only days after the last resize can qualify a window: earlier days measured
-  # the ring the previous claim bought, so their spans and occupancy describe a
-  # budget that no longer exists. This is also what paces consecutive resizes,
-  # each direction by exactly its own window instead of a flat cooldown. The
-  # resize day itself is excluded because its rollup mixes both rings.
+  # Days up to and including a resize measured the previous claim's ring.
   defp reject_pre_resize(rollups, nil), do: rollups
 
   defp reject_pre_resize(rollups, last_resized_at) do
@@ -189,11 +101,6 @@ defmodule Tuist.Kura.ClaimSizing do
     end
   end
 
-  # The severity ladder: the first rung whose window is fully satisfied wins,
-  # and the rungs are ordered shortest window first, so the worse a ring's
-  # shedding is the sooner it can act. A badly undersized claim is corrected
-  # in a day or two rather than made to serve out a fortnight of rebuilding
-  # content it just evicted.
   defp grow_verdict(by_date, floor_seconds, current_bytes, context, policy) do
     Enum.find_value(policy.grow_windows, fn rung ->
       threshold_seconds = shed_age_threshold(rung.shed_age_under, floor_seconds)
@@ -212,29 +119,20 @@ defmodule Tuist.Kura.ClaimSizing do
   defp shed_age_threshold({:seconds, seconds}, _floor_seconds), do: seconds
   defp shed_age_threshold({:floor_fraction, fraction}, floor_seconds), do: round(floor_seconds * fraction)
 
-  # How many times over the account evicted its whole claim across the window.
-  # Volume rather than elapsed time, so a rung can be satisfied by how much
-  # cache was actually lost instead of by how long we waited to count it.
   defp ring_turnover(_window, current_bytes) when current_bytes <= 0, do: 0.0
 
   defp ring_turnover(window, current_bytes) do
     window |> Enum.map(& &1.evicted_bytes) |> Enum.sum() |> Kernel./(current_bytes)
   end
 
-  # A day argues for growth when the ring rotated under size pressure and the
-  # median evicted segment held content younger than the tier's threshold.
-  # Evictions only happen at a full ring, so no separate occupancy gate is
-  # needed on this side. Backfilled content cannot fake this: the shed age is
-  # measured from the content's own version, so a ring filled with a peer's
-  # old artifacts reports old shed ages, not young ones.
+  # Backfill cannot fake this: shed age is measured from the content's own
+  # version, so a ring filled from a peer reports old ages, not young ones.
   defp grow_day?(rollup, threshold_seconds) do
     rollup.eviction_count > 0 and rollup.median_shed_age_seconds != nil and
       rollup.median_shed_age_seconds < threshold_seconds
   end
 
-  # A day argues for shrinking when the instance reported occupancy all day
-  # below the threshold and nothing evicted. Days without snapshots (the
-  # instance wasn't running) break the streak: absence of evidence is not a
+  # A day without snapshots breaks the streak: absence of evidence is not a
   # small working set.
   defp shrink_day?(rollup, policy) do
     rollup.snapshot_count > 0 and rollup.eviction_count == 0 and
@@ -242,10 +140,7 @@ defmodule Tuist.Kura.ClaimSizing do
       rollup.max_occupancy_percent < policy.shrink_occupancy_percent
   end
 
-  # The most recent `window_days` consecutive calendar days, all qualifying.
-  # The window may end today or yesterday: today's partial rollup counts when
-  # it already qualifies, and is not held against an account when it does not
-  # yet, so a streak is never broken by the hour of the day the sweep runs.
+  # Ends today or yesterday, so the hour the sweep runs never breaks a streak.
   defp qualifying_window(by_date, today, window_days, qualifies?) do
     Enum.find_value([today, Date.add(today, -1)], fn end_day ->
       window =
@@ -257,10 +152,8 @@ defmodule Tuist.Kura.ClaimSizing do
     end)
   end
 
-  # The ring span at eviction is the retention the current claim buys, so the
-  # claim that buys the floor is a proportional projection from it, padded
-  # with headroom so a correct resize does not land exactly on the boundary
-  # it is escaping.
+  # Projected from the retention the current claim buys, plus headroom so a
+  # correct resize does not land on the boundary it is escaping.
   defp grow_target_bytes(window, current_bytes, floor_seconds, policy) do
     span_seconds = window |> Enum.map(& &1.median_ring_span_seconds) |> median() |> max(1)
 
@@ -272,8 +165,6 @@ defmodule Tuist.Kura.ClaimSizing do
     |> round()
   end
 
-  # Size the claim so the window's peak working set sits at the target
-  # occupancy, clamped so one step never less than halves the claim.
   defp shrink_target_bytes(window, policy) do
     peak_bytes =
       window
@@ -337,9 +228,6 @@ defmodule Tuist.Kura.ClaimSizing do
       "signal" => "shed_age_below_retention_floor",
       "window_days" => length(window),
       "retention_floor_seconds" => floor_seconds,
-      # What the window had to hold under to qualify at the rung that fired,
-      # so an operator reading a one-day proposal can see it was the severity
-      # that shortened it rather than a weakened rule.
       "qualifying_threshold_seconds" => threshold_seconds,
       "median_shed_age_seconds" => window |> Enum.map(& &1.median_shed_age_seconds) |> median(),
       "median_ring_span_seconds" => window |> Enum.map(& &1.median_ring_span_seconds) |> median(),
@@ -358,11 +246,7 @@ defmodule Tuist.Kura.ClaimSizing do
     }
   end
 
-  # Plans resolve exactly like Tuist.Kura.Regions.storage_profile/1: the paid
-  # plans explicitly, everything else at Air's values.
-  # The one place a plan changes the outcome: how far the shared promise may
-  # be funded. Resolved exactly like `Tuist.Kura.Regions.storage_profile/1`,
-  # the paid plans explicitly and everything else at Air's.
+  # The one place a plan changes the outcome.
   defp ceiling(plan, policy), do: Map.get(policy.ceiling, plan, policy.ceiling.air)
 
   defp quantity_bytes(quantity) do
@@ -370,8 +254,7 @@ defmodule Tuist.Kura.ClaimSizing do
     bytes
   end
 
-  # Claims render as whole gibibytes, rounded up so a target is never
-  # under-provisioned by the rounding itself.
+  # Rounded up so a target is never under-provisioned by the rounding.
   defp to_gibibyte_quantity(bytes) do
     "#{max(div(bytes + @gibibyte - 1, @gibibyte), 1)}Gi"
   end

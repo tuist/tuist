@@ -1,10 +1,8 @@
 defmodule Tuist.Kura.StorageTelemetry do
   @moduledoc """
   Persists and queries the storage telemetry Kura nodes attach to their usage
-  batches: segment evictions shed under ring size pressure and periodic
-  ring-occupancy snapshots. Together they are the inputs of claim sizing —
-  evictions say the ring is too small, sustained low occupancy says it is too
-  big.
+  batches: evictions shed under ring size pressure, and ring-occupancy
+  snapshots. The inputs of claim sizing.
   """
 
   import Ecto.Query
@@ -42,10 +40,7 @@ defmodule Tuist.Kura.StorageTelemetry do
     {:ok, length(rows)}
   end
 
-  # Kura's wire format uses tenant_id (it's tenant-agnostic). We resolve it to
-  # a Tuist account id at the boundary and persist only the id — anything that
-  # can't be resolved drops to 0 and is treated as unattributable, matching
-  # `Tuist.Kura.Usage`.
+  # Unresolvable tenants drop to 0, matching `Tuist.Kura.Usage`.
   defp lookup_account_ids(events) do
     events
     |> Enum.map(& &1["tenant_id"])
@@ -90,8 +85,7 @@ defmodule Tuist.Kura.StorageTelemetry do
     Map.get(account_ids_by_handle, tenant_id) || 0
   end
 
-  # Absent timestamps (an empty ring has no oldest segment) land as the epoch,
-  # the schema's non-Nullable convention; readers gate on live_segment_count.
+  # Absent timestamps land as the epoch; readers gate on live_segment_count.
   defp unix_ms_to_naive_datetime(nil), do: ~N[1970-01-01 00:00:00]
 
   defp unix_ms_to_naive_datetime(ms) when is_integer(ms) do

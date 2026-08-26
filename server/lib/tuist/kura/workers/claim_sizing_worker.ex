@@ -1,17 +1,9 @@
 defmodule Tuist.Kura.Workers.ClaimSizingWorker do
   @moduledoc """
-  Claim sizing pass: refreshes the trailing storage rollups from ClickHouse,
-  converges the proposal set, and — only when the automatic flag is on —
-  applies open proposals within a fleet-wide budget.
-
-  It runs every ten minutes rather than hourly because the fastest rungs of
-  the growth ladder are bought with evicted volume rather than elapsed days,
-  and an account thrashing badly enough to satisfy one of them can do so in
-  minutes. An hourly tick would have made the schedule, not the evidence, the
-  thing such an account waited on. The pass itself is cheap at this cadence:
-  the refresh is two grouped ClickHouse reads over a short trailing window,
-  and the sweep's inputs are set-based queries whose cost tracks the number
-  of sizeable accounts rather than the tick rate.
+  Refreshes the trailing storage rollups, converges the proposal set, and —
+  only when the automatic flag is on — applies proposals within a fleet-wide
+  budget. Ten-minute cadence: the fastest growth rungs are satisfied by
+  evicted volume, which a thrashing account can produce in minutes.
   """
 
   use Oban.Worker,
@@ -28,15 +20,10 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
   alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.StorageRollups
 
-  # How much the fleet may resize unattended in an hour. Deliberately a rate
-  # rather than a per-pass count: a per-pass cap would silently multiply the
-  # blast radius the moment the cadence changed, which is exactly what just
-  # happened to this worker.
+  # A rate, not a per-pass count, so cadence changes cannot multiply it.
   @max_automatic_applies_per_hour 5
 
-  # The trailing refresh window. Two days cover the day boundary and
-  # at-least-once redelivery of node batches; older days are immutable once
-  # their events' delivery settled.
+  # Covers the day boundary and at-least-once redelivery of node batches.
   @refresh_trailing_days 2
 
   @impl Oban.Worker
