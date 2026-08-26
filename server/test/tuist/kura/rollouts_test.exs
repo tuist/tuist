@@ -689,6 +689,43 @@ defmodule Tuist.Kura.RolloutsTest do
       assert Repo.get!(Rollout, rollout.id).current_wave > 0
     end
 
+    test "a wave scoped while the controller's last sample went stale recovers once it is fresh" do
+      # `status.rolloutHealth` lives on the CR, so a controller restart leaves
+      # the previous aggregate in place with a `sampled_at` that ages out.
+      # The server is then scoped with a baseline but ineligible, which the
+      # absent-baseline case alone would not recover.
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+
+      stub(Provisioner, :rollout_health, fn _server ->
+        {:ok, healthy_health(%{sampled_at: DateTime.add(DateTime.utc_now(), -30 * 60, :second)})}
+      end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+
+      rollout_server = rollout_server(rollout, canary_server)
+      refute rollout_server.soak_eligible
+      assert rollout_server.baseline_outbox_messages
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+      assert :ok = Rollouts.sync()
+
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).current_wave == 0
+
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health()} end)
+
+      assert :ok = Rollouts.sync()
+      assert rollout_server(Repo.get!(Rollout, rollout.id), canary_server).soak_eligible
+
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).current_wave > 0
+    end
+
     test "a pre-existing ring skew makes the server soak-ineligible instead of gating its fix" do
       %{account: canary_account, server: canary_server} = create_active_server()
 
