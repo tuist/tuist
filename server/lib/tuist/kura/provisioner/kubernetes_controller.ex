@@ -950,6 +950,28 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # account's whole instance set rather than from this row alone: which
   # instance should answer is a fact about the account, and a per-row rule
   # could leave the name on nobody or on two.
+  # The instance that owns the name, and — while a region is on its way out —
+  # the one leaving, for as long as it is still up.
+  #
+  # Ownership is decided from the account's whole instance set, but each
+  # instance re-renders on its own schedule, so a handover is two writes rather
+  # than one. Observed on staging: the region being left dropped the name four
+  # minutes before the destination picked it up, and external-dns withdrew the
+  # record in between. For a name that exists so a written-down endpoint keeps
+  # working, minutes of NXDOMAIN is the failure it was built to prevent.
+  #
+  # Carrying it on both through the handover cannot fail that way. Two
+  # addresses for one name is two instances of the same account, both serving,
+  # both converging on the same content-addressed blobs, so a client reaching
+  # either is correct and at worst pays a miss. Zero addresses is a broken
+  # build.
+  defp carries_stable_host?(%Account{} = account, %Regions{id: region_id}, %Server{account_id: account_id} = server)
+       when is_integer(account_id) do
+    stable_host_owner?(server) or region_id in Kura.retiring_regions(%{account | id: account_id})
+  end
+
+  defp carries_stable_host?(_account, _region, _server), do: false
+
   defp stable_host_owner?(%Server{account_id: account_id, id: id}) when is_integer(account_id) and is_binary(id) do
     case Kura.stable_host_owner(%Account{id: account_id}) do
       %Server{id: owner_id} -> owner_id == id
@@ -968,12 +990,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # that names its instances some other way (the local controller does) is not
   # handed a name in a zone it has nothing to do with.
   defp rendered_stable_host(
-         %Account{name: handle},
-         %Regions{provisioner_config: %{public_host_template: template}},
+         %Account{name: handle} = account,
+         %Regions{provisioner_config: %{public_host_template: template}} = region,
          server
        )
        when is_binary(template) do
-    if owns_public_endpoints?(server) and stable_host_owner?(server) do
+    if owns_public_endpoints?(server) and carries_stable_host?(account, region, server) do
       Regions.stable_public_host(handle)
     end
   end

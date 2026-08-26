@@ -428,6 +428,11 @@ defmodule Tuist.Kura do
   defdelegate placement_regions(account), to: PlacerRegions, as: :all_for
 
   @doc """
+  The account's regions that are on their way out.
+  """
+  defdelegate retiring_regions(account), to: PlacerRegions
+
+  @doc """
   Where the account's cache traffic came from over the last `days`, busiest
   first.
   """

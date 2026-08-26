@@ -66,6 +66,31 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerStableHostTest do
     assert manifest(account, destination, "us-east")["spec"]["stableHost"]
   end
 
+  test "both instances carry the name through a handover, so the record is never withdrawn" do
+    # Observed on staging before this: the region being left dropped the name
+    # four minutes before the destination picked it up, and external-dns
+    # deleted the record in between. Each instance re-renders on its own
+    # schedule, so a handover is two writes; carrying it on both while one is
+    # leaving means neither ordering can leave the name pointing nowhere.
+    account = account()
+    source = instance(account, "eu-central")
+    destination = instance(account, "ca-east", :provisioning)
+    {:ok, _held} = PlacerRegions.put_primary(account, "eu-central")
+    {:ok, _moved} = PlacerRegions.put_primary(account, "ca-east")
+    {:ok, _leaving} = PlacerRegions.mark_retiring(account, "eu-central")
+
+    # Destination still coming up: only the source answers.
+    assert manifest(account, source, "eu-central")["spec"]["stableHost"]
+    refute manifest(account, destination, "ca-east")["spec"]["stableHost"]
+
+    {:ok, serving} = destination |> Server.observation_changeset(%{status: :active}) |> Repo.update()
+
+    # Destination serving, source still up: both answer, so whichever is
+    # re-rendered first the name still resolves.
+    assert manifest(account, source, "eu-central")["spec"]["stableHost"]
+    assert manifest(account, serving, "ca-east")["spec"]["stableHost"]
+  end
+
   test "the manifest revision moves with the host, so the reconciler re-applies both rows" do
     # The reconciler only re-renders on a revision mismatch. Without the host in
     # the revision nothing re-applies when it changes hands, and the name stays
