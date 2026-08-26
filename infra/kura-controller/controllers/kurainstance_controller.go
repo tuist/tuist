@@ -1400,14 +1400,23 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 			"app.kubernetes.io/managed-by": "kura-controller",
 			"tuist.dev/account":            instance.Spec.AccountHandle,
 		})
-		if err := unstructured.SetNestedSlice(endpoint.Object, []interface{}{
-			map[string]interface{}{
-				"dnsName":    instance.Spec.PublicHost,
+		// One record per customer-facing name, both pointing at the box the
+		// account's pods are on. The region-independent host needs this as much
+		// as the regional one: the Ingress-sourced record for it targets every
+		// cache node in the region, so without a per-account record a client on
+		// that name lands on an arbitrary box and its traffic is proxied
+		// cross-box, outside the per-pod egress shaping the whole scheme rests
+		// on.
+		records := make([]interface{}, 0, 2)
+		for _, host := range customerHosts(instance) {
+			records = append(records, map[string]interface{}{
+				"dnsName":    host,
 				"recordType": "A",
 				"recordTTL":  int64(60),
 				"targets":    []interface{}{target},
-			},
-		}, "spec", "endpoints"); err != nil {
+			})
+		}
+		if err := unstructured.SetNestedSlice(endpoint.Object, records, "spec", "endpoints"); err != nil {
 			return err
 		}
 		return controllerutil.SetControllerReference(instance, endpoint, r.Scheme)

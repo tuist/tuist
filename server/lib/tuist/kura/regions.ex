@@ -771,7 +771,7 @@ defmodule Tuist.Kura.Regions do
   down, and it has to survive the account being served from somewhere else.
   """
   def stable_public_host(handle) when is_binary(handle) do
-    if Enum.any?(all(), &(not private?(&1) and public_host_template?(&1))) do
+    if Enum.any?(available(), &(not private?(&1) and public_host_template?(&1))) do
       @managed_region_stable_host_template
       |> String.replace("{account_handle}", String.downcase(handle))
       |> String.replace("{env_suffix}", managed_region_host_suffix())

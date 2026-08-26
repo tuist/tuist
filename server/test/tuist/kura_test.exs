@@ -1644,6 +1644,7 @@ defmodule Tuist.KuraTest do
     end
 
     test "is exactly one instance for an account served from several regions" do
+      serving_public_regions()
       account = stable_host_account()
       primary = stable_host_instance(account, "us-east", :active)
       secondary = stable_host_instance(account, "eu-central", :active)
@@ -1711,6 +1712,8 @@ defmodule Tuist.KuraTest do
     end
 
     test "the ordering survives the region-independent name being substituted in" do
+      serving_public_regions()
+
       # Ordering runs on the stored regional URLs and substitution replaces one
       # of them afterwards, so the nearest region still comes first and the
       # account's own name is what stands in for it.
@@ -1734,6 +1737,14 @@ defmodule Tuist.KuraTest do
     test "leaves an empty list alone" do
       assert Kura.order_endpoints_by_origin([], stable_host_account(), "FR") == []
     end
+  end
+
+  # The account's region-independent name only exists where the deployment
+  # actually serves a publicly hosted region.
+  defp serving_public_regions do
+    stub(Tuist.Environment, :dev?, fn -> false end)
+    stub(Tuist.Environment, :test?, fn -> false end)
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-central", "us-east"] end)
   end
 
   defp stable_host_account do

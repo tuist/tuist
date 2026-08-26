@@ -66,6 +66,31 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerStableHostTest do
     assert manifest(account, destination, "us-east")["spec"]["stableHost"]
   end
 
+  test "the manifest revision moves with the host, so the reconciler re-applies both rows" do
+    # The reconciler only re-renders on a revision mismatch. Without the host in
+    # the revision nothing re-applies when it changes hands, and the name stays
+    # on the instance that is about to be destroyed — dead exactly when a
+    # relocation was supposed to be carrying it across.
+    account = account()
+    source = instance(account, "eu-central")
+    destination = instance(account, "us-east", :provisioning)
+    {:ok, _held} = PlacerRegions.put_primary(account, "eu-central")
+    {:ok, _moved} = PlacerRegions.put_primary(account, "us-east")
+
+    {:ok, eu_central} = Regions.fetch("eu-central")
+    {:ok, us_east} = Regions.fetch("us-east")
+
+    source_before = KubernetesController.manifest_revision(with_account(source, account), eu_central)
+    destination_before = KubernetesController.manifest_revision(with_account(destination, account), us_east)
+
+    {:ok, serving} = destination |> Server.observation_changeset(%{status: :active}) |> Repo.update()
+
+    refute KubernetesController.manifest_revision(with_account(source, account), eu_central) == source_before
+    refute KubernetesController.manifest_revision(with_account(serving, account), us_east) == destination_before
+  end
+
+  defp with_account(server, account), do: %{server | account: account}
+
   defp account do
     Accounts.get_account_from_user(AccountsFixtures.user_fixture())
   end

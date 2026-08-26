@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -211,6 +213,67 @@ func TestStableHostIsCarriedByOneInstanceOfAMultiRegionAccount(t *testing.T) {
 
 	if carrying != 1 {
 		t.Fatalf("%d instances carry the stable host, want exactly 1", carrying)
+	}
+}
+
+// On the bare-metal regions every managed region is, the per-account record is
+// what pins an account to its box. Without it the region-independent name only
+// has the Ingress-sourced record, which targets every cache node, so a client
+// lands on an arbitrary box and is proxied cross-box outside the egress shaping.
+func TestStableHostGetsItsOwnPerAccountDNSRecord(t *testing.T) {
+	instance := stableHostInstance("kura-tuist-eu-central-1", "eu-central-1", "kura-eu-central", stableHostStable)
+	instance.Spec.PublicHostNetwork = true
+
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "box-1"},
+		Status:     corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "203.0.113.7"}}},
+	}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kura-tuist-eu-central-1-0",
+			Namespace: "kura",
+			Labels:    map[string]string{"app.kubernetes.io/name": "kura", "app.kubernetes.io/instance": instance.Name},
+		},
+		Spec: corev1.PodSpec{NodeName: "box-1"},
+	}
+
+	scheme, mapper := dnsEndpointScheme(t)
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, node, pod).Build(),
+		Scheme: scheme,
+	}
+
+	if err := reconciler.reconcilePublicDNSEndpoint(context.Background(), instance); err != nil {
+		t.Fatalf("reconcile dns endpoint: %v", err)
+	}
+
+	endpoint := &unstructured.Unstructured{}
+	endpoint.SetGroupVersionKind(dnsEndpointGVK)
+	name := types.NamespacedName{Name: instance.Name + "-public-dns", Namespace: "kura"}
+	if err := reconciler.Get(context.Background(), name, endpoint); err != nil {
+		t.Fatalf("get dns endpoint: %v", err)
+	}
+
+	records, _, err := unstructured.NestedSlice(endpoint.Object, "spec", "endpoints")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("%d records, want one per customer host", len(records))
+	}
+
+	hosts := make([]string, 0, 2)
+	for _, record := range records {
+		entry, _ := record.(map[string]interface{})
+		hosts = append(hosts, entry["dnsName"].(string))
+		targets, _ := entry["targets"].([]interface{})
+		if len(targets) != 1 || targets[0].(string) != "203.0.113.7" {
+			t.Fatalf("record %v does not point at the account's box", entry["dnsName"])
+		}
+	}
+	if hosts[0] != stableHostRegional || hosts[1] != stableHostStable {
+		t.Fatalf("records = %v, want both customer hosts", hosts)
 	}
 }
 

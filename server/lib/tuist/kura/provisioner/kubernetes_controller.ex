@@ -275,7 +275,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       storage_claim(account, region, server),
       self_hosted_peers(account, region, entitlements),
       entitlements,
-      effective_egress(account, region, entitlements)
+      effective_egress(account, region, entitlements),
+      rendered_stable_host(account, region, server)
     )
   end
 
@@ -322,7 +323,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     external_peers = entitled_self_hosted_peers(region, external_peers, entitlements)
     claim = storage_claim(account, region, server)
     egress = effective_egress(account, region, entitlements)
-    revision = manifest_revision_string(region, claim, external_peers, entitlements, egress)
+    stable_host = rendered_stable_host(account, region, server)
+    revision = manifest_revision_string(region, claim, external_peers, entitlements, egress, stable_host)
     annotations = %{@manifest_revision_annotation => revision}
 
     %{
@@ -354,8 +356,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           # currently answers on it. Rendered from the account rather than the
           # region on purpose: it is the name a client may write down, and it
           # has to survive the account being served from somewhere else.
-          "stableHost" =>
-            if(owns_public_endpoints?(server) and stable_host_owner?(server), do: stable_host(account, region)),
+          "stableHost" => stable_host,
           "ingressClassName" => ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
           "peerTLSSecretName" => peer_tls_secret_name(region),
@@ -486,15 +487,26 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # The desired revision the reconciler compares against the live CR's
   # annotation. Both the reconcile check (manifest_revision/2) and the applied
   # manifest (manifest/7) build it here so they can never disagree and loop.
-  defp manifest_revision_string(%Regions{} = region, claim, peer_urls, entitlements, egress) do
+  defp manifest_revision_string(%Regions{} = region, claim, peer_urls, entitlements, egress, stable_host) do
     @manifest_revision <>
       peers_revision_suffix(peer_urls) <>
       mesh_peers_sync_revision_suffix(region, entitlements) <>
       backfill_revision_suffix(entitlements) <>
       memory_revision_suffix(region, entitlements) <>
       claim_revision_suffix(claim) <>
-      egress_revision_suffix(egress)
+      egress_revision_suffix(egress) <>
+      stable_host_revision_suffix(stable_host)
   end
+
+  # Which instance answers on the account's region-independent host is a
+  # property of the account, not of this row, so nothing else in the revision
+  # moves when it changes hands. Without it the reconciler compares equal
+  # revisions and re-applies neither instance, and the name stays on whichever
+  # one happened to be rendered last — until that instance is destroyed and
+  # takes the DNS record with it. The name would then be dead exactly when a
+  # relocation was supposed to be carrying it across.
+  defp stable_host_revision_suffix(nil), do: ""
+  defp stable_host_revision_suffix(host), do: "+stable#{host}"
 
   # Keyed on the pair the manifest renders rather than on the override alone: the
   # reconciler converges on the revision, so anything that moves these two fields
@@ -949,15 +961,24 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # over, so there is nobody for it to be compared against.
   defp stable_host_owner?(%Server{}), do: false
 
+  # The account's region-independent host, on this row, or nil when this is not
+  # the row that answers on it.
+  #
   # Only where the regional host comes from the managed template, so a region
   # that names its instances some other way (the local controller does) is not
   # handed a name in a zone it has nothing to do with.
-  defp stable_host(%Account{name: handle}, %Regions{provisioner_config: %{public_host_template: template}})
+  defp rendered_stable_host(
+         %Account{name: handle},
+         %Regions{provisioner_config: %{public_host_template: template}},
+         server
+       )
        when is_binary(template) do
-    Regions.stable_public_host(handle)
+    if owns_public_endpoints?(server) and stable_host_owner?(server) do
+      Regions.stable_public_host(handle)
+    end
   end
 
-  defp stable_host(_account, _region), do: nil
+  defp rendered_stable_host(_account, _region, _server), do: nil
 
   defp owns_public_endpoints?(%Server{move_phase: :moving_in}), do: false
   defp owns_public_endpoints?(%Server{move_phase: :moving_out}), do: false

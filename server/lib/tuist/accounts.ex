@@ -2696,8 +2696,10 @@ defmodule Tuist.Accounts do
   @doc """
   The Kura cache endpoint URLs the CLI resolves for this account.
   Public so runner dispatch (`Tuist.Kura.runner_cache_endpoint_url/2`)
-  derives its in-cluster fallback from the exact candidate set the CLI
-  sees, rather than a parallel query that could drift.
+  derives its in-cluster fallback from these, rather than a parallel query
+  that could drift. It matches on each instance's own regional URL, which is
+  why the account's region-independent name is substituted in at the two call
+  sites that answer the CLI rather than here.
   """
   def kura_cache_endpoint_urls(%Account{} = account, origin \\ nil) do
     static_urls =
