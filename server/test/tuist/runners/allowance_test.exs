@@ -66,9 +66,9 @@ defmodule Tuist.Runners.AllowanceTest do
     |> Repo.update!()
   end
 
-  defp on_trial(account) do
+  defp on_trial_since(account, at) do
     account
-    |> Ecto.Changeset.change(runner_trial_started_at: DateTime.truncate(DateTime.utc_now(), :second))
+    |> Ecto.Changeset.change(runner_trial_started_at: DateTime.truncate(at, :second))
     |> Repo.update!()
   end
 
@@ -446,8 +446,40 @@ defmodule Tuist.Runners.AllowanceTest do
       assert breakdown.billed == Money.new(600, :USD)
     end
 
+    test "prices a period that closed before the trial began", %{account: account} do
+      # The usage page offers a year of history. A trial that starts today
+      # says nothing about a period that was invoiced months ago, and
+      # reading the trial's end alone marked every one of them covered.
+      now = DateTime.utc_now()
+      period = {DateTime.add(now, -10, :day), DateTime.add(now, -6, :day)}
+      account = on_trial_since(account, DateTime.add(now, -2, :day))
+
+      ran_minutes(account, DateTime.add(now, -8, :day), 180)
+
+      breakdown = Allowance.period_breakdown(account, period)
+
+      assert breakdown.trial_covered == Money.new(0, :USD)
+      assert breakdown.billed == Money.new(600, :USD)
+    end
+
+    test "covers only what ran after the trial started", %{account: account} do
+      now = DateTime.utc_now()
+      period = {DateTime.add(now, -4, :day), DateTime.add(now, 1, :day)}
+      account = on_trial_since(account, DateTime.add(now, -2, :day))
+
+      ran_minutes(account, DateTime.add(now, -3, :day), 180)
+      ran_minutes(account, DateTime.add(now, -1, :day), 60)
+
+      breakdown = Allowance.period_breakdown(account, period)
+
+      assert breakdown.minutes == 240
+      assert breakdown.gross == Money.new(1800, :USD)
+      assert breakdown.trial_covered == Money.new(450, :USD)
+      assert breakdown.billed == Money.new(600, :USD)
+    end
+
     test "prices nothing at all while the trial is still running", %{account: account} do
-      account = on_trial(account)
+      account = on_trial_since(account, DateTime.add(DateTime.utc_now(), -30, :day))
       ran_minutes(account, DateTime.add(DateTime.utc_now(), -4, :hour), 180)
 
       breakdown = Allowance.period_breakdown(account)
