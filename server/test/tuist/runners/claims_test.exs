@@ -373,14 +373,42 @@ defmodule Tuist.Runners.ClaimsTest do
     end
   end
 
-  describe "complete_by_runner_name/1" do
+  describe "complete_by_runner_name/3" do
     test "releases the claim held by the runner that actually ran the job" do
       account = account_fixture()
       {:ok, _} = Claims.attempt(6001, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(6001, "runner-x")
 
-      assert 1 == Claims.complete_by_runner_name("runner-x", account.id)
+      assert %{released: 1, requeued: nil} = Claims.complete_by_runner_name("runner-x", account.id, 6001)
       assert Claims.counts_per_account() == %{}
+    end
+
+    # `record_execution/3` normally detaches the displaced job the moment
+    # `workflow_job.in_progress` lands. Reaching a completion with the
+    # binding still intact means that delivery never arrived, and the
+    # runner is now finished — so the job it was minted for ran nowhere
+    # and must not wait for OrphanedRunnersWorker to notice.
+    test "re-queues a displaced job when in_progress never arrived" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 6010))
+      {:ok, _} = Claims.attempt(6010, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = mark_running!(6010, "runner-silent")
+
+      assert %{released: 1, requeued: 6010} =
+               Claims.complete_by_runner_name("runner-silent", account.id, 6011)
+
+      assert Repo.get!(WorkflowJob, 6010).status == "queued"
+    end
+
+    test "hands nothing back when the claim was already detached at in_progress" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 6020))
+      {:ok, _} = Claims.attempt(6020, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = mark_running!(6020, "runner-loud")
+      assert {:mismatch, %{requeued: true}} = Claims.record_execution("runner-loud", 6021, account.id)
+
+      assert %{released: 1, requeued: nil} =
+               Claims.complete_by_runner_name("runner-loud", account.id, 6021)
     end
 
     test "does not free a runner still executing a job it did not claim" do
@@ -395,20 +423,20 @@ defmodule Tuist.Runners.ClaimsTest do
 
       # J2 (6201) was cancelled while queued: no runner ever ran it, so
       # the payload carries no runner_name and nothing is released.
-      assert 0 == Claims.complete_by_runner_name("", account.id)
+      assert %{released: 0, requeued: nil} = Claims.complete_by_runner_name("", account.id, 6201)
 
       # Both runners still counted: both Pods are alive, and B is
       # executing J1.
       assert Claims.counts_per_account() == %{account.id => 2}
 
       # J1 completes on runner-b — the executor's slot is the one freed.
-      assert 1 == Claims.complete_by_runner_name("runner-b", account.id)
+      assert %{released: 1} = Claims.complete_by_runner_name("runner-b", account.id, 6200)
       assert Claims.counts_per_account() == %{account.id => 1}
     end
 
     test "is idempotent when the runner's claim is already gone" do
       account = account_fixture()
-      assert 0 == Claims.complete_by_runner_name("ghost-runner", account.id)
+      assert %{released: 0, requeued: nil} = Claims.complete_by_runner_name("ghost-runner", account.id, 6300)
     end
 
     test "never releases a colliding runner_name belonging to another account" do
@@ -421,10 +449,10 @@ defmodule Tuist.Runners.ClaimsTest do
       {:ok, _} = Claims.attempt(9100, victim.id, "fleet-a", "victim-pod", @linux_resources)
       :ok = mark_running!(9100, "shared-name")
 
-      assert 0 == Claims.complete_by_runner_name("shared-name", attacker.id)
+      assert %{released: 0, requeued: nil} = Claims.complete_by_runner_name("shared-name", attacker.id, 9100)
       assert Claims.counts_per_account() == %{victim.id => 1}
 
-      assert 1 == Claims.complete_by_runner_name("shared-name", victim.id)
+      assert %{released: 1} = Claims.complete_by_runner_name("shared-name", victim.id, 9100)
       assert Claims.counts_per_account() == %{}
     end
   end
@@ -543,17 +571,72 @@ defmodule Tuist.Runners.ClaimsTest do
     # for this one to stop.
     test "reports :mismatch, binds the real job, and detaches the displaced one" do
       account = account_fixture()
-      {:ok, claim} = Claims.attempt(7002, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7002))
+      {:ok, _} = Claims.attempt(7002, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(7002, "runner-b")
 
       assert {:mismatch, displaced} = Claims.record_execution("runner-b", 7099, account.id)
-      assert displaced.workflow_job_id == 7002
-      assert DateTime.compare(displaced.claimed_at, claim.claimed_at) == :eq
+      assert displaced == %{workflow_job_id: 7002, requeued: true}
 
       row = Repo.one(from(c in Claim, where: c.pod_name == "pod-1"))
       assert row.executed_workflow_job_id == 7099
       assert row.workflow_job_id == nil
       assert Claims.counts_per_account() == %{account.id => 1}
+      assert Repo.get!(WorkflowJob, 7002).status == "queued"
+    end
+
+    # The failure the transaction closes. Committed separately, a re-queue
+    # that fails after the detach leaves the job attached to no claim yet
+    # still `running` — and unrepairable, because the redelivery reads a
+    # claim that no longer names the job and so reports nothing to hand
+    # back. Rolling the detach back with it keeps the job on the claim,
+    # where the redelivery can still find and re-queue it.
+    test "rolls the detach back when the displaced job's re-queue fails" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7005))
+      {:ok, _} = Claims.attempt(7005, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = mark_running!(7005, "runner-crash")
+
+      Mimic.stub(WorkflowJobs, :requeue_by_handle, fn _id, _handle ->
+        raise "lifecycle write failed"
+      end)
+
+      assert_raise RuntimeError, fn -> Claims.record_execution("runner-crash", 7096, account.id) end
+
+      assert Repo.one(from(c in Claim, where: c.pod_name == "pod-1")).workflow_job_id == 7005
+      assert Repo.one(from(c in Claim, where: c.pod_name == "pod-1")).executed_workflow_job_id == nil
+      assert Repo.get!(WorkflowJob, 7005).status == "running"
+    end
+
+    # The other half of the same guarantee: with the claim still naming the
+    # job, GitHub's redelivery lands both halves once the write recovers.
+    test "a redelivery after a failed re-queue still hands the job back" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7007))
+      {:ok, _} = Claims.attempt(7007, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = mark_running!(7007, "runner-retry")
+
+      assert {:mismatch, %{workflow_job_id: 7007, requeued: true}} =
+               Claims.record_execution("runner-retry", 7094, account.id)
+
+      assert Repo.get!(WorkflowJob, 7007).status == "queued"
+    end
+
+    # A job another Pod re-claimed carries a newer handle, so the re-queue
+    # misses the guard and leaves the live claim's row alone.
+    test "reports requeued: false when the displaced job moved on" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7006))
+      {:ok, _} = Claims.attempt(7006, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = mark_running!(7006, "runner-late")
+
+      :ok = WorkflowJobs.requeue(7006)
+      :ok = WorkflowJobs.transition_claimed(7006, "pod-2", DateTime.utc_now())
+
+      assert {:mismatch, %{workflow_job_id: 7006, requeued: false}} =
+               Claims.record_execution("runner-late", 7095, account.id)
+
+      assert Repo.get!(WorkflowJob, 7006).status == "claimed"
     end
 
     test "lets another pod claim the displaced job immediately" do
@@ -567,13 +650,21 @@ defmodule Tuist.Runners.ClaimsTest do
                Claims.attempt(7003, account.id, "fleet-a", "pod-2", @linux_resources)
     end
 
-    test "reports no displaced job on a redelivery that already detached it" do
+    # A redelivery has nothing to hand back, and needs nothing: the first
+    # delivery could not have detached the job without also re-queueing it.
+    # This is what makes it safe for a later step in the webhook handler to
+    # fail after `record_execution/3` has committed.
+    test "reports no displaced job on a redelivery, which is already queued" do
       account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7004))
       {:ok, _} = Claims.attempt(7004, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(7004, "runner-b")
 
       assert {:mismatch, %{workflow_job_id: 7004}} = Claims.record_execution("runner-b", 7097, account.id)
       assert {:mismatch, nil} = Claims.record_execution("runner-b", 7097, account.id)
+
+      assert Repo.one(from(c in Claim, where: c.pod_name == "pod-1")).executed_workflow_job_id == 7097
+      assert Repo.get!(WorkflowJob, 7004).status == "queued"
     end
 
     test "reports :unknown_runner when no live claim carries the runner_name" do

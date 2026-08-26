@@ -284,11 +284,9 @@ defmodule Tuist.Runners.Dispatch do
     session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id, account_id)
     :ok = WorkflowJobs.record_execution(runner_name, executed_workflow_job_id, account_id)
 
-    # Ordered after `WorkflowJobs.record_execution/3`: the re-queue clears
-    # the `executed_workflow_job_id` it just stamped on the displaced job's
-    # row, which is what that row needs to be a clean dispatch candidate
-    # again. The binding survives on the claim and the runner session.
-    requeue_displaced_job(claim_outcome, runner_name)
+    claim_outcome
+    |> displaced_requeued_job()
+    |> report_displaced_requeue(runner_name)
 
     outcome = combine_attribution(claim_attribution(claim_outcome), session_outcome)
 
@@ -320,34 +318,28 @@ defmodule Tuist.Runners.Dispatch do
   # The runner took a different job than its claim was minted for, so the
   # job it was minted for is running nowhere — and nothing else will say
   # so, because GitHub never re-announces a job it still considers queued.
-  # `Claims.record_execution/3` has already detached it, leaving the Pod
-  # its slot for the job it actually took; this returns the job itself to
-  # the queue. Without it the job waits for the Pod to stop, which measured
-  # a 5-minute median on macOS.
-  #
-  # Handle-guarded on the claim's `claimed_at`, so a job another Pod
-  # re-claimed (newer handle) or a completion that already landed
-  # (terminal status) is left alone.
-  defp requeue_displaced_job({:mismatch, %{workflow_job_id: workflow_job_id, claimed_at: claimed_at}}, runner_name) do
-    case WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at) do
-      :ok ->
-        Logger.info("runners: re-queued job displaced by the runner shuffle",
-          runner_name: runner_name,
-          workflow_job_id: workflow_job_id
-        )
+  # `Claims.record_execution/3` detaches it from the claim and returns it to
+  # the queue in one transaction, leaving the Pod its slot for the job it
+  # actually took. Without that the job waits for the Pod to stop, which
+  # measured a 5-minute median on macOS. Reported here because this is where
+  # the rest of the mismatch telemetry lives.
+  defp displaced_requeued_job({:mismatch, %{workflow_job_id: workflow_job_id, requeued: true}}), do: workflow_job_id
+  defp displaced_requeued_job(_claim_outcome), do: nil
 
-        :telemetry.execute(
-          Telemetry.event_name_recovery(),
-          %{count: 1},
-          %{kind: "displaced_job_requeued"}
-        )
+  defp report_displaced_requeue(nil, _runner_name), do: :ok
 
-      :noop ->
-        :ok
-    end
+  defp report_displaced_requeue(workflow_job_id, runner_name) do
+    Logger.info("runners: re-queued job displaced by the runner shuffle",
+      runner_name: runner_name,
+      workflow_job_id: workflow_job_id
+    )
+
+    :telemetry.execute(
+      Telemetry.event_name_recovery(),
+      %{count: 1},
+      %{kind: "displaced_job_requeued"}
+    )
   end
-
-  defp requeue_displaced_job(_claim_outcome, _runner_name), do: :ok
 
   # A real `:matched`/`:mismatch` from either store beats
   # `:unknown_runner`; a `:mismatch` anywhere wins over `:matched`
@@ -444,7 +436,14 @@ defmodule Tuist.Runners.Dispatch do
       # `OrphanedRunnersWorker` cannot reach this class: `Jobs.complete/2`
       # below flips the ClickHouse row to `completed`, and the worker only
       # lists rows still `running` — so the watchdog is what frees it.
-      if account_id, do: Claims.complete_by_runner_name(runner_name, account_id)
+      # `complete_by_runner_name/3` also hands back a job still bound to this
+      # claim, which at a completion means the `in_progress` that would
+      # normally have detached it never arrived. The runner is finished, so
+      # that job ran nowhere.
+      if account_id do
+        %{requeued: requeued} = Claims.complete_by_runner_name(runner_name, account_id, workflow_job_id)
+        report_displaced_requeue(requeued, runner_name)
+      end
 
       case Jobs.complete(workflow_job_id, conclusion) do
         {:ok, %{account_id: account_id}} ->
