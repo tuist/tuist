@@ -354,7 +354,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           # currently answers on it. Rendered from the account rather than the
           # region on purpose: it is the name a client may write down, and it
           # has to survive the account being served from somewhere else.
-          "stableHost" => if(owns_public_endpoints?(server) and stable_host_owner?(server), do: stable_host(account)),
+          "stableHost" =>
+            if(owns_public_endpoints?(server) and stable_host_owner?(server), do: stable_host(account, region)),
           "ingressClassName" => ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
           "peerTLSSecretName" => peer_tls_secret_name(region),
@@ -948,7 +949,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # over, so there is nobody for it to be compared against.
   defp stable_host_owner?(%Server{}), do: false
 
-  defp stable_host(%Account{name: handle}), do: Regions.stable_public_host(handle)
+  # Only where the regional host comes from the managed template, so a region
+  # that names its instances some other way (the local controller does) is not
+  # handed a name in a zone it has nothing to do with.
+  defp stable_host(%Account{name: handle}, %Regions{provisioner_config: %{public_host_template: template}})
+       when is_binary(template) do
+    Regions.stable_public_host(handle)
+  end
+
+  defp stable_host(_account, _region), do: nil
 
   defp owns_public_endpoints?(%Server{move_phase: :moving_in}), do: false
   defp owns_public_endpoints?(%Server{move_phase: :moving_out}), do: false
