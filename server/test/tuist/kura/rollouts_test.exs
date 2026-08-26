@@ -160,6 +160,61 @@ defmodule Tuist.Kura.RolloutsTest do
       assert second.image_tag == "0.7.0"
     end
 
+    test "an older tag does not supersede a newer rollout while the deploy is still settling" do
+      # A rolling deploy runs two server cohorts at once, each reading its own
+      # desired tag from the environment, and every replica mints rollouts.
+      # Unguarded, the two supersede each other every tick.
+      create_active_server()
+
+      assert :ok = Rollouts.sync()
+      newer = Rollouts.active_rollout()
+      assert newer.image_tag == @target_tag
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> @baseline_tag end)
+      assert :ok = Rollouts.sync()
+
+      assert Repo.get!(Rollout, newer.id).status == :running
+      assert Rollouts.active_rollout().id == newer.id
+    end
+
+    test "an older tag supersedes once the deploy has settled, so a rollback still lands" do
+      create_active_server()
+
+      assert :ok = Rollouts.sync()
+      newer = Rollouts.active_rollout()
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> @baseline_tag end)
+      back_date(newer, :inserted_at, 11 * 60)
+      assert :ok = Rollouts.sync()
+
+      assert Repo.get!(Rollout, newer.id).status == :superseded
+      assert Repo.exists?(where(Rollout, [r], r.image_tag == ^@baseline_tag))
+    end
+
+    test "an incomparable tag does not supersede a settling rollout" do
+      # Staging tracks per-commit `sha-…` images, which no version ordering
+      # can compare. Those cohorts ping-pong exactly like semver ones, so
+      # comparability cannot be what decides whether a supersede is allowed.
+      create_active_server()
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-aaaaaaa" end)
+      assert :ok = Rollouts.sync()
+      first = Rollouts.active_rollout()
+      assert first.image_tag == "sha-aaaaaaa"
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-bbbbbbb" end)
+      assert :ok = Rollouts.sync()
+
+      assert Repo.get!(Rollout, first.id).status == :running
+      assert Rollouts.active_rollout().id == first.id
+
+      back_date(first, :inserted_at, 11 * 60)
+      assert :ok = Rollouts.sync()
+
+      assert Repo.get!(Rollout, first.id).status == :superseded
+      assert Rollouts.active_rollout().image_tag == "sha-bbbbbbb"
+    end
+
     test "a server with an open install deployment does not abort the tick" do
       # The rollout mints deployments while holding the rollout row lock, and
       # `Kura.create_deployment/3` rolls back when the server already has one
@@ -559,10 +614,12 @@ defmodule Tuist.Kura.RolloutsTest do
 
     # Drives one converged, soak-eligible server to the point where the gate
     # is the only thing deciding, then reports whether the wave advanced.
-    # Each call mints its own rollout (a fresh target tag supersedes the
-    # previous one) so several verdicts can be taken in a single test.
+    # Each call mints its own rollout (a newer target tag supersedes the
+    # previous one) so several verdicts can be taken in a single test. The
+    # tag has to move forward: an older one cannot displace a newer rollout
+    # while the deploy is still settling.
     defp gate_verdict(baseline_health, post_health) do
-      target = "0.6.#{System.unique_integer([:positive])}"
+      target = "0.6.#{System.unique_integer([:positive, :monotonic])}"
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> target end)
 
       %{account: account, server: server} = create_active_server()
@@ -651,6 +708,168 @@ defmodule Tuist.Kura.RolloutsTest do
     setup do
       stub(Tuist.Environment, :kura_rollout_pacing, fn -> "progressive" end)
       :ok
+    end
+
+    test "a server that drifts back off the target stops counting as converged" do
+      # Anything that re-applies the manifest from a tag other than this
+      # rollout's overwrites the image and the instance rolls back to it.
+      # A latched convergence would let the wave complete, and every later
+      # wave proceed, while the old image is still serving.
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health()} end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+      assert :ok = Rollouts.sync()
+      assert rollout_server(Repo.get!(Rollout, rollout.id), canary_server).converged_at
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @baseline_tag)
+      assert :ok = Rollouts.sync()
+      refute rollout_server(Repo.get!(Rollout, rollout.id), canary_server).converged_at
+
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).current_wave == 0
+
+      # It counts again once the target is actually what is running.
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+      assert :ok = Rollouts.sync()
+      assert rollout_server(Repo.get!(Rollout, rollout.id), canary_server).converged_at
+    end
+
+    test "a server that regresses to failed pauses even though its observed tag reverted" do
+      # A failing server takes its observed tag back with it, so drift and
+      # regression arrive in the same write. Clearing convergence on drift
+      # would erase what the regression check matches on, turning an
+      # immediate pause into a wait for the wave deadline.
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health()} end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+      assert :ok = Rollouts.sync()
+      assert rollout_server(Repo.get!(Rollout, rollout.id), canary_server).converged_at
+
+      {:ok, _} =
+        Kura.record_observation(Repo.get!(Server, canary_server.id), %{
+          status: :failed,
+          observed_image_tag: @baseline_tag,
+          last_observed_at: DateTime.truncate(DateTime.utc_now(), :second)
+        })
+
+      assert :ok = Rollouts.sync()
+
+      rollout = Repo.get!(Rollout, rollout.id)
+      assert rollout.status == :paused
+      assert rollout.pause_reason == "server_regressed_to_failed"
+    end
+
+    test "a server that stays unhealthy rotates to the back of the recapture queue" do
+      # The recapture runs inside the rollout's `FOR UPDATE` transaction, so
+      # it is bounded per tick. Rows that stay unhealthy must not monopolise
+      # the batch, or the rest of a large fleet never gets measured.
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, nil} end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      refute rollout_server(rollout, canary_server).soak_eligible
+
+      stale = DateTime.utc_now() |> DateTime.add(-600, :second) |> DateTime.truncate(:second)
+
+      {1, _} =
+        RolloutServer
+        |> where([rs], rs.id == ^rollout_server(rollout, canary_server).id)
+        |> Repo.update_all(set: [updated_at: stale])
+
+      assert :ok = Rollouts.sync()
+
+      rotated = rollout_server(Repo.get!(Rollout, rollout.id), canary_server)
+      refute rotated.soak_eligible
+      assert DateTime.after?(rotated.updated_at, stale)
+    end
+
+    test "a wave scoped before the controller published health recovers once it does" do
+      # The deploy that ships this rolls the server and the Kura controller
+      # together, so a wave can be scoped while no `status.rolloutHealth`
+      # exists yet. Those servers are ineligible with no baseline, and the
+      # gate then refuses to pass the wave on no evidence — it must not
+      # refuse forever once the aggregate shows up.
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, nil} end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      refute rollout_server(rollout, canary_server).soak_eligible
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+      assert :ok = Rollouts.sync()
+
+      # Converged, but the gate holds the wave: nothing has measured it.
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).current_wave == 0
+
+      # The controller catches up and starts publishing.
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health()} end)
+
+      assert :ok = Rollouts.sync()
+      rollout_server = rollout_server(Repo.get!(Rollout, rollout.id), canary_server)
+      assert rollout_server.soak_eligible
+      assert rollout_server.baseline_outbox_messages
+
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).current_wave > 0
+    end
+
+    test "a wave scoped while the controller's last sample went stale recovers once it is fresh" do
+      # `status.rolloutHealth` lives on the CR, so a controller restart leaves
+      # the previous aggregate in place with a `sampled_at` that ages out.
+      # The server is then scoped with a baseline but ineligible, which the
+      # absent-baseline case alone would not recover.
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+
+      stub(Provisioner, :rollout_health, fn _server ->
+        {:ok, healthy_health(%{sampled_at: DateTime.add(DateTime.utc_now(), -30 * 60, :second)})}
+      end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+
+      rollout_server = rollout_server(rollout, canary_server)
+      refute rollout_server.soak_eligible
+      assert rollout_server.baseline_outbox_messages
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+      assert :ok = Rollouts.sync()
+
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).current_wave == 0
+
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health()} end)
+
+      assert :ok = Rollouts.sync()
+      assert rollout_server(Repo.get!(Rollout, rollout.id), canary_server).soak_eligible
+
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).current_wave > 0
     end
 
     test "a pre-existing ring skew makes the server soak-ineligible instead of gating its fix" do
