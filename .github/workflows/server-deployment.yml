@@ -1179,7 +1179,11 @@ jobs:
                "${image_sets[@]}" \
                --show-only templates/runner-pool.yaml \
                > "$runner_pools_render" 2>/dev/null; then
-            mapfile -t rendered_pools < <(
+            # `mapfile` does not report failures from a process substitution, so
+            # the pipeline is captured first: a `kubectl` or `jq` error would
+            # otherwise read as "no pools to reconcile" and let the upgrade
+            # proceed unreconciled.
+            rendered_pools_json="$(
               kubectl create --dry-run=client -o json -f "$runner_pools_render" |
                 jq -c -s '[.[] | if .kind == "List" then .items[] else . end
                             | select(.kind == "RunnerPool" and .spec.autoscaling != null)
@@ -1189,7 +1193,11 @@ jobs:
                                                          or . == "scaleDownCooldownSeconds")))}
                             | select(.autoscaling != {})]
                           | .[]'
-            )
+            )"
+            rendered_pools=()
+            if [ -n "$rendered_pools_json" ]; then
+              mapfile -t rendered_pools <<< "$rendered_pools_json"
+            fi
             for rendered_pool in "${rendered_pools[@]}"; do
               pool_name="$(jq -r '.name' <<< "$rendered_pool")"
               # RunnerPools render into the runners namespace, which is not the
@@ -1197,16 +1205,23 @@ jobs:
               pool_namespace="$(jq -r '.namespace' <<< "$rendered_pool")"
               want="$(jq -Sc '.autoscaling' <<< "$rendered_pool")"
 
-              live="$(
+              # `--ignore-not-found` separates the three states this read can be
+              # in: a missing pool prints nothing and exits 0, an existing one
+              # prints its JSON, and a genuine API error exits non-zero and stops
+              # the step instead of being swallowed into "nothing to do".
+              pool_json="$(
                 kubectl -n "$pool_namespace" get runnerpool "$pool_name" \
-                  -o jsonpath='{.spec.autoscaling}' 2>/dev/null || true
+                  --ignore-not-found -o json
               )"
-              if [ -z "$live" ]; then
+              if [ -z "$pool_json" ]; then
                 # Not created yet; the upgrade below renders it from scratch.
                 continue
               fi
 
-              have="$(jq -Sc '.' <<< "$live")"
+              # A pool whose autoscaling object was removed outright reads as
+              # `{}` and is drift the upgrade cannot repair either: an unset
+              # `maxReplicas` opts the pool out of autoscaling altogether.
+              have="$(jq -Sc '.spec.autoscaling // {}' <<< "$pool_json")"
               # Merging the chart's keys over the live object is a no-op exactly
               # when every reasserted key already matches, which leaves every
               # other key alone rather than reporting it as drift.
