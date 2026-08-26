@@ -24,7 +24,7 @@ defmodule Tuist.Kura.StorageClaimsTest do
 
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
 
-      assert StorageClaims.effective_claim_size(account) == "32Gi"
+      assert StorageClaims.effective_claim_size(account) == "16Gi"
     end
 
     test "takes the override ahead of the plan in both directions", %{account: account} do

@@ -28,7 +28,10 @@ defmodule Tuist.Kura.LifecycleTest do
   # reserves its plan's claim twice.
   @replicas 2
   @air_resident_gib 8 * @replicas
-  @pro_resident_gib 16 * @replicas
+  # What a Pro instance holds once sizing has grown it. Plans no longer start
+  # apart, so a footprint that differs from Air's is one sizing produced.
+  @grown_pro_gib 32
+  @pro_resident_gib @grown_pro_gib * @replicas
   # One more instance than fits under the region's pressure line, derived
   # rather than counted out so the fixtures track the real sizing.
   @instances_to_pressure div(trunc(@node_allocatable_bytes * 0.85 / (1024 * 1024 * 1024)), @air_resident_gib) + 1
@@ -100,7 +103,12 @@ defmodule Tuist.Kura.LifecycleTest do
   # without one would not reserve what its plan reserves in production.
   defp active_instance(account, opts \\ []) do
     inserted_at = ago_usec(Keyword.get(opts, :age_days, 120))
-    %{claim_size: claim_size} = Regions.storage_profile(AccountPolicies.sizing_plan(account))
+
+    claim_size =
+      Keyword.get_lazy(opts, :claim_size, fn ->
+        %{claim_size: claim_size} = Regions.storage_profile(AccountPolicies.sizing_plan(account))
+        claim_size
+      end)
 
     %Server{
       account_id: account.id,
@@ -376,12 +384,12 @@ defmodule Tuist.Kura.LifecycleTest do
 
     test "counts what each unconditional archival actually frees" do
       # A Pro instance past the full window is archived regardless, and it frees
-      # its own 32Gi rather than an Air instance's 16Gi. The region lands exactly
-      # on its line once that room is counted, so no Air instance is pressured.
-      # Counted at a uniform per-instance figure it would land 16Gi over and take
-      # one.
+      # what it actually holds — 64Gi for one sizing has grown — rather than an
+      # Air instance's 16Gi. The region lands exactly on its line once that room
+      # is counted, so no Air instance is pressured. Counted at a uniform
+      # per-instance figure it would land 48Gi over and take three.
       pro = account(plan: :pro, region: :usa)
-      pro_server = active_instance(pro)
+      pro_server = active_instance(pro, claim_size: "#{@grown_pro_gib}Gi")
       with_demand(pro, 200)
 
       air =
@@ -392,9 +400,9 @@ defmodule Tuist.Kura.LifecycleTest do
           server
         end
 
-      # 702Gi reserved against a 670Gi line: 32Gi over, exactly what the Pro
-      # instance holds across its two replicas.
-      stub_region_pods([reserved_pod(12) | List.duplicate(reserved_pod(10), 69)])
+      # 734Gi reserved against a 670Gi line: 64Gi over, exactly what the grown
+      # Pro instance holds across its two replicas.
+      stub_region_pods([reserved_pod(4) | List.duplicate(reserved_pod(10), 73)])
 
       assert :ok = Lifecycle.sweep()
 
@@ -575,7 +583,7 @@ defmodule Tuist.Kura.LifecycleTest do
       stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
 
       account = account(plan: :pro, region: :usa)
-      server = active_instance(account)
+      server = active_instance(account, claim_size: "#{@grown_pro_gib}Gi")
       start_drain(account, server)
       elapse_drain(account)
 

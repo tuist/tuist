@@ -662,17 +662,26 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # the ring: an upload streams to disk there before it is committed into a
   # segment, so every byte reserved for it is a byte the ring cannot hold. On a
   # small claim Kura's flat 8 GiB default is most of the volume and would leave
-  # an 8Gi claim no ring at all. Held to half the claim instead, so the reserve
-  # shrinks with the instance rather than swallowing it, and capped at the
-  # default so the paid tiers keep exactly the budget they have today.
+  # an 8Gi claim no ring at all, so the reserve scales with the claim and is
+  # capped at that default, which is what the large claims keep.
   #
-  # Not cut further than that. A max-size module upload reserves its whole
-  # assembled size in one call and is rejected outright if that exceeds the
-  # budget, so the floor is a correctness bound. Half of the smallest claim we
-  # hand out is 4 GiB, which is that request twice over.
+  # An eighth rather than a half, because the half was a guess and the eighth
+  # is measured. Peak `kura_tmp_dir_bytes` across production over a week is
+  # about 840 MiB, on the busiest instance in the fleet holding the largest
+  # claim; the CAS lane's largest single upload in a day of 6.4 million of them
+  # is 21.6 MiB. A half-of-claim reserve therefore ran at roughly a tenth of
+  # its budget while taking half of every small volume, which is exactly where
+  # the ring can least afford it.
+  #
+  # The floor stays. A max-size module upload reserves its whole assembled size
+  # in one call and `TmpBudget::try_reserve` rejects it outright rather than
+  # queuing it when the budget is smaller, so a budget under
+  # `@kura_max_staged_request_bytes` does not make that upload slow, it makes it
+  # impossible. That leaves roughly 2.4x headroom over the observed peak at the
+  # floor, and the floor binds only for claims under 16Gi.
   defp staging_bytes(storage_bytes) do
     storage_bytes
-    |> div(2)
+    |> div(8)
     |> min(@kura_default_tmp_dir_max_bytes)
     |> max(@kura_max_staged_request_bytes)
   end
