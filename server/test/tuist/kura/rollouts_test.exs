@@ -653,6 +653,42 @@ defmodule Tuist.Kura.RolloutsTest do
       :ok
     end
 
+    test "a wave scoped before the controller published health recovers once it does" do
+      # The deploy that ships this rolls the server and the Kura controller
+      # together, so a wave can be scoped while no `status.rolloutHealth`
+      # exists yet. Those servers are ineligible with no baseline, and the
+      # gate then refuses to pass the wave on no evidence — it must not
+      # refuse forever once the aggregate shows up.
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, nil} end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      refute rollout_server(rollout, canary_server).soak_eligible
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+      assert :ok = Rollouts.sync()
+
+      # Converged, but the gate holds the wave: nothing has measured it.
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).current_wave == 0
+
+      # The controller catches up and starts publishing.
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health()} end)
+
+      assert :ok = Rollouts.sync()
+      rollout_server = rollout_server(Repo.get!(Rollout, rollout.id), canary_server)
+      assert rollout_server.soak_eligible
+      assert rollout_server.baseline_outbox_messages
+
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).current_wave > 0
+    end
+
     test "a pre-existing ring skew makes the server soak-ineligible instead of gating its fix" do
       %{account: canary_account, server: canary_server} = create_active_server()
 
