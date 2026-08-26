@@ -143,18 +143,16 @@
         {dgettext("dashboard", "No pod has reported its disk in the last week.")}
       </p>
     </.card_section>
-    <.card_section :if={@kura_claim_history != []}>
-      <p data-part="kura-claim-history-description">
-        {dgettext("dashboard", "What sizing has decided for this account, most recent first.")}
-        <.link navigate={~p"/ops/accounts/#{@account.id}/kura/sizing"}>
-          {dngettext(
-            "dashboard",
-            "See the one decision on record",
-            "See all %{count} decisions",
-            @kura_claim_history_total
-          )}
-        </.link>
-      </p>
+    <.card_section :if={@kura_claim_history != []} data-part="kura-claim-history-section">
+      <div data-part="header">
+        <span data-part="title">{dgettext("dashboard", "Sizing decisions")}</span>
+        <.button
+          variant="secondary"
+          label={dgettext("dashboard", "View more")}
+          size="small"
+          navigate={~p"/ops/accounts/#{@account.id}/kura/sizing"}
+        />
+      </div>
       <.table id="kura-claim-history-table" rows={@kura_claim_history}>
         <:col :let={decision} label={dgettext("dashboard", "When")}>
           <.text_cell label={Timex.from_now(decision.inserted_at)} />

@@ -3,16 +3,13 @@
     <h1 data-part="title">{dgettext("dashboard", "Sizing decisions")}</h1>
     <p data-part="subtitle">
       <.link navigate={~p"/ops/accounts/#{@account.id}"}>{@account.name}</.link>
-      · {dngettext("dashboard", "%{count} decision", "%{count} decisions", @total)}
+      · {dngettext("dashboard", "%{count} decision", "%{count} decisions", @meta.total_count)}
     </p>
   </div>
 
   <.card title={dgettext("dashboard", "History")} icon="server">
     <.card_section>
-      <p :if={@decisions == []} data-part="empty">
-        {dgettext("dashboard", "Sizing has not decided anything for this account yet.")}
-      </p>
-      <.table :if={@decisions != []} id="kura-sizing-history-table" rows={@decisions}>
+      <.table id="kura-sizing-history-table" rows={@decisions}>
         <:col :let={decision} label={dgettext("dashboard", "When")}>
           <.text_cell label={Timex.from_now(decision.inserted_at)} />
         </:col>
@@ -32,26 +29,26 @@
         <:col :let={decision} label={dgettext("dashboard", "Why")}>
           <.text_cell label={TuistWeb.OpsAccountLive.claim_history_reason(decision)} />
         </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="server"
+            title={dgettext("dashboard", "No sizing decisions")}
+            subtitle={
+              dgettext("dashboard", "Sizing has not decided anything for this account yet.")
+            }
+          />
+        </:empty_state>
       </.table>
-      <div :if={@last_page > 1} data-part="actions">
-        <.button
-          type="button"
-          variant="secondary"
-          disabled={@page <= 1}
-          phx-click="previous_page"
-          label={dgettext("dashboard", "Previous")}
-        />
-        <span data-part="page-label">
-          {dgettext("dashboard", "Page %{page} of %{last}", page: @page, last: @last_page)}
-        </span>
-        <.button
-          type="button"
-          variant="secondary"
-          disabled={@page >= @last_page}
-          phx-click="next_page"
-          label={dgettext("dashboard", "Next")}
-        />
-      </div>
+      <.pagination_group
+        :if={@meta.total_pages > 1}
+        current_page={@current_page}
+        number_of_pages={@meta.total_pages}
+        page_patch={
+          fn page ->
+            ~p"/ops/accounts/#{@account.id}/kura/sizing?#{Map.put(@query_params, "page", page)}"
+          end
+        }
+      />
     </.card_section>
   </.card>
 </div>

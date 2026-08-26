@@ -450,7 +450,6 @@ defmodule TuistWeb.OpsAccountLive do
     |> assign(:kura_sized_claim, Kura.sized_storage_claim(account))
     |> assign(:kura_claim_proposal, Kura.claim_proposal_for(account))
     |> assign(:kura_claim_history, Kura.claim_sizing_history(account, @kura_claim_history_limit))
-    |> assign(:kura_claim_history_total, Kura.claim_sizing_decision_count(account))
     |> assign(:kura_disk_usage, Kura.latest_storage_snapshots(account))
   end
 

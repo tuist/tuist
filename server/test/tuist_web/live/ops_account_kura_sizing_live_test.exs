@@ -47,19 +47,26 @@ defmodule TuistWeb.OpsAccountKuraSizingLiveTest do
   end
 
   test "pages through a history longer than one page", %{conn: conn, user: user} do
-    for index <- 1..55, do: decision(user.account, to: "#{index}Gi", ago: index * 60)
+    for index <- 1..35, do: decision(user.account, to: "#{index}Gi", ago: index * 60)
 
-    {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}/kura/sizing")
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}/kura/sizing")
 
-    assert html =~ "55 decisions"
-    assert html =~ "Page 1 of 2"
-    # The 51st-newest is the first row of page two, so it must not be here yet.
-    refute html =~ "8Gi → 51Gi"
+    assert html =~ "35 decisions"
+    # The 31st-newest is the first row of page two, so it must not be here yet.
+    refute html =~ "8Gi → 31Gi"
 
-    html = lv |> element("button", "Next") |> render_click()
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}/kura/sizing?page=2")
 
-    assert html =~ "Page 2 of 2"
-    assert html =~ "8Gi → 51Gi"
+    assert html =~ "8Gi → 31Gi"
+    refute html =~ "8Gi → 30Gi"
+  end
+
+  test "hides the pagination when everything fits on one page", %{conn: conn, user: user} do
+    decision(user.account, ago: 60)
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}/kura/sizing")
+
+    refute html =~ "noora-pagination-group"
   end
 
   test "says so when an account has no decisions", %{conn: conn, user: user} do

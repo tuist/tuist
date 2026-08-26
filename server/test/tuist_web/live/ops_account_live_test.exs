@@ -608,28 +608,10 @@ defmodule TuistWeb.OpsAccountLiveTest do
       refute html =~ "applied automatically"
     end
 
-    test "links to the full history when there is more than it shows", %{conn: conn, user: user} do
-      now = DateTime.truncate(DateTime.utc_now(), :second)
-
-      for index <- 1..7 do
-        Repo.insert!(%ClaimProposal{
-          account_id: user.account.id,
-          region: "us-east",
-          direction: :grow,
-          current_claim_size: "8Gi",
-          recommended_claim_size: "16Gi",
-          evidence: %{"median_shed_age_seconds" => 1_800, "retention_floor_seconds" => 259_200},
-          status: :applied,
-          resolved_by: "automatic",
-          resolved_at: DateTime.add(now, -index * 3600, :second),
-          inserted_at: DateTime.add(now, -index * 3600, :second)
-        })
-      end
-
+    test "links to the full history", %{conn: conn, user: user} do
       {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-      # Seven here plus the open proposal the setup creates.
-      assert html =~ "See all 8 decisions"
+      assert html =~ "View more"
       assert html =~ ~p"/ops/accounts/#{user.account.id}/kura/sizing"
     end
 

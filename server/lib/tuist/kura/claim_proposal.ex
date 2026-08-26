@@ -12,6 +12,13 @@ defmodule Tuist.Kura.ClaimProposal do
 
   @statuses [:open, :applied, :dismissed, :superseded]
 
+  @derive {
+    Flop.Schema,
+    filterable: [:account_id],
+    sortable: [:inserted_at],
+    default_order: %{order_by: [:inserted_at], order_directions: [:desc]}
+  }
+
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "kura_claim_proposals" do
     field :region, :string

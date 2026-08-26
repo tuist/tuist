@@ -55,29 +55,21 @@ defmodule Tuist.Kura.ClaimProposals do
   end
 
   @doc """
+  One page of the account's sizing decisions, newest first, returned with the
+  Flop meta the pagination component reads.
+  """
+  def paginate_for(%Account{id: account_id}, options) do
+    ClaimProposal
+    |> where([proposal], proposal.account_id == ^account_id)
+    |> Flop.validate_and_run!(options, for: ClaimProposal)
+  end
+
+  @doc """
   The account's recent sizing decisions, newest first, whatever became of
   them. With applies automatic this is the useful view: an open proposal is
   transient, while the record of what sizing did and on what evidence is what
   answers a question about a resize after the fact.
   """
-  def decision_count(%Account{id: account_id}) do
-    ClaimProposal
-    |> where([proposal], proposal.account_id == ^account_id)
-    |> Repo.aggregate(:count)
-  end
-
-  @doc """
-  One page of the account's sizing decisions, newest first.
-  """
-  def page_for(%Account{id: account_id}, page, per_page) do
-    ClaimProposal
-    |> where([proposal], proposal.account_id == ^account_id)
-    |> order_by([proposal], desc: proposal.inserted_at)
-    |> limit(^per_page)
-    |> offset(^((page - 1) * per_page))
-    |> Repo.all()
-  end
-
   def recent_for(%Account{id: account_id}, limit) do
     ClaimProposal
     |> where([proposal], proposal.account_id == ^account_id)

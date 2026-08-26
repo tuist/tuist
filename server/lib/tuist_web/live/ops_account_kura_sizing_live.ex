@@ -7,8 +7,9 @@ defmodule TuistWeb.OpsAccountKuraSizingLive do
 
   alias Tuist.Accounts
   alias Tuist.Kura
+  alias TuistWeb.Utilities.Query
 
-  @per_page 50
+  @page_size 30
 
   @impl true
   def mount(%{"id" => account_id}, _session, socket) do
@@ -21,37 +22,39 @@ defmodule TuistWeb.OpsAccountKuraSizingLive do
         {:ok,
          socket
          |> assign(:head_title, "#{account.name} · #{dgettext("dashboard", "Sizing")} · Tuist Ops")
-         |> assign(:account, account)
-         |> assign(:per_page, @per_page)
-         |> assign_page(account, 1)}
+         |> assign(:account, account)}
     end
   end
 
   @impl true
-  def handle_event("next_page", _params, socket) do
-    {:noreply, assign_page(socket, socket.assigns.account, socket.assigns.page + 1)}
-  end
+  def handle_params(_params, uri, socket) do
+    query_params = Query.query_params(uri)
+    page = parse_page(query_params["page"])
 
-  @impl true
-  def handle_event("previous_page", _params, socket) do
-    {:noreply, assign_page(socket, socket.assigns.account, max(socket.assigns.page - 1, 1))}
-  end
+    {decisions, meta} =
+      Kura.paginate_claim_sizing_history(socket.assigns.account, %{page: page, page_size: @page_size})
 
-  defp assign_page(socket, account, page) do
-    total = Kura.claim_sizing_decision_count(account)
-    decisions = Kura.claim_sizing_history_page(account, page, @per_page)
-
-    socket
-    |> assign(:page, page)
-    |> assign(:total, total)
-    |> assign(:decisions, decisions)
-    |> assign(:last_page, max(ceil(total / @per_page), 1))
+    {:noreply,
+     socket
+     |> assign(:query_params, query_params)
+     |> assign(:current_page, page)
+     |> assign(:decisions, decisions)
+     |> assign(:meta, meta)}
   end
 
   defp parse_id(id) do
     case Integer.parse(id) do
       {parsed, ""} -> parsed
       _ -> -1
+    end
+  end
+
+  defp parse_page(nil), do: 1
+
+  defp parse_page(value) do
+    case Integer.parse(to_string(value)) do
+      {page, _} when page > 0 -> page
+      _ -> 1
     end
   end
 end
