@@ -27,6 +27,7 @@ defmodule Tuist.Kura do
   alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
+  alias Tuist.Kura.EgressLimits
   alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
@@ -287,6 +288,65 @@ defmodule Tuist.Kura do
   defdelegate claim_sizing_history(account, limit), to: ClaimProposals, as: :recent_for
 
   @doc """
+  The egress floor and ceiling an account's instances in `region` are shaped at,
+  as `%{floor_mbps:, burst_mbps:}`.
+  """
+  defdelegate effective_egress_limits(account, region), to: EgressLimits, as: :effective_limits
+
+  @doc """
+  The account's egress override in `region`, or `nil` when the region decides
+  both numbers there.
+  """
+  defdelegate egress_limits_override(account, region), to: EgressLimits, as: :override_for
+
+  @doc """
+  The egress budget the region's smallest box advertises, which is what a floor
+  or ceiling has to fit inside.
+  """
+  defdelegate region_node_egress_budget_mbps(account, region), to: EgressLimits, as: :node_budget_mbps
+
+  @doc """
+  What the box the account's instances in a region sit on can still be asked
+  for, or `nil` when they sit on none yet. Tighter than the advertised budget,
+  because that box is already carrying the floor they run at.
+  """
+  defdelegate region_egress_headroom(account, region), to: EgressLimits, as: :node_headroom
+
+  @doc """
+  Whether an instance in this status still holds pods, and so is one an egress
+  override reaches.
+  """
+  defdelegate kura_instance_holds_pods?(status), to: EgressLimits, as: :holds_pods?
+
+  @doc """
+  The highest floor a box can hold for an account, from its headroom.
+  """
+  defdelegate max_egress_floor_mbps(headroom), to: EgressLimits, as: :max_floor_mbps
+
+  @doc """
+  The ops egress form's field names, as `{floor, ceiling}`.
+  """
+  defdelegate egress_limits_form_fields, to: EgressLimits, as: :form_fields
+
+  @doc """
+  The pair an account gets in a region with nothing overridden, which is what
+  applies to the halves it overrides nothing for.
+  """
+  defdelegate default_egress_limits(account, region), to: EgressLimits, as: :default_limits
+
+  @doc """
+  Builds a changeset for the ops egress-override form.
+  """
+  defdelegate change_egress_limits_override(account, region, attrs \\ %{}), to: EgressLimits, as: :change_override
+
+  @doc """
+  The pair a form is asking for in one region, without writing it. Lets a page
+  editing several regions at once find out that one of them is wrong before it
+  has applied any of the others.
+  """
+  defdelegate cast_egress_limits_override(account, region, attrs), to: EgressLimits, as: :cast_override
+
+  @doc """
   One page of the account's claim sizing decisions, newest first, with meta.
   """
   defdelegate paginate_claim_sizing_history(account, options), to: ClaimProposals, as: :paginate_for
@@ -416,6 +476,78 @@ defmodule Tuist.Kura do
       {:error, _reason} ->
         false
     end
+  end
+
+  @doc """
+  Sets or clears an account's egress floor/ceiling override in one region and
+  carries it to the instances it already has running there.
+
+  Both halves are independent: a blank one hands that number back to the region.
+  Clearing both removes the override entirely.
+
+  Nothing is pinned on the instance rows the way a disk claim is. The manifest
+  resolves the pair from the account at render time, and the override is folded
+  into the manifest revision, so the reconciler re-applies the affected
+  instances on its next tick. The reconciler is nudged here so that tick is the
+  current one rather than up to a minute away; if the nudge is rejected because a
+  tick is already queued or running, that tick applies it anyway.
+
+  Both numbers are pod-spec state — the floor is the pod's egress request, the
+  ceiling its bandwidth annotation — so applying them recreates the account's
+  replicas in that region, one at a time, with the standby serving through each
+  restart. The volumes are kept: a replica reopens the same warm cache it had,
+  so the cost is the restart rather than a refill. See `Tuist.Kura.EgressLimits`
+  for why the pair is carried there rather than beside it.
+
+  Returns `%{floor_mbps:, burst_mbps:, region:, servers:}`, where `servers` is
+  the account's instances in that region the change reaches — the ones that
+  still hold pods.
+  """
+  def update_egress_limits_override(%Account{} = account, %Regions{} = region, attrs) when is_map(attrs) do
+    with {:ok, override} <- EgressLimits.cast_override(account, region, attrs),
+         {:ok, result} <- write_egress_limits_override(account, region, override) do
+      Enum.each(result.servers, &broadcast_server(&1, :updated))
+      nudge_reconciler()
+      {:ok, result}
+    end
+  end
+
+  defp write_egress_limits_override(account, region, override) do
+    Repo.transaction(fn ->
+      # Paired with the lock the claim override takes, so two operators retuning
+      # the same account from two tabs serialize rather than interleaving a read
+      # of one write with the other.
+      lock_account(account.id)
+
+      case EgressLimits.put_override(account, region, override) do
+        :ok ->
+          servers =
+            account
+            |> EgressLimits.governed_servers()
+            |> Enum.filter(&(&1.region == region.id))
+
+          override
+          |> Map.put(:servers, servers)
+          |> Map.put(:region, region)
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  # Best-effort: the cron tick is the authority, this only shortens the wait.
+  # Oban's uniqueness on the worker rejects the insert whenever a tick is
+  # already queued or running, which is the case this is trying to reach anyway.
+  defp nudge_reconciler do
+    case Oban.insert(Reconciler.new(%{})) do
+      {:ok, _job} -> :ok
+      {:error, _reason} -> :ok
+    end
+  rescue
+    error ->
+      Logger.warning("[Kura] could not nudge the reconciler after an egress override: #{inspect(error)}")
+      :ok
   end
 
   ## Servers
@@ -1932,4 +2064,5 @@ defmodule Tuist.Kura do
 
   defdelegate regions, to: Regions, as: :all
   defdelegate region(id), to: Regions, as: :get
+  defdelegate egress_governed_region?(region), to: Regions, as: :egress_governed?
 end

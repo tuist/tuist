@@ -4,12 +4,28 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   alias Tuist.Accounts.Account
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.Capacity
+  alias Tuist.Kura.EgressLimits
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
 
   setup :set_mimic_from_context
+
+  setup do
+    # The manifest resolves the account's egress override from the database, the
+    # same way it resolves its disk claim. These tests render manifests for
+    # unpersisted accounts, so the unoverridden answer is stubbed here and the
+    # tests that care about an override state their own.
+    stub(EgressLimits, :override_for, fn _account, _region -> nil end)
+
+    stub(EgressLimits, :effective_limits, fn _account, region, region_floor ->
+      %{floor_mbps: region_floor, burst_mbps: Regions.egress_burst_mbps(region)}
+    end)
+
+    :ok
+  end
 
   describe "manifest/6" do
     test "renders a KuraInstance without a per-account compute spec" do
@@ -133,6 +149,101 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["egressGuaranteedMbps"] == 0
       # The burst ceiling still applies.
       assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "1500M"}
+    end
+
+    test "carries the account's egress override as its own fields" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+      stub(EgressLimits, :override_for, fn _account, _region -> %{floor_mbps: 400, burst_mbps: 200} end)
+      stub(EgressLimits, :effective_limits, fn _account, _region, _floor -> %{floor_mbps: 400, burst_mbps: 200} end)
+
+      region =
+        eu_region(%{
+          egress_guaranteed_mbps: 25,
+          egress_burst_mbps: 1500,
+          pod_annotations: %{"kubernetes.io/egress-bandwidth" => "1500M"}
+        })
+
+      spec =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          region,
+          %Server{}
+        )["spec"]
+
+      # The two fields that already carried the region's numbers now carry the
+      # account's: the floor as the reservation the scheduler bin-packs, the
+      # ceiling as the annotation Cilium paces and the shaper builds its class
+      # from. No third field, so the three can never disagree.
+      assert spec["egressGuaranteedMbps"] == 400
+      assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "200M"}
+      refute Map.has_key?(spec, "egressFloorMbps")
+      refute Map.has_key?(spec, "egressBurstMbps")
+    end
+
+    test "renders the region's own pair for an account that overrides nothing" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+
+      region =
+        eu_region(%{
+          egress_guaranteed_mbps: 25,
+          egress_burst_mbps: 1500,
+          pod_annotations: %{"kubernetes.io/egress-bandwidth" => "1500M"}
+        })
+
+      spec =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          region,
+          %Server{}
+        )["spec"]
+
+      assert spec["egressGuaranteedMbps"] == 25
+      assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "1500M"}
+    end
+
+    test "ignores an egress override in a region that shapes no egress" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(EgressLimits, :override_for, fn _account, _region -> %{floor_mbps: 400, burst_mbps: 200} end)
+
+      stub(EgressLimits, :effective_limits, fn _account, _region, _floor ->
+        %{floor_mbps: 400, burst_mbps: 200}
+      end)
+
+      spec =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(),
+          %Server{}
+        )["spec"]
+
+      refute Map.has_key?(spec, "egressGuaranteedMbps")
+      refute Map.has_key?(spec, "podAnnotations")
     end
 
     test "sizes the memory profile per tier on a box that governs memory" do
@@ -1111,6 +1222,89 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(env, "KURA_CONTROL_PLANE_CLIENT_SECRET")
 
       assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == "http://127.0.0.1:4318/v1/traces"
+    end
+  end
+
+  # The reconcile path resolves an override from the database and nothing else.
+  # It must never reach the cluster reads behind the ops form's headroom bound:
+  # those exist to refuse a number an operator is typing, and a cluster that
+  # cannot be read has to cost a bound on a form, never an instance its limits.
+  # Rejected rather than stubbed, so wiring one in fails here.
+  describe "the reconcile path and the cluster" do
+    setup do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      Mimic.reject(&Capacity.egress_headroom/2)
+      Mimic.reject(&Capacity.egress_budget_mbps/1)
+      Mimic.reject(&Client.list_pods_on_node/2)
+      Mimic.reject(&Client.get_node/2)
+      :ok
+    end
+
+    test "renders a manifest without reading the cluster" do
+      region = eu_region(%{egress_guaranteed_mbps: 25, egress_burst_mbps: 1500})
+
+      spec =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          region,
+          %Server{}
+        )["spec"]
+
+      assert spec["egressGuaranteedMbps"] == 25
+    end
+
+    test "resolves a revision without reading the cluster" do
+      region = eu_region(%{egress_guaranteed_mbps: 25, egress_burst_mbps: 1500})
+      server = %Server{account: %Account{id: 1, name: "tuist"}}
+
+      assert String.ends_with?(KubernetesController.manifest_revision(server, region), "+egress25-1500")
+    end
+  end
+
+  describe "manifest_revision/2 and the egress pair" do
+    # The reconciler converges on the revision alone, so the revision has to be
+    # a function of what the manifest renders. Keying it on the override instead
+    # was a hole: the same override renders different numbers when the region's
+    # own pair or the account's entitlement moves, and the instance would sit on
+    # a revision that no longer described it.
+    test "moves the revision so the reconciler re-applies" do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+
+      region = eu_region(%{egress_guaranteed_mbps: 25, egress_burst_mbps: 1500})
+      server = %Server{account: %Account{id: 1, name: "tuist"}}
+
+      unoverridden = KubernetesController.manifest_revision(server, region)
+      assert String.ends_with?(unoverridden, "+egress25-1500")
+
+      stub(EgressLimits, :effective_limits, fn _account, _region, _floor ->
+        %{floor_mbps: 400, burst_mbps: 200}
+      end)
+
+      overridden = KubernetesController.manifest_revision(server, region)
+
+      refute overridden == unoverridden
+      assert String.ends_with?(overridden, "+egress400-200")
+    end
+
+    # Nothing to describe where nothing shapes egress, and saying so would move
+    # the revision of every instance in the cloud regions for no change.
+    test "says nothing for a region that shapes no egress" do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+
+      server = %Server{account: %Account{id: 1, name: "tuist"}}
+
+      refute String.contains?(KubernetesController.manifest_revision(server, eu_region()), "+egress")
     end
   end
 
