@@ -76,6 +76,14 @@ dictate this shape — do not regress them:
   Classid minors are allocated per account (stable, persisted on the
   KuraInstance as `kura.tuist.dev/egress-class-id`) by the controller — one
   component owns the id contract end-to-end.
+  The rates in it are the account's effective pair: the region's floor and
+  ceiling unless staff set a per-account, per-region override on the ops account
+  page, which the server renders into `spec.egressGuaranteedMbps` and the
+  bandwidth pod annotation so the same numbers reach the scheduler's
+  reservation, Cilium's pacing, and this class. Those are pod-spec state, so a
+  retune arrives on freshly created pods; this agent sees the new annotation
+  when the pod informer reports the replacement and converges within about a
+  second of it.
 - **Node budget:** `Node.status.capacity["tuist.dev/egress-mbps"]`
   (advertised by the CAPI provider, see
   `infra/cluster-api-provider-tuist/controllers/shared/node_egress.go`).
@@ -115,6 +123,22 @@ dictate this shape — do not regress them:
   `/sys/fs/bpf/kura-egress-tree/`) keep enforcing across agent restarts and
   upgrades. Removing shaping is an explicit operator action: delete the
   DaemonSet, remove the pin directory, delete `kura-egress0`.
+- **The box cap binds the floor, not just the ceiling.** `classRates` clamps a
+  tenant's floor to the node budget before raising its ceiling to meet that
+  floor. Without the first clamp the second one is a hole: a floor larger than
+  the whole budget (a mistyped override, a hand-edited CR) would carry that
+  tenant's ceiling straight past the cap this tree exists to hold, and the root
+  class cannot hand out what it does not have anyway. Observed live on k01
+  before the clamp: a 2000 Mbps floor on a 1000 Mbps box produced
+  `rate 2Gbit ceil 2Gbit`.
+- **tc validates none of this, so `classRates` is the only guard.** Measured on
+  a live tree: two child classes at `rate 800mbit` under a `rate 1gbit` root
+  both install with exit 0 — HTB does no admission control on the sum of child
+  rates, it simply cannot keep every guarantee at once and shares out in
+  proportion under contention. A single class with `rate 900mbit ceil 100mbit`
+  installs cleanly too. Nothing in the kernel will tell an operator that a floor
+  is unkeepable or unreachable; that has to come from this agent's metrics and
+  from the ops form.
 - `default 0` on the root qdisc: unclassified packets transmit unshaped via
   HTB's direct queue and increment a counter that must alert — every packet
   entering the tree was stamped, so a direct packet means a foreign redirect

@@ -149,6 +149,15 @@ subjects:
   - kind: ServiceAccount
     name: {{ $name }}
     namespace: {{ $namespace }}
+  # The server reads the same node capacity the controller does, for the ops
+  # account page: the disk a region has left (Tuist.Kura.Capacity) and the egress
+  # budget its smallest box advertises, which is the only bound an operator's
+  # per-account egress override is validated against. Nodes are cluster-scoped,
+  # so this is the binding that has to name the server too — without it the form
+  # shows "unknown" and silently skips the check.
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
