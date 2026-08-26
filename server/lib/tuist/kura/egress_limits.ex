@@ -202,15 +202,8 @@ defmodule Tuist.Kura.EgressLimits do
 
   @doc """
   The highest floor a box can hold for an account, or `nil` without a reading.
-
-  One place, because the form refuses against it, labels the column with it and
-  sets the input's `max` from it.
   """
-  def max_floor_mbps(%{available_mbps: available, replicas: replicas}) when replicas > 0 do
-    div(available, replicas)
-  end
-
-  def max_floor_mbps(_headroom), do: nil
+  defdelegate max_floor_mbps(headroom), to: Capacity
 
   @doc """
   Whether an instance in this status still holds pods, and so is one an override

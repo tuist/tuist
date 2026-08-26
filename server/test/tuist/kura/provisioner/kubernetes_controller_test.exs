@@ -4,6 +4,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   alias Tuist.Accounts.Account
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.Capacity
   alias Tuist.Kura.EgressLimits
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Provisioner.KubernetesController
@@ -1219,6 +1220,51 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(env, "KURA_CONTROL_PLANE_CLIENT_SECRET")
 
       assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == "http://127.0.0.1:4318/v1/traces"
+    end
+  end
+
+  # The reconcile path resolves an override from the database and nothing else.
+  # It must never reach the cluster reads behind the ops form's headroom bound:
+  # those exist to refuse a number an operator is typing, and a cluster that
+  # cannot be read has to cost a bound on a form, never an instance its limits.
+  # Rejected rather than stubbed, so wiring one in fails here.
+  describe "the reconcile path and the cluster" do
+    setup do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      Mimic.reject(&Capacity.egress_headroom/2)
+      Mimic.reject(&Capacity.egress_budget_mbps/1)
+      Mimic.reject(&Client.list_pods_on_node/2)
+      Mimic.reject(&Client.get_node/2)
+      :ok
+    end
+
+    test "renders a manifest without reading the cluster" do
+      region = eu_region(%{egress_guaranteed_mbps: 25, egress_burst_mbps: 1500})
+
+      spec =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          region,
+          %Server{}
+        )["spec"]
+
+      assert spec["egressGuaranteedMbps"] == 25
+    end
+
+    test "resolves a revision without reading the cluster" do
+      region = eu_region(%{egress_guaranteed_mbps: 25, egress_burst_mbps: 1500})
+      server = %Server{account: %Account{id: 1, name: "tuist"}}
+
+      assert String.ends_with?(KubernetesController.manifest_revision(server, region), "+egress25-1500")
     end
   end
 

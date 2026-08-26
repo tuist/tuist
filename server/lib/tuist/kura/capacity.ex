@@ -215,9 +215,14 @@ defmodule Tuist.Kura.Capacity do
   different values on different replicas, so a bound written in terms of them
   answers differently depending on when it is asked.
 
-  Read from the box the account's instance is on -- its replicas are co-located
-  there and their volumes pin them to it -- rather than from the region, whose
-  other boxes cannot take the pod however much room they have.
+  Read from the boxes the account is on rather than from the region, whose other
+  boxes cannot take the pod however much room they have. Normally that is one
+  box; where an account straddles two, the one that can hold the smallest floor
+  binds.
+
+  Never read on the reconcile path: the manifest resolves an override from the
+  database alone, so a cluster that cannot be read costs an operator a bound on
+  the form, never an instance its limits.
   """
   def egress_headroom(region_id, account_handle) when is_binary(account_handle) do
     cached([__MODULE__, "egress_headroom", region_id, account_handle], fn ->
@@ -243,16 +248,50 @@ defmodule Tuist.Kura.Capacity do
     value
   end
 
+  @doc """
+  The highest floor a box can hold for an account, from its headroom, or `nil`
+  without a reading.
+
+  One place, because the form refuses against it, labels the column with it and
+  sets the input's `max` from it — and because it is what decides which of an
+  account's boxes binds.
+  """
+  def max_floor_mbps(%{available_mbps: available, replicas: replicas}) when replicas > 0 do
+    div(available, replicas)
+  end
+
+  def max_floor_mbps(_headroom), do: nil
+
   defp measure_egress_headroom(region_id, account_handle) do
     with {:ok, pods} <- Client.list_pods(@namespace, account_selector(region_id, account_handle), timeout: @read_timeout),
-         [pod | _] = placed <- Enum.filter(pods, &(pod_node_name(&1) && not terminal?(&1))),
-         node = pod_node_name(pod),
-         # From the placed pods, never from the raw list: a terminal replica is
-         # excluded from `reserved` by the field selector, so counting it here
-         # would add back a reservation nobody holds and report the box as
-         # roomier than it is.
-         on_box = Enum.filter(placed, &(pod_node_name(&1) == node)),
-         {:ok, node_body} <- Client.get_node(node, timeout: @read_timeout),
+         # Terminal pods are excluded from a box's reserved total by the field
+         # selector below, so counting one here would add back a reservation
+         # nobody holds and report the box as roomier than it is.
+         [_ | _] = placed <- Enum.filter(pods, &(pod_node_name(&1) && not terminal?(&1))),
+         [_ | _] = boxes <- measure_boxes(placed, region_id),
+         false <- Enum.any?(boxes, &is_nil/1) do
+      # By what each box can hold per replica, not by what it has left: an
+      # account placed unevenly reserves a different number of replicas on each,
+      # and the bound is the smallest floor any of them can take.
+      Enum.min_by(boxes, &(max_floor_mbps(&1) || 0))
+    else
+      _ -> nil
+    end
+  end
+
+  # Usually one box: the controller's podAffinity co-locates an account's
+  # replicas and their volumes keep them there. It is only preferred, though --
+  # required would deadlock the first replica -- so a box that cannot fit the
+  # second leaves the account straddling two, and pinned that way. Each box
+  # rebuilds its own replicas, so each is measured and the tightest binds.
+  defp measure_boxes(placed, region_id) do
+    placed
+    |> Enum.group_by(&pod_node_name/1)
+    |> Enum.map(&measure_box(&1, region_id, length(placed)))
+  end
+
+  defp measure_box({node, on_box}, region_id, placed_count) do
+    with {:ok, node_body} <- Client.get_node(node, timeout: @read_timeout),
          allocatable when is_integer(allocatable) <- egress_mbps(node_body),
          {:ok, reserved} <- box_reserved_mbps(node) do
       own_mbps = on_box |> Enum.map(&pod_egress_mbps/1) |> Enum.sum()
@@ -263,9 +302,10 @@ defmodule Tuist.Kura.Capacity do
         # The account's own reservation is added back: the rollout hands it in
         # before asking for the replacement.
         available_mbps: max(allocatable - (reserved - own_mbps), 0),
-        # Raised to what the region declares: a replica between deletion and
-        # recreation is in no pod list, and its volume brings it back here.
-        replicas: max(length(on_box), declared_replicas(region_id))
+        # Replicas this box rebuilds, raised by the replicas the region declares
+        # that no other box accounts for: one between deletion and recreation is
+        # in no pod list, and its volume brings it back here.
+        replicas: max(length(on_box), declared_replicas(region_id) - (placed_count - length(on_box)))
       }
     else
       _ -> nil
