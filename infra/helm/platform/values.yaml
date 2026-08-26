@@ -1,12 +1,12 @@
 # Platform-level values for the Tuist-managed Kubernetes cluster.
 # This chart is installed once per cluster (staging / production), not per app release.
 #
-# Install:
-#   helm dependency update infra/helm/platform
-#   helm upgrade --install platform infra/helm/platform \
-#     -n platform --create-namespace \
-#     --set cloudflare.apiTokenSecret.create=false \
-#     --set cloudflare.email=ops@tuist.dev
+# Managed-cluster install:
+#   mise -C infra run k8s:install-platform <workload-kubeconfig> <cluster-name>
+#
+# The task reconciles cert-manager custom resource definitions before Helm
+# renders this chart. Do not use a direct Helm install to bootstrap a fresh
+# managed cluster.
 #
 # The Cloudflare API token is expected in a pre-existing Secret in the platform
 # namespace (see infra/k8s/onboarding.md for the bootstrap commands).
