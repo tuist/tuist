@@ -6,6 +6,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
   alias Tuist.Authorization
   alias TuistWeb.Authentication
+  alias TuistWeb.RateLimit
 
   def init(:run), do: :run
   def init(:bundle), do: :bundle
@@ -64,12 +65,26 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     if authorized? do
       conn
     else
-      conn
-      |> put_status(:forbidden)
-      |> json(%{
-        message: "#{subject_name(subject)} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
-      })
-      |> halt()
+      deny(conn, subject, action, category)
+    end
+  end
+
+  defp deny(conn, subject, action, category) do
+    case RateLimit.Authorization.hit(conn) do
+      {:allow, _count} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message: "#{subject_name(subject)} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
+        })
+        |> halt()
+
+      {:deny, milliseconds_until_next_window} ->
+        conn
+        |> put_resp_header("retry-after", Integer.to_string(ceil(milliseconds_until_next_window / 1000)))
+        |> put_status(:too_many_requests)
+        |> json(%{message: "You have made too many unauthorized requests. Please try again later."})
+        |> halt()
     end
   end
 

@@ -9,6 +9,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.API.Authorization.AuthorizationPlug
+  alias TuistWeb.RateLimit
 
   setup :set_mimic_global
 
@@ -246,6 +247,46 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
       assert create_conn |> AuthorizationPlug.call(opts) |> json_response(:forbidden) == %{
                "message" => "#{account_handle} is not authorized to create cache"
              }
+    end
+  end
+
+  describe "authorization failure rate limiting" do
+    setup do
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+
+      conn =
+        build_conn()
+        |> assign(:selected_project, project)
+        |> TuistWeb.Authentication.put_current_project(project)
+
+      stub(Authorization, :authorize, fn _, _, _ -> {:error, :forbidden} end)
+
+      %{conn: conn}
+    end
+
+    test "returns 403 while the subject is under the limit", %{conn: conn} do
+      # Given
+      stub(RateLimit.Authorization, :hit, fn _conn -> {:allow, 1} end)
+
+      # When
+      conn = AuthorizationPlug.call(conn, AuthorizationPlug.init(:cache))
+
+      # Then
+      assert conn.halted
+      assert json_response(conn, :forbidden)["message"] =~ "not authorized to read cache"
+    end
+
+    test "returns 429 with a retry-after header once the subject exceeds the limit", %{conn: conn} do
+      # Given
+      stub(RateLimit.Authorization, :hit, fn _conn -> {:deny, 30_000} end)
+
+      # When
+      conn = AuthorizationPlug.call(conn, AuthorizationPlug.init(:cache))
+
+      # Then
+      assert conn.halted
+      assert json_response(conn, :too_many_requests)["message"] =~ "too many unauthorized requests"
+      assert get_resp_header(conn, "retry-after") == ["30"]
     end
   end
 end
