@@ -532,7 +532,7 @@ defmodule TuistWeb.API.AnalyticsController do
     # by an idle launch agent, so counting those would let both biases move
     # servers.
     if cache_run?(cache_metadata, body_params) do
-      Origins.record_run(selected_project.account_id, RemoteIp.origin(conn))
+      Origins.record_run(selected_project.account_id, RemoteIp.attributed_origin(conn))
     end
 
     xcode_graph = Map.get(body_params, :xcode_graph)

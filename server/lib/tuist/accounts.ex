@@ -29,6 +29,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.Demand
+  alias Tuist.Kura.Origins
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.Profiles, as: RunnerProfiles
@@ -2591,7 +2592,7 @@ defmodule Tuist.Accounts do
       %Account{} = account ->
         Demand.record(account.id, origin)
 
-        case kura_cache_endpoint_urls(account, origin) do
+        case kura_cache_endpoint_urls(account, Origins.value(origin)) do
           [] ->
             %{
               endpoints: absent_kura_endpoint_urls(account),

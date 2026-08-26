@@ -37,6 +37,14 @@ defmodule Tuist.Kura.OriginsTest do
       assert %OriginRollup{run_count: 1} = rollup(account, "US-VA")
     end
 
+    test "accepts what the request path resolved, attributed or not", %{account: account} do
+      Origins.record_run(account.id, {:ok, "FR"})
+      Origins.record_demand(account.id, {:error, :no_location})
+
+      assert %OriginRollup{run_count: 1, demand_count: 0} = rollup(account, "FR")
+      assert Repo.aggregate(OriginRollup, :count) == 1
+    end
+
     test "counts an unattributed request nowhere", %{account: account} do
       # An unattributed run is missing evidence. Counting it as the default
       # would let requests nobody could locate vote on where servers go.

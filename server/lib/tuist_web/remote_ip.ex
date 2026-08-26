@@ -63,11 +63,26 @@ defmodule TuistWeb.RemoteIp do
   reaching through this.
   """
   def origin(conn) do
-    with true <- trusted_cloudflare_hop?(conn.remote_ip, header(conn, "x-forwarded-for")),
-         country when is_binary(country) <- country_code(conn) do
-      subdivide(conn, country)
-    else
-      _ -> nil
+    case attributed_origin(conn) do
+      {:ok, origin} -> origin
+      {:error, _reason} -> nil
+    end
+  end
+
+  @doc """
+  `origin/1`, with the reason when there is no origin to give.
+
+  The two reasons need different fixes and are otherwise indistinguishable
+  from the outside: `:untrusted_hop` means the request did not arrive through
+  a hop allowed to speak for the client, and `:no_location` means it did and
+  the edge sent no location — which on a Cloudflare zone means the visitor
+  location headers are not turned on for it.
+  """
+  def attributed_origin(conn) do
+    cond do
+      not trusted_cloudflare_hop?(conn.remote_ip, header(conn, "x-forwarded-for")) -> {:error, :untrusted_hop}
+      country = country_code(conn) -> {:ok, subdivide(conn, country)}
+      true -> {:error, :no_location}
     end
   end
 

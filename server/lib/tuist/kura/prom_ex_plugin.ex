@@ -129,7 +129,7 @@ defmodule Tuist.Kura.PromExPlugin do
               "Requests placement tried to attribute, by whether the edge could place them. " <>
                 "An edge that stops reporting locations otherwise looks exactly like a quiet " <>
                 "fleet, with placement silently falling back to the default region.",
-            tags: [:signal, :attributed]
+            tags: [:signal, :attributed, :reason]
           )
         ]
       )

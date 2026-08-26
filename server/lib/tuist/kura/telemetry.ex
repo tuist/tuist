@@ -115,15 +115,22 @@ defmodule Tuist.Kura.Telemetry do
   fleet, and placement would silently fall back to the default region for
   everyone. The ratio of these two is the health of the signal.
 
+  `reason` says which fix an unattributed request needs: `untrusted_hop` for
+  one that did not arrive through a hop allowed to speak for the client, and
+  `no_location` for one that did and carried no location, which on a
+  Cloudflare zone means the visitor location headers are off for it. Without
+  it the two are indistinguishable from outside the request.
+
   Deliberately not tagged by origin or account. This counts requests rather
   than aggregating them, so a tag with any breadth would put per-request
   geography into a metrics series, which is the thing the design keeps out of
   everything downstream.
   """
-  def origin_attribution(signal, attributed?) do
+  def origin_attribution(signal, reason) do
     :telemetry.execute(event_name_origin_attribution(), %{count: 1}, %{
       signal: to_string(signal),
-      attributed: to_string(attributed?)
+      attributed: to_string(reason == :ok),
+      reason: to_string(reason)
     })
   end
 end

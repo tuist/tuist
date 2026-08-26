@@ -49,6 +49,14 @@ defmodule Tuist.Kura.Origins do
   def record_demand(account_id, origin), do: record(account_id, origin, @demand_position)
 
   @doc """
+  The origin itself, from what the request path resolved. `nil` when it could
+  not be attributed, which is what every reader other than the counter wants.
+  """
+  def value({:ok, origin}) when is_binary(origin), do: origin
+  def value(origin) when is_binary(origin), do: origin
+  def value(_unattributed), do: nil
+
+  @doc """
   Counts one cache-using run from `origin`.
   """
   def record_run(account_id, origin), do: record(account_id, origin, @run_position)
@@ -120,8 +128,10 @@ defmodule Tuist.Kura.Origins do
 
   defp schedule_flush(interval), do: Process.send_after(self(), :flush, interval)
 
+  defp record(account_id, {:ok, origin}, position), do: record(account_id, origin, position)
+
   defp record(account_id, origin, position) when is_integer(account_id) and is_binary(origin) do
-    Telemetry.origin_attribution(signal(position), true)
+    Telemetry.origin_attribution(signal(position), :ok)
     key = {account_id, origin, Date.utc_today()}
 
     if Environment.kura_demand_write_through_repo?() do
@@ -138,8 +148,14 @@ defmodule Tuist.Kura.Origins do
   # An unattributed request is counted nowhere: see the moduledoc. It is still
   # counted as a request nobody could place, because otherwise an edge that
   # stopped reporting locations is indistinguishable from a quiet fleet.
+  defp record(account_id, {:error, reason}, position) when is_integer(account_id) do
+    Telemetry.origin_attribution(signal(position), reason)
+
+    :ok
+  end
+
   defp record(account_id, _origin, position) when is_integer(account_id) do
-    Telemetry.origin_attribution(signal(position), false)
+    Telemetry.origin_attribution(signal(position), :no_location)
 
     :ok
   end

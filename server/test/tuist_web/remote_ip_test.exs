@@ -146,6 +146,19 @@ defmodule TuistWeb.RemoteIpTest do
       assert got == "FR"
     end
 
+    test "says which fix an unattributed request needs" do
+      # The two are indistinguishable from outside the request, and they need
+      # different fixes: one is the zone's headers, the other is the hop list.
+      untrusted =
+        build_conn()
+        |> Map.put(:remote_ip, {203, 0, 113, 20})
+        |> Plug.Conn.put_req_header("cf-ipcountry", "FR")
+
+      assert TuistWeb.RemoteIp.attributed_origin(untrusted) == {:error, :untrusted_hop}
+      assert TuistWeb.RemoteIp.attributed_origin(cloudflare_conn([])) == {:error, :no_location}
+      assert TuistWeb.RemoteIp.attributed_origin(cloudflare_conn([{"cf-ipcountry", "FR"}])) == {:ok, "FR"}
+    end
+
     test "answers nothing for an untrusted hop" do
       # The header is trivially forgeable, so an account could otherwise vote
       # itself into a region by setting it.

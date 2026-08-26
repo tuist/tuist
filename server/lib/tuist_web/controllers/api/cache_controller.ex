@@ -105,7 +105,7 @@ defmodule TuistWeb.API.CacheController do
     %{endpoints: endpoints, provisioning: provisioning} =
       params[:account_handle]
       |> authorized_account_handle(conn)
-      |> Accounts.get_cache_resolution_for_handle(technology(conn), RemoteIp.origin(conn))
+      |> Accounts.get_cache_resolution_for_handle(technology(conn), RemoteIp.attributed_origin(conn))
 
     max_age = if provisioning, do: @provisioning_cache_max_age, else: Kura.endpoint_freshness_seconds()
 
