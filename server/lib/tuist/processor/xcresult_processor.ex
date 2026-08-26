@@ -188,15 +188,21 @@ defmodule Tuist.Processor.XCResultProcessor do
 
   defp parse_error_message(reason), do: inspect(reason)
 
-  # A dedicated atom rather than a sanitized string: the timeout is the one
-  # failure mode with its own alert, and an atom is what a queue-consumer
-  # rule and a `grep` can both key on unambiguously. The elapsed seconds it
-  # replaces are a compile-time constant in the NIF, not information.
+  # Dedicated atoms rather than sanitized strings: these are the failure modes
+  # callers act on, and an atom is what a queue-consumer rule and a `grep` can
+  # both key on unambiguously. The timeout's elapsed seconds are a compile-time
+  # constant in the NIF, not information, and absent test-results output says
+  # nothing beyond its own absence.
   defp stable_parse_error(message, xcresult_path) do
-    if String.starts_with?(message, "xcresult parsing timed out") do
-      :parse_timeout
-    else
-      {:parse_failed, String.replace(message, xcresult_path, "<xcresult>")}
+    cond do
+      String.starts_with?(message, "xcresult parsing timed out") ->
+        :parse_timeout
+
+      String.starts_with?(message, "xcresulttool produced no test-results output") ->
+        :empty_test_results
+
+      true ->
+        {:parse_failed, String.replace(message, xcresult_path, "<xcresult>")}
     end
   end
 

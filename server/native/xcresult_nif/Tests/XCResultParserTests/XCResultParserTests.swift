@@ -140,6 +140,21 @@ struct XCResultParserTests {
     }
 
     @Test
+    func parse_reportsAnEmptyTestResultsOutputAsItsOwnFailure() async throws {
+        // `xcresulttool get test-results tests` exits cleanly having written
+        // nothing for some bundles. Zero bytes decode as "dataCorrupted [...]
+        // The given data was not valid JSON", which reads as a malformed
+        // payload; absent output is its own failure, distinct from output we
+        // cannot decode.
+        let parser = XCResultParser(commandRunner: XCResultToolStub(testResultsJSON: ""))
+        let path = try AbsolutePath(validating: "/tmp/empty.xcresult")
+
+        await #expect(throws: XCResultParserError.emptyOutput(step: "test-results", path: path)) {
+            try await parser.parse(path: path, rootDirectory: nil)
+        }
+    }
+
+    @Test
     func parse_treatsAnAbsentActionLogAsEmptyInsteadOfFailing() async throws {
         // An aborted or test-less run uploads an xcresult with zero test nodes
         // and no action log: `xcresulttool get log --type action` prints "No

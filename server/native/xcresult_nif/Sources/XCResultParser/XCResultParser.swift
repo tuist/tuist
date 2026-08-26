@@ -7,6 +7,7 @@ public enum XCResultParserError: LocalizedError, Equatable {
     case failedToParseOutput(AbsolutePath)
     case timedOut(AbsolutePath, seconds: Int)
     case decodingFailed(step: String, path: AbsolutePath, detail: String)
+    case emptyOutput(step: String, path: AbsolutePath)
 
     public var errorDescription: String? {
         switch self {
@@ -16,6 +17,8 @@ public enum XCResultParserError: LocalizedError, Equatable {
             return "xcresult parsing timed out after \(seconds)s at \(path.pathString)"
         case let .decodingFailed(step, path, detail):
             return "Failed to decode xcresult \(step) at \(path.pathString): \(detail)"
+        case let .emptyOutput(step, path):
+            return "xcresulttool produced no \(step) output at \(path.pathString)"
         }
     }
 }
@@ -125,6 +128,14 @@ public struct XCResultParser: Sendable {
 
                 let outputString = try await fileSystem.readTextFile(at: tempFile)
                 let jsonString = extractJSON(from: outputString)
+                // `xcresulttool get test-results tests` exits cleanly having
+                // written nothing for some bundles. Absent output is its own
+                // failure rather than a decode failure, so callers can settle
+                // the run instead of retrying a bundle that yields the same
+                // nothing on every attempt.
+                guard !jsonString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw XCResultParserError.emptyOutput(step: "test-results", path: path)
+                }
                 guard let jsonData = jsonString.data(using: .utf8) else {
                     throw XCResultParserError.failedToParseOutput(path)
                 }

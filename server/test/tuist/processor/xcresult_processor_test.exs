@@ -94,6 +94,17 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       assert {:error, :parse_timeout} = XCResultProcessor.process_local(fixture_zip)
     end
 
+    test "collapses an empty test-results output to a stable reason" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      expect(XCResultNIF, :parse, fn xcresult_path, _root_dir ->
+        {:error, JSON.encode!(%{"error" => "xcresulttool produced no test-results output at #{xcresult_path}"})}
+      end)
+
+      assert {:error, :empty_test_results} = XCResultProcessor.process_local(fixture_zip)
+    end
+
     test "strips the bundle path out of a non-timeout parse failure" do
       {fixture_dir, fixture_zip} = create_xcresult_zip()
       on_exit(fn -> File.rm_rf(fixture_dir) end)

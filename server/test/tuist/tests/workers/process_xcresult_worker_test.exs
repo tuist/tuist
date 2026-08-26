@@ -532,7 +532,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
                ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 3))
     end
 
-    for reason <- [:bundle_invalid, :xcresult_not_found] do
+    for reason <- [:bundle_invalid, :xcresult_not_found, :empty_test_results] do
       test "discards the job and marks failed_processing on the first attempt for #{inspect(reason)}", %{
         account: account,
         project: project
