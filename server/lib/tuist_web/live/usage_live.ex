@@ -49,7 +49,6 @@ defmodule TuistWeb.UsageLive do
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:runners_enabled, runners_enabled)
      |> assign(:prepaid_balance, prepaid_balance)
-     |> assign(:prepaid_coverage, prepaid_coverage(prepaid_balance, runner_breakdown))
      |> assign(:kura_enabled, FeatureFlags.kura_enabled?(account))}
   end
 
