@@ -17,6 +17,7 @@ defmodule Tuist.Kura.ClaimProposals do
 
   alias Ecto.Changeset
   alias Tuist.Accounts.Account
+  alias Tuist.Billing.Subscription
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimSizing
@@ -197,6 +198,12 @@ defmodule Tuist.Kura.ClaimProposals do
       |> select([server, account], account)
       |> distinct(true)
       |> Repo.all()
+      # Preloaded because `Tuist.Billing.effective_plan/1` resolves from a
+      # loaded list without touching the database and queries per account
+      # without one. The sweep asks every account for its plan on every pass,
+      # so unloaded that is the one part of it whose cost scales with both the
+      # account count and the tick rate.
+      |> Repo.preload(subscriptions: active_subscriptions())
 
     overridden =
       StorageClaim
@@ -206,6 +213,12 @@ defmodule Tuist.Kura.ClaimProposals do
       |> MapSet.new()
 
     Enum.reject(accounts, &MapSet.member?(overridden, &1.id))
+  end
+
+  # Only the rows `effective_plan/1` looks at, so the preload stays bounded by
+  # what an account currently holds rather than by everything it ever held.
+  defp active_subscriptions do
+    from(subscription in Subscription, where: subscription.status in ["active", "trialing"])
   end
 
   # Governance is a property of the region's configuration, not of which

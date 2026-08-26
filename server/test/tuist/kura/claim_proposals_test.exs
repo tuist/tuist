@@ -31,6 +31,52 @@ defmodule Tuist.Kura.ClaimProposalsTest do
     %{account: account, server: server}
   end
 
+  defp account_with_subscription do
+    user = AccountsFixtures.user_fixture()
+    account = Accounts.get_account_from_user(user)
+    BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+    insert_server!(account, "us-east")
+    account
+  end
+
+  # Ecto's telemetry carries the SQL and the bound parameters, so the assertion
+  # is on what the sweep actually asked the database. Telemetry handlers are
+  # global to the VM rather than scoped to the test, so this counts only the
+  # queries bound to this test's own accounts; without that it also sees every
+  # concurrently running async test and fails on their traffic.
+  defp count_subscription_queries(account_ids, fun) do
+    ref = make_ref()
+    test = self()
+    handler = {__MODULE__, ref}
+
+    :telemetry.attach(
+      handler,
+      [:tuist, :repo, :query],
+      fn _event, _measurements, %{query: query, params: params}, _config ->
+        if String.contains?(query, ~s(FROM "subscriptions")) and Enum.any?(params, &(&1 in account_ids)) do
+          send(test, {ref, :subscription_query})
+        end
+      end,
+      nil
+    )
+
+    try do
+      fun.()
+    after
+      :telemetry.detach(handler)
+    end
+
+    drain_subscription_queries(ref, 0)
+  end
+
+  defp drain_subscription_queries(ref, count) do
+    receive do
+      {^ref, :subscription_query} -> drain_subscription_queries(ref, count + 1)
+    after
+      0 -> count
+    end
+  end
+
   defp insert_server!(account, region) do
     {:ok, server} =
       %Server{}
@@ -117,6 +163,26 @@ defmodule Tuist.Kura.ClaimProposalsTest do
 
       assert {:ok, %{evaluated: 0, open: 0}} = ClaimProposals.sweep(@today)
       assert ClaimProposals.open_proposal_for(account) == nil
+    end
+
+    test "resolves every account's plan without a query per account" do
+      # The sweep asks each account for its plan on every pass, and
+      # `Billing.effective_plan/1` only answers from memory when subscriptions
+      # are loaded. Left unloaded it is one query per account per tick, which
+      # is the one cost in the sweep that scales with both the fleet and the
+      # cadence.
+      first = account_with_subscription()
+      second = account_with_subscription()
+      seed_churn_rollups(first, 14, @today)
+      seed_churn_rollups(second, 14, @today)
+
+      subscription_queries =
+        count_subscription_queries([first.id, second.id], fn ->
+          {:ok, _summary} = ClaimProposals.sweep(@today)
+        end)
+
+      assert subscription_queries <= 1,
+             "expected the plan lookup to be batched, saw #{subscription_queries} subscription queries"
     end
 
     test "an account with instances only outside storage-governed regions is invisible" do
