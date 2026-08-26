@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Install or upgrade the cluster-wide Kura controller in the `kura` namespace. Requires KURA_CONTROLLER_IMAGE_TAG."
 #USAGE arg "<kubeconfig>" help="Path to the workload cluster kubeconfig"
-#USAGE arg "[profile]" help="Controller placement and TLS profile (preview | pentest)" default="preview"
 
 # Installs ONLY the kuraController resources from the tuist Helm chart into
 # the `kura` namespace, using `helm template --show-only` so we don't have
@@ -19,7 +18,6 @@
 set -euo pipefail
 
 WL_KUBECONFIG="$1"
-PROFILE="${2:-preview}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 CHART_PATH="$REPO_ROOT/infra/helm/tuist"
 KURA_NAMESPACE="kura"
@@ -36,14 +34,6 @@ if [ ! -r "$WL_KUBECONFIG" ]; then
   echo "ERROR: kubeconfig not readable: $WL_KUBECONFIG" >&2
   exit 1
 fi
-
-case "$PROFILE" in
-  preview|pentest) ;;
-  *)
-    echo "ERROR: profile must be preview or pentest." >&2
-    exit 64
-    ;;
-esac
 
 export KUBECONFIG="$WL_KUBECONFIG"
 
@@ -63,7 +53,7 @@ if [ -z "$CLIENT_SECRET" ]; then
 fi
 echo "::add-mask::$CLIENT_SECRET"
 
-log "Rendering Kura controller manifests for namespace=$KURA_NAMESPACE tag=$KURA_CONTROLLER_IMAGE_TAG profile=$PROFILE"
+log "Rendering Kura controller manifests for namespace=$KURA_NAMESPACE tag=$KURA_CONTROLLER_IMAGE_TAG"
 HELM_ARGS=(
   helm template kura-platform "$CHART_PATH"
   --namespace "$KURA_NAMESPACE" \
@@ -78,19 +68,13 @@ HELM_ARGS=(
   --set-string "kuraController.sharedSecrets.kuraIntrospection.clientSecret=$CLIENT_SECRET"
 )
 
-if [ "$PROFILE" = "preview" ]; then
-  # Every non-control-plane preview worker carries this taint.
-  HELM_ARGS+=(
-    --set "kuraController.tolerations[0].key=role"
-    --set "kuraController.tolerations[0].operator=Equal"
-    --set "kuraController.tolerations[0].value=preview"
-    --set "kuraController.tolerations[0].effect=NoSchedule"
-  )
-else
-  # The pentest controller must issue a certificate for its dedicated Kura
-  # hostname. The issuer is installed by the cluster's platform chart.
-  HELM_ARGS+=(--set kuraController.tlsClusterIssuer=letsencrypt-cloudflare)
-fi
+# Every non-control-plane preview worker carries this taint.
+HELM_ARGS+=(
+  --set "kuraController.tolerations[0].key=role"
+  --set "kuraController.tolerations[0].operator=Equal"
+  --set "kuraController.tolerations[0].value=preview"
+  --set "kuraController.tolerations[0].effect=NoSchedule"
+)
 
 "${HELM_ARGS[@]}" | kubectl apply -f -
 
