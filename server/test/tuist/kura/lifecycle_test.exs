@@ -1050,6 +1050,47 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(destination).status == :active
     end
 
+    test "does not count a private runner cache as somewhere else serving" do
+      # A runner cache is in-cluster and never CLI-facing. Draining against it
+      # would take the account's only developer-facing cache away and leave
+      # every machine on the fallback lane.
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      _runner_cache = active_instance_in(account, "scw-fr-par-runners")
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+
+      assert reload(source).status == :active
+    end
+
+    test "carries a retirement through for a region that never had a demand row" do
+      # The drain resolution reaches an instance by joining its lifecycle row,
+      # so one without a row would go into drain-pending and never be looked at
+      # again — holding its volume and its slot forever.
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      _destination = active_instance_in(account, "eu-central")
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      refute reload_lifecycle(account)
+
+      Lifecycle.reconcile_placement_retirements()
+
+      assert reload(source).status == :drain_pending
+      assert reload_lifecycle(account)
+
+      rewind_drain(account, Kura.placement_drain_seconds() + 60)
+      Lifecycle.reconcile()
+
+      assert reload_lifecycle(account).teardown_started_at
+    end
+
     test "waits while the account is served from nowhere else" do
       # Taking the only instance would be an outage rather than a move. The
       # destination is provisioned by the ordinary demand path first.

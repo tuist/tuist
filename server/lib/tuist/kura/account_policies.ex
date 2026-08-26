@@ -252,30 +252,47 @@ defmodule Tuist.Kura.AccountPolicies do
   # Europe is today, and the refusal is counted: sustained refused demand is
   # what an Air budget in a new region gets decided from.
   defp effective_service_region(%Account{} = account, :air, lookups) do
+    # Funding is the gate, not availability: funding a region the deployment
+    # does not serve is a configuration error rather than a placement, and one
+    # the refusal counter and the unmet-preference counter both surface. Air
+    # has always resolved this way, and filtering here would instead refuse
+    # every Air account in a deployment that serves a narrowed region list.
     case account |> permitted_regions() |> restrict_to_plan(:air) do
       [] ->
         {:error, :service_region_unavailable}
 
       placeable ->
-        {:ok, place(account, placeable, placeable, lookups)}
+        # No residency default here: Air is funded region by region, so the
+        # only regions it may land in are the ones on that list.
+        {:ok, place(account, placeable, placeable, lookups) || List.first(placeable)}
     end
   end
 
   defp effective_service_region(%Account{} = account, plan, lookups) when plan in [:pro, :enterprise] do
     permitted = permitted_regions(account)
 
-    case lookups.assignment.(account) do
-      %AccountRegionPolicy{service_region: service_region} ->
+    assignment = lookups.assignment.(account)
+
+    # Residency outranks the assignment, and is re-checked here rather than
+    # only where the assignment is written: a customer can narrow their storage
+    # region in account settings long after an operator pinned them, and
+    # honouring a pin that now sits outside the promise would keep serving them
+    # from a region they have just said their data may not live in. The row is
+    # left alone; it resolves again if the promise widens.
+    honoured = assignment && assignment.service_region in permitted
+
+    case assignment do
+      %AccountRegionPolicy{service_region: service_region} when honoured ->
         assigned_service_region(service_region)
 
-      nil ->
+      _assignment_absent_or_outside_residency ->
         # Only a served region can be chosen fresh. Resolving into one the
         # catalog lists but the deployment does not serve would record demand
         # in a region `Lifecycle.lifecycle_regions/0` never iterates, which is
         # the same trap `assigned_service_region/1` guards against.
         placeable = Enum.filter(permitted, &Regions.available?/1)
 
-        {:ok, place(account, permitted, placeable, lookups)}
+        {:ok, place(account, permitted, placeable, lookups) || residency_default(account)}
     end
   end
 
@@ -294,7 +311,7 @@ defmodule Tuist.Kura.AccountPolicies do
   defp place(account, permitted, placeable, lookups) do
     from_placement = Enum.find([lookups.placer_region.(account), lookups.live_region.(account)], &(&1 in permitted))
 
-    from_placement || from_origin(account, placeable, lookups) || residency_default(account)
+    from_placement || from_origin(account, placeable, lookups)
   end
 
   # An unattributed account still comes through here, because the mapping

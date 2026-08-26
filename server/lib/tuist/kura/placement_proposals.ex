@@ -11,7 +11,6 @@ defmodule Tuist.Kura.PlacementProposals do
 
   import Ecto.Query
 
-  alias Ecto.Changeset
   alias Tuist.Accounts.Account
   alias Tuist.Billing.Subscription
   alias Tuist.Kura.AccountPolicies
@@ -178,6 +177,25 @@ defmodule Tuist.Kura.PlacementProposals do
   defp converge_account(account, inputs, today, policy) do
     open = Map.get(inputs.open_proposals, account.id)
     plan = AccountPolicies.sizing_plan(account)
+
+    if placeable?(account) do
+      converge_placeable_account(account, open, plan, inputs, today, policy)
+    else
+      # An account resolution refuses has nowhere to be placed, and the
+      # lifecycle will never provision for it. Deciding anything for one would
+      # be acting on an instance set that cannot be converged: a relocation
+      # would retire its source and leave it with strictly fewer instances
+      # every time, ending at none.
+      if open, do: supersede(open, "sweep")
+      :none
+    end
+  end
+
+  defp placeable?(account) do
+    match?({:ok, _resolution}, AccountPolicies.resolve(account))
+  end
+
+  defp converge_placeable_account(account, open, plan, inputs, today, policy) do
     placer_rows = Map.get(inputs.placer_regions, account.id, [])
     live = Map.get(inputs.live_regions, account.id, [])
 
@@ -209,9 +227,13 @@ defmodule Tuist.Kura.PlacementProposals do
 
     if open && open.kind == attrs.kind && open.from_region == attrs.from_region &&
          open.to_region == attrs.to_region do
-      open
-      |> Changeset.change(evidence: attrs.evidence)
-      |> Repo.update!()
+      # Conditional on the row rather than on the struct the batch read: an
+      # operator can apply or dismiss between the two, and rewriting the
+      # evidence then would record against a resolved decision the reasoning
+      # it was not taken on.
+      PlacementProposal
+      |> where([proposal], proposal.id == ^open.id and proposal.status == :open)
+      |> Repo.update_all(set: [evidence: attrs.evidence, updated_at: DateTime.truncate(DateTime.utc_now(), :second)])
     else
       if open, do: supersede(open, "sweep")
 

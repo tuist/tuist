@@ -86,6 +86,49 @@ defmodule Tuist.Kura.PlacementTest do
       assert {:relocate, "us-west", "us-east", _evidence} = Placement.evaluate(context)
     end
 
+    test "keeps a source region that still earns its own place" do
+      # A majority moving says which region should be primary; it says nothing
+      # about whether the other is still worth serving. Retiring a 35% region
+      # that clears the expansion floor would drain a cache the very next sweep
+      # proposes reopening.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("FR", 30, 65) ++ daily("US-VA", 30, 35)
+        )
+
+      assert {:relocate, "us-east", "eu-central", evidence} = Placement.evaluate(context)
+      assert evidence["retire_source"] == false
+    end
+
+    test "gives up a source region whose own traffic no longer earns it" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("FR", 30, 95) ++ daily("US-VA", 30, 2)
+        )
+
+      assert {:relocate, "us-east", "eu-central", evidence} = Placement.evaluate(context)
+      assert evidence["retire_source"] == true
+    end
+
+    test "always gives up the source on a plan that holds one region" do
+      context =
+        context(
+          plan: :air,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("FR", 30, 65) ++ daily("US-VA", 30, 35)
+        )
+
+      assert {:relocate, "us-east", "eu-central", evidence} = Placement.evaluate(context)
+      assert evidence["retire_source"] == true
+    end
+
     test "stops at the relocation cap" do
       context =
         context(
@@ -259,6 +302,24 @@ defmodule Tuist.Kura.PlacementTest do
           serving: ["us-east", "eu-central"],
           held_since: %{"eu-central" => Date.add(@today, -120)},
           rollups: []
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "does not give up a region expansion would reopen on the next sweep" do
+      # The two floors span different windows, so a region quiet for months and
+      # busy for the last fortnight sits under the retirement total while being
+      # actively used.
+      quiet_then_busy = for offset <- 0..89, do: rollup("FR", Date.add(@today, -offset), if(offset < 14, do: 25, else: 0))
+
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-central"],
+          held_since: %{"eu-central" => Date.add(@today, -120)},
+          rollups: daily("US-VA", 90, 500) ++ quiet_then_busy
         )
 
       assert Placement.evaluate(context) == :none

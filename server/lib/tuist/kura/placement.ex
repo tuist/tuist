@@ -155,10 +155,47 @@ defmodule Tuist.Kura.Placement do
            true <- region_runs / total >= rung.majority_share,
            active = active_days(runs, region, window),
            true <- active >= rung.min_active_days do
-        {:relocate, context.primary, region, evidence("majority_of_runs_moved", rung, region_runs, total, active)}
+        evidence =
+          "majority_of_runs_moved"
+          |> evidence(rung, region_runs, total, active)
+          |> Map.put("retire_source", retire_source?(context, plan_policy, runs))
+
+        {:relocate, context.primary, region, evidence}
       else
         _ -> nil
       end
+    end
+  end
+
+  # Whether the region the primary is leaving should be given up with it.
+  #
+  # Only when the account cannot hold it, or its own traffic does not earn it.
+  # A majority moving is a statement about which region should be *primary*,
+  # not about whether the other one is still worth serving: a 65/35 split
+  # moves the primary, and retiring the 35 would drain a region that clears
+  # the expansion floor on its own — which the very next sweep would then
+  # propose expanding back into, having destroyed and cold-refilled a cache to
+  # arrive exactly where it started.
+  defp retire_source?(context, plan_policy, runs) do
+    cond do
+      length(context.serving) >= plan_policy.max_instances -> true
+      is_nil(plan_policy.retire) -> true
+      true -> not earns_its_place?(context, plan_policy, runs, context.primary)
+    end
+  end
+
+  # A region carrying enough of its own traffic that expansion would open it
+  # if the account did not already hold it.
+  defp earns_its_place?(context, plan_policy, runs, region) do
+    case plan_policy.expand do
+      nil ->
+        false
+
+      rung ->
+        window = window_range(context.today, rung.window_days)
+
+        Map.get(totals_in(runs, window), region, 0) >= rung.min_runs_per_day * rung.window_days and
+          active_days(runs, region, window) >= rung.min_active_days
     end
   end
 
@@ -211,18 +248,24 @@ defmodule Tuist.Kura.Placement do
     if total == 0 do
       nil
     else
-      retire_candidate(context, rung, totals, total, runs, window)
+      retire_candidate(context, plan_policy, rung, totals, total, runs, window)
     end
   end
 
-  defp retire_candidate(context, rung, totals, total, runs, window) do
+  defp retire_candidate(context, plan_policy, rung, totals, total, runs, window) do
     # Never the primary, and never the last one serving: retirement reclaims a
     # spare region, it does not take an account's cache away.
     context.serving
     |> Enum.reject(&(&1 == context.primary or &1 in context.retiring))
     |> Enum.filter(fn region ->
+      # The two floors span different windows, so a region quiet for months
+      # and busy for the last fortnight can sit under the retirement total
+      # while being actively used. Giving it up would drain a cache that
+      # expansion reopens on the next sweep, so the last word goes to the
+      # rung that would reopen it.
       held_long_enough?(context, region, rung.window_days) and
-        Map.get(totals, region, 0) <= rung.max_runs_per_day * rung.window_days
+        Map.get(totals, region, 0) <= rung.max_runs_per_day * rung.window_days and
+        not earns_its_place?(context, plan_policy, runs, region)
     end)
     |> Enum.min_by(&Map.get(totals, &1, 0), fn -> nil end)
     |> case do

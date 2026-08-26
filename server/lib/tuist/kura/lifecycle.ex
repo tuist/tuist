@@ -235,6 +235,14 @@ defmodule Tuist.Kura.Lifecycle do
   end
 
   defp drain_retiring(account, %Server{status: :active} = server, _placer_region) do
+    # The drain resolution reaches an instance by joining its lifecycle row, so
+    # an account-region without one would go into drain-pending, lose its
+    # endpoint, and never be looked at again — holding its volume and its slot
+    # forever. A region can lack one: only the regions an account is *served*
+    # from get demand rows, and a region placement is leaving has already
+    # stopped being one of those.
+    ensure_lifecycle_row(account, server.region)
+
     case Kura.begin_drain(server) do
       {:ok, _server} ->
         stamp_drain_started(account.id, server.region)
@@ -257,12 +265,26 @@ defmodule Tuist.Kura.Lifecycle do
   # the rest of the way, and the row is removed once the instance is gone.
   defp drain_retiring(_account, %Server{}, _placer_region), do: :ok
 
+  # Public regions only. A private runner-cache instance is in-cluster and
+  # never CLI-facing, so counting it as "somewhere else is serving" would
+  # drain the account's only developer-facing cache and leave every machine on
+  # the fallback lane until the destination came up.
   defp live_servers(account_id) do
+    private_region_ids = Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id)
+
     Repo.all(
       from(s in Server,
-        where: s.account_id == ^account_id and s.status not in [:destroyed, :archived] and s.move_phase == :none
+        where: s.account_id == ^account_id and s.status not in [:destroyed, :archived] and s.move_phase == :none,
+        where: s.region not in ^private_region_ids
       )
     )
+  end
+
+  defp ensure_lifecycle_row(%Account{id: account_id}, region_id) do
+    case Demand.get(account_id, region_id) do
+      nil -> Demand.upsert(account_id, region_id, now())
+      %AccountRegionLifecycle{} -> {:ok, 0}
+    end
   end
 
   defp stamp_drain_started(account_id, region_id) do

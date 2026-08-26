@@ -541,6 +541,25 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       assert AccountPolicies.resolve(account) == {:ok, %{plan: :enterprise, service_region: "us-east"}}
     end
 
+    test "stops honouring an operator pin the account's storage region no longer allows" do
+      # The pin was valid when it was made; the customer narrowed the promise
+      # afterwards. Honouring it would keep serving them from a region they
+      # have just said their data may not live in.
+      account = organization_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      serving(["us-east", "eu-central"])
+
+      {:ok, _assignment} =
+        AccountPolicies.assign_service_region(account, "eu-central", AccountsFixtures.user_fixture(), "Contractual")
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :enterprise, service_region: "eu-central"}}
+
+      account = update_region!(account, :usa)
+
+      assert {:ok, %{service_region: region}} = AccountPolicies.resolve(account)
+      assert region in ["us-east", "us-west"]
+    end
+
     test "never places outside the account's storage region" do
       # Residency is a compliance boundary, so traffic cannot argue an account
       # across it however one-sided the traffic is.

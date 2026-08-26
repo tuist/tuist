@@ -310,6 +310,45 @@ defmodule Tuist.Kura do
   defdelegate sized_storage_claim(account), to: PlacerClaims, as: :claim_for
 
   @doc """
+  Which of the account's instances answers on its region-independent host, or
+  `nil` when none can.
+
+  The account's primary once that instance is serving, and whatever is still
+  serving until then. Getting this order right is the whole point of the name:
+  handing it to a primary that is still provisioning would take the account's
+  cache away for as long as the rollout takes, which is precisely the outage
+  the name exists to avoid during a move.
+
+  Exactly one instance at a time, because two would put two addresses behind
+  one name and split the account's cache across them.
+  """
+  def stable_host_owner(%Account{} = account) do
+    servers = live_public_servers(account.id)
+    primary = PlacerRegions.primary_region(account) || servers |> List.first() |> region_of()
+
+    in_primary = Enum.find(servers, &(&1.region == primary))
+    active_in_primary = if in_primary && in_primary.status == :active, do: in_primary
+
+    active_in_primary || Enum.find(servers, &(&1.status == :active)) || in_primary || List.first(servers)
+  end
+
+  defp region_of(nil), do: nil
+  defp region_of(%Server{region: region}), do: region
+
+  # Oldest first, so "whatever is still serving" is a total order rather than
+  # whichever row the database happened to return.
+  defp live_public_servers(account_id) do
+    private_region_ids = Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id)
+
+    Server
+    |> where([server], server.account_id == ^account_id)
+    |> where([server], server.status not in ^@volumeless_statuses and server.move_phase == :none)
+    |> where([server], server.region not in ^private_region_ids)
+    |> order_by([server], asc: server.inserted_at, asc: server.id)
+    |> Repo.all()
+  end
+
+  @doc """
   Orders an account's managed cache endpoints so the one nearest the caller
   comes first, leaving the order alone when there is no origin to order by or
   only one endpoint to order.
@@ -599,9 +638,16 @@ defmodule Tuist.Kura do
     AccountPolicies.placeable_regions(account, AccountPolicies.sizing_plan(account))
   end
 
+  # `put_primary/3` demotes whatever held the role, so the source stays a
+  # secondary unless the decision was that the account cannot hold it or its
+  # own traffic does not earn it.
   defp apply_placement(account, %PlacementProposal{kind: :relocate} = proposal) do
     {:ok, _row} = PlacerRegions.put_primary(account, proposal.to_region, proposal.evidence)
-    {:ok, _row} = PlacerRegions.mark_retiring(account, proposal.from_region, proposal.evidence)
+
+    if Map.get(proposal.evidence, "retire_source", true) do
+      {:ok, _row} = PlacerRegions.mark_retiring(account, proposal.from_region, proposal.evidence)
+    end
+
     :ok
   end
 
