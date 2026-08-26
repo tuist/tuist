@@ -54,21 +54,21 @@
     max-width: 480px;
   }
 
-  /* Kura disk claim override: the same treatment as the runner
-     concurrency form below, so the two editable cards on this page read
-     alike. Capped at the trigger-deployment form's width because the
-     value is a short quantity and a full-bleed input reads as broken. */
-  & [data-part="kura-storage-claim-description"] {
+  & [data-part="kura-storage-claim-description"],
+  & [data-part="kura-sized-claim"],
+  & [data-part="kura-disk-usage-empty"],
+  & [data-part="kura-claim-history-description"],
+  & [data-part="kura-claim-proposal-summary"],
+  & [data-part="kura-claim-proposal-evidence"],
+  & [data-part="kura-claim-proposal-basis"] {
     margin: var(--noora-spacing-0);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-medium);
   }
 
-  & #kura-storage-claim-form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-6);
-    max-width: 480px;
+  & [data-part="kura-claim-proposal-summary"] {
+    color: var(--noora-surface-label-primary);
+    font-weight: var(--noora-font-weight-medium);
   }
 
   & [data-part="runner-concurrency-description"],
@@ -249,5 +249,44 @@
     justify-content: flex-end;
     gap: var(--noora-spacing-3);
     margin-top: var(--noora-spacing-2);
+  }
+}
+
+#ops-account-kura-sizing {
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    margin-bottom: var(--noora-spacing-8);
+
+    & > [data-part="title"] {
+      margin: var(--noora-spacing-0);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-large);
+    }
+
+    & > [data-part="subtitle"] {
+      margin: var(--noora-spacing-0);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
+  }
+
+  & [data-part="empty"] {
+    margin: var(--noora-spacing-0);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="actions"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+    margin-top: var(--noora-spacing-6);
+
+    & > [data-part="page-label"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
   }
 }

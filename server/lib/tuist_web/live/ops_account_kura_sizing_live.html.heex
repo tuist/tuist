@@ -1,0 +1,57 @@
+<div id="ops-account-kura-sizing">
+  <div data-part="header">
+    <h1 data-part="title">{dgettext("dashboard", "Sizing decisions")}</h1>
+    <p data-part="subtitle">
+      <.link navigate={~p"/ops/accounts/#{@account.id}"}>{@account.name}</.link>
+      · {dngettext("dashboard", "%{count} decision", "%{count} decisions", @total)}
+    </p>
+  </div>
+
+  <.card title={dgettext("dashboard", "History")} icon="server">
+    <.card_section>
+      <p :if={@decisions == []} data-part="empty">
+        {dgettext("dashboard", "Sizing has not decided anything for this account yet.")}
+      </p>
+      <.table :if={@decisions != []} id="kura-sizing-history-table" rows={@decisions}>
+        <:col :let={decision} label={dgettext("dashboard", "When")}>
+          <.text_cell label={Timex.from_now(decision.inserted_at)} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Change")}>
+          <.text_cell label={"#{decision.current_claim_size} → #{decision.recommended_claim_size}"} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Outcome")}>
+          <% {label, color} = TuistWeb.OpsAccountLive.claim_history_outcome(decision) %>
+          <.badge_cell label={label} color={color} style="light-fill" />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "By")}>
+          <.text_cell label={TuistWeb.OpsAccountLive.claim_history_actor(decision)} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Region")}>
+          <.text_cell label={decision.region} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Why")}>
+          <.text_cell label={TuistWeb.OpsAccountLive.claim_history_reason(decision)} />
+        </:col>
+      </.table>
+      <div :if={@last_page > 1} data-part="actions">
+        <.button
+          type="button"
+          variant="secondary"
+          disabled={@page <= 1}
+          phx-click="previous_page"
+          label={dgettext("dashboard", "Previous")}
+        />
+        <span data-part="page-label">
+          {dgettext("dashboard", "Page %{page} of %{last}", page: @page, last: @last_page)}
+        </span>
+        <.button
+          type="button"
+          variant="secondary"
+          disabled={@page >= @last_page}
+          phx-click="next_page"
+          label={dgettext("dashboard", "Next")}
+        />
+      </div>
+    </.card_section>
+  </.card>
+</div>

@@ -66,6 +66,18 @@ defmodule Tuist.Kura.ClaimProposals do
     |> Repo.aggregate(:count)
   end
 
+  @doc """
+  One page of the account's sizing decisions, newest first.
+  """
+  def page_for(%Account{id: account_id}, page, per_page) do
+    ClaimProposal
+    |> where([proposal], proposal.account_id == ^account_id)
+    |> order_by([proposal], desc: proposal.inserted_at)
+    |> limit(^per_page)
+    |> offset(^((page - 1) * per_page))
+    |> Repo.all()
+  end
+
   def recent_for(%Account{id: account_id}, limit) do
     ClaimProposal
     |> where([proposal], proposal.account_id == ^account_id)

@@ -145,16 +145,15 @@
     </.card_section>
     <.card_section :if={@kura_claim_history != []}>
       <p data-part="kura-claim-history-description">
-        {if @kura_claim_history_total > length(@kura_claim_history) do
-          dgettext(
+        {dgettext("dashboard", "What sizing has decided for this account, most recent first.")}
+        <.link navigate={~p"/ops/accounts/#{@account.id}/kura/sizing"}>
+          {dngettext(
             "dashboard",
-            "What sizing has decided for this account: the %{shown} most recent of %{total}.",
-            shown: length(@kura_claim_history),
-            total: @kura_claim_history_total
-          )
-        else
-          dgettext("dashboard", "What sizing has decided for this account, most recent first.")
-        end}
+            "See the one decision on record",
+            "See all %{count} decisions",
+            @kura_claim_history_total
+          )}
+        </.link>
       </p>
       <.table id="kura-claim-history-table" rows={@kura_claim_history}>
         <:col :let={decision} label={dgettext("dashboard", "When")}>
@@ -164,17 +163,17 @@
           <.text_cell label={kura_claim_history_change(decision)} />
         </:col>
         <:col :let={decision} label={dgettext("dashboard", "Outcome")}>
-          <% {label, color} = kura_claim_history_outcome(decision) %>
+          <% {label, color} = claim_history_outcome(decision) %>
           <.badge_cell label={label} color={color} style="light-fill" />
         </:col>
         <:col :let={decision} label={dgettext("dashboard", "By")}>
-          <.text_cell label={kura_claim_history_actor(decision)} />
+          <.text_cell label={claim_history_actor(decision)} />
         </:col>
         <:col :let={decision} label={dgettext("dashboard", "Region")}>
           <.text_cell label={decision.region} />
         </:col>
         <:col :let={decision} label={dgettext("dashboard", "Why")}>
-          <.text_cell label={kura_claim_history_reason(decision)} />
+          <.text_cell label={claim_history_reason(decision)} />
         </:col>
       </.table>
     </.card_section>

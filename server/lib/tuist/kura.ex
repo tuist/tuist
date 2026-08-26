@@ -287,6 +287,11 @@ defmodule Tuist.Kura do
   defdelegate claim_sizing_decision_count(account), to: ClaimProposals, as: :decision_count
 
   @doc """
+  One page of the account's claim sizing decisions, newest first.
+  """
+  defdelegate claim_sizing_history_page(account, page, per_page), to: ClaimProposals, as: :page_for
+
+  @doc """
   Dismisses an open claim sizing proposal without acting on it.
   """
   defdelegate dismiss_claim_proposal(proposal, resolved_by), to: ClaimProposals, as: :dismiss

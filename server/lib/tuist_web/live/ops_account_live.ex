@@ -515,29 +515,29 @@ defmodule TuistWeb.OpsAccountLive do
 
   defp kura_claim_history_change(%{current_claim_size: from, recommended_claim_size: to}), do: "#{from} → #{to}"
 
-  defp kura_claim_history_outcome(%{status: :applied}), do: {dgettext("dashboard", "applied"), "success"}
-  defp kura_claim_history_outcome(%{status: :dismissed}), do: {dgettext("dashboard", "dismissed"), "neutral"}
-  defp kura_claim_history_outcome(%{status: :superseded}), do: {dgettext("dashboard", "superseded"), "neutral"}
-  defp kura_claim_history_outcome(%{status: :open}), do: {dgettext("dashboard", "waiting"), "attention"}
+  def claim_history_outcome(%{status: :applied}), do: {dgettext("dashboard", "applied"), "success"}
+  def claim_history_outcome(%{status: :dismissed}), do: {dgettext("dashboard", "dismissed"), "neutral"}
+  def claim_history_outcome(%{status: :superseded}), do: {dgettext("dashboard", "superseded"), "neutral"}
+  def claim_history_outcome(%{status: :open}), do: {dgettext("dashboard", "waiting"), "attention"}
 
-  defp kura_claim_history_actor(%{status: :open}), do: dgettext("dashboard", "Not resolved yet")
+  def claim_history_actor(%{status: :open}), do: dgettext("dashboard", "Not resolved yet")
 
-  defp kura_claim_history_actor(%{resolved_by: by}) when by in ["automatic", "sweep", "stale_on_apply"],
+  def claim_history_actor(%{resolved_by: by}) when by in ["automatic", "sweep", "stale_on_apply"],
     do: dgettext("dashboard", "Sizing")
 
-  defp kura_claim_history_actor(%{resolved_by: by}) when is_binary(by), do: by
-  defp kura_claim_history_actor(_decision), do: dgettext("dashboard", "Unknown")
+  def claim_history_actor(%{resolved_by: by}) when is_binary(by), do: by
+  def claim_history_actor(_decision), do: dgettext("dashboard", "Unknown")
 
   # Compact enough for a table cell; the open proposal above carries the full
   # sentence.
-  defp kura_claim_history_reason(%{direction: :grow, evidence: evidence}) do
+  def claim_history_reason(%{direction: :grow, evidence: evidence}) do
     dgettext("dashboard", "discarding work after %{shed_age}, target %{floor}",
       shed_age: humanize_seconds(evidence["median_shed_age_seconds"]),
       floor: humanize_seconds(evidence["retention_floor_seconds"])
     )
   end
 
-  defp kura_claim_history_reason(%{direction: :shrink, evidence: evidence}) do
+  def claim_history_reason(%{direction: :shrink, evidence: evidence}) do
     dgettext("dashboard", "peaked at %{peak}% of its disk", peak: evidence["max_occupancy_percent"])
   end
 
