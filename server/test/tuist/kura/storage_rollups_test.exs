@@ -19,13 +19,13 @@ defmodule Tuist.Kura.StorageRollupsTest do
 
   defp at(date, time), do: NaiveDateTime.new!(date, time)
 
-  describe "refresh/2" do
+  describe "refresh/1" do
     test "merges eviction and snapshot aggregates into one row per account-region-day", %{account: account} do
       date = unique_date()
       insert_eviction(account.id, "evict-1-#{account.id}", at(date, ~T[10:00:00]))
       insert_snapshot(account.id, "snap-1-#{account.id}", at(date, ~T[12:00:00]))
 
-      {:ok, 1} = StorageRollups.refresh(date, date)
+      {:ok, 1} = StorageRollups.refresh([date])
 
       assert [rollup] = StorageRollups.for_account(account, date)
       assert rollup.region == "us-east"
@@ -43,11 +43,11 @@ defmodule Tuist.Kura.StorageRollupsTest do
       date = unique_date()
       insert_eviction(account.id, "evict-1-#{account.id}", at(date, ~T[10:00:00]))
 
-      {:ok, 1} = StorageRollups.refresh(date, date)
+      {:ok, 1} = StorageRollups.refresh([date])
 
       insert_eviction(account.id, "evict-2-#{account.id}", at(date, ~T[15:00:00]))
 
-      {:ok, 1} = StorageRollups.refresh(date, date)
+      {:ok, 1} = StorageRollups.refresh([date])
 
       assert [rollup] = StorageRollups.for_account(account, date)
       assert rollup.eviction_count == 2
@@ -57,7 +57,7 @@ defmodule Tuist.Kura.StorageRollupsTest do
       date = unique_date()
       insert_snapshot(account.id, "snap-1-#{account.id}", at(date, ~T[12:00:00]))
 
-      {:ok, 1} = StorageRollups.refresh(date, date)
+      {:ok, 1} = StorageRollups.refresh([date])
 
       assert [rollup] = StorageRollups.for_account(account, date)
       assert rollup.eviction_count == 0
@@ -65,12 +65,27 @@ defmodule Tuist.Kura.StorageRollupsTest do
       assert rollup.snapshot_count == 1
     end
 
+    test "rolls a batch delivered days late onto the day it happened", %{account: account} do
+      # The node was holding this eviction while the control plane was
+      # unreachable, so it arrives now stamped with the day it happened.
+      happened = unique_date()
+      delivered = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+      insert_eviction(account.id, "evict-late-#{account.id}", at(happened, ~T[10:00:00]), delivered)
+
+      {:ok, 1} = StorageRollups.refresh([happened])
+
+      assert [rollup] = StorageRollups.for_account(account, happened)
+      assert rollup.date == happened
+      assert rollup.eviction_count == 1
+    end
+
     test "telemetry for accounts that no longer exist is dropped" do
       date = unique_date()
       ghost_id = System.unique_integer([:positive]) + 5_000_000
       insert_eviction(ghost_id, "evict-ghost-#{ghost_id}", at(date, ~T[10:00:00]))
 
-      assert {:ok, 0} = StorageRollups.refresh(date, date)
+      assert {:ok, 0} = StorageRollups.refresh([date])
     end
   end
 
@@ -81,16 +96,14 @@ defmodule Tuist.Kura.StorageRollupsTest do
       insert_eviction(account.id, "evict-old-#{account.id}", at(early, ~T[10:00:00]))
       insert_eviction(account.id, "evict-new-#{account.id}", at(late, ~T[10:00:00]))
 
-      # The 11-day range may sweep in other tests' claimed days, so only the
-      # account-scoped read is asserted exactly.
-      {:ok, _count} = StorageRollups.refresh(early, late)
+      {:ok, _count} = StorageRollups.refresh([early, late])
 
       assert [rollup] = StorageRollups.for_account(account, Date.add(early, 5))
       assert rollup.date == late
     end
   end
 
-  defp insert_eviction(account_id, event_id, evicted_at) do
+  defp insert_eviction(account_id, event_id, evicted_at, inserted_at \\ nil) do
     IngestRepo.insert_all(EvictionEvent, [
       %{
         event_id: event_id,
@@ -104,12 +117,12 @@ defmodule Tuist.Kura.StorageRollupsTest do
         newest_content_at: NaiveDateTime.add(evicted_at, -3_600),
         artifact_count: 5,
         bytes: 536_870_912,
-        inserted_at: evicted_at
+        inserted_at: inserted_at || evicted_at
       }
     ])
   end
 
-  defp insert_snapshot(account_id, event_id, captured_at) do
+  defp insert_snapshot(account_id, event_id, captured_at, inserted_at \\ nil) do
     IngestRepo.insert_all(StorageSnapshot, [
       %{
         event_id: event_id,
@@ -123,7 +136,7 @@ defmodule Tuist.Kura.StorageRollupsTest do
         live_segment_bytes: 5_368_709_120,
         oldest_segment_created_at: ~N[2026-08-19 00:00:00],
         newest_content_at: ~N[2026-08-20 00:00:00],
-        inserted_at: captured_at
+        inserted_at: inserted_at || captured_at
       }
     ])
   end

@@ -123,9 +123,89 @@ defmodule Tuist.Kura.StorageTelemetryTest do
 
   # ClickHouse rows are not sandboxed per test, so every test scopes itself
   # to a unique account id and filters the global aggregates down to it.
+  describe "dates_with_telemetry_ingested_since/3" do
+    test "finds the day a delayed batch happened, not the day it arrived" do
+      account_id = System.unique_integer([:positive]) + 1_000_000
+      today = Date.utc_today()
+      # The node held this while the control plane was unreachable. It is far
+      # outside any trailing window over event time, but it arrived a moment ago.
+      happened = Date.add(today, -9)
+      delivered = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+      insert_eviction_rows([
+        eviction_row(
+          account_id,
+          "late-#{account_id}",
+          NaiveDateTime.new!(happened, ~T[10:00:00]),
+          3_600,
+          7_200,
+          inserted_at: delivered
+        )
+      ])
+
+      dates =
+        StorageTelemetry.dates_with_telemetry_ingested_since(
+          NaiveDateTime.add(delivered, -3_600),
+          Date.add(today, -90),
+          today
+        )
+
+      assert happened in dates
+    end
+
+    test "ignores telemetry that arrived before the lookback" do
+      account_id = System.unique_integer([:positive]) + 1_000_000
+      today = Date.utc_today()
+      happened = Date.add(today, -11)
+      delivered = NaiveDateTime.new!(happened, ~T[10:00:00])
+
+      insert_eviction_rows([
+        eviction_row(account_id, "settled-#{account_id}", delivered, 3_600, 7_200, inserted_at: delivered)
+      ])
+
+      dates =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-3_600)
+        |> NaiveDateTime.truncate(:second)
+        |> StorageTelemetry.dates_with_telemetry_ingested_since(
+          Date.add(today, -90),
+          today
+        )
+
+      refute happened in dates
+    end
+
+    test "drops days a skewed clock puts in the future" do
+      account_id = System.unique_integer([:positive]) + 1_000_000
+      today = Date.utc_today()
+      ahead = Date.add(today, 3)
+      delivered = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+      insert_eviction_rows([
+        eviction_row(
+          account_id,
+          "skewed-#{account_id}",
+          NaiveDateTime.new!(ahead, ~T[10:00:00]),
+          3_600,
+          7_200,
+          inserted_at: delivered
+        )
+      ])
+
+      dates =
+        StorageTelemetry.dates_with_telemetry_ingested_since(
+          NaiveDateTime.add(delivered, -3_600),
+          Date.add(today, -90),
+          today
+        )
+
+      refute ahead in dates
+    end
+  end
+
   defp for_account(aggregates, account_id), do: Enum.filter(aggregates, &(&1.account_id == account_id))
 
-  describe "eviction_day_aggregates/2" do
+  describe "eviction_day_aggregates/1" do
     test "aggregates shed ages per account, region, and day with event dedup" do
       account_id = System.unique_integer([:positive]) + 1_000_000
 
@@ -144,8 +224,8 @@ defmodule Tuist.Kura.StorageTelemetryTest do
       ])
 
       aggregates =
-        ~D[2026-08-20]
-        |> StorageTelemetry.eviction_day_aggregates(~D[2026-08-21])
+        [~D[2026-08-20], ~D[2026-08-21]]
+        |> StorageTelemetry.eviction_day_aggregates()
         |> for_account(account_id)
 
       by_date = Map.new(aggregates, &{&1.date, &1})
@@ -172,15 +252,15 @@ defmodule Tuist.Kura.StorageTelemetryTest do
       ])
 
       aggregates =
-        ~D[2026-08-20]
-        |> StorageTelemetry.eviction_day_aggregates(~D[2026-08-20])
+        [~D[2026-08-20]]
+        |> StorageTelemetry.eviction_day_aggregates()
         |> Enum.filter(&(&1.account_id in [account_id, 0]))
 
       assert aggregates == []
     end
   end
 
-  describe "snapshot_day_aggregates/2" do
+  describe "snapshot_day_aggregates/1" do
     test "reports the day's peak occupancy and latest budget" do
       account_id = System.unique_integer([:positive]) + 1_000_000
 
@@ -194,8 +274,8 @@ defmodule Tuist.Kura.StorageTelemetryTest do
       ])
 
       assert [aggregate] =
-               ~D[2026-08-20]
-               |> StorageTelemetry.snapshot_day_aggregates(~D[2026-08-20])
+               [~D[2026-08-20]]
+               |> StorageTelemetry.snapshot_day_aggregates()
                |> for_account(account_id)
 
       assert aggregate.account_id == account_id

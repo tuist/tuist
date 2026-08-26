@@ -97,8 +97,46 @@ defmodule Tuist.Kura.StorageTelemetry do
   end
 
   @doc """
+  The event dates within `[earliest_date, latest_date]` whose telemetry reached
+  us since `since`.
+
+  A node holds evictions and snapshots in memory until a delivery succeeds, so
+  an outage of any length lands rows stamped with the day they happened rather
+  than the day they arrived. Choosing the days to roll up by ingestion time
+  rather than event time is what lets that recovered batch reach a rollup, and
+  so a proposal, however late it arrives.
+
+  `earliest_date` bounds the scan at the longest policy window, past which a
+  rollup can no longer change a verdict. `latest_date` drops days that have not
+  happened yet, which only a node with a skewed clock can report.
+  """
+  def dates_with_telemetry_ingested_since(since, earliest_date, latest_date) do
+    evicted =
+      from(e in EvictionEvent,
+        where: e.inserted_at >= ^since,
+        where: fragment("toDate(?)", e.evicted_at) >= ^earliest_date,
+        where: fragment("toDate(?)", e.evicted_at) <= ^latest_date,
+        group_by: fragment("toDate(?)", e.evicted_at),
+        select: fragment("toDate(?)", e.evicted_at)
+      )
+
+    captured =
+      from(s in StorageSnapshot,
+        where: s.inserted_at >= ^since,
+        where: fragment("toDate(?)", s.captured_at) >= ^earliest_date,
+        where: fragment("toDate(?)", s.captured_at) <= ^latest_date,
+        group_by: fragment("toDate(?)", s.captured_at),
+        select: fragment("toDate(?)", s.captured_at)
+      )
+
+    (ClickHouseRepo.all(evicted) ++ ClickHouseRepo.all(captured))
+    |> Enum.uniq()
+    |> Enum.sort({:asc, Date})
+  end
+
+  @doc """
   Per-day eviction aggregates for every account-region with capacity
-  evictions in `[start_date, end_date]`, deduplicated by event id.
+  evictions on `dates`, deduplicated by event id.
 
   `min_shed_age_seconds` / `median_shed_age_seconds` measure
   `evicted_at - newest_content_at`: how soon after being written the youngest
@@ -106,13 +144,12 @@ defmodule Tuist.Kura.StorageTelemetry do
   `evicted_at - segment_created_at`: how much history the ring held when it
   rotated, the value claim growth is projected from.
   """
-  def eviction_day_aggregates(start_date, end_date) do
-    start_naive = NaiveDateTime.new!(start_date, ~T[00:00:00])
-    end_naive = NaiveDateTime.new!(end_date, ~T[23:59:59])
+  def eviction_day_aggregates([]), do: []
 
+  def eviction_day_aggregates(dates) do
     deduped =
       from(e in EvictionEvent,
-        where: e.evicted_at >= ^start_naive and e.evicted_at <= ^end_naive,
+        where: fragment("toDate(?)", e.evicted_at) in ^dates,
         where: e.account_id > 0 and e.reason == "capacity",
         group_by: e.event_id,
         select: %{
@@ -197,20 +234,19 @@ defmodule Tuist.Kura.StorageTelemetry do
   end
 
   @doc """
-  Per-day occupancy aggregates for every account-region with snapshots in
-  `[start_date, end_date]`, deduplicated by event id.
+  Per-day occupancy aggregates for every account-region with snapshots on
+  `dates`, deduplicated by event id.
 
   Occupancy compares live segment bytes to the ring budget the node resolved
   from its claim. The day's maximum is what sizing reads: shrink wants to know
   the ring never filled, grow wants to know it did.
   """
-  def snapshot_day_aggregates(start_date, end_date) do
-    start_naive = NaiveDateTime.new!(start_date, ~T[00:00:00])
-    end_naive = NaiveDateTime.new!(end_date, ~T[23:59:59])
+  def snapshot_day_aggregates([]), do: []
 
+  def snapshot_day_aggregates(dates) do
     deduped =
       from(s in StorageSnapshot,
-        where: s.captured_at >= ^start_naive and s.captured_at <= ^end_naive,
+        where: fragment("toDate(?)", s.captured_at) in ^dates,
         where: s.account_id > 0,
         group_by: s.event_id,
         select: %{

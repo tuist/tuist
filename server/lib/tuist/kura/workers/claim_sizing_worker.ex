@@ -1,9 +1,9 @@
 defmodule Tuist.Kura.Workers.ClaimSizingWorker do
   @moduledoc """
-  Refreshes the trailing storage rollups, converges the proposal set, and —
-  only when the automatic flag is on — applies proposals within a fleet-wide
-  budget. Ten-minute cadence: the fastest growth rungs are satisfied by
-  evicted volume, which a thrashing account can produce in minutes.
+  Refreshes the rollups whose telemetry arrived recently, converges the
+  proposal set, and applies proposals within a fleet-wide budget. Ten-minute
+  cadence: the fastest growth rungs are satisfied by evicted volume, which a
+  thrashing account can produce in minutes.
   """
 
   use Oban.Worker,
@@ -18,22 +18,44 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
   alias Tuist.Kura
   alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.StorageRollups
+  alias Tuist.Kura.StorageTelemetry
 
   # A rate, not a per-pass count, so cadence changes cannot multiply it.
   @max_automatic_applies_per_hour 5
 
-  # Covers the day boundary and at-least-once redelivery of node batches.
-  @refresh_trailing_days 2
+  # How far back to look for telemetry that has arrived, not for telemetry that
+  # happened. A node holds undelivered evictions until the control plane
+  # answers, so a recovered batch can be stamped with a day well outside this
+  # window and still be picked up, as long as the sweep runs within it. Wide
+  # enough to survive the worker itself being down for a day.
+  @ingest_lookback_days 2
+
+  # Past the longest policy window no rollup can change a verdict, so there is
+  # nothing to gain from recomputing one.
+  @refresh_horizon_days 90
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
     today = Date.utc_today()
-    {:ok, _count} = StorageRollups.refresh(Date.add(today, -@refresh_trailing_days), today)
+    {:ok, _count} = StorageRollups.refresh(dates_to_refresh(today))
     {:ok, _summary} = ClaimProposals.sweep(today)
 
     apply_within_budget()
 
     :ok
+  end
+
+  defp dates_to_refresh(today) do
+    since =
+      NaiveDateTime.utc_now()
+      |> NaiveDateTime.add(-@ingest_lookback_days * 86_400)
+      |> NaiveDateTime.truncate(:second)
+
+    StorageTelemetry.dates_with_telemetry_ingested_since(
+      since,
+      Date.add(today, -@refresh_horizon_days),
+      today
+    )
   end
 
   defp apply_within_budget do

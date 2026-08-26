@@ -1,8 +1,9 @@
 defmodule Tuist.Kura.StorageRollups do
   @moduledoc """
   Maintains the day-grain Postgres rollups claim sizing reads. The sweep
-  refreshes a trailing range every run, so today's row converges as the day
-  accumulates and late-delivered batches land on the next refresh.
+  refreshes the days whose telemetry arrived recently, so today's row
+  converges as the day accumulates and a batch delivered late is rolled up
+  onto the day it happened.
   """
 
   import Ecto.Query
@@ -27,13 +28,15 @@ defmodule Tuist.Kura.StorageRollups do
   ]
 
   @doc """
-  Recomputes the rollup rows for `[start_date, end_date]` from ClickHouse and
-  upserts them. Rows for accounts that no longer exist are dropped rather
-  than inserted; a deleted account has nothing left to size.
+  Recomputes the rollup rows for `dates` from ClickHouse and upserts them.
+  Rows for accounts that no longer exist are dropped rather than inserted; a
+  deleted account has nothing left to size.
   """
-  def refresh(start_date, end_date) do
-    evictions = StorageTelemetry.eviction_day_aggregates(start_date, end_date)
-    snapshots = StorageTelemetry.snapshot_day_aggregates(start_date, end_date)
+  def refresh([]), do: {:ok, 0}
+
+  def refresh(dates) do
+    evictions = StorageTelemetry.eviction_day_aggregates(dates)
+    snapshots = StorageTelemetry.snapshot_day_aggregates(dates)
 
     rows = merge_aggregates(evictions, snapshots)
     rows = Enum.filter(rows, existing_account_filter(rows))

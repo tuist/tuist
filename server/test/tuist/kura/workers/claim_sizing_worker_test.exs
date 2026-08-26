@@ -4,11 +4,14 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
   import Mimic
 
   alias Tuist.Accounts
+  alias Tuist.IngestRepo
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
+  alias Tuist.Kura.EvictionEvent
   alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.Server
   alias Tuist.Kura.StorageRollup
+  alias Tuist.Kura.StorageRollups
   alias Tuist.Kura.Workers.ClaimSizingWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -62,6 +65,40 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
     Repo.insert_all(StorageRollup, rows)
 
     %{account: account}
+  end
+
+  test "rolls up a batch a node delivered days after the evictions happened", %{account: account} do
+    # A node holds undelivered evictions until the control plane answers, so a
+    # recovered batch arrives stamped with the day it happened. Choosing days
+    # to roll up by event time would leave this one permanently unrolled, and
+    # so unable to argue for a resize.
+    happened = Date.add(Date.utc_today(), -9)
+
+    IngestRepo.insert_all(EvictionEvent, [
+      %{
+        event_id: "late-#{account.id}",
+        account_id: account.id,
+        node_id: "kura-0",
+        region: "us-east",
+        segment_id: "segment-late-#{account.id}",
+        reason: "capacity",
+        evicted_at: NaiveDateTime.new!(happened, ~T[10:00:00]),
+        segment_created_at: NaiveDateTime.new!(happened, ~T[08:00:00]),
+        newest_content_at: NaiveDateTime.new!(happened, ~T[09:00:00]),
+        artifact_count: 5,
+        bytes: 536_870_912,
+        inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+      }
+    ])
+
+    assert :ok = perform_job(ClaimSizingWorker, %{})
+
+    rollup = account |> StorageRollups.for_account(happened) |> Enum.find(&(&1.date == happened))
+
+    # The seeded row said 40; only a refresh that reached this day rewrites it
+    # from what the node actually reported.
+    assert rollup.eviction_count == 1
+    assert rollup.evicted_bytes == 536_870_912
   end
 
   test "applies open proposals", %{account: account} do
