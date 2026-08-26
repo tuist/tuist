@@ -423,13 +423,23 @@ defmodule Tuist.Kura.Rollouts do
   # delayed, at most, by the remainder of the window. Tags that are not
   # comparable versions keep the previous behaviour.
   defp supersedable?(%Rollout{} = active, tag) do
-    not older_tag?(tag, active.image_tag) or
-      DateTime.diff(now(), active.inserted_at, :second) >= @deploy_settle_seconds
+    settled?(active) or newer_tag?(tag, active.image_tag)
   end
 
-  defp older_tag?(tag, active_tag) do
+  defp settled?(%Rollout{inserted_at: inserted_at}) do
+    DateTime.diff(now(), inserted_at, :second) >= @deploy_settle_seconds
+  end
+
+  # Staging tracks per-commit `sha-…` images, which no version ordering can
+  # compare. Those cohorts still fight, so comparability cannot be what
+  # decides: while a rollout is settling, only a tag that is provably newer
+  # displaces it, and everything else waits. The first rollout of a deploy
+  # therefore wins its window and the loop stops either way. In the ordinary
+  # case nothing is delayed, because the rollout being superseded is the
+  # previous deploy's and has long since settled.
+  defp newer_tag?(tag, active_tag) do
     case {Version.parse(tag), Version.parse(active_tag)} do
-      {{:ok, candidate}, {:ok, current}} -> Version.compare(candidate, current) == :lt
+      {{:ok, candidate}, {:ok, current}} -> Version.compare(candidate, current) == :gt
       _ -> false
     end
   end
@@ -951,30 +961,56 @@ defmodule Tuist.Kura.Rollouts do
   # baseline and stays out of the comparative soak, so pre-existing sickness
   # is still never blamed on the new image.
   defp recapture_ineligible_baselines(rollout) do
-    RolloutServer
-    |> join(:inner, [rs], s in assoc(rs, :kura_server))
-    |> where([rs], rs.kura_rollout_id == ^rollout.id and not rs.soak_eligible)
-    |> where([_rs, s], s.status not in ^@terminal_server_statuses)
-    |> preload([rs, s], kura_server: s)
-    |> Repo.all()
-    |> Enum.each(fn rollout_server ->
-      case capture_baseline(rollout_server.kura_server) do
-        {baseline, true} ->
-          {:ok, _} =
-            rollout_server
-            |> RolloutServer.update_changeset(%{
-              soak_eligible: true,
-              baseline_outbox_messages: baseline[:outbox_messages],
-              baseline_fd_timeout_count: baseline[:fd_timeout_count],
-              baseline_peer_connection_failures: baseline[:peer_connection_failures],
-              baseline_captured_at: now()
-            })
-            |> Repo.update()
+    timestamp = now()
 
-        _ ->
-          :ok
-      end
-    end)
+    # Bounded and rotating for the same reason as `scope_servers/2`: this
+    # runs inside the rollout's `FOR UPDATE` transaction and each server
+    # costs a live health read. A fleet whose controller is down makes every
+    # server ineligible at once, and re-reading all of them every tick would
+    # hold the lock through hundreds of round trips while an operator is
+    # trying to pause. Servers that still read unhealthy go to the back of
+    # the queue so the next tick measures different ones.
+    rollout_servers =
+      RolloutServer
+      |> join(:inner, [rs], s in assoc(rs, :kura_server))
+      |> where([rs], rs.kura_rollout_id == ^rollout.id and not rs.soak_eligible)
+      |> where([_rs, s], s.status not in ^@terminal_server_statuses)
+      |> order_by([rs], asc: rs.updated_at)
+      |> limit(@scope_batch_size)
+      |> preload([rs, s], kura_server: s)
+      |> Repo.all()
+
+    deferred =
+      Enum.reject(rollout_servers, fn rollout_server ->
+        case capture_baseline(rollout_server.kura_server) do
+          {baseline, true} ->
+            {:ok, _} =
+              rollout_server
+              |> RolloutServer.update_changeset(%{
+                soak_eligible: true,
+                baseline_outbox_messages: baseline[:outbox_messages],
+                baseline_fd_timeout_count: baseline[:fd_timeout_count],
+                baseline_peer_connection_failures: baseline[:peer_connection_failures],
+                baseline_captured_at: timestamp
+              })
+              |> Repo.update()
+
+            true
+
+          _ ->
+            false
+        end
+      end)
+
+    if deferred != [] do
+      deferred_ids = Enum.map(deferred, & &1.id)
+
+      RolloutServer
+      |> where([rs], rs.id in ^deferred_ids)
+      |> Repo.update_all(set: [updated_at: timestamp])
+    end
+
+    :ok
   end
 
   defp capture_baseline(server) do
@@ -1046,9 +1082,15 @@ defmodule Tuist.Kura.Rollouts do
     # rollout reports success while the old image is still serving. Clearing
     # it holds the wave open instead, so the deadline surfaces an image that
     # will not stay applied.
+    # A server that fails takes its observed tag back with it, so clearing on
+    # drift alone would erase the very evidence `regressed_after_convergence/1`
+    # needs and downgrade an immediate pause into a wait for the wave
+    # deadline. Failures are the failure path's to own; drift-clearing is for
+    # servers that are otherwise fine and simply stopped running the target.
     drifted_ids =
       scoped
       |> where([rs], not is_nil(rs.converged_at))
+      |> where([_rs, s], s.status != :failed)
       |> where([_rs, s], is_nil(s.observed_image_tag) or s.observed_image_tag != ^rollout.image_tag)
       |> select([rs], rs.id)
       |> Repo.all()
