@@ -7,7 +7,7 @@ public enum XCResultParserError: LocalizedError, Equatable {
     case failedToParseOutput(AbsolutePath)
     case timedOut(AbsolutePath, seconds: Int)
     case decodingFailed(step: String, path: AbsolutePath, detail: String)
-    case emptyOutput(step: String, path: AbsolutePath)
+    case emptyOutput(step: String, path: AbsolutePath, stderr: String)
 
     public var errorDescription: String? {
         switch self {
@@ -17,8 +17,13 @@ public enum XCResultParserError: LocalizedError, Equatable {
             return "xcresult parsing timed out after \(seconds)s at \(path.pathString)"
         case let .decodingFailed(step, path, detail):
             return "Failed to decode xcresult \(step) at \(path.pathString): \(detail)"
-        case let .emptyOutput(step, path):
-            return "xcresulttool produced no \(step) output at \(path.pathString)"
+        case let .emptyOutput(step, path, stderr):
+            let trimmed = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+            let detail =
+                trimmed.isEmpty
+                    ? "<no stderr>"
+                    : String(trimmed.prefix(200)).replacingOccurrences(of: "\n", with: " ")
+            return "xcresulttool produced no \(step) output at \(path.pathString): \(detail)"
         }
     }
 }
@@ -117,7 +122,9 @@ public struct XCResultParser: Sendable {
             .runInTemporaryDirectory(prefix: "xcresult-test-results") { temporaryDirectory in
                 let tempFile = temporaryDirectory.appending(component: "test-results.json")
 
-                _ = try await commandRunner.run(
+                // stdout is redirected into `tempFile`, so what the command
+                // stream carries back is xcresulttool's stderr.
+                let toolStderr = try await commandRunner.run(
                     arguments: [
                         "/bin/sh", "-c",
                         // `exec` replaces the shell with the tool so cancellation, which signals
@@ -134,7 +141,9 @@ public struct XCResultParser: Sendable {
                 // the run instead of retrying a bundle that yields the same
                 // nothing on every attempt.
                 guard !jsonString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                    throw XCResultParserError.emptyOutput(step: "test-results", path: path)
+                    throw XCResultParserError.emptyOutput(
+                        step: "test-results", path: path, stderr: toolStderr
+                    )
                 }
                 guard let jsonData = jsonString.data(using: .utf8) else {
                     throw XCResultParserError.failedToParseOutput(path)

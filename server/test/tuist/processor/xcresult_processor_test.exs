@@ -99,10 +99,48 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       on_exit(fn -> File.rm_rf(fixture_dir) end)
 
       expect(XCResultNIF, :parse, fn xcresult_path, _root_dir ->
-        {:error, JSON.encode!(%{"error" => "xcresulttool produced no test-results output at #{xcresult_path}"})}
+        {:error,
+         JSON.encode!(%{
+           "error" => "xcresulttool produced no test-results output at #{xcresult_path}: Error: item missing for id 0~abc"
+         })}
+      end)
+
+      stub(Sentry, :capture_message, fn _message, _opts -> {:ok, "event-id"} end)
+
+      assert {:error, :empty_test_results} = XCResultProcessor.process_local(fixture_zip)
+    end
+
+    test "reports an empty test-results output to Sentry with the bundle path stripped" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      expect(XCResultNIF, :parse, fn xcresult_path, _root_dir ->
+        {:error,
+         JSON.encode!(%{
+           "error" => "xcresulttool produced no test-results output at #{xcresult_path}: Error: item missing for id 0~abc"
+         })}
+      end)
+
+      expect(Sentry, :capture_message, fn message, opts ->
+        assert message == "xcresult test-results output was empty"
+        assert opts[:extra][:detail] =~ "Error: item missing for id 0~abc"
+        assert opts[:extra][:detail] =~ "<xcresult>"
+        refute opts[:extra][:detail] =~ "xcresult_test_fixture_"
+        {:ok, "event-id"}
       end)
 
       assert {:error, :empty_test_results} = XCResultProcessor.process_local(fixture_zip)
+    end
+
+    test "does not report an ordinary parse failure to Sentry itself" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      expect(XCResultNIF, :parse, fn _xcresult_path, _root_dir -> {:error, "parse failed"} end)
+
+      reject(&Sentry.capture_message/2)
+
+      assert {:error, {:parse_failed, "parse failed"}} = XCResultProcessor.process_local(fixture_zip)
     end
 
     test "strips the bundle path out of a non-timeout parse failure" do
