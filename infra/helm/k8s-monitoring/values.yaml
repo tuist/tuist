@@ -891,6 +891,32 @@ k8s-monitoring:
           - key: tuist.dev/stable-egress
             operator: Exists
             effect: NoSchedule
+      # The subchart ships this container with no requests and no limits, so
+      # the scheduler accounts nothing for it and nothing caps its growth.
+      # That is fatal on the two smallest node shapes this DaemonSet lands on:
+      # `md-egress` is 2 vCPU / 3.72 GiB, against 15 GiB and up everywhere
+      # else. On 2026-08-26 the replica on md-egress-r4rrm had grown to
+      # 2.73 GiB from 0.74 GiB a week earlier and produced 27 node-level OOM
+      # kills in 24h, the only node in production with any. Without a limit
+      # the kernel OOMs at node scope rather than the cgroup, so the blast
+      # radius was the whole node: kubelet and containerd stalled
+      # (ContainerGCFailed), the Node flapped NotReady five times in six
+      # hours, and hcloud-csi-node's 3s liveness probe timed out and
+      # restarted the CSI driver 20 times. The stable-egress controller
+      # carried the Floating IP to the healthy peer, which is the only reason
+      # this was not an egress outage.
+      #
+      # A limit turns that into a contained pod restart whose targets
+      # redistribute across the clustered peers. 1Gi is more than twice the
+      # 443 MiB high-water mark of the nine healthy replicas. No CPU limit:
+      # throttling a scraper turns into scrape timeouts and gaps.
+      alloy:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
       # Custom scrape jobs for the macOS fleet's node_exporter (:9100)
       # and tart-kubelet controller-runtime metrics (:8080). Both bind
       # to the tailnet interface on each Mac mini — see
