@@ -34,6 +34,44 @@ defmodule Tuist.Runners.AllowanceTest do
     })
   end
 
+  defp ran_minutes(account, started, minutes) do
+    # Session timestamps are microsecond-precision; callers pass whatever
+    # precision the instant they care about happens to carry.
+    started = %{started | microsecond: {elem(started.microsecond, 0), 6}}
+
+    Repo.insert!(%RunnerSession{
+      account_id: account.id,
+      workflow_job_id: System.unique_integer([:positive]),
+      fleet_name: "tuist-macos",
+      pod_name: "pod-#{System.unique_integer([:positive])}",
+      runner_name: "",
+      platform: :macos,
+      vcpus: 6,
+      memory_gb: 14,
+      billing_multiplier: 10_000,
+      started_at: started,
+      job_started_at: started,
+      job_ended_at: DateTime.add(started, minutes * 60, :second),
+      inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+      updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+    })
+  end
+
+  defp trial_ended(account, at) do
+    account
+    |> Ecto.Changeset.change(
+      runner_trial_started_at: at |> DateTime.add(-30, :day) |> DateTime.truncate(:second),
+      runner_trial_ended_at: DateTime.truncate(at, :second)
+    )
+    |> Repo.update!()
+  end
+
+  defp on_trial_since(account, at) do
+    account
+    |> Ecto.Changeset.change(runner_trial_started_at: DateTime.truncate(at, :second))
+    |> Repo.update!()
+  end
+
   describe "exhausted?/1" do
     test "a free account with room left may still dispatch", %{account: account} do
       stub(Billing, :effective_plan, fn _account -> :air end)
@@ -332,6 +370,146 @@ defmodule Tuist.Runners.AllowanceTest do
       assert row.minutes == 0
       assert row.gross == Money.new(0, :USD)
       assert row.billed == Money.new(0, :USD)
+      assert row.included_minutes == Allowance.free_monthly_minutes()
+    end
+  end
+
+  describe "period_breakdown/1 runner trials" do
+    setup do
+      stub(Billing, :current_billing_period, fn _account -> nil end)
+      :ok
+    end
+
+    test "prices nothing the trial covered when it ended inside the period", %{account: account} do
+      # Stripe bills the runner item from the instant the trial ended, so
+      # a period that straddles the cancellation is part covered and part
+      # billable. Pricing the whole of it showed a bill no invoice was
+      # going to carry.
+      now = DateTime.utc_now()
+      period = {DateTime.add(now, -4, :day), DateTime.add(now, 1, :day)}
+      account = trial_ended(account, DateTime.add(now, -2, :day))
+
+      ran_minutes(account, DateTime.add(now, -3, :day), 60)
+      ran_minutes(account, DateTime.add(now, -1, :day), 180)
+
+      breakdown = Allowance.period_breakdown(account, period)
+
+      # Every minute it ran, priced at the standard rate.
+      assert breakdown.minutes == 240
+      assert breakdown.gross == Money.new(1800, :USD)
+      assert breakdown.trial_covered == Money.new(450, :USD)
+      # 180 billable minutes, 100 of them included. The trial's 60 must
+      # not have eaten the allowance on their way past.
+      assert breakdown.billed == Money.new(600, :USD)
+    end
+
+    test "counts only the part of a run that fell after the trial ended", %{account: account} do
+      now = DateTime.utc_now()
+      period = {DateTime.add(now, -4, :day), DateTime.add(now, 1, :day)}
+      trial_end = now |> DateTime.add(-6, :hour) |> DateTime.truncate(:second)
+      account = trial_ended(account, trial_end)
+
+      ran_minutes(account, DateTime.add(trial_end, -60, :minute), 120)
+
+      breakdown = Allowance.period_breakdown(account, period)
+
+      assert breakdown.minutes == 120
+      assert breakdown.gross == Money.new(900, :USD)
+      assert breakdown.trial_covered == Money.new(450, :USD)
+      assert breakdown.billed == Money.new(0, :USD)
+    end
+
+    test "leaves a day that ran wholly inside the trial with nothing billed", %{account: account} do
+      # Past the allowance, so a day the trial covered has to be zeroed
+      # deliberately rather than by the free tier happening to reach it.
+      now = DateTime.utc_now()
+      period = {DateTime.add(now, -4, :day), DateTime.add(now, 1, :day)}
+      account = trial_ended(account, DateTime.add(now, -2, :day))
+
+      ran_minutes(account, DateTime.add(now, -3, :day), 180)
+
+      assert [day] = Allowance.period_breakdown(account, period).days
+      assert day.gross == Money.new(1350, :USD)
+      assert day.billed == Money.new(0, :USD)
+    end
+
+    test "prices the whole period once the trial ended before it started", %{account: account} do
+      now = DateTime.utc_now()
+      period = {DateTime.add(now, -2, :day), DateTime.add(now, 1, :day)}
+      account = trial_ended(account, DateTime.add(now, -10, :day))
+
+      ran_minutes(account, DateTime.add(now, -1, :day), 180)
+
+      breakdown = Allowance.period_breakdown(account, period)
+
+      assert breakdown.trial_covered == Money.new(0, :USD)
+      assert breakdown.billed == Money.new(600, :USD)
+    end
+
+    test "prices a period that closed before the trial began", %{account: account} do
+      # The usage page offers a year of history. A trial that starts today
+      # says nothing about a period that was invoiced months ago, and
+      # reading the trial's end alone marked every one of them covered.
+      now = DateTime.utc_now()
+      period = {DateTime.add(now, -10, :day), DateTime.add(now, -6, :day)}
+      account = on_trial_since(account, DateTime.add(now, -2, :day))
+
+      ran_minutes(account, DateTime.add(now, -8, :day), 180)
+
+      breakdown = Allowance.period_breakdown(account, period)
+
+      assert breakdown.trial_covered == Money.new(0, :USD)
+      assert breakdown.billed == Money.new(600, :USD)
+    end
+
+    test "covers only what ran after the trial started", %{account: account} do
+      now = DateTime.utc_now()
+      period = {DateTime.add(now, -4, :day), DateTime.add(now, 1, :day)}
+      account = on_trial_since(account, DateTime.add(now, -2, :day))
+
+      ran_minutes(account, DateTime.add(now, -3, :day), 180)
+      ran_minutes(account, DateTime.add(now, -1, :day), 60)
+
+      breakdown = Allowance.period_breakdown(account, period)
+
+      assert breakdown.minutes == 240
+      assert breakdown.gross == Money.new(1800, :USD)
+      assert breakdown.trial_covered == Money.new(450, :USD)
+      assert breakdown.billed == Money.new(600, :USD)
+    end
+
+    test "prices nothing at all while the trial is still running", %{account: account} do
+      account = on_trial_since(account, DateTime.add(DateTime.utc_now(), -30, :day))
+      ran_minutes(account, DateTime.add(DateTime.utc_now(), -4, :hour), 180)
+
+      breakdown = Allowance.period_breakdown(account)
+
+      assert breakdown.gross == Money.new(1350, :USD)
+      assert breakdown.trial_covered == Money.new(1350, :USD)
+      assert breakdown.billed == Money.new(0, :USD)
+
+      # An allowance the account cannot reach yet is not a line worth
+      # showing; the trial already covers everything above it.
+      assert [row] = breakdown.platforms
+      assert row.trial_covered == Money.new(1350, :USD)
+      assert row.billed == Money.new(0, :USD)
+      assert row.included_minutes == nil
+    end
+
+    test "bills a platform row only for what ran after the trial", %{account: account} do
+      now = DateTime.utc_now()
+      period = {DateTime.add(now, -4, :day), DateTime.add(now, 1, :day)}
+      account = trial_ended(account, DateTime.add(now, -2, :day))
+
+      ran_minutes(account, DateTime.add(now, -3, :day), 60)
+      ran_minutes(account, DateTime.add(now, -1, :day), 180)
+
+      assert [row] = Allowance.period_breakdown(account, period).platforms
+
+      assert row.minutes == 240
+      assert row.gross == Money.new(1800, :USD)
+      assert row.trial_covered == Money.new(450, :USD)
+      assert row.billed == Money.new(600, :USD)
       assert row.included_minutes == Allowance.free_monthly_minutes()
     end
   end
