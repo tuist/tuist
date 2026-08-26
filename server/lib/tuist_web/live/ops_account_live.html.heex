@@ -41,6 +41,14 @@
               dgettext("dashboard", "None")
           } />
         </:col>
+        <:col :let={server} label={dgettext("dashboard", "Egress floor / ceiling")}>
+          <.text_cell label={
+            case egress_for_region(@kura_egress_regions, server.region) do
+              nil -> dgettext("dashboard", "Unshaped")
+              region -> egress_pair_label(region.effective)
+            end
+          } />
+        </:col>
         <:col :let={server} label={dgettext("dashboard", "URL")}>
           <.text_cell label={server.url || dgettext("dashboard", "None")} />
         </:col>
@@ -88,6 +96,82 @@
             type="submit"
             variant="primary"
             label={dgettext("dashboard", "Save disk claim")}
+          />
+        </div>
+      </.form>
+    </.card_section>
+    <.card_section :if={@kura_egress_regions != []}>
+      <p data-part="kura-egress-limits-description">
+        {dgettext(
+          "dashboard",
+          "The floor this account's pods reserve and the ceiling they may burst to, set per region because the boxes differ. Empty a field to hand that number back to the region, which is a default rather than a limit: where the two disagree the region's half gives way to the one you set. The only limit is each region's node budget, since the floor is what the scheduler bin-packs against it. Saving recreates the account's instances in that region so the new pair takes effect. They keep their volumes and restart one at a time behind the standby, so no cache is lost."
+        )}
+      </p>
+      <.form
+        for={@kura_egress_form}
+        id="kura-egress-limits-form"
+        phx-submit="update_kura_egress_limits"
+      >
+        <.table id="account-kura-egress-table" rows={@kura_egress_regions}>
+          <:col :let={region} label={dgettext("dashboard", "Region")}>
+            <.text_cell label={region.display_name} />
+          </:col>
+          <:col :let={region} label={dgettext("dashboard", "Now")}>
+            <.text_cell label={egress_pair_label(region.effective)} />
+          </:col>
+          <:col :let={region} label={dgettext("dashboard", "Region default")}>
+            <.text_cell label={egress_pair_label(region.defaults)} />
+          </:col>
+          <:col :let={region} label={dgettext("dashboard", "Node limit")}>
+            <.text_cell
+              label={node_budget_label(region.node_mbps)}
+              sublabel={egress_headroom_label(region.headroom)}
+            />
+          </:col>
+          <:col :let={region} label={dgettext("dashboard", "Floor override (Mbps)")}>
+            <div data-part="egress-input-cell">
+              <.text_input
+                field={region.form[:kura_egress_floor_mbps]}
+                input_type="number"
+                min={1}
+                max={egress_max_floor_mbps(region)}
+                placeholder={region.defaults.floor_mbps}
+              />
+            </div>
+          </:col>
+          <:col :let={region} label={dgettext("dashboard", "Ceiling override (Mbps)")}>
+            <div data-part="egress-input-cell">
+              <.text_input
+                field={region.form[:kura_egress_burst_mbps]}
+                input_type="number"
+                min={1}
+                max={region.node_mbps}
+                placeholder={region.defaults.burst_mbps}
+              />
+            </div>
+          </:col>
+        </.table>
+        <.alert
+          :if={@kura_egress_result}
+          id="kura-egress-limits-result"
+          status={@kura_egress_result.status}
+          title={@kura_egress_result.title}
+        />
+        <div data-part="actions">
+          <%!-- data-confirm belongs on the button, never on the form:
+                phoenix_html's polyfill walks up from whatever was clicked and
+                confirms on the first ancestor carrying it, so on the form every
+                click into a field asks too. --%>
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Save egress limits")}
+            data-confirm={
+              dgettext(
+                "dashboard",
+                "Saving recreates this account's Kura instances in the regions you changed. They keep their volumes and restart one at a time behind the standby, so no cache is lost. Continue?"
+              )
+            }
           />
         </div>
       </.form>

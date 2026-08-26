@@ -649,6 +649,87 @@ defmodule Tuist.KuraTest do
     end
   end
 
+  describe "update_egress_limits_override/3" do
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east"] end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      # The us-east boxes advertise ~3 Gbit/s. A floor is a scheduler request, so
+      # the form refuses one it cannot check against a budget.
+      stub(Tuist.Kura.Capacity, :egress_budget_mbps, fn _region_id -> 3000 end)
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      # The region's own floor is Enterprise-only; without the plan the default
+      # half of the pair is zero and the region's 25 never appears.
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      %{account: account, region: Kura.region("us-east")}
+    end
+
+    test "writes the pair and reports the instances it reaches", %{account: account, region: region} do
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
+
+      assert {:ok, %{floor_mbps: 100, burst_mbps: 400, servers: [reached], region: ^region}} =
+               Kura.update_egress_limits_override(account, region, %{
+                 "kura_egress_floor_mbps" => "100",
+                 "kura_egress_burst_mbps" => "400"
+               })
+
+      assert reached.id == server.id
+      assert Kura.egress_limits_override(account, region) == %{floor_mbps: 100, burst_mbps: 400}
+      assert Kura.effective_egress_limits(account, region) == %{floor_mbps: 100, burst_mbps: 400}
+    end
+
+    # Nothing is pinned on the row: the manifest resolves the pair from the
+    # account, so the instance keeps serving exactly as it was and only its
+    # desired manifest revision moves.
+    test "leaves the instance row untouched", %{account: account, region: region} do
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
+      before = Repo.get!(Server, server.id)
+
+      {:ok, _} = Kura.update_egress_limits_override(account, region, %{"kura_egress_burst_mbps" => "200"})
+
+      assert Repo.get!(Server, server.id).updated_at == before.updated_at
+    end
+
+    test "hands the region back to its defaults when the override is cleared", %{account: account, region: region} do
+      {:ok, _server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
+
+      {:ok, _} = Kura.update_egress_limits_override(account, region, %{"kura_egress_burst_mbps" => "200"})
+
+      assert {:ok, %{floor_mbps: nil, burst_mbps: nil, servers: [_reached]}} =
+               Kura.update_egress_limits_override(account, region, %{
+                 "kura_egress_floor_mbps" => "",
+                 "kura_egress_burst_mbps" => ""
+               })
+
+      assert Kura.egress_limits_override(account, region) == nil
+      assert Kura.effective_egress_limits(account, region) == %{floor_mbps: 25, burst_mbps: 1500}
+    end
+
+    # An archived row has no pod to annotate, so it is not something the change
+    # reaches; it picks the current pair up on its cold return.
+    test "leaves a row that holds no pods out of the report", %{account: account, region: region} do
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
+      _archived = archive_server(server)
+
+      assert {:ok, %{servers: []}} =
+               Kura.update_egress_limits_override(account, region, %{"kura_egress_burst_mbps" => "200"})
+    end
+
+    test "returns the changeset when the pair does not validate", %{account: account, region: region} do
+      assert {:error, changeset} =
+               Kura.update_egress_limits_override(account, region, %{
+                 "kura_egress_floor_mbps" => "900",
+                 "kura_egress_burst_mbps" => "100"
+               })
+
+      assert changeset.errors[:kura_egress_floor_mbps]
+      assert Kura.egress_limits_override(account, region) == nil
+    end
+  end
+
   describe "update_storage_claim_override/2" do
     setup do
       stub(Tuist.Environment, :dev?, fn -> false end)

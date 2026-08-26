@@ -74,10 +74,37 @@
   & [data-part="runner-concurrency-description"],
   & [data-part="runner-trial-description"],
   & [data-part="prepaid-description"],
-  & [data-part="prepaid-empty"] {
+  & [data-part="prepaid-empty"],
+  & [data-part="kura-egress-limits-description"] {
     margin: var(--noora-spacing-0);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-medium);
+  }
+
+  /* Per-region egress limits: the column rhythm the other editable forms use,
+     but not width-capped, since this one is a table and wants the full card. */
+  & #kura-egress-limits-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  /* An editable cell holds a bare input rather than a [data-part="cell"], so it
+     inherits none of the table's cell padding. Inline only: the taller text
+     cells beside it already set the row height. */
+  & [data-part="egress-input-cell"] {
+    padding-inline: var(--noora-spacing-4);
+
+    /* A validation message is inline-flex, so it sizes to its own content and
+       widens the cell, and with it the table. Wrap it inside the cell instead. */
+    & .noora-hint-text {
+      align-items: flex-start;
+
+      & span {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+    }
   }
 
   & #prepaid-minutes-form {
