@@ -271,6 +271,47 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) == nil
   end
 
+  # Each region is written in its own transaction, against a reading that can
+  # move between the pre-flight cast and the write. Reporting only the rejection
+  # would leave the operator believing the region that did land had not.
+  test "reports what was written when another region's write fails", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+    stub(Capacity, :egress_headroom, fn _region, _handle -> nil end)
+
+    kura_server(user, "us-east")
+    kura_server(user, "eu-central")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    us_east = Kura.region("us-east")
+
+    stub(Kura, :update_egress_limits_override, fn account, region, attrs ->
+      if region.id == "eu-central" do
+        {:error, Kura.change_egress_limits_override(account, region, attrs)}
+      else
+        call_original(Kura, :update_egress_limits_override, [account, region, attrs])
+      end
+    end)
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{
+          "us-east" => %{"kura_egress_floor_mbps" => "60", "kura_egress_burst_mbps" => "400"},
+          "eu-central" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
+        }
+      })
+      |> render_submit()
+
+    assert html =~ "Egress limits updated in US East"
+    assert html =~ "EU Central was rejected and not saved"
+    refute html =~ "Nothing was saved"
+
+    assert Kura.egress_limits_override(user.account, us_east) == %{floor_mbps: 60, burst_mbps: 400}
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) == nil
+  end
+
   # The reading behind the headroom check can move under a table an operator is
   # looking at. A row they did not touch must not be the thing that refuses the
   # save of the one they did.

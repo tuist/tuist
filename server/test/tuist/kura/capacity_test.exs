@@ -260,6 +260,21 @@ defmodule Tuist.Kura.CapacityTest do
       assert %{available_mbps: 500} = Capacity.egress_headroom(@region, "tuist")
     end
 
+    # A terminal replica -- evicted off a disk-pressured box, and lingering in
+    # the API until something deletes it -- is excluded from the box's reserved
+    # total by the field selector, so counting it as the account's own would add
+    # back a reservation nobody holds and report more available than the box has.
+    test "ignores a terminal pod of the account's own" do
+      stub_box("box-1", 1000, [egress_pod("tuist", 100), egress_pod("neighbour", 200)])
+
+      stub_account_pods([
+        egress_pod("tuist", 100),
+        egress_pod("tuist", 400, phase: "Failed")
+      ])
+
+      assert %{available_mbps: 800, replicas: 2} = Capacity.egress_headroom(@region, "tuist")
+    end
+
     # An unscheduled pod holds nothing on a node -- it is exactly the pod the
     # measurement exists to make room for.
     test "ignores a pod the scheduler has not placed" do
@@ -319,7 +334,7 @@ defmodule Tuist.Kura.CapacityTest do
 
     %{
       "metadata" => %{"labels" => %{"tuist.dev/account" => handle, "tuist.dev/region" => region}},
-      "status" => %{"phase" => "Running"},
+      "status" => %{"phase" => Keyword.get(opts, :phase, "Running")},
       "spec" =>
         Enum.into(if(node, do: %{"nodeName" => node}, else: %{}), %{
           "containers" => [%{"resources" => %{"requests" => %{"tuist.dev/egress-mbps" => Integer.to_string(mbps)}}}]

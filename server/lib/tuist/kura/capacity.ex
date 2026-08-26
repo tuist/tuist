@@ -245,9 +245,13 @@ defmodule Tuist.Kura.Capacity do
 
   defp measure_egress_headroom(region_id, account_handle) do
     with {:ok, pods} <- Client.list_pods(@namespace, account_selector(region_id, account_handle), timeout: @read_timeout),
-         [pod | _] <- Enum.filter(pods, &(pod_node_name(&1) && not terminal?(&1))),
+         [pod | _] = placed <- Enum.filter(pods, &(pod_node_name(&1) && not terminal?(&1))),
          node = pod_node_name(pod),
-         on_box = Enum.filter(pods, &(pod_node_name(&1) == node)),
+         # From the placed pods, never from the raw list: a terminal replica is
+         # excluded from `reserved` by the field selector, so counting it here
+         # would add back a reservation nobody holds and report the box as
+         # roomier than it is.
+         on_box = Enum.filter(placed, &(pod_node_name(&1) == node)),
          {:ok, node_body} <- Client.get_node(node, timeout: @read_timeout),
          allocatable when is_integer(allocatable) <- egress_mbps(node_body),
          {:ok, reserved} <- box_reserved_mbps(node) do

@@ -505,7 +505,7 @@ defmodule TuistWeb.OpsAccountLive do
         {:noreply,
          socket
          |> assign(:kura_egress_regions, put_region_errors(socket.assigns.kura_egress_regions, invalid))
-         |> assign(:kura_egress_result, %{status: "error", title: kura_egress_limits_error_message(invalid)})}
+         |> assign(:kura_egress_result, %{status: "error", title: kura_egress_limits_rejected_message(invalid)})}
 
       [] ->
         {written, failed} =
@@ -518,12 +518,7 @@ defmodule TuistWeb.OpsAccountLive do
 
         socket = assign_kura(socket, account)
 
-        result =
-          if failed == [],
-            do: kura_egress_limits_result(written),
-            else: %{status: "error", title: kura_egress_limits_error_message(failed)}
-
-        {:noreply, assign(socket, :kura_egress_result, result)}
+        {:noreply, assign(socket, :kura_egress_result, kura_egress_limits_result(written, failed))}
     end
   end
 
@@ -572,39 +567,67 @@ defmodule TuistWeb.OpsAccountLive do
   # One message for the whole Save, naming the regions and totalling the
   # instances an operator can go and check. Nothing changed gets its own answer:
   # reporting a recreate that is not happening sends them looking for a rollout.
-  defp kura_egress_limits_result([]) do
+  defp kura_egress_limits_result([], []) do
     %{status: "information", title: dgettext("dashboard", "No egress limits changed.")}
   end
 
-  defp kura_egress_limits_result(results) do
-    regions = results |> Enum.map(& &1.region.display_name) |> Enum.sort() |> Enum.join(", ")
-    servers = results |> Enum.flat_map(& &1.servers) |> length()
+  defp kura_egress_limits_result([], failed) do
+    %{status: "error", title: kura_egress_limits_rejected_message(failed)}
+  end
 
+  # Each region is written in its own transaction, and the reading the write
+  # re-casts against can move between the check above and the write itself, so a
+  # save can end up half applied. Saying only that something was rejected would
+  # leave the operator believing the regions that did land had not.
+  defp kura_egress_limits_result(written, failed) do
     %{
-      status: "success",
-      title:
-        dngettext(
-          "dashboard",
-          "Egress limits updated in %{regions}. %{count} instance is recreated to pick them up.",
-          "Egress limits updated in %{regions}. %{count} instances are recreated to pick them up.",
-          servers,
-          regions: regions
-        )
+      status: if(failed == [], do: "success", else: "warning"),
+      title: Enum.map_join([written_message(written) | rejected_message(failed)], " ", & &1)
     }
   end
 
-  # Named, because with several rows on screen "could not be updated" leaves the
-  # operator hunting for which one was rejected.
-  defp kura_egress_limits_error_message(invalid) do
-    regions = invalid |> Enum.map(fn {region, _attrs, _result} -> region.display_name end) |> Enum.sort()
+  defp rejected_message([]), do: []
+  defp rejected_message(failed), do: [kura_egress_limits_failed_message(failed)]
 
+  defp written_message(results) do
+    regions = results |> Enum.map(& &1.region.display_name) |> Enum.sort() |> Enum.join(", ")
+    servers = results |> Enum.flat_map(& &1.servers) |> length()
+
+    dngettext(
+      "dashboard",
+      "Egress limits updated in %{regions}. %{count} instance is recreated to pick them up.",
+      "Egress limits updated in %{regions}. %{count} instances are recreated to pick them up.",
+      servers,
+      regions: regions
+    )
+  end
+
+  # Named, because with several rows on screen "could not be updated" leaves the
+  # operator hunting for which one was rejected. Nothing at all was written on
+  # this path -- the rows are cast before any of them is saved -- so it says so
+  # of the whole table, not only of the row it names.
+  defp kura_egress_limits_rejected_message(invalid) do
     dngettext(
       "dashboard",
       "Nothing was saved: %{regions} was rejected.",
       "Nothing was saved: %{regions} were rejected.",
-      length(regions),
-      regions: Enum.join(regions, ", ")
+      length(invalid),
+      regions: region_names(invalid)
     )
+  end
+
+  defp kura_egress_limits_failed_message(failed) do
+    dngettext(
+      "dashboard",
+      "%{regions} was rejected and not saved.",
+      "%{regions} were rejected and not saved.",
+      length(failed),
+      regions: region_names(failed)
+    )
+  end
+
+  defp region_names(rows) do
+    rows |> Enum.map(fn {region, _attrs, _result} -> region.display_name end) |> Enum.sort() |> Enum.join(", ")
   end
 
   @doc """
