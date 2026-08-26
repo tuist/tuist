@@ -2,6 +2,10 @@ import Foundation
 import Testing
 @testable import SwifterPMCore
 
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
+
 struct HTTPClientTests {
     @Test
     func retriesRequestTimeoutUntilItSucceeds() async throws {
@@ -75,6 +79,36 @@ struct HTTPClientTests {
     }
 
     @Test
+    func doesNotLeakRedirectCredentialsIntoTheMessage() async throws {
+        try await withLocalHTTPServer { server in
+            let signed = "/storage.zip?X-Amz-Credential=AKIAEXAMPLE&X-Amz-Signature=deadbeefsecret"
+            server.respond(to: "/registry.zip", with: [.redirect(to: signed)])
+            server.respond(to: "/storage.zip", with: [.status(408)])
+
+            let error = await #expect(throws: (any Error).self) {
+                try await HTTPClient.data(url: server.url(path: "/registry.zip"))
+            }
+
+            let message = String(describing: try #require(error))
+            #expect(message.contains("HTTP 408"))
+            #expect(message.contains("/storage.zip"))
+            #expect(!message.contains("deadbeefsecret"))
+            #expect(!message.contains("X-Amz-Signature"))
+            #expect(!message.contains("AKIAEXAMPLE"))
+        }
+    }
+
+    @Test
+    func redactsUserInfoQueryAndFragment() throws {
+        let url = try #require(
+            URL(string: "https://user:pass@storage.example/a/b.zip?token=secret#frag"))
+
+        let redacted = HTTPStatusError.redactingCredentials(url)
+
+        #expect(redacted == "https://storage.example/a/b.zip")
+    }
+
+    @Test
     func successfulResponsesProduceNoError() throws {
         #expect(makeStatusError(statusCode: 200) == nil)
         #expect(makeStatusError(statusCode: 204) == nil)
@@ -107,15 +141,53 @@ struct HTTPClientTests {
         #expect(absent.retryAfter == nil)
 
         let unparsable = try #require(
-            makeStatusError(statusCode: 429, headers: ["Retry-After": "Wed, 26 Aug 2026 01:19:31 GMT"]))
+            makeStatusError(statusCode: 429, headers: ["Retry-After": "not-a-delay"]))
         #expect(unparsable.retryAfter == nil)
+    }
+
+    @Test
+    func readsRetryAfterExpressedAsAnHTTPDate() throws {
+        let now = Date(timeIntervalSince1970: 1_787_707_171)
+
+        let imfFixdate = try #require(
+            makeStatusError(
+                statusCode: 503,
+                headers: ["Retry-After": "Wed, 26 Aug 2026 01:19:41 GMT"],
+                now: now
+            ))
+        #expect(imfFixdate.retryAfter == 10)
+
+        let bounded = try #require(
+            makeStatusError(
+                statusCode: 503,
+                headers: ["Retry-After": "Thu, 27 Aug 2026 01:19:31 GMT"],
+                now: now
+            ))
+        #expect(bounded.retryAfter == HTTPStatusError.maximumRetryAfter)
+
+        let past = try #require(
+            makeStatusError(
+                statusCode: 503,
+                headers: ["Retry-After": "Tue, 25 Aug 2026 01:19:31 GMT"],
+                now: now
+            ))
+        #expect(past.retryAfter == nil)
+
+        let asctime = try #require(
+            makeStatusError(
+                statusCode: 503,
+                headers: ["Retry-After": "Wed Aug 26 01:19:41 2026"],
+                now: now
+            ))
+        #expect(asctime.retryAfter == 10)
     }
 
     private func makeStatusError(
         statusCode: Int,
         headers: [String: String] = [:],
         respondingURL: URL? = nil,
-        requestedURL: URL = URL(string: "https://tuist.dev/registry.zip")!
+        requestedURL: URL = URL(string: "https://tuist.dev/registry.zip")!,
+        now: Date = Date()
     ) -> HTTPStatusError? {
         let response = HTTPURLResponse(
             url: respondingURL ?? requestedURL,
@@ -123,6 +195,6 @@ struct HTTPClientTests {
             httpVersion: "HTTP/1.1",
             headerFields: headers
         )!
-        return HTTPStatusError(response: response, requestedURL: requestedURL)
+        return HTTPStatusError(response: response, requestedURL: requestedURL, now: now)
     }
 }

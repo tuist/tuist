@@ -269,7 +269,9 @@ enum HTTPClient {
 }
 
 /// A non-2xx HTTP response. `url` is the URL that produced the status, which after a
-/// redirect is not the URL that was requested.
+/// redirect is not the URL that was requested. Rendering goes through
+/// `redactingCredentials`, since a redirect target is routinely a presigned URL whose
+/// query string carries a signature.
 struct HTTPStatusError: Error, CustomStringConvertible {
     /// Bounds a hostile or mistaken `Retry-After` so a restore cannot stall on it.
     static let maximumRetryAfter: TimeInterval = 30
@@ -278,14 +280,14 @@ struct HTTPStatusError: Error, CustomStringConvertible {
     let url: URL
     let retryAfter: TimeInterval?
 
-    init?(response: URLResponse, requestedURL: URL) {
+    init?(response: URLResponse, requestedURL: URL, now: Date = Date()) {
         guard let httpResponse = response as? HTTPURLResponse,
               !(200 ..< 300).contains(httpResponse.statusCode)
         else { return nil }
 
         statusCode = httpResponse.statusCode
         url = httpResponse.url ?? requestedURL
-        retryAfter = Self.retryAfter(from: httpResponse)
+        retryAfter = Self.retryAfter(from: httpResponse, now: now)
     }
 
     var isRetryable: Bool {
@@ -293,15 +295,62 @@ struct HTTPStatusError: Error, CustomStringConvertible {
     }
 
     var description: String {
-        "HTTP \(statusCode) for \(url.absoluteString)"
+        "HTTP \(statusCode) for \(Self.redactingCredentials(url))"
     }
 
-    private static func retryAfter(from response: HTTPURLResponse) -> TimeInterval? {
-        guard let value = response.value(forHTTPHeaderField: "Retry-After"),
-              let seconds = TimeInterval(value.trimmingCharacters(in: .whitespaces)),
-              seconds > 0
-        else { return nil }
+    /// Keeps scheme, host, port and path; drops user info, query and fragment.
+    static func redactingCredentials(_ url: URL) -> String {
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.user = nil
+        components?.password = nil
+        components?.query = nil
+        components?.fragment = nil
+        if let string = components?.string, !string.isEmpty {
+            return string
+        }
+        let scheme = url.scheme.map { "\($0)://" } ?? ""
+        let port = url.port.map { ":\($0)" } ?? ""
+        return "\(scheme)\(url.host ?? "")\(port)\(url.path)"
+    }
+
+    /// `Retry-After` is either delay-seconds or an HTTP-date (RFC 9110 section 10.2.3).
+    private static func retryAfter(from response: HTTPURLResponse, now: Date) -> TimeInterval? {
+        guard let raw = response.value(forHTTPHeaderField: "Retry-After") else { return nil }
+        let value = raw.trimmingCharacters(in: .whitespaces)
+
+        let seconds: TimeInterval?
+        if let delay = TimeInterval(value) {
+            seconds = delay
+        } else if let date = httpDate(from: value) {
+            seconds = date.timeIntervalSince(now)
+        } else {
+            seconds = nil
+        }
+
+        guard let seconds, seconds > 0 else { return nil }
         return min(seconds, maximumRetryAfter)
+    }
+
+    /// Recipients must accept all three historic HTTP-date formats (RFC 9110 section 5.6.7).
+    private static func httpDate(from value: String) -> Date? {
+        let normalized = value.split(separator: " ", omittingEmptySubsequences: true)
+            .joined(separator: " ")
+        let formats = [
+            "EEE, dd MMM yyyy HH:mm:ss zzz",
+            "EEEE, dd-MMM-yy HH:mm:ss zzz",
+            "EEE MMM d HH:mm:ss yyyy",
+        ]
+
+        for format in formats {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            formatter.dateFormat = format
+            if let date = formatter.date(from: normalized) {
+                return date
+            }
+        }
+        return nil
     }
 }
 

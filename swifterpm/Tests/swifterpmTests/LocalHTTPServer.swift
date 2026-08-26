@@ -1,15 +1,18 @@
 import Foundation
+import Synchronization
 
 #if canImport(Glibc)
     import Glibc
-#else
+#elseif canImport(Musl)
+    import Musl
+#elseif canImport(Darwin)
     import Darwin
 #endif
 
-/// A single-threaded loopback HTTP/1.1 server that replays a scripted sequence of
-/// responses, so tests can drive redirect and status-code handling without a network.
-final class LocalHTTPServer: @unchecked Sendable {
-    struct Response {
+/// A loopback HTTP/1.1 server that replays a scripted sequence of responses, so tests can
+/// drive redirect, retry and status-code handling without a network.
+final class LocalHTTPServer: Sendable {
+    struct Response: Sendable {
         let statusCode: Int
         let headers: [String: String]
         let body: String
@@ -33,17 +36,30 @@ final class LocalHTTPServer: @unchecked Sendable {
         }
     }
 
+    private struct State {
+        var routes: [String: [Response]] = [:]
+        var recordedPaths: [String] = []
+        var stopped = false
+    }
+
+    private let state = Mutex(State())
     private let listeningSocket: Int32
-    private let lock = NSLock()
-    private var routes: [String: [Response]] = [:]
-    private var fallback: [Response] = []
-    private var recordedPaths: [String] = []
-    private var stopped = false
 
     let port: UInt16
 
+    enum Failure: Error {
+        case socketUnavailable
+        case bindFailed
+    }
+
     init() throws {
-        let descriptor = socket(AF_INET, SOCK_STREAM, 0)
+        #if canImport(Glibc)
+            let streamType = Int32(SOCK_STREAM.rawValue)
+        #else
+            let streamType = SOCK_STREAM
+        #endif
+
+        let descriptor = socket(AF_INET, streamType, 0)
         guard descriptor >= 0 else { throw Failure.socketUnavailable }
 
         var reuse: Int32 = 1
@@ -82,22 +98,9 @@ final class LocalHTTPServer: @unchecked Sendable {
         port = UInt16(bigEndian: boundAddress.sin_port)
     }
 
-    enum Failure: Error {
-        case socketUnavailable
-        case bindFailed
-    }
-
     /// Queues the responses served for `path`, in order. The last one repeats once exhausted.
     func respond(to path: String, with responses: [Response]) {
-        lock.lock()
-        routes[path] = responses
-        lock.unlock()
-    }
-
-    func respondToEverything(with responses: [Response]) {
-        lock.lock()
-        fallback = responses
-        lock.unlock()
+        state.withLock { $0.routes[path] = responses }
     }
 
     func url(path: String) -> URL {
@@ -106,36 +109,28 @@ final class LocalHTTPServer: @unchecked Sendable {
 
     /// Paths of every request served so far, in order, so tests can assert retry counts.
     var requestedPaths: [String] {
-        lock.lock()
-        defer { lock.unlock() }
-        return recordedPaths
+        state.withLock { $0.recordedPaths }
     }
 
     func start() {
-        let thread = Thread { [weak self] in self?.acceptLoop() }
+        let thread = Thread { [self] in acceptLoop() }
         thread.stackSize = 512 * 1024
         thread.start()
     }
 
     func stop() {
-        lock.lock()
-        guard !stopped else {
-            lock.unlock()
-            return
+        let alreadyStopped = state.withLock { state -> Bool in
+            let wasStopped = state.stopped
+            state.stopped = true
+            return wasStopped
         }
-        stopped = true
-        lock.unlock()
-        shutdown(listeningSocket, SHUT_RDWR)
+        guard !alreadyStopped else { return }
+        shutdown(listeningSocket, Int32(SHUT_RDWR))
         close(listeningSocket)
     }
 
     private func acceptLoop() {
-        while true {
-            lock.lock()
-            let isStopped = stopped
-            lock.unlock()
-            if isStopped { return }
-
+        while !state.withLock({ $0.stopped }) {
             let connection = accept(listeningSocket, nil, nil)
             guard connection >= 0 else { return }
             serve(connection: connection)
@@ -146,23 +141,21 @@ final class LocalHTTPServer: @unchecked Sendable {
     private func serve(connection: Int32) {
         guard let path = readRequestPath(connection: connection) else { return }
 
-        lock.lock()
-        recordedPaths.append(path)
-        let response: Response
-        if var queued = routes[path], !queued.isEmpty {
-            response = queued.removeFirst()
-            routes[path] = queued.isEmpty ? [response] : queued
-        } else if var queued = fallback as [Response]?, !queued.isEmpty {
-            response = queued.removeFirst()
-            fallback = queued.isEmpty ? [response] : queued
-        } else {
-            response = Response(statusCode: 404)
+        let response = state.withLock { state -> Response in
+            state.recordedPaths.append(path)
+            guard var queued = state.routes[path], !queued.isEmpty else {
+                return Response(statusCode: 404)
+            }
+            let next = queued.removeFirst()
+            state.routes[path] = queued.isEmpty ? [next] : queued
+            return next
         }
-        lock.unlock()
 
         write(response: response, to: connection)
     }
 
+    /// Routes are keyed on the path alone, so a redirect target carrying a query string
+    /// still matches the route registered for its path.
     private func readRequestPath(connection: Int32) -> String? {
         var buffer = [UInt8](repeating: 0, count: 4096)
         let received = recv(connection, &buffer, buffer.count, 0)
@@ -172,7 +165,7 @@ final class LocalHTTPServer: @unchecked Sendable {
         let requestLine = request.split(separator: "\r\n", maxSplits: 1).first ?? ""
         let components = requestLine.split(separator: " ")
         guard components.count >= 2 else { return nil }
-        return String(components[1])
+        return String(components[1].split(separator: "?", maxSplits: 1)[0])
     }
 
     private func write(response: Response, to connection: Int32) {
