@@ -194,6 +194,184 @@ defmodule Tuist.Kura.Capacity do
     end
   end
 
+  @doc """
+  How much egress the box `account_handle`'s instances in `region_id` sit on can
+  hold for that account, and across how many replicas — or `nil` when it has
+  none placed there yet (then nothing pins it and `egress_budget_mbps/1` is the
+  whole answer).
+
+      %{node:, allocatable_mbps:, available_mbps:, replicas:}
+
+  `available_mbps` is what the box has for *this account*: everything it
+  advertises, less what other tenants have reserved on it. It deliberately
+  counts the account's own current reservation as available, because a rollout
+  releases each replica's before asking for its replacement.
+
+  That is the whole of the bound, and it is simpler than it first looks. Walking
+  a floor change through the rollout, with `O` the other tenants and `c_i` what
+  each replica holds now:
+
+      step k:  O + k x new + sum(c_i for i > k)  <= allocatable
+      step r:  O + r x new                       <= allocatable
+
+  Every step releases one old value and takes one new one, so on the last step
+  the old values are all gone and the `c_i` cancel out. A raise tightens the
+  constraint at each step, which makes the last one binding:
+
+      replicas x new_floor <= allocatable - other tenants
+
+  What the replicas hold *now* never enters it. That matters: an account caught
+  mid-rollout holds different values on different replicas, and any formula
+  written in terms of them reports a different bound depending on when it is
+  asked.
+
+  Two things this still has to get right:
+
+    * **The box, not the region.** A replica's volume pins it to one node, so a
+      roomier sibling box is no help — it is the only node the pod can ever be
+      placed on again. Where an account somehow spans boxes, the binding one is
+      whichever holds least for it.
+    * **Scheduled pods only.** An unscheduled pod holds nothing on a node, so it
+      cannot count towards what other tenants have reserved there. It is exactly
+      the pod this measurement exists to make room for.
+  """
+  def egress_headroom(region_id, account_handle) when is_binary(account_handle) do
+    with %{nodes: nodes, accounts: accounts} <- egress_placement(region_id),
+         %{nodes: [_ | _] = account_nodes, replicas: replicas} <- Map.get(accounts, account_handle),
+         {node, available} <- worst_node(account_nodes, nodes) do
+      %{
+        node: node,
+        allocatable_mbps: nodes[node].allocatable_mbps,
+        available_mbps: available,
+        replicas: max(replicas, declared_replicas(region_id))
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  # The account's box with the least room for it. Its own reservation on that box
+  # is added back, because the rollout hands it in before asking for the
+  # replacement -- what bounds the account is the box minus everybody else.
+  defp worst_node(account_nodes, nodes) do
+    account_nodes
+    |> Enum.filter(fn {node, _reserved} -> Map.has_key?(nodes, node) end)
+    |> Enum.map(fn {node, reserved} ->
+      %{allocatable_mbps: allocatable, reserved_mbps: node_reserved} = nodes[node]
+      {node, max(allocatable - (node_reserved - reserved), 0)}
+    end)
+    |> Enum.min_by(fn {_node, available} -> available end, fn -> nil end)
+  end
+
+  # A replica the account is between (deleted, not yet recreated) holds nothing
+  # and is not in the pod list, so counting only what is there would divide the
+  # box by too few and overstate what a floor may be raised to.
+  defp declared_replicas(region_id) do
+    case Regions.fetch(region_id) do
+      {:ok, region} -> replicas(region)
+      {:error, _reason} -> 1
+    end
+  end
+
+  @doc """
+  The region's egress as the scheduler sees it: what each Ready box advertises
+  and has reserved, and where each account's pods sit.
+
+  One read for the whole region rather than one per account, because the ops
+  page asks this for every region an account holds an instance in.
+  """
+  def egress_placement(region_id) do
+    KeyValueStore.get_or_update(
+      [__MODULE__, "egress_placement", region_id],
+      [ttl: to_timeout(minute: 1), locking: true],
+      fn -> measure_egress_placement(region_id) end
+    )
+  end
+
+  defp measure_egress_placement(region_id) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         selector when is_binary(selector) <- Regions.node_label_selector(region),
+         {:ok, %{"items" => node_items}} <- Client.list_nodes(selector),
+         {:ok, pods} <- Client.list_pods(@namespace, "#{@managed_by_selector},tuist.dev/region=#{region_id}") do
+      nodes =
+        node_items
+        |> Enum.filter(&ready?/1)
+        |> Enum.reduce(%{}, fn node, acc ->
+          case {node_name(node), egress_mbps(node)} do
+            {name, mbps} when is_binary(name) and is_integer(mbps) ->
+              Map.put(acc, name, %{allocatable_mbps: mbps, reserved_mbps: 0})
+
+            _ ->
+              acc
+          end
+        end)
+
+      pods = Enum.reject(pods, &terminal?/1)
+
+      %{nodes: reserve_pod_egress(nodes, pods), accounts: account_egress_placement(pods)}
+    else
+      _ -> nil
+    end
+  end
+
+  # Only pods the scheduler has already placed count against a node: an
+  # unscheduled one is exactly the pod this measurement exists to make room for.
+  defp reserve_pod_egress(nodes, pods) do
+    Enum.reduce(pods, nodes, fn pod, acc ->
+      with node when is_binary(node) <- pod_node_name(pod),
+           %{reserved_mbps: reserved} = entry <- Map.get(acc, node) do
+        Map.put(acc, node, %{entry | reserved_mbps: reserved + pod_egress_mbps(pod)})
+      else
+        _ -> acc
+      end
+    end)
+  end
+
+  defp account_egress_placement(pods) do
+    pods
+    |> Enum.reduce(%{}, fn pod, acc ->
+      case pod_account_handle(pod) do
+        handle when is_binary(handle) ->
+          entry = Map.get(acc, handle, %{nodes: %{}, replicas: 0})
+
+          nodes =
+            case pod_node_name(pod) do
+              node when is_binary(node) ->
+                Map.update(entry.nodes, node, pod_egress_mbps(pod), &(&1 + pod_egress_mbps(pod)))
+
+              _ ->
+                entry.nodes
+            end
+
+          Map.put(acc, handle, %{nodes: nodes, replicas: entry.replicas + 1})
+
+        _ ->
+          acc
+      end
+    end)
+    |> Map.new(fn {handle, entry} -> {handle, %{entry | nodes: Map.to_list(entry.nodes)}} end)
+  end
+
+  defp node_name(%{"metadata" => %{"name" => name}}), do: name
+  defp node_name(_node), do: nil
+
+  defp pod_node_name(%{"spec" => %{"nodeName" => name}}) when is_binary(name) and name != "", do: name
+  defp pod_node_name(_pod), do: nil
+
+  defp pod_account_handle(%{"metadata" => %{"labels" => %{"tuist.dev/account" => handle}}}), do: handle
+  defp pod_account_handle(_pod), do: nil
+
+  defp pod_egress_mbps(%{"spec" => %{"containers" => containers}}) when is_list(containers) do
+    Enum.reduce(containers, 0, fn container, total -> total + container_egress_mbps(container) end)
+  end
+
+  defp pod_egress_mbps(_pod), do: 0
+
+  defp container_egress_mbps(%{"resources" => %{"requests" => %{"tuist.dev/egress-mbps" => quantity}}}),
+    do: parse_quantity(quantity) || 0
+
+  defp container_egress_mbps(_container), do: 0
+
   defp egress_mbps(%{"status" => %{"allocatable" => %{"tuist.dev/egress-mbps" => quantity}}}) do
     parse_quantity(quantity)
   end

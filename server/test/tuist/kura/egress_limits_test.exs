@@ -19,6 +19,9 @@ defmodule Tuist.Kura.EgressLimitsTest do
     # one, so the default here is a box roomier than any number these tests set;
     # the tests that care about the bound say what it is.
     stub(Capacity, :egress_budget_mbps, fn _region_id -> 3000 end)
+    # The box a floor would be placed on: unmeasurable unless a test says
+    # otherwise, which leaves the advertised budget as the only bound.
+    stub(Capacity, :egress_headroom, fn _region_id, _handle -> nil end)
     stub(Tuist.Environment, :dev?, fn -> false end)
     stub(Tuist.Environment, :test?, fn -> false end)
     stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
@@ -229,6 +232,127 @@ defmodule Tuist.Kura.EgressLimitsTest do
 
       assert {:ok, %{burst_mbps: 9000}} =
                EgressLimits.cast_override(account, region, %{"kura_egress_burst_mbps" => "9000"})
+    end
+  end
+
+  # The floor is the pod's tuist.dev/egress-mbps request, so every replica
+  # reserves it and the box has to hold all of them at once. The rollout gets
+  # there one replica at a time, each step handing in the old reservation before
+  # asking for the new, so the last step is the binding one and by then the old
+  # values are gone: replicas x floor <= what the box has for this account.
+  #
+  # These numbers are the ones measured on a live box: 500 advertised with no
+  # other tenant on it, two replicas, so 250 is the highest floor it can hold.
+  # 250 rolled both replicas to exactly 500/500; 260 left the second replica
+  # Pending on Insufficient tuist.dev/egress-mbps.
+  describe "a floor is bounded by what the box holds for the account" do
+    setup %{account: account, region: region} do
+      stub(Capacity, :egress_budget_mbps, fn _region_id -> 500 end)
+
+      stub(Capacity, :egress_headroom, fn _region_id, _handle ->
+        %{node: "box-1", allocatable_mbps: 500, available_mbps: 500, replicas: 2}
+      end)
+
+      %{account: account, region: region}
+    end
+
+    test "takes the largest floor that still fits", %{account: account, region: region} do
+      assert {:ok, %{floor_mbps: 250}} =
+               EgressLimits.cast_override(account, region, %{
+                 "kura_egress_floor_mbps" => "250",
+                 "kura_egress_burst_mbps" => "400"
+               })
+    end
+
+    test "refuses the one past it, and says what would fit", %{account: account, region: region} do
+      assert {:error, changeset} =
+               EgressLimits.cast_override(account, region, %{
+                 "kura_egress_floor_mbps" => "260",
+                 "kura_egress_burst_mbps" => "400"
+               })
+
+      assert ["must be at most 250 Mbps: each of the 2 replicas reserves it, and box-1 has 500 Mbps for this account"] =
+               errors_on(changeset).kura_egress_floor_mbps
+    end
+
+    # The bound this got wrong. An account mid-rollout holds the new floor on
+    # one replica and the old one on the other, and a rule written in terms of
+    # what they hold reports a different limit depending on when it is asked:
+    # raising a settled 250 was refused with "must be at most 137" because one
+    # replica was still on 25. What the box holds for the account does not move
+    # while its own replicas swap values, so this answer does not either.
+    test "answers the same mid-rollout as it does settled", %{account: account, region: region} do
+      assert :ok = EgressLimits.put_override(account, region, %{floor_mbps: 250, burst_mbps: 400})
+
+      assert {:error, changeset} =
+               EgressLimits.cast_override(account, region, %{
+                 "kura_egress_floor_mbps" => "300",
+                 "kura_egress_burst_mbps" => "400"
+               })
+
+      assert ["must be at most 250 Mbps: each of the 2 replicas reserves it, and box-1 has 500 Mbps for this account"] =
+               errors_on(changeset).kura_egress_floor_mbps
+    end
+
+    # Another tenant's reservation is the only thing that takes the box away
+    # from this account. Its own is handed back replica by replica as the
+    # rollout goes, so it is not spent from this account's point of view.
+    test "counts only the other tenants against it", %{account: account, region: region} do
+      stub(Capacity, :egress_headroom, fn _region_id, _handle ->
+        %{node: "box-1", allocatable_mbps: 500, available_mbps: 300, replicas: 2}
+      end)
+
+      assert {:ok, %{floor_mbps: 150}} =
+               EgressLimits.cast_override(account, region, %{
+                 "kura_egress_floor_mbps" => "150",
+                 "kura_egress_burst_mbps" => "400"
+               })
+
+      assert {:error, changeset} =
+               EgressLimits.cast_override(account, region, %{
+                 "kura_egress_floor_mbps" => "151",
+                 "kura_egress_burst_mbps" => "400"
+               })
+
+      assert ["must be at most 150 Mbps: each of the 2 replicas reserves it, and box-1 has 300 Mbps for this account"] =
+               errors_on(changeset).kura_egress_floor_mbps
+    end
+
+    # A reduction always lands: the final state reserves less than the one the
+    # box is already carrying, and every step on the way frees more than it
+    # takes.
+    test "never bounds a reduction", %{account: account, region: region} do
+      assert :ok = EgressLimits.put_override(account, region, %{floor_mbps: 250, burst_mbps: 400})
+
+      assert {:ok, %{floor_mbps: 30}} =
+               EgressLimits.cast_override(account, region, %{
+                 "kura_egress_floor_mbps" => "30",
+                 "kura_egress_burst_mbps" => "400"
+               })
+    end
+
+    # Nothing pins an account that holds no pods on a box, so the scheduler may
+    # place it anywhere in the region and the advertised budget is the whole
+    # bound.
+    test "leaves an unplaced instance to the region's budget", %{account: account, region: region} do
+      stub(Capacity, :egress_headroom, fn _region_id, _handle -> nil end)
+
+      assert {:ok, %{floor_mbps: 480}} =
+               EgressLimits.cast_override(account, region, %{
+                 "kura_egress_floor_mbps" => "480",
+                 "kura_egress_burst_mbps" => "490"
+               })
+    end
+
+    # The ceiling reserves nothing, so the box being full says nothing about
+    # whether it may be raised.
+    test "does not bound the ceiling", %{account: account, region: region} do
+      stub(Capacity, :egress_headroom, fn _region_id, _handle ->
+        %{node: "box-1", allocatable_mbps: 500, available_mbps: 0, replicas: 2}
+      end)
+
+      assert {:ok, %{burst_mbps: 450}} =
+               EgressLimits.cast_override(account, region, %{"kura_egress_burst_mbps" => "450"})
     end
   end
 

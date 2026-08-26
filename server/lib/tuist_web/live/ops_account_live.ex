@@ -456,6 +456,7 @@ defmodule TuistWeb.OpsAccountLive do
             defaults: Kura.default_egress_limits(account, region),
             effective: Kura.effective_egress_limits(account, region),
             node_mbps: Kura.region_node_egress_budget_mbps(region),
+            headroom: Kura.region_egress_headroom(account, region),
             form: kura_egress_limits_form(account, region)
           }
         ]
@@ -586,6 +587,22 @@ defmodule TuistWeb.OpsAccountLive do
   """
   def node_budget_label(nil), do: dgettext("dashboard", "unknown")
   def node_budget_label(mbps), do: dgettext("dashboard", "%{mbps} Mbps", mbps: mbps)
+
+  @doc """
+  The highest floor this region's box can hold for the account, as
+  `"up to 250"`, or `nil` when nothing bounds it more tightly than the box's own
+  budget.
+
+  Says the number rather than only refusing it afterwards: a floor is a
+  scheduler request that every replica reserves, so what the box has for this
+  account, divided by its replicas, is the real limit.
+  """
+  def egress_headroom_label(%{available_mbps: available, replicas: replicas})
+      when is_integer(available) and is_integer(replicas) and replicas > 0 do
+    dgettext("dashboard", "up to %{mbps}", mbps: div(available, replicas))
+  end
+
+  def egress_headroom_label(_headroom), do: nil
 
   defp mbps_label(nil), do: "—"
   defp mbps_label(mbps), do: Integer.to_string(mbps)

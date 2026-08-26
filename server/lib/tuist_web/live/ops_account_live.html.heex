@@ -123,7 +123,10 @@
             <.text_cell label={egress_pair_label(region.defaults)} />
           </:col>
           <:col :let={region} label={dgettext("dashboard", "Node limit")}>
-            <.text_cell label={node_budget_label(region.node_mbps)} />
+            <.text_cell
+              label={node_budget_label(region.node_mbps)}
+              sublabel={egress_headroom_label(region.headroom)}
+            />
           </:col>
           <:col :let={region} label={dgettext("dashboard", "Floor override (Mbps)")}>
             <div data-part="egress-input-cell">

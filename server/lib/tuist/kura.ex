@@ -294,10 +294,17 @@ defmodule Tuist.Kura do
   defdelegate egress_limits_override(account, region), to: EgressLimits, as: :override_for
 
   @doc """
-  The egress budget the region's smallest box advertises, which is the only
-  bound an override has.
+  The egress budget the region's smallest box advertises, which is what a floor
+  or ceiling has to fit inside.
   """
   defdelegate region_node_egress_budget_mbps(region), to: EgressLimits, as: :node_budget_mbps
+
+  @doc """
+  What the box the account's instances in a region sit on can still be asked
+  for, or `nil` when they sit on none yet. Tighter than the advertised budget,
+  because that box is already carrying the floor they run at.
+  """
+  defdelegate region_egress_headroom(account, region), to: EgressLimits, as: :node_headroom
 
   @doc """
   The pair an account gets in a region with nothing overridden, which is what

@@ -29,6 +29,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     stub(Prepaid, :balance, fn _account -> nil end)
     stub(Billing, :sync_runner_subscription_items, fn _account -> {:ok, :unchanged} end)
     stub(Capacity, :egress_budget_mbps, fn _region -> nil end)
+    stub(Capacity, :egress_headroom, fn _region, _handle -> nil end)
 
     %{conn: conn, user: user}
   end
@@ -270,6 +271,44 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) == nil
   end
 
+  # A browser posts the whole table, untouched rows included, seeded with what
+  # they already hold. Those rows have to come back out unchanged — a save aimed
+  # at one region that quietly cleared another's override would be the worst
+  # kind of bug here, since the cleared region rolls its pods back to the
+  # region's numbers without anyone asking it to.
+  test "leaves an untouched row alone when the whole table is submitted", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    kura_server(user, "us-east")
+    kura_server(user, "eu-central")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv
+    |> form("#kura-egress-limits-form", %{
+      "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "60", "kura_egress_burst_mbps" => "400"}}
+    })
+    |> render_submit()
+
+    # Now a save aimed at the other region, posting us-east exactly as the page
+    # renders it.
+    lv
+    |> form("#kura-egress-limits-form", %{
+      "account" => %{
+        "us-east" => %{"kura_egress_floor_mbps" => "60", "kura_egress_burst_mbps" => "400"},
+        "eu-central" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
+      }
+    })
+    |> render_submit()
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
+             %{floor_mbps: 60, burst_mbps: 400}
+
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) ==
+             %{floor_mbps: nil, burst_mbps: 200}
+  end
+
   # One Save covers the table, and a typo in one row must not half-apply the
   # others: nothing is written until every row casts.
   test "writes no region when another region's row is invalid", %{conn: conn, user: user} do
@@ -387,6 +426,47 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     assert html =~ "must not exceed the 1000 Mbps this region&#39;s boxes advertise"
     assert Kura.egress_limits_override(user.account, Kura.region("us-east")) == nil
+  end
+
+  # The box's *unreserved* egress is what decides whether a raised floor can be
+  # placed, and the increase is charged once per replica. Saying the number the
+  # operator may raise to is the point: refusing afterwards teaches them the
+  # constraint one failed rollout at a time.
+  test "shows how far the box lets the floor be raised, and refuses past it", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 500 end)
+
+    stub(Capacity, :egress_headroom, fn "us-east", _handle ->
+      %{node: "box-1", allocatable_mbps: 500, available_mbps: 500, replicas: 2}
+    end)
+
+    kura_server(user, "us-east")
+
+    {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert html =~ "up to 250"
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "260", "kura_egress_burst_mbps" => "400"}}
+      })
+      |> render_submit()
+
+    assert html =~ "must be at most 250 Mbps"
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) == nil
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "250", "kura_egress_burst_mbps" => "400"}}
+      })
+      |> render_submit()
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
+             %{floor_mbps: 250, burst_mbps: 400}
+
+    assert html =~ "250 / 400 Mbps"
   end
 
   # A lone floor above the region's *default* ceiling is fine: the region is a

@@ -148,6 +148,7 @@ defmodule Tuist.Kura.EgressLimits do
     |> EgressLimit.validate_mbps(@burst_field)
     |> EgressLimit.validate_floor_under_burst(@floor_field, @burst_field)
     |> validate_against_node_budget(region)
+    |> validate_against_node_headroom(account, region)
   end
 
   @doc """
@@ -293,6 +294,56 @@ defmodule Tuist.Kura.EgressLimits do
           end
         end)
     end
+  end
+
+  # What the box can hold for this account, which is a tighter bound than what it
+  # advertises and a different question from it.
+  #
+  # A floor is the pod's `tuist.dev/egress-mbps` request, so every replica
+  # reserves it and the box has to hold all of them at once. The rollout gets
+  # there one replica at a time, each step handing in the old reservation before
+  # asking for the new, so by the last step the old values are all gone and what
+  # remains beside the account is only what other tenants hold:
+  #
+  #     replicas x floor <= what the box has for this account
+  #
+  # Deliberately written without what the replicas hold *now*. An account caught
+  # mid-rollout holds different values on different replicas, and a rule stated
+  # in terms of them answers differently depending on when it is asked — the
+  # first version of this check told an operator raising a settled 250 that
+  # their limit was 137, because it happened to run while one replica was still
+  # on the old value.
+  #
+  # Skipped where the account has no pods on a box yet: nothing pins it, so the
+  # scheduler may place it anywhere in the region and `node_budget_mbps/1` above
+  # is the whole of the bound.
+  #
+  # This is a check against a live reading, so it is not a guarantee — another
+  # account can be provisioned onto the box between saving and rolling. It is
+  # here to catch the mistake at the point it is made, rather than leaving it to
+  # be discovered as a Pending pod thirty minutes later.
+  defp validate_against_node_headroom(changeset, %Account{} = account, %Regions{} = region) do
+    with floor_mbps when is_integer(floor_mbps) <- Changeset.get_field(changeset, @floor_field),
+         %{replicas: replicas, available_mbps: available, node: node} <- node_headroom(account, region),
+         true <- floor_mbps * replicas > available do
+      Changeset.add_error(
+        changeset,
+        @floor_field,
+        "must be at most #{div(available, replicas)} Mbps: each of the #{replicas} replicas reserves it, " <>
+          "and #{node} has #{available} Mbps for this account"
+      )
+    else
+      _ -> changeset
+    end
+  end
+
+  @doc """
+  What the box the account's instances in `region` sit on can hold for that
+  account, and across how many replicas, or `nil` when they sit on none yet.
+  See `Tuist.Kura.Capacity`.
+  """
+  def node_headroom(%Account{name: name}, %Regions{id: region_id}) do
+    Capacity.egress_headroom(region_id, String.downcase(name))
   end
 
   @doc """
