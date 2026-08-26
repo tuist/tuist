@@ -153,6 +153,53 @@ defmodule Tuist.Kura.Capacity do
   defp to_gib(0), do: nil
   defp to_gib(bytes), do: trunc(bytes / @gib)
 
+  @doc """
+  The egress budget, in Mbit/s, that the region's smallest Ready box advertises
+  as `tuist.dev/egress-mbps`, or `nil` when no node advertises one or the
+  cluster cannot be read.
+
+  The *smallest*, not the sum and not the largest: this is the number a single
+  tenant's floor and ceiling have to fit inside, and a pod lands on one box
+  without anybody knowing which in advance. A region can hold boxes of different
+  sizes (the budget is declared per machine, as its NIC ceiling minus headroom),
+  so the only figure that holds wherever the pod lands is the smallest one on
+  offer.
+
+  This is the *only* real bound on a per-account egress override. A region's own
+  floor/ceiling pair is a default sized for the fleet, not a statement about what
+  the hardware can do, so it must never be used in this number's place.
+  """
+  def egress_budget_mbps(region_id) do
+    KeyValueStore.get_or_update(
+      [__MODULE__, "egress_budget_mbps", region_id],
+      [ttl: to_timeout(minute: 1), locking: true],
+      fn -> measure_egress_budget_mbps(region_id) end
+    )
+  end
+
+  defp measure_egress_budget_mbps(region_id) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         selector when is_binary(selector) <- Regions.node_label_selector(region),
+         {:ok, %{"items" => items}} <- Client.list_nodes(selector) do
+      items
+      |> Enum.filter(&ready?/1)
+      |> Enum.map(&egress_mbps/1)
+      |> Enum.reject(&is_nil/1)
+      |> case do
+        [] -> nil
+        budgets -> Enum.min(budgets)
+      end
+    else
+      _ -> nil
+    end
+  end
+
+  defp egress_mbps(%{"status" => %{"allocatable" => %{"tuist.dev/egress-mbps" => quantity}}}) do
+    parse_quantity(quantity)
+  end
+
+  defp egress_mbps(_node), do: nil
+
   # A node that is not Ready contributes nothing: its disk is not reachable
   # for scheduling, which a declared machine count could never express.
   defp ready?(%{"status" => %{"conditions" => conditions}}) when is_list(conditions) do

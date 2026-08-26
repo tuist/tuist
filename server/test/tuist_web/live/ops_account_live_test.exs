@@ -8,6 +8,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Kura
+  alias Tuist.Kura.Capacity
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
@@ -27,6 +28,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     # mount. The balance itself is covered in Tuist.Runners.PrepaidTest.
     stub(Prepaid, :balance, fn _account -> nil end)
     stub(Billing, :sync_runner_subscription_items, fn _account -> {:ok, :unchanged} end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> nil end)
 
     %{conn: conn, user: user}
   end
@@ -206,6 +208,216 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     assert html =~ "must be at least 8Gi"
     assert Kura.storage_claim_override(user.account) == nil
+  end
+
+  defp kura_server(user, region) do
+    Repo.insert!(%Server{
+      account_id: user.account.id,
+      region: region,
+      status: :active,
+      current_image_tag: "0.5.2",
+      provisioner_node_ref: "kura-#{user.account.id}-#{region}"
+    })
+  end
+
+  test "sets a per-region egress override and shows it against that region's numbers", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn "us-east" -> 3000 end)
+
+    # A region's floor is the Enterprise half of the deal, so that is the plan
+    # whose default pair is the region's own.
+    BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :enterprise)
+    kura_server(user, "us-east")
+
+    {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    # The region's default, and the box's budget, both in front of the operator.
+    assert html =~ "25 / 1500 Mbps"
+    assert html =~ "3000 Mbps"
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "100", "kura_egress_burst_mbps" => "400"}}
+      })
+      |> render_submit()
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
+             %{floor_mbps: 100, burst_mbps: 400}
+
+    assert html =~ "100 / 400 Mbps"
+  end
+
+  # The boxes differ, so each region gets its own form and its own row.
+  test "keeps each region's override to itself", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    kura_server(user, "us-east")
+    kura_server(user, "eu-central")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv
+    |> form("#kura-egress-limits-form", %{
+      "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "100", "kura_egress_burst_mbps" => "400"}}
+    })
+    |> render_submit()
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
+             %{floor_mbps: 100, burst_mbps: 400}
+
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) == nil
+  end
+
+  # One Save covers the table, and a typo in one row must not half-apply the
+  # others: nothing is written until every row casts.
+  test "writes no region when another region's row is invalid", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+    stub(Capacity, :egress_budget_mbps, fn
+      "us-east" -> 3000
+      "eu-central" -> 500
+    end)
+
+    kura_server(user, "us-east")
+    kura_server(user, "eu-central")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{
+          "us-east" => %{"kura_egress_floor_mbps" => "100", "kura_egress_burst_mbps" => "400"},
+          "eu-central" => %{"kura_egress_floor_mbps" => "900", "kura_egress_burst_mbps" => ""}
+        }
+      })
+      |> render_submit()
+
+    assert html =~ "must not exceed the 500 Mbps this region&#39;s boxes advertise"
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) == nil
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) == nil
+  end
+
+  test "saves several regions in one submit", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    kura_server(user, "us-east")
+    kura_server(user, "eu-central")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv
+    |> form("#kura-egress-limits-form", %{
+      "account" => %{
+        "us-east" => %{"kura_egress_floor_mbps" => "100", "kura_egress_burst_mbps" => "400"},
+        "eu-central" => %{"kura_egress_floor_mbps" => "50", "kura_egress_burst_mbps" => "200"}
+      }
+    })
+    |> render_submit()
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
+             %{floor_mbps: 100, burst_mbps: 400}
+
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) ==
+             %{floor_mbps: 50, burst_mbps: 200}
+  end
+
+  # Emptying both fields is how a region goes back to its own numbers; there is
+  # no separate reset control to get wrong.
+  test "empties both fields to put a region back on its defaults", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :enterprise)
+    kura_server(user, "us-east")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv
+    |> form("#kura-egress-limits-form", %{
+      "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "100", "kura_egress_burst_mbps" => "400"}}
+    })
+    |> render_submit()
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => ""}}
+      })
+      |> render_submit()
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) == nil
+    assert html =~ "25 / 1500 Mbps"
+  end
+
+  # What the row says has to be what the instance does. An account with no
+  # Enterprise plan reserves nothing, and a form showing it the region's 25 Mbps
+  # would be describing a reservation it does not have.
+  test "shows an unentitled account the zero floor it actually gets", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+
+    kura_server(user, "us-east")
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert html =~ "0 / 1500 Mbps"
+    refute html =~ "25 / 1500 Mbps"
+  end
+
+  # The only bound is the box. A number above what its nodes advertise would be
+  # clamped there and silently discarded, so the form says so instead.
+  test "refuses a value above the region's node budget", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn "us-east" -> 1000 end)
+
+    kura_server(user, "us-east")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "2000", "kura_egress_burst_mbps" => ""}}
+      })
+      |> render_submit()
+
+    assert html =~ "must not exceed the 1000 Mbps this region&#39;s boxes advertise"
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) == nil
+  end
+
+  # A lone floor above the region's *default* ceiling is fine: the region is a
+  # default, and the box has room for it.
+  test "accepts a lone floor above the region default when the box allows it", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn "us-east" -> 3000 end)
+
+    kura_server(user, "us-east")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "2000", "kura_egress_burst_mbps" => ""}}
+      })
+      |> render_submit()
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
+             %{floor_mbps: 2000, burst_mbps: nil}
+
+    # The defaulted ceiling gives way to the stated floor.
+    assert html =~ "2000 / 2000 Mbps"
+  end
+
+  # A region with no shared NIC arbitrates nothing, so there is no pair to set.
+  test "hides the egress card for an account with no shaped instance", %{conn: conn, user: user} do
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    refute html =~ "kura-egress-limits-form"
   end
 
   test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do

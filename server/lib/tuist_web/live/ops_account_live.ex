@@ -37,7 +37,7 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:prepaid_quote, nil)
          |> assign(:has_subscription, not is_nil(Billing.get_current_active_subscription(account)))
          |> assign(:kura_minimum_claim, Kura.minimum_storage_claim())
-         |> assign_kura_storage_claim(account)
+         |> assign_kura(account)
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
 
@@ -187,7 +187,7 @@ defmodule TuistWeb.OpsAccountLive do
       {:ok, result} ->
         {:noreply,
          socket
-         |> assign_kura_storage_claim(account)
+         |> assign_kura(account)
          |> put_flash(:info, kura_storage_claim_message(result))}
 
       {:error, changeset} ->
@@ -196,6 +196,11 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:kura_storage_claim_form, to_form(changeset, as: "account"))
          |> put_flash(:error, dgettext("dashboard", "Kura disk claim could not be updated."))}
     end
+  end
+
+  @impl true
+  def handle_event("update_kura_egress_limits", %{"account" => params}, socket) do
+    save_kura_egress_limits(socket, params)
   end
 
   @impl true
@@ -414,16 +419,176 @@ defmodule TuistWeb.OpsAccountLive do
     |> to_form(as: "account")
   end
 
-  # The rows, the form and the claim the rows resolve against move together: an
-  # override write re-pins instances, so a table left on the old assign would
-  # show claims that no longer exist.
-  defp assign_kura_storage_claim(socket, account) do
+  # The rows, the forms and the numbers the rows resolve against move together:
+  # an override write re-pins instances and re-resolves their limits, so a table
+  # left on the old assign would show values that no longer exist.
+  defp assign_kura(socket, account) do
+    servers = Kura.list_servers_for_account(account.id)
+
     socket
-    |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
+    |> assign(:kura_servers, servers)
     |> assign(:kura_account_claim, Kura.effective_storage_claim(account))
     |> assign(:kura_plan_claim, Kura.plan_storage_claim(account))
     |> assign(:kura_storage_claim_form, kura_storage_claim_form(account))
+    |> assign(:kura_egress_regions, kura_egress_regions(account, servers))
+    # The rows share one form element; each row's inputs carry their own names,
+    # so this outer form exists only to own the submit.
+    |> assign(:kura_egress_form, to_form(%{}, as: "egress"))
   end
+
+  # One entry per egress-governed region the account holds an instance in. Each
+  # carries its own form, because an override is a per-region decision: the
+  # boxes differ, so the number that suits one region is not the number that
+  # suits another. Each also carries that region's node budget, which is the
+  # only figure that can actually refuse what an operator types.
+  defp kura_egress_regions(account, servers) do
+    servers
+    |> Enum.map(& &1.region)
+    |> Enum.uniq()
+    |> Enum.flat_map(fn region_id ->
+      region = Kura.region(region_id)
+
+      if region && Kura.egress_governed_region?(region) do
+        [
+          %{
+            id: region_id,
+            display_name: region.display_name,
+            defaults: Kura.default_egress_limits(account, region),
+            effective: Kura.effective_egress_limits(account, region),
+            node_mbps: Kura.region_node_egress_budget_mbps(region),
+            form: kura_egress_limits_form(account, region)
+          }
+        ]
+      else
+        []
+      end
+    end)
+  end
+
+  # The regions share one <form> — they are rows of a table, and a form cannot
+  # be a child of <tr> — so each row's inputs are named and identified by their
+  # region. Saving submits every row at once; `account[<region>][<field>]` is
+  # what tells them apart on the way back.
+  defp kura_egress_limits_form(account, region) do
+    account
+    |> Kura.change_egress_limits_override(region)
+    |> to_form(as: "account[#{region.id}]", id: "kura-egress-#{region.id}")
+  end
+
+  # One Save covers the whole table, so the rows are cast before any of them is
+  # written: a typo in one region must not leave the operator having half-applied
+  # a change they were making to several. Only the rows they actually touched are
+  # written — an untouched row would otherwise be rewritten on every save, and a
+  # rewrite is a manifest revision and a reconcile for an instance nobody asked
+  # to disturb.
+  defp save_kura_egress_limits(socket, params) do
+    account = socket.assigns.account
+
+    params
+    |> Enum.flat_map(fn {region_id, attrs} ->
+      case Kura.region(region_id) do
+        nil -> []
+        region -> [{region, attrs, Kura.cast_egress_limits_override(account, region, attrs)}]
+      end
+    end)
+    |> then(&{&1, Enum.filter(&1, fn {_region, _attrs, result} -> match?({:error, _}, result) end)})
+    |> case do
+      {_rows, [_ | _] = invalid} ->
+        {:noreply,
+         socket
+         |> assign(:kura_egress_regions, put_region_errors(socket.assigns.kura_egress_regions, invalid))
+         |> put_flash(:error, dgettext("dashboard", "Kura egress limits could not be updated."))}
+
+      {rows, []} ->
+        rows
+        |> Enum.filter(fn {region, _attrs, {:ok, pair}} -> changed?(account, region, pair) end)
+        |> Enum.reduce(socket, fn {region, attrs, _result}, acc ->
+          case Kura.update_egress_limits_override(account, region, attrs) do
+            {:ok, result} -> put_flash(acc, :info, kura_egress_limits_message(result))
+            {:error, _changeset} -> acc
+          end
+        end)
+        |> then(&{:noreply, assign_kura(&1, account)})
+    end
+  end
+
+  defp changed?(account, region, pair) do
+    Kura.egress_limits_override(account, region) != nullify(pair)
+  end
+
+  defp nullify(%{floor_mbps: nil, burst_mbps: nil}), do: nil
+  defp nullify(pair), do: pair
+
+  # Only the rows the operator got wrong get their invalid changeset back; the
+  # others keep the forms they were rendered with, so an error in one region
+  # cannot look like an error in all of them.
+  defp put_region_errors(regions, invalid) do
+    errored = Map.new(invalid, fn {region, _attrs, {:error, changeset}} -> {region.id, changeset} end)
+
+    Enum.map(regions, fn region ->
+      case Map.fetch(errored, region.id) do
+        {:ok, changeset} ->
+          %{region | form: to_form(changeset, as: "account[#{region.id}]", id: "kura-egress-#{region.id}")}
+
+        :error ->
+          region
+      end
+    end)
+  end
+
+  # Says what an operator can go and check rather than that a row was written,
+  # and says the part they have to weigh: the floor is a pod request and the
+  # ceiling a pod annotation, so the account's replicas in that region are
+  # recreated to take the new pair. They keep their volumes, so this is a restart
+  # behind the standby rather than a cache rebuild.
+  # Emptying both fields is how a region goes back to its own numbers, so that
+  # case gets its own message rather than reporting a value that is not there.
+  defp kura_egress_limits_message(%{floor_mbps: nil, burst_mbps: nil, region: region, servers: servers}) do
+    dngettext(
+      "dashboard",
+      "%{region} egress limits reset to its defaults. %{count} instance is recreated to pick them up.",
+      "%{region} egress limits reset to its defaults. %{count} instances are recreated to pick them up.",
+      length(servers),
+      region: region.display_name
+    )
+  end
+
+  defp kura_egress_limits_message(%{region: region, servers: servers}) do
+    dngettext(
+      "dashboard",
+      "%{region} egress limits updated. %{count} instance is recreated to pick them up.",
+      "%{region} egress limits updated. %{count} instances are recreated to pick them up.",
+      length(servers),
+      region: region.display_name
+    )
+  end
+
+  @doc """
+  A region's egress pair as `"25 / 500 Mbps"`, with an em dash for a number the
+  region leaves unset.
+  """
+  def egress_pair_label(%{floor_mbps: nil, burst_mbps: nil}), do: dgettext("dashboard", "None")
+
+  def egress_pair_label(%{floor_mbps: floor_mbps, burst_mbps: burst_mbps}) do
+    dgettext("dashboard", "%{floor} / %{burst} Mbps", floor: mbps_label(floor_mbps), burst: mbps_label(burst_mbps))
+  end
+
+  @doc """
+  The account's pair in `region_id`, or `nil` when that region shapes no egress
+  — which is what a table row in a cloud region shows.
+  """
+  def egress_for_region(regions, region_id) do
+    Enum.find(regions, &(&1.id == region_id))
+  end
+
+  @doc """
+  A region's node budget as a label, or a dash when the cluster cannot be read.
+  """
+  def node_budget_label(nil), do: dgettext("dashboard", "unknown")
+  def node_budget_label(mbps), do: dgettext("dashboard", "%{mbps} Mbps", mbps: mbps)
+
+  defp mbps_label(nil), do: "—"
+  defp mbps_label(mbps), do: Integer.to_string(mbps)
 
   defp kura_storage_claim_form(account) do
     account

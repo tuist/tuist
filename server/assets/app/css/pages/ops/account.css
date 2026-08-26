@@ -74,10 +74,29 @@
   & [data-part="runner-concurrency-description"],
   & [data-part="runner-trial-description"],
   & [data-part="prepaid-description"],
-  & [data-part="prepaid-empty"] {
+  & [data-part="prepaid-empty"],
+  & [data-part="kura-egress-limits-description"] {
     margin: var(--noora-spacing-0);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-medium);
+  }
+
+  /* Per-region egress limits. The same column rhythm the other editable forms
+     use, so the table and its Save button sit at the page's spacing. Not
+     width-capped like those — this form is a table of regions, so it wants the
+     full card. */
+  & #kura-egress-limits-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  /* An editable cell holds a bare input rather than a [data-part="cell"], so it
+     inherits none of the table's own cell padding and the field would otherwise
+     run edge to edge. Inline padding only: the row's height is set by the taller
+     text cells beside it, which already centre this one vertically. */
+  & [data-part="egress-input-cell"] {
+    padding-inline: var(--noora-spacing-4);
   }
 
   & #prepaid-minutes-form {
