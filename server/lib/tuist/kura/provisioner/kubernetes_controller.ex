@@ -11,9 +11,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   @behaviour Tuist.Kura.Provisioner
 
+  alias Tuist.Accounts.Account
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.EgressLimits
   alias Tuist.Kura.Mesh
@@ -348,6 +350,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           # until the peer endpoint has a stable account-region owner.
           "publicHost" => if(owns_public_endpoints?(server), do: public_host(account_handle, region)),
           "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(account_handle, region)),
+          # The account's region-independent host, on whichever instance
+          # currently answers on it. Rendered from the account rather than the
+          # region on purpose: it is the name a client may write down, and it
+          # has to survive the account being served from somewhere else.
+          "stableHost" => if(owns_public_endpoints?(server) and stable_host_owner?(server), do: stable_host(account)),
           "ingressClassName" => ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
           "peerTLSSecretName" => peer_tls_secret_name(region),
@@ -926,6 +933,23 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   # Only the steady-state (`:none`) server publishes the account's customer and
   # peer endpoints. See the endpoint fields in `manifest/7`.
+  # One instance per account at a time, decided in `Tuist.Kura` from the
+  # account's whole instance set rather than from this row alone: which
+  # instance should answer is a fact about the account, and a per-row rule
+  # could leave the name on nobody or on two.
+  defp stable_host_owner?(%Server{account_id: account_id, id: id}) when is_integer(account_id) and is_integer(id) do
+    case Kura.stable_host_owner(%Account{id: account_id}) do
+      %Server{id: owner_id} -> owner_id == id
+      nil -> false
+    end
+  end
+
+  # An unsaved row owns nothing: it is not in the set the decision is taken
+  # over, so there is nobody for it to be compared against.
+  defp stable_host_owner?(%Server{}), do: false
+
+  defp stable_host(%Account{name: handle}), do: Regions.stable_public_host(handle)
+
   defp owns_public_endpoints?(%Server{move_phase: :moving_in}), do: false
   defp owns_public_endpoints?(%Server{move_phase: :moving_out}), do: false
   defp owns_public_endpoints?(%Server{}), do: true

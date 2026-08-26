@@ -12,6 +12,21 @@ type KuraInstanceSpec struct {
 	Image         string `json:"image"`
 	Replicas      *int32 `json:"replicas,omitempty"`
 	PublicHost    string `json:"publicHost,omitempty"`
+	// StableHost is a second customer-facing host, served by the same Ingress
+	// and covered by the same certificate, whose name does not contain a
+	// region.
+	//
+	// It exists for clients that write an endpoint down instead of resolving
+	// one each time: `tuist bazel setup` bakes the host into `.bazelrc.tuist`
+	// and nothing re-resolves it afterwards, so moving an account's cache to
+	// another region would otherwise leave that developer pointing at a name
+	// that no longer answers. The control plane sets it on exactly one of the
+	// account's instances and moves it as placement moves; every region's
+	// ingress runs in the same cluster, so external-dns sees the host leave
+	// one Ingress and arrive at another and repoints the record.
+	//
+	// Empty on every instance that does not currently answer on the name.
+	StableHost string `json:"stableHost,omitempty"`
 	// Deprecated: the value is ignored. gRPC co-hosts on PublicHost (see
 	// reconcileGRPCIngress), and PublicHost alone enables the gRPC Ingress.
 	// Retained for backward compatibility.

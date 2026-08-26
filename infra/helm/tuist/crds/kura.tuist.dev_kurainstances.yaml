@@ -79,6 +79,14 @@ spec:
                 publicHost:
                   type: string
                   maxLength: 253
+                # A second customer-facing host, without a region in its name,
+                # served by the same Ingress and certificate. Set on whichever
+                # of the account's instances currently answers on it, so a
+                # client that wrote the endpoint down keeps working when the
+                # account's cache moves region.
+                stableHost:
+                  type: string
+                  maxLength: 253
                 # Deprecated: ignored. gRPC co-hosts on publicHost.
                 # Retained for backward compatibility. See tuist/tuist#11390.
                 grpcPublicHost:

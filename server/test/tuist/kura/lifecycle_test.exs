@@ -464,7 +464,8 @@ defmodule Tuist.Kura.LifecycleTest do
     test "republishes the cache endpoint the drain unpublished" do
       account = account()
       server = active_instance(account)
-      Repo.insert!(%AccountCacheEndpoint{account_id: account.id, url: server.url, technology: :kura})
+      published = Kura.client_endpoint_url(account, server)
+      Repo.insert!(%AccountCacheEndpoint{account_id: account.id, url: published, technology: :kura})
       start_drain(account, server)
 
       Demand.record(account.id)
@@ -473,7 +474,18 @@ defmodule Tuist.Kura.LifecycleTest do
       assert [%AccountCacheEndpoint{url: url}] =
                Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id))
 
-      assert url == server.url
+      assert url == published
+    end
+
+    test "the endpoint an account is handed does not name a region" do
+      # `tuist bazel setup` writes whatever this is into `.bazelrc.tuist` and
+      # never resolves again, so it has to be a name that survives the account
+      # moving region.
+      account = account()
+      server = active_instance(account)
+
+      assert Kura.client_endpoint_url(account, server) == Regions.stable_public_url(account.name)
+      refute Kura.client_endpoint_url(account, server) =~ @region
     end
 
     test "emits an archive cancellation" do

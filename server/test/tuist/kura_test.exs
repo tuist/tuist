@@ -9,7 +9,9 @@ defmodule Tuist.KuraTest do
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.PlacerClaims
+  alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -1615,5 +1617,99 @@ defmodule Tuist.KuraTest do
       |> Repo.insert()
 
     server
+  end
+
+  describe "stable_host_owner/1" do
+    test "is the account's primary once that instance is serving" do
+      account = stable_host_account()
+      _source = stable_host_instance(account, "us-east", :active)
+      destination = stable_host_instance(account, "eu-central", :active)
+      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
+
+      assert %Server{id: id} = Kura.stable_host_owner(account)
+      assert id == destination.id
+    end
+
+    test "stays with whatever is still serving while the primary comes up" do
+      # Handing the name to an instance that is still provisioning would take
+      # the account's cache away for the length of the rollout, which is the
+      # outage the name exists to avoid during a move.
+      account = stable_host_account()
+      source = stable_host_instance(account, "us-east", :active)
+      _destination = stable_host_instance(account, "eu-central", :provisioning)
+      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
+
+      assert %Server{id: id} = Kura.stable_host_owner(account)
+      assert id == source.id
+    end
+
+    test "is exactly one instance for an account served from several regions" do
+      account = stable_host_account()
+      primary = stable_host_instance(account, "us-east", :active)
+      secondary = stable_host_instance(account, "eu-central", :active)
+      {:ok, _row} = PlacerRegions.put_primary(account, "us-east")
+      {:ok, _row} = PlacerRegions.put_secondary(account, "eu-central")
+
+      owner = Kura.stable_host_owner(account)
+
+      assert owner.id == primary.id
+      refute owner.id == secondary.id
+      assert Kura.client_endpoint_url(account, primary) == Regions.stable_public_url(account.name)
+      assert Kura.client_endpoint_url(account, secondary) == secondary.url
+    end
+
+    test "ignores a private runner cache" do
+      account = stable_host_account()
+      _runner_cache = stable_host_instance(account, "scw-fr-par-runners", :active)
+
+      assert Kura.stable_host_owner(account) == nil
+    end
+
+    test "is nobody for an account with no instances" do
+      assert Kura.stable_host_owner(stable_host_account()) == nil
+    end
+  end
+
+  describe "order_endpoints_by_origin/3" do
+    test "orders the region-independent endpoint by the region that answers on it" do
+      # It names no region, so without this it would sort behind every regional
+      # endpoint however near its instance actually is.
+      account = stable_host_account()
+      primary = stable_host_instance(account, "eu-central", :active)
+      secondary = stable_host_instance(account, "us-east", :active)
+      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _row} = PlacerRegions.put_secondary(account, "us-east")
+
+      endpoints = [
+        %{url: Kura.client_endpoint_url(account, secondary)},
+        %{url: Kura.client_endpoint_url(account, primary)}
+      ]
+
+      assert [%{url: first} | _] = Kura.order_endpoints_by_origin(endpoints, account, "FR")
+      assert first == Regions.stable_public_url(account.name)
+
+      assert [%{url: first} | _] = Kura.order_endpoints_by_origin(endpoints, account, "US-VA")
+      assert first == secondary.url
+    end
+
+    test "leaves an empty list alone" do
+      assert Kura.order_endpoints_by_origin([], stable_host_account(), "FR") == []
+    end
+  end
+
+  defp stable_host_account do
+    user = AccountsFixtures.user_fixture()
+    Accounts.get_account_from_user(user)
+  end
+
+  defp stable_host_instance(account, region, status) do
+    Repo.insert!(%Server{
+      account_id: account.id,
+      region: region,
+      status: status,
+      url: "https://#{account.name}-#{region}-1.kura.tuist.dev",
+      current_image_tag: "0.5.2",
+      provisioner_node_ref: "kura-#{account.id}-#{region}"
+    })
   end
 end

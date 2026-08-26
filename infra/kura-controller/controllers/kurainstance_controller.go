@@ -1592,20 +1592,25 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 		ingress.Labels = labels(instance)
 		ingress.Annotations = publicIngressAnnotations()
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
+		hosts := customerHosts(instance)
 		ingress.Spec.TLS = []networkingv1.IngressTLS{{
-			Hosts:      []string{instance.Spec.PublicHost},
+			Hosts:      hosts,
 			SecretName: publicTLSSecretName(instance),
 		}}
-		ingress.Spec.Rules = []networkingv1.IngressRule{{
-			Host: instance.Spec.PublicHost,
-			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: []networkingv1.HTTPIngressPath{{
-					Path:     "/",
-					PathType: ptr(networkingv1.PathTypePrefix),
-					Backend:  ingressBackend(instance.Name, "http"),
+		rules := make([]networkingv1.IngressRule, 0, len(hosts))
+		for _, host := range hosts {
+			rules = append(rules, networkingv1.IngressRule{
+				Host: host,
+				IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+					Paths: []networkingv1.HTTPIngressPath{{
+						Path:     "/",
+						PathType: ptr(networkingv1.PathTypePrefix),
+						Backend:  ingressBackend(instance.Name, "http"),
+					}},
 				}},
-			}},
-		}}
+			})
+		}
+		ingress.Spec.Rules = rules
 		return nil
 	})
 	return err
@@ -1678,15 +1683,35 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 				Backend:  ingressBackend(instance.Name, "http"),
 			})
 		}
-		ingress.Spec.Rules = []networkingv1.IngressRule{{
-			Host: instance.Spec.PublicHost,
-			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: paths,
-			}},
-		}}
+		rules := make([]networkingv1.IngressRule, 0, 2)
+		for _, host := range customerHosts(instance) {
+			rules = append(rules, networkingv1.IngressRule{
+				Host: host,
+				IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+					Paths: paths,
+				}},
+			})
+		}
+		ingress.Spec.Rules = rules
 		return nil
 	})
 	return err
+}
+
+// customerHosts are the client-facing names this instance answers on, in a
+// stable order: the per-region host it always has, and the region-independent
+// one when this instance is the account's current owner of it.
+//
+// The stable host rides the same Ingress and the same certificate rather than
+// objects of its own, so it appears and disappears with the regional host and
+// needs no cleanup path: both Ingress specs are rewritten in full on every
+// reconcile, so clearing the field removes the rule and the SAN with it.
+func customerHosts(instance *kurav1alpha1.KuraInstance) []string {
+	hosts := []string{instance.Spec.PublicHost}
+	if stable := strings.TrimSpace(instance.Spec.StableHost); stable != "" && stable != instance.Spec.PublicHost {
+		hosts = append(hosts, stable)
+	}
+	return hosts
 }
 
 func ingressBackend(serviceName string, servicePortName string) networkingv1.IngressBackend {
@@ -2187,7 +2212,7 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": publicTLSSecretName(instance),
-			"dnsNames":   dnsNames(instance.Spec.PublicHost),
+			"dnsNames":   dnsNames(customerHosts(instance)...),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",

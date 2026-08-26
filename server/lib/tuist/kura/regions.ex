@@ -52,6 +52,13 @@ defmodule Tuist.Kura.Regions do
   # `-staging`/`-canary` elsewhere, so non-production deployments mint
   # distinct hostnames (e.g. `acme-eu-central-1-staging.kura.tuist.dev`).
   @managed_region_public_host_template "{account_handle}-{cluster_id}{env_suffix}.kura.tuist.dev"
+  # The same zone, without the region in it. A client that writes an endpoint
+  # down — `tuist bazel setup` bakes one into `.bazelrc.tuist` and never
+  # resolves again — keeps working when the account's cache moves region,
+  # because the name does not name a region to begin with. Exactly one of the
+  # account's instances answers on it at a time; see
+  # `Tuist.Kura.stable_host_owner/1`.
+  @managed_region_stable_host_template "{account_handle}{env_suffix}.kura.tuist.dev"
   # gRPC (Bazel REAPI) co-hosts on the single public host: the regional Kura
   # ingress routes the gRPC service path prefixes to the gRPC backend and
   # everything else to the REST cache (see infra/kura-controller). The gRPC
@@ -748,6 +755,35 @@ defmodule Tuist.Kura.Regions do
   end
 
   def public_url(_handle, _region), do: nil
+
+  @doc """
+  The account's region-independent client-facing host, or `nil` for a
+  deployment whose regions are not publicly hosted.
+
+  Deliberately not derived from a region: this is the name a client may write
+  down, and it has to survive the account being served from somewhere else.
+  """
+  def stable_public_host(handle) when is_binary(handle) do
+    if Enum.any?(all(), &(not private?(&1) and public_host_template?(&1))) do
+      @managed_region_stable_host_template
+      |> String.replace("{account_handle}", String.downcase(handle))
+      |> String.replace("{env_suffix}", managed_region_host_suffix())
+    end
+  end
+
+  def stable_public_host(_handle), do: nil
+
+  @doc """
+  The `https://` form of `stable_public_host/1`.
+  """
+  def stable_public_url(handle) do
+    case stable_public_host(handle) do
+      nil -> nil
+      host -> "https://" <> host
+    end
+  end
+
+  defp public_host_template?(%__MODULE__{provisioner_config: config}), do: is_binary(config[:public_host_template])
 
   @doc """
   True iff this region's runner-cache nodes serve runner fleets of the
