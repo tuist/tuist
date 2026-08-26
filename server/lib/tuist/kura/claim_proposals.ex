@@ -57,6 +57,20 @@ defmodule Tuist.Kura.ClaimProposals do
     pinned || PlacerClaims.claim_for(account) || StorageClaims.plan_claim_size(account)
   end
 
+  @doc """
+  The account's recent sizing decisions, newest first, whatever became of
+  them. With applies automatic this is the useful view: an open proposal is
+  transient, while the record of what sizing did and on what evidence is what
+  answers a question about a resize after the fact.
+  """
+  def recent_for(%Account{id: account_id}, limit) do
+    ClaimProposal
+    |> where([proposal], proposal.account_id == ^account_id)
+    |> order_by([proposal], desc: proposal.inserted_at)
+    |> limit(^limit)
+    |> Repo.all()
+  end
+
   def open_proposal_for(%Account{id: account_id}) do
     Repo.get_by(ClaimProposal, account_id: account_id, status: :open)
   end

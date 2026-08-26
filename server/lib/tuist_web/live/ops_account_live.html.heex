@@ -143,6 +143,29 @@
         {dgettext("dashboard", "No pod has reported its disk in the last week.")}
       </p>
     </.card_section>
+    <.card_section :if={@kura_claim_history != []}>
+      <p data-part="kura-claim-history-description">
+        {dgettext("dashboard", "What sizing has decided for this account, most recent first.")}
+      </p>
+      <.table id="kura-claim-history-table" rows={@kura_claim_history}>
+        <:col :let={decision} label={dgettext("dashboard", "When")}>
+          <.text_cell label={Timex.from_now(decision.inserted_at)} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Change")}>
+          <.text_cell label={kura_claim_history_change(decision)} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Outcome")}>
+          <% {label, color} = kura_claim_history_outcome(decision) %>
+          <.badge_cell label={label} color={color} style="light-fill" />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Region")}>
+          <.text_cell label={decision.region} />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "Why")}>
+          <.text_cell label={kura_claim_history_reason(decision)} />
+        </:col>
+      </.table>
+    </.card_section>
   </.card>
 
   <.card title={dgettext("dashboard", "Runner concurrency")} icon="server">

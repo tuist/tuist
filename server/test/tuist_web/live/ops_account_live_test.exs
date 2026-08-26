@@ -566,6 +566,42 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert html =~ "Apply proposal"
     end
 
+    test "shows what sizing has decided, whatever became of it", %{conn: conn, user: user} do
+      now = DateTime.truncate(DateTime.utc_now(), :second)
+
+      Repo.insert!(%ClaimProposal{
+        account_id: user.account.id,
+        region: "us-east",
+        direction: :grow,
+        current_claim_size: "8Gi",
+        recommended_claim_size: "16Gi",
+        evidence: %{"median_shed_age_seconds" => 1_800, "retention_floor_seconds" => 259_200},
+        status: :applied,
+        resolved_by: "automatic",
+        resolved_at: now
+      })
+
+      Repo.insert!(%ClaimProposal{
+        account_id: user.account.id,
+        region: "us-east",
+        direction: :shrink,
+        current_claim_size: "32Gi",
+        recommended_claim_size: "16Gi",
+        evidence: %{"max_occupancy_percent" => 25},
+        status: :dismissed,
+        resolved_by: "ops@tuist.dev",
+        resolved_at: now
+      })
+
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ "8Gi → 16Gi"
+      assert html =~ "applied automatically"
+      assert html =~ "32Gi → 16Gi"
+      assert html =~ "dismissed by ops@tuist.dev"
+      assert html =~ "peaked at 25% of its disk"
+    end
+
     test "applying the proposal writes the sized claim and re-pins the instance", %{
       conn: conn,
       user: user,

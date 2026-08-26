@@ -447,6 +447,7 @@ defmodule TuistWeb.OpsAccountLive do
     |> assign(:kura_account_claim, Kura.effective_storage_claim(account))
     |> assign(:kura_sized_claim, Kura.sized_storage_claim(account))
     |> assign(:kura_claim_proposal, Kura.claim_proposal_for(account))
+    |> assign(:kura_claim_history, Kura.claim_sizing_history(account, 10))
     |> assign(:kura_disk_usage, Kura.latest_storage_snapshots(account))
   end
 
@@ -470,7 +471,7 @@ defmodule TuistWeb.OpsAccountLive do
   defp kura_claim_proposal_evidence(%{direction: :shrink, evidence: evidence}) do
     dgettext(
       "dashboard",
-      "The cache in %{region} has not filled past %{peak}%% of the disk it reserves, and has discarded nothing.",
+      "The cache in %{region} has not filled past %{peak}% of the disk it reserves, and has discarded nothing.",
       region: evidence["region"],
       peak: evidence["max_occupancy_percent"]
     )
@@ -507,6 +508,34 @@ defmodule TuistWeb.OpsAccountLive do
       seconds >= 3_600 -> dgettext("dashboard", "%{count} hours", count: Float.round(seconds / 3_600, 1))
       true -> dgettext("dashboard", "%{count} minutes", count: div(seconds, 60))
     end
+  end
+
+  defp kura_claim_history_change(%{current_claim_size: from, recommended_claim_size: to}), do: "#{from} → #{to}"
+
+  defp kura_claim_history_outcome(%{status: :applied, resolved_by: "automatic"}),
+    do: {dgettext("dashboard", "applied automatically"), "success"}
+
+  defp kura_claim_history_outcome(%{status: :applied, resolved_by: by}),
+    do: {dgettext("dashboard", "applied by %{who}", who: by), "success"}
+
+  defp kura_claim_history_outcome(%{status: :dismissed, resolved_by: by}),
+    do: {dgettext("dashboard", "dismissed by %{who}", who: by), "neutral"}
+
+  defp kura_claim_history_outcome(%{status: :superseded}), do: {dgettext("dashboard", "superseded"), "neutral"}
+
+  defp kura_claim_history_outcome(%{status: :open}), do: {dgettext("dashboard", "waiting"), "attention"}
+
+  # Compact enough for a table cell; the open proposal above carries the full
+  # sentence.
+  defp kura_claim_history_reason(%{direction: :grow, evidence: evidence}) do
+    dgettext("dashboard", "discarding work after %{shed_age}, target %{floor}",
+      shed_age: humanize_seconds(evidence["median_shed_age_seconds"]),
+      floor: humanize_seconds(evidence["retention_floor_seconds"])
+    )
+  end
+
+  defp kura_claim_history_reason(%{direction: :shrink, evidence: evidence}) do
+    dgettext("dashboard", "peaked at %{peak}% of its disk", peak: evidence["max_occupancy_percent"])
   end
 
   defp kura_disk_usage_label(snapshot) do
