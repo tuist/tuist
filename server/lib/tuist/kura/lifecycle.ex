@@ -126,6 +126,7 @@ defmodule Tuist.Kura.Lifecycle do
   """
   def reconcile do
     each_region(&reconcile_region/1)
+    reconcile_placement_retirements()
   end
 
   @doc """
@@ -139,19 +140,23 @@ defmodule Tuist.Kura.Lifecycle do
   """
   def sweep do
     each_region(&sweep_region/1)
-    reconcile_placement_retirements()
   end
 
   @doc """
   Drains the instances placement has decided to retire, one account-region at
   a time and never the last one an account has.
 
-  Not part of the per-region sweep, because the safety condition is about the
+  Not part of the per-region loop, because the safety condition is about the
   account rather than the region: a region may only be drained once the
   account is actually being served from somewhere else. That is what turns a
   relocation into a move rather than an outage — the destination is
   provisioned by the ordinary demand path, and the source leaves only after it
   is up.
+
+  On the reconciler's cadence rather than the archival sweep's, because what
+  it is waiting for is the destination coming up, which happens on that same
+  cadence. On a daily one a relocation would sit finished-but-not-cleaned-up
+  for most of a day, holding a slot in a region it has already left.
   """
   def reconcile_placement_retirements do
     @max_archival_transitions_per_pass

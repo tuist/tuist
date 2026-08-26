@@ -3,9 +3,11 @@ defmodule Tuist.Kura.Workers.PlacementWorker do
   Converges the placement proposal set, and applies proposals within a
   fleet-wide daily budget.
 
-  Daily, because every threshold it reads is a span of whole days and the
-  shortest is a fortnight. Running it more often would multiply the query
-  volume and change nothing about when a region is added or left.
+  Hourly. Every threshold it reads is a span of whole days, so the cadence
+  changes nothing about when a region is added or left; what it changes is how
+  stale the open proposals an operator is looking at can be. A pass is a fixed
+  handful of set-based queries whatever the account count, so an hour costs
+  little and a day would mean deciding from evidence that has moved on.
 
   The budget starts at zero, so the sweep proposes and an operator applies.
   That is the supervised phase the rollout asks for, and raising the budget is

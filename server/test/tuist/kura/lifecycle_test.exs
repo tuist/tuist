@@ -1019,6 +1019,22 @@ defmodule Tuist.Kura.LifecycleTest do
       :ok
     end
 
+    test "the reconciler tick drains a region placement is leaving" do
+      # On the reconciler's cadence rather than the archival sweep's: what it
+      # waits for is the destination coming up, which happens on that cadence.
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      _destination = active_instance_in(account, "eu-central")
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile()
+
+      assert reload(source).status == :drain_pending
+    end
+
     test "drains a region placement is leaving once somewhere else is serving" do
       account = account(plan: :enterprise)
       source = active_instance(account)
