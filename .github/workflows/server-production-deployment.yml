@@ -1955,15 +1955,6 @@ jobs:
   # --------------------------------------------------------------------------
   build:
     name: Build deployment images
-    # Deliberately does NOT wait on `tag-infra-releases`. This job reads no
-    # tag-infra output and never touches a git tag: `image_tag` is
-    # `sha-<commit>`, and the checkout is a shallow `ref: github.sha` with no
-    # tags fetched. What actually needs the `<component>@<semver>` tags is the
-    # deploy, where `server-deployment.yml` resolves each fleet and runtime
-    # image version from them, so the gate lives on the three deploying jobs
-    # (`canary`, `production`, `production-hotfix`) instead. Keeping it here
-    # serialised the Linux image build behind the macOS Tart image bakes for
-    # no benefit.
     needs: [check-releases]
     if: >-
       always() &&
