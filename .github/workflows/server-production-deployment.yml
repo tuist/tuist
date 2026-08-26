@@ -2361,13 +2361,6 @@ jobs:
   # hotfix so the fast-path is the only deploy in flight. The
   # `always() && needs.build.result == 'success'` guard mirrors `canary`
   # (see its comment) so this leg is not skip-propagated away.
-  #
-  # `tag-infra-releases` is not a new blocker on the urgent path: this leg
-  # inherited that wait through `build` until the gate moved onto the
-  # deploying jobs, so its timing is unchanged. It has to stay, because
-  # `server-deployment.yml` resolves fleet and runtime image versions from the
-  # `<component>@<semver>` tags and would otherwise silently pin the previous
-  # version of anything this run released.
   production-hotfix:
     needs: [check-releases, build, tag-infra-releases]
     if: ${{ always() && needs.build.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
