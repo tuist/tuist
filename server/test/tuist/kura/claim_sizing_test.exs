@@ -83,7 +83,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
   end
 
   defp context(attrs) do
-    Map.merge(
+    context(
       %{
         plan: :pro,
         current_claim_size: "30Gi",
@@ -91,9 +91,11 @@ defmodule Tuist.Kura.ClaimSizingTest do
         last_resized_at: nil,
         today: @today
       },
-      Map.new(attrs)
+      attrs
     )
   end
+
+  defp context(base, attrs), do: Map.merge(base, Map.new(attrs))
 
   describe "evaluate/2 growth" do
     test "proposes growth after a sustained streak of churn under the retention floor" do
@@ -139,18 +141,57 @@ defmodule Tuist.Kura.ClaimSizingTest do
     test "severe shedding acts on two days instead of serving out the long window" do
       # 30 minutes against a 3-day floor: the ring is churning artifacts it
       # just stored, and every further day of confirmation is a day the
-      # account rebuilds what it already built.
+      # account rebuilds what it already built. Turnover here is 1.25 rings a
+      # day, short of the single-day rung.
       context = context(rollups: severe_churn(2, @today))
 
       assert {:grow, "50Gi", evidence} = ClaimSizing.evaluate(context)
       assert evidence["window_days"] == 2
-      assert evidence["qualifying_threshold_seconds"] == round(0.1 * 3 * @day_seconds)
+      assert evidence["qualifying_threshold_seconds"] == 28_800
     end
 
-    test "a single severe day is not enough" do
-      # Rollups are day-grain, so one day cannot separate a sustained pattern
-      # from an afternoon's import burst.
+    test "a single severe day acts when the account cycled its whole ring twice over" do
+      # Volume replaces elapsed time on the shortest rung: 75Gi evicted
+      # against a 30Gi claim is two and a half rings lost in a day, while the
+      # content going out is younger than a working day.
+      rollups = 1 |> severe_churn(@today) |> Enum.map(&Map.put(&1, :evicted_bytes, 75 * @gibibyte))
+
+      assert {:grow, "50Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
+      assert evidence["window_days"] == 1
+      assert evidence["ring_turnover"] == 2.5
+    end
+
+    test "a single severe day without the volume waits for a second day" do
+      # One day of thin evidence can be an afternoon's import burst, so the
+      # single-day rung declines it and the two-day rung has nothing yet.
       assert ClaimSizing.evaluate(context(rollups: severe_churn(1, @today))) == :none
+    end
+
+    test "air acts on the absolute arm its own floor would have slowed" do
+      # Seven hours is 29% of Air's one-day floor, so the fractional ladder
+      # would have made the plan least able to absorb churn wait five days.
+      rollups = churn_at(2, @today, 7 * 3_600, 12 * 3_600)
+      context = context(plan: :air, current_claim_size: "8Gi", rollups: rollups)
+
+      assert {:grow, "16Gi", evidence} = ClaimSizing.evaluate(context)
+      assert evidence["window_days"] == 2
+      assert evidence["qualifying_threshold_seconds"] == 28_800
+    end
+
+    test "shedding exactly at a working day falls back to the fractional ladder" do
+      # The absolute arm is a strict inequality, so 8 hours does not clear it
+      # and Air lands on the fractional ladder instead, where it is a third
+      # of the floor: five days rather than two.
+      rollups = churn_at(2, @today, 8 * 3_600, 12 * 3_600)
+      context = context(plan: :air, current_claim_size: "8Gi", rollups: rollups)
+
+      assert ClaimSizing.evaluate(context) == :none
+
+      longer = churn_at(5, @today, 8 * 3_600, 12 * 3_600)
+
+      assert {:grow, "16Gi", evidence} = ClaimSizing.evaluate(context(context, rollups: longer))
+      assert evidence["window_days"] == 5
+      assert evidence["qualifying_threshold_seconds"] == round(0.34 * @day_seconds)
     end
 
     test "moderate shedding waits out the middle tier" do

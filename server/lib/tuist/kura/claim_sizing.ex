@@ -13,14 +13,25 @@ defmodule Tuist.Kura.ClaimSizing do
 
   Growth confirmation scales with severity rather than being a fixed wait.
   A confirmation window exists to rule out noise, and how much confirmation a
-  reading needs depends on how far it sits below the floor: a ring shedding
-  just under its floor is a marginal reading that could be a busy fortnight,
-  while a ring shedding at a small fraction of its floor is unambiguous and
-  costs the customer a rebuild of everything it drops in the meantime. So the
-  windows are tiered by the fraction of the floor the shedding holds under,
-  and the shortest qualifying tier wins. Two days is the floor of that ladder
-  because rollups are day-grain and a single day cannot separate a sustained
-  pattern from an afternoon's import burst.
+  reading needs depends on how bad it is: a ring shedding just under its
+  floor is a marginal reading that could be a busy fortnight, while a ring
+  shedding at a small fraction of its floor is unambiguous and costs the
+  customer a rebuild of everything it drops in the meantime. The ladder is
+  ordered shortest window first and the first qualifying rung decides.
+
+  Severity is read two ways, because the two catch different failures. The
+  fractional arm scales with what the plan promises. The absolute arm exists
+  because the fractional one under-reacts for Air: seven hours of retention
+  is a tenth of Pro's floor but a third of Air's, so the plan least able to
+  absorb churn would have waited longest, even though content that does not
+  survive a working day is extreme on any plan.
+
+  The shortest rung is bought with volume rather than time. Rollups are
+  day-grain, so a single day can be a couple of hours of data, and a rung
+  that acts on one day asks instead for evicted bytes worth a multiple of the
+  whole claim: an account that has cycled its entire cache twice over while
+  losing content younger than a working day is not a sampling artifact,
+  whatever the clock says.
 
   Shrinking keeps its long single window on purpose: an oversized ring costs
   a reclaimable slot and nobody's build, so there is no urgency to trade
@@ -44,13 +55,31 @@ defmodule Tuist.Kura.ClaimSizing do
   @default_policy %{
     retention_floor_days: %{air: 1, pro: 3, enterprise: 3},
     ceiling: %{air: "16Gi", pro: "50Gi", enterprise: "50Gi"},
-    # `{severity, window_days}`: the median shed age must stay under
-    # `severity` times the plan's retention floor for `window_days`
-    # consecutive days. Ordered shortest window first, so the most severe
-    # tier a reading satisfies is the one that decides it. A reading that
-    # clears a strict tier also clears every looser one, which is what makes
-    # the ladder monotonic: worse evidence can only ever act sooner.
-    grow_windows: [{0.1, 2}, {0.34, 5}, {1.0, 14}],
+    # The confirmation ladder, ordered shortest window first, so the most
+    # severe rung a reading satisfies is the one that decides it.
+    #
+    # `shed_age_under` is either `{:seconds, n}` or `{:floor_fraction, f}`.
+    # Both arms exist because they catch different failures. The fractional
+    # arm scales with the plan's promise, but it under-reacts for Air, whose
+    # floor is a single day: seven hours of retention is 10% of Pro's floor
+    # and would confirm fast there, while being 29% of Air's and confirming
+    # slowly, even though Air is the plan least able to absorb the churn. The
+    # absolute arm fixes that: content that does not survive a working day is
+    # extreme on any plan, because the next morning's build gets nothing.
+    #
+    # `min_ring_turnover` is what buys the single-day rung. Day-grain rollups
+    # mean one day can be a couple of hours of data, so that rung asks for
+    # proof of volume instead of elapsed time: evicted bytes worth this many
+    # times the whole claim. An account that has cycled its entire cache
+    # twice over while losing content younger than a working day is not a
+    # sampling artifact, whatever the clock says.
+    grow_windows: [
+      %{shed_age_under: {:seconds, 28_800}, window_days: 1, min_ring_turnover: 2.0},
+      %{shed_age_under: {:seconds, 28_800}, window_days: 2},
+      %{shed_age_under: {:floor_fraction, 0.1}, window_days: 2},
+      %{shed_age_under: {:floor_fraction, 0.34}, window_days: 5},
+      %{shed_age_under: {:floor_fraction, 1.0}, window_days: 14}
+    ],
     grow_headroom_factor: 1.25,
     shrink_window_days: 90,
     shrink_occupancy_percent: 40,
@@ -124,24 +153,36 @@ defmodule Tuist.Kura.ClaimSizing do
     end
   end
 
-  # The severity ladder: the first tier whose window is fully satisfied wins,
-  # and the tiers are ordered shortest window first, so the worse a ring's
+  # The severity ladder: the first rung whose window is fully satisfied wins,
+  # and the rungs are ordered shortest window first, so the worse a ring's
   # shedding is the sooner it can act. A badly undersized claim is corrected
-  # in days rather than made to serve out a fortnight of rebuilding content
-  # it just evicted.
+  # in a day or two rather than made to serve out a fortnight of rebuilding
+  # content it just evicted.
   defp grow_verdict(by_date, floor_seconds, current_bytes, context, policy) do
-    Enum.find_value(policy.grow_windows, fn {severity, window_days} ->
-      threshold_seconds = round(floor_seconds * severity)
+    Enum.find_value(policy.grow_windows, fn rung ->
+      threshold_seconds = shed_age_threshold(rung.shed_age_under, floor_seconds)
 
-      case qualifying_window(by_date, context.today, window_days, &grow_day?(&1, threshold_seconds)) do
-        nil ->
-          nil
-
-        window ->
-          {grow_target_bytes(window, current_bytes, floor_seconds, policy),
-           grow_evidence(window, floor_seconds, threshold_seconds)}
+      with window when not is_nil(window) <-
+             qualifying_window(by_date, context.today, rung.window_days, &grow_day?(&1, threshold_seconds)),
+           true <- ring_turnover(window, current_bytes) >= Map.get(rung, :min_ring_turnover, 0.0) do
+        {grow_target_bytes(window, current_bytes, floor_seconds, policy),
+         grow_evidence(window, floor_seconds, threshold_seconds, current_bytes)}
+      else
+        _ -> nil
       end
     end)
+  end
+
+  defp shed_age_threshold({:seconds, seconds}, _floor_seconds), do: seconds
+  defp shed_age_threshold({:floor_fraction, fraction}, floor_seconds), do: round(floor_seconds * fraction)
+
+  # How many times over the account evicted its whole claim across the window.
+  # Volume rather than elapsed time, so a rung can be satisfied by how much
+  # cache was actually lost instead of by how long we waited to count it.
+  defp ring_turnover(_window, current_bytes) when current_bytes <= 0, do: 0.0
+
+  defp ring_turnover(window, current_bytes) do
+    window |> Enum.map(& &1.evicted_bytes) |> Enum.sum() |> Kernel./(current_bytes)
   end
 
   # A day argues for growth when the ring rotated under size pressure and the
@@ -255,18 +296,19 @@ defmodule Tuist.Kura.ClaimSizing do
     |> min(current_bytes)
   end
 
-  defp grow_evidence(window, floor_seconds, threshold_seconds) do
+  defp grow_evidence(window, floor_seconds, threshold_seconds, current_bytes) do
     %{
       "signal" => "shed_age_below_retention_floor",
       "window_days" => length(window),
       "retention_floor_seconds" => floor_seconds,
-      # What the window had to hold under to qualify at the tier that fired,
-      # so an operator reading a two-day proposal can see it was the severity
+      # What the window had to hold under to qualify at the rung that fired,
+      # so an operator reading a one-day proposal can see it was the severity
       # that shortened it rather than a weakened rule.
       "qualifying_threshold_seconds" => threshold_seconds,
       "median_shed_age_seconds" => window |> Enum.map(& &1.median_shed_age_seconds) |> median(),
       "median_ring_span_seconds" => window |> Enum.map(& &1.median_ring_span_seconds) |> median(),
-      "evicted_bytes" => window |> Enum.map(& &1.evicted_bytes) |> Enum.sum()
+      "evicted_bytes" => window |> Enum.map(& &1.evicted_bytes) |> Enum.sum(),
+      "ring_turnover" => window |> ring_turnover(current_bytes) |> Float.round(1)
     }
   end
 
