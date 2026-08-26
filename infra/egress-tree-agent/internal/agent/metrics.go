@@ -20,6 +20,10 @@ type Metrics struct {
 	ClassSentBytes       *prometheus.GaugeVec
 	ClassDrops           *prometheus.GaugeVec
 	ClassBacklogBytes    *prometheus.GaugeVec
+	ClassLendedPackets   *prometheus.GaugeVec
+	ClassBorrowedPackets *prometheus.GaugeVec
+	ClassRateBytes       *prometheus.GaugeVec
+	ClassCeilBytes       *prometheus.GaugeVec
 	DirectPackets        prometheus.Gauge
 	PodRedirected        *prometheus.GaugeVec
 	PodGuardPass         *prometheus.GaugeVec
@@ -27,6 +31,13 @@ type Metrics struct {
 	Returned             prometheus.Gauge
 	ReturnDropped        prometheus.Gauge
 }
+
+// classLabels identify a tenant class. The account handle is carried
+// alongside the classid because the classid alone does not identify a tenant
+// over time: the controller frees a minor when an account's last instance
+// goes and can hand the same one to another account later, splicing two
+// tenants into one series.
+var classLabels = []string{"classid", "account"}
 
 func NewMetrics(registry prometheus.Registerer) *Metrics {
 	m := &Metrics{
@@ -65,15 +76,31 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 		ClassSentBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "kura_egress_tree_class_sent_bytes",
 			Help: "Bytes sent by a tenant class (kernel counter).",
-		}, []string{"classid"}),
+		}, classLabels),
 		ClassDrops: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "kura_egress_tree_class_drops",
 			Help: "Packets dropped in a tenant class (kernel counter).",
-		}, []string{"classid"}),
+		}, classLabels),
 		ClassBacklogBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "kura_egress_tree_class_backlog_bytes",
 			Help: "Bytes queued in a tenant class.",
-		}, []string{"classid"}),
+		}, classLabels),
+		ClassLendedPackets: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "kura_egress_tree_class_lended_packets",
+			Help: "Packets a tenant class sent within its own rate (HTB kernel counter).",
+		}, classLabels),
+		ClassBorrowedPackets: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "kura_egress_tree_class_borrowed_packets",
+			Help: "Packets a tenant class sent by borrowing from the root class (HTB kernel counter).",
+		}, classLabels),
+		ClassRateBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "kura_egress_tree_class_rate_bytes_per_second",
+			Help: "Rate a tenant class is guaranteed by the kernel, in bytes per second.",
+		}, classLabels),
+		ClassCeilBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "kura_egress_tree_class_ceil_bytes_per_second",
+			Help: "Ceiling a tenant class may borrow up to in the kernel, in bytes per second.",
+		}, classLabels),
 		DirectPackets: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "kura_egress_tree_direct_packets",
 			Help: "Packets that reached the tree unclassified (kernel counter).",
@@ -103,7 +130,9 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 		m.ReconcileTotal, m.ReconcileErrors, m.AttachedPods, m.ReturnAttachFailures,
 		m.SkippedPods,
 		m.LinkReattaches, m.SiblingOverflow, m.NodeBudgetMbps, m.ClassSentBytes, m.ClassDrops,
-		m.ClassBacklogBytes, m.DirectPackets, m.PodRedirected, m.PodGuardPass,
+		m.ClassBacklogBytes, m.ClassLendedPackets, m.ClassBorrowedPackets,
+		m.ClassRateBytes, m.ClassCeilBytes,
+		m.DirectPackets, m.PodRedirected, m.PodGuardPass,
 		m.PodSiblingBypass, m.Returned, m.ReturnDropped,
 	)
 	return m
