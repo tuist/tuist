@@ -364,6 +364,37 @@ enum FastPath {
 /// FFI presence load and of `PathState` so the guard is unit-testable: the map
 /// is snapshotted and its lock released before `present` runs, both so the load
 /// never serializes other keys and so a Hit can be probed off-lock.
+/// Which of `owed` needs its bytes batch-read: not already on disk, and named by
+/// an instruction that carries a blob digest rather than inlined bytes.
+///
+/// Everything it declines is declined for a reason the caller must not undo. A
+/// node already on disk needs nothing. A node whose instruction is inlined has
+/// its bytes already. A node with no instruction here is either a nested
+/// withheld root or a snapshot-only node, and both belong to the per-child path,
+/// which can recurse and can wait on a snapshot; this one may do neither.
+///
+/// Pure, so the selection can be tested without a store or a remote.
+fn owed_needing_fetch(
+    owed: &[Vec<u8>],
+    present: impl Fn(&[u8]) -> bool,
+    instruction: impl Fn(&[u8]) -> Option<(reapi::Digest, bool)>,
+) -> Vec<(Vec<u8>, reapi::Digest)> {
+    let mut wanted = Vec::new();
+    for child in owed {
+        if present(child) {
+            continue;
+        }
+        // An inlined instruction names a blob too, so the flag is what decides,
+        // never the presence of a digest.
+        if let Some((blob, inlined)) = instruction(child) {
+            if !inlined {
+                wanted.push((child.clone(), blob));
+            }
+        }
+    }
+    wanted
+}
+
 fn fast_path(
     resolved: &Mutex<HashMap<Vec<u8>, Resolution>>,
     key: &[u8],
@@ -2049,6 +2080,62 @@ impl Proxy {
             .clone()
     }
 
+    /// Batch-reads every owed node whose instruction this proxy already holds and
+    /// whose bytes it does not, seeding those bytes back into `pending_objects`
+    /// so the repair loop stores them without a round trip each.
+    ///
+    /// Deliberately best-effort and side-effect-only. Nodes already local, nodes
+    /// whose instruction is inlined, and nodes only the snapshot can name are all
+    /// left for the loop to handle per child; an unroutable instance or a failed
+    /// batch simply seeds nothing and the loop behaves as it did before. So this
+    /// can make the repair cheaper and can never make it wrong.
+    fn prefetch_owed(
+        &self,
+        state: &'static PathState,
+        cas_path: &str,
+        declared_instance: &str,
+        owed: &[Vec<u8>],
+    ) {
+        let wanted = {
+            let pending = state.pending_objects.lock().unwrap();
+            let publish = state.publish_cache.lock().unwrap();
+            owed_needing_fetch(
+                owed,
+                |child| state.load_present(child),
+                |child| match pending.get(child) {
+                    Some(PendingFetch { blob, contents }) => {
+                        Some((blob.clone(), contents.is_some()))
+                    }
+                    None => publish.get(child).map(|(blob, _refs)| (blob.clone(), false)),
+                },
+            )
+        };
+        if wanted.is_empty() {
+            return;
+        }
+        let Some(instance) = self.resolve_instance(cas_path, declared_instance) else {
+            return;
+        };
+        let remote = self.remote_for(&instance);
+        let digests: Vec<reapi::Digest> = wanted.iter().map(|(_, blob)| blob.clone()).collect();
+        let Ok(contents) = remote.batch_read(&digests) else {
+            return;
+        };
+        let mut pending = state.pending_objects.lock().unwrap();
+        for (child, blob) in wanted {
+            let Some(bytes) = contents.get(&blob.hash) else {
+                continue;
+            };
+            pending
+                .entry(child)
+                .and_modify(|instruction| instruction.contents = Some(bytes.clone()))
+                .or_insert_with(|| PendingFetch {
+                    blob: blob.clone(),
+                    contents: Some(bytes.clone()),
+                });
+        }
+    }
+
     /// Fetches one blob for a demand load, coalescing with other demand fetches
     /// in flight for the same instance into a shared `BatchReadBlobs`.
     fn demand_fetch(
@@ -2150,6 +2237,23 @@ impl Proxy {
                 return Ok(false);
             }
             repairing.push(digest.to_vec());
+            // ONE batch read for everything the repair is about to need.
+            //
+            // Without this the loop below calls `demand_fetch` per child, and
+            // `demand_fetch` only coalesces with requests already in flight from
+            // OTHER threads, so a serial loop never coalesces with itself: N
+            // children became N `BatchReadBlobs` round trips. `materialize_manifest`
+            // makes the argument against exactly that a few hundred lines up,
+            // with a measurement behind it (6-way splitting of ~23-blob sets
+            // pinned per-resolve latency at per-RPC cost times groups), and the
+            // repair has the whole owed list up front, so it has no excuse.
+            //
+            // Seeding the instructions rather than storing here keeps every other
+            // rule in one place: the loop below still handles nested withheld
+            // roots, snapshot-sourced instructions and the cycle guard, and it
+            // drops each `contents` as soon as the node is stored, so the bytes
+            // are held only across this repair.
+            self.prefetch_owed(state, cas_path, declared_instance, &owed);
             let mut repaired = true;
             for child in &owed {
                 match self.fetch_object_inner(state, cas_path, declared_instance, child, repairing) {
@@ -5667,6 +5771,56 @@ mod tests {
         assert!(
             !state.withheld_roots.lock().unwrap().contains_key(&root),
             "so the record must go with it"
+        );
+    }
+
+    /// The repair has the whole owed list up front, so it must ask for it in one
+    /// batch. `demand_fetch` coalesces only with requests already in flight from
+    /// OTHER threads, so a serial loop never coalesces with itself and each child
+    /// became its own `BatchReadBlobs`. `materialize_manifest` argues against
+    /// exactly that fragmentation, with a measurement behind it.
+    ///
+    /// This covers WHICH nodes go into that batch. Everything left out is left to
+    /// the per-child path, which can do things this step must not: recurse into a
+    /// nested withheld root, and wait on a snapshot.
+    #[test]
+    fn a_repair_batches_only_the_owed_nodes_whose_bytes_it_lacks() {
+        let on_disk = vec![0xA1];
+        let inlined = vec![0xA2];
+        let digest_only = vec![0xA3];
+        let no_instruction = vec![0xA4];
+        let from_publish_cache = vec![0xA5];
+        let owed = vec![
+            on_disk.clone(),
+            inlined.clone(),
+            digest_only.clone(),
+            no_instruction.clone(),
+            from_publish_cache.clone(),
+        ];
+        let blob_for = |tag: u8| reapi::Digest { hash: format!("{tag:02x}").repeat(32), size_bytes: 4 };
+
+        let wanted = owed_needing_fetch(
+            &owed,
+            |child| child == on_disk.as_slice(),
+            // Every one of these except `no_instruction` names a blob, including
+            // the inlined one and the one already on disk. Only the flag and the
+            // presence check may exclude them, or the test proves nothing about
+            // either.
+            |child| match child {
+                c if c == on_disk.as_slice() => Some((blob_for(0xA1), false)),
+                c if c == inlined.as_slice() => Some((blob_for(0xA2), true)),
+                c if c == digest_only.as_slice() => Some((blob_for(0xA3), false)),
+                c if c == from_publish_cache.as_slice() => Some((blob_for(0xA5), false)),
+                _ => None,
+            },
+        );
+
+        let requested: Vec<Vec<u8>> = wanted.iter().map(|(child, _)| child.clone()).collect();
+        assert_eq!(
+            requested,
+            vec![digest_only, from_publish_cache],
+            "one request carrying every owed node that needs bytes, and nothing \
+             that already has them or that only the per-child path can resolve"
         );
     }
 
