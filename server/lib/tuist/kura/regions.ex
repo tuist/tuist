@@ -58,7 +58,14 @@ defmodule Tuist.Kura.Regions do
   # because the name does not name a region to begin with. Exactly one of the
   # account's instances answers on it at a time; see
   # `Tuist.Kura.stable_host_owner/1`.
-  @managed_region_stable_host_template "{account_handle}{env_suffix}.kura.tuist.dev"
+  #
+  # Its own label rather than a sibling of the regional names, because a
+  # handle is free-form enough to forge one: an account named for another
+  # account's region (`acme-eu-central-1`) would otherwise mint that account's
+  # regional hostname as its own, and two Ingresses would claim one host.
+  # Handles cannot contain a dot, so nothing an account is called can reach
+  # out of this subtree or into it.
+  @managed_region_stable_host_template "{account_handle}{env_suffix}.cache.kura.tuist.dev"
   # gRPC (Bazel REAPI) co-hosts on the single public host: the regional Kura
   # ingress routes the gRPC service path prefixes to the gRPC backend and
   # everything else to the REST cache (see infra/kura-controller). The gRPC
