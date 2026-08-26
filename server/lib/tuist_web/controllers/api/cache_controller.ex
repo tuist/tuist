@@ -9,6 +9,7 @@ defmodule TuistWeb.API.CacheController do
   alias Tuist.Billing
   alias Tuist.Cache
   alias Tuist.CacheActionItems
+  alias Tuist.Kura
   alias Tuist.Storage
   alias TuistWeb.API.Schemas
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
@@ -90,7 +91,10 @@ defmodule TuistWeb.API.CacheController do
   # for is exactly what `Cache-Control` is for, and putting it on the server
   # means the interval is set by the side that knows whether an instance is
   # minutes away or already serving.
-  @serving_cache_max_age 3600
+  # An instance placement is leaving keeps serving for at least this long after
+  # its endpoint is unpublished, so an answer held for its full life is never
+  # pointing at something already gone. `Tuist.Kura.placement_drain_seconds/0`
+  # is what guarantees it.
   @provisioning_cache_max_age 30
 
   # Answers where the cache is, not whether the caller may use it. Clients hold
@@ -103,7 +107,7 @@ defmodule TuistWeb.API.CacheController do
       |> authorized_account_handle(conn)
       |> Accounts.get_cache_resolution_for_handle(technology(conn), RemoteIp.origin(conn))
 
-    max_age = if provisioning, do: @provisioning_cache_max_age, else: @serving_cache_max_age
+    max_age = if provisioning, do: @provisioning_cache_max_age, else: Kura.endpoint_freshness_seconds()
 
     conn
     |> put_resp_header("cache-control", "private, max-age=#{max_age}")

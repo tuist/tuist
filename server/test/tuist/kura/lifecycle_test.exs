@@ -1102,6 +1102,29 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload_lifecycle(account).drain_started_at
     end
 
+    test "keeps a retired instance serving until every cached endpoint answer has expired" do
+      # Unpublishing stops new resolutions returning it, but a client that
+      # resolved an hour ago still holds it and keeps building against it. A
+      # relocation happens while the account is building, so the ordinary
+      # margin would tear the instance down under live builds.
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      _destination = active_instance_in(account, "eu-central")
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, @region)
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+      # Past the ordinary drain, still inside the endpoint's freshness.
+      rewind_drain(account, Kura.drain_seconds() + 60)
+
+      Lifecycle.reconcile()
+
+      refute reload_lifecycle(account).teardown_started_at
+      assert reload(source).status == :drain_pending
+    end
+
     test "tears the retired instance down once its drain window has elapsed" do
       account = account(plan: :enterprise)
       source = active_instance(account)
@@ -1112,7 +1135,7 @@ defmodule Tuist.Kura.LifecycleTest do
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
 
       Lifecycle.reconcile_placement_retirements()
-      elapse_drain(account)
+      rewind_drain(account, Kura.placement_drain_seconds() + 60)
 
       Lifecycle.reconcile()
 
@@ -1161,6 +1184,20 @@ defmodule Tuist.Kura.LifecycleTest do
 
       assert servers_for(account) == []
     end
+  end
+
+  # Rewinds the drain clock by an arbitrary number of seconds, for the windows
+  # that are not the ordinary one.
+  defp rewind_drain(account, seconds) do
+    started_at =
+      DateTime.utc_now()
+      |> DateTime.add(-seconds, :second)
+      |> DateTime.truncate(:second)
+
+    account
+    |> reload_lifecycle()
+    |> Ecto.Changeset.change(%{drain_started_at: started_at})
+    |> Repo.update!()
   end
 
   defp active_instance_in(account, region) do

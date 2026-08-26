@@ -94,6 +94,32 @@ defmodule Tuist.Kura do
   @doc "Seconds a draining server keeps serving before teardown."
   def drain_seconds, do: @drain_seconds
 
+  # How long a client may hold an endpoint answer before it has to ask again.
+  # Lives here rather than on the controller that sets the header because the
+  # drain below has to outlast it, and two numbers that must agree should not
+  # be written down twice.
+  @endpoint_freshness_seconds 3600
+
+  @doc "Seconds a client may keep serving from a cached endpoint answer."
+  def endpoint_freshness_seconds, do: @endpoint_freshness_seconds
+
+  @doc """
+  Seconds an instance placement is leaving keeps serving before teardown.
+
+  Longer than an ordinary drain, and for a different reason. Unpublishing an
+  endpoint stops new *resolutions* returning it, but every client that
+  resolved in the previous hour still holds it and keeps sending cache traffic
+  there until its answer expires. Inactivity archival does not care — an
+  account that has gone a full window without asking has nobody holding a
+  fresh answer — but a relocation happens precisely while the account is
+  building, so tearing down on the ordinary margin would break live builds
+  that had no way to know the cache had moved.
+
+  So the window is the freshness the endpoint answer was served with, plus the
+  ordinary margin for what is still in flight when the last holder re-resolves.
+  """
+  def placement_drain_seconds, do: @endpoint_freshness_seconds + @drain_seconds
+
   ## Versions
 
   @doc """

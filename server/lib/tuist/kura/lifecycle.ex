@@ -603,11 +603,15 @@ defmodule Tuist.Kura.Lifecycle do
   # Drain-pending instances that have not had teardown issued yet: either
   # demand came back (cancel) or the drain window elapsed (issue teardown).
   defp reconcile_drain_pending(%Regions{id: region_id}) do
-    drain_cutoff = DateTime.add(now(), -Kura.drain_seconds(), :second)
+    cutoffs = %{
+      inactivity: DateTime.add(now(), -Kura.drain_seconds(), :second),
+      placement: DateTime.add(now(), -Kura.placement_drain_seconds(), :second)
+    }
+
     draining = region_id |> draining_instances() |> Enum.take(@max_archival_transitions_per_pass)
     retiring = placement_retirements(region_id, Enum.map(draining, fn {server, _lifecycle} -> server.account_id end))
 
-    Enum.each(draining, &resolve_drain(&1, drain_cutoff, retiring))
+    Enum.each(draining, &resolve_drain(&1, cutoffs, retiring))
   end
 
   # Accounts whose instance in this region is draining because placement
@@ -643,11 +647,11 @@ defmodule Tuist.Kura.Lifecycle do
   # rather than about the account. Enterprise is where the difference bites,
   # because it is never archived for inactivity and would otherwise cancel
   # every retirement it was given on the next tick.
-  defp resolve_drain({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}, drain_cutoff, retiring) do
+  defp resolve_drain({%Server{} = server, %AccountRegionLifecycle{} = lifecycle}, cutoffs, retiring) do
     if MapSet.member?(retiring, server.account_id) do
-      resolve_placement_retirement(server, lifecycle, drain_cutoff)
+      resolve_placement_retirement(server, lifecycle, cutoffs.placement)
     else
-      resolve_inactivity_drain(server, lifecycle, drain_cutoff)
+      resolve_inactivity_drain(server, lifecycle, cutoffs.inactivity)
     end
   end
 
