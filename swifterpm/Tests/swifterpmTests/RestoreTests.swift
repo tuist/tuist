@@ -361,8 +361,12 @@ struct RestoreTests {
             )
 
             #expect(Set(refsByIdentity.keys) == ["local-one", "local-two"])
-            let expectedLocalOne = PathCanonicalizer.realpath(localOne).path
-            let expectedLocalTwo = PathCanonicalizer.realpath(localTwo).path
+            // SwiftPM writes a fileSystem dependency's `location` and `state.path` as the path
+            // the manifest declared, even when a link on the way in points somewhere else, so
+            // a workspace state that recorded the resolved directory described the same
+            // dependency by a directory SwiftPM never names.
+            let expectedLocalOne = localOne.path
+            let expectedLocalTwo = localTwo.path
             #expect(refsByIdentity["local-one"]?["location"] as? String == expectedLocalOne)
             #expect(refsByIdentity["local-two"]?["location"] as? String == expectedLocalTwo)
             #expect(

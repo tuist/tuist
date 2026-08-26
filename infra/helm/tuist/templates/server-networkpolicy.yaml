@@ -1,0 +1,73 @@
+{{- if and .Values.server.enabled .Values.server.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "server") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.server.networkPolicy.ingressControllerNamespace | quote }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.server.networkPolicy.ingressControllerPodLabels | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: http
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.server.networkPolicy.kuraNamespace | quote }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.server.networkPolicy.kuraPodLabels | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: http
+    {{- with .Values.server.networkPolicy.observabilityNamespace }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . | quote }}
+      ports:
+        - protocol: TCP
+          port: metrics
+    {{- end }}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.server.networkPolicy.dnsNamespace | quote }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.server.networkPolicy.kuraNamespace | quote }}
+      ports:
+        - protocol: TCP
+          port: 4000
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            {{- with .Values.server.networkPolicy.clusterCIDRs }}
+            except:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+{{- end }}

@@ -18,6 +18,8 @@ The account setup tools require user authentication. They are not available to p
 
 Model Context Protocol tools and <.localized_link href="/guides/features/agentic-coding/skills">skills</.localized_link> can overlap in what they do. Given the current overlap between the two, choose one approach per workflow and use it consistently instead of mixing both in the same flow.
 
+For clients that support plugin installation, use the <.localized_link href="/guides/features/agentic-coding/plugins">Tuist plugins</.localized_link> to install both together.
+
 ## Configuration
 
 Add `https://tuist.dev/mcp` as a remote Model Context Protocol server in your client. Tuist advertises both [Open Authorization](https://oauth.net/2/) discovery metadata and the current [auth.md protocol](https://workos.com/auth-md) at `https://tuist.dev/auth.md`.
@@ -194,6 +196,8 @@ The following tools are available through the Tuist Model Context Protocol serve
 
 Every tool publishes a human-readable description together with explicit input and output schemas. Successful calls return structured content that conforms to the advertised output schema, plus the same result serialized as text for clients that do not yet consume structured content.
 
+Tools that take the identifier of a single record, such as `build_run_id`, `test_run_id`, `test_case_id`, `bundle_id`, `run_id`, `generation_id`, or `cache_run_id`, also accept the Tuist dashboard URL of that record. Paste the URL straight from the browser instead of extracting the identifier from it.
+
 #### Documentation and community search
 
 This read-only tool searches Tuist's documentation, [application programming interface](https://en.wikipedia.org/wiki/API) reference, GitHub releases, community forum, and GitHub issues through the same search engine that powers the docs website. Release results include the product, version, publication date, and prerelease status. Stable releases are searched by default, and prereleases can be included with `include_prereleases`. The tool is only available on the Tuist-hosted server at `https://tuist.dev/mcp`.
@@ -231,7 +235,7 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `list_xcode_builds` | List Xcode build runs for a project. | `account_handle`, `project_handle` |
-| `get_xcode_build` | Get detailed information about a specific Xcode build run, including a temporary download URL for the archive holding the raw `.xcactivitylog`. Accepts a build ID or a Tuist dashboard URL. | `build_run_id` |
+| `get_xcode_build` | Get detailed information about a specific Xcode build run, including a temporary download URL for the archive holding the raw `.xcactivitylog`. | `build_run_id` |
 | `list_xcode_build_targets` | List build targets for a specific Xcode build run. | `build_run_id` |
 | `list_xcode_build_files` | List compiled files for a specific Xcode build run. | `build_run_id` |
 | `list_xcode_build_issues` | List build issues (warnings and errors) for a specific build run. | `build_run_id` |

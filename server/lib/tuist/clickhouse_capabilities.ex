@@ -11,7 +11,13 @@ defmodule Tuist.ClickHouseCapabilities do
   the server what it supports instead.
   """
 
+  alias Tuist.ClickHouseVersions
   alias Tuist.Environment
+
+  @deduplicate_insert_select_since [26, 1]
+  @minimum_supported_version ClickHouseVersions.minimum_supported_version()
+                             |> String.split(".")
+                             |> Enum.map(&String.to_integer/1)
 
   @doc """
   Whether `generateSerialID/1` is usable against `repo`, which requires a
@@ -31,6 +37,72 @@ defmodule Tuist.ClickHouseCapabilities do
         # assume no Keeper and the managed instance quietly gets random legacy
         # IDs instead of serial ones.
         raise "Could not determine whether ClickHouse supports serial IDs: #{Exception.message(error)}"
+    end
+  end
+
+  @doc """
+  The version of the ClickHouse server behind `repo`, as a list of integers.
+
+  `version/0` is a plain function rather than a system table, so unlike the
+  `system.*` reads elsewhere in this module it also answers inside a ClickHouse
+  transaction, which is what the Ecto sandbox wraps every test in.
+  """
+  def server_version(repo) do
+    case repo.query("SELECT version()") do
+      {:ok, %{rows: [[version]]}} ->
+        version
+        |> String.split(".")
+        |> Enum.take_while(&numeric?/1)
+        |> Enum.map(&String.to_integer/1)
+
+      {:error, error} ->
+        raise "Could not determine the ClickHouse server version: #{Exception.message(error)}"
+    end
+  end
+
+  defp numeric?(version_component), do: match?({_integer, ""}, Integer.parse(version_component))
+
+  @doc """
+  Raises unless `repo` runs a ClickHouse release within the supported range
+  published in the self-hosting requirements.
+
+  The version gates in this module reason about that range rather than about
+  every release ClickHouse has ever shipped: `insert_select_deduplication_settings/1`
+  omits `deduplicate_insert_select` below 26.1 because releases in the supported
+  range deduplicate `INSERT SELECT` under `insert_deduplicate` on their own. Below
+  the floor that premise is untested, so an upgrade stops here, before any
+  migration has run, instead of failing part-way through against a server whose
+  behaviour we do not model.
+  """
+  def assert_supported_version!(repo) do
+    version = server_version(repo)
+
+    if Enum.take(version, length(@minimum_supported_version)) < @minimum_supported_version do
+      raise """
+      ClickHouse #{Enum.join(version, ".")} is older than the minimum version Tuist supports (#{Enum.join(@minimum_supported_version, ".")}).
+
+      Upgrade ClickHouse before upgrading Tuist. No migration has run, so the database is unchanged.
+      """
+    end
+
+    :ok
+  end
+
+  @doc """
+  Settings that make an `INSERT SELECT` deduplicate against its
+  `insert_deduplication_token`, so a retried insert cannot duplicate rows.
+
+  `deduplicate_insert_select` arrived in ClickHouse 26.1, where `force_enable`
+  raises instead of silently skipping deduplication when the server judges the
+  select unstable. Earlier releases in the supported range reject the name with
+  `UNKNOWN_SETTING`, and deduplicate `INSERT SELECT` whenever `insert_deduplicate`
+  is on, which is the behaviour `force_enable` asks for.
+  """
+  def insert_select_deduplication_settings(repo) do
+    if Enum.take(server_version(repo), 2) >= @deduplicate_insert_select_since do
+      [deduplicate_insert_select: "force_enable"]
+    else
+      []
     end
   end
 

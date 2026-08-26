@@ -65,6 +65,23 @@ case System.get_env("TUIST_RUNNER_LINUX_POOLS") do
     end
 end
 
+case System.get_env("TUIST_RUNNER_FREE_MONTHLY_MINUTES") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  raw ->
+    case Integer.parse(raw) do
+      {minutes, ""} when minutes >= 0 ->
+        config :tuist, :runner_free_monthly_minutes, minutes
+
+      _ ->
+        raise "TUIST_RUNNER_FREE_MONTHLY_MINUTES must be a non-negative integer. Got: #{inspect(raw)}"
+    end
+end
+
 case System.get_env("TUIST_RUNNER_MACOS_SHAPES") do
   nil ->
     :ok
@@ -466,6 +483,19 @@ if Enum.member?([:prod, :stag, :can, :preview, :dev], env) do
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 end
 
+# Identity of the instance this node runs as, when the platform supplies one.
+#
+# Sentry and Oban both default to the OS hostname. That is unique per Pod on
+# the Linux deployments, but every VM booted from the xcresult-processor Tart
+# image reports the image's hostname, so on that fleet the default names all
+# Pods identically and an event cannot be traced back to the Pod that produced
+# it. The chart binds POD_NAME to metadata.name there.
+pod_name =
+  case System.get_env("POD_NAME") do
+    name when is_binary(name) and name != "" -> name
+    _ -> nil
+  end
+
 if Tuist.Environment.error_tracking_enabled?() do
   config :sentry,
     client: TuistCommon.SentryHTTPClient,
@@ -475,6 +505,10 @@ if Tuist.Environment.error_tracking_enabled?() do
     enable_source_code_context: true,
     root_source_code_paths: [File.cwd!()],
     before_send: {Tuist.SentryEventFilter, :before_send}
+
+  if pod_name do
+    config :sentry, server_name: pod_name
+  end
 end
 
 if Tuist.Environment.env() not in [:test] do
@@ -687,6 +721,13 @@ if !RuntimeConfig.peer_eligible?(mode) do
   config :tuist, Oban, peer: false
 end
 
+# Oban stamps this onto `oban_jobs.attempted_by`, which is what makes per-Pod
+# throughput answerable: given the Pod a failure came from, the jobs it
+# completed over the same window say whether it was wedged or working.
+if pod_name do
+  config :tuist, Oban, node: pod_name
+end
+
 # Registry config.
 #
 # The bucket name is shared across ecosystems (one Tigris bucket). The web
@@ -705,10 +746,25 @@ swift_registry_sync_allowlist =
     value -> value |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
   end
 
+# The batch size has to stay under the GitHub request budget a single pass can
+# spend: each package costs at least one tag-listing request, plus one per extra
+# page. A limit above the budget exhausts the quota mid-pass, which is what the
+# July 2026 registry incident hit while the pod still reported healthy. An
+# explicitly configured limit that cannot be honoured is rejected rather than
+# clamped, so a typo surfaces at boot instead of silently halving coverage.
 swift_registry_sync_limit =
   case System.get_env("SWIFT_REGISTRY_SYNC_LIMIT") do
-    nil -> 1_000
-    value -> String.to_integer(value)
+    nil ->
+      600
+
+    value ->
+      case Integer.parse(value) do
+        {limit, ""} when limit > 0 ->
+          limit
+
+        _ ->
+          raise "SWIFT_REGISTRY_SYNC_LIMIT must be a positive integer, got: #{inspect(value)}"
+      end
   end
 
 first_registry_env = fn names ->
@@ -799,6 +855,11 @@ config :tuist, :registry,
   s3_config: registry_s3_config,
   url: System.get_env("TUIST_REGISTRY_URL"),
   swift_github_token: System.get_env("SWIFT_REGISTRY_GITHUB_TOKEN"),
+  # When set, the mirror authenticates as this GitHub App installation and the
+  # personal access token above is only the fallback. Accepts the organization
+  # the App is installed on (resolved and cached at runtime) or a numeric
+  # installation id. See `Tuist.Registry.swift_registry_github_token/0`.
+  swift_github_app_installation: System.get_env("SWIFT_REGISTRY_GITHUB_APP_INSTALLATION"),
   swift_sync_enabled: swift_registry_sync_enabled,
   swift_sync_allowlist: swift_registry_sync_allowlist,
   swift_sync_limit: swift_registry_sync_limit
@@ -820,6 +881,21 @@ if Tuist.Environment.swift_registry_sync_mode?() do
     secret_access_key: registry_s3_secret_access_key,
     region: registry_s3_region
 end
+
+# Cache tokens are signed with their own keypair where one is configured, so a
+# cache node can be handed a half that reads them and cannot mint them. Parsed
+# and proven here rather than per token: a key that cannot sign would otherwise
+# boot cleanly and fail the token exchange on the first request.
+cache_token_signing_jwk =
+  case Tuist.Environment.secret_key_cache_tokens(secrets) do
+    nil -> nil
+    pem -> Tuist.CacheGuardian.signing_jwk!(pem)
+  end
+
+config :tuist, Tuist.CacheGuardian,
+  issuer: "tuist",
+  allowed_algos: ["ES256"],
+  secret_key: cache_token_signing_jwk
 
 # Guardian
 config :tuist, Tuist.Guardian,

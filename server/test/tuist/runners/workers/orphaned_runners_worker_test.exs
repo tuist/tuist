@@ -4,6 +4,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
   import Mimic
 
   alias Tuist.GitHub.Client, as: GitHubClient
+  alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
@@ -13,6 +14,11 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
   alias Tuist.Runners.WorkflowJobs
 
   setup :verify_on_exit!
+
+  setup do
+    stub(K8sClient, :list_pods, fn _namespace, _selector -> {:ok, pod_items(["pod-1"])} end)
+    :ok
+  end
 
   defp candidate(opts) do
     %{
@@ -25,6 +31,8 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       fleet_name: Keyword.get(opts, :fleet_name, "tuist-tuist-runner-pool-macos-26-6")
     }
   end
+
+  defp pod_items(names), do: Enum.map(names, &%{"metadata" => %{"name" => &1}})
 
   defp account_fixture do
     TuistTestSupport.Fixtures.AccountsFixtures.organization_fixture(name: "tuist-#{System.unique_integer([:positive])}").account
@@ -49,11 +57,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       expect(GitHubClient, :get_workflow_job, fn _installation, "tuist/tuist", wfid ->
         assert wfid == orphan.workflow_job_id
         {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
-      end)
-
-      expect(Jobs, :record_queued, fn wfid ->
-        assert wfid == orphan.workflow_job_id
-        :ok
       end)
 
       expect(Claims, :release, fn wfid, handle ->
@@ -91,7 +94,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
       end)
 
-      expect(Jobs, :record_queued, fn _wfid -> :ok end)
       expect(Claims, :release, fn _wfid, _handle -> :ok end)
 
       # Every recovery worker emits this event and telemetry handlers are
@@ -140,7 +142,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:ok, %{status: "in_progress", conclusion: nil, runner_name: "runner-x"}}
       end)
 
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
@@ -177,7 +178,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:ok, %{}}
       end)
 
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
@@ -208,7 +208,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
       expect(Jobs, :complete, fn _wfid, "" -> {:ok, %{}} end)
 
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
@@ -231,7 +230,74 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:error, {:http, 502, "bad gateway"}}
       end)
 
-      reject(&Jobs.record_queued/1)
+      reject(&Claims.release/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "recovers an aged row whose Pod is gone even when its claim records a sibling execution" do
+      # Age decides candidacy, absence decides evidence, and the two must
+      # stay separate. A row that crosses the floor before the first
+      # successful cluster read (a paused worker, an Oban backlog, a run
+      # of failed reads) would otherwise be filed under `:aged_out` for
+      # the rest of its life and never regain the absence that settles the
+      # busy guard, leaving it stranded until `PodReconciliationWorker`.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id, pod_name: "pod-gone")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [orphan] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [] end)
+
+      expect(K8sClient, :list_pods, fn _namespace, _selector ->
+        {:ok, pod_items(["pod-alive"])}
+      end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _installation, _repository, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      stub(Claims, :executing?, fn _wfid -> true end)
+
+      expect(Claims, :release, fn wfid, handle ->
+        assert wfid == orphan.workflow_job_id
+        assert handle == orphan.claimed_at
+        :ok
+      end)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "leaves an aged row alone when its claim records a sibling execution" do
+      # Without evidence the Pod is gone, a claim recording an execution is
+      # a runner that is genuinely busy on some job. Age alone must not
+      # release it: the executor's `completed` webhook would then find
+      # nothing to free and the account would under-count a live runner.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id)
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [orphan] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [] end)
+
+      # The Pod is still in the cluster, so there is no absence to settle
+      # the guard with: age alone is all this row has.
+      expect(K8sClient, :list_pods, fn _namespace, _selector ->
+        {:ok, pod_items([orphan.pod_name])}
+      end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _installation, _repository, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      stub(Claims, :executing?, fn _wfid -> true end)
+
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
@@ -242,6 +308,155 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
       reject(&Tuist.VCS.get_github_app_installation_for_account/1)
       reject(&GitHubClient.get_workflow_job/3)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+  end
+
+  describe "perform/1 with a Pod that is gone" do
+    test "recovers a row too young for the staleness floor once its Pod is gone" do
+      # The age gate is a stand-in for evidence: the sweep cannot tell a
+      # healthy in-flight build from an orphan without asking GitHub, so
+      # it waits 5 minutes before asking. A Pod that is no longer in the
+      # cluster is that evidence, so the wait buys nothing — and the
+      # push signal that carries it (`pods/stopped`) is best-effort.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id, pod_name: "pod-gone")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [orphan] end)
+
+      expect(K8sClient, :list_pods, fn _namespace, "tuist.dev/runner=true" ->
+        {:ok, pod_items(["pod-alive"])}
+      end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _installation, _repository, wfid ->
+        assert wfid == orphan.workflow_job_id
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      expect(Claims, :release, fn _wfid, _handle -> :ok end)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "recovers a row whose Pod is gone even when its claim recorded a sibling execution" do
+      # The busy guard in the queued branch exists because a Pod handed a
+      # sibling's job is still working, so releasing on the claimed job's
+      # GitHub status alone would delete a live runner's reservation
+      # mid-job. A Pod that is gone is not working. Leaving the guard in
+      # force here sends exactly the population this arm targets (GitHub
+      # binds by label set, so executing a sibling's job is the common
+      # shape) back to `PodReconciliationWorker`'s 10-minute grace plus
+      # 5-minute confirmation.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id, pod_name: "pod-gone")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [orphan] end)
+
+      expect(K8sClient, :list_pods, fn _namespace, _selector ->
+        {:ok, pod_items(["pod-alive"])}
+      end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _installation, _repository, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      # The claim survives with `executed_workflow_job_id` set: the Pod
+      # died mid-sibling, so no `completed` webhook ever released it.
+      stub(Claims, :executing?, fn _wfid -> true end)
+
+      expect(Claims, :release, fn wfid, handle ->
+        assert wfid == orphan.workflow_job_id
+        assert handle == orphan.claimed_at
+        :ok
+      end)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "leaves a young row alone while its Pod is still in the cluster" do
+      # A Pod that is present is either booting or executing; the age
+      # gate owns that case and only GitHub can settle it.
+      orphan = candidate(pod_name: "pod-alive")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [orphan] end)
+
+      expect(K8sClient, :list_pods, fn _namespace, _selector ->
+        {:ok, pod_items(["pod-alive", "pod-other"])}
+      end)
+
+      reject(&GitHubClient.get_workflow_job/3)
+      reject(&Claims.release/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "widens nothing when the cluster read fails" do
+      # A partial read is indistinguishable from mass absence, and
+      # acting on it would recover live runners' rows in bulk.
+      orphan = candidate(pod_name: "pod-gone")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [orphan] end)
+      expect(K8sClient, :list_pods, fn _namespace, _selector -> {:error, :timeout} end)
+
+      reject(&GitHubClient.get_workflow_job/3)
+      reject(&Claims.release/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "widens nothing when the cluster read comes back empty" do
+      # Rows are open, so the fleet cannot really be empty: a wrong
+      # selector or an empty page reads the same as every Pod vanishing.
+      orphan = candidate(pod_name: "pod-gone")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [orphan] end)
+      expect(K8sClient, :list_pods, fn _namespace, _selector -> {:ok, []} end)
+
+      reject(&GitHubClient.get_workflow_job/3)
+      reject(&Claims.release/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "does not read the cluster when no row is running at all" do
+      # Steady state: nothing to ask about, so the arm costs one query
+      # and no apiserver traffic.
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [] end)
+
+      reject(&K8sClient.list_pods/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "never treats a row without a Pod name as absent" do
+      # A `running` row always carries the Pod that minted it, but an
+      # empty name would match no Pod and recover unconditionally.
+      orphan = candidate(pod_name: "")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [orphan] end)
+
+      expect(K8sClient, :list_pods, fn _namespace, _selector ->
+        {:ok, pod_items(["pod-alive"])}
+      end)
+
+      reject(&GitHubClient.get_workflow_job/3)
+      reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
     end
@@ -271,11 +486,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
       end)
 
-      expect(Jobs, :record_queued, fn wfid ->
-        assert wfid == orphan.workflow_job_id
-        :ok
-      end)
-
       expect(Claims, :release, fn _wfid, _handle -> :ok end)
 
       assert :ok =
@@ -301,12 +511,44 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:ok, %{status: "in_progress", conclusion: nil, runner_name: "runner-x"}}
       end)
 
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok =
                OrphanedRunnersWorker.perform(%Oban.Job{
                  args: %{"workflow_job_id" => orphan.workflow_job_id, "pod_name" => orphan.pod_name}
+               })
+    end
+
+    test "recovers even when the pod-stopped release left the claim behind" do
+      # Targeted mode used to satisfy the busy guard only as a side effect
+      # of the controller's report having deleted the claim first. That
+      # made a correctness path depend on one release winning a race it is
+      # not guaranteed to win. The evidence that settles the guard is the
+      # Pod having stopped, which is the caller's whole premise.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id, pod_name: "pod-stopped")
+
+      expect(Jobs, :get_orphaned_running, fn _wfid -> orphan end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _installation, _repository, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      stub(Claims, :executing?, fn _wfid -> true end)
+
+      expect(Claims, :release, fn wfid, handle ->
+        assert wfid == orphan.workflow_job_id
+        assert handle == orphan.claimed_at
+        :ok
+      end)
+
+      assert :ok =
+               OrphanedRunnersWorker.perform(%Oban.Job{
+                 args: %{"workflow_job_id" => orphan.workflow_job_id, "pod_name" => "pod-stopped"}
                })
     end
 
@@ -331,7 +573,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
       reject(&Tuist.VCS.get_github_app_installation_for_account/1)
       reject(&GitHubClient.get_workflow_job/3)
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok =
@@ -379,8 +620,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       expect(GitHubClient, :get_workflow_job, fn _i, _r, _wfid ->
         {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
       end)
-
-      stub(Jobs, :record_queued, fn _wfid -> :ok end)
 
       assert :ok =
                OrphanedRunnersWorker.perform(%Oban.Job{

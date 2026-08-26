@@ -279,6 +279,7 @@ struct XcodeBuildBuildCommandServiceTests {
         given(shardPlanService)
             .plan(
                 xctestproductsPath: .any,
+                projectPath: .any,
                 reference: .any,
                 shardGranularity: .any,
                 shardMin: .any,
@@ -316,6 +317,7 @@ struct XcodeBuildBuildCommandServiceTests {
         verify(shardPlanService)
             .plan(
                 xctestproductsPath: .value(testProductsPath),
+                projectPath: .any,
                 reference: .any,
                 shardGranularity: .any,
                 shardMin: .any,

@@ -27,6 +27,7 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
+  alias Tuist.Kura.Demand
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.Profiles, as: RunnerProfiles
@@ -35,6 +36,7 @@ defmodule Tuist.Accounts do
 
   @reset_password_delivery_cooldown_in_minutes 5
   @confirmation_delivery_cooldown_in_minutes 5
+  @last_sign_in_touch_interval_seconds 12 * 60 * 60
   @sso_configuration_attr_keys [
     :sso_provider,
     :sso_organization_id,
@@ -1733,6 +1735,48 @@ defmodule Tuist.Accounts do
     user
   end
 
+  @doc """
+  Records that a user authenticated, so account inactivity can be measured.
+
+  Called from every path that resolves a request to a `User`, including token
+  and OAuth authentication, not just interactive log-ins. Writes are throttled
+  to at most one per user per `@last_sign_in_touch_interval_seconds` because
+  the caller sits on the hot path of every authenticated request, and day
+  granularity is all the dormancy thresholds need.
+  """
+  def touch_last_sign_in(%User{} = user) do
+    now = NaiveDateTime.truncate(Tuist.Time.naive_utc_now(), :second)
+
+    if last_sign_in_stale?(user.last_sign_in_at, now) do
+      # The staleness test is repeated in the WHERE clause rather than trusted
+      # from the struct the caller is holding. Concurrent requests all read the
+      # same stale row, so an in-memory check alone lets every one of them
+      # write; re-asserting it in SQL makes them serialize on the row and all
+      # but the first find the condition no longer true.
+      stale_before = NaiveDateTime.add(now, -@last_sign_in_touch_interval_seconds, :second)
+
+      Repo.update_all(
+        from(u in User,
+          where: u.id == ^user.id,
+          where: is_nil(u.last_sign_in_at) or u.last_sign_in_at <= ^stale_before
+        ),
+        set: [last_sign_in_at: now]
+      )
+
+      %{user | last_sign_in_at: now}
+    else
+      user
+    end
+  end
+
+  def touch_last_sign_in(other), do: other
+
+  defp last_sign_in_stale?(nil, _now), do: true
+
+  defp last_sign_in_stale?(last_sign_in_at, now) do
+    NaiveDateTime.diff(now, last_sign_in_at, :second) >= @last_sign_in_touch_interval_seconds
+  end
+
   ## Database getters
 
   @doc """
@@ -1821,6 +1865,16 @@ defmodule Tuist.Accounts do
   def update_account(%Account{} = account, attrs) do
     account
     |> Account.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Marks the account's non-admin dashboards as readable by signed-out
+  visitors, or takes them back private. Operator-only.
+  """
+  def update_account_visibility(%Account{} = account, visibility) do
+    account
+    |> Account.visibility_changeset(%{visibility: visibility})
     |> Repo.update()
   end
 
@@ -2505,6 +2559,53 @@ defmodule Tuist.Accounts do
     cache_endpoints_for_handle(account_handle, technology)
   end
 
+  @doc """
+  The cache endpoints for an account handle, plus whether a dedicated instance
+  is expected to start serving shortly.
+
+  `provisioning` is true when the account is under the demand-driven Kura
+  lifecycle and has no Kura endpoint right now: archived and just asked for by
+  this very request, still rolling out, or draining. Clients use it to decide
+  how long to cache the answer, because caching a transient absence for the
+  usual interval leaves a build on the wrong lane long after its instance is
+  back.
+
+  It is deliberately not true for an account that has no instance and is not
+  getting one, so a region at capacity does not turn every refused account into
+  a poller.
+  """
+  def get_cache_resolution_for_handle(account_handle, technology \\ :default) do
+    if Environment.tuist_hosted?() and technology == :kura and is_binary(account_handle) do
+      hosted_kura_resolution(account_handle)
+    else
+      %{endpoints: cache_endpoints_for_handle(account_handle, technology), provisioning: false}
+    end
+  end
+
+  # Resolved in one pass so `provisioning` is derived from the same Kura
+  # endpoint lookup that produced `endpoints`, rather than a second query that
+  # could disagree with it.
+  defp hosted_kura_resolution(account_handle) do
+    case get_account_by_handle(account_handle) do
+      %Account{} = account ->
+        Demand.record(account.id)
+
+        case kura_cache_endpoint_urls(account) do
+          [] ->
+            %{
+              endpoints: absent_kura_endpoint_urls(account),
+              provisioning: Demand.instance_expected?(account)
+            }
+
+          urls ->
+            %{endpoints: urls, provisioning: false}
+        end
+
+      _ ->
+        %{endpoints: CacheEndpoints.active_endpoint_urls(), provisioning: false}
+    end
+  end
+
   defp cache_endpoints_for_handle(account_handle, technology) when is_binary(account_handle) do
     if Environment.tuist_hosted?() do
       hosted_cache_endpoints_for_handle(account_handle, technology)
@@ -2523,14 +2624,43 @@ defmodule Tuist.Accounts do
   end
 
   defp cache_endpoint_urls(%Account{} = account, :kura) do
+    # A Kura-capable client asking where to send cache traffic is the request
+    # boundary the demand-driven lifecycle measures: it covers the Xcode,
+    # Module, and Gradle lanes uniformly, and it is the same call whether the
+    # client is a developer machine or a runner. The write is buffered in
+    # memory and flushed periodically, so this stays one ETS insert.
+    Demand.record(account.id)
+
     case kura_cache_endpoint_urls(account) do
-      [] -> custom_cache_endpoint_urls(account)
+      [] -> absent_kura_endpoint_urls(account)
       endpoints -> endpoints
     end
   end
 
   defp cache_endpoint_urls(%Account{} = account, :default) do
     custom_cache_endpoint_urls(account)
+  end
+
+  # What to answer while the account has no Kura instance serving — archived,
+  # provisioning, draining, or refused for capacity. For an account under the
+  # demand-driven lifecycle that is the Tuist-hosted default lane, not the
+  # account's own custom endpoints: routing archived accounts down the
+  # custom-endpoint path would make archival the thing that keeps that path
+  # alive, and the legacy teardown the migration is aiming at could never
+  # complete. Accounts that have never routed through Kura keep the
+  # custom-endpoint behaviour.
+  #
+  # This lane is a different content store from the account's Kura instance,
+  # not a backing store for it, so an archived account gets cold misses here
+  # rather than its own artifacts. Once the lane is retired this returns an
+  # empty list, which every build-path caller in the CLI degrades to building
+  # locally.
+  defp absent_kura_endpoint_urls(%Account{} = account) do
+    if Demand.lifecycle_managed?(account) do
+      CacheEndpoints.active_endpoint_urls()
+    else
+      custom_cache_endpoint_urls(account)
+    end
   end
 
   defp custom_cache_endpoint_urls(%Account{} = account) do

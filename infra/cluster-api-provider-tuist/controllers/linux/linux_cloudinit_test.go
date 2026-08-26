@@ -306,3 +306,109 @@ func TestRenderLinuxBootstrapScript_PNVlanIsPersistentAndStatic(t *testing.T) {
 		t.Fatalf("expected no PN-VLAN setup when no VLAN is set, got:\n%s", instance)
 	}
 }
+
+// Project quotas are the only per-account boundary on these shared cache boxes,
+// and XFS takes quota accounting at MOUNT time; a remount cannot add it. So the
+// enablement has to run before the kubelet-root bind, which would otherwise pin
+// /data busy and leave the box joined with quotas off until its next reboot.
+func TestBootstrapScriptEnablesDataProjectQuotaBeforeAnyDataBind(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName: "kura-1", KubeconfigYAML: "kubeconfig\n", K8sMinor: "v1.34",
+		BootstrapUser: "ubuntu", InstanceType: "ovh",
+	})
+
+	quotaIdx := strings.Index(script, "bash "+dataProjectQuotaPath)
+	if quotaIdx < 0 {
+		t.Fatalf("expected the self-join to run %s, got:\n%s", dataProjectQuotaPath, script)
+	}
+	kubeletBindIdx := strings.Index(script, "mount --bind /data/kubelet /var/lib/kubelet")
+	localPathBindIdx := strings.Index(script, "mount --bind /data/local-path-provisioner /opt/local-path-provisioner")
+	if kubeletBindIdx < 0 || localPathBindIdx < 0 {
+		t.Fatalf("expected both /data bind-mounts in the SSH form, got:\n%s", script)
+	}
+	if quotaIdx > kubeletBindIdx || quotaIdx > localPathBindIdx {
+		t.Fatalf("project-quota setup at %d must precede the /data binds (kubelet=%d, local-path=%d), got:\n%s",
+			quotaIdx, kubeletBindIdx, localPathBindIdx, script)
+	}
+}
+
+// A box whose /data cannot carry project quotas must not join. It would look
+// healthy while being exactly what this exists to prevent: cache directories
+// with no per-account ceiling on a filesystem several tenants share, where one
+// account filling it evicts every other tenant on the box.
+func TestDataProjectQuotaScriptFailsClosed(t *testing.T) {
+	if !strings.Contains(dataProjectQuotaScript, `if [ "$fstype" != xfs ]`) {
+		t.Fatalf("expected the script to reject a non-xfs /data, got:\n%s", dataProjectQuotaScript)
+	}
+	// Two exits: a /data that is not xfs at all, and one that came back from the
+	// remount without quota accounting on.
+	if got := strings.Count(dataProjectQuotaScript, "exit 1"); got < 3 {
+		t.Fatalf("expected the script to abort on every unenforceable path, found %d exit 1", got)
+	}
+	// A single-filesystem box has no /data for cache directories to land on, so
+	// there is nothing to enforce and the join proceeds.
+	if !strings.Contains(dataProjectQuotaScript, `mountpoint -q "$data" || exit 0`) {
+		t.Fatalf("expected a no-op on boxes without a separate /data, got:\n%s", dataProjectQuotaScript)
+	}
+}
+
+// The provisioner's per-volume quota hooks shell out to xfs_quota on the host,
+// so the package has to be there before the first cache PVC is provisioned.
+func TestBootstrapInstallsXFSTools(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "n", K8sMinor: "v1.34"})
+	if !strings.Contains(script, "containerd xfsprogs") {
+		t.Fatalf("expected xfsprogs in the bootstrap apt install, got:\n%s", script)
+	}
+}
+
+// The image store is the one consumer of /data that is not a tenant, and it is
+// otherwise unbounded: the kubelet's image GC triggers on the FILESYSTEM being
+// nearly full, so on a box whose tenants are light containerd can grow into the
+// headroom their quotas were written against and starve them below their own
+// ceilings. Its quota can only be applied after the store has been relocated
+// onto /data (the directory has to exist to carry a project) and after apt has
+// installed xfsprogs.
+func TestBootstrapBoundsContainerdImageStoreAfterItsPrerequisites(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName: "kura-1", KubeconfigYAML: "kubeconfig\n", K8sMinor: "v1.34",
+		BootstrapUser: "ubuntu", InstanceType: "ovh",
+	})
+
+	quotaIdx := strings.Index(script, "bash "+containerdQuotaPath)
+	if quotaIdx < 0 {
+		t.Fatalf("expected the self-join to run %s, got:\n%s", containerdQuotaPath, script)
+	}
+	aptIdx := strings.Index(script, "containerd xfsprogs")
+	relocateIdx := strings.Index(script, "mkdir -p /data/containerd")
+	if aptIdx < 0 || relocateIdx < 0 {
+		t.Fatalf("expected the apt install and the image-store relocation, got:\n%s", script)
+	}
+	if quotaIdx < aptIdx || quotaIdx < relocateIdx {
+		t.Fatalf("containerd quota at %d must follow apt (%d) and the relocation (%d), got:\n%s",
+			quotaIdx, aptIdx, relocateIdx, script)
+	}
+}
+
+// Unlike the /data mount setup, a failed image-store quota must NOT fail the
+// join. Every tenant on the box is bounded either way; what is lost is defence
+// in depth on the shared pool, which is the state the box was in before.
+func TestContainerdQuotaDoesNotFailTheJoin(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "n", K8sMinor: "v1.34"})
+	line := "bash " + containerdQuotaPath + " || echo"
+	if !strings.Contains(script, line) {
+		t.Fatalf("expected the containerd quota step to be tolerated, got:\n%s", script)
+	}
+}
+
+// The reserved project id must stay clear of the range the provisioner hook
+// hashes volume directories into, or the image store and a cache volume would
+// share one ceiling.
+func TestContainerdProjectIDCannotCollideWithAVolume(t *testing.T) {
+	// The hook computes `crc % 16000000 + 1000`, so volumes occupy [1000, 16000999].
+	if containerdProjectID <= 0 || containerdProjectID >= 1000 {
+		t.Fatalf("containerd project id = %d, want a reserved id below the volume range", containerdProjectID)
+	}
+	if !strings.Contains(containerdQuotaScript, "bhard=$bytes") || strings.Contains(containerdQuotaScript, "ihard=") {
+		t.Fatal("expected a byte ceiling and no inode ceiling on the image store")
+	}
+}

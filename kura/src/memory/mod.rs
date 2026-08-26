@@ -190,6 +190,7 @@ impl MemoryController {
             pools.foreground_response_streaming_bytes(),
             pools.degraded_response_stream_slots(),
         );
+        metrics.update_transient_memory_capacity(pools.transient_capacity_bytes() as u64);
         Self {
             inner: Arc::new(MemoryControllerInner {
                 runtime_limit_bytes,
@@ -665,6 +666,15 @@ impl MemoryController {
 
     pub fn response_streaming_pool_bytes(&self) -> usize {
         self.inner.pools.response_streaming_bytes()
+    }
+
+    /// `Retry-After` for a response-stream shed, drawn from a window whose
+    /// ceiling tracks how many reads are already queued for a permit.
+    pub fn response_stream_retry_after_seconds(&self) -> u64 {
+        crate::backpressure::retry_after_seconds(crate::backpressure::retry_after_ceiling_seconds(
+            self.inner.response_stream_waiters.load(Ordering::Acquire),
+            self.inner.pools.response_stream_waiter_capacity() as u64,
+        ))
     }
 
     #[cfg(test)]

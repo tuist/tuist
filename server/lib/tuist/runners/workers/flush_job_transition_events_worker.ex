@@ -10,11 +10,12 @@ defmodule Tuist.Runners.Workers.FlushJobTransitionEventsWorker do
   LOCKED, INSERT the decoded payloads into ClickHouse, then DELETE
   the flushed rows — all inside one Postgres transaction per batch.
 
-  Ordering inside the batch doesn't matter for correctness: each
-  payload carries the transition's own `updated_at`, and the RMT's
-  argMax-by-`updated_at` read resolves any interleaving — including
-  with the direct ClickHouse writes that stay on during rollout
-  (identical dual-emitted rows collapse in the merge).
+  This is how ClickHouse learns about lifecycle transitions — the
+  `runner_jobs` table is a replica fed from this outbox (plus the
+  CH-only `log_archived_at` stamp in `Tuist.Runners.Jobs`). Ordering
+  inside a batch doesn't matter for correctness: each payload carries
+  the transition's own `updated_at`, and the RMT's
+  argMax-by-`updated_at` read resolves any interleaving.
 
   Crash safety: the CH INSERT happens before the PG DELETE, so a
   crash between the two re-flushes the batch next tick. Replayed

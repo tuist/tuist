@@ -33,6 +33,21 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert html =~ automation.id
     end
 
+    test "links each automation to its detail page", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      automation = AutomationsFixtures.automation_alert_fixture(project: project, name: "Auto-quarantine")
+
+      {:ok, live_view, _html} = open(conn, organization, project)
+
+      assert has_element?(
+               live_view,
+               "a[href='/#{organization.account.name}/#{project.name}/settings/automations/#{automation.id}']"
+             )
+    end
+
     test "does not let a regular project member forge automation mutations", %{
       organization: organization,
       project: project
@@ -568,6 +583,25 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       {:ok, lv, _html} = open(conn, organization, project)
       render_hook(lv, "delete_automation", %{"id" => other.id})
       assert {:ok, ^other} = Automations.get_alert(other.id)
+    end
+  end
+
+  describe "branch scope" do
+    test "the summary describes reliability as trunk-scoped rather than across branches", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "reliability_rate",
+        trigger_config: %{"threshold" => 90, "comparison" => "lt", "window_type" => "last_days", "window" => "30d"}
+      )
+
+      {:ok, _lv, html} = open(conn, organization, project)
+
+      assert html =~ "on the default branch"
+      refute html =~ "across branches"
     end
   end
 end

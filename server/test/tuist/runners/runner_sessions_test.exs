@@ -472,4 +472,210 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       assert :unknown_runner = RunnerSessions.record_execution("", 8101, account.id)
     end
   end
+
+  describe "clamped_open_session_counts_per_fleet/0" do
+    test "counts only open sessions past the six-hour bound" do
+      account = account_fixture()
+      fleet = "fleet-clamped"
+      now = DateTime.utc_now()
+
+      session_fixture(account,
+        fleet_name: fleet,
+        pod_name: "pod-leaked",
+        started_at: DateTime.add(now, -7 * 3600, :second)
+      )
+
+      session_fixture(account,
+        fleet_name: fleet,
+        pod_name: "pod-young-open",
+        started_at: DateTime.add(now, -600, :second)
+      )
+
+      session_fixture(account,
+        fleet_name: fleet,
+        pod_name: "pod-old-but-closed",
+        started_at: DateTime.add(now, -8 * 3600, :second),
+        ended_at: DateTime.add(now, -7 * 3600, :second)
+      )
+
+      assert RunnerSessions.clamped_open_session_counts_per_fleet()[fleet] == 1
+    end
+
+    test "omits fleets with nothing past the bound" do
+      account = account_fixture()
+      fleet = "fleet-healthy"
+
+      session_fixture(account, fleet_name: fleet, started_at: DateTime.utc_now())
+
+      refute Map.has_key?(RunnerSessions.clamped_open_session_counts_per_fleet(), fleet)
+    end
+  end
+
+  describe "pod reconciliation" do
+    test "list_open_for_pod_reconciliation/1 excludes closed and young sessions" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      threshold = DateTime.add(now, -900, :second)
+
+      old_open =
+        session_fixture(account,
+          pod_name: "pod-old-open",
+          started_at: DateTime.add(now, -3600, :second)
+        )
+
+      session_fixture(account,
+        pod_name: "pod-just-started",
+        started_at: DateTime.add(now, -30, :second)
+      )
+
+      session_fixture(account,
+        pod_name: "pod-already-closed",
+        started_at: DateTime.add(now, -3600, :second),
+        ended_at: DateTime.add(now, -1800, :second)
+      )
+
+      assert [%{id: id, pod_name: "pod-old-open"}] =
+               RunnerSessions.list_open_for_pod_reconciliation(threshold)
+
+      assert id == old_open.id
+    end
+
+    test "list_open_for_pod_reconciliation/1 returns oldest first so a capped batch drains the worst leaks" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      newer = session_fixture(account, pod_name: "pod-newer", started_at: DateTime.add(now, -3600, :second))
+      oldest = session_fixture(account, pod_name: "pod-oldest", started_at: DateTime.add(now, -5 * 86_400, :second))
+
+      assert [%{id: first}, %{id: second}] =
+               RunnerSessions.list_open_for_pod_reconciliation(DateTime.add(now, -900, :second))
+
+      assert first == oldest.id
+      assert second == newer.id
+    end
+
+    test "close_pod_missing/3 closes a fresh orphan at now" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      session =
+        session_fixture(account,
+          pod_name: "pod-fresh-orphan",
+          started_at: DateTime.add(now, -1800, :second)
+        )
+
+      assert :ok = RunnerSessions.close_pod_missing(session.id, now)
+      assert DateTime.compare(Repo.reload!(session).ended_at, now) == :eq
+    end
+
+    test "close_pod_missing/3 closes a long-leaked session at the billing clamp" do
+      # The row was already charged against `started_at + 6h`, so
+      # materialising that instant is billing-neutral — it only stops the
+      # session counting as an occupied host.
+      account = account_fixture()
+      now = DateTime.utc_now()
+      started_at = DateTime.add(now, -3 * 24 * 3600, :second)
+
+      session = session_fixture(account, pod_name: "pod-ancient-orphan", started_at: started_at)
+
+      assert :ok = RunnerSessions.close_pod_missing(session.id, now)
+
+      expected = DateTime.add(started_at, 6 * 3600, :second)
+      assert DateTime.compare(Repo.reload!(session).ended_at, expected) == :eq
+    end
+
+    test "close_pod_missing/3 loses to an accurate close that landed first" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      accurate_close = DateTime.add(now, -300, :second)
+
+      session =
+        session_fixture(account,
+          pod_name: "pod-raced",
+          started_at: DateTime.add(now, -1800, :second)
+        )
+
+      {:ok, _} = RunnerSessions.close_by_pod_name("pod-raced", accurate_close)
+
+      assert {:error, :stale_session} = RunnerSessions.close_pod_missing(session.id, now)
+      assert DateTime.compare(Repo.reload!(session).ended_at, accurate_close) == :eq
+    end
+
+    test "close_pod_missing/3 closes at the job's real completion when one was resolved" do
+      # Closing at the clamp would bill six hours for a job that ran for
+      # five minutes; closing at `now` would bill the reaper's own
+      # detection delay. Neither is what the customer used.
+      account = account_fixture()
+      now = DateTime.utc_now()
+      started_at = DateTime.add(now, -1800, :second)
+      completed_at = DateTime.add(started_at, 300, :second)
+
+      session = session_fixture(account, pod_name: "pod-real-end", started_at: started_at)
+
+      assert :ok = RunnerSessions.close_pod_missing(session.id, now, completed_at: completed_at)
+      assert DateTime.compare(Repo.reload!(session).ended_at, completed_at) == :eq
+    end
+
+    test "close_pod_missing/3 never lets a late completion extend past now" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      bogus_future = DateTime.add(now, 3600, :second)
+
+      session =
+        session_fixture(account,
+          pod_name: "pod-future-completion",
+          started_at: DateTime.add(now, -1800, :second)
+        )
+
+      assert :ok = RunnerSessions.close_pod_missing(session.id, now, completed_at: bogus_future)
+      assert DateTime.compare(Repo.reload!(session).ended_at, now) == :eq
+    end
+
+    test "close_pod_missing/3 still honours the six-hour bound" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      started_at = DateTime.add(now, -3 * 24 * 3600, :second)
+      # A job GitHub reported as running for a day: the safety bound
+      # outranks it, same as it does for the no-completion path.
+      completed_at = DateTime.add(started_at, 24 * 3600, :second)
+
+      session = session_fixture(account, pod_name: "pod-overlong", started_at: started_at)
+
+      assert :ok = RunnerSessions.close_pod_missing(session.id, now, completed_at: completed_at)
+
+      expected = DateTime.add(started_at, 6 * 3600, :second)
+      assert DateTime.compare(Repo.reload!(session).ended_at, expected) == :eq
+    end
+
+    test "close_pod_missing/3 floors an inverted interval at started_at" do
+      # GitHub's clock and ours can disagree. Writing a completion that
+      # precedes `started_at` would give the billing query negative time.
+      account = account_fixture()
+      now = DateTime.utc_now()
+      started_at = DateTime.add(now, -1800, :second)
+      skewed = DateTime.add(started_at, -120, :second)
+
+      session = session_fixture(account, pod_name: "pod-clock-skew", started_at: started_at)
+
+      assert :ok = RunnerSessions.close_pod_missing(session.id, now, completed_at: skewed)
+
+      ended_at = Repo.reload!(session).ended_at
+      assert DateTime.compare(ended_at, started_at) == :eq
+      assert DateTime.compare(ended_at, session.started_at) != :lt
+    end
+
+    test "close_pod_missing/3 is idempotent — a second close cannot move ended_at forward" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      session = session_fixture(account, pod_name: "pod-twice", started_at: DateTime.add(now, -1800, :second))
+
+      assert :ok = RunnerSessions.close_pod_missing(session.id, now)
+      first_close = Repo.reload!(session).ended_at
+
+      assert {:error, :stale_session} =
+               RunnerSessions.close_pod_missing(session.id, DateTime.add(now, 600, :second))
+
+      assert DateTime.compare(Repo.reload!(session).ended_at, first_close) == :eq
+    end
+  end
 end

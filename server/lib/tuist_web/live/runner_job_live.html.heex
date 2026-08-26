@@ -237,7 +237,12 @@
                   <% build_project = Map.get(@insights_projects_by_id, build.project_id) %>
                   <% row_status_props = TuistWeb.RunnerJobLive.build_status_badge_props(build) %>
                   <% build_step_window =
-                    TuistWeb.RunnerJobLive.insight_step_window(@steps, [build], :build) %>
+                    TuistWeb.RunnerJobLive.insight_step_window(
+                      @steps,
+                      [build],
+                      :build,
+                      @linked_build_run_windows
+                    ) %>
                   <.link
                     :if={build_project}
                     navigate={
@@ -408,7 +413,12 @@
           <% step_duration = TuistWeb.RunnerJobLive.step_duration_ms(step) %>
           <% expanded = TuistWeb.RunnerJobLive.step_expanded?(@expanded_steps, step) %>
           <% step_insights =
-            TuistWeb.RunnerJobLive.step_insights(step, @linked_build_runs, @linked_test_runs) %>
+            TuistWeb.RunnerJobLive.step_insights(
+              step,
+              @linked_build_runs,
+              @linked_test_runs,
+              @linked_build_run_windows
+            ) %>
           <% latest_step_build = List.first(step_insights.build_runs) %>
           <% latest_step_test = List.first(step_insights.test_runs) %>
           <div

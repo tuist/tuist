@@ -1,35 +1,22 @@
 defmodule Tuist.Runners.Jobs do
   @moduledoc """
-  ClickHouse-backed lifecycle table for workflow_jobs. The
-  `runner_jobs` ReplacingMergeTree carries one logical row per
-  `workflow_job_id`; every state transition is an INSERT that
-  advances the version column (`updated_at`) and RMT merge keeps
-  the latest row per key.
+  Workflow_job webhook orchestration and analytics reads.
 
-  This module is **state-recording + read-only views**. Claim
-  atomicity lives in `Tuist.Runners.Claims` (a thin Postgres
-  table). The split:
+  The lifecycle state itself lives in Postgres
+  (`Tuist.Runners.WorkflowJobs` — one `runner_workflow_jobs` row per
+  job, guarded compare-and-set transitions); the ClickHouse
+  `runner_jobs` ReplacingMergeTree is its analytics/history replica,
+  fed by the transition outbox
+  (`Tuist.Runners.Workers.FlushJobTransitionEventsWorker`). Single-writer
+  except for jobs that predate the Postgres store, which have no
+  lifecycle row to transition and so take the direct write in
+  `set_log_archived_at/2`. This module owns:
 
-    * **Postgres `runner_claims`** is the OLTP claim lock. One
-      row per currently-claimed workflow_job; PK on
-      `workflow_job_id` gives atomic INSERT-ON-CONFLICT-DO-NOTHING.
-    * **ClickHouse `runner_jobs` (here)** is the customer-facing
-      view + history. Powers the "what's queued / running right
-      now / recent runs" surfaces and the analytics dashboards.
-
-  Protocol: every state transition that touches the PG lock pairs
-  with an INSERT here so the customer view stays in sync.
-
-      queued → claimed → running → completed
-                  ↑          ↓
-                  └── release/stale recovery
-
-  ## State machine
-
-  Each transition is an INSERT carrying ALL columns forward from
-  the previous state plus the updated fields — RMT merges on
-  `(workflow_job_id)` keeping the latest `updated_at`, so columns
-  not refreshed by the new INSERT would otherwise revert.
+    * the webhook write orchestration — the per-job ordering lock,
+      the `runner_job_completions` resurrection guard, and the
+      telemetry/PubSub emission around each lifecycle event
+    * the ClickHouse **reads** powering the customer-facing surfaces
+      (jobs list, workflows rollups, status counts, archives)
 
   ## Idempotency
 
@@ -47,7 +34,10 @@ defmodule Tuist.Runners.Jobs do
   does: `argMax(col, updated_at)` aggregated by `workflow_job_id`
   for multi-row queries, and `ORDER BY updated_at DESC LIMIT 1`
   for single-row lookups. Both patterns use the merge-tree index
-  and avoid the per-query merge cost.
+  and avoid the per-query merge cost. Reads lag the Postgres state
+  by up to the outbox flusher's cadence (a minute), which is fine
+  for dashboards and forbidden for control-plane decisions — those
+  read Postgres.
   """
 
   import Ecto.Query
@@ -62,10 +52,13 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
   alias Tuist.Tests.Test, as: TestRun
 
   require Logger
+
+  @non_terminal_statuses ~w(queued claimed running)
 
   # The dispatch hot path (`pick_queued/2`) and the autoscaler
   # (`queued_count_by_fleet/1`) only care about jobs that could still
@@ -84,11 +77,9 @@ defmodule Tuist.Runners.Jobs do
   @queued_lookback_seconds 7 * 86_400
 
   @doc """
-  Serializes GitHub workflow_job events for a single `workflow_job_id`.
-
-  ClickHouse is still the lifecycle history store, but queued/completed
-  webhooks need a Postgres lock so a late `queued` or `waiting` delivery cannot
-  observe "missing", race a concurrent completion, and write a newer queued row.
+  Serializes GitHub workflow_job events for a single `workflow_job_id`,
+  so a late `queued` or `waiting` delivery cannot observe "missing",
+  race a concurrent completion, and resurrect a finished job.
 
   Re-entrant: inside an existing `Repo` transaction the lock is taken inline
   rather than through a nested `Repo.transaction/1`. `pg_advisory_xact_lock`
@@ -215,20 +206,14 @@ defmodule Tuist.Runners.Jobs do
   defp project_ids(project), do: project_ids([project])
 
   @doc """
-  Idempotent enqueue. Inserts a `status='queued'` row for the
-  workflow_job. Called from the `workflow_job.queued` webhook.
+  Idempotent enqueue. Upserts the `status='queued'` lifecycle row and
+  emits the enqueue telemetry + account broadcast. Called from the
+  `workflow_job.queued` webhook.
   """
   def enqueue(attrs) when is_map(attrs) do
-    now = DateTime.utc_now()
-
-    row =
-      attrs
-      |> Map.put(:status, "queued")
-      |> Map.put_new(:enqueued_at, now)
-      |> Map.put(:updated_at, now)
+    row = Map.put_new(attrs, :enqueued_at, DateTime.utc_now())
 
     :ok = WorkflowJobs.upsert_queued(row)
-    insert_row!(row)
 
     :telemetry.execute(
       Telemetry.event_name_job_enqueued(),
@@ -253,7 +238,7 @@ defmodule Tuist.Runners.Jobs do
     with_workflow_job_ordering_lock(workflow_job_id, fn ->
       cond do
         completion_recorded?(workflow_job_id) -> :ok
-        is_nil(current(workflow_job_id)) -> enqueue(attrs)
+        not WorkflowJobs.exists?(workflow_job_id) -> enqueue(attrs)
         true -> :ok
       end
     end)
@@ -335,8 +320,11 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
-  Records the `claimed` state transition for customer visibility.
-  Called after `Claims.attempt/5` succeeds and we're about to mint.
+  Post-claim guard + observability. Called after `Claims.attempt/5`
+  succeeds (which already transitioned the lifecycle row to
+  `claimed` in the claim's own transaction) and we're about to mint.
+  Returns `{:error, :completed}` when a completion was recorded for
+  the job — the caller releases the claim instead of minting.
 
   Does NOT open the per-Pod billing session — `Tuist.Runners`
   opens it only after `serve_claim/5` commits (JIT minted +
@@ -346,25 +334,13 @@ defmodule Tuist.Runners.Jobs do
   clamps to the 6h max-lifetime — over-billing for compute the
   customer never received.
   """
-  def record_claimed(candidate, pod_name, claimed_at) when is_map(candidate) and is_binary(pod_name) do
+  def record_claimed(candidate, _pod_name, claimed_at) when is_map(candidate) do
     workflow_job_id = Map.fetch!(candidate, :workflow_job_id)
 
     with_workflow_job_ordering_lock(workflow_job_id, fn ->
       if completion_recorded?(workflow_job_id) do
         {:error, :completed}
       else
-        now = DateTime.utc_now()
-
-        row =
-          Map.merge(candidate, %{
-            status: "claimed",
-            claimed_at: claimed_at,
-            pod_name: pod_name,
-            updated_at: now
-          })
-
-        insert_row!(row)
-
         :telemetry.execute(
           Telemetry.event_name_job_claim(),
           %{count: 1, queue_time_ms: duration_ms(candidate[:enqueued_at], claimed_at)},
@@ -378,160 +354,55 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
-  Records the `running` state — JIT mint succeeded, runner is
-  about to register with GitHub.
+  Emits the running telemetry + account broadcast — JIT mint
+  succeeded, runner is about to register with GitHub. The lifecycle
+  transition itself happens in `Tuist.Runners.Claims.mark_running/2`.
   """
-  def record_running(workflow_job_id, runner_name) when is_integer(workflow_job_id) and is_binary(runner_name) do
-    with_workflow_job_ordering_lock(workflow_job_id, fn ->
-      if completion_recorded?(workflow_job_id) do
-        :ok
-      else
-        case current(workflow_job_id) do
-          nil ->
-            Logger.warning("runners: no CH row to transition to running",
-              workflow_job_id: workflow_job_id
-            )
-
-            :ok
-
-          %Job{} = job ->
-            now = DateTime.utc_now()
-
-            row =
-              job
-              |> job_to_row()
-              |> Map.merge(%{
-                status: "running",
-                started_at: now,
-                runner_name: runner_name,
-                updated_at: now
-              })
-
-            insert_row!(row)
-
-            :telemetry.execute(
-              Telemetry.event_name_job_running(),
-              %{
-                count: 1,
-                queue_to_running_ms: duration_ms(job.enqueued_at, now),
-                claim_to_running_ms: duration_ms(job.claimed_at, now)
-              },
-              %{fleet: job.fleet_name || ""}
-            )
-
-            broadcast_status_change(job.account_id, "running")
-            :ok
-        end
-      end
-    end)
-  end
-
-  @doc """
-  Records the `queued` state — re-surfaces the workflow_job as
-  claimable after a release / stale-recovery.
-
-  The candidate-map variant is used by the dispatch hot path. It already
-  carries the stable job metadata selected by `pick_queued/3`, so it can write
-  the queued row without reading the current ClickHouse row first. This keeps
-  a failed dispatch releasable when ClickHouse is under read-memory pressure.
-
-  The workflow-job-id variant remains for recovery workers that do not retain
-  the original candidate metadata.
-  """
-  def record_queued(%{workflow_job_id: workflow_job_id} = candidate) when is_integer(workflow_job_id) do
-    with_workflow_job_ordering_lock(workflow_job_id, fn ->
-      if completion_recorded?(workflow_job_id) do
-        :ok
-      else
-        now = DateTime.utc_now()
-
-        row =
-          Map.merge(candidate, %{
-            status: "queued",
-            conclusion: "",
-            claimed_at: nil,
-            started_at: nil,
-            completed_at: nil,
-            pod_name: "",
-            runner_name: "",
-            log_archived_at: nil,
-            updated_at: now
-          })
-
-        insert_row!(row)
-
-        :telemetry.execute(
-          Telemetry.event_name_job_requeued(),
-          %{count: 1},
-          %{fleet: Map.get(candidate, :fleet_name, "")}
+  def record_running(workflow_job_id, _runner_name) when is_integer(workflow_job_id) do
+    case Repo.get(WorkflowJob, workflow_job_id) do
+      nil ->
+        Logger.warning("runners: no lifecycle row to report running",
+          workflow_job_id: workflow_job_id
         )
 
-        broadcast_status_change(Map.get(candidate, :account_id), "queued")
         :ok
-      end
-    end)
-  end
 
-  def record_queued(workflow_job_id) when is_integer(workflow_job_id) do
-    with_workflow_job_ordering_lock(workflow_job_id, fn ->
-      if completion_recorded?(workflow_job_id) do
+      %WorkflowJob{} = row ->
+        now = DateTime.utc_now()
+
+        :telemetry.execute(
+          Telemetry.event_name_job_running(),
+          %{
+            count: 1,
+            queue_to_running_ms: duration_ms(row.enqueued_at, now),
+            claim_to_running_ms: duration_ms(row.claimed_at, now)
+          },
+          %{fleet: row.fleet_name || ""}
+        )
+
+        broadcast_status_change(row.account_id, "running")
         :ok
-      else
-        case current(workflow_job_id) do
-          nil ->
-            :ok
-
-          %Job{} = job ->
-            now = DateTime.utc_now()
-
-            row =
-              job
-              |> job_to_row()
-              |> Map.merge(%{
-                status: "queued",
-                conclusion: "",
-                claimed_at: nil,
-                started_at: nil,
-                completed_at: nil,
-                pod_name: "",
-                runner_name: "",
-                log_archived_at: nil,
-                updated_at: now
-              })
-
-            insert_row!(row)
-
-            :telemetry.execute(
-              Telemetry.event_name_job_requeued(),
-              %{count: 1},
-              %{fleet: job.fleet_name || ""}
-            )
-
-            broadcast_status_change(job.account_id, "queued")
-            :ok
-        end
-      end
-    end)
+    end
   end
 
   @doc """
   Marks a job `completed` and records the GitHub conclusion. Called
-  from the `workflow_job.completed` webhook handler. Idempotent —
-  RMT merge collapses repeated completions to the latest
-  `updated_at`.
+  from the `workflow_job.completed` webhook handler and the recovery
+  workers' force-completes. Idempotent — the lifecycle row's terminal
+  guard makes redeliveries no-ops.
 
-  Returns `{:ok, %Job{}}` if the job was found and transitioned,
-  or `{:error, :not_found}` if no row exists for the workflow_job
-  yet (delivery race where `completed` arrives before `queued`).
+  Returns `{:ok, %WorkflowJob{}}` if a lifecycle row exists, or
+  `{:error, :not_found}` when none does (delivery race where
+  `completed` arrives before `queued`).
 
   Per-step data lives in `runner_job_steps`; the caller writes it
   via `Tuist.Runners.JobSteps.record/1` before invoking this.
   """
   def complete(workflow_job_id, conclusion) when is_integer(workflow_job_id) and is_binary(conclusion) do
     with_workflow_job_ordering_lock(workflow_job_id, fn ->
-      case current(workflow_job_id) do
+      case Repo.get(WorkflowJob, workflow_job_id) do
         nil -> {:error, :not_found}
-        %Job{} = job -> complete_locked(job, conclusion)
+        %WorkflowJob{} = row -> complete_locked(row, conclusion)
       end
     end)
   end
@@ -564,24 +435,110 @@ defmodule Tuist.Runners.Jobs do
   S3 (or clears it when the archive has been pruned). State-transition
   INSERT, carrying all other columns forward.
 
-  No-op when no row exists yet for the workflow_job.
+  The stamp is written to Postgres and reaches ClickHouse through the
+  transition outbox like every other column, so the analytics row has a
+  single writer and no write can re-assert a lifecycle state the job has
+  already left. ClickHouse trails the flush by up to a tick; control-plane
+  reads that must not see that lag go to `WorkflowJobs.log_archived_at/1`.
+
+  Jobs archived before `runner_workflow_jobs` existed have no row to
+  stamp and receive no outbox events at all, so for those the ClickHouse
+  row is the only state there is and writing it directly is safe. That
+  path retires once the pre-migration population ages past the archive
+  retention in `PruneArchivedLogsWorker`.
+
+  No-op when the workflow_job is unknown to both stores.
   """
   def set_log_archived_at(workflow_job_id, archived_at)
       when is_integer(workflow_job_id) and (is_nil(archived_at) or is_struct(archived_at, DateTime)) do
-    case current(workflow_job_id) do
-      nil ->
-        :ok
+    case WorkflowJobs.record_log_archived_at(workflow_job_id, archived_at) do
+      :ok -> :ok
+      :noop -> stamp_untracked_row(workflow_job_id, archived_at, DateTime.utc_now())
+    end
+  end
 
-      %Job{} = job ->
-        now = DateTime.utc_now()
+  @doc """
+  Counts jobs per fleet whose ClickHouse row is still non-terminal while
+  Postgres holds a terminal state.
 
-        row =
-          job
-          |> job_to_row()
-          |> Map.merge(%{log_archived_at: archived_at, updated_at: now})
+  The outbox makes divergence transient by construction, so this reads
+  zero in steady state and any non-zero value means a replica row that
+  will not converge on its own: a terminal job emits no further events,
+  so nothing lands to correct it. `settled_before` excludes rows young
+  enough to be mid-flush, which is also what keeps genuinely in-flight
+  jobs out of the count — those are non-terminal in both stores.
 
-        insert_row!(row)
-        :ok
+  Scans at most `limit` candidates so a systemic divergence can't hand
+  Postgres an unbounded id list; a truncated scan is logged rather than
+  silently reported as a smaller number.
+  """
+  def count_replica_divergence(%DateTime{} = settled_before, %DateTime{} = enqueued_floor, limit \\ 5_000) do
+    candidates = list_non_terminal_before(settled_before, enqueued_floor, limit)
+
+    if length(candidates) == limit do
+      Logger.warning("runners: replica divergence scan hit its cap of #{limit}; gauge undercounts")
+    end
+
+    terminal =
+      candidates
+      |> Enum.map(& &1.workflow_job_id)
+      |> WorkflowJobs.terminal_completions()
+
+    candidates
+    |> Enum.filter(&Map.has_key?(terminal, &1.workflow_job_id))
+    |> Enum.frequencies_by(&(&1.fleet_name || ""))
+  end
+
+  # Collapses per workflow_job via `argMax` rather than `FINAL`, matching
+  # the queue poll: `FINAL` would merge across every part on each tick.
+  defp list_non_terminal_before(settled_before, enqueued_floor, limit) do
+    latest =
+      from(j in Job,
+        where: j.enqueued_at >= ^enqueued_floor,
+        group_by: j.workflow_job_id,
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+          status: fragment("argMax(?, ?)", j.status, j.updated_at),
+          updated_at: max(j.updated_at)
+        }
+      )
+
+    ClickHouseRepo.all(
+      from(s in subquery(latest),
+        where: s.status in ^@non_terminal_statuses and s.updated_at < ^settled_before,
+        select: %{workflow_job_id: s.workflow_job_id, fleet_name: s.fleet_name},
+        limit: ^limit
+      )
+    )
+  end
+
+  @doc """
+  Whether the job's log archive is available to serve.
+
+  A stamp in either store counts. Postgres is the one that leads, by up
+  to an outbox flush after `ArchiveLogsWorker` writes it, so it answers
+  on its own for anything archived since it started carrying the column.
+  ClickHouse answers for the two populations Postgres cannot: jobs with
+  no lifecycle row at all, and jobs whose row predates the column and so
+  reads `NULL` while the archive itself exists in S3. Requiring Postgres
+  alone would take the download away from every archive made before that
+  migration.
+
+  Both fallbacks retire together, once every archive predating the column
+  has aged past the retention in `PruneArchivedLogsWorker`.
+
+  The cost of accepting either store is a stale yes for one flush after a
+  prune clears the stamp, where Postgres reads `NULL` and ClickHouse
+  still holds the old value. The prune has already deleted the S3 object
+  by then, so the download fails at the redirect either way; only the
+  status code differs.
+  """
+  def archive_available?(%Job{workflow_job_id: workflow_job_id, account_id: account_id, log_archived_at: ch_archived_at}) do
+    case WorkflowJobs.log_archived_at(workflow_job_id, account_id) do
+      {:ok, %DateTime{}} -> true
+      {:ok, nil} -> not is_nil(ch_archived_at)
+      :not_found -> not is_nil(ch_archived_at)
     end
   end
 
@@ -909,6 +866,25 @@ defmodule Tuist.Runners.Jobs do
   """
   def queued_count_by_fleet(fleet_name) when is_binary(fleet_name) do
     WorkflowJobs.queued_count_by_fleet(fleet_name, queued_lookback_floor())
+  end
+
+  @doc """
+  Queue depth and oldest-arrival per fleet, for the queue gauges.
+
+  Served from the Postgres lifecycle table — the same rows
+  `pick_queued_top_k/5` selects from and under the same
+  `@queued_lookback_seconds` floor, so the gauge and dispatch can never
+  disagree about what is queued. They used to: the gauge scanned the
+  ClickHouse `runner_jobs` replica, which since #12031 is fed only by
+  the transition outbox and therefore holds `queued` for any job whose
+  terminal transition never replayed. Those rows are unreachable to
+  dispatch and never age out on their own, so the tile read a backlog
+  that no Pod could ever drain.
+
+  Returns `%{fleet_name => %{count: n, oldest_enqueued_at: dt}}`.
+  """
+  def queue_stats_by_fleet do
+    WorkflowJobs.queue_stats_by_fleet(queued_lookback_floor())
   end
 
   @doc """
@@ -1262,6 +1238,30 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  Returns the same recovery shape as `list_orphaned_running/1` for
+  every `running` row bound to `pod_name`.
+
+  Feeds the `pods/stopped` fast path: a stopped Pod is proof that none
+  of the jobs it holds at `running` are executing on it, without
+  waiting out the staleness floor.
+  """
+  def list_running_for_pod(pod_name) when is_binary(pod_name) do
+    WorkflowJobs.list_running_for_pod(pod_name)
+  end
+
+  @doc """
+  Returns the same recovery shape as `list_orphaned_running/1` for
+  `running` rows *newer* than `threshold` — the rows the age gate
+  excludes.
+
+  `OrphanedRunnersWorker` narrows these by Pod absence, which is the
+  same evidence the age gate is a proxy for.
+  """
+  def list_running_since(%DateTime{} = threshold) do
+    WorkflowJobs.list_running_since(threshold)
+  end
+
+  @doc """
   Returns the same recovery shape as `list_orphaned_running/1` for a
   single `workflow_job_id`, or `nil` when that job's current status is
   not `running`.
@@ -1317,49 +1317,6 @@ defmodule Tuist.Runners.Jobs do
     WorkflowJobs.list_stale_queued(enqueued_after, enqueued_before)
   end
 
-  @doc """
-  ClickHouse-side source for `Tuist.Runners.Workers.ReconcileWorkflowJobsWorker`:
-  the latest state of every non-terminal `runner_jobs` row enqueued
-  after `enqueued_after`, carrying the full column set so a missing
-  Postgres lifecycle row can be adopted in its current status.
-
-  Transitional — jobs enqueued by code that predates the Postgres
-  lifecycle table exist only in ClickHouse, and Postgres-served
-  dispatch would never see them. Deleted together with the direct
-  ClickHouse writes once no such rows can exist.
-  """
-  def list_non_terminal(%DateTime{} = enqueued_after) do
-    ClickHouseRepo.all(
-      from(j in Job,
-        where: j.enqueued_at > ^enqueued_after,
-        group_by: j.workflow_job_id,
-        having: fragment("argMax(?, ?) != ?", j.status, j.updated_at, "completed"),
-        select: %{
-          workflow_job_id: j.workflow_job_id,
-          account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
-          fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
-          platform: fragment("argMax(?, ?)", j.platform, j.updated_at),
-          vcpus: fragment("argMax(?, ?)", j.vcpus, j.updated_at),
-          memory_gb: fragment("argMax(?, ?)", j.memory_gb, j.updated_at),
-          repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
-          workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
-          workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
-          run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
-          job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
-          head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
-          head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
-          requested_dispatch_label: fragment("argMax(?, ?)", j.requested_dispatch_label, j.updated_at),
-          status: fragment("argMax(?, ?)", j.status, j.updated_at),
-          enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
-          claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
-          started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
-          pod_name: fragment("argMax(?, ?)", j.pod_name, j.updated_at),
-          runner_name: fragment("argMax(?, ?)", j.runner_name, j.updated_at)
-        }
-      )
-    )
-  end
-
   # ----- internal -----
 
   defp queued_lookback_floor do
@@ -1387,67 +1344,54 @@ defmodule Tuist.Runners.Jobs do
     |> ClickHouseRepo.one()
   end
 
-  defp complete_locked(%Job{} = job, conclusion) do
+  defp complete_locked(%WorkflowJob{} = row, conclusion) do
     now = DateTime.utc_now()
 
-    completion = %{
-      status: "completed",
-      conclusion: conclusion,
-      completed_at: now,
-      updated_at: now
-    }
-
-    row =
-      job
-      |> job_to_row()
-      |> Map.merge(completion)
-
-    persist_completion!(job.workflow_job_id, job.account_id, conclusion, now)
-    :ok = WorkflowJobs.record_completed(job_to_row(job), conclusion, now)
-    insert_row!(row)
+    persist_completion!(row.workflow_job_id, row.account_id, conclusion, now)
+    :ok = WorkflowJobs.record_completed(workflow_job_attrs(row), conclusion, now)
 
     :telemetry.execute(
       Telemetry.event_name_job_completed(),
       %{
         count: 1,
-        run_time_ms: duration_ms(job.started_at, now),
-        queue_time_ms: duration_ms(job.enqueued_at, job.claimed_at),
-        total_time_ms: duration_ms(job.enqueued_at, now)
+        run_time_ms: duration_ms(row.started_at, now),
+        queue_time_ms: duration_ms(row.enqueued_at, row.claimed_at),
+        total_time_ms: duration_ms(row.enqueued_at, now)
       },
       %{
-        fleet: job.fleet_name || "",
+        fleet: row.fleet_name || "",
         conclusion: normalise_conclusion(conclusion)
       }
     )
 
-    broadcast_status_change(job.account_id, "completed")
+    broadcast_status_change(row.account_id, "completed")
 
-    {:ok, Map.merge(job, completion)}
+    {:ok, %{row | status: WorkflowJobs.terminal_status(conclusion), conclusion: conclusion, completed_at: now}}
   end
 
   defp record_completed_locked(attrs, conclusion) do
     now = DateTime.utc_now()
 
-    row =
-      attrs
-      |> Map.put(:status, "completed")
-      |> Map.put(:conclusion, conclusion)
-      |> Map.put_new(:enqueued_at, now)
-      |> Map.put(:completed_at, now)
-      |> Map.put(:updated_at, now)
-
-    persist_completion!(Map.fetch!(row, :workflow_job_id), Map.fetch!(row, :account_id), conclusion, now)
-    :ok = WorkflowJobs.record_completed(row, conclusion, now)
-    insert_row!(row)
+    persist_completion!(Map.fetch!(attrs, :workflow_job_id), Map.fetch!(attrs, :account_id), conclusion, now)
+    :ok = WorkflowJobs.record_completed(attrs, conclusion, now)
 
     :telemetry.execute(
       Telemetry.event_name_job_completed(),
       %{count: 1, run_time_ms: 0, queue_time_ms: 0, total_time_ms: 0},
-      %{fleet: Map.get(row, :fleet_name, ""), conclusion: normalise_conclusion(conclusion)}
+      %{fleet: Map.get(attrs, :fleet_name, ""), conclusion: normalise_conclusion(conclusion)}
     )
 
     broadcast_status_change(Map.get(attrs, :account_id), "completed")
     :ok
+  end
+
+  # The lifecycle row's fields as the attrs map `WorkflowJobs`
+  # expects, so the terminal upsert's insert branch carries the full
+  # candidate metadata when the CAS has nothing to update.
+  defp workflow_job_attrs(%WorkflowJob{} = row) do
+    row
+    |> Map.from_struct()
+    |> Map.drop([:__meta__, :account])
   end
 
   defp acquire_workflow_job_ordering_lock(workflow_job_id) do
@@ -1480,6 +1424,27 @@ defmodule Tuist.Runners.Jobs do
       conflict_target: [:workflow_job_id],
       on_conflict: {:replace, [:account_id, :conclusion, :completed_at, :updated_at]}
     )
+
+    :ok
+  end
+
+  defp stamp_untracked_row(workflow_job_id, archived_at, now) do
+    case current(workflow_job_id) do
+      nil ->
+        :ok
+
+      %Job{} = job ->
+        job
+        |> job_to_row()
+        |> Map.put(:updated_at, now)
+        |> stamp!(archived_at)
+    end
+  end
+
+  defp stamp!(row, archived_at) do
+    row
+    |> Map.put(:log_archived_at, archived_at)
+    |> insert_row!()
 
     :ok
   end

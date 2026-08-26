@@ -54,10 +54,62 @@
     max-width: 480px;
   }
 
-  & [data-part="runner-concurrency-description"] {
+  /* Kura disk claim override: the same treatment as the runner
+     concurrency form below, so the two editable cards on this page read
+     alike. Capped at the trigger-deployment form's width because the
+     value is a short quantity and a full-bleed input reads as broken. */
+  & [data-part="kura-storage-claim-description"] {
     margin: var(--noora-spacing-0);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-medium);
+  }
+
+  & #kura-storage-claim-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    max-width: 480px;
+  }
+
+  & [data-part="runner-concurrency-description"],
+  & [data-part="runner-trial-description"],
+  & [data-part="prepaid-description"],
+  & [data-part="prepaid-empty"] {
+    margin: var(--noora-spacing-0);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & #prepaid-minutes-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    max-width: 480px;
+  }
+
+  & [data-part="prepaid-quote"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    margin: var(--noora-spacing-0);
+
+    & > div {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      gap: var(--noora-spacing-4);
+    }
+
+    & dt {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
+
+    & dd {
+      margin: var(--noora-spacing-0);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
   }
 
   & #runner-concurrency-form {
@@ -77,7 +129,7 @@
       gap: var(--noora-spacing-4);
       margin: var(--noora-spacing-0);
       border: 1px solid var(--noora-surface-border-primary);
-      border-radius: var(--noora-radius-large);
+      border-radius: var(--noora-radius-6);
       padding: var(--noora-spacing-6);
 
       & > legend {
@@ -135,12 +187,12 @@
   }
 
   & [data-part="terminal"] {
-    border-radius: var(--noora-radius-medium);
-    background: var(--noora-surface-background-secondary, #0b0d12);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-secondary);
     padding: var(--noora-spacing-4);
     max-height: 60vh;
     overflow: auto;
-    color: var(--noora-surface-label-on-dark, #e6e6e6);
+    color: var(--noora-surface-label-primary);
     font-size: 12px;
     line-height: 1.5;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -173,7 +225,7 @@
     & > select {
       appearance: auto;
       border: 1px solid var(--noora-surface-border-primary);
-      border-radius: var(--noora-radius-medium);
+      border-radius: var(--noora-radius-3);
       background: var(--noora-surface-background-primary);
       padding: var(--noora-spacing-3) var(--noora-spacing-4);
       width: 100%;

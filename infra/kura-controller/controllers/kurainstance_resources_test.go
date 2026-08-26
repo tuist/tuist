@@ -172,3 +172,80 @@ func TestCeilingBudgetAdvertisedGatesOnLiveNodeCapacity(t *testing.T) {
 		t.Fatalf("spec flag off must stay off regardless of node state, got %v (err %v)", got, err)
 	}
 }
+
+// The data volume is a local-path PV -- a directory on the node's
+// ephemeral-storage filesystem -- so the claim's size bounds nothing and the
+// scheduler would otherwise place cache pods onto a node until it filled and
+// kubelet evicted the whole region. The ephemeral-storage request is the only
+// thing that reserves that disk, so a change that drops it silently restores
+// the overcommit.
+func TestDefaultResourcesReservesDeclaredStorage(t *testing.T) {
+	r := defaultResources(&kurav1alpha1.KuraInstance{
+		Spec: kurav1alpha1.KuraInstanceSpec{StorageSize: "50Gi"},
+	}, false)
+
+	request, ok := r.Requests[corev1.ResourceEphemeralStorage]
+	if !ok {
+		t.Fatal("expected an ephemeral-storage request")
+	}
+	if got := request.String(); got != "50Gi" {
+		t.Fatalf("ephemeral-storage request = %q, want 50Gi", got)
+	}
+
+	// A limit is enforced against the pod's writable layer, logs and emptyDir,
+	// none of which is where the cache lives, so it would evict on the wrong
+	// signal while leaving the real consumption unbounded.
+	if _, ok := r.Limits[corev1.ResourceEphemeralStorage]; ok {
+		t.Fatal("expected no ephemeral-storage limit")
+	}
+}
+
+// An instance that declares no size still reserves the controller's fallback
+// claim, so an unset field cannot quietly reserve nothing.
+func TestDefaultResourcesReservesFallbackStorage(t *testing.T) {
+	r := defaultResources(&kurav1alpha1.KuraInstance{}, false)
+
+	request, ok := r.Requests[corev1.ResourceEphemeralStorage]
+	if !ok {
+		t.Fatal("expected an ephemeral-storage request")
+	}
+	if got := request.String(); got != "200Gi" {
+		t.Fatalf("ephemeral-storage request = %q, want 200Gi", got)
+	}
+}
+
+// Kura opens its store before it binds the listener that answers /up, so a
+// slow recovery (RocksDB WAL replay after an unclean shutdown) is spent
+// against the startup budget rather than the liveness one. The kubelet's
+// default failureThreshold of 3 would cap that budget at ~30 seconds and
+// restart the container mid-recovery, leaving a dirtier write-ahead log for
+// the next attempt. The budget must stay at the 300 seconds the in-tree Helm
+// chart grants chart-managed pods for the same probe.
+func TestStartupProbeGrantsChartRecoveryBudget(t *testing.T) {
+	container := podTemplate(&kurav1alpha1.KuraInstance{}, "", "production", "", false).Spec.Containers[0]
+
+	probe := container.StartupProbe
+	if probe == nil {
+		t.Fatal("expected a startup probe")
+	}
+	if probe.FailureThreshold != 30 {
+		t.Fatalf("startup failureThreshold = %d, want 30", probe.FailureThreshold)
+	}
+	if budget := probe.FailureThreshold * probe.PeriodSeconds; budget < 300 {
+		t.Fatalf("startup budget = %ds, want at least 300s", budget)
+	}
+}
+
+// The startup threshold is deliberately set at the call site: httpProbe backs
+// the readiness probe and livenessProbe too, and widening it there would turn
+// a wedged pod's liveness restart into a ten-times-slower recovery.
+func TestSteadyStateProbesKeepDefaultFailureThreshold(t *testing.T) {
+	container := podTemplate(&kurav1alpha1.KuraInstance{}, "", "production", "", false).Spec.Containers[0]
+
+	if got := container.LivenessProbe.FailureThreshold; got != 0 {
+		t.Fatalf("liveness failureThreshold = %d, want 0 so it defaults to 3", got)
+	}
+	if got := container.ReadinessProbe.FailureThreshold; got != 0 {
+		t.Fatalf("readiness failureThreshold = %d, want 0 so it defaults to 3", got)
+	}
+}

@@ -23,22 +23,34 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.Rollouts
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StorageClaims
   alias Tuist.Repo
 
   require Logger
 
   @pubsub Tuist.PubSub
+  # Statuses in which a row holds no volumes: teardown deleted the StatefulSet
+  # and every claim with it, and `:destroying` is on its way there. A claim
+  # change has nothing to apply to these, and they pick up the current one when
+  # they are next built.
+  @volumeless_statuses [:destroying, :destroyed, :archived]
   @create_server_keys %{
     "account_id" => :account_id,
     "region" => :region,
     "image_tag" => :image_tag
   }
-  @create_server_atom_keys Map.values(@create_server_keys)
+  # `:account` is internal: a caller that already holds the account hands it
+  # over so resolving the claim does not refetch it. Deliberately absent from
+  # @create_server_keys, so it cannot arrive through the string-keyed params the
+  # LiveViews forward.
+  @create_server_atom_keys [:account | Map.values(@create_server_keys)]
   @public_endpoint_timeout 5_000
   @provisioner_node_ref_format ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
   @provisioner_node_ref_max_length 53
@@ -55,6 +67,19 @@ defmodule Tuist.Kura do
 
   @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
   def reconcile_orphaned_deployments, do: Reconciler.reconcile()
+
+  # How long a server that has stopped receiving new traffic keeps serving
+  # before its resources are torn down, so persistent gRPC channels and
+  # in-flight builds finish. Shared by the warm-handoff move (where the
+  # promoted target is already caught up) and by the demand-driven lifecycle's
+  # drain-pending wait (where the endpoint is already unpublished, so new
+  # traffic has moved off). In both cases the work the drain protects has a
+  # correct outcome without it, so this is a safety margin rather than a
+  # correctness requirement.
+  @drain_seconds 120
+
+  @doc "Seconds a draining server keeps serving before teardown."
+  def drain_seconds, do: @drain_seconds
 
   ## Versions
 
@@ -85,8 +110,12 @@ defmodule Tuist.Kura do
   def version_label(image_tag) when is_binary(image_tag), do: image_tag
 
   @doc """
-  Creates deployments for active Kura servers that are behind the
-  latest released Kura runtime image tag.
+  Creates deployments for active Kura servers that are behind the latest
+  released Kura runtime image tag, a bounded batch per tick. This is the
+  kill-switch fallback used when
+  `Tuist.FeatureFlags.kura_rollout_orchestration_enabled?/0` is off; the
+  health-gated wave machinery lives in `Tuist.Kura.Rollouts`, and it
+  replaces the at-most-once invariant below with rollout-scoped attempts.
 
   Each `(server, image_tag)` pair is scheduled at most once. A newer image
   supersedes an open deployment for an older image so a rollout that cannot
@@ -158,9 +187,18 @@ defmodule Tuist.Kura do
   end
 
   defp servers_needing_version_query(image_tag) do
+    # `:cancelled` is excluded: a cancelled deployment never ran, so it is not
+    # evidence the image was delivered. Entering drain-pending cancels the open
+    # rollout, and without this a server whose drain was then cancelled would
+    # stay on its old image until some *newer* release came along, because the
+    # cancelled row looked like the image had already been scheduled.
+    # `:superseded` still counts, because a newer image deliberately replaced
+    # that one and re-scheduling it would roll backwards.
     deployment_for_image_exists_query =
       from(d in Deployment,
-        where: parent_as(:server).id == d.kura_server_id and d.image_tag == ^image_tag,
+        where:
+          parent_as(:server).id == d.kura_server_id and d.image_tag == ^image_tag and
+            d.status != :cancelled,
         select: 1
       )
 
@@ -188,6 +226,211 @@ defmodule Tuist.Kura do
     )
   end
 
+  @doc """
+  The claim each of an instance's replicas actually holds.
+
+  The claim pinned on the row when it carries one, which is what its volumes
+  were created at rather than what its account would be sized at today. The two
+  diverge for as long as an instance holds volumes built under different sizing,
+  and nothing converges them on its own, so an operator looking at a region's
+  occupancy can see which instances account for it.
+
+  A row that pins none holds what it resolves to instead: its account's
+  effective claim where the region sizes per account, the region's own declared
+  claim everywhere else. Reading the pinned column alone reported `nil` for a
+  whole region that reserves a claim without ever pinning one.
+
+  `account_claim` is `effective_storage_claim/1`, taken as an argument so a page
+  listing an account's instances resolves it once rather than once per row.
+  """
+  def instance_storage_claim(%Server{storage_claim_size: claim}, _account_claim) when is_binary(claim) and claim != "",
+    do: claim
+
+  def instance_storage_claim(%Server{region: region_id}, account_claim) do
+    case Regions.fetch(region_id) do
+      {:ok, region} ->
+        if Regions.storage_governed?(region),
+          do: account_claim,
+          else: region.provisioner_config[:storage_size]
+
+      {:error, _reason} ->
+        nil
+    end
+  end
+
+  @doc """
+  The claim the account's instances are built at: its override when it carries
+  one, the claim its plan gives it otherwise.
+  """
+  defdelegate effective_storage_claim(account), to: StorageClaims, as: :effective_claim_size
+
+  @doc """
+  The account's claim override, or `nil` when its plan still decides.
+  """
+  defdelegate storage_claim_override(account), to: StorageClaims, as: :override_for
+
+  @doc """
+  The claim the account's plan gives it, which is what applies when it carries
+  no override.
+  """
+  defdelegate plan_storage_claim(account), to: StorageClaims, as: :plan_claim_size
+
+  @doc """
+  The smallest claim an override may set.
+  """
+  defdelegate minimum_storage_claim, to: Regions
+
+  @doc """
+  Builds a changeset for the ops claim-override form.
+  """
+  defdelegate change_storage_claim_override(account, attrs \\ %{}), to: StorageClaims, as: :change_override
+
+  @doc """
+  Sets or clears an account's claim override and applies it to the instances it
+  already has running.
+
+  Re-pinning the running rows is the whole of "apply this now". The pinned claim
+  is what renders into the manifest, so an override that only moved the
+  account's default would never reach a cluster: every existing instance would
+  keep serving at the claim it was built with, and the new number would sit in
+  the database describing nothing. Writing it onto the rows puts it in the
+  manifest revision, which carries it to the next reconciler tick.
+
+  What the cluster does with it there depends on which way the claim moved, and
+  only one of the two costs anything.
+
+  Raising it replaces volumes. The bare-metal regions run a storage class that
+  cannot expand a claim and a StatefulSet cannot re-template one, so a volume too
+  small to hold the ring it is now told to budget has to be rebuilt rather than
+  grown. The controller does that one replica at a time behind the standby, so
+  the account's endpoint stays up and each rebuilt replica refills its ring from
+  the sibling that kept serving. What it costs is a rollout, not an outage, and
+  the cache survives it in the ordinary two-replica case. An instance running a
+  single replica has no standby to serve or to refill from, so there it is an
+  interruption and a cold start.
+
+  Lowering it costs nothing. The volume already holds more than the new ring
+  budget, so it is left alone and the ring evicts down into it. The claim is a
+  scheduling reservation rather than a filesystem quota on this storage class,
+  so the room comes back as the ring evicts rather than when the volume is next
+  rebuilt.
+
+  Returns `{:ok, %{claim_size: claim, raised: servers, lowered: servers}}`, where
+  `claim_size` is what the account's instances are now built at: its override,
+  or the claim its plan gives it back when the override is cleared.
+
+  The two lists say which way each instance's *claim* moved, which is not quite
+  the same question as which ones the cluster rebuilds, and the gap is worth
+  being precise about. The controller rebuilds a volume only when the claim
+  exceeds what that volume was actually built at, and this only knows what the
+  row was previously pinned to. A volume is never smaller than the row's pin
+  (lowering the pin leaves the volume alone), so the two agree except after an
+  earlier decrease left a volume oversized: `50Gi` down to `20Gi` and back up to
+  `40Gi` lands here as raised, while the volume is still the original `50Gi` and
+  the controller keeps the cache.
+
+  That makes `:raised` an upper bound rather than a list of casualties, and it
+  errs in the safe direction: nothing lands in `:lowered` that the cluster then
+  rebuilds. Reporting it the other way round would promise a cache that is about
+  to be thrown away. Naming the volumes exactly would mean recording what each
+  one was built at, which is state the control plane does not observe today.
+  """
+  def update_storage_claim_override(%Account{} = account, attrs) when is_map(attrs) do
+    with {:ok, override} <- StorageClaims.cast_override(account, attrs),
+         {:ok, result} <- write_storage_claim_override(account, override) do
+      Enum.each(result.raised ++ result.lowered, &broadcast_server(&1, :updated))
+      {:ok, result}
+    end
+  end
+
+  defp write_storage_claim_override(account, override) do
+    Repo.transaction(fn ->
+      # Taken before anything is read, and paired with the shared lock every path
+      # that builds volumes takes. Without it the two interleave and never
+      # converge: a provision that resolved the claim before this committed
+      # inserts the old one, and the re-pin below cannot reach a row that did not
+      # exist when it ran. A pinned claim wins from then on, so the instance is
+      # left at a claim nobody asked for and nothing corrects it.
+      lock_account(account.id)
+
+      # Read before the write. A governed region resolves an instance that pins
+      # no claim of its own from its account rather than from a region-wide
+      # constant, so this is what those instances are rendering right now, and
+      # what a change to the override has to be measured against.
+      previous = StorageClaims.effective_claim_size(account)
+
+      case StorageClaims.put_override(account, override) do
+        :ok ->
+          claim_size = StorageClaims.effective_claim_size(account)
+
+          account
+          |> repin_storage_claims(previous, claim_size)
+          |> Map.put(:claim_size, claim_size)
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  # Only the rows that still hold volumes, and only in the regions that size
+  # instances from their account rather than alike. An archived or destroyed row
+  # holds nothing, because teardown took the StatefulSet and every claim with it,
+  # so it needs no re-pin and takes the current claim on its cold return.
+  #
+  # A row already rendering `claim_size` is left alone: re-pinning it would
+  # produce no manifest change, and reporting it as rebuilt would tell an
+  # operator a cache was dropped that never was.
+  defp repin_storage_claims(%Account{id: account_id}, previous, claim_size) do
+    {raised, lowered} =
+      Server
+      |> where([server], server.account_id == ^account_id)
+      |> where([server], server.status not in ^@volumeless_statuses)
+      |> Repo.all()
+      |> Enum.filter(&storage_claim_moves?(&1, previous, claim_size))
+      |> Enum.map(fn server ->
+        raised? = claim_grows?(instance_storage_claim(server, previous), claim_size)
+
+        {server |> Server.lifecycle_changeset(%{storage_claim_size: claim_size}) |> Repo.update!(), raised?}
+      end)
+      |> Enum.split_with(fn {_server, raised?} -> raised? end)
+
+    %{raised: Enum.map(raised, &elem(&1, 0)), lowered: Enum.map(lowered, &elem(&1, 0))}
+  end
+
+  # Which way this row's claim moved, which bounds what the cluster does with it.
+  # A claim above what the row previously carried may exceed what its volume was
+  # built at, in which case the ring would be budgeted past the end of the disk
+  # and the volumes are rebuilt. A claim below it cannot: the volume is never
+  # smaller than the pin, so a smaller claim always fits what is already there
+  # and the ring evicts down into it.
+  #
+  # An unreadable quantity is reported as the destructive reading: promising a
+  # cache survives is the answer that costs something when it is wrong.
+  defp claim_grows?(held, claim_size) do
+    with {:ok, held_bytes} <- Regions.parse_storage_quantity(held),
+         {:ok, claim_bytes} <- Regions.parse_storage_quantity(claim_size) do
+      claim_bytes > held_bytes
+    else
+      _ -> true
+    end
+  end
+
+  # Resolved exactly as the ops card resolves it, against the claim the account
+  # held before this write: for a row that pins none, that is what it renders
+  # today. Pinning such a row is the point rather than a side effect, since it
+  # stops resolving with the account and holds what its volumes were built at,
+  # which is what every row created in a governed region already does.
+  defp storage_claim_moves?(%Server{} = server, previous, claim_size) do
+    case Regions.fetch(server.region) do
+      {:ok, region} ->
+        Regions.storage_governed?(region) and instance_storage_claim(server, previous) != claim_size
+
+      {:error, _reason} ->
+        false
+    end
+  end
+
   ## Servers
 
   @doc """
@@ -202,16 +445,53 @@ defmodule Tuist.Kura do
   `attrs` keys: `:account_id`, `:region`, `:image_tag`.
   """
   def create_server(attrs) do
-    attrs = normalize_attrs(attrs)
+    attrs =
+      attrs
+      |> normalize_attrs()
+      |> inherit_rollout_image_tag()
 
     with {:ok, region} <- fetch_region(attrs[:region]),
-         {:ok, account} <- Accounts.get_account_by_id(attrs[:account_id]),
+         {:ok, account} <- sizing_account(attrs),
          {:ok, ref} <- region.provisioner.provision(account, region, server_stub(attrs)),
          :ok <- validate_provisioner_node_ref(account, ref) do
-      attrs = Map.put(attrs, :provisioner_node_ref, ref)
-      insert_server(attrs, region)
+      attrs
+      |> Map.delete(:account)
+      |> Map.put(:provisioner_node_ref, ref)
+      |> insert_server(region, account)
     end
   end
+
+  # Callers that already hold the account pass it rather than its id, because
+  # resolving the claim reads the account's subscriptions and reloading it here
+  # drops the preload. The archival loop holds one per account it provisions,
+  # so without this every provision in a pass costs a fetch and a subscription
+  # lookup it did not need.
+  defp sizing_account(%{account: %Account{id: id} = account, account_id: id}), do: {:ok, account}
+  defp sizing_account(attrs), do: Accounts.get_account_by_id(attrs[:account_id], preload: [:subscriptions])
+
+  # The claim the instance's volumes are about to be created at. Resolved here,
+  # at the one moment it can change, and carried on the row from then on: the
+  # bare-metal regions cannot expand a claim, so an instance keeps what it was
+  # built with until the volumes are built again. A region that sizes every
+  # instance alike pins nothing and keeps rendering its own claim. See
+  # `Tuist.Kura.Server`.
+  defp storage_claim(account, %Regions{} = region) do
+    if Regions.storage_governed?(region) do
+      %{storage_claim_size: StorageClaims.effective_claim_size(account)}
+    else
+      %{}
+    end
+  end
+
+  # Servers created mid-rollout inherit their account's wave state (the
+  # rollout's baseline tag until the wave completes, the target after)
+  # instead of jumping straight to whatever tag the caller resolved. See
+  # `Tuist.Kura.Rollouts.provisioning_image_tag/2`.
+  defp inherit_rollout_image_tag(%{account_id: account_id, image_tag: image_tag} = attrs) when is_binary(image_tag) do
+    %{attrs | image_tag: Rollouts.provisioning_image_tag(account_id, image_tag)}
+  end
+
+  defp inherit_rollout_image_tag(attrs), do: attrs
 
   defp validate_provisioner_node_ref(account, ref) do
     cond do
@@ -243,8 +523,10 @@ defmodule Tuist.Kura do
     |> Ecto.Changeset.add_error(:account_handle, message)
   end
 
-  defp insert_server(attrs, region) do
+  defp insert_server(attrs, region, account) do
     case Repo.transaction(fn ->
+           attrs = Map.merge(attrs, locked_storage_claim(account, region))
+
            with {:ok, server} <- attrs |> Server.create_changeset() |> Repo.insert(),
                 {:ok, _deployment} <- insert_initial_deployment(server, region, attrs[:image_tag]) do
              Repo.preload(server, :deployments)
@@ -339,14 +621,17 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  The regions of the account's non-destroyed steady-state servers (the same
-  rows as `list_servers_for_account/1`). The slim variant for hot paths —
-  mesh heartbeats run this every minute per enrolled node and only need the
-  region strings, not the ever-growing deployment-history preload.
+  The regions of the account's live steady-state servers. The slim variant for
+  hot paths — mesh heartbeats run this every minute per enrolled node and only
+  need the region strings, not the ever-growing deployment-history preload.
+
+  Archived rows are excluded even though they are not destroyed: they have no
+  workload behind them, so advertising their region as a mesh peer would hand
+  self-hosted nodes an address nothing answers on.
   """
   def server_regions_for_account(account_id) do
     Server
-    |> where([s], s.account_id == ^account_id and s.status != :destroyed and s.move_phase == :none)
+    |> where([s], s.account_id == ^account_id and s.status not in [:destroyed, :archived] and s.move_phase == :none)
     |> order_by([s], asc: s.region)
     |> select([s], s.region)
     |> Repo.all()
@@ -505,6 +790,16 @@ defmodule Tuist.Kura do
         %Server{status: :destroyed} ->
           Repo.rollback(:server_destroyed)
 
+        # The archival sweep runs concurrently with the reconciler, so a server
+        # can enter drain-pending after the deployment loop preloaded it as
+        # active. Rejecting under the lock is what makes that preloaded check an
+        # optimisation rather than the guard: without this, an activation would
+        # publish the endpoint and flip the row back to `:active` behind the
+        # lifecycle's back, leaving its drain clock set. Only
+        # `Kura.cancel_drain/1` may return a draining instance to service.
+        %Server{status: status} when status in [:drain_pending, :archived] ->
+          Repo.rollback(:server_reclaimed)
+
         %Server{} = server ->
           {:ok, server} =
             server
@@ -547,6 +842,13 @@ defmodule Tuist.Kura do
   gate (`Catalog.fleet_on_cluster_network?/1`).
   """
   def runner_cache_endpoint_url(%Account{} = account, platform) when platform in [:linux, :macos] do
+    # A runner build resolving its cache endpoint is cache demand for the
+    # account just as a developer machine's resolution is, and it is recorded
+    # at the same boundary. The account's service-region instance is what the
+    # demand keeps warm; the private runner-cache node this call may return is
+    # a separate identity rule (`Tuist.Kura.RunnerCache`).
+    Demand.record(account.id)
+
     private_runner_cache_url(account, platform) || public_in_cluster_runner_cache_url(account, platform)
   end
 
@@ -731,6 +1033,16 @@ defmodule Tuist.Kura do
         %Server{status: :destroyed} ->
           Repo.rollback(:server_destroyed)
 
+        # The archival sweep runs concurrently with the reconciler, so a server
+        # can enter drain-pending after the deployment loop preloaded it as
+        # active. Rejecting under the lock is what makes that preloaded check an
+        # optimisation rather than the guard: without this, an activation would
+        # publish the endpoint and flip the row back to `:active` behind the
+        # lifecycle's back, leaving its drain clock set. Only
+        # `Kura.cancel_drain/1` may return a draining instance to service.
+        %Server{status: status} when status in [:drain_pending, :archived] ->
+          Repo.rollback(:server_reclaimed)
+
         %Server{url: previous_url} = server ->
           with {:ok, server} <-
                  server
@@ -766,7 +1078,8 @@ defmodule Tuist.Kura do
              nil ->
                Repo.rollback(:not_found)
 
-             %Server{status: status} = server when status in [:destroying, :destroyed] ->
+             %Server{status: status} = server
+             when status in [:destroying, :destroyed, :drain_pending, :archived] ->
                {:ignored, server}
 
              %Server{} = server ->
@@ -803,7 +1116,8 @@ defmodule Tuist.Kura do
              nil ->
                Repo.rollback(:not_found)
 
-             %Server{status: status} = server when status in [:destroying, :destroyed] ->
+             %Server{status: status} = server
+             when status in [:destroying, :destroyed, :drain_pending, :archived] ->
                {:ignored, server}
 
              %Server{} = server ->
@@ -849,6 +1163,236 @@ defmodule Tuist.Kura do
   end
 
   @doc """
+  Enters drain-pending: unpublishes the account's cache endpoint so no new
+  cache traffic is routed here, and leaves the workload running so in-flight
+  work finishes. New requests stop being routed here from this moment, which is
+  why the endpoint comes down first and teardown waits out `drain_seconds/0`.
+
+  The server keeps its `url`, so cancelling the drain only has to republish
+  the endpoint rather than rediscover it.
+  """
+  def begin_drain(%Server{status: :active} = server) do
+    case Repo.transaction(fn ->
+           server = lock_with_status(server, :active, :not_drainable)
+
+           with {:ok, server} <- server |> Server.lifecycle_changeset(%{status: :drain_pending}) |> Repo.update(),
+                :ok <- cancel_open_deployments(server),
+                :ok <- remove_cache_endpoint(server) do
+             server
+           else
+             {:error, reason} -> Repo.rollback(reason)
+           end
+         end) do
+      {:ok, server} ->
+        broadcast_server(server, :updated)
+        {:ok, server}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def begin_drain(%Server{}), do: {:error, :not_drainable}
+
+  # An open deployment outlives the status change unless it is closed here, and
+  # the rollout fast path would keep driving it: activation would flip a
+  # draining server back to `:active` behind the lifecycle's back, leaving its
+  # drain clock set and its endpoint republished, and a re-apply would recreate
+  # the backing resource teardown had just removed. Closing them in the same
+  # transaction as the status change is what makes drain-pending a state no
+  # rollout can act on. It also leaves the row with no open deployment, which
+  # is the precondition a cold return checks.
+  defp cancel_open_deployments(%Server{id: server_id}) do
+    Deployment
+    |> where([d], d.kura_server_id == ^server_id and d.status in [:pending, :running])
+    |> Repo.all()
+    |> Enum.reduce_while(:ok, fn deployment, :ok ->
+      case mark_cancelled(deployment, "server entered drain-pending; skipping rollout") do
+        {:ok, _deployment} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  @doc """
+  Cancels a drain and returns the instance to service: republishes the cache
+  endpoint the drain unpublished and flips the status back to `:active`.
+
+  Only valid before teardown has been issued. Once the backing resource is
+  being deleted there is nothing to return to, and the next cache demand cold
+  provisions instead.
+  """
+  def cancel_drain(%Server{status: :drain_pending} = server) do
+    with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
+         {:ok, server} <- cancel_drain_transaction(server, account) do
+      broadcast_server(server, :updated)
+      {:ok, server}
+    end
+  end
+
+  def cancel_drain(%Server{}), do: {:error, :not_draining}
+
+  defp cancel_drain_transaction(server, account) do
+    Repo.transaction(fn ->
+      server = lock_with_status(server, :drain_pending, :not_draining)
+
+      with {:ok, server} <- server |> Server.lifecycle_changeset(%{status: :active}) |> Repo.update(),
+           :ok <- ensure_cache_endpoint_for_region(account, server) do
+        server
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  # The status on a preloaded struct is what was true when it was read. A
+  # destroy committing between that read and this write would be silently
+  # replaced by the stale lifecycle status — and for `cancel_drain/1` that
+  # would republish the endpoint of a server being torn down. Locking the row
+  # and re-reading its status is what makes the transition act on the server
+  # as it is now, and is the same guard activation already uses.
+  defp lock_with_status(%Server{} = server, expected_status, mismatch_reason) do
+    case lock_server(server.id, server.account_id) do
+      %Server{status: ^expected_status} = locked_server -> locked_server
+      %Server{} -> Repo.rollback(mismatch_reason)
+      nil -> Repo.rollback(:not_found)
+    end
+  end
+
+  # Private regions never mirror their URL into `account_cache_endpoints` (the
+  # CLI cannot reach an in-cluster endpoint), so republishing has to respect
+  # the same rule activation does.
+  defp ensure_cache_endpoint_for_region(account, %Server{region: region_id, url: url} = server) do
+    case Regions.fetch(region_id) do
+      {:ok, region} ->
+        if Regions.private?(region), do: :ok, else: ensure_cache_endpoint(account, url)
+
+      {:error, _reason} ->
+        {:error, {:unknown_region, server.region}}
+    end
+  end
+
+  @doc """
+  Marks a drained server archived once its backing resource is gone.
+
+  Archival is not destruction: the row stays, still owning `(account,
+  region)`, and `return_from_archive/2` is what the next cache demand runs on
+  it. Every field describing a running instance is cleared, because an
+  archived instance has no pod, no endpoint, and no local directory left to
+  describe.
+  """
+  def archive_server(%Server{status: :drain_pending} = server) do
+    case Repo.transaction(fn ->
+           server = lock_with_status(server, :drain_pending, :not_archivable)
+
+           case server
+                |> Server.lifecycle_changeset(%{
+                  status: :archived,
+                  url: nil,
+                  current_image_tag: nil,
+                  observed_image_tag: nil,
+                  last_ready_at: nil
+                })
+                |> Repo.update() do
+             {:ok, server} -> server
+             {:error, reason} -> Repo.rollback(reason)
+           end
+         end) do
+      {:ok, server} ->
+        broadcast_server(server, :updated)
+        {:ok, server}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def archive_server(%Server{}), do: {:error, :not_archivable}
+
+  @doc """
+  Cold-provisions an archived instance back into service on the same row.
+
+  A returning account takes exactly the path a new one takes: a fresh
+  deployment onto an empty directory, with no expectation of prior content.
+  `current_image_tag` is cleared so the reconciler treats this as a first
+  install rather than as drift against whatever the instance ran before it
+  was archived.
+
+  Teardown took the whole StatefulSet and its volumes with it, so this is also
+  the one point in a served instance's life where its disk footprint can change:
+  the account's plan is read again and the returning instance is built at
+  whatever that plan is worth now.
+  """
+  def return_from_archive(server, image_tag, account \\ nil)
+
+  def return_from_archive(%Server{status: :archived} = server, image_tag, account) when is_binary(image_tag) do
+    with {:ok, region} <- Regions.fetch(server.region),
+         {:ok, account} <- sizing_account_for(server, account),
+         {:ok, server} <- return_from_archive_transaction(server, region, account, image_tag) do
+      server = Repo.preload(server, :deployments, force: true)
+      broadcast_server(server, :updated)
+      {:ok, server}
+    end
+  end
+
+  def return_from_archive(%Server{}, _image_tag, _account), do: {:error, :not_archived}
+
+  defp sizing_account_for(%Server{account_id: id}, %Account{id: id} = account), do: {:ok, account}
+
+  defp sizing_account_for(%Server{account_id: id}, _account),
+    do: Accounts.get_account_by_id(id, preload: [:subscriptions])
+
+  defp return_from_archive_transaction(server, region, account, image_tag) do
+    Repo.transaction(fn ->
+      claim = locked_storage_claim(account, region)
+
+      locked_server =
+        case lock_server(server.id, server.account_id) do
+          %Server{status: :archived} = locked_server -> locked_server
+          %Server{} -> Repo.rollback(:not_archived)
+          nil -> Repo.rollback(:not_found)
+        end
+
+      with :ok <- ensure_no_open_deployment(locked_server.id),
+           {:ok, locked_server} <-
+             locked_server
+             |> Server.lifecycle_changeset(Map.merge(claim, %{status: :provisioning, current_image_tag: nil, url: nil}))
+             |> Repo.update(),
+           {:ok, _deployment} <- insert_initial_deployment(locked_server, region, image_tag) do
+        locked_server
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  @doc """
+  Whether the server has anything to replicate from: another live instance of
+  the same account, or an enrolled self-hosted peer.
+
+  A cold return has neither. Projecting `:replicating` onto an instance with
+  no peers would leave it waiting on a catch-up that can never complete, so
+  the reconciler consults this before surfacing that status.
+  """
+  def replication_source?(%Server{id: id, account_id: account_id} = server) do
+    peer_server_exists?(id, account_id) or self_hosted_peer_exists?(server)
+  end
+
+  defp peer_server_exists?(id, account_id) do
+    Server
+    |> where([s], s.account_id == ^account_id and s.id != ^id)
+    |> where([s], s.status in [:active, :replicating, :drain_pending])
+    |> Repo.exists?()
+  end
+
+  defp self_hosted_peer_exists?(%Server{account_id: account_id}) do
+    AccountCacheEndpoint
+    |> where([e], e.account_id == ^account_id and e.technology == :kura_self_hosted_peer)
+    |> where([e], is_nil(e.deactivated_at))
+    |> Repo.exists?()
+  end
+
+  @doc """
   Retries a failed first-time deploy in place: flips the `Server` back
   to `:provisioning` and appends a fresh `Deployment` so the
   reconciler picks the retry up on its next tick.
@@ -863,6 +1407,14 @@ defmodule Tuist.Kura do
   history is visible in /ops alongside the retry.
   """
   def retry_server(%Server{status: :failed, current_image_tag: nil} = server, image_tag) when is_binary(image_tag) do
+    # A retry re-provisions from scratch, so it inherits the account's
+    # rollout wave state exactly like a fresh server does in
+    # `create_server/1`: the baseline tag until the account's wave
+    # completes, the target after. Resolved here rather than at each call
+    # site — the dashboard's Retry actions pass the configured runtime tag,
+    # which during a paused rollout is the tag flagged suspect.
+    image_tag = Rollouts.provisioning_image_tag(server.account_id, image_tag)
+
     with {:ok, region} <- Regions.fetch(server.region),
          {:ok, server} <- retry_server_transaction(server, region, image_tag) do
       server = Repo.preload(server, :deployments, force: true)
@@ -932,7 +1484,7 @@ defmodule Tuist.Kura do
          :ok <- ensure_no_move_in_progress(source),
          {:ok, ref} <- move_target_ref(account, region, source),
          :ok <- validate_provisioner_node_ref(account, ref) do
-      insert_move_target(source, region, ref, target_node)
+      insert_move_target(source, region, account, ref, target_node)
     end
   end
 
@@ -961,7 +1513,11 @@ defmodule Tuist.Kura do
     end
   end
 
-  defp insert_move_target(%Server{} = source, region, ref, target_node) do
+  # The target carves its own volumes on the destination box, so it is built at
+  # the account's current claim rather than inheriting the source's. This is the
+  # path an instance whose plan changed while it was serving takes to the claim
+  # that plan is worth.
+  defp insert_move_target(%Server{} = source, region, account, ref, target_node) do
     attrs = %{
       account_id: source.account_id,
       region: source.region,
@@ -971,6 +1527,8 @@ defmodule Tuist.Kura do
     }
 
     case Repo.transaction(fn ->
+           attrs = Map.merge(attrs, locked_storage_claim(account, region))
+
            with {:ok, target} <- attrs |> Server.create_changeset() |> Repo.insert(),
                 {:ok, _deployment} <- insert_initial_deployment(target, region, source.current_image_tag) do
              Repo.preload(target, :deployments)
@@ -1138,23 +1696,62 @@ defmodule Tuist.Kura do
     |> Repo.one()
   end
 
+  # Resolving the claim and writing the row it goes on have to be one step
+  # against a concurrent override, so the resolution happens here, inside the
+  # caller's transaction, behind a lock on the account.
+  #
+  # Shared rather than exclusive because these paths do not contend with each
+  # other, only with the override write, which takes the exclusive side. Both
+  # take the account before touching `kura_servers`, so the order is the same in
+  # either direction and they queue rather than deadlock.
+  defp locked_storage_claim(account, region) do
+    Account
+    |> where([a], a.id == ^account.id)
+    |> lock("FOR SHARE")
+    |> Repo.one()
+
+    storage_claim(account, region)
+  end
+
+  defp lock_account(account_id) do
+    Account
+    |> where([a], a.id == ^account_id)
+    |> lock("FOR UPDATE")
+    |> Repo.one()
+  end
+
   ## Deployments
 
   @doc """
-  Inserts a `Deployment` record for the reconciler to apply.
+  Inserts a `Deployment` record for the reconciler to apply. Pass
+  `rollout_id:` to attribute the deployment to the rollout that minted it
+  (see `Tuist.Kura.Rollouts`).
   """
-  def create_deployment(%Server{} = server, image_tag) when is_binary(image_tag) do
+  def create_deployment(%Server{} = server, image_tag, opts \\ []) when is_binary(image_tag) do
     with {:ok, region} <- Regions.fetch(server.region) do
-      Repo.transaction(fn ->
-        locked_server = lock_server_or_rollback(server)
+      # No `Repo.rollback/1` on the expected error paths, unlike the other
+      # deployment writers here. Callers run this inside a transaction of
+      # their own — `Tuist.Kura.Rollouts` mints deployments while holding
+      # the rollout row lock — and a nested rollback is not isolated: it
+      # aborts the outer transaction, so the caller's `{:error, reason}`
+      # arm never runs and its next statement raises, taking the rest of
+      # the reconcile tick with it. Nothing is written before the guards,
+      # so returning the error leaves the caller's transaction intact and
+      # releases the row lock when it commits.
+      case Repo.transaction(fn -> insert_locked_deployment(server, region, image_tag, opts) end) do
+        {:ok, inner} -> inner
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
 
-        with :ok <- ensure_no_open_deployment(locked_server.id),
-             {:ok, deployment} <- insert_deployment(locked_server, region, image_tag) do
-          deployment
-        else
-          {:error, reason} -> Repo.rollback(reason)
-        end
-      end)
+  defp insert_locked_deployment(server, region, image_tag, opts) do
+    with %Server{} = locked_server <- lock_server(server.id, server.account_id),
+         :ok <- ensure_no_open_deployment(locked_server.id) do
+      insert_deployment(locked_server, region, image_tag, opts)
+    else
+      nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -1196,10 +1793,12 @@ defmodule Tuist.Kura do
     if open_deployment_conflict?(changeset), do: nil, else: Repo.rollback(changeset)
   end
 
+  # Same rule as `servers_needing_version_query/1`: a cancelled deployment never
+  # ran, so it does not count as the image having been scheduled.
   defp deployment_for_image_exists?(server_id, image_tag) do
     Repo.exists?(
       from(d in Deployment,
-        where: d.kura_server_id == ^server_id and d.image_tag == ^image_tag
+        where: d.kura_server_id == ^server_id and d.image_tag == ^image_tag and d.status != :cancelled
       )
     )
   end
@@ -1227,11 +1826,12 @@ defmodule Tuist.Kura do
     end)
   end
 
-  defp insert_deployment(%Server{} = server, region, image_tag) do
+  defp insert_deployment(%Server{} = server, region, image_tag, opts \\ []) do
     %{
       cluster_id: deployment_cluster_id(region),
       image_tag: image_tag,
-      kura_server_id: server.id
+      kura_server_id: server.id,
+      kura_rollout_id: opts[:rollout_id]
     }
     |> Deployment.create_changeset()
     |> Repo.insert()

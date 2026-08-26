@@ -20,7 +20,8 @@
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
   }
 
-  & > [data-part="bundle-thresholds-card-section"] {
+  & > [data-part="bundle-thresholds-card-section"],
+  & > [data-part="bundle-approvals-card-section"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
@@ -135,6 +136,13 @@
     }
   }
 
+  /* The threshold modals open with a description whose padding separates the
+     header from the first field. This one puts its explanation in the header
+     instead, so the form supplies that spacing itself. */
+  & #add-approver-modal [data-part="alert-form"] {
+    padding-top: var(--noora-spacing-9);
+  }
+
   & #thresholds-table {
     margin-top: var(--noora-spacing-4);
 
@@ -151,6 +159,42 @@
 
     & th:nth-child(2) {
       width: 15%;
+    }
+  }
+
+  & > [data-part="bundle-approvals-card-section"] {
+    /* The card is already a flex column with a gap, so the shared header
+       padding would double the space under this card's header. */
+    & > [data-part="header"] {
+      padding-bottom: var(--noora-spacing-0);
+    }
+
+    & > [data-part="approvers-section"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+    }
+
+    & [data-part="approvers-header"] {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      & [data-part="approvers-title"] {
+        margin: 0;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+      }
+    }
+  }
+
+  & #bundle-size-approvers-table {
+    & [data-part="cell"][data-type="button"] {
+      display: flex;
+      flex-direction: row;
+      justify-content: flex-end;
     }
   }
 }

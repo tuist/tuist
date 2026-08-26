@@ -1316,6 +1316,27 @@ func TestCacheImageSplit(t *testing.T) {
 	}
 }
 
+func TestWriteNodeName(t *testing.T) {
+	dir := t.TempDir()
+
+	// No status share (cache volume feature off) and an unknown Node name are
+	// both no-ops rather than errors: the attribution field just stays empty.
+	writeNodeName("", "mini-1")
+	writeNodeName(dir, "")
+	if _, err := os.Stat(filepath.Join(dir, nodeNameFile)); !os.IsNotExist(err) {
+		t.Fatalf("empty node name should not stage a file")
+	}
+
+	writeNodeName(dir, "tuist-tuist-runners-fleet-mndbc-c22td")
+	raw, err := os.ReadFile(filepath.Join(dir, nodeNameFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "tuist-tuist-runners-fleet-mndbc-c22td" {
+		t.Fatalf("staged node name = %q; want the Node name verbatim", raw)
+	}
+}
+
 func TestReadDirtyMarker(t *testing.T) {
 	// Absent status dir -> not present (crashed/incomplete job).
 	if present, dirty := readDirtyMarker(""); present || dirty {

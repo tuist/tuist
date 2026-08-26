@@ -66,6 +66,7 @@ spec:
       {{- else }}
       serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
       {{- end }}
+      automountServiceAccountToken: {{ .Values.server.automountServiceAccountToken }}
       {{- include "tuist.podScheduling" . | nindent 6 }}
       {{- with .Values.server.nodeSelector }}
       nodeSelector:

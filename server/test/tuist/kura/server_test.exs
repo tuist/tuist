@@ -13,8 +13,78 @@ defmodule Tuist.Kura.ServerTest do
                failed: 2,
                destroying: 3,
                destroyed: 4,
-               replicating: 5
+               replicating: 5,
+               drain_pending: 6,
+               archived: 7
              ]
+    end
+  end
+
+  describe "lifecycle_changeset/2" do
+    test "allows the demand-driven lifecycle transitions" do
+      for {from, to} <- [
+            {:active, :drain_pending},
+            {:drain_pending, :active},
+            {:drain_pending, :archived},
+            {:drain_pending, :destroying},
+            {:archived, :provisioning},
+            {:archived, :destroying}
+          ] do
+        changeset =
+          Server.lifecycle_changeset(
+            %Server{status: from, url: "https://cache.example.com", current_image_tag: "0.5.2"},
+            %{status: to}
+          )
+
+        assert changeset.valid?, "expected #{from} -> #{to} to be allowed"
+      end
+    end
+
+    test "rejects skipping the drain" do
+      changeset = Server.lifecycle_changeset(%Server{status: :active}, %{status: :archived})
+
+      refute changeset.valid?
+      assert %{status: ["cannot transition from active to archived"]} = errors_on(changeset)
+    end
+
+    test "rejects archiving an instance that was never drained" do
+      for from <- [:provisioning, :replicating, :failed, :destroying, :destroyed] do
+        changeset = Server.lifecycle_changeset(%Server{status: from}, %{status: :archived})
+
+        refute changeset.valid?, "expected #{from} -> archived to be rejected"
+      end
+    end
+
+    test "rejects draining an instance that is not serving" do
+      for from <- [:provisioning, :replicating, :failed, :archived, :destroying, :destroyed] do
+        changeset = Server.lifecycle_changeset(%Server{status: from}, %{status: :drain_pending})
+
+        refute changeset.valid?, "expected #{from} -> drain_pending to be rejected"
+      end
+    end
+
+    test "rejects resurrecting a destroyed instance as archived" do
+      changeset = Server.lifecycle_changeset(%Server{status: :destroyed}, %{status: :provisioning})
+
+      refute changeset.valid?
+    end
+
+    test "clears the observation columns when archiving" do
+      changeset =
+        Server.lifecycle_changeset(
+          %Server{
+            status: :drain_pending,
+            url: "https://cache.example.com",
+            current_image_tag: "0.5.2",
+            observed_image_tag: "0.5.2"
+          },
+          %{status: :archived, url: nil, current_image_tag: nil, observed_image_tag: nil}
+        )
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :url) == nil
+      assert Ecto.Changeset.get_field(changeset, :current_image_tag) == nil
+      assert Ecto.Changeset.get_field(changeset, :observed_image_tag) == nil
     end
   end
 
@@ -40,6 +110,35 @@ defmodule Tuist.Kura.ServerTest do
         })
 
       assert changeset.valid?
+    end
+
+    test "accepts a storage claim" do
+      changeset =
+        Server.create_changeset(%{
+          account_id: account_id(),
+          region: "local-controller",
+          provisioner_node_ref: "kura-tuist-local-controller",
+          storage_claim_size: "24Gi"
+        })
+
+      assert changeset.valid?
+    end
+
+    test "rejects a claim the manifest could not render" do
+      # Only the paths that create the volumes write one, so a claim the
+      # provisioner would raise on is a bug where it is pinned.
+      for claim_size <- ["24 Gi", "24GB", "0Gi", "big"] do
+        changeset =
+          Server.create_changeset(%{
+            account_id: account_id(),
+            region: "local-controller",
+            provisioner_node_ref: "kura-tuist-local-controller",
+            storage_claim_size: claim_size
+          })
+
+        refute changeset.valid?, "expected #{claim_size} to be rejected"
+        assert %{storage_claim_size: ["must be a Kubernetes storage quantity like 24Gi"]} = errors_on(changeset)
+      end
     end
 
     test "rejects unknown regions" do

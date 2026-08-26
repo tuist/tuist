@@ -11,12 +11,14 @@ public protocol CreateShardPlanServicing {
         modules: [String]?,
         parallelizableModules: [String]?,
         testSuites: [String]?,
+        skippedTestSuites: [String]?,
         shardMin: Int?,
         shardMax: Int?,
         shardTotal: Int?,
         shardMaxDuration: Int?,
         shardGranularity: Components.Schemas.CreateShardPlanParams.granularityPayload,
-        buildRunId: String?
+        buildRunId: String?,
+        gitBranch: String?
     ) async throws -> Components.Schemas.ShardPlan
 }
 
@@ -54,12 +56,14 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
         modules: [String]?,
         parallelizableModules: [String]?,
         testSuites: [String]?,
+        skippedTestSuites: [String]?,
         shardMin: Int?,
         shardMax: Int?,
         shardTotal: Int?,
         shardMaxDuration: Int?,
         shardGranularity: Components.Schemas.CreateShardPlanParams.granularityPayload,
-        buildRunId: String?
+        buildRunId: String?,
+        gitBranch: String?
     ) async throws -> Components.Schemas.ShardPlan {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -72,6 +76,7 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
             body: .json(
                 .init(
                     build_run_id: buildRunId,
+                    git_branch: gitBranch,
                     granularity: .init(rawValue: shardGranularity.rawValue),
                     modules: modules,
                     parallelizable_modules: parallelizableModules,
@@ -80,6 +85,7 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
                     shard_max_duration: shardMaxDuration,
                     shard_min: shardMin,
                     shard_total: shardTotal,
+                    skipped_test_suites: skippedTestSuites,
                     test_suites: testSuites
                 )
             )
