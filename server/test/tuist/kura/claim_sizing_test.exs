@@ -167,21 +167,42 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert ClaimSizing.evaluate(context(rollups: severe_churn(1, @today))) == :none
     end
 
-    test "air acts on the absolute arm its own floor would have slowed" do
-      # Seven hours is 29% of Air's one-day floor, so the fractional ladder
-      # would have made the plan least able to absorb churn wait five days.
+    test "every plan confirms on the same evidence and differs only in where it lands" do
+      # Same churn, same rung, same window: the plan changes the ceiling the
+      # projection is clamped to and nothing else.
       rollups = churn_at(2, @today, 7 * 3_600, 12 * 3_600)
-      context = context(plan: :air, current_claim_size: "8Gi", rollups: rollups)
 
-      assert {:grow, "16Gi", evidence} = ClaimSizing.evaluate(context)
-      assert evidence["window_days"] == 2
-      assert evidence["qualifying_threshold_seconds"] == 28_800
+      for {plan, current, expected} <- [{:air, "8Gi", "16Gi"}, {:pro, "30Gi", "50Gi"}, {:enterprise, "60Gi", "120Gi"}] do
+        context = context(plan: plan, current_claim_size: current, rollups: rollups)
+
+        assert {:grow, ^expected, evidence} = ClaimSizing.evaluate(context)
+        assert evidence["window_days"] == 2
+        assert evidence["qualifying_threshold_seconds"] == 28_800
+      end
+    end
+
+    test "enterprise may grow past where the other plans stop" do
+      # The shared promise, funded further: at 50Gi pro is done and
+      # enterprise keeps stepping, one clamped step at a time, to its own
+      # ceiling. This is also what stops enterprise being a plan that can
+      # only ever shrink from its starting constant.
+      rollups = severe_churn(2, @today)
+
+      assert ClaimSizing.evaluate(context(plan: :pro, current_claim_size: "50Gi", rollups: rollups)) == :none
+
+      assert {:grow, "100Gi", _evidence} =
+               ClaimSizing.evaluate(context(plan: :enterprise, current_claim_size: "50Gi", rollups: rollups))
+
+      assert {:grow, "200Gi", _evidence} =
+               ClaimSizing.evaluate(context(plan: :enterprise, current_claim_size: "100Gi", rollups: rollups))
+
+      assert ClaimSizing.evaluate(context(plan: :enterprise, current_claim_size: "200Gi", rollups: rollups)) == :none
     end
 
     test "shedding exactly at a working day falls back to the fractional ladder" do
       # The absolute arm is a strict inequality, so 8 hours does not clear it
-      # and Air lands on the fractional ladder instead, where it is a third
-      # of the floor: five days rather than two.
+      # and the reading lands on the fractional ladder instead, where it is
+      # under a third of the floor: five days rather than two.
       rollups = churn_at(2, @today, 8 * 3_600, 12 * 3_600)
       context = context(plan: :air, current_claim_size: "8Gi", rollups: rollups)
 
@@ -191,7 +212,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
       assert {:grow, "16Gi", evidence} = ClaimSizing.evaluate(context(context, rollups: longer))
       assert evidence["window_days"] == 5
-      assert evidence["qualifying_threshold_seconds"] == round(0.34 * @day_seconds)
+      assert evidence["qualifying_threshold_seconds"] == round(0.34 * 3 * @day_seconds)
     end
 
     test "moderate shedding waits out the middle tier" do
@@ -212,8 +233,8 @@ defmodule Tuist.Kura.ClaimSizingTest do
     end
 
     test "air grows within its narrow band" do
-      # Air floor is 1 day against a 12-hour ring: projection is 2x with
-      # headroom, clamped to the step bound and Air's ceiling, both 16Gi.
+      # A 12-hour ring against the shared 3-day floor projects far past the
+      # step bound, so Air lands on the step and its own ceiling, both 16Gi.
       rollups =
         churn_days(14, @today,
           median_shed_age_seconds: 1_800,
@@ -226,7 +247,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
     end
 
     test "an account already at its plan ceiling gets no proposal" do
-      context = context(plan: :enterprise, current_claim_size: "50Gi", rollups: severe_churn(14, @today))
+      context = context(plan: :pro, current_claim_size: "50Gi", rollups: severe_churn(14, @today))
 
       assert ClaimSizing.evaluate(context) == :none
     end

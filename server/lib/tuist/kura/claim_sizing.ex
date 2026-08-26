@@ -4,12 +4,17 @@ defmodule Tuist.Kura.ClaimSizing do
   storage rollups in, at most one recommended claim change out.
 
   The driving metric is shed age — how soon after being written an artifact
-  was evicted under size pressure. Each plan carries a retention floor the
-  ring must hold: content younger than the floor being shed means the claim
-  is too small, and the ring span at eviction says how much history the
-  current claim buys, which is what the grow target is projected from. The
-  shrink signal is occupancy: an oversized ring never fills and never evicts,
-  so evictions alone cannot show it.
+  was evicted under size pressure. One retention floor applies to every plan:
+  content younger than it being shed means the claim is too small, and the
+  ring span at eviction says how much history the current claim buys, which
+  is what the grow target is projected from. The shrink signal is occupancy:
+  an oversized ring never fills and never evicts, so evictions alone cannot
+  show it.
+
+  Plans do not get different sizing behaviour, only different room. Every
+  account is measured against the same promise and confirmed on the same
+  ladder; the ceiling is where a plan changes the answer, by bounding how
+  far the claim may grow to keep that promise.
 
   Growth confirmation scales with severity rather than being a fixed wait.
   A confirmation window exists to rule out noise, and how much confirmation a
@@ -19,19 +24,24 @@ defmodule Tuist.Kura.ClaimSizing do
   customer a rebuild of everything it drops in the meantime. The ladder is
   ordered shortest window first and the first qualifying rung decides.
 
-  Severity is read two ways, because the two catch different failures. The
-  fractional arm scales with what the plan promises. The absolute arm exists
-  because the fractional one under-reacts for Air: seven hours of retention
-  is a tenth of Pro's floor but a third of Air's, so the plan least able to
-  absorb churn would have waited longest, even though content that does not
-  survive a working day is extreme on any plan.
+  Severity is read two ways. The fractional arm tracks the floor, so
+  recalibrating the promise moves the ladder with it. The absolute arm does
+  not move: content that does not survive a working day is extreme however
+  the floor is tuned, and the backstop should not drift when an operator
+  changes what the floor means.
 
-  The shortest rung is bought with volume rather than time. Rollups are
-  day-grain, so a single day can be a couple of hours of data, and a rung
-  that acts on one day asks instead for evicted bytes worth a multiple of the
-  whole claim: an account that has cycled its entire cache twice over while
-  losing content younger than a working day is not a sampling artifact,
-  whatever the clock says.
+  The shortest rung is bought with volume rather than time, which is also
+  what makes the ladder react faster the worse things get. A window counts
+  daily rollup rows, and today's row is live — refreshed from the raw
+  telemetry every sweep — so the rung that reads a single day reads a
+  partial one, and the real latency floor is the hourly sweep rather than
+  the calendar. What holds that rung back is evidence, not waiting: it asks
+  for evicted bytes worth twice the whole claim. Because a ring turns over
+  about once per span of content it holds, that proof accumulates at the
+  rate the account is actually thrashing — a ring shedding at thirty
+  minutes reaches it in about an hour, one shedding at eight hours takes
+  most of a day — so response time falls out of severity without another
+  rung to tune.
 
   Shrinking keeps its long single window on purpose: an oversized ring costs
   a reclaimable slot and nobody's build, so there is no urgency to trade
@@ -53,26 +63,26 @@ defmodule Tuist.Kura.ClaimSizing do
   @seconds_per_day 86_400
 
   @default_policy %{
-    retention_floor_days: %{air: 1, pro: 3, enterprise: 3},
-    ceiling: %{air: "16Gi", pro: "50Gi", enterprise: "50Gi"},
+    # One promise for every plan: a cache should hold what was written to it
+    # for at least this long before size pressure can take it. What a plan
+    # buys is how far the claim may grow to keep that promise, not a weaker
+    # version of it, so this is a single value and the ceiling below is where
+    # the plans differ.
+    retention_floor_days: 3,
+    ceiling: %{air: "16Gi", pro: "50Gi", enterprise: "200Gi"},
     # The confirmation ladder, ordered shortest window first, so the most
     # severe rung a reading satisfies is the one that decides it.
     #
     # `shed_age_under` is either `{:seconds, n}` or `{:floor_fraction, f}`.
-    # Both arms exist because they catch different failures. The fractional
-    # arm scales with the plan's promise, but it under-reacts for Air, whose
-    # floor is a single day: seven hours of retention is 10% of Pro's floor
-    # and would confirm fast there, while being 29% of Air's and confirming
-    # slowly, even though Air is the plan least able to absorb the churn. The
-    # absolute arm fixes that: content that does not survive a working day is
-    # extreme on any plan, because the next morning's build gets nothing.
+    # The fractional arm moves with the floor when the floor is recalibrated;
+    # the absolute arm deliberately does not, so "gone before the next
+    # morning's build" stays extreme whatever the floor is tuned to.
     #
-    # `min_ring_turnover` is what buys the single-day rung. Day-grain rollups
-    # mean one day can be a couple of hours of data, so that rung asks for
-    # proof of volume instead of elapsed time: evicted bytes worth this many
-    # times the whole claim. An account that has cycled its entire cache
-    # twice over while losing content younger than a working day is not a
-    # sampling artifact, whatever the clock says.
+    # `min_ring_turnover` is what buys the single-day rung: evicted bytes
+    # worth this many times the whole claim. Today's rollup is live, so that
+    # rung can fire within an hour of onset when the loss is severe enough to
+    # prove itself that fast, and cannot fire at all on a thin day that only
+    # looks alarming.
     grow_windows: [
       %{shed_age_under: {:seconds, 28_800}, window_days: 1, min_ring_turnover: 2.0},
       %{shed_age_under: {:seconds, 28_800}, window_days: 2},
@@ -138,7 +148,7 @@ defmodule Tuist.Kura.ClaimSizing do
 
   defp evaluate_region(region, rollups, current_bytes, context, policy) do
     by_date = Map.new(rollups, &{&1.date, &1})
-    floor_seconds = retention_floor_days(context.plan, policy) * @seconds_per_day
+    floor_seconds = policy.retention_floor_days * @seconds_per_day
 
     cond do
       grow = grow_verdict(by_date, floor_seconds, current_bytes, context, policy) ->
@@ -324,8 +334,9 @@ defmodule Tuist.Kura.ClaimSizing do
 
   # Plans resolve exactly like Tuist.Kura.Regions.storage_profile/1: the paid
   # plans explicitly, everything else at Air's values.
-  defp retention_floor_days(plan, policy), do: Map.get(policy.retention_floor_days, plan, policy.retention_floor_days.air)
-
+  # The one place a plan changes the outcome: how far the shared promise may
+  # be funded. Resolved exactly like `Tuist.Kura.Regions.storage_profile/1`,
+  # the paid plans explicitly and everything else at Air's.
   defp ceiling(plan, policy), do: Map.get(policy.ceiling, plan, policy.ceiling.air)
 
   defp quantity_bytes(quantity) do
