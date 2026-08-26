@@ -107,6 +107,13 @@ defmodule TuistWeb.UsageLiveTest do
     }
   end
 
+  defp previous_period_path(account) do
+    now = DateTime.utc_now()
+    previous = Timex.shift(%{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}, months: -1)
+
+    "/#{account.name}/usage?period=#{Date.to_iso8601(DateTime.to_date(previous))}"
+  end
+
   defp enable_kura(account) do
     stub(Environment, :dev?, fn -> false end)
     stub_kura_flag(account, true)
@@ -307,6 +314,51 @@ defmodule TuistWeb.UsageLiveTest do
       assert html =~ "−30.00"
       assert html =~ "−7.50"
       assert html =~ "37.50"
+    end
+  end
+
+  describe "runner usage across billing periods" do
+    setup %{account: account} do
+      disable_kura(account)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+      stub(Allowance, :period_breakdown, fn _account -> billed_breakdown() end)
+      stub(Allowance, :period_breakdown, fn _account, _period -> billed_breakdown() end)
+      :ok
+    end
+
+    test "does not put today's credit against a period that has closed", %{conn: conn, account: account} do
+      # A balance is what the account holds now. The grants that covered a
+      # closed period were drawn down when it was invoiced, so applying
+      # today's balance to it reports an amount owed that has nothing to
+      # do with the invoice that period actually produced.
+      stub(Prepaid, :balance, fn _account -> %{available: Money.new(22_500, :USD)} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      assert has_element?(lv, "#widget-runner-billed", "0.00")
+      assert has_element?(lv, "[data-kind='prepaid']")
+
+      render_patch(lv, previous_period_path(account))
+
+      assert has_element?(lv, "#widget-runner-billed", "67.50")
+      refute has_element?(lv, "[data-kind='prepaid']")
+    end
+
+    test "does not read the prepaid balance again when the period changes", %{conn: conn, account: account} do
+      # `Prepaid.balance/2` does not cache a nil, so an account with no
+      # credit pays a Stripe round trip for every read.
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      test_pid = self()
+
+      stub(Prepaid, :balance, fn _account ->
+        send(test_pid, :balance_read)
+        nil
+      end)
+
+      render_patch(lv, previous_period_path(account))
+
+      refute_received :balance_read
     end
   end
 

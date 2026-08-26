@@ -37,20 +37,30 @@ defmodule TuistWeb.UsageLive do
     # nothing.
     periods = Billing.recent_billing_periods(account, 12)
 
+    # Read once and kept, because `handle_params/3` runs on every period
+    # change and `Prepaid.balance/2` does not cache a nil: an account
+    # with no credit would otherwise pay a Stripe round trip each time.
+    prepaid_balance = Prepaid.balance(account)
+
     {:ok,
      socket
      |> assign(:head_title, "#{dgettext("dashboard_usage", "Usage")} · #{account.name} · Tuist")
      |> assign(:periods, periods)
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:runners_enabled, runners_enabled)
-     |> assign(:prepaid_coverage, prepaid_coverage(Prepaid.balance(account), runner_breakdown))
+     |> assign(:prepaid_balance, prepaid_balance)
+     |> assign(:prepaid_coverage, prepaid_coverage(prepaid_balance, runner_breakdown))
      |> assign(:kura_enabled, FeatureFlags.kura_enabled?(account))}
   end
 
   @widgets ["egress", "ingress", "requests"]
 
   @impl true
-  def handle_params(params, uri, %{assigns: %{selected_account: account, periods: periods}} = socket) do
+  def handle_params(
+        params,
+        uri,
+        %{assigns: %{selected_account: account, periods: periods, prepaid_balance: prepaid_balance}} = socket
+      ) do
     {start_dt, end_dt} = period = selected_period(periods, params["period"])
     selected_widget = widget_param(params["widget"])
 
@@ -76,7 +86,7 @@ defmodule TuistWeb.UsageLive do
      |> assign(:analytics_selected_widget, selected_widget)
      |> assign(:analytics_trend_label, dgettext("dashboard_usage", "since the previous period"))
      |> assign(:runner_breakdown, runner_breakdown)
-     |> assign(:prepaid_coverage, prepaid_coverage(Prepaid.balance(account), runner_breakdown))
+     |> assign(:prepaid_coverage, period_coverage(prepaid_balance, runner_breakdown, period == hd(periods)))
      |> assign_async(
        [:totals, :egress_series, :ingress_series, :requests_series, :per_region],
        fn ->
@@ -91,6 +101,14 @@ defmodule TuistWeb.UsageLive do
        end
      )}
   end
+
+  # A prepaid balance is what the account holds today, so it describes
+  # only the period still being accrued. The grants that covered a closed
+  # period were drawn down when it was invoiced, and today's balance says
+  # nothing about what that invoice came to, so a closed period reports
+  # its usage charge and no credit at all.
+  defp period_coverage(_balance, _breakdown, false), do: nil
+  defp period_coverage(balance, breakdown, true), do: prepaid_coverage(balance, breakdown)
 
   @doc """
   The period whose start matches the `period` param, or the current one.
