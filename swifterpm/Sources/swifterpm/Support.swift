@@ -227,17 +227,14 @@ enum HTTPClient {
     }
 
     private static func ensureSuccessfulStatus(_ response: URLResponse, url: URL) throws {
-        if let httpResponse = response as? HTTPURLResponse,
-           !(200 ..< 300).contains(httpResponse.statusCode)
-        {
-            throw ToolError.message("HTTP \(httpResponse.statusCode) for \(url.absoluteString)")
+        if let error = HTTPStatusError(response: response, requestedURL: url) {
+            throw error
         }
     }
 
-    // Retries transient transport failures (timeouts, dropped or half-open
-    // connections) on a fresh connection with linear backoff. HTTP status
-    // failures are not retried: a non-2xx response is deterministic for an
-    // artifact URL, so a retry would only delay the surfaced error.
+    /// Retries transient transport failures (timeouts, dropped or half-open
+    /// connections) and transient HTTP statuses on a fresh connection with
+    /// linear backoff.
     private static func withRetry<T>(
         _ operation: @Sendable () async throws -> T
     ) async throws -> T {
@@ -246,10 +243,18 @@ enum HTTPClient {
             do {
                 return try await operation()
             } catch let error as URLError where attempt < maxAttempts && isRetryable(error) {
-                try? await Task.sleep(nanoseconds: UInt64(attempt) * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: backoff(attempt: attempt, retryAfter: nil))
+                attempt += 1
+            } catch let error as HTTPStatusError where attempt < maxAttempts && error.isRetryable {
+                try? await Task.sleep(
+                    nanoseconds: backoff(attempt: attempt, retryAfter: error.retryAfter))
                 attempt += 1
             }
         }
+    }
+
+    private static func backoff(attempt: Int, retryAfter: TimeInterval?) -> UInt64 {
+        UInt64((retryAfter ?? TimeInterval(attempt)) * 1_000_000_000)
     }
 
     private static func isRetryable(_ error: URLError) -> Bool {
@@ -260,6 +265,43 @@ enum HTTPClient {
         default:
             return false
         }
+    }
+}
+
+/// A non-2xx HTTP response. `url` is the URL that produced the status, which after a
+/// redirect is not the URL that was requested.
+struct HTTPStatusError: Error, CustomStringConvertible {
+    /// Bounds a hostile or mistaken `Retry-After` so a restore cannot stall on it.
+    static let maximumRetryAfter: TimeInterval = 30
+
+    let statusCode: Int
+    let url: URL
+    let retryAfter: TimeInterval?
+
+    init?(response: URLResponse, requestedURL: URL) {
+        guard let httpResponse = response as? HTTPURLResponse,
+              !(200 ..< 300).contains(httpResponse.statusCode)
+        else { return nil }
+
+        statusCode = httpResponse.statusCode
+        url = httpResponse.url ?? requestedURL
+        retryAfter = Self.retryAfter(from: httpResponse)
+    }
+
+    var isRetryable: Bool {
+        statusCode == 408 || statusCode == 429 || (500 ..< 600).contains(statusCode)
+    }
+
+    var description: String {
+        "HTTP \(statusCode) for \(url.absoluteString)"
+    }
+
+    private static func retryAfter(from response: HTTPURLResponse) -> TimeInterval? {
+        guard let value = response.value(forHTTPHeaderField: "Retry-After"),
+              let seconds = TimeInterval(value.trimmingCharacters(in: .whitespaces)),
+              seconds > 0
+        else { return nil }
+        return min(seconds, maximumRetryAfter)
     }
 }
 
