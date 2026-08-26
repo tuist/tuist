@@ -60,6 +60,12 @@ defmodule Tuist.Kura.ClaimProposals do
   transient, while the record of what sizing did and on what evidence is what
   answers a question about a resize after the fact.
   """
+  def decision_count(%Account{id: account_id}) do
+    ClaimProposal
+    |> where([proposal], proposal.account_id == ^account_id)
+    |> Repo.aggregate(:count)
+  end
+
   def recent_for(%Account{id: account_id}, limit) do
     ClaimProposal
     |> where([proposal], proposal.account_id == ^account_id)

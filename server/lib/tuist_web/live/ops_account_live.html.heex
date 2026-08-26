@@ -145,7 +145,16 @@
     </.card_section>
     <.card_section :if={@kura_claim_history != []}>
       <p data-part="kura-claim-history-description">
-        {dgettext("dashboard", "What sizing has decided for this account, most recent first.")}
+        {if @kura_claim_history_total > length(@kura_claim_history) do
+          dgettext(
+            "dashboard",
+            "What sizing has decided for this account: the %{shown} most recent of %{total}.",
+            shown: length(@kura_claim_history),
+            total: @kura_claim_history_total
+          )
+        else
+          dgettext("dashboard", "What sizing has decided for this account, most recent first.")
+        end}
       </p>
       <.table id="kura-claim-history-table" rows={@kura_claim_history}>
         <:col :let={decision} label={dgettext("dashboard", "When")}>
@@ -157,6 +166,9 @@
         <:col :let={decision} label={dgettext("dashboard", "Outcome")}>
           <% {label, color} = kura_claim_history_outcome(decision) %>
           <.badge_cell label={label} color={color} style="light-fill" />
+        </:col>
+        <:col :let={decision} label={dgettext("dashboard", "By")}>
+          <.text_cell label={kura_claim_history_actor(decision)} />
         </:col>
         <:col :let={decision} label={dgettext("dashboard", "Region")}>
           <.text_cell label={decision.region} />

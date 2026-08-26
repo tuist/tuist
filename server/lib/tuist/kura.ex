@@ -282,6 +282,11 @@ defmodule Tuist.Kura do
   defdelegate claim_sizing_history(account, limit), to: ClaimProposals, as: :recent_for
 
   @doc """
+  How many sizing decisions the account has on record.
+  """
+  defdelegate claim_sizing_decision_count(account), to: ClaimProposals, as: :decision_count
+
+  @doc """
   Dismisses an open claim sizing proposal without acting on it.
   """
   defdelegate dismiss_claim_proposal(proposal, resolved_by), to: ClaimProposals, as: :dismiss

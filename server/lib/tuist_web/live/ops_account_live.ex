@@ -20,6 +20,8 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Runners.Trials
   alias Tuist.Utilities.ByteFormatter
 
+  # Enough to see a pattern without the card becoming the page.
+  @kura_claim_history_limit 5
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     case Accounts.get_account_by_id(parse_id(id)) do
@@ -447,7 +449,8 @@ defmodule TuistWeb.OpsAccountLive do
     |> assign(:kura_account_claim, Kura.effective_storage_claim(account))
     |> assign(:kura_sized_claim, Kura.sized_storage_claim(account))
     |> assign(:kura_claim_proposal, Kura.claim_proposal_for(account))
-    |> assign(:kura_claim_history, Kura.claim_sizing_history(account, 10))
+    |> assign(:kura_claim_history, Kura.claim_sizing_history(account, @kura_claim_history_limit))
+    |> assign(:kura_claim_history_total, Kura.claim_sizing_decision_count(account))
     |> assign(:kura_disk_usage, Kura.latest_storage_snapshots(account))
   end
 
@@ -512,18 +515,18 @@ defmodule TuistWeb.OpsAccountLive do
 
   defp kura_claim_history_change(%{current_claim_size: from, recommended_claim_size: to}), do: "#{from} → #{to}"
 
-  defp kura_claim_history_outcome(%{status: :applied, resolved_by: "automatic"}),
-    do: {dgettext("dashboard", "applied automatically"), "success"}
-
-  defp kura_claim_history_outcome(%{status: :applied, resolved_by: by}),
-    do: {dgettext("dashboard", "applied by %{who}", who: by), "success"}
-
-  defp kura_claim_history_outcome(%{status: :dismissed, resolved_by: by}),
-    do: {dgettext("dashboard", "dismissed by %{who}", who: by), "neutral"}
-
+  defp kura_claim_history_outcome(%{status: :applied}), do: {dgettext("dashboard", "applied"), "success"}
+  defp kura_claim_history_outcome(%{status: :dismissed}), do: {dgettext("dashboard", "dismissed"), "neutral"}
   defp kura_claim_history_outcome(%{status: :superseded}), do: {dgettext("dashboard", "superseded"), "neutral"}
-
   defp kura_claim_history_outcome(%{status: :open}), do: {dgettext("dashboard", "waiting"), "attention"}
+
+  defp kura_claim_history_actor(%{status: :open}), do: dgettext("dashboard", "Not resolved yet")
+
+  defp kura_claim_history_actor(%{resolved_by: by}) when by in ["automatic", "sweep", "stale_on_apply"],
+    do: dgettext("dashboard", "Sizing")
+
+  defp kura_claim_history_actor(%{resolved_by: by}) when is_binary(by), do: by
+  defp kura_claim_history_actor(_decision), do: dgettext("dashboard", "Unknown")
 
   # Compact enough for a table cell; the open proposal above carries the full
   # sentence.

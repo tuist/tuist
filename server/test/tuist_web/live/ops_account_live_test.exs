@@ -596,10 +596,40 @@ defmodule TuistWeb.OpsAccountLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
       assert html =~ "8Gi → 16Gi"
-      assert html =~ "applied automatically"
       assert html =~ "32Gi → 16Gi"
-      assert html =~ "dismissed by ops@tuist.dev"
       assert html =~ "peaked at 25% of its disk"
+
+      # The outcome is a status token; who resolved it is its own column, and
+      # sizing acting on its own reads as a name rather than an internal one.
+      assert html =~ "applied"
+      assert html =~ "dismissed"
+      assert html =~ "Sizing"
+      assert html =~ "ops@tuist.dev"
+      refute html =~ "applied automatically"
+    end
+
+    test "says so when there is more history than it shows", %{conn: conn, user: user} do
+      now = DateTime.truncate(DateTime.utc_now(), :second)
+
+      for index <- 1..7 do
+        Repo.insert!(%Tuist.Kura.ClaimProposal{
+          account_id: user.account.id,
+          region: "us-east",
+          direction: :grow,
+          current_claim_size: "8Gi",
+          recommended_claim_size: "16Gi",
+          evidence: %{"median_shed_age_seconds" => 1_800, "retention_floor_seconds" => 259_200},
+          status: :applied,
+          resolved_by: "automatic",
+          resolved_at: DateTime.add(now, -index * 3600, :second),
+          inserted_at: DateTime.add(now, -index * 3600, :second)
+        })
+      end
+
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      # Seven here plus the open proposal the setup creates.
+      assert html =~ "the 5 most recent of 8"
     end
 
     test "applying the proposal writes the sized claim and re-pins the instance", %{
