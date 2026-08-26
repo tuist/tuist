@@ -216,9 +216,9 @@ defmodule Tuist.Kura.Capacity do
   different values on different replicas, so a bound written in terms of them
   answers differently depending on when it is asked.
 
-  Read from the box the account is on rather than from the region: a replica's
-  volume pins it to one node, so the rest of the region's boxes cannot take the
-  pod however much room they have.
+  Read from the box the account's instance is on -- its replicas are co-located
+  there and their volumes pin them to it -- rather than from the region, whose
+  other boxes cannot take the pod however much room they have.
   """
   def egress_headroom(region_id, account_handle) when is_binary(account_handle) do
     KeyValueStore.get_or_update(
@@ -230,43 +230,23 @@ defmodule Tuist.Kura.Capacity do
 
   defp measure_egress_headroom(region_id, account_handle) do
     with {:ok, pods} <- Client.list_pods(@namespace, account_selector(region_id, account_handle)),
-         [_ | _] = placed <- Enum.filter(pods, &(pod_node_name(&1) && not terminal?(&1))),
-         [_ | _] = boxes <- Enum.map(account_boxes(placed), &measure_box(&1, region_id, length(placed))),
-         false <- Enum.any?(boxes, &is_nil/1) do
-      Enum.min_by(boxes, & &1.available_mbps)
-    else
-      _ -> nil
-    end
-  end
-
-  # Usually one box: the controller's podAffinity co-locates an account's
-  # replicas and their volumes keep them there. It is only preferred, though --
-  # required would deadlock the first replica -- so a box that cannot fit the
-  # second leaves the account straddling two, and pinned that way. Each box
-  # rebuilds its own replicas, so the tightest is the binding one.
-  defp account_boxes(placed) do
-    placed
-    |> Enum.group_by(&pod_node_name/1)
-    |> Enum.map(fn {node, pods} ->
-      {node, Enum.sum(Enum.map(pods, &pod_egress_mbps/1)), length(pods)}
-    end)
-  end
-
-  defp measure_box({node, own_mbps, pods_here}, region_id, placed_count) do
-    with {:ok, node_body} <- Client.get_node(node),
+         [pod | _] <- Enum.filter(pods, &(pod_node_name(&1) && not terminal?(&1))),
+         node = pod_node_name(pod),
+         on_box = Enum.filter(pods, &(pod_node_name(&1) == node)),
+         {:ok, node_body} <- Client.get_node(node),
          allocatable when is_integer(allocatable) <- egress_mbps(node_body),
          {:ok, reserved} <- box_reserved_mbps(node) do
+      own_mbps = on_box |> Enum.map(&pod_egress_mbps/1) |> Enum.sum()
+
       %{
         node: node,
         allocatable_mbps: allocatable,
         # The account's own reservation is added back: the rollout hands it in
         # before asking for the replacement.
         available_mbps: max(allocatable - (reserved - own_mbps), 0),
-        # Replicas this box will rebuild, which is what it is divided by. Raised
-        # by the replicas the region declares that no other box accounts for: a
-        # replica between deletion and recreation is in no pod list, and its
-        # volume brings it back here.
-        replicas: max(pods_here, declared_replicas(region_id) - (placed_count - pods_here))
+        # Raised to what the region declares: a replica between deletion and
+        # recreation is in no pod list, and its volume brings it back here.
+        replicas: max(length(on_box), declared_replicas(region_id))
       }
     else
       _ -> nil
@@ -279,16 +259,7 @@ defmodule Tuist.Kura.Capacity do
   defp box_reserved_mbps(node) do
     case Client.list_pods_on_node(node) do
       {:ok, pods} ->
-        reserved =
-          pods
-          # A pod holds a node's resources from the moment it is bound, not when
-          # it starts. The field selector already guarantees this; restated so
-          # the sum does not depend on a query string elsewhere.
-          |> Enum.filter(&(pod_node_name(&1) == node and not terminal?(&1)))
-          |> Enum.map(&pod_egress_mbps/1)
-          |> Enum.sum()
-
-        {:ok, reserved}
+        {:ok, pods |> Enum.reject(&terminal?/1) |> Enum.map(&pod_egress_mbps/1) |> Enum.sum()}
 
       {:error, _reason} = error ->
         error

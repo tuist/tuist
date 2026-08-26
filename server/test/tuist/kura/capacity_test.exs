@@ -269,20 +269,6 @@ defmodule Tuist.Kura.CapacityTest do
       assert %{available_mbps: 500, replicas: 2} = Capacity.egress_headroom(@region, "tuist")
     end
 
-    # A box only ever rebuilds the replicas that live on it -- each one's volume
-    # pins it there -- so it is divided by those, not by the account's replicas
-    # in the region.
-    test "divides a box by the replicas that live on it" do
-      stub_boxes(%{
-        "box-1" => {1000, [egress_pod("tuist", 100, node: "box-1"), egress_pod("neighbour", 400, node: "box-1")]},
-        "box-2" => {1000, [egress_pod("tuist", 100, node: "box-2")]}
-      })
-
-      stub_account_pods([egress_pod("tuist", 100, node: "box-1"), egress_pod("tuist", 100, node: "box-2")])
-
-      assert %{node: "box-1", available_mbps: 600, replicas: 1} = Capacity.egress_headroom(@region, "tuist")
-    end
-
     # A replica deleted and not yet recreated is in no pod list, and its volume
     # pins it to the box it left, so the box has to be sized for its return.
     test "counts a replica the account is between" do
@@ -315,29 +301,16 @@ defmodule Tuist.Kura.CapacityTest do
     stub(Client, :list_pods, fn "kura", _selector -> {:ok, pods} end)
   end
 
-  defp stub_box(node, allocatable_mbps, pods), do: stub_boxes(%{node => {allocatable_mbps, pods}})
-
-  defp stub_boxes(boxes) do
-    stub(Client, :get_node, fn node ->
-      case Map.fetch(boxes, node) do
-        {:ok, {allocatable_mbps, _pods}} ->
-          {:ok,
-           %{
-             "metadata" => %{"name" => node},
-             "status" => %{"allocatable" => %{"tuist.dev/egress-mbps" => Integer.to_string(allocatable_mbps)}}
-           }}
-
-        :error ->
-          {:error, :not_found}
-      end
+  defp stub_box(node, allocatable_mbps, pods) do
+    stub(Client, :get_node, fn ^node ->
+      {:ok,
+       %{
+         "metadata" => %{"name" => node},
+         "status" => %{"allocatable" => %{"tuist.dev/egress-mbps" => Integer.to_string(allocatable_mbps)}}
+       }}
     end)
 
-    stub(Client, :list_pods_on_node, fn node ->
-      case Map.fetch(boxes, node) do
-        {:ok, {_allocatable_mbps, pods}} -> {:ok, pods}
-        :error -> {:error, :not_found}
-      end
-    end)
+    stub(Client, :list_pods_on_node, fn ^node -> {:ok, pods} end)
   end
 
   defp egress_pod(handle, mbps, opts \\ []) do
