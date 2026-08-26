@@ -1,0 +1,361 @@
+package controllers
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
+)
+
+// Node reservation: draining one host to fit a Pod that no host can seat.
+//
+// A macOS fleet mixes guest shapes on the same hosts, and the large ones
+// need more than one guest slot on a single host. An M4-XL seats two
+// 6 vCPU guests or one 12 vCPU guest, so a 12 vCPU Pod needs BOTH of a
+// host's slots free at the same instant. Nothing in Kubernetes arranges
+// that on its own:
+//
+//   - kube-scheduler does not hold a queue on an unschedulable Pod. The
+//     large Pod is attempted, fails the CPU filter, and is set aside;
+//     the next 6 vCPU Pod is attempted and binds into the slot that just
+//     freed. Being queued longer earns a first attempt, not the seat.
+//   - The fleet allocator's cross-pool reclaim cannot help either. It
+//     reclaims speculative warm capacity, and the Pod winning the race
+//     here is backed by real queued work, which is the one tier that
+//     never yields.
+//
+// So under a steady trickle of small jobs the large Pod waits for a
+// coincidence that may not arrive. The fix is to stop the leak: take one
+// eligible host out of circulation for everyone else, let its running
+// jobs finish, retire only its idle Pods, and hand the accumulated seats
+// to the pool that was starved.
+//
+// Preemption cannot do this. The scheduler chooses victims by priority,
+// `spec.priority` is immutable after admission, and a runner Pod becomes
+// job-owning in place — so a priority high enough to evict for the large
+// Pod would also evict Pods running customer builds. The signal that
+// separates them, `isIdle`, reads init-container status the scheduler
+// never sees. The controller is the only component that can tell the
+// difference, which is why the reservation lives here.
+const (
+	// reservationAtAnnotation records when a reservation started, so it
+	// can be released on a timeout. Taint objects only carry a timestamp
+	// for NoExecute, and this taint is deliberately NoSchedule.
+	reservationAtAnnotation = "tuist.dev/reserved-at"
+
+	// reservationGrace is how long a Pod must sit unscheduled before it
+	// is treated as starved rather than merely waiting for the scheduler.
+	// Draining a host is expensive, and the ordinary case (a seat is free
+	// somewhere) resolves in well under a second.
+	reservationGrace = 2 * time.Minute
+
+	// reservationTimeout bounds how long one host stays held. The Pods a
+	// reservation waits on are customer jobs, which can legitimately run
+	// for hours; past this point the seats already cleared are worth more
+	// back in general circulation than spent waiting.
+	reservationTimeout = 15 * time.Minute
+
+	// maxFleetReservations is how many hosts may be held across the whole
+	// fleet at once. Every reservation is capacity withdrawn from the
+	// small shapes while it converges, so this stays at one: a second
+	// concurrent drain would take a quarter of an 11-slot fleet offline
+	// to serve two large jobs.
+	maxFleetReservations = 1
+)
+
+// reconcileReservation drives the reservation state machine for one
+// pool. It is called from the RunnerPool reconciler, which runs with
+// MaxConcurrentReconciles 1 — that serialization is what makes the
+// fleet-wide reservation count safe to read and act on without a lease.
+//
+// `pods` are this pool's Pods, already fetched by the caller.
+func (r *RunnerPoolReconciler) reconcileReservation(
+	ctx context.Context,
+	pool *tuistv1.RunnerPool,
+	pods []corev1.Pod,
+) error {
+	// darwin only. Linux runner Pods are kata sandboxes on homogeneous
+	// bare-metal hosts an order of magnitude larger than any shape, so a
+	// shape never needs a host drained to fit.
+	if pool.Spec.OS != macosNodeOSDarwin {
+		return nil
+	}
+
+	logger := log.FromContext(ctx)
+	now := r.now()
+
+	nodes, err := r.fleetNodes(ctx, pool)
+	if err != nil {
+		return err
+	}
+
+	value := podtemplate.ReservationValue(pool.Name)
+	held := reservedNode(nodes, value)
+	starved := starvedPod(pods, now)
+
+	if held != nil {
+		switch {
+		case starved == nil:
+			logger.Info("releasing node reservation; pool is served", "node", held.Name, "pool", pool.Name)
+			return r.releaseReservation(ctx, held)
+		case reservationAge(held, now) > reservationTimeout:
+			logger.Info("releasing node reservation; timed out waiting for jobs to finish",
+				"node", held.Name, "pool", pool.Name, "timeout", reservationTimeout)
+			return r.releaseReservation(ctx, held)
+		default:
+			return r.retireIdlePodsOnReservedNode(ctx, held, pool)
+		}
+	}
+
+	if starved == nil {
+		return nil
+	}
+	if reservationCount(nodes) >= maxFleetReservations {
+		return nil
+	}
+
+	target, err := r.pickReservationTarget(ctx, pool, nodes)
+	if err != nil {
+		return err
+	}
+	if target == nil {
+		// No host in the fleet could seat this shape even empty. That is
+		// a capacity or catalog problem, not something a drain can fix,
+		// and the pool's queue-age metric already carries the signal.
+		return nil
+	}
+
+	logger.Info("reserving node to fit a starved runner",
+		"node", target.Name, "pool", pool.Name, "pod", starved.Name)
+	return r.reserveNode(ctx, target, value, now)
+}
+
+// starvedPod returns a Pod that has waited past the grace period with no
+// node assigned. Phase is not the test on its own — an unscheduled Pod
+// and a Pod whose VM is still booting are both Pending — so this asks
+// for an empty `spec.nodeName`, which only an unplaced Pod has.
+func starvedPod(pods []corev1.Pod, now time.Time) *corev1.Pod {
+	var oldest *corev1.Pod
+	for i := range pods {
+		pod := &pods[i]
+		if pod.Spec.NodeName != "" || !pod.DeletionTimestamp.IsZero() {
+			continue
+		}
+		if pod.Status.Phase != corev1.PodPending {
+			continue
+		}
+		if now.Sub(pod.CreationTimestamp.Time) < reservationGrace {
+			continue
+		}
+		if oldest == nil || pod.CreationTimestamp.Time.Before(oldest.CreationTimestamp.Time) {
+			oldest = pod
+		}
+	}
+	return oldest
+}
+
+// pickReservationTarget chooses the host to drain: one that could seat
+// this pool's shape if it were empty, is not already reserved, and is
+// otherwise healthy.
+//
+// Preference is the host that will converge soonest — fewest Pods
+// running customer jobs, since those are the ones a reservation can only
+// wait for. Idle Pods are not counted; retiring them is immediate. Ties
+// break on name so a reservation does not wander between reconciles.
+func (r *RunnerPoolReconciler) pickReservationTarget(
+	ctx context.Context,
+	pool *tuistv1.RunnerPool,
+	nodes []corev1.Node,
+) (*corev1.Node, error) {
+	shape := podShape{cpuMilli: pool.Spec.PodCPUMilli, memoryMB: pool.Spec.PodMemoryMB}
+	if shape.cpuMilli <= 0 || shape.memoryMB <= 0 {
+		return nil, nil
+	}
+
+	var fleetPods corev1.PodList
+	if err := r.List(ctx, &fleetPods, client.InNamespace(pool.Namespace)); err != nil {
+		return nil, fmt.Errorf("list pods for reservation target: %w", err)
+	}
+
+	owned := map[string]int{}
+	for i := range fleetPods.Items {
+		pod := &fleetPods.Items[i]
+		if pod.Spec.NodeName == "" || !pod.DeletionTimestamp.IsZero() {
+			continue
+		}
+		if !isIdle(pod) {
+			owned[pod.Spec.NodeName]++
+		}
+	}
+
+	candidates := make([]*corev1.Node, 0, len(nodes))
+	for i := range nodes {
+		node := &nodes[i]
+		if nodeFilterReason(node) != "" || isReserved(node) {
+			continue
+		}
+		if nodeSeatsForShape(node, shape) < 1 {
+			continue
+		}
+		candidates = append(candidates, node)
+	}
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	sort.Slice(candidates, func(a, b int) bool {
+		if owned[candidates[a].Name] != owned[candidates[b].Name] {
+			return owned[candidates[a].Name] < owned[candidates[b].Name]
+		}
+		return candidates[a].Name < candidates[b].Name
+	})
+	return candidates[0], nil
+}
+
+// retireIdlePodsOnReservedNode clears the seats a reservation can clear
+// straight away: idle Pods belonging to OTHER pools. Retiring them costs
+// a cold start and nothing else.
+//
+// This pool's own Pods are left alone — an idle one here is the seat the
+// reservation was taken to produce. Pods running customer jobs are never
+// touched; the reservation waits them out, or times out.
+//
+// Idleness is read through `isIdle`, matching the node-drain path: the
+// owner label alone is best-effort and can be missing on a Pod that is
+// running a job.
+func (r *RunnerPoolReconciler) retireIdlePodsOnReservedNode(
+	ctx context.Context,
+	node *corev1.Node,
+	pool *tuistv1.RunnerPool,
+) error {
+	logger := log.FromContext(ctx)
+
+	var pods corev1.PodList
+	if err := r.List(ctx, &pods, client.InNamespace(pool.Namespace)); err != nil {
+		return fmt.Errorf("list pods on reserved node %s: %w", node.Name, err)
+	}
+
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.Spec.NodeName != node.Name || !pod.DeletionTimestamp.IsZero() {
+			continue
+		}
+		if pod.Labels["tuist.dev/runner-pool"] == pool.Name {
+			continue
+		}
+		if !isIdle(pod) {
+			continue
+		}
+		if err := r.reapRunner(ctx, pod); err != nil {
+			return fmt.Errorf("retire idle pod %s on reserved node %s: %w", pod.Name, node.Name, err)
+		}
+		logger.Info("retired idle pod to clear a reserved node", "pod", pod.Name, "node", node.Name)
+	}
+	return nil
+}
+
+func (r *RunnerPoolReconciler) reserveNode(
+	ctx context.Context,
+	node *corev1.Node,
+	value string,
+	now time.Time,
+) error {
+	patched := node.DeepCopy()
+	patched.Spec.Taints = append(patched.Spec.Taints, corev1.Taint{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  value,
+		Effect: corev1.TaintEffectNoSchedule,
+	})
+	if patched.Annotations == nil {
+		patched.Annotations = map[string]string{}
+	}
+	patched.Annotations[reservationAtAnnotation] = now.UTC().Format(time.RFC3339)
+
+	if err := r.Patch(ctx, patched, client.MergeFrom(node)); err != nil {
+		return fmt.Errorf("reserve node %s: %w", node.Name, err)
+	}
+	return nil
+}
+
+func (r *RunnerPoolReconciler) releaseReservation(ctx context.Context, node *corev1.Node) error {
+	patched := node.DeepCopy()
+	taints := make([]corev1.Taint, 0, len(patched.Spec.Taints))
+	for _, taint := range patched.Spec.Taints {
+		if taint.Key == podtemplate.ReservationTaintKey {
+			continue
+		}
+		taints = append(taints, taint)
+	}
+	patched.Spec.Taints = taints
+	delete(patched.Annotations, reservationAtAnnotation)
+
+	if err := r.Patch(ctx, patched, client.MergeFrom(node)); err != nil {
+		return fmt.Errorf("release reservation on node %s: %w", node.Name, err)
+	}
+	return nil
+}
+
+// fleetNodes lists the macOS hosts behind a pool's fleet selector, the
+// same set the autoscaler sizes its budget from.
+func (r *RunnerPoolReconciler) fleetNodes(ctx context.Context, pool *tuistv1.RunnerPool) ([]corev1.Node, error) {
+	var nodes corev1.NodeList
+	if err := r.List(ctx, &nodes, client.MatchingLabels{
+		macosFleetLabel:  pool.Spec.FleetSelector,
+		macosNodeOSLabel: macosNodeOSDarwin,
+	}); err != nil {
+		return nil, fmt.Errorf("list fleet nodes: %w", err)
+	}
+	return nodes.Items, nil
+}
+
+func isReserved(node *corev1.Node) bool {
+	for _, taint := range node.Spec.Taints {
+		if taint.Key == podtemplate.ReservationTaintKey {
+			return true
+		}
+	}
+	return false
+}
+
+func reservedNode(nodes []corev1.Node, value string) *corev1.Node {
+	for i := range nodes {
+		for _, taint := range nodes[i].Spec.Taints {
+			if taint.Key == podtemplate.ReservationTaintKey && taint.Value == value {
+				return &nodes[i]
+			}
+		}
+	}
+	return nil
+}
+
+func reservationCount(nodes []corev1.Node) int {
+	count := 0
+	for i := range nodes {
+		if isReserved(&nodes[i]) {
+			count++
+		}
+	}
+	return count
+}
+
+// reservationAge reports how long a node has been held. A missing or
+// unparseable stamp reads as freshly reserved rather than expired, so a
+// hand-applied taint is not torn down on the next tick.
+func reservationAge(node *corev1.Node, now time.Time) time.Duration {
+	stamp, ok := node.Annotations[reservationAtAnnotation]
+	if !ok {
+		return 0
+	}
+	at, err := time.Parse(time.RFC3339, stamp)
+	if err != nil {
+		return 0
+	}
+	return now.Sub(at)
+}

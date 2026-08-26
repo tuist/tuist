@@ -117,7 +117,7 @@ func (r *RunnerPoolReconciler) now() time.Time {
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;delete
-// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;patch
 
 func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("pool", req.NamespacedName)
@@ -187,6 +187,17 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	pods.Items = survivors
 	if cordonReaped > 0 {
 		logger.Info("retired idle runner pods for node drain", "count", cordonReaped)
+	}
+
+	// Node reservation. Runs after the drain reap so a Pod already
+	// retired above is not counted as an occupant a reservation must
+	// wait on, and before the accounting below because retiring another
+	// pool's idle Pod here changes what this fleet has free. Failures are
+	// logged and skipped rather than returned: a reservation is an
+	// optimization for a starved shape, and a fleet that cannot take one
+	// must still converge its Pods.
+	if err := r.reconcileReservation(ctx, pool, pods.Items); err != nil {
+		logger.Error(err, "reconcile node reservation; will retry next tick")
 	}
 
 	// Warm capacity is counted here, in the one pass with no early
