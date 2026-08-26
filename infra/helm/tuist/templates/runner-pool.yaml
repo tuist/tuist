@@ -134,20 +134,39 @@ rendering exactly the one pool per Xcode this template rendered before
 shapes were crossed in, at the long-standing 8000 milli / 14336 MB
 sizing.
 */}}
+{{- $macosShapes := .Values.runnersFleet.shapes | default list }}
 {{- $defaultShape := dict }}
-{{- range $.Values.runnersFleet.shapes | default list }}
+{{- $defaultShapeCount := 0 }}
+{{- range $macosShapes }}
   {{- if .default }}
     {{- $defaultShape = . }}
+    {{- $defaultShapeCount = add1 $defaultShapeCount }}
   {{- end }}
+{{- end }}
+{{- /*
+A non-empty catalog must tag exactly one default, and the render fails
+rather than guessing. The default shape is what owns the shape-free pool
+name, and `Catalog.pool_name/1` answers `nil` from `default_shape/1` by
+routing EVERY shape to that one name — so a catalog with no default
+would have the server sending 12 vCPU profiles at a 6 vCPU pool, while
+this template rendered a suffixed pool for each shape that nothing ever
+dispatches to. Two defaults are equally ambiguous: the server takes the
+first match and this loop keeps the last.
+
+An EMPTY list stays legal and renders one pool per Xcode at the
+long-standing 8000 milli / 14336 MB sizing, which is what this template
+did before shapes were crossed in.
+*/}}
+{{- if and $macosShapes (ne (int $defaultShapeCount) 1) }}
+  {{- fail (printf "runnersFleet.shapes must tag exactly one entry `default: true` (found %d); the default shape owns the shape-free pool name that Catalog.pool_name/1 resolves to" (int $defaultShapeCount)) }}
 {{- end }}
 {{- $defaultCPU := mul (dig "vcpus" 8 $defaultShape) 1000 }}
 {{- $defaultMem := mul (dig "memoryGb" 14 $defaultShape) 1024 }}
 {{- /*
-The rendered set is the default shape (always, even when the catalog
-declares none) plus every non-default shape.
+The rendered set is the default shape plus every non-default shape.
 */}}
 {{- $extraShapes := list }}
-{{- range $.Values.runnersFleet.shapes | default list }}
+{{- range $macosShapes }}
   {{- if not .default }}
     {{- $extraShapes = append $extraShapes . }}
   {{- end }}

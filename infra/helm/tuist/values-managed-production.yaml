@@ -1177,13 +1177,20 @@ runnersFleet:
       default: true
     - vcpus: 12
       memoryGb: 28
-      # maxReplicas is the M4-XL HOST count, not a fleet slot count.
-      # The allocator's budget is the fleet's total advertised memory,
-      # which includes the 7 M2-L hosts that cannot place a 28 GB Pod at
-      # all, so 157696 / 28672 reads as 5 where only 2 are real. This
-      # ceiling is what makes that safe, so it moves with
-      # `machineGroups[m4].hostCount`, not with the 11-slot totals the
-      # `xcodeOverrides` below use.
+      # maxReplicas is a PER-POOL ceiling and is NOT what keeps the
+      # fleet honest: this shape renders one pool per Xcode version, and
+      # five pools each allowed 2 compose to 10. The fleet-wide bound
+      # comes from the runners-controller, which counts each node's own
+      # min(cpu, memory) quotient for a shape and caps every pool sharing
+      # it at that sum (2 today, both on M4-XL). It has to be derived
+      # there rather than written here because the byte budget cannot see
+      # it: 157696 / 28672 reads as 5, pooling memory from M2-L hosts
+      # that cannot seat one of these Pods at all.
+      #
+      # Set it to the M4-XL host count regardless, as the per-pool bound
+      # it is: no single Xcode version should be able to take the whole
+      # shape. It moves with `machineGroups[m4].hostCount`, not with the
+      # 11-slot totals the `xcodeOverrides` below use.
       #
       # Cold: no warm floor. A 12 vCPU Pod parks a whole M4-XL, and idle
       # it would halve the fleet's dual-guest capacity to keep one

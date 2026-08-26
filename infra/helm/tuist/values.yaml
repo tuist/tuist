@@ -2017,9 +2017,13 @@ runnersFleet:
   #      consistent way to sell an M4-XL's cores.
   #   2. A shape larger than the smallest host in the fleet is
   #      over-promised by that same fleet-wide sum, since it counts
-  #      memory on hosts too small to place it. Give such a shape an
-  #      `autoscaling.maxReplicas` no greater than the number of hosts
-  #      that can actually host it.
+  #      memory on hosts too small to place it. The runners-controller
+  #      corrects for this by counting each node's own min(cpu, memory)
+  #      quotient and capping every pool sharing the shape at that sum,
+  #      which `autoscaling.maxReplicas` cannot do on its own — it is
+  #      per pool, and a shape renders one pool per Xcode version. Still
+  #      set `maxReplicas` to the number of hosts that can seat the
+  #      shape, as the per-pool bound.
   #
   # Which SKUs a given environment owns is therefore part of what its
   # catalog can offer, so managed envs override this list per env rather
