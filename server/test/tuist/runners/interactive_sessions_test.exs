@@ -2,6 +2,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Kubernetes.Client, as: K8sClient
@@ -788,7 +789,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
   # these tests only need "promote the claim that exists", so they read it
   # back. The guard itself is covered in the `mark_running/3` describe.
   defp mark_running!(workflow_job_id, runner_name) do
-    claim = Repo.get!(Tuist.Runners.Claim, workflow_job_id)
+    claim = Repo.one!(from(c in Tuist.Runners.Claim, where: c.workflow_job_id == ^workflow_job_id))
     Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
   end
 end

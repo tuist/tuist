@@ -283,7 +283,14 @@ defmodule Tuist.Runners.Dispatch do
     claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id, account_id)
     session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id, account_id)
     :ok = WorkflowJobs.record_execution(runner_name, executed_workflow_job_id, account_id)
-    outcome = combine_attribution(claim_outcome, session_outcome)
+
+    # Ordered after `WorkflowJobs.record_execution/3`: the re-queue clears
+    # the `executed_workflow_job_id` it just stamped on the displaced job's
+    # row, which is what that row needs to be a clean dispatch candidate
+    # again. The binding survives on the claim and the runner session.
+    requeue_displaced_job(claim_outcome, runner_name)
+
+    outcome = combine_attribution(claim_attribution(claim_outcome), session_outcome)
 
     case outcome do
       :mismatch ->
@@ -304,6 +311,43 @@ defmodule Tuist.Runners.Dispatch do
         {:ignored, :unknown_runner}
     end
   end
+
+  # Drops the displaced-job payload so both stores' outcomes combine as
+  # the same bare atoms.
+  defp claim_attribution({:mismatch, _displaced}), do: :mismatch
+  defp claim_attribution(outcome), do: outcome
+
+  # The runner took a different job than its claim was minted for, so the
+  # job it was minted for is running nowhere — and nothing else will say
+  # so, because GitHub never re-announces a job it still considers queued.
+  # `Claims.record_execution/3` has already detached it, leaving the Pod
+  # its slot for the job it actually took; this returns the job itself to
+  # the queue. Without it the job waits for the Pod to stop, which measured
+  # a 5-minute median on macOS.
+  #
+  # Handle-guarded on the claim's `claimed_at`, so a job another Pod
+  # re-claimed (newer handle) or a completion that already landed
+  # (terminal status) is left alone.
+  defp requeue_displaced_job({:mismatch, %{workflow_job_id: workflow_job_id, claimed_at: claimed_at}}, runner_name) do
+    case WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at) do
+      :ok ->
+        Logger.info("runners: re-queued job displaced by the runner shuffle",
+          runner_name: runner_name,
+          workflow_job_id: workflow_job_id
+        )
+
+        :telemetry.execute(
+          Telemetry.event_name_recovery(),
+          %{count: 1},
+          %{kind: "displaced_job_requeued"}
+        )
+
+      :noop ->
+        :ok
+    end
+  end
+
+  defp requeue_displaced_job(_claim_outcome, _runner_name), do: :ok
 
   # A real `:matched`/`:mismatch` from either store beats
   # `:unknown_runner`; a `:mismatch` anywhere wins over `:matched`

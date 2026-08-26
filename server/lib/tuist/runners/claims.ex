@@ -1,8 +1,17 @@
 defmodule Tuist.Runners.Claims do
   @moduledoc """
   Postgres-backed claim coordination for the dispatch path. The
-  table is **very thin** — one row per currently-claimed
-  workflow_job, deleted on completion / release / stale recovery.
+  table is **very thin** — one row per Pod holding one of its
+  account's concurrency slots, deleted on completion / release /
+  stale recovery.
+
+  The row is keyed by `pod_name`, and `workflow_job_id` is the job
+  that Pod is currently reserved for. The two are only incidentally
+  1:1: GitHub binds a JIT runner to a label set rather than to a
+  job, so the Pod minted for job A often runs job B instead. When
+  `record_execution/3` learns that, it clears `workflow_job_id` —
+  the displaced job becomes claimable again immediately while the
+  Pod keeps the slot for the job it actually took.
 
   Two responsibilities, both genuinely OLTP:
 
@@ -16,11 +25,15 @@ defmodule Tuist.Runners.Claims do
 
          * platform resource-limit check against the account's
            vCPU and memory budgets and this platform's live claims
-         * the `workflow_job_id` primary key collapses concurrent
-           attempts for the same job
-         * the unique `pod_name` index prevents one Pod from owning
+         * the partial unique index on `workflow_job_id` collapses
+           concurrent attempts for the same job
+         * the `pod_name` primary key prevents one Pod from owning
            two live claims, including attempts spanning accounts or
            platforms
+
+       The INSERT names no conflict target, so it collapses on
+       either constraint; `claim_conflict/2` reads back which one
+       to tell `:lost_race` from `:pod_in_use`.
 
        A busy lock returns immediately so one account cannot fill the
        database pool with waiting transactions. The dispatcher skips
@@ -86,8 +99,8 @@ defmodule Tuist.Runners.Claims do
       try another account instead of waiting.
     * `{:error, :concurrency_limit_missing}` — the account's platform
       limit invariant is broken and admission cannot proceed safely.
-    * `{:error, :lost_race}` — another pod beat us to the
-      `workflow_job_id` PK.
+    * `{:error, :lost_race}` — another pod already holds the live
+      claim for this `workflow_job_id`.
     * `{:error, {:concurrency_limit_reached, details}}` — adding the
       requested shape would exceed either the platform's vCPU or
       memory limit.
@@ -311,6 +324,10 @@ defmodule Tuist.Runners.Claims do
   for the stale reaper — it's an active cap slot for a healthy
   build.
 
+  Keyed by the job rather than the Pod because the claim still names it:
+  this runs pre-mint, before GitHub has had a chance to place a different
+  job on the runner. The lifecycle transition needs the job id anyway.
+
   Both writes are guarded on `claimed_at`, so they only ever promote
   the caller's own claim generation. A mint that finishes after its
   claim was reaped and the job re-claimed by another Pod matches
@@ -350,6 +367,11 @@ defmodule Tuist.Runners.Claims do
   then re-claimed by a different poll) doesn't delete the second
   claim's row out from under it.
 
+  Keyed by the job rather than the Pod on purpose. This releases the
+  claim *held for that job*, and a displaced claim no longer names the job
+  it was minted for, so this can never free the slot of a runner busy with
+  the job GitHub actually gave it.
+
   Returns `:ok` on success, `{:error, :stale_claim}` if the row
   is gone or its `claimed_at` has moved on.
   """
@@ -383,6 +405,10 @@ defmodule Tuist.Runners.Claims do
   webhook must therefore NOT use this (see `complete_by_runner_name/1`);
   it exists for `OrphanedRunnersWorker`, where a GitHub-side terminal
   status has already proven the claim is stale and the slot is leaked.
+
+  Job-keyed, like `release/2`: a claim whose job was displaced no longer
+  names it and is left alone, which is right — that Pod's slot is held for
+  the job it actually took, not for this one.
 
   Idempotent — repeated deliveries are a no-op. Returns `:ok` whether
   or not a row existed.
@@ -424,9 +450,12 @@ defmodule Tuist.Runners.Claims do
   `executing?/1` guards for the queued-side recovery.
 
   So the claim is released only when the claimed job AND the executed job
-  (when the runner took one) are both complete. A runner minted for a
-  single-shot JIT runs at most one job, so those two cover everything the
-  claim can be holding the slot for.
+  (whichever of the two the claim still names) are both complete. A runner
+  minted for a single-shot JIT runs at most one job, so those two cover
+  everything the claim can be holding the slot for. A displaced claim names
+  no job at all — `record_execution/3` cleared it — and is held purely for
+  the executed one; a claim naming neither is not this pass's to release,
+  since nothing proves the runner is finished.
 
   `threshold` only avoids racing the webhook's own release between the
   completion insert and the delete; it is not the staleness signal.
@@ -438,7 +467,8 @@ defmodule Tuist.Runners.Claims do
       Repo.delete_all(
         from(c in Claim,
           where: c.claimed_at < ^threshold,
-          where: c.workflow_job_id in subquery(completed),
+          where: not (is_nil(c.workflow_job_id) and is_nil(c.executed_workflow_job_id)),
+          where: is_nil(c.workflow_job_id) or c.workflow_job_id in subquery(completed),
           where:
             is_nil(c.executed_workflow_job_id) or
               c.executed_workflow_job_id in subquery(completed)
@@ -519,10 +549,12 @@ defmodule Tuist.Runners.Claims do
   — not `queued` for dispatch, not `running` for the orphan scans,
   and with no claim left for `StaleClaimsWorker` to find.
 
-  Returns the released `workflow_job_id`s (empty in the common case
-  where the job's `completed` webhook already freed the claim
-  before the Pod halted; non-empty only for a stranded or
-  crashed-mid-job Pod).
+  Returns the job each released claim was holding a slot for (empty in
+  the common case where the job's `completed` webhook already freed the
+  claim before the Pod halted; non-empty only for a stranded or
+  crashed-mid-job Pod). A displaced claim names no job of its own —
+  `record_execution/3` handed that one back — so it reports the job the
+  runner actually took.
   """
   def release_by_pod_name(pod_name) when is_binary(pod_name) and pod_name != "" do
     {:ok, released} =
@@ -531,17 +563,22 @@ defmodule Tuist.Runners.Claims do
           Repo.delete_all(
             from(c in Claim,
               where: c.pod_name == ^pod_name,
-              select: {c.workflow_job_id, c.lifecycle_state, c.claimed_at}
+              select: {c.workflow_job_id, c.lifecycle_state, c.claimed_at, c.executed_workflow_job_id}
             )
           )
 
         released = released || []
 
-        for {workflow_job_id, "claimed", claimed_at} <- released do
+        # A `claimed` row always still names its job: the clear only happens
+        # once GitHub reports a runner, which is also what moves the row to
+        # `running`.
+        for {workflow_job_id, "claimed", claimed_at, _executed} <- released do
           WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at)
         end
 
-        Enum.map(released, &elem(&1, 0))
+        Enum.map(released, fn {workflow_job_id, _state, _claimed_at, executed} ->
+          workflow_job_id || executed
+        end)
       end)
 
     released
@@ -559,11 +596,14 @@ defmodule Tuist.Runners.Claims do
 
   Counts `claimed` + `running` together — both occupy a Pod and
   must be reflected as busy capacity when sizing the warm pool.
+  Counts the Pod rather than `workflow_job_id`, which is NULL for a
+  claim whose job was displaced onto another runner — that Pod is
+  still busy.
   """
   def counts_per_fleet do
     from(c in Claim,
       group_by: c.fleet_name,
-      select: {c.fleet_name, count(c.workflow_job_id)}
+      select: {c.fleet_name, count(c.pod_name)}
     )
     |> Repo.all()
     |> Map.new()
@@ -582,7 +622,7 @@ defmodule Tuist.Runners.Claims do
   def counts_per_account do
     from(c in Claim,
       group_by: c.account_id,
-      select: {c.account_id, count(c.workflow_job_id)}
+      select: {c.account_id, count(c.pod_name)}
     )
     |> Repo.all()
     |> Map.new()
@@ -640,12 +680,15 @@ defmodule Tuist.Runners.Claims do
   machine metrics) uses `RunnerSessions.executed_job_for_pod/1`, which
   only answers once GitHub has proven the binding.
 
-  Returns `:error` when the Pod holds no live claim (an idle/warm Pod,
-  or one whose job already released its claim).
+  Returns `:error` when the Pod holds no live claim (an idle/warm Pod, or
+  one whose job already released its claim), and when its claim names no
+  job at all: a Pod whose claimed job was displaced onto another runner is
+  reserved for nothing, and the caller's runner-session fallback is the
+  execution-aware binding for it.
   """
   def by_pod_name(pod_name) when is_binary(pod_name) do
     Claim
-    |> where([c], c.pod_name == ^pod_name)
+    |> where([c], c.pod_name == ^pod_name and not is_nil(c.workflow_job_id))
     |> select([c], %{
       workflow_job_id: c.workflow_job_id,
       account_id: c.account_id,
@@ -698,7 +741,6 @@ defmodule Tuist.Runners.Claims do
       from(c in Claim,
         where: c.claimed_at < ^grace_threshold and c.pod_name != "",
         select: %{
-          workflow_job_id: c.workflow_job_id,
           pod_name: c.pod_name,
           pod_missing_since: c.pod_missing_since
         }
@@ -713,11 +755,11 @@ defmodule Tuist.Runners.Claims do
   """
   def mark_pods_missing([], _now), do: 0
 
-  def mark_pods_missing(workflow_job_ids, %DateTime{} = now) when is_list(workflow_job_ids) do
+  def mark_pods_missing(pod_names, %DateTime{} = now) when is_list(pod_names) do
     {count, _} =
       Repo.update_all(
         from(c in Claim,
-          where: c.workflow_job_id in ^workflow_job_ids and is_nil(c.pod_missing_since)
+          where: c.pod_name in ^pod_names and is_nil(c.pod_missing_since)
         ),
         set: [pod_missing_since: now]
       )
@@ -734,11 +776,11 @@ defmodule Tuist.Runners.Claims do
   """
   def clear_pods_missing([]), do: 0
 
-  def clear_pods_missing(workflow_job_ids) when is_list(workflow_job_ids) do
+  def clear_pods_missing(pod_names) when is_list(pod_names) do
     {count, _} =
       Repo.update_all(
         from(c in Claim,
-          where: c.workflow_job_id in ^workflow_job_ids and not is_nil(c.pod_missing_since)
+          where: c.pod_name in ^pod_names and not is_nil(c.pod_missing_since)
         ),
         set: [pod_missing_since: nil]
       )
@@ -767,7 +809,7 @@ defmodule Tuist.Runners.Claims do
         order_by: [asc: c.pod_missing_since],
         limit: ^limit,
         select: %{
-          workflow_job_id: c.workflow_job_id,
+          pod_name: c.pod_name,
           pod_missing_since: c.pod_missing_since
         }
       )
@@ -779,24 +821,25 @@ defmodule Tuist.Runners.Claims do
   the `pod_missing_since` handle it was selected with.
 
   The handle closes a stale-delete race. Between selection and delete,
-  another path can release the row and the same workflow_job be
-  re-claimed by a live Pod; deleting by id alone would drop that fresh
-  claim. A re-claimed row carries a NULL `pod_missing_since`, so the
-  handle no longer matches and nothing is deleted. Same reason `release/2`
-  keys on `claimed_at`.
+  another path can release the row and the Pod's name be reused by a
+  fresh claim; deleting by name alone would drop that fresh claim. A
+  re-claimed row carries a NULL `pod_missing_since`, so the handle no
+  longer matches and nothing is deleted. Same reason `release/2` keys on
+  `claimed_at`.
   """
-  def release_pod_missing(workflow_job_id, %DateTime{} = pod_missing_since) when is_integer(workflow_job_id) do
+  def release_pod_missing(pod_name, %DateTime{} = pod_missing_since) when is_binary(pod_name) do
     {:ok, outcome} =
       Repo.transaction(fn ->
-        {count, _} =
+        {count, released} =
           Repo.delete_all(
             from(c in Claim,
-              where: c.workflow_job_id == ^workflow_job_id and c.pod_missing_since == ^pod_missing_since
+              where: c.pod_name == ^pod_name and c.pod_missing_since == ^pod_missing_since,
+              select: c.workflow_job_id
             )
           )
 
         if count == 1 do
-          WorkflowJobs.requeue(workflow_job_id)
+          requeue_released_job(released)
           :ok
         else
           {:error, :stale_claim}
@@ -805,6 +848,15 @@ defmodule Tuist.Runners.Claims do
 
     outcome
   end
+
+  # A displaced claim names no job: `record_execution/3` handed it back to
+  # the queue the moment GitHub proved the Pod was running a different one,
+  # so there is nothing left here to re-queue.
+  defp requeue_released_job([workflow_job_id]) when is_integer(workflow_job_id) do
+    WorkflowJobs.requeue(workflow_job_id)
+  end
+
+  defp requeue_released_job(_released), do: :ok
 
   @doc """
   Count of claims eligible for release right now, ignoring the per-tick
@@ -824,9 +876,14 @@ defmodule Tuist.Runners.Claims do
   set, whichever job it turned out to be.
 
   This is the busy signal for recovery paths that would otherwise judge a
-  claim by its *claimed* job's GitHub status: a runner can be hard at work
-  on a sibling's job while the job it was minted for still sits queued.
-  Releasing such a claim would delete a live runner's reservation mid-job.
+  claim by its *claimed* job's GitHub status. Releasing such a claim would
+  delete a live runner's reservation mid-job.
+
+  A displaced job no longer resolves to a claim at all —
+  `record_execution/3` detaches it as soon as GitHub reports the runner
+  took something else — so this now answers `true` only for a runner
+  running the job it was minted for. It stays the guard for a claim whose
+  `in_progress` webhook was dropped, where the mismatch is still unknown.
   """
   def executing?(workflow_job_id) when is_integer(workflow_job_id) do
     Repo.exists?(
@@ -848,13 +905,25 @@ defmodule Tuist.Runners.Claims do
   it, since every other account controls the names of its own
   self-hosted runners.
 
+  On a mismatch the claim also **stops naming the job it was minted
+  for**. That job is not running on this Pod and GitHub will never
+  re-announce it — a job it still considers queued produces no further
+  webhook — so leaving the binding in place is what kept it unclaimable
+  until the Pod stopped. Clearing it frees the job without touching the
+  Pod's slot, which the runner needs for the job it actually took, and
+  clears the unique index so another Pod can claim it. The claim is
+  keyed by `pod_name`, so it survives losing its job.
+
   Idempotent: repeated deliveries set the same value. Returns which
   of the three attribution outcomes occurred so the webhook path can
   emit it as telemetry:
 
     * `:matched` — GitHub ran the job the claim was minted for.
-    * `:mismatch` — GitHub ran a *different* job on this runner than
-      the one claimed (the claim↔execution mismatch we're measuring).
+    * `{:mismatch, displaced}` — GitHub ran a *different* job on this
+      runner than the one claimed (the claim↔execution mismatch we're
+      measuring). `displaced` carries the detached job and the claim
+      handle to re-queue it with, or is `nil` on a redelivery that
+      finds it already detached.
     * `:unknown_runner` — no live claim carries this `runner_name`
       (a dropped/late webhook, or the claim already completed). The
       durable session binding is the backstop for this case.
@@ -872,15 +941,34 @@ defmodule Tuist.Runners.Claims do
       nil ->
         :unknown_runner
 
-      %Claim{workflow_job_id: claimed_job_id} ->
-        Repo.update_all(
-          from(c in Claim, where: c.runner_name == ^runner_name and c.account_id == ^account_id),
-          set: [executed_workflow_job_id: executed_workflow_job_id]
+      %Claim{workflow_job_id: ^executed_workflow_job_id} ->
+        bind_execution(runner_name, account_id, executed_workflow_job_id: executed_workflow_job_id)
+        :matched
+
+      %Claim{workflow_job_id: claimed_job_id, claimed_at: claimed_at} ->
+        bind_execution(runner_name, account_id,
+          executed_workflow_job_id: executed_workflow_job_id,
+          workflow_job_id: nil
         )
 
-        if claimed_job_id == executed_workflow_job_id, do: :matched, else: :mismatch
+        {:mismatch, displaced_job(claimed_job_id, claimed_at)}
     end
   end
 
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :unknown_runner
+
+  defp bind_execution(runner_name, account_id, updates) do
+    Repo.update_all(
+      from(c in Claim, where: c.runner_name == ^runner_name and c.account_id == ^account_id),
+      set: updates
+    )
+  end
+
+  # A redelivery finds the job already detached by the first one, which
+  # re-queued it; there is nothing left for the caller to hand back.
+  defp displaced_job(nil, _claimed_at), do: nil
+
+  defp displaced_job(workflow_job_id, claimed_at) do
+    %{workflow_job_id: workflow_job_id, claimed_at: claimed_at}
+  end
 end

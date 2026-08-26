@@ -6,6 +6,7 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Accounts
   alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
+  alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
@@ -16,6 +17,8 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.FetchLogsWorker
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
+  alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobs
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -509,11 +512,80 @@ defmodule Tuist.Runners.DispatchTest do
     end
 
     test "surfaces a claim↔execution mismatch when GitHub ran a different job" do
-      stub(Claims, :record_execution, fn "runner-b", 4400, _acct -> :mismatch end)
+      stub(Claims, :record_execution, fn "runner-b", 4400, _acct -> {:mismatch, nil} end)
       stub(RunnerSessions, :record_execution, fn "runner-b", 4400, _acct -> :mismatch end)
 
       assert {:ok, :mismatch} =
                Dispatch.handle_webhook(in_progress_payload(id: 4400, runner_name: "runner-b"), 1)
+    end
+
+    # The payoff of keying claims by Pod: GitHub gave this runner a
+    # sibling's job, so the job it was minted for is running nowhere and
+    # goes straight back to the queue instead of waiting for the Pod to
+    # stop. GitHub never re-announces it, so nothing else would.
+    test "re-queues the job displaced by the runner shuffle", %{account: account} do
+      workflow_job_id = 4410
+      displaced_at = DateTime.add(DateTime.utc_now(), -30, :second)
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          fleet_name: "macos-pool",
+          platform: "macos",
+          vcpus: 6,
+          memory_gb: 14,
+          repository: "tuist/tuist"
+        })
+
+      :ok = WorkflowJobs.transition_claimed(workflow_job_id, "pod-displaced", displaced_at)
+      :ok = WorkflowJobs.transition_running(workflow_job_id, "runner-displaced", displaced_at)
+
+      stub(Claims, :record_execution, fn "runner-displaced", 4411, _acct ->
+        {:mismatch, %{workflow_job_id: workflow_job_id, claimed_at: displaced_at}}
+      end)
+
+      stub(RunnerSessions, :record_execution, fn "runner-displaced", 4411, _acct -> :mismatch end)
+
+      assert {:ok, :mismatch} =
+               Dispatch.handle_webhook(in_progress_payload(id: 4411, runner_name: "runner-displaced"), 1)
+
+      row = Repo.get!(WorkflowJob, workflow_job_id)
+      assert row.status == "queued"
+      assert row.pod_name == nil
+      assert row.runner_name == nil
+      assert row.claimed_at == nil
+    end
+
+    # The handle is what keeps the re-queue off a row another Pod has
+    # since claimed: that claim stamped a newer `claimed_at`.
+    test "leaves a displaced job that another pod already re-claimed", %{account: account} do
+      workflow_job_id = 4420
+      stale_handle = DateTime.add(DateTime.utc_now(), -600, :second)
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          fleet_name: "macos-pool",
+          platform: "macos",
+          vcpus: 6,
+          memory_gb: 14,
+          repository: "tuist/tuist"
+        })
+
+      :ok = WorkflowJobs.transition_claimed(workflow_job_id, "pod-fresh", DateTime.utc_now())
+
+      stub(Claims, :record_execution, fn "runner-stale", 4421, _acct ->
+        {:mismatch, %{workflow_job_id: workflow_job_id, claimed_at: stale_handle}}
+      end)
+
+      stub(RunnerSessions, :record_execution, fn "runner-stale", 4421, _acct -> :mismatch end)
+
+      assert {:ok, :mismatch} =
+               Dispatch.handle_webhook(in_progress_payload(id: 4421, runner_name: "runner-stale"), 1)
+
+      assert Repo.get!(WorkflowJob, workflow_job_id).status == "claimed"
     end
 
     test "a mismatch on either store wins over a matched on the other" do
