@@ -25,9 +25,11 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
+  alias Tuist.Kura.EgressLimits
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.Rollouts
   alias Tuist.Kura.Server
   alias Tuist.Kura.StorageClaims
   alias Tuist.Repo
@@ -109,8 +111,12 @@ defmodule Tuist.Kura do
   def version_label(image_tag) when is_binary(image_tag), do: image_tag
 
   @doc """
-  Creates deployments for active Kura servers that are behind the
-  latest released Kura runtime image tag.
+  Creates deployments for active Kura servers that are behind the latest
+  released Kura runtime image tag, a bounded batch per tick. This is the
+  kill-switch fallback used when
+  `Tuist.FeatureFlags.kura_rollout_orchestration_enabled?/0` is off; the
+  health-gated wave machinery lives in `Tuist.Kura.Rollouts`, and it
+  replaces the at-most-once invariant below with rollout-scoped attempts.
 
   Each `(server, image_tag)` pair is scheduled at most once. A newer image
   supersedes an open deployment for an older image so a rollout that cannot
@@ -276,6 +282,65 @@ defmodule Tuist.Kura do
   defdelegate minimum_storage_claim, to: Regions
 
   @doc """
+  The egress floor and ceiling an account's instances in `region` are shaped at,
+  as `%{floor_mbps:, burst_mbps:}`.
+  """
+  defdelegate effective_egress_limits(account, region), to: EgressLimits, as: :effective_limits
+
+  @doc """
+  The account's egress override in `region`, or `nil` when the region decides
+  both numbers there.
+  """
+  defdelegate egress_limits_override(account, region), to: EgressLimits, as: :override_for
+
+  @doc """
+  The egress budget the region's smallest box advertises, which is what a floor
+  or ceiling has to fit inside.
+  """
+  defdelegate region_node_egress_budget_mbps(account, region), to: EgressLimits, as: :node_budget_mbps
+
+  @doc """
+  What the box the account's instances in a region sit on can still be asked
+  for, or `nil` when they sit on none yet. Tighter than the advertised budget,
+  because that box is already carrying the floor they run at.
+  """
+  defdelegate region_egress_headroom(account, region), to: EgressLimits, as: :node_headroom
+
+  @doc """
+  Whether an instance in this status still holds pods, and so is one an egress
+  override reaches.
+  """
+  defdelegate kura_instance_holds_pods?(status), to: EgressLimits, as: :holds_pods?
+
+  @doc """
+  The highest floor a box can hold for an account, from its headroom.
+  """
+  defdelegate max_egress_floor_mbps(headroom), to: EgressLimits, as: :max_floor_mbps
+
+  @doc """
+  The ops egress form's field names, as `{floor, ceiling}`.
+  """
+  defdelegate egress_limits_form_fields, to: EgressLimits, as: :form_fields
+
+  @doc """
+  The pair an account gets in a region with nothing overridden, which is what
+  applies to the halves it overrides nothing for.
+  """
+  defdelegate default_egress_limits(account, region), to: EgressLimits, as: :default_limits
+
+  @doc """
+  Builds a changeset for the ops egress-override form.
+  """
+  defdelegate change_egress_limits_override(account, region, attrs \\ %{}), to: EgressLimits, as: :change_override
+
+  @doc """
+  The pair a form is asking for in one region, without writing it. Lets a page
+  editing several regions at once find out that one of them is wrong before it
+  has applied any of the others.
+  """
+  defdelegate cast_egress_limits_override(account, region, attrs), to: EgressLimits, as: :cast_override
+
+  @doc """
   Builds a changeset for the ops claim-override form.
   """
   defdelegate change_storage_claim_override(account, attrs \\ %{}), to: StorageClaims, as: :change_override
@@ -426,6 +491,78 @@ defmodule Tuist.Kura do
     end
   end
 
+  @doc """
+  Sets or clears an account's egress floor/ceiling override in one region and
+  carries it to the instances it already has running there.
+
+  Both halves are independent: a blank one hands that number back to the region.
+  Clearing both removes the override entirely.
+
+  Nothing is pinned on the instance rows the way a disk claim is. The manifest
+  resolves the pair from the account at render time, and the override is folded
+  into the manifest revision, so the reconciler re-applies the affected
+  instances on its next tick. The reconciler is nudged here so that tick is the
+  current one rather than up to a minute away; if the nudge is rejected because a
+  tick is already queued or running, that tick applies it anyway.
+
+  Both numbers are pod-spec state — the floor is the pod's egress request, the
+  ceiling its bandwidth annotation — so applying them recreates the account's
+  replicas in that region, one at a time, with the standby serving through each
+  restart. The volumes are kept: a replica reopens the same warm cache it had,
+  so the cost is the restart rather than a refill. See `Tuist.Kura.EgressLimits`
+  for why the pair is carried there rather than beside it.
+
+  Returns `%{floor_mbps:, burst_mbps:, region:, servers:}`, where `servers` is
+  the account's instances in that region the change reaches — the ones that
+  still hold pods.
+  """
+  def update_egress_limits_override(%Account{} = account, %Regions{} = region, attrs) when is_map(attrs) do
+    with {:ok, override} <- EgressLimits.cast_override(account, region, attrs),
+         {:ok, result} <- write_egress_limits_override(account, region, override) do
+      Enum.each(result.servers, &broadcast_server(&1, :updated))
+      nudge_reconciler()
+      {:ok, result}
+    end
+  end
+
+  defp write_egress_limits_override(account, region, override) do
+    Repo.transaction(fn ->
+      # Paired with the lock the claim override takes, so two operators retuning
+      # the same account from two tabs serialize rather than interleaving a read
+      # of one write with the other.
+      lock_account(account.id)
+
+      case EgressLimits.put_override(account, region, override) do
+        :ok ->
+          servers =
+            account
+            |> EgressLimits.governed_servers()
+            |> Enum.filter(&(&1.region == region.id))
+
+          override
+          |> Map.put(:servers, servers)
+          |> Map.put(:region, region)
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  # Best-effort: the cron tick is the authority, this only shortens the wait.
+  # Oban's uniqueness on the worker rejects the insert whenever a tick is
+  # already queued or running, which is the case this is trying to reach anyway.
+  defp nudge_reconciler do
+    case Oban.insert(Reconciler.new(%{})) do
+      {:ok, _job} -> :ok
+      {:error, _reason} -> :ok
+    end
+  rescue
+    error ->
+      Logger.warning("[Kura] could not nudge the reconciler after an egress override: #{inspect(error)}")
+      :ok
+  end
+
   ## Servers
 
   @doc """
@@ -440,7 +577,10 @@ defmodule Tuist.Kura do
   `attrs` keys: `:account_id`, `:region`, `:image_tag`.
   """
   def create_server(attrs) do
-    attrs = normalize_attrs(attrs)
+    attrs =
+      attrs
+      |> normalize_attrs()
+      |> inherit_rollout_image_tag()
 
     with {:ok, region} <- fetch_region(attrs[:region]),
          {:ok, account} <- sizing_account(attrs),
@@ -474,6 +614,16 @@ defmodule Tuist.Kura do
       %{}
     end
   end
+
+  # Servers created mid-rollout inherit their account's wave state (the
+  # rollout's baseline tag until the wave completes, the target after)
+  # instead of jumping straight to whatever tag the caller resolved. See
+  # `Tuist.Kura.Rollouts.provisioning_image_tag/2`.
+  defp inherit_rollout_image_tag(%{account_id: account_id, image_tag: image_tag} = attrs) when is_binary(image_tag) do
+    %{attrs | image_tag: Rollouts.provisioning_image_tag(account_id, image_tag)}
+  end
+
+  defp inherit_rollout_image_tag(attrs), do: attrs
 
   defp validate_provisioner_node_ref(account, ref) do
     cond do
@@ -1389,6 +1539,14 @@ defmodule Tuist.Kura do
   history is visible in /ops alongside the retry.
   """
   def retry_server(%Server{status: :failed, current_image_tag: nil} = server, image_tag) when is_binary(image_tag) do
+    # A retry re-provisions from scratch, so it inherits the account's
+    # rollout wave state exactly like a fresh server does in
+    # `create_server/1`: the baseline tag until the account's wave
+    # completes, the target after. Resolved here rather than at each call
+    # site — the dashboard's Retry actions pass the configured runtime tag,
+    # which during a paused rollout is the tag flagged suspect.
+    image_tag = Rollouts.provisioning_image_tag(server.account_id, image_tag)
+
     with {:ok, region} <- Regions.fetch(server.region),
          {:ok, server} <- retry_server_transaction(server, region, image_tag) do
       server = Repo.preload(server, :deployments, force: true)
@@ -1697,20 +1855,35 @@ defmodule Tuist.Kura do
   ## Deployments
 
   @doc """
-  Inserts a `Deployment` record for the reconciler to apply.
+  Inserts a `Deployment` record for the reconciler to apply. Pass
+  `rollout_id:` to attribute the deployment to the rollout that minted it
+  (see `Tuist.Kura.Rollouts`).
   """
-  def create_deployment(%Server{} = server, image_tag) when is_binary(image_tag) do
+  def create_deployment(%Server{} = server, image_tag, opts \\ []) when is_binary(image_tag) do
     with {:ok, region} <- Regions.fetch(server.region) do
-      Repo.transaction(fn ->
-        locked_server = lock_server_or_rollback(server)
+      # No `Repo.rollback/1` on the expected error paths, unlike the other
+      # deployment writers here. Callers run this inside a transaction of
+      # their own — `Tuist.Kura.Rollouts` mints deployments while holding
+      # the rollout row lock — and a nested rollback is not isolated: it
+      # aborts the outer transaction, so the caller's `{:error, reason}`
+      # arm never runs and its next statement raises, taking the rest of
+      # the reconcile tick with it. Nothing is written before the guards,
+      # so returning the error leaves the caller's transaction intact and
+      # releases the row lock when it commits.
+      case Repo.transaction(fn -> insert_locked_deployment(server, region, image_tag, opts) end) do
+        {:ok, inner} -> inner
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
 
-        with :ok <- ensure_no_open_deployment(locked_server.id),
-             {:ok, deployment} <- insert_deployment(locked_server, region, image_tag) do
-          deployment
-        else
-          {:error, reason} -> Repo.rollback(reason)
-        end
-      end)
+  defp insert_locked_deployment(server, region, image_tag, opts) do
+    with %Server{} = locked_server <- lock_server(server.id, server.account_id),
+         :ok <- ensure_no_open_deployment(locked_server.id) do
+      insert_deployment(locked_server, region, image_tag, opts)
+    else
+      nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -1785,11 +1958,12 @@ defmodule Tuist.Kura do
     end)
   end
 
-  defp insert_deployment(%Server{} = server, region, image_tag) do
+  defp insert_deployment(%Server{} = server, region, image_tag, opts \\ []) do
     %{
       cluster_id: deployment_cluster_id(region),
       image_tag: image_tag,
-      kura_server_id: server.id
+      kura_server_id: server.id,
+      kura_rollout_id: opts[:rollout_id]
     }
     |> Deployment.create_changeset()
     |> Repo.insert()
@@ -1903,4 +2077,5 @@ defmodule Tuist.Kura do
 
   defdelegate regions, to: Regions, as: :all
   defdelegate region(id), to: Regions, as: :get
+  defdelegate egress_governed_region?(region), to: Regions, as: :egress_governed?
 end

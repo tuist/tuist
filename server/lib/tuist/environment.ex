@@ -329,6 +329,71 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Whether this process is the deployment that owns the Kura control
+  plane. Booting in web mode is not proof: an ops eval Job boots the
+  application with the server's envFrom secrets but not its manifest env
+  list, and its reconcile would read the secrets-blob runtime-tag
+  fallback (a stale blob tag superseded a live rollout on staging that
+  way). The helm-injected env var is the discriminator that fails safe:
+  only the server Deployment's manifest carries it.
+  """
+  def kura_control_plane? do
+    case System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") do
+      tag when is_binary(tag) and tag != "" -> true
+      _ -> false
+    end
+  end
+
+  @doc """
+  Account handles of the Tuist-owned accounts that make up wave 0 (the
+  canary) of a progressive Kura runtime rollout. Comma-separated in
+  `TUIST_KURA_CANARY_ACCOUNT_HANDLES`; matching is case-insensitive.
+  """
+  def kura_canary_account_handles do
+    "TUIST_KURA_CANARY_ACCOUNT_HANDLES"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  @doc """
+  Per-environment override of the rollout pacing default ("progressive"
+  or "expedited"). Unset, production paces progressively and every other
+  environment fans out expedited. Exists for the staging drills that
+  exercise progressive mode through real releases before production
+  enablement (spec #79 rollout plan).
+  """
+  def kura_rollout_pacing do
+    case System.get_env("TUIST_KURA_ROLLOUT_PACING") do
+      value when value in ["progressive", "expedited"] -> value
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Image tag the deploy explicitly asked to expedite (the deployment-input
+  form of the expedite verb, used for rollbacks to a proven tag). Only a
+  rollout created for exactly this tag starts expedited, so the value
+  cannot leak onto a later unrelated rollout.
+  """
+  def kura_rollout_expedite_tag do
+    case System.get_env("TUIST_KURA_ROLLOUT_EXPEDITE_TAG") do
+      nil -> nil
+      value -> with "" <- String.trim(value), do: nil
+    end
+  end
+
+  @doc """
+  Webhook URL for best-effort internal ops notifications (Kura rollout
+  lifecycle). Context only — Grafana owns paging — so an unset value
+  disables the notifications rather than failing anything.
+  """
+  def ops_slack_webhook_url(secrets \\ secrets()) do
+    System.get_env("TUIST_OPS_SLACK_WEBHOOK_URL") || get([:ops, :slack_webhook_url], secrets)
+  end
+
+  @doc """
   The public peer failover IP for a bare-metal region, or `nil` when none is
   configured. Self-hosted nodes resolve a region's `peer.` host to this IP; the
   CAPI provider keeps it routed to a healthy box of the region's pool. Read from
@@ -352,22 +417,36 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  The region Air instances run in. `us-east` unless
-  `TUIST_KURA_AIR_REGION` names another.
+  The region Air instances run in for an account's storage region.
 
-  Air carries no storage-residency guarantee to uphold, so where the free
-  tier runs is a deployment decision rather than a policy one. Paid regions
-  are not configurable for the opposite reason: a paid account restricted to
-  Europe or the USA chose that, and no deployment setting may move it.
+  An account that states no storage region ("All regions") has no residency
+  constraint to uphold, so where its free tier runs is a deployment decision:
+  `us-east` unless `TUIST_KURA_AIR_REGION` names another.
+
+  An account that chose Europe has stated one. "Storage region" in account
+  settings names module cache binaries, which is what a Kura instance holds, so
+  such an account is never placed in the United States: it runs in whichever
+  region `TUIST_KURA_AIR_EUROPE_REGION` names, and is refused while nothing
+  names one. That variable is unset everywhere today, which is why those
+  accounts are refused now, and setting it is what turns Air in Europe on.
+
+  Paid regions are not configurable for the opposite reason: a paid account
+  restricted to Europe or the USA chose that, and no deployment setting may
+  move it.
 
   Staging has no `us-east` pool, so without this every Air account there
   resolves to a region whose instances can never schedule, and the Air-only
   pressure rule cannot be exercised at all.
   """
-  def kura_air_region do
-    case System.get_env("TUIST_KURA_AIR_REGION") do
-      nil -> "us-east"
-      "" -> "us-east"
+  def kura_air_region(:europe), do: air_region_env("TUIST_KURA_AIR_EUROPE_REGION", nil)
+
+  def kura_air_region(storage_region) when storage_region in [:all, :usa],
+    do: air_region_env("TUIST_KURA_AIR_REGION", "us-east")
+
+  defp air_region_env(variable, default) do
+    case System.get_env(variable) do
+      nil -> default
+      "" -> default
       region -> region
     end
   end
@@ -484,6 +563,10 @@ defmodule Tuist.Environment do
   def license_certificate_base64(secrets \\ secrets()) do
     System.get_env("TUIST_LICENSE_CERTIFICATE_BASE64") ||
       get([:license, :certificate, :base64], secrets)
+  end
+
+  def license_verify_key(secrets \\ secrets()) do
+    System.get_env("TUIST_LICENSE_VERIFY_KEY") || get([:license, :verify_key], secrets)
   end
 
   def use_ipv6?(secrets \\ secrets()) do

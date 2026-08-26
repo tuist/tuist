@@ -265,8 +265,8 @@ defmodule TuistWeb.ProjectsLive do
             </div>
           </div>
         </div>
-        
-    <!-- All projects section -->
+
+        <!-- All projects section -->
         <div data-part="all-section">
           <h3 data-part="section-title">{dgettext("dashboard_projects", "All projects")}</h3>
           <.form

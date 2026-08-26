@@ -26,15 +26,12 @@ defmodule TuistWeb.IntegrationsLive do
 
     vcs_connections = vcs_connections(selected_account)
     github_enterprise_available? = Entitlements.allows?(selected_account, :github_enterprise_server)
+    github_app_configured? = Tuist.Environment.github_app_configured?()
 
     # When github.com isn't configured (no `TUIST_GITHUB_APP_*` env
     # vars on the deployment) but the account is entitled to GHES,
-    # default the UI to the Enterprise tab. Otherwise the github.com
-    # tab is selected by default and its Install button generates a
-    # broken `/apps//installations/new` URL until the user manually
-    # switches tabs.
-    default_to_enterprise? =
-      github_enterprise_available? and not Tuist.Environment.github_app_configured?()
+    # default the UI to the Enterprise tab.
+    default_to_enterprise? = github_enterprise_available? and not github_app_configured?
 
     socket =
       socket
@@ -49,6 +46,7 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(github_app_owner_error: nil)
       |> assign(show_github_enterprise_input: default_to_enterprise?)
       |> assign(github_enterprise_available?: github_enterprise_available?)
+      |> assign(github_app_configured?: github_app_configured?)
       |> assign(github_card_visible?: github_card_visible?(selected_account, github_installation))
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
@@ -257,14 +255,19 @@ defmodule TuistWeb.IntegrationsLive do
   # The Install button is disabled when:
   #   * The current URL has a validation error.
   #   * The Enterprise tab is showing and the URL is empty or still
-  #     collapsed to the github.com default — clicking Install in that
+  #     collapsed to the github.com default. Clicking Install in that
   #     state would silently target github.com from inside the GHES tab.
+  #   * The github.com tab is showing but the deployment has no
+  #     github.com App configured. The install URL embeds
+  #     `TUIST_GITHUB_APP_NAME`, so without it the button sends the user
+  #     to `https://github.com/apps//installations/new`, which 404s.
   defp install_button_disabled?(assigns) do
     not is_nil(assigns.github_client_url_error) or
       not is_nil(assigns.github_app_owner_error) or
       (assigns.show_github_enterprise_input and
          (assigns.github_client_url in ["", nil] or
-            assigns.github_client_url == VCS.default_client_url()))
+            assigns.github_client_url == VCS.default_client_url())) or
+      (not assigns.show_github_enterprise_input and not assigns.github_app_configured?)
   end
 
   defp validate_github_client_url(raw_url, enterprise_tab?) do

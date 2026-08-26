@@ -47,9 +47,15 @@ const (
 	// step); the cross-cutting shared.ProvisionedCondition lives in the shared package.
 	BootstrappedCondition clusterv1.ConditionType = "Bootstrapped"
 
-	// DashboardVNCRelayPort is the stable host-side port tart-kubelet
+	// DashboardVNCRelayPort is the stable host-side BASE port tart-kubelet
 	// advertises for dashboard VNC sessions through the per-Mac Tailscale
 	// egress Service.
+	//
+	// A host that runs N guests binds N contiguous ports from here, one
+	// per guest, and its egress Service declares all N — a pinned port
+	// is a per-host resource while a relay is per-Pod, so a single port
+	// would let only the first guest on a host ever open a session.
+	// Apple's SLA caps N at 2.
 	DashboardVNCRelayPort = 5900
 )
 
@@ -85,6 +91,17 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// The Tailscale tags were lost that way and froze the production
 	// fleet on 2026-08-18.
 	FleetConfig bootstrap.Config
+
+	// DefaultGuestCapacity is the fleet-wide fallback for a Machine
+	// that does not set `spec.guestCapacity` — how many Tart guests a
+	// host is expected to run concurrently. 1 (the operator flag
+	// default) preserves the one-guest-per-host behaviour.
+	//
+	// It lives here rather than on FleetConfig because it is an
+	// operator-level intent, not a wire field: hostConfig expands it
+	// into the two bootstrap.Config fields that are actually pushed
+	// (VNCRelayPortCount, MinGoldensKept).
+	DefaultGuestCapacity int
 
 	// TartKubeletBinarySHA is the SHA-256 of TartKubeletBinary. Used
 	// as the version stamp on each ScalewayAppleSiliconMachine: when
@@ -1013,13 +1030,33 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
 		// was discovering the xcresult-processor Pods by annotation and
 		// scraping their CGNAT address, which fails on every attempt
 		// (`up == 0` on every Tart node, in all three environments).
+		//
+		// vnc-relay is a RANGE, one port per guest the host can run: the
+		// relay is per-Pod but a pinned port is per-host, so a dual-guest
+		// mini binds 5900 and 5901 and the ProxyGroup has to forward
+		// both. The first port keeps the bare `vnc-relay` name so a
+		// single-guest host's Service is unchanged; subsequent ones are
+		// suffixed. tart-kubelet picks whichever is free and republishes
+		// the actual port on the Pod annotation, so nothing downstream
+		// has to know which guest won which port.
 		svc.Spec.Ports = []corev1.ServicePort{
 			{Name: "node-exporter", Port: 9100, Protocol: corev1.ProtocolTCP},
 			{Name: "tart-kubelet", Port: 8080, Protocol: corev1.ProtocolTCP},
 			{Name: "pod-metrics", Port: 9091, Protocol: corev1.ProtocolTCP},
-			{Name: "vnc-relay", Port: DashboardVNCRelayPort, Protocol: corev1.ProtocolTCP},
-			{Name: "ssh", Port: 22, Protocol: corev1.ProtocolTCP},
 		}
+		for offset := 0; offset < guestCapacityFor(machine, r.DefaultGuestCapacity); offset++ {
+			name := "vnc-relay"
+			if offset > 0 {
+				name = fmt.Sprintf("vnc-relay-%d", offset+1)
+			}
+			svc.Spec.Ports = append(svc.Spec.Ports, corev1.ServicePort{
+				Name:     name,
+				Port:     int32(DashboardVNCRelayPort + offset),
+				Protocol: corev1.ProtocolTCP,
+			})
+		}
+		svc.Spec.Ports = append(svc.Spec.Ports,
+			corev1.ServicePort{Name: "ssh", Port: 22, Protocol: corev1.ProtocolTCP})
 		return nil
 	})
 	return err
@@ -1126,8 +1163,8 @@ func shouldClearTerminalFailure(
 // built, with this machine's per-host fields overlaid. Both push paths go
 // through it, so neither can push a config the operator did not hash.
 //
-// HostCPU / HostMemoryMB are the one seam. They are fleet-wide in the hash --
-// a chart-level change to either must roll the fleet -- but a Machine may
+// The SKU-shaped fields are the one seam. They are fleet-wide in the hash --
+// a chart-level change to any of them must roll the fleet -- but a Machine may
 // override them per host, so they are resolved here rather than in PerHost.
 // desiredHostConfigHash resolves them identically, which is what keeps the
 // stamp on an overridden host equal to the hash of what that host received.
@@ -1138,6 +1175,21 @@ func (r *ScalewayAppleSiliconMachineReconciler) hostConfig(
 	cfg := r.FleetConfig
 	cfg.HostCPU = hostCPUFor(machine, r.FleetConfig.HostCPU)
 	cfg.HostMemoryMB = hostMemoryMBFor(machine, r.FleetConfig.HostMemoryMB)
+	cfg.MaxPods = maxPodsFor(machine, r.FleetConfig.MaxPods)
+	cfg.RunnerCacheVolumeGiB = runnerCacheVolumeGiBFor(machine, r.FleetConfig.RunnerCacheVolumeGiB)
+
+	// Both of these are per-guest host resources, so they follow the
+	// host's guest capacity rather than being knobs of their own.
+	//
+	// A single-guest host resolves both to 1, which is what
+	// tart-kubelet already defaults to, and the plist renderer omits a
+	// flag whose value is the default — so the existing fleet's
+	// rendered config (and therefore its host-config hash) is
+	// unchanged by this and does not drift.
+	guests := guestCapacityFor(machine, r.DefaultGuestCapacity)
+	cfg.VNCRelayPortCount = guests
+	cfg.MinGoldensKept = guests
+
 	return cfg.WithPerHost(perHost)
 }
 
@@ -1145,8 +1197,9 @@ func (r *ScalewayAppleSiliconMachineReconciler) hostConfig(
 // running. It is the hash of exactly what hostConfig would push, so a host is
 // only ever stamped with a hash of the config it actually received.
 //
-// It is computed per machine rather than once per fleet because HostCPU and
-// HostMemoryMB are overridable per Machine. A single fleet constant was correct
+// It is computed per machine rather than once per fleet because HostCPU,
+// HostMemoryMB, MaxPods and RunnerCacheVolumeGiB are overridable per Machine
+// (see hostConfig). A single fleet constant was correct
 // for every host that took the fleet defaults and quietly wrong for one that
 // did not: the operator pushed the overridden config and then stamped the
 // fleet hash on it, so the host read as converged to a config it had never
@@ -1572,12 +1625,16 @@ func providerIDOf(m *infrav1.ScalewayAppleSiliconMachine) string {
 	return *m.Spec.ProviderID
 }
 
-// hostCPUFor / hostMemoryMBFor select the per-Machine capacity
-// override when set on the spec, falling back to the operator-
-// global flag default. Lets a single operator instance manage
-// heterogeneous fleets (e.g. xcresult-fleet on M2-M and
-// runners-fleet on M2-L) without spawning a deployment per fleet
-// or under-advertising on the larger SKU.
+// hostCPUFor / hostMemoryMBFor / maxPodsFor / runnerCacheVolumeGiBFor
+// select the per-Machine override when set on the spec, falling back
+// to the operator-global flag default. Lets a single operator instance
+// manage heterogeneous fleets (e.g. xcresult-fleet on M2-M and
+// runners-fleet on M2-L, or M2-L and M4-XL side by side in ONE runners
+// fleet) without spawning a deployment per SKU or under-advertising on
+// the larger one.
+//
+// All four resolve through hostConfig, so they are reflected in the
+// per-Machine host-config hash and drift the host when they change.
 func hostCPUFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
 	if m.Spec.HostCPU > 0 {
 		return m.Spec.HostCPU
@@ -1588,6 +1645,44 @@ func hostCPUFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
 func hostMemoryMBFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
 	if m.Spec.HostMemoryMB > 0 {
 		return m.Spec.HostMemoryMB
+	}
+	return fallback
+}
+
+func maxPodsFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
+	if m.Spec.MaxPods > 0 {
+		return m.Spec.MaxPods
+	}
+	return fallback
+}
+
+// guestCapacityFor resolves how many Tart guests this host is expected
+// to run concurrently, never returning less than 1 — a host that runs
+// no guests is not a thing this operator provisions, and a 0 would
+// propagate into the relay-port range and the goldens floor as "none".
+func guestCapacityFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
+	capacity := fallback
+	if m.Spec.GuestCapacity > 0 {
+		capacity = m.Spec.GuestCapacity
+	}
+	if capacity < 1 {
+		capacity = 1
+	}
+	return capacity
+}
+
+// runnerCacheVolumeGiBFor resolves on PRESENCE, not on truthiness, so
+// an explicit 0 means "cache volumes off on this host" rather than
+// collapsing into "unset" and silently inheriting the fleet default.
+// That is why the spec field is a pointer while its sizing siblings
+// are not: 0 is a value here, and nonsense for them.
+//
+// A negative value is still treated as unset — it cannot be an intent,
+// and degrading to the fleet default beats pushing a quota that would
+// fail the diskutil call at bootstrap.
+func runnerCacheVolumeGiBFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
+	if gib := m.Spec.RunnerCacheVolumeGiB; gib != nil && *gib >= 0 {
+		return *gib
 	}
 	return fallback
 }

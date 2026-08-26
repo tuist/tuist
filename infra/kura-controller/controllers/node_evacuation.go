@@ -33,6 +33,12 @@ const (
 	// volume. Promoting on readiness alone is what turns a warm move into a cold
 	// one.
 	backfillCycleComplete = "complete"
+
+	// backfillCycleDegraded is the runtime's "budget exhausted through real
+	// failures" mode. It is explicitly non-terminal — retries advance it to
+	// complete — so the rollout gate treats it as a soak reset rather than a
+	// hard stop.
+	backfillCycleDegraded = "degraded"
 )
 
 // evacuateMarkedNodes moves this instance's pods off nodes marked for
@@ -122,7 +128,10 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 		return nil
 	}
 
-	primary, err := r.selectPrimaryPod(ctx, instance)
+	// Evacuation is a separate pass from the reconcile loop, so it takes its
+	// own sample of the pods it already listed rather than reusing the one the
+	// loop shares with the rollout-health aggregate.
+	primary, err := r.selectPrimaryPod(ctx, instance, pods.Items, r.sampleRuntimeStatuses(ctx, instance, pods.Items))
 	if err != nil {
 		return err
 	}

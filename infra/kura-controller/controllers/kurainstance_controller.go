@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -87,29 +88,28 @@ const (
 	// before the public Services can route cache reads to it.
 	minPrimaryPodAge = 10 * time.Minute
 
-	sharedSecretsName                             = "kura-shared-secrets"
-	otlpTracesEndpointEnvVar                      = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
-	environmentEnvVar                             = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
-	snapshotCacheMaxBytesEnvVar                   = "KURA_SNAPSHOT_CACHE_MAX_BYTES"
-	manifestCacheMaxBytesEnvVar                   = "KURA_MANIFEST_CACHE_MAX_BYTES"
-	metadataStoreReadCacheBytesEnvVar             = "KURA_METADATA_STORE_READ_CACHE_BYTES"
-	metadataStoreWriteBufferPoolBytesEnvVar       = "KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES"
-	sharedSecretsRVAnnotation                     = "kura.tuist.dev/shared-secrets-resource-version"
-	externalDNSHostnameAnnotation                 = "external-dns.alpha.kubernetes.io/hostname"
-	legacyPeerHostAnnotation                      = "kura.tuist.dev/legacy-peer-host"
-	legacyPeerMigrationAnnotation                 = "kura.tuist.dev/legacy-peer-migration-phase"
-	legacyPeerOldAddressesAnnotation              = "kura.tuist.dev/legacy-peer-old-addresses"
-	legacyPeerTargetAddressesAnnotation           = "kura.tuist.dev/legacy-peer-target-addresses"
-	legacyPeerRetireAfterAnnotation               = "kura.tuist.dev/legacy-peer-retire-after"
-	legacyPeerFallbackRepublishAnnotation         = "kura.tuist.dev/legacy-peer-fallback-republish-requested-at"
-	legacyPeerFallbackObservedAnnotation          = "kura.tuist.dev/legacy-peer-fallback-observed-at"
-	unreadyPodsReplacedForImageAnnotation         = "kura.tuist.dev/unready-pods-replaced-for-image"
-	legacyPeerPhaseRepairing                      = "repairing-fallback"
-	legacyPeerPhaseCutoverRequested               = "cutover-requested"
-	legacyPeerPhaseDraining                       = "draining"
-	peerDNSRecordTTLSeconds                 int64 = 300
-	legacyPeerRetirementDelay                     = 2 * time.Duration(peerDNSRecordTTLSeconds) * time.Second
-	hetznerNodeSelectorAnnotation                 = "load-balancer.hetzner.cloud/node-selector"
+	sharedSecretsName                           = "kura-shared-secrets"
+	otlpTracesEndpointEnvVar                    = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+	environmentEnvVar                           = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
+	snapshotCacheMaxBytesEnvVar                 = "KURA_SNAPSHOT_CACHE_MAX_BYTES"
+	manifestCacheMaxBytesEnvVar                 = "KURA_MANIFEST_CACHE_MAX_BYTES"
+	metadataStoreReadCacheBytesEnvVar           = "KURA_METADATA_STORE_READ_CACHE_BYTES"
+	sharedSecretsRVAnnotation                   = "kura.tuist.dev/shared-secrets-resource-version"
+	externalDNSHostnameAnnotation               = "external-dns.alpha.kubernetes.io/hostname"
+	legacyPeerHostAnnotation                    = "kura.tuist.dev/legacy-peer-host"
+	legacyPeerMigrationAnnotation               = "kura.tuist.dev/legacy-peer-migration-phase"
+	legacyPeerOldAddressesAnnotation            = "kura.tuist.dev/legacy-peer-old-addresses"
+	legacyPeerTargetAddressesAnnotation         = "kura.tuist.dev/legacy-peer-target-addresses"
+	legacyPeerRetireAfterAnnotation             = "kura.tuist.dev/legacy-peer-retire-after"
+	legacyPeerFallbackRepublishAnnotation       = "kura.tuist.dev/legacy-peer-fallback-republish-requested-at"
+	legacyPeerFallbackObservedAnnotation        = "kura.tuist.dev/legacy-peer-fallback-observed-at"
+	unreadyPodsReplacedForImageAnnotation       = "kura.tuist.dev/unready-pods-replaced-for-image"
+	legacyPeerPhaseRepairing                    = "repairing-fallback"
+	legacyPeerPhaseCutoverRequested             = "cutover-requested"
+	legacyPeerPhaseDraining                     = "draining"
+	peerDNSRecordTTLSeconds               int64 = 300
+	legacyPeerRetirementDelay                   = 2 * time.Duration(peerDNSRecordTTLSeconds) * time.Second
+	hetznerNodeSelectorAnnotation               = "load-balancer.hetzner.cloud/node-selector"
 
 	peerTLSVolumeName = "peer-tls"
 	peerTLSMountPath  = "/etc/kura/peer-tls"
@@ -122,7 +122,12 @@ const (
 
 type KuraInstanceReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	// APIReader reads straight from the apiserver, bypassing the informer
+	// cache. The egress classid allocation scan must see every claim already
+	// written — a cached List can lag a just-completed Update and hand two
+	// accounts the same minor.
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
 
 	// GRPCClusterIssuer, when non-empty, makes the controller request a
 	// cert-manager Certificate per instance with this ClusterIssuer for the
@@ -136,6 +141,16 @@ type KuraInstanceReconciler struct {
 	RuntimeStatusClient RuntimeStatusClient
 	PeerDNSResolver     PeerDNSResolver
 	PeerPathProber      PeerPathProber
+
+	// podSamples holds the last-known /status/rollout report per pod, keyed
+	// by instance. It exists for the rollout-health aggregate: a pod that
+	// temporarily stops answering keeps contributing its last report (with
+	// its old timestamp, so staleness is visible), and the monotone counters
+	// survive pod restarts through reset clamping. In-memory only — a
+	// controller restart starts the accumulation over, which the consumer
+	// tolerates by treating counter decreases as no growth.
+	podSamplesMu sync.Mutex
+	podSamples   map[types.NamespacedName]map[string]*podRuntimeSample
 }
 
 type RuntimeStatusClient interface {
@@ -184,10 +199,17 @@ func (tlsPeerPathProber) Probe(ctx context.Context, address string, serverName s
 }
 
 type runtimeStatus struct {
-	Ready           bool   `json:"ready"`
-	State           string `json:"state"`
-	RingMembers     int    `json:"ring_members"`
-	WriterLockOwned bool   `json:"writer_lock_owned"`
+	Ready                      bool   `json:"ready"`
+	State                      string `json:"state"`
+	RingMembers                int    `json:"ring_members"`
+	RingFingerprint            string `json:"ring_fingerprint"`
+	WriterLockOwned            bool   `json:"writer_lock_owned"`
+	Generation                 uint64 `json:"generation"`
+	BackfillingPeers           int64  `json:"backfill_backfilling_peers"`
+	OutboxMessages             int64  `json:"outbox_messages"`
+	MemoryPressureState        int64  `json:"memory_pressure_state"`
+	FDTimeoutCount             uint64 `json:"fd_timeout_count"`
+	PeerConnectionFailureCount uint64 `json:"peer_connection_failure_count"`
 	// BackfillInitialCycle reports whether a pod's initial peer catch-up has
 	// settled. Primary selection deliberately does NOT consume it (see
 	// primaryPodHealth): a rolling deploy has to promote a caught-up standby
@@ -196,6 +218,44 @@ type runtimeStatus struct {
 	// replica destroys the peer the next one would refill from, so "ready" is
 	// not enough to justify the next move.
 	BackfillInitialCycle string `json:"backfill_initial_cycle"`
+	// BackfillBudgetExhaustedRealPeers counts peers whose backfill passes are
+	// blocked by real failures, as opposed to the benign capability variant.
+	// With the cycle mode it says backfill is in TROUBLE rather than merely
+	// in flight, which is what the rollout gate needs: a rollout restarts
+	// every pod, so backfill running afterwards is expected work.
+	BackfillBudgetExhaustedRealPeers int64 `json:"backfill_budget_exhausted_real_peers"`
+}
+
+// podRuntimeSample is one pod's last observed /status/rollout report plus
+// the reset-clamped counter accumulation. clampedFDTimeouts/clampedPeerFailures
+// are the values published upward: base + the pod's current reading, where
+// the base absorbs everything a previous incarnation of the pod's counter
+// had reached before a restart reset it.
+type podRuntimeSample struct {
+	status    runtimeStatus
+	sampledAt time.Time
+
+	fdTimeoutBase   uint64
+	peerFailureBase uint64
+}
+
+func (s *podRuntimeSample) observe(status runtimeStatus, now time.Time) {
+	if status.FDTimeoutCount < s.status.FDTimeoutCount {
+		s.fdTimeoutBase += s.status.FDTimeoutCount
+	}
+	if status.PeerConnectionFailureCount < s.status.PeerConnectionFailureCount {
+		s.peerFailureBase += s.status.PeerConnectionFailureCount
+	}
+	s.status = status
+	s.sampledAt = now
+}
+
+func (s *podRuntimeSample) clampedFDTimeouts() uint64 {
+	return s.fdTimeoutBase + s.status.FDTimeoutCount
+}
+
+func (s *podRuntimeSample) clampedPeerFailures() uint64 {
+	return s.peerFailureBase + s.status.PeerConnectionFailureCount
 }
 
 type httpRuntimeStatusClient struct {
@@ -304,6 +364,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if err := r.reclaimDataVolumes(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
+		r.forgetPodSamples(instance)
 		controllerutil.RemoveFinalizer(instance, KuraInstanceFinalizer)
 		return ctrl.Result{}, r.Update(ctx, instance)
 	}
@@ -356,7 +417,12 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.retireLegacyAccountPublicPeerService(ctx, instance, time.Now().UTC()); err != nil {
 		return ctrl.Result{}, err
 	}
-	primaryPod, err := r.selectPrimaryPod(ctx, instance)
+	pods, err := r.instancePods(ctx, instance)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
+	primaryPod, err := r.selectPrimaryPod(ctx, instance, pods, samples)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -396,6 +462,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcilePodDisruptionBudget(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileEgressClassID(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -427,6 +496,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.NodeAddress = external.nodeAddress
 	instance.Status.NodePortCache = external.nodePortCache
 	instance.Status.LastReconciledAt = &now
+	instance.Status.RolloutHealth = r.aggregateRolloutHealth(instance, pods)
 
 	if err := r.Status().Update(ctx, instance); err != nil {
 		return ctrl.Result{}, err
@@ -1647,7 +1717,12 @@ func primaryServiceSelector(instance *kurav1alpha1.KuraInstance, primaryPod stri
 // to. The currently routed pod is read back from the existing Service
 // selector so the choice is sticky across reconciles and survives a
 // controller restart without a dedicated status field.
-func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+func (r *KuraInstanceReconciler) selectPrimaryPod(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+	samples map[string]runtimeStatus,
+) (string, error) {
 	current := ""
 	service := &corev1.Service{}
 	switch err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); {
@@ -1658,11 +1733,7 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 		return "", err
 	}
 
-	pods := &corev1.PodList{}
-	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
-		return "", err
-	}
-	health, caughtUp := r.primaryPodHealth(ctx, instance, pods.Items)
+	health, caughtUp := primaryPodHealthFromSamples(instance, pods, samples, time.Now())
 
 	// A pod on a box being retired must not hold the primary role: evacuation
 	// deletes it, and a Service still pointing at it has no endpoint until the
@@ -1673,10 +1744,18 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 	// Only when something else can actually serve. If every pod is on the way
 	// out there is no better primary, and dropping the role would replace a
 	// short gap with no endpoint at all.
-	if err := r.demoteEvacuatingPods(ctx, pods.Items, health, caughtUp); err != nil {
+	if err := r.demoteEvacuatingPods(ctx, pods, health, caughtUp); err != nil {
 		return "", err
 	}
-	return choosePrimaryPod(current, instance.Name, pods.Items, health), nil
+	return choosePrimaryPod(current, instance.Name, pods, health), nil
+}
+
+func (r *KuraInstanceReconciler) instancePods(ctx context.Context, instance *kurav1alpha1.KuraInstance) ([]corev1.Pod, error) {
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return nil, err
+	}
+	return pods.Items, nil
 }
 
 // demoteEvacuatingPods marks pods on nodes annotated for evacuation as
@@ -1730,33 +1809,114 @@ func (r *KuraInstanceReconciler) demoteEvacuatingPods(ctx context.Context, pods 
 	return nil
 }
 
-func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) (map[string]bool, map[string]bool) {
-	now := time.Now()
-
+// sampleRuntimeStatuses polls /status/rollout on every pod backing the
+// instance — including not-ready ones, since the endpoint keeps answering
+// while a pod bootstraps or drains and a sick standby is exactly what the
+// rollout-health aggregate exists to surface. Fresh reports are folded into
+// the per-pod sample cache (reset-clamping the monotone counters) and
+// returned; pods that could not be sampled this tick keep their cached
+// last-known report for the aggregate, with its old timestamp.
+func (r *KuraInstanceReconciler) sampleRuntimeStatuses(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+) map[string]runtimeStatus {
 	statusClient := r.RuntimeStatusClient
 	if statusClient == nil {
 		statusClient = defaultRuntimeStatusClient()
 	}
 
-	// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
-	// status endpoint is unreachable for every pod: without the runtime's own
-	// catch-up signal we keep the minPrimaryPodAge buffer so a pod that is still
-	// filling isn't promoted. When the runtime status IS reachable it supersedes
-	// this, and the runtime-confirmed path does NOT age-gate — which is what lets
-	// a freshly-rolled but caught-up standby be promoted immediately, making a
-	// rolling deploy gapless instead of waiting out the 10-minute age with no
-	// eligible primary. The runtime status is therefore probed for every Ready
-	// pod, not just the age-eligible ones.
-	//
-	// Note that Ready+serving is NOT proof of a completed catch-up. It once was
-	// (is_serving required bootstrapped_peers == known_peers), but readiness now
-	// latches at a ring-fullness threshold or when the initial backfill cycle
-	// settles, and a cycle settles even when a peer stays unreachable. A pod that
-	// reports serving can therefore still be filling, or be cold on an empty
-	// volume whose only peer is down. Ring members and the writer lock below are
-	// what this gate actually rests on; `backfill_initial_cycle` on
-	// /status/rollout is the completeness signal, and it is deliberately not
-	// consumed here (see the region-move note in kura/README.md).
+	fresh := map[string]runtimeStatus{}
+	for i := range pods {
+		status, err := statusClient.Status(ctx, pods[i])
+		if err != nil {
+			log.FromContext(ctx).V(1).Info("failed to read Kura pod rollout status", "pod", pods[i].Name, "error", err)
+			continue
+		}
+		fresh[pods[i].Name] = status
+	}
+
+	now := time.Now()
+
+	r.podSamplesMu.Lock()
+	defer r.podSamplesMu.Unlock()
+	if r.podSamples == nil {
+		r.podSamples = map[types.NamespacedName]map[string]*podRuntimeSample{}
+	}
+	key := types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name}
+	samples := r.podSamples[key]
+	if samples == nil {
+		samples = map[string]*podRuntimeSample{}
+		r.podSamples[key] = samples
+	}
+	for name, status := range fresh {
+		sample := samples[name]
+		if sample == nil {
+			sample = &podRuntimeSample{}
+			samples[name] = sample
+		}
+		sample.observe(status, now)
+	}
+	// A pod that no longer exists stops contributing: its counters leave the
+	// aggregate (the consumer clamps decreases to no-growth) and its stale
+	// timestamp stops pinning SampledAt.
+	current := map[string]bool{}
+	for i := range pods {
+		current[pods[i].Name] = true
+	}
+	for name := range samples {
+		if !current[name] {
+			delete(samples, name)
+		}
+	}
+
+	return fresh
+}
+
+func (r *KuraInstanceReconciler) forgetPodSamples(instance *kurav1alpha1.KuraInstance) {
+	r.podSamplesMu.Lock()
+	defer r.podSamplesMu.Unlock()
+	delete(r.podSamples, types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name})
+}
+
+// primaryPodHealth samples the runtime statuses and derives routability in
+// one call. The reconcile loop instead samples once via
+// sampleRuntimeStatuses and reuses the result for both primary selection and
+// the rollout-health aggregate.
+func (r *KuraInstanceReconciler) primaryPodHealth(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+) (map[string]bool, map[string]bool) {
+	return primaryPodHealthFromSamples(instance, pods, r.sampleRuntimeStatuses(ctx, instance, pods), time.Now())
+}
+
+// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
+// status endpoint is unreachable for every pod: without the runtime's own
+// catch-up signal we keep the minPrimaryPodAge buffer so a pod that is still
+// filling isn't promoted. When the runtime status IS reachable it supersedes
+// this, and the runtime-confirmed path does NOT age-gate — which is what lets
+// a freshly-rolled but caught-up standby be promoted immediately, making a
+// rolling deploy gapless instead of waiting out the 10-minute age with no
+// eligible primary. The runtime status is therefore probed for every Ready
+// pod, not just the age-eligible ones.
+//
+// Note that Ready+serving is NOT proof of a completed catch-up. It once was
+// (is_serving required bootstrapped_peers == known_peers), but readiness now
+// latches at a ring-fullness threshold or when the initial backfill cycle
+// settles, and a cycle settles even when a peer stays unreachable. A pod that
+// reports serving can therefore still be filling, or be cold on an empty
+// volume whose only peer is down. Ring members and the writer lock below are
+// what this gate actually rests on; `backfill_initial_cycle` on
+// /status/rollout is the completeness signal, and it is deliberately not
+// consumed for routability (see the region-move note in kura/README.md); it
+// is reported separately as caughtUp for the callers that need it.
+func primaryPodHealthFromSamples(
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+	samples map[string]runtimeStatus,
+	now time.Time,
+) (map[string]bool, map[string]bool) {
 	fallbackReady := map[string]bool{}
 	runtimeHealthy := map[string]bool{}
 	// caughtUp is reported separately from routability because they answer
@@ -1774,9 +1934,8 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 		if podOldEnoughForPrimary(&pods[i], now, replicas(instance)) {
 			fallbackReady[pods[i].Name] = true
 		}
-		status, err := statusClient.Status(ctx, pods[i])
-		if err != nil {
-			log.FromContext(ctx).V(1).Info("failed to read Kura pod rollout status", "pod", pods[i].Name, "error", err)
+		status, ok := samples[pods[i].Name]
+		if !ok {
 			continue
 		}
 		runtimeStatuses++
@@ -1790,6 +1949,96 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 		return fallbackReady, map[string]bool{}
 	}
 	return runtimeHealthy, caughtUp
+}
+
+// aggregateRolloutHealth folds the per-pod sample cache into the status
+// aggregate. Per-field semantics are documented on the API type. Pods that
+// answered a previous reconcile but not this one contribute their last-known
+// report with its old timestamp, so the oldest-sample rule surfaces them as
+// stale instead of dropping them from the conjunctions.
+func (r *KuraInstanceReconciler) aggregateRolloutHealth(
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+) *kurav1alpha1.KuraInstanceRolloutHealth {
+	expected := replicas(instance)
+
+	r.podSamplesMu.Lock()
+	defer r.podSamplesMu.Unlock()
+	samples := r.podSamples[types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name}]
+
+	health := &kurav1alpha1.KuraInstanceRolloutHealth{ExpectedPods: expected}
+	var oldest time.Time
+	var ringMembers int
+	var ringFingerprints []string
+	ringConsistent := true
+	backfillDegraded := false
+	allReady := true
+	allServing := true
+	for i := range pods {
+		sample := samples[pods[i].Name]
+		if sample == nil {
+			continue
+		}
+		// The runtime's generation is a process-local change counter, so
+		// absolute values never agree across pods. The ring fingerprint (a
+		// digest of the sorted member identities) is the comparable
+		// mesh-view signal: equal ring sizes alone cannot prove the views
+		// match — three pods can each see two members from different peer
+		// subsets. Runtimes predating the fingerprint contribute only the
+		// size comparison until the fleet catches up.
+		if sample.status.RingFingerprint != "" {
+			ringFingerprints = append(ringFingerprints, sample.status.RingFingerprint)
+		}
+		if health.SampledPods == 0 {
+			ringMembers = sample.status.RingMembers
+		} else if sample.status.RingMembers != ringMembers {
+			ringConsistent = false
+		}
+		health.SampledPods++
+		allReady = allReady && sample.status.Ready
+		allServing = allServing && sample.status.State == "serving"
+		health.BackfillingPeers += sample.status.BackfillingPeers
+		health.BackfillBudgetExhaustedPeers += sample.status.BackfillBudgetExhaustedRealPeers
+		if sample.status.BackfillInitialCycle == backfillCycleDegraded {
+			backfillDegraded = true
+		}
+		health.OutboxMessages += sample.status.OutboxMessages
+		health.FDTimeoutCount += int64(sample.clampedFDTimeouts())
+		health.PeerConnectionFailures += int64(sample.clampedPeerFailures())
+		if sample.status.MemoryPressureState > health.MemoryPressureState {
+			health.MemoryPressureState = sample.status.MemoryPressureState
+		}
+		if oldest.IsZero() || sample.sampledAt.Before(oldest) {
+			oldest = sample.sampledAt
+		}
+	}
+	// A mismatch between any two fingerprinted pods is a true
+	// inconsistency, whatever the rest of the fleet reports.
+	for i := 1; i < len(ringFingerprints); i++ {
+		if ringFingerprints[i] != ringFingerprints[0] {
+			ringConsistent = false
+			break
+		}
+	}
+	// The conjunctions require every expected pod to have a report: a pod
+	// that exists but cannot be sampled, or a replica that never came up,
+	// reads as unhealthy rather than silently narrowing the aggregate to
+	// the pods that happened to answer. `>=` rather than `==` because a
+	// scale-down leaves the retired ordinal answering /status/rollout for a
+	// while, and counting more reports than replicas is not a reason to call
+	// a healthy instance unready — which is how the Elixir gate would read
+	// it, resetting the soak clock for the whole drain window. It also
+	// matches how that gate writes the same comparison.
+	sampledAll := health.SampledPods >= expected
+	health.Ready = sampledAll && allReady
+	health.Serving = sampledAll && allServing
+	health.RingConsistent = sampledAll && ringConsistent
+	health.BackfillDegraded = backfillDegraded
+	if !oldest.IsZero() {
+		t := metav1.NewTime(oldest.UTC())
+		health.SampledAt = &t
+	}
+	return health
 }
 
 func defaultRuntimeStatusClient() RuntimeStatusClient {
@@ -2929,6 +3178,9 @@ func podAnnotations(instance *kurav1alpha1.KuraInstance, sharedSecretsResourceVe
 	annotations["prometheus.io/scrape"] = "true"
 	annotations["prometheus.io/port-name"] = "http"
 	annotations["prometheus.io/path"] = "/metrics"
+	if value, ok := egressClassPodAnnotation(instance); ok {
+		annotations[egressClassAnnotation] = value
+	}
 	if sharedSecretsResourceVersion != "" {
 		annotations[sharedSecretsRVAnnotation] = sharedSecretsResourceVersion
 	}
@@ -2967,6 +3219,188 @@ func sharedSecretsEnvFrom() []corev1.EnvFromSource {
 			Optional:             ptr(true),
 		},
 	}}
+}
+
+// egressBandwidthAnnotation is the standard per-pod egress annotation the
+// server's reconciler renders from a region's egress_burst_mbps ("<n>M").
+// Cilium's bandwidth manager paces the wire-bound leg from it; here it is
+// also the source of the tenant's ceiling in the shared per-node tree.
+const egressBandwidthAnnotation = "kubernetes.io/egress-bandwidth"
+
+// egressClassIDAnnotation persists an account's shared-tree HTB classid on
+// its KuraInstances ("1:<hex minor>"). The id must never change for a live
+// account — the egress-tree-agent's per-node class and every pod's stamp key
+// off it — so it is allocated once and carried as CR metadata rather than
+// derived on the fly.
+const egressClassIDAnnotation = "kura.tuist.dev/egress-class-id"
+
+// egressClassAnnotation is the pod annotation infra/egress-tree-agent
+// consumes: JSON {"classid","floor_mbps","burst_mbps"}. Inert until an agent
+// runs on the pod's node.
+const egressClassAnnotation = "tuist.dev/egress-class"
+
+// Minor range for tenant classes in the shared tree. Starts well above the
+// tree's structural classes (root qdisc handle 1:, root class 1:1) and stays
+// under the 0xFFFF handle ceiling.
+const (
+	egressClassIDMinorMin uint16 = 0x100
+	egressClassIDMinorMax uint16 = 0xFFFE
+)
+
+// egressBurstMbpsValue parses the egress-bandwidth annotation's integer
+// Mbit/s. The bool is false when the annotation is absent or does not parse;
+// the value is machine-rendered by the server, so a malformed one simply
+// yields no ceiling (the tenant class then caps at the node budget).
+func egressBurstMbpsValue(instance *kurav1alpha1.KuraInstance) (int64, bool) {
+	raw, ok := instance.Spec.PodAnnotations[egressBandwidthAnnotation]
+	if !ok {
+		return 0, false
+	}
+	digits, hadSuffix := strings.CutSuffix(raw, "M")
+	if !hadSuffix {
+		return 0, false
+	}
+	parsed, err := strconv.ParseInt(digits, 10, 64)
+	if err != nil || parsed <= 0 {
+		return 0, false
+	}
+	return parsed, true
+}
+
+// instanceNeedsEgressClass mirrors "this instance's traffic is shaped":
+// either a per-pod ceiling (the egress-bandwidth annotation) or a floor is
+// configured. Cloud regions with neither never get a class.
+func instanceNeedsEgressClass(instance *kurav1alpha1.KuraInstance) bool {
+	_, shaped := instance.Spec.PodAnnotations[egressBandwidthAnnotation]
+	return shaped || instance.Spec.EgressGuaranteedMbps > 0
+}
+
+func parseEgressClassID(value string) (uint16, bool) {
+	rest, ok := strings.CutPrefix(value, "1:")
+	if !ok {
+		return 0, false
+	}
+	minor, err := strconv.ParseUint(rest, 16, 16)
+	if err != nil || uint16(minor) < egressClassIDMinorMin || uint16(minor) > egressClassIDMinorMax {
+		return 0, false
+	}
+	return uint16(minor), true
+}
+
+func formatEgressClassID(minor uint16) string {
+	return fmt.Sprintf("1:%x", minor)
+}
+
+// egressClassIDCandidate is the deterministic starting point of an account's
+// id probe, so re-allocation lands on the same id as long as it is free.
+func egressClassIDCandidate(account string) uint16 {
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(account))
+	span := uint32(egressClassIDMinorMax-egressClassIDMinorMin) + 1
+	return egressClassIDMinorMin + uint16(hash.Sum32()%span)
+}
+
+// allocateEgressClassID linearly probes from the account's hash candidate to
+// the first unclaimed minor.
+func allocateEgressClassID(account string, used map[uint16]bool) (uint16, error) {
+	span := uint32(egressClassIDMinorMax-egressClassIDMinorMin) + 1
+	candidate := uint32(egressClassIDCandidate(account) - egressClassIDMinorMin)
+	for i := uint32(0); i < span; i++ {
+		minor := egressClassIDMinorMin + uint16((candidate+i)%span)
+		if !used[minor] {
+			return minor, nil
+		}
+	}
+	return 0, fmt.Errorf("egress classid space exhausted for account %s", account)
+}
+
+// reconcileEgressClassID gives a shaped instance its account's stable class
+// id. All instances of an account share one id (the id keys the tenant's
+// class on every node), so allocation looks across the namespace's
+// KuraInstances: adopt the account's existing claim if any, else probe from
+// the account-hash candidate.
+//
+// The scan reads through APIReader, not the cached client: reconciles run
+// serially (MaxConcurrentReconciles is the default 1), but the informer
+// cache updates asynchronously after Update, so a cached List during a
+// back-to-back allocation burst could miss the previous instance's fresh
+// claim and duplicate its minor. A quorum read always sees the completed
+// Update. The deterministic duplicate rule (smallest account handle keeps a
+// doubly-claimed id, smallest minor wins within an account) still makes any
+// duplicate from outside this loop — say a hand-edited annotation —
+// self-heal instead of flapping.
+func (r *KuraInstanceReconciler) reconcileEgressClassID(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if !instanceNeedsEgressClass(instance) {
+		return nil
+	}
+
+	instances := &kurav1alpha1.KuraInstanceList{}
+	if err := r.APIReader.List(ctx, instances, client.InNamespace(instance.Namespace)); err != nil {
+		return err
+	}
+	used := map[uint16]bool{}
+	owner := map[uint16]string{}
+	for i := range instances.Items {
+		other := &instances.Items[i]
+		minor, ok := parseEgressClassID(other.Annotations[egressClassIDAnnotation])
+		if !ok {
+			continue
+		}
+		used[minor] = true
+		if current, taken := owner[minor]; !taken || other.Spec.AccountHandle < current {
+			owner[minor] = other.Spec.AccountHandle
+		}
+	}
+
+	account := instance.Spec.AccountHandle
+	var desired uint16
+	for minor, owningAccount := range owner {
+		if owningAccount == account && (desired == 0 || minor < desired) {
+			desired = minor
+		}
+	}
+	if desired == 0 {
+		allocated, err := allocateEgressClassID(account, used)
+		if err != nil {
+			return err
+		}
+		desired = allocated
+	}
+
+	if instance.Annotations[egressClassIDAnnotation] == formatEgressClassID(desired) {
+		return nil
+	}
+	if instance.Annotations == nil {
+		instance.Annotations = map[string]string{}
+	}
+	instance.Annotations[egressClassIDAnnotation] = formatEgressClassID(desired)
+	return r.Update(ctx, instance)
+}
+
+// egressClassPodAnnotation renders the agent's pod annotation. Absent until
+// the class id is allocated (the reconcile order guarantees allocation runs
+// first) and on unshaped instances. Burst 0 means "no per-tenant ceiling":
+// the agent then caps the class at the node budget only.
+func egressClassPodAnnotation(instance *kurav1alpha1.KuraInstance) (string, bool) {
+	if !instanceNeedsEgressClass(instance) {
+		return "", false
+	}
+	minor, ok := parseEgressClassID(instance.Annotations[egressClassIDAnnotation])
+	if !ok {
+		return "", false
+	}
+	burst, _ := egressBurstMbpsValue(instance)
+	payload := struct {
+		ClassID   string `json:"classid"`
+		FloorMbps int64  `json:"floor_mbps"`
+		BurstMbps int64  `json:"burst_mbps"`
+	}{
+		ClassID:   formatEgressClassID(minor),
+		FloorMbps: int64(instance.Spec.EgressGuaranteedMbps),
+		BurstMbps: burst,
+	}
+	encoded, _ := json.Marshal(payload)
+	return string(encoded), true
 }
 
 // egressMbpsResource is the integer extended resource a shared bare-metal node
@@ -3347,7 +3781,6 @@ func managedCacheEnvDefaults() []corev1.EnvVar {
 		{Name: snapshotCacheMaxBytesEnvVar, Value: "67108864"},
 		{Name: manifestCacheMaxBytesEnvVar, Value: "33554432"},
 		{Name: metadataStoreReadCacheBytesEnvVar, Value: "33554432"},
-		{Name: metadataStoreWriteBufferPoolBytesEnvVar, Value: "33554432"},
 	}
 }
 

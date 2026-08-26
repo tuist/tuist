@@ -213,10 +213,22 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorkerTest do
     end
   end
 
-  test "skips accounts with no resolvable service region" do
+  test "seeds a paid account allowing every region against the default" do
     {account, project} = account_with_project()
     BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
     {:ok, _account} = Accounts.update_account(account, %{region: :all})
+
+    insert_cas_event(project.id, days_ago(10))
+
+    assert :ok = BackfillCacheDemandWorker.perform(%Oban.Job{args: %{}})
+
+    assert Demand.get(account.id, "us-east")
+    refute Demand.get(account.id, "eu-central")
+  end
+
+  test "skips accounts with no resolvable service region" do
+    {account, project} = account_with_project()
+    BillingFixtures.subscription_fixture(account_id: account.id, plan: :open_source)
 
     insert_cas_event(project.id, days_ago(10))
 

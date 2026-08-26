@@ -15,11 +15,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.AccountPolicies
+  alias Tuist.Kura.EgressLimits
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
 
   @namespace "kura"
+  @egress_bandwidth_annotation "kubernetes.io/egress-bandwidth"
   @manifest_revision "2026-08-19-ephemeral-storage-request-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
@@ -186,6 +188,74 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
+  def rollout_health(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, %{"status" => %{"rolloutHealth" => health}}} when is_map(health) ->
+        {:ok, parse_rollout_health(health)}
+
+      {:ok, _} ->
+        {:ok, nil}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # The controller publishes the aggregate with explicit per-field
+  # semantics (conjunctions, sums with reset clamping, max pressure,
+  # oldest sample); this only normalizes the wire shape. Missing numeric
+  # fields default to 0 and missing booleans to false so an old
+  # controller that publishes a partial aggregate reads as unhealthy
+  # rather than crashing the gate.
+  defp parse_rollout_health(health) when is_map(health) do
+    %{
+      ready: health["ready"] == true,
+      serving: health["serving"] == true,
+      ring_consistent: health["ringConsistent"] == true,
+      backfilling_peers: integer_field(health, "backfillingPeers"),
+      backfill_degraded: health["backfillDegraded"] == true,
+      backfill_budget_exhausted_peers: integer_field(health, "backfillBudgetExhaustedPeers"),
+      outbox_messages: integer_field(health, "outboxMessages"),
+      fd_timeout_count: counter_field(health, "fdTimeoutCount"),
+      peer_connection_failures: counter_field(health, "peerConnectionFailures"),
+      memory_pressure_state: integer_field(health, "memoryPressureState"),
+      sampled_pods: integer_field(health, "sampledPods"),
+      expected_pods: integer_field(health, "expectedPods"),
+      sampled_at: datetime_field(health, "sampledAt")
+    }
+  end
+
+  # The cumulative failure counters are read as `nil` when the aggregate does
+  # not carry them, not as 0. They are the two fields the gate compares a
+  # server against its own pre-upgrade baseline, and a runtime too old to
+  # emit one reports the same absence as a runtime reporting none — recording
+  # that as a baseline of 0 would make the first error after the upgrade read
+  # as a regression from a baseline that was never measured. A `nil` baseline
+  # simply skips the comparison until there is one to make.
+  defp counter_field(health, key) do
+    case Map.get(health, key) do
+      value when is_integer(value) -> value
+      _ -> nil
+    end
+  end
+
+  defp integer_field(health, key) do
+    case Map.get(health, key) do
+      value when is_integer(value) -> value
+      _ -> 0
+    end
+  end
+
+  defp datetime_field(health, key) do
+    with value when is_binary(value) <- Map.get(health, key),
+         {:ok, datetime, _offset} <- DateTime.from_iso8601(value) do
+      datetime
+    else
+      _ -> nil
+    end
+  end
+
+  @impl true
   def current_manifest_revision(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
       {:ok, %{"metadata" => %{"annotations" => %{@manifest_revision_annotation => revision}}}} -> {:ok, revision}
@@ -202,7 +272,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       region,
       storage_claim(account, region, server),
       self_hosted_peers(account, region, entitlements),
-      entitlements
+      entitlements,
+      effective_egress(account, region, entitlements)
     )
   end
 
@@ -248,7 +319,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     account_handle = dns_handle(account.name)
     external_peers = entitled_self_hosted_peers(region, external_peers, entitlements)
     claim = storage_claim(account, region, server)
-    revision = manifest_revision_string(region, claim, external_peers, entitlements)
+    egress = effective_egress(account, region, entitlements)
+    revision = manifest_revision_string(region, claim, external_peers, entitlements, egress)
     annotations = %{@manifest_revision_annotation => revision}
 
     %{
@@ -288,8 +360,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "private" => Regions.private?(region),
           "exposeNodePort" => Regions.node_port_data_plane?(region),
           "clientCIDRs" => client_cidrs(region),
-          "podAnnotations" => pod_annotations(region),
-          "egressGuaranteedMbps" => entitlements.egress_guaranteed_mbps,
+          # The account's effective pair, not the region's. The controller
+          # derives the shaper's tuist.dev/egress-class from these same two
+          # fields, so one number per knob keeps the reservation, the pacing and
+          # the shaped class from describing different limits.
+          "podAnnotations" => pod_annotations(region, egress.burst_mbps),
+          "egressGuaranteedMbps" => egress.floor_mbps,
           "memoryFloorMib" => entitlements.memory && entitlements.memory.floor_mib,
           "memoryCeilingMib" => entitlements.memory && entitlements.memory.ceiling_mib,
           "memoryCeilingBinPacked" => Regions.memory_ceiling_bin_packed?(region),
@@ -364,11 +440,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
     allowed_features = Entitlements.allowed_features(account, features)
 
+    # Resolved through the context so the ops form validates an override against
+    # the same floor the instance is actually built with, entitlement included.
     egress_guaranteed_mbps =
-      case configured_egress_mbps do
-        nil -> nil
-        mbps -> if MapSet.member?(allowed_features, :guaranteed_egress_floor), do: mbps, else: 0
-      end
+      if is_nil(configured_egress_mbps),
+        do: nil,
+        else: EgressLimits.region_floor_mbps(region, MapSet.member?(allowed_features, :guaranteed_egress_floor))
 
     memory = if memory_governed?, do: Regions.memory_profile(AccountPolicies.sizing_plan(account))
 
@@ -401,13 +478,37 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # The desired revision the reconciler compares against the live CR's
   # annotation. Both the reconcile check (manifest_revision/2) and the applied
   # manifest (manifest/7) build it here so they can never disagree and loop.
-  defp manifest_revision_string(%Regions{} = region, claim, peer_urls, entitlements) do
+  defp manifest_revision_string(%Regions{} = region, claim, peer_urls, entitlements, egress) do
     @manifest_revision <>
       peers_revision_suffix(peer_urls) <>
       mesh_peers_sync_revision_suffix(region, entitlements) <>
       backfill_revision_suffix(entitlements) <>
       memory_revision_suffix(region, entitlements) <>
-      claim_revision_suffix(claim)
+      claim_revision_suffix(claim) <>
+      egress_revision_suffix(egress)
+  end
+
+  # Keyed on the pair the manifest renders rather than on the override alone: the
+  # reconciler converges on the revision, so anything that moves these two fields
+  # — the override, the region's own numbers, the entitlement gating the floor —
+  # has to move it too or sit unapplied.
+  #
+  # Cheap where the pair has not moved: the spec is identical, so the CR takes a
+  # new annotation and no pod is touched.
+  defp egress_revision_suffix(%{floor_mbps: nil, burst_mbps: nil}), do: ""
+
+  defp egress_revision_suffix(%{floor_mbps: floor_mbps, burst_mbps: burst_mbps}) do
+    "+egress#{floor_mbps || "-"}-#{burst_mbps || "-"}"
+  end
+
+  # Resolved from the entitlements this manifest already carries, so an override
+  # costs no extra subscription lookup.
+  defp effective_egress(account, %Regions{} = region, entitlements) do
+    if Regions.egress_governed?(region) do
+      EgressLimits.effective_limits(account, region, entitlements.egress_guaranteed_mbps)
+    else
+      %{floor_mbps: entitlements.egress_guaranteed_mbps, burst_mbps: nil}
+    end
   end
 
   # The instance's claim is desired state like any other field on the manifest,
@@ -843,10 +944,27 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp client_cidrs(%Regions{provisioner_config: %{client_cidrs: [_ | _] = cidrs}}), do: cidrs
   defp client_cidrs(_), do: nil
 
-  defp pod_annotations(%Regions{provisioner_config: %{pod_annotations: annotations}})
-       when is_map(annotations) and map_size(annotations) > 0, do: annotations
+  # The region's annotations with the burst ceiling replaced by the account's.
+  defp pod_annotations(region, burst_mbps) do
+    region
+    |> region_pod_annotations()
+    |> then(fn annotations ->
+      if is_integer(burst_mbps) do
+        Map.put(annotations, @egress_bandwidth_annotation, "#{burst_mbps}M")
+      else
+        annotations
+      end
+    end)
+    |> case do
+      annotations when map_size(annotations) > 0 -> annotations
+      _empty -> nil
+    end
+  end
 
-  defp pod_annotations(_), do: nil
+  defp region_pod_annotations(%Regions{provisioner_config: %{pod_annotations: annotations}}) when is_map(annotations),
+    do: annotations
+
+  defp region_pod_annotations(_), do: %{}
 
   # Guaranteed egress floor: the region's per-tenant Mbps reserved as the
   # tuist.dev/egress-mbps extended resource so the scheduler bin-packs the pod

@@ -4,7 +4,8 @@ defmodule Tuist.Kura.PromExPlugin do
 
   Event metrics come off the transitions themselves
   (`Tuist.Kura.Telemetry`): cold-return rate, time-to-ready on cold return,
-  reclaimed bytes, archive cancellations, and refused provisions.
+  reclaimed bytes, archive cancellations, refused provisions, and the accounts
+  refused a service region before they reach any transition at all.
 
   Two polled gauges cover what a transition cannot see:
 
@@ -105,6 +106,12 @@ defmodule Tuist.Kura.PromExPlugin do
             reporter_options: [buckets: @ready_buckets],
             tags: [:plan, :region],
             unit: :millisecond
+          ),
+          counter(
+            @metric_prefix ++ [:resolution_refused, :count],
+            event_name: Telemetry.event_name_resolution_refused(),
+            description: "Accounts refused a service region, so they never enter the lifecycle at all.",
+            tags: [:plan, :reason]
           )
         ]
       )

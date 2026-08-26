@@ -117,11 +117,46 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: A single byte range, as `bytes=<first>-`, to resume an interrupted download
+          in: header
+          name: range
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The `ETag` the interrupted download started from. The range is honoured only while it still matches, and the whole artifact is returned otherwise, so a resume cannot splice two versions together.
+          in: header
+          name: if-range
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
       responses:
         '200':
           content:
             application/octet-stream: {}
           description: Artifact content
+        '206':
+          content:
+            application/octet-stream: {}
+          description: The requested range of the artifact
+          headers:
+            content-range:
+              description: The range served, as `bytes <first>-<last>/<total>`
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            etag:
+              description: The representation served, to be echoed in `If-Range` when resuming
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '401':
           content:
             application/json:
@@ -146,12 +181,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Artifact not found
+        '416':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The requested range lies entirely outside the artifact
+          headers:
+            content-range:
+              description: The artifact's length, as `bytes */<total>`
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '422':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Invalid request parameters
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The server is limiting concurrent artifact response streams; retry after the hint
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Download a Xcode cache artifact
       tags:
         - Xcode
@@ -373,6 +436,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Invalid request parameters
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The server is limiting concurrent artifact response streams; retry after the hint
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Download a Gradle build cache artifact
       tags:
         - Gradle
@@ -617,6 +694,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Entry not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The server is limiting concurrent artifact response streams; retry after the hint
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get a key-value entry
       tags:
         - KeyValue
@@ -946,11 +1037,46 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: A single byte range, as `bytes=<first>-`, to resume an interrupted download
+          in: header
+          name: range
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The `ETag` the interrupted download started from. The range is honoured only while it still matches, and the whole artifact is returned otherwise, so a resume cannot splice two versions together.
+          in: header
+          name: if-range
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
       responses:
         '200':
           content:
             application/octet-stream: {}
           description: Artifact content
+        '206':
+          content:
+            application/octet-stream: {}
+          description: The requested range of the artifact
+          headers:
+            content-range:
+              description: The range served, as `bytes <first>-<last>/<total>`
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            etag:
+              description: The representation served, to be echoed in `If-Range` when resuming
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '401':
           content:
             application/json:
@@ -975,12 +1101,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Artifact not found
+        '416':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The requested range lies entirely outside the artifact
+          headers:
+            content-range:
+              description: The artifact's length, as `bytes */<total>`
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '422':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Invalid request parameters
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The server is limiting concurrent artifact response streams; retry after the hint
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Download a module cache artifact
       tags:
         - ModuleCache
@@ -1085,6 +1239,6 @@ paths:
 security:
   - authorization: []
 servers:
-  - url: http://localhost:8930
+  - url: http://localhost:8189
     variables: {}
 tags: []

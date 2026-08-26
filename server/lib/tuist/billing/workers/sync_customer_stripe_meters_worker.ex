@@ -69,9 +69,10 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
 
       day_values ->
         # Snapshot each service period the day covers separately. A day that
-        # straddles a subscription renewal or its cancellation produces one set
-        # of jobs per side, each reporting only the usage its own period earned,
-        # so no event ever crosses an invoice boundary.
+        # straddles a subscription renewal, its cancellation, or the end of a
+        # runner trial produces one set of jobs per side, each reporting only
+        # the usage its own period earned, so no event ever crosses an invoice
+        # boundary.
         #
         # A failed boundary lookup fails the whole job rather than snapshotting
         # the day as one window. The snapshot is permanent — a child never

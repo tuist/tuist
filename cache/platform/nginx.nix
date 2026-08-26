@@ -323,6 +323,18 @@
     };
   };
 
+  # The upstream nginx module rotates weekly, keeps 26 archives, and
+  # delaycompresses the newest one, which at cache request volumes leaves
+  # tens of gigabytes of access logs on the root filesystem. The SQLite
+  # databases live there too, so a full disk stops the app from booting.
+  # Alloy tails the live access.log into Loki, so the local archives only
+  # need to cover a short window.
+  services.logrotate.settings.nginx = {
+    frequency = "daily";
+    maxsize = "2G";
+    rotate = 14;
+  };
+
   security.acme = {
     acceptTerms = true;
     defaults = {

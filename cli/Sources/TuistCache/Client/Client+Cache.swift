@@ -34,6 +34,20 @@ extension Client {
             serverURL: cacheURL,
             transport: TuistURLSessionTransport(session: session),
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
+                // Outside the retry middleware, so a ranged follow-up is itself
+                // retried. Middlewares nest in array order, so anything placed
+                // after retry would call a `next` that no longer includes it:
+                // a resume that met a 503 with a `Retry-After` would be given
+                // up on, discarding the bytes already in hand and restarting
+                // from zero, which is the failure this middleware exists to
+                // avoid. Retry never consumes the response body, so a body
+                // that dies mid-stream still reaches resume from here.
+                ArtifactResumeMiddleware(
+                    resumableOperationIDs: [
+                        Operations.downloadXcodeArtifact.id,
+                        Operations.downloadModuleCacheArtifact.id,
+                    ]
+                ),
                 RetryMiddleware(
                     retryableRequestMethods: ["GET"],
                     retriesTransportErrors: retriesTransportErrors

@@ -1,12 +1,12 @@
 # Platform-level values for the Tuist-managed Kubernetes cluster.
 # This chart is installed once per cluster (staging / production), not per app release.
 #
-# Install:
-#   helm dependency update infra/helm/platform
-#   helm upgrade --install platform infra/helm/platform \
-#     -n platform --create-namespace \
-#     --set cloudflare.apiTokenSecret.create=false \
-#     --set cloudflare.email=ops@tuist.dev
+# Managed-cluster install:
+#   mise -C infra run k8s:install-platform <workload-kubeconfig> <cluster-name>
+#
+# The task reconciles cert-manager custom resource definitions before Helm
+# renders this chart. Do not use a direct Helm install to bootstrap a fresh
+# managed cluster.
 #
 # The Cloudflare API token is expected in a pre-existing Secret in the platform
 # namespace (see infra/k8s/onboarding.md for the bootstrap commands).
@@ -40,7 +40,12 @@ ingressCertificate:
 
 cert-manager:
   enabled: true
-  installCRDs: true
+  # CRDs are reconciled by k8s:install-platform before Helm runs. Keeping
+  # them outside the release prevents Helm from trying to adopt CRDs created
+  # during a recovery bootstrap.
+  installCRDs: false
+  crds:
+    enabled: false
   prometheus:
     enabled: true
 
@@ -184,6 +189,28 @@ kura-us-west-ingress-nginx:
     ingressClassResource:
       name: kura-us-west
       controllerValue: k8s.io/kura-us-west-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+# Asia Pacific Southeast (Singapore). Off by default like every other kura
+# gateway; the environments that serve the region turn it on.
+kura-ap-southeast-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-ap-southeast-ingress-nginx-leader
+    ingressClass: kura-ap-southeast
+    ingressClassResource:
+      name: kura-ap-southeast
+      controllerValue: k8s.io/kura-ap-southeast-ingress-nginx
     publishService:
       enabled: true
     service:

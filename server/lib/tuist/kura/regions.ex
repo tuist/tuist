@@ -262,6 +262,59 @@ defmodule Tuist.Kura.Regions do
       # OVHcloud BHS, Beauharnois, Quebec.
       country: "CA",
       subdivision: "CA-QC"
+    },
+    # Asia Pacific Southeast (Singapore / OVHcloud SGP) on OVH bare metal: the
+    # `kura-ap-southeast` node pool (an `ovhFleets` entry), local-NVMe storage,
+    # and a hostNetwork regional gateway bound to the box's public IP — the same
+    # bare-metal shape as the other OVH regions. The id matches the legacy cache
+    # fleet's `cache-ap-southeast.tuist.dev` endpoint, so an account moved off
+    # the legacy lane keeps the region name it already knows.
+    #
+    # Nothing DERIVES here, and nothing is meant to. `accounts.region` is
+    # `all | europe | usa`: `europe` derives to eu-central, `usa` derives to
+    # us-east, and `all` defaults to us-east, so no storage-region preference
+    # resolves to Asia Pacific. Do not go looking for the rule that places
+    # accounts here; there is none. Air in particular can never land here,
+    # because Air resolves from the storage-region preference alone.
+    #
+    # Two things do reach it, exactly as they reach us-west: an operator pinning
+    # an account's resolved region with `AccountPolicies.assign_service_region/4`,
+    # which carries plan checks, audit and versioning; and a customer picking the
+    # region in account settings, which goes through `selectable/0` and never
+    # consults AccountPolicies. The second is deliberate — this is a public
+    # region — so "assignment-only" describes derivation, not access.
+    %{
+      id: "ap-southeast",
+      display_name: "Asia Pacific Southeast",
+      cluster_id: "ap-southeast-1",
+      ingress_class_name: "kura-ap-southeast",
+      node_pool: "kura-ap-southeast",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      # Two, like every other managed region. Nothing else serves this region
+      # while a replica restarts — Kura is terminal storage and a miss is a 404,
+      # not an origin fetch — so the standby is what keeps a rolling restart
+      # from costing every account in the region a cache miss.
+      #
+      # It also bounds how many accounts fit: `Capacity.resident_gib/2` is
+      # claim x replicas and each replica requests its full claim as
+      # ephemeral-storage, so an enterprise account reserves 100 GiB of the
+      # region's disk and a pro one 60 GiB.
+      replicas: 2,
+      # Egress governance on the shared box: the enterprise per-tenant floor
+      # (uniform across regions) is bin-packed as the tuist.dev/egress-mbps
+      # request; egress_burst_mbps is the Cilium burst ceiling, half the box's
+      # public bandwidth. Public is the number that matters: the NIC links at
+      # 25 Gbit/s, but that is the vRack side, and a cache serves the 1 Gbit/s
+      # public path. Same shape as ca-east, the other ~1 Gbit region.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 500,
+      # OVHcloud SGP, Singapore. No subdivision: Singapore is a city-state whose
+      # ISO 3166-2 codes are the five CDC statistical districts rather than
+      # anything a datacenter address resolves to, so the country code already
+      # locates the node as precisely as the pair can. Stating a district would
+      # be the guess this field exists to avoid (see `node_location/1`).
+      country: "SG"
     }
   ]
   # Private runner-cache regions. Both share the same model: a single-
@@ -321,7 +374,7 @@ defmodule Tuist.Kura.Regions do
       # account's restore burst from starving the rest. Conservative
       # against the Elastic Metal node's 10G PN (~13 tenants at the cap
       # before the NIC binds), so there's headroom to raise it.
-      pod_annotations: %{"kubernetes.io/egress-bandwidth" => "750M"},
+      egress_burst_mbps: 750,
       # The pool's nodes carry a `tuist.dev/runner-cache=true:NoSchedule`
       # taint so general workloads stay off this shared-NIC, egress-capped
       # node; the cache pods tolerate it (node_selector already pins them
@@ -499,6 +552,38 @@ defmodule Tuist.Kura.Regions do
   def storage_governed?(_), do: false
 
   @doc """
+  True iff the region shapes its instances' egress: it declares a guaranteed
+  floor, a burst ceiling, or both.
+
+  Only these regions read an account's egress override — everywhere else the
+  NIC is not shared with another tenant and there is nothing to arbitrate, so an
+  override would describe a limit nothing applies.
+  """
+  def egress_governed?(%__MODULE__{} = region) do
+    not is_nil(egress_guaranteed_mbps(region)) or not is_nil(egress_burst_mbps(region))
+  end
+
+  def egress_governed?(_), do: false
+
+  @doc """
+  The region's guaranteed egress floor in Mbit/s, or `nil` when it reserves
+  none.
+
+  This is the region's own number, before the account's entitlement gate and
+  before any per-account override.
+  """
+  def egress_guaranteed_mbps(%__MODULE__{provisioner_config: config}), do: config[:egress_guaranteed_mbps]
+
+  def egress_guaranteed_mbps(_), do: nil
+
+  @doc """
+  The region's burst ceiling in Mbit/s, or `nil` when it caps no tenant.
+  """
+  def egress_burst_mbps(%__MODULE__{provisioner_config: config}), do: config[:egress_burst_mbps]
+
+  def egress_burst_mbps(_), do: nil
+
+  @doc """
   True iff the region's nodes advertise a `tuist.dev/memory-ceiling-mib` budget,
   so its instances can bin-pack their memory ceilings against it.
 
@@ -672,8 +757,9 @@ defmodule Tuist.Kura.Regions do
         # against the node budget the CAPI provider advertises. The default,
         # bursty tenant runs best-effort under the ceiling alone. Both unset on
         # the Hetzner cloud regions (no shared-NIC contention to govern).
-        pod_annotations: managed_region_pod_annotations(spec),
+        pod_annotations: egress_bandwidth_pod_annotations(spec),
         egress_guaranteed_mbps: Map.get(spec, :egress_guaranteed_mbps),
+        egress_burst_mbps: Map.get(spec, :egress_burst_mbps),
         country: Map.get(spec, :country),
         subdivision: Map.get(spec, :subdivision),
         # Packing density is what constrains the shared bare-metal boxes, so
@@ -703,9 +789,14 @@ defmodule Tuist.Kura.Regions do
   end
 
   # Burst ceiling: a Cilium bandwidth-manager egress cap so one tenant pod
-  # can't monopolize the shared box NIC. Set on the bare-metal regions (from
-  # egress_burst_mbps); empty on the Hetzner cloud regions.
-  defp managed_region_pod_annotations(spec) do
+  # can't monopolize the shared box NIC. Set on every region that declares an
+  # `egress_burst_mbps`; empty on the Hetzner cloud regions, whose NIC is not
+  # shared with another tenant.
+  #
+  # The region's own ceiling, which is the default. The provisioner substitutes
+  # the account's effective one before rendering the KuraInstance, so this single
+  # annotation carries the ceiling either way (`Tuist.Kura.EgressLimits`).
+  defp egress_bandwidth_pod_annotations(spec) do
     case Map.get(spec, :egress_burst_mbps) do
       nil -> %{}
       mbps -> %{"kubernetes.io/egress-bandwidth" => "#{mbps}M"}
@@ -743,7 +834,8 @@ defmodule Tuist.Kura.Regions do
         private_url_template: @in_cluster_url_template,
         data_plane: Map.get(spec, :data_plane, :cluster_dns),
         client_cidrs: Map.get(spec, :client_cidrs, []),
-        pod_annotations: Map.get(spec, :pod_annotations, %{}),
+        pod_annotations: egress_bandwidth_pod_annotations(spec),
+        egress_burst_mbps: Map.get(spec, :egress_burst_mbps),
         tolerations: Map.get(spec, :tolerations, []),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
         country: Map.get(spec, :country),

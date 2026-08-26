@@ -838,7 +838,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             )
             moduleMapModuleName = resolvedModuleName
             let swiftPackageManagerScratchDirectory: AbsolutePath? = if packageType.isRemoteExternal {
-                SwiftPackageManagerPaths.scratchDirectory(containingCheckout: path)
+                SwiftPackageManagerPaths.scratchDirectory(containingPackageSource: path)
             } else {
                 nil
             }
@@ -2436,12 +2436,7 @@ extension ProjectDescription.Settings {
         }
 
         if swiftToolsVersion >= Version(5, 9, 0) {
-            result.base.ensurePackageName(packageName)
-            for index in result.configurations.indices
-                where result.configurations[index].settings["OTHER_SWIFT_FLAGS"] != nil
-            {
-                result.configurations[index].settings.ensurePackageName(packageName)
-            }
+            result.base.setSwiftPackageName(packageName)
         }
 
         return result
@@ -2533,26 +2528,8 @@ extension ProjectDescription.SettingsDictionary {
         }
     }
 
-    fileprivate mutating func ensurePackageName(_ packageName: String) {
-        let packageName = packageName.quotedIfContainsSpaces
-        var swiftFlags: [String] = switch self["OTHER_SWIFT_FLAGS"] {
-        case let .array(values):
-            values
-        case let .string(value):
-            value.split(separator: " ").map(String.init)
-        case nil:
-            ["$(inherited)"]
-        @unknown default:
-            ["$(inherited)"]
-        }
-
-        let containsPackageName = swiftFlags.indices.dropLast().contains { index in
-            swiftFlags[index] == "-package-name" && swiftFlags[index + 1] == packageName
-        }
-        guard !containsPackageName else { return }
-
-        swiftFlags.append(contentsOf: ["-package-name", packageName])
-        self["OTHER_SWIFT_FLAGS"] = .array(swiftFlags)
+    fileprivate mutating func setSwiftPackageName(_ packageName: String) {
+        self["SWIFT_PACKAGE_NAME"] = .string(packageName)
     }
 }
 

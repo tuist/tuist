@@ -29,6 +29,7 @@ opentelemetry-otlp = { version = "0.31.1", default-features = false, features = 
 opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
 prost = "0.14.1"
 prometheus-client = "0.24.1"
+rand = "0.9.4"
 rcgen = "0.14.5"
 reqwest = { version = "0.12.24", default-features = false, features = ["http2", "json", "rustls-tls", "stream"] }
 rocksdb = { version = "0.24.0", default-features = false, features = ["bindgen-runtime", "lz4"] }

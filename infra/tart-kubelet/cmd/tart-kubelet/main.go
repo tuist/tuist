@@ -71,6 +71,8 @@ func main() {
 		vncControlDir      string
 		vncRelayHost       string
 		vncRelayPort       int
+		vncRelayPortCount  int
+		minGoldensKept     int
 		disableVMGC        bool
 		runnerCacheRoot    string
 		cacheVolumeCapGiB  int
@@ -116,7 +118,17 @@ func main() {
 	flag.StringVar(&vncRelayHost, "vnc-relay-host", envOr("TART_KUBELET_VNC_RELAY_HOST", ""),
 		"Host name to advertise for dashboard VNC relays. Empty advertises --node-ip. Managed tailnet deployments set this to the per-Mac Kubernetes egress Service DNS name so the server connects through the Tailscale operator instead of dialing the raw tailnet IP.")
 	flag.IntVar(&vncRelayPort, "vnc-relay-port", envIntOr("TART_KUBELET_VNC_RELAY_PORT", 0),
-		"Host port to bind and advertise for dashboard VNC relays. 0 chooses an ephemeral port. Managed tailnet deployments use a fixed port that is declared on the per-Mac Tailscale egress Service.")
+		"Host port to bind and advertise for dashboard VNC relays. 0 chooses an ephemeral port. Managed tailnet deployments use a fixed port that is declared on the per-Mac Tailscale egress Service. "+
+			"With --vnc-relay-port-count > 1 this is the base of a contiguous range.")
+	flag.IntVar(&vncRelayPortCount, "vnc-relay-port-count", envIntOr("TART_KUBELET_VNC_RELAY_PORT_COUNT", 1),
+		"How many contiguous ports from --vnc-relay-port a relay may bind, walked in order until one is free. "+
+			"A pinned port is a per-host resource while a relay is per-Pod, so a host that runs more than one guest "+
+			"needs one port per guest or the second guest's relay fails to bind. Every port in the range must be "+
+			"declared on whatever fronts the host. Ignored when --vnc-relay-port is 0.")
+	flag.IntVar(&minGoldensKept, "min-goldens-kept", envIntOr("TART_KUBELET_MIN_GOLDENS_KEPT", 0),
+		"Floor on how many golden base VMs the disk-pressure reclaim may leave on the host. 0 uses the built-in "+
+			"default of 1. A host that runs guests from more than one pool wants at least one golden per pool, "+
+			"otherwise reclaiming under pressure strands a pool into a full cold image pull.")
 	flag.StringVar(&runnerCacheRoot, "runner-cache-root", envOr("TART_KUBELET_RUNNER_CACHE_ROOT", ""),
 		"Mount point of the quota-bounded APFS volume that holds per-account cache-volume images. "+
 			"Empty (default) disables cache volumes entirely: every VM boots on the status-quo cold path. "+
@@ -149,6 +161,14 @@ func main() {
 
 	if vncRelayPort < 0 || vncRelayPort > 65535 {
 		setupLog.Error(fmt.Errorf("invalid --vnc-relay-port %d", vncRelayPort), "parse flag")
+		os.Exit(1)
+	}
+
+	// Reject a range that runs off the end of the port space at parse
+	// time rather than letting the last offsets fail to bind at the
+	// moment an operator is trying to open a session.
+	if vncRelayPort > 0 && (vncRelayPortCount < 1 || vncRelayPort+vncRelayPortCount-1 > 65535) {
+		setupLog.Error(fmt.Errorf("invalid --vnc-relay-port-count %d for base port %d", vncRelayPortCount, vncRelayPort), "parse flag")
 		os.Exit(1)
 	}
 
@@ -281,6 +301,8 @@ func main() {
 			// burst clones from it instead of re-pulling the whole VM
 			// image. Zero would fall back to the same default.
 			GoldenRetention: 24 * time.Hour,
+			// 0 falls back to the collector's own default (1).
+			MinGoldensKept: minGoldensKept,
 		}
 		if err := mgr.Add(gcCollector); err != nil {
 			setupLog.Error(err, "add gc collector")
@@ -344,6 +366,7 @@ func main() {
 		VNCControlDir:      vncControlDir,
 		VNCRelayHost:       vncRelayHost,
 		VNCRelayPort:       vncRelayPort,
+		VNCRelayPortCount:  vncRelayPortCount,
 		Tart:               tartClient,
 		Resolver:           resolver,
 		Store:              store,

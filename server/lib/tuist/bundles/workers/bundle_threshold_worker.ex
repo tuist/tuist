@@ -124,7 +124,11 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
       status: "completed",
       conclusion: conclusion,
       output: output,
-      details_url: bundle_url
+      details_url: bundle_url,
+      # Ties the check run back to its bundle so the `requested_action`
+      # webhook can resolve the project it belongs to. A repository can back
+      # several Tuist projects, so the repository handle alone is ambiguous.
+      external_id: bundle.id
     }
 
     params =
