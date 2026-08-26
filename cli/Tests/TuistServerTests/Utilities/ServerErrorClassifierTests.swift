@@ -72,4 +72,30 @@ struct ServerErrorClassifierTests {
     @Test func unrelatedErrorsAreNotTransient() {
         #expect(!ServerErrorClassifier.isTransient(NSError(domain: "Test", code: 1)))
     }
+
+    @Test func permissionAndAuthenticationErrorsAreNotRetryable() {
+        #expect(!ServerErrorClassifier.isRetryable(GetCacheServiceError.forbidden("Forbidden")))
+        #expect(!ServerErrorClassifier.isRetryable(GetCacheServiceError.unauthorized("Unauthorized")))
+        #expect(!ServerErrorClassifier.isRetryable(GetCacheServiceError.notFound("Not found")))
+        #expect(!ServerErrorClassifier.isRetryable(GetCacheServiceError.paymentRequired("Payment required")))
+        #expect(!ServerErrorClassifier.isRetryable(UploadCacheActionItemServiceError.badRequest("Bad request")))
+        #expect(!ServerErrorClassifier.isRetryable(MultipartUploadCompleteCacheServiceError.conflict("Conflict")))
+    }
+
+    @Test(arguments: [408, 429, 500, 502, 503])
+    func retryableStatusCodesAreRetryable(statusCode: Int) {
+        #expect(ServerErrorClassifier.isRetryable(GetCacheServiceError.unknownError(statusCode)))
+        #expect(ServerErrorClassifier.isRetryable(CreateCommandEventServiceError.unknownError(statusCode)))
+    }
+
+    @Test(arguments: [400, 401, 403, 404])
+    func permanentStatusCodesAreNotRetryable(statusCode: Int) {
+        #expect(!ServerErrorClassifier.isRetryable(GetCacheServiceError.unknownError(statusCode)))
+        #expect(!ServerErrorClassifier.isRetryable(CreateCommandEventServiceError.unknownError(statusCode)))
+    }
+
+    @Test func unrelatedErrorsAreRetryable() {
+        #expect(ServerErrorClassifier.isRetryable(NSError(domain: "Test", code: 1)))
+        #expect(ServerErrorClassifier.isRetryable(URLError(.timedOut)))
+    }
 }

@@ -87,6 +87,40 @@ final class RetryProviderTests: TuistUnitTestCase {
         XCTAssertEqual(operationCalls, 1)
     }
 
+    func test_runWithRetries_whenErrorIsAPermanentClientError_doesNotRetry() async throws {
+        // Given
+        let error = GetCacheServiceError.forbidden("Not authorized to read cache")
+
+        // When
+        await XCTAssertThrowsSpecific(
+            try await subject.runWithRetries { [self] in
+                operationCalls += 1
+                throw error
+            },
+            error
+        )
+
+        // Then
+        XCTAssertEqual(operationCalls, 1)
+    }
+
+    func test_runWithRetries_whenErrorIsARetryableServerError_retries() async throws {
+        // Given
+        let error = GetCacheServiceError.unknownError(503)
+
+        // When
+        await XCTAssertThrowsSpecific(
+            try await subject.runWithRetries { [self] in
+                operationCalls += 1
+                throw error
+            },
+            error
+        )
+
+        // Then
+        XCTAssertEqual(operationCalls, 4)
+    }
+
     func test_runWithRetries_whenOperationIsCancelled_doesNotRetry() async throws {
         // Given / When
         do {

@@ -30,6 +30,19 @@ public enum UploadCacheActionItemServiceError: LocalizedError, Equatable {
     }
 }
 
+extension UploadCacheActionItemServiceError: HTTPStatusCodeError {
+    public var httpStatusCode: Int {
+        switch self {
+        case let .unknownError(statusCode): return statusCode
+        case .notFound: return 404
+        case .paymentRequired: return 402
+        case .forbidden: return 403
+        case .unauthorized: return 401
+        case .badRequest: return 400
+        }
+    }
+}
+
 public struct UploadCacheActionItemService: UploadCacheActionItemServicing {
     private let fullHandleService: FullHandleServicing
 

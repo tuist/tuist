@@ -28,6 +28,18 @@ public enum GetCacheActionItemServiceError: LocalizedError, Equatable {
     }
 }
 
+extension GetCacheActionItemServiceError: HTTPStatusCodeError {
+    public var httpStatusCode: Int {
+        switch self {
+        case let .unknownError(statusCode): return statusCode
+        case .notFound: return 404
+        case .paymentRequired: return 402
+        case .forbidden: return 403
+        case .unauthorized: return 401
+        }
+    }
+}
+
 public struct GetCacheActionItemService: GetCacheActionItemServicing {
     private let fullHandleService: FullHandleServicing
 

@@ -1,7 +1,22 @@
 import Foundation
 import OpenAPIRuntime
+import TuistHTTP
 
 public enum ServerErrorClassifier {
+    /// Whether re-sending the request that raised `error` could produce a different outcome.
+    /// Errors that do not carry a status code are retryable, so a failure this classifier does
+    /// not model keeps the retries it has today.
+    public static func isRetryable(_ error: Error) -> Bool {
+        switch error {
+        case let error as any HTTPStatusCodeError:
+            return !HTTPRetryPolicy.isPermanentClientError(statusCode: error.httpStatusCode)
+        case let error as ClientError:
+            return isRetryable(error.underlyingError)
+        default:
+            return true
+        }
+    }
+
     public static func isTransient(_ error: Error) -> Bool {
         switch error {
         case let error as RefreshAuthTokenServiceError:
