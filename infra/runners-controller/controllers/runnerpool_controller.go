@@ -54,7 +54,13 @@ const defaultRollMaxConcurrentPercent = 5
 // the previous Pod freed.
 type RunnerPoolReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+
+	// APIReader is an uncached reader. The reservation path confirms the
+	// fleet-wide reservation limit through it, because the informer
+	// cache can lag a taint written moments earlier by another pool's
+	// reconcile. Optional: falls back to the cached client when unset.
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
 
 	// SessionsClient closes a Pod's billing session immediately before
 	// the reap deletes it — see reapRunner for why the ordering matters.
@@ -143,6 +149,14 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// finish their single-shot job. Only then is the finalizer
 	// dropped, letting the CR and any remaining terminal Pods/SAs GC.
 	if !pool.DeletionTimestamp.IsZero() {
+		// Before the drain, hand back any host this pool was holding.
+		// reconcileDelete returns without reaching reconcileReservation,
+		// and once the CR is gone nothing can match the taint's value,
+		// so the host would be tainted out of the fleet permanently.
+		if err := r.ReleaseReservationsForPool(ctx, pool); err != nil {
+			logger.Error(err, "release node reservation for a deleting pool; will retry")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
 		return r.reconcileDelete(ctx, pool)
 	}
 	if controllerutil.AddFinalizer(pool, runnerPoolFinalizer) {

@@ -492,3 +492,101 @@ func TestReservation_CooldownIsPerHostNotPerPool(t *testing.T) {
 		t.Error("a sibling host with no cooldown should have been reserved instead")
 	}
 }
+
+// A reservation names its owning pool, so only that pool can find and
+// release it. Once the pool's CR is gone the taint is unreachable: the
+// host is out of the fleet permanently AND its reservation keeps
+// counting against the fleet-wide limit, blocking every future one.
+func TestReservation_SweepsReservationsWhoseOwningPoolIsGone(t *testing.T) {
+	pool := largePool()
+	orphaned := m4Node("m4-0")
+	orphaned.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue("macos-26-1-12vcpu-28gb"),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+
+	// No Pod is starved, so nothing but the sweep can act here.
+	r := reservationReconciler(pool, smallPool(), orphaned)
+	if err := r.reconcileReservation(context.Background(), pool, nil); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Fatal("a reservation whose pool no longer exists must be swept")
+	}
+}
+
+// An orphaned reservation must not keep the fleet's one slot spoken for.
+func TestReservation_OrphanDoesNotBlockANewReservation(t *testing.T) {
+	pool := largePool()
+	orphaned := m4Node("m4-0")
+	orphaned.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue("long-gone-pool"),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, smallPool(), orphaned, starved)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	node := nodeByName(t, r, "m4-0")
+	for _, taint := range node.Spec.Taints {
+		if taint.Key == podtemplate.ReservationTaintKey &&
+			taint.Value != podtemplate.ReservationValue(pool.Name) {
+			t.Fatal("the orphan still holds the host; the starved pool is blocked behind it")
+		}
+	}
+}
+
+// A pool being deleted returns through reconcileDelete without reaching
+// reservation reconciliation, so the delete path has to hand the host
+// back itself.
+func TestReservation_ReleasedWhenTheOwningPoolIsDeleted(t *testing.T) {
+	pool := largePool()
+	node := m4Node("m4-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+
+	r := reservationReconciler(pool, smallPool(), node)
+	if err := r.ReleaseReservationsForPool(context.Background(), pool); err != nil {
+		t.Fatalf("ReleaseReservationsForPool: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Fatal("a deleting pool must hand its host back")
+	}
+}
+
+// A host already holding one of this pool's own Pods cannot be cleared
+// for a second: the reaper never retires own-pool Pods. Ranking on
+// occupancy alone made that host look ideal, because its own idle Pod
+// counts as zero occupancy.
+func TestReservation_SkipsHostsItsOwnPodAlreadyFills(t *testing.T) {
+	pool := largePool()
+	occupied := m4Node("m4-a") // holds this pool's own idle Pod
+	free := m4Node("m4-b")     // holds two other-pool jobs
+	starved := pendingPod("large-1", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, smallPool(), occupied, free, starved,
+		placedPod("large-0", pool.Name, "m4-a", ""),
+		placedPod("small-0", "macos-26-6", "m4-b", "acme"),
+		placedPod("small-1", "macos-26-6", "m4-b", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-a")) {
+		t.Fatal("reserved a host its own Pod fills; that host can never seat the second Pod")
+	}
+	if !isReserved(nodeByName(t, r, "m4-b")) {
+		t.Fatal("should have reserved the host whose occupants can actually be cleared")
+	}
+}

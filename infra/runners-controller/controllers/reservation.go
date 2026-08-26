@@ -115,6 +115,17 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 		return err
 	}
 
+	// Orphan sweep first. A reservation is discoverable only by the pool
+	// named in its taint, so once that pool's CR is gone nothing can
+	// release it: the host stays tainted out of the fleet forever AND
+	// its reservation keeps counting against maxFleetReservations, which
+	// blocks every future one. Deleting or renaming a pool in a helm
+	// upgrade is enough to reach this, because a deleting pool returns
+	// through reconcileDelete before it ever gets here.
+	if err := r.releaseOrphanedReservations(ctx, pool, nodes); err != nil {
+		return err
+	}
+
 	value := podtemplate.ReservationValue(pool.Name)
 	held := reservedNode(nodes, value)
 	starved := starvedPod(pods, now)
@@ -141,7 +152,21 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 		return nil
 	}
 
-	target, err := r.pickReservationTarget(ctx, pool, nodes, now)
+	// About to take the fleet's one reservation, so re-read the nodes
+	// straight from the apiserver. MaxConcurrentReconciles 1 serializes
+	// the workers but not their reads: the List above is served from the
+	// informer cache, which can still be missing a taint another pool's
+	// reconcile wrote moments ago. Confirming against the cache would
+	// hand out a second reservation and drain two hosts at once.
+	fresh, err := r.fleetNodesFrom(ctx, r.apiReader(), pool)
+	if err != nil {
+		return err
+	}
+	if reservationCount(fresh) >= maxFleetReservations {
+		return nil
+	}
+
+	target, err := r.pickReservationTarget(ctx, pool, fresh, now)
 	if err != nil {
 		return err
 	}
@@ -211,9 +236,19 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 	}
 
 	owned := map[string]int{}
+	ownPool := map[string]int32{}
 	for i := range fleetPods.Items {
 		pod := &fleetPods.Items[i]
 		if pod.Spec.NodeName == "" || !pod.DeletionTimestamp.IsZero() {
+			continue
+		}
+		// This pool's own Pods are never retired by the reaper, so for
+		// the purposes of this reservation they are permanent occupants
+		// and have to come off the candidate's usable seats. Other
+		// pools' Pods do not: idle ones are retired immediately and
+		// running ones are waited out.
+		if pod.Labels["tuist.dev/runner-pool"] == pool.Name {
+			ownPool[pod.Spec.NodeName]++
 			continue
 		}
 		if !isIdle(pod) {
@@ -231,6 +266,13 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 			continue
 		}
 		seats := nodeSeatsForShape(node, shape)
+		// Seats this reservation could actually end up with. A host
+		// already holding one of this pool's own Pods cannot be cleared
+		// for a second one, and ranking on occupancy alone would make it
+		// look like the BEST candidate — its own idle Pod counts as zero
+		// occupancy — so the reservation would settle on a host it can
+		// never clear and burn the fleet's one slot until the timeout.
+		seats -= ownPool[node.Name]
 		if seats < 1 {
 			continue
 		}
@@ -323,7 +365,7 @@ func (r *RunnerPoolReconciler) reserveNode(
 	}
 	patched.Annotations[reservationAtAnnotation] = now.UTC().Format(time.RFC3339)
 
-	if err := r.Patch(ctx, patched, client.MergeFrom(node)); err != nil {
+	if err := r.Patch(ctx, patched, optimisticPatch(node)); err != nil {
 		return fmt.Errorf("reserve node %s: %w", node.Name, err)
 	}
 	return nil
@@ -354,23 +396,111 @@ func (r *RunnerPoolReconciler) releaseReservation(
 		patched.Annotations[reservationCooldownAnnotation] = cooldownUntil.UTC().Format(time.RFC3339)
 	}
 
-	if err := r.Patch(ctx, patched, client.MergeFrom(node)); err != nil {
+	if err := r.Patch(ctx, patched, optimisticPatch(node)); err != nil {
 		return fmt.Errorf("release reservation on node %s: %w", node.Name, err)
 	}
 	return nil
 }
 
 // fleetNodes lists the macOS hosts behind a pool's fleet selector, the
-// same set the autoscaler sizes its budget from.
+// same set the autoscaler sizes its budget from. Cached read: fine for
+// deciding whether this pool already holds a reservation, and for
+// releasing one.
 func (r *RunnerPoolReconciler) fleetNodes(ctx context.Context, pool *tuistv1.RunnerPool) ([]corev1.Node, error) {
+	return r.fleetNodesFrom(ctx, r.Client, pool)
+}
+
+func (r *RunnerPoolReconciler) fleetNodesFrom(
+	ctx context.Context,
+	reader client.Reader,
+	pool *tuistv1.RunnerPool,
+) ([]corev1.Node, error) {
 	var nodes corev1.NodeList
-	if err := r.List(ctx, &nodes, client.MatchingLabels{
+	if err := reader.List(ctx, &nodes, client.MatchingLabels{
 		macosFleetLabel:  pool.Spec.FleetSelector,
 		macosNodeOSLabel: macosNodeOSDarwin,
 	}); err != nil {
 		return nil, fmt.Errorf("list fleet nodes: %w", err)
 	}
 	return nodes.Items, nil
+}
+
+// apiReader is the uncached client, used on the one path where a stale
+// read is not survivable. Falls back to the cached client when unset so
+// tests (and any caller that has not wired one) still work.
+func (r *RunnerPoolReconciler) apiReader() client.Reader {
+	if r.APIReader != nil {
+		return r.APIReader
+	}
+	return r.Client
+}
+
+// releaseOrphanedReservations lifts reservation taints that name a pool
+// which no longer exists, or is on its way out. Both the per-pool
+// release in reconcileDelete and this sweep are needed: the release
+// handles the ordinary delete promptly, and the sweep is the backstop
+// for a controller that died mid-reservation, a pool force-deleted past
+// its finalizer, or a taint left by an earlier version.
+//
+// Deliberately no cooldown on these: an orphan was never a considered
+// decision about this host, so there is nothing to back off from.
+func (r *RunnerPoolReconciler) releaseOrphanedReservations(
+	ctx context.Context,
+	pool *tuistv1.RunnerPool,
+	nodes []corev1.Node,
+) error {
+	logger := log.FromContext(ctx)
+
+	var pools tuistv1.RunnerPoolList
+	if err := r.List(ctx, &pools, client.InNamespace(pool.Namespace)); err != nil {
+		return fmt.Errorf("list runner pools for orphan sweep: %w", err)
+	}
+
+	live := map[string]bool{}
+	for i := range pools.Items {
+		if !pools.Items[i].DeletionTimestamp.IsZero() {
+			continue
+		}
+		live[podtemplate.ReservationValue(pools.Items[i].Name)] = true
+	}
+
+	for i := range nodes {
+		node := &nodes[i]
+		for _, taint := range node.Spec.Taints {
+			if taint.Key != podtemplate.ReservationTaintKey || live[taint.Value] {
+				continue
+			}
+			logger.Info("releasing orphaned node reservation; owning pool is gone",
+				"node", node.Name, "reservedFor", taint.Value)
+			if err := r.releaseReservation(ctx, node, time.Time{}); err != nil {
+				return err
+			}
+			break
+		}
+	}
+	return nil
+}
+
+// ReleaseReservationsForPool lifts any reservation this pool holds. Called
+// from the delete path, which returns before the ordinary reservation
+// reconciliation and would otherwise strand the taint.
+func (r *RunnerPoolReconciler) ReleaseReservationsForPool(ctx context.Context, pool *tuistv1.RunnerPool) error {
+	if pool.Spec.OS != macosNodeOSDarwin {
+		return nil
+	}
+
+	nodes, err := r.fleetNodes(ctx, pool)
+	if err != nil {
+		return err
+	}
+	held := reservedNode(nodes, podtemplate.ReservationValue(pool.Name))
+	if held == nil {
+		return nil
+	}
+
+	log.FromContext(ctx).Info("releasing node reservation; owning pool is being deleted",
+		"node", held.Name, "pool", pool.Name)
+	return r.releaseReservation(ctx, held, time.Time{})
 }
 
 // fleetShapes is every Pod footprint in play on this pool's fleet. The
@@ -470,4 +600,15 @@ func reservationAge(node *corev1.Node, now time.Time) time.Duration {
 		return 0
 	}
 	return now.Sub(at)
+}
+
+// optimisticPatch carries the base object's resourceVersion as a
+// precondition. Taints are a plain list, so a merge patch REPLACES the
+// whole array with the one computed from our copy of the node. Without
+// the precondition a taint another actor added since we read it — a
+// kubelet pressure taint, Cluster API's cordon, a sibling reservation —
+// would be silently dropped on write. With it the write fails on
+// conflict instead, and the next reconcile recomputes from fresh state.
+func optimisticPatch(base client.Object) client.Patch {
+	return client.MergeFromWithOptions(base, client.MergeFromWithOptimisticLock{})
 }

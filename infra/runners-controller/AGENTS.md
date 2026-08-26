@@ -157,6 +157,32 @@ independent workqueues:
     would retire the reserved pool's own Pod the moment it landed and was
     still warm-polling.
 
+    Three properties the taint being pool-named forces:
+
+      - **Orphans must be swept.** Only the pool named in a taint can
+        find and release its own reservation, so a deleted or renamed
+        pool would strand the host out of the fleet forever and keep its
+        reservation counting against `maxFleetReservations`. The delete
+        path releases explicitly (`reconcileDelete` returns before
+        reservation reconciliation), and every reconcile sweeps taints
+        naming a pool that no longer exists as a backstop.
+      - **The fleet limit is confirmed uncached.** `MaxConcurrentReconciles: 1`
+        serializes the workers but not their reads; the informer cache
+        can lag a taint another pool wrote moments ago. The one path that
+        takes the fleet's reservation re-reads nodes through the
+        `APIReader` before committing.
+      - **Node writes are optimistically locked.** Taints are a plain
+        list, so a merge patch replaces the whole array with the one
+        computed from our copy. Without a resourceVersion precondition a
+        taint added since the read — a kubelet pressure taint, Cluster
+        API's cordon, a sibling reservation — is silently dropped.
+
+    Candidate selection subtracts the pool's OWN Pods from a host's
+    usable seats. The reaper never retires own-pool Pods, so a host
+    already holding one cannot be cleared for a second; ranking on
+    occupancy alone made exactly that host look ideal, since its own idle
+    Pod counts as zero occupancy.
+
     PriorityClass preemption cannot substitute. The scheduler picks
     victims by priority, `spec.priority` is immutable after admission,
     and a runner Pod becomes job-owning in place — so a priority high
