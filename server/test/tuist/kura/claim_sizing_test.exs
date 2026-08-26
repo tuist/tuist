@@ -86,7 +86,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
     context(
       %{
         plan: :pro,
-        current_claim_size: "30Gi",
+        current_claim_size: "16Gi",
         rollups: [],
         last_resized_at: nil,
         today: @today
@@ -104,7 +104,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
       # the floor plus headroom.
       context = context(rollups: marginal_churn(14, @today))
 
-      assert {:grow, "38Gi", evidence} = ClaimSizing.evaluate(context)
+      assert {:grow, "20Gi", evidence} = ClaimSizing.evaluate(context)
       assert evidence["region"] == "us-east"
       assert evidence["window_days"] == 14
       assert evidence["median_shed_age_seconds"] == 233_280
@@ -116,7 +116,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
       rollups =
         marginal_churn(14, Date.add(@today, -1)) ++ [rollup(@today, snapshot_count: 4, max_occupancy_percent: 95)]
 
-      assert {:grow, "38Gi", _evidence} = ClaimSizing.evaluate(context(rollups: rollups))
+      assert {:grow, "20Gi", _evidence} = ClaimSizing.evaluate(context(rollups: rollups))
     end
 
     test "one day without evictions inside the window withholds the proposal" do
@@ -145,7 +145,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
       # day, short of the single-day rung.
       context = context(rollups: severe_churn(2, @today))
 
-      assert {:grow, "50Gi", evidence} = ClaimSizing.evaluate(context)
+      assert {:grow, "32Gi", evidence} = ClaimSizing.evaluate(context)
       assert evidence["window_days"] == 2
       assert evidence["qualifying_threshold_seconds"] == 28_800
     end
@@ -156,9 +156,9 @@ defmodule Tuist.Kura.ClaimSizingTest do
       # where eight-hour shedding would have to prove two. Because a ring
       # turns over about once per span it holds, that is also roughly an
       # hour of real time rather than two.
-      rollups = 1 |> churn_at(@today, 20 * 60, 30 * 60) |> Enum.map(&Map.put(&1, :evicted_bytes, 33 * @gibibyte))
+      rollups = 1 |> churn_at(@today, 20 * 60, 30 * 60) |> Enum.map(&Map.put(&1, :evicted_bytes, 18 * @gibibyte))
 
-      assert {:grow, "50Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
+      assert {:grow, "32Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
       assert evidence["window_days"] == 1
       assert evidence["ring_turnover"] == 1.1
       assert evidence["qualifying_threshold_seconds"] == 3_600
@@ -166,7 +166,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
     test "catastrophic shedding still needs a whole ring lost" do
       # Half a ring under an hour old is a burst, not a verdict.
-      rollups = 1 |> churn_at(@today, 20 * 60, 30 * 60) |> Enum.map(&Map.put(&1, :evicted_bytes, 15 * @gibibyte))
+      rollups = 1 |> churn_at(@today, 20 * 60, 30 * 60) |> Enum.map(&Map.put(&1, :evicted_bytes, 8 * @gibibyte))
 
       assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
     end
@@ -174,18 +174,18 @@ defmodule Tuist.Kura.ClaimSizingTest do
     test "an hour-old ring does not get the relaxed volume once it is merely severe" do
       # Ninety minutes clears the catastrophic rung, so the account falls to
       # the eight-hour rung and owes the full two rings again.
-      rollups = 1 |> churn_at(@today, 90 * 60, 2 * 3_600) |> Enum.map(&Map.put(&1, :evicted_bytes, 33 * @gibibyte))
+      rollups = 1 |> churn_at(@today, 90 * 60, 2 * 3_600) |> Enum.map(&Map.put(&1, :evicted_bytes, 18 * @gibibyte))
 
       assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
     end
 
     test "a single severe day acts when the account cycled its whole ring twice over" do
-      # Volume replaces elapsed time on the shortest rung: 75Gi evicted
-      # against a 30Gi claim is two and a half rings lost in a day, while the
+      # Volume replaces elapsed time on the shortest rung: 40Gi evicted
+      # against a 16Gi claim is two and a half rings lost in a day, while the
       # content going out is younger than a working day.
-      rollups = 1 |> severe_churn(@today) |> Enum.map(&Map.put(&1, :evicted_bytes, 75 * @gibibyte))
+      rollups = 1 |> severe_churn(@today) |> Enum.map(&Map.put(&1, :evicted_bytes, 40 * @gibibyte))
 
-      assert {:grow, "50Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
+      assert {:grow, "32Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
       assert evidence["window_days"] == 1
       assert evidence["ring_turnover"] == 2.5
     end
@@ -202,7 +202,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
       # not because Air is allowed less in the end.
       rollups = churn_at(2, @today, 7 * 3_600, 12 * 3_600)
 
-      for {plan, current, expected} <- [{:air, "8Gi", "16Gi"}, {:pro, "30Gi", "50Gi"}, {:enterprise, "60Gi", "120Gi"}] do
+      for {plan, current, expected} <- [{:air, "8Gi", "16Gi"}, {:pro, "16Gi", "32Gi"}, {:enterprise, "32Gi", "64Gi"}] do
         context = context(plan: plan, current_claim_size: current, rollups: rollups)
 
         assert {:grow, ^expected, evidence} = ClaimSizing.evaluate(context)
@@ -218,15 +218,15 @@ defmodule Tuist.Kura.ClaimSizingTest do
       # only ever shrink from its starting constant.
       rollups = severe_churn(2, @today)
 
-      assert ClaimSizing.evaluate(context(plan: :pro, current_claim_size: "50Gi", rollups: rollups)) == :none
+      assert ClaimSizing.evaluate(context(plan: :pro, current_claim_size: "64Gi", rollups: rollups)) == :none
 
-      assert {:grow, "100Gi", _evidence} =
-               ClaimSizing.evaluate(context(plan: :enterprise, current_claim_size: "50Gi", rollups: rollups))
+      assert {:grow, "128Gi", _evidence} =
+               ClaimSizing.evaluate(context(plan: :enterprise, current_claim_size: "64Gi", rollups: rollups))
 
-      assert {:grow, "200Gi", _evidence} =
-               ClaimSizing.evaluate(context(plan: :enterprise, current_claim_size: "100Gi", rollups: rollups))
+      assert {:grow, "256Gi", _evidence} =
+               ClaimSizing.evaluate(context(plan: :enterprise, current_claim_size: "128Gi", rollups: rollups))
 
-      assert ClaimSizing.evaluate(context(plan: :enterprise, current_claim_size: "200Gi", rollups: rollups)) == :none
+      assert ClaimSizing.evaluate(context(plan: :enterprise, current_claim_size: "256Gi", rollups: rollups)) == :none
     end
 
     test "shedding exactly at a working day falls back to the fractional ladder" do
@@ -250,7 +250,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
       # cannot carry it, but it does not serve the full fortnight either.
       assert ClaimSizing.evaluate(context(rollups: moderate_churn(4, @today))) == :none
 
-      assert {:grow, "50Gi", evidence} = ClaimSizing.evaluate(context(rollups: moderate_churn(5, @today)))
+      assert {:grow, "32Gi", evidence} = ClaimSizing.evaluate(context(rollups: moderate_churn(5, @today)))
       assert evidence["window_days"] == 5
       assert evidence["qualifying_threshold_seconds"] == round(0.34 * 3 * @day_seconds)
     end
@@ -273,17 +273,17 @@ defmodule Tuist.Kura.ClaimSizingTest do
           median_ring_span_seconds: div(@day_seconds, 2)
         )
 
-      for {current, expected} <- [{"8Gi", "16Gi"}, {"16Gi", "32Gi"}, {"32Gi", "50Gi"}] do
+      for {current, expected} <- [{"8Gi", "16Gi"}, {"16Gi", "32Gi"}, {"32Gi", "64Gi"}] do
         context = context(plan: :air, current_claim_size: current, rollups: rollups)
 
         assert {:grow, ^expected, _evidence} = ClaimSizing.evaluate(context)
       end
 
-      assert ClaimSizing.evaluate(context(plan: :air, current_claim_size: "50Gi", rollups: rollups)) == :none
+      assert ClaimSizing.evaluate(context(plan: :air, current_claim_size: "64Gi", rollups: rollups)) == :none
     end
 
     test "an account already at its plan ceiling gets no proposal" do
-      context = context(plan: :pro, current_claim_size: "50Gi", rollups: severe_churn(14, @today))
+      context = context(plan: :pro, current_claim_size: "64Gi", rollups: severe_churn(14, @today))
 
       assert ClaimSizing.evaluate(context) == :none
     end
@@ -310,7 +310,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
           last_resized_at: DateTime.new!(Date.add(@today, -14), ~T[12:00:00], "Etc/UTC")
         )
 
-      assert {:grow, "38Gi", _evidence} = ClaimSizing.evaluate(context)
+      assert {:grow, "20Gi", _evidence} = ClaimSizing.evaluate(context)
     end
 
     test "a still-churning ring grows again two days after a resize" do
@@ -322,7 +322,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
           last_resized_at: DateTime.new!(Date.add(@today, -2), ~T[12:00:00], "Etc/UTC")
         )
 
-      assert {:grow, "50Gi", _evidence} = ClaimSizing.evaluate(context)
+      assert {:grow, "32Gi", _evidence} = ClaimSizing.evaluate(context)
     end
   end
 
@@ -340,7 +340,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
     test "one step never less than halves the claim" do
       rollups = idle_days(90, @today, max_live_segment_bytes: 2 * @gibibyte)
 
-      assert {:shrink, "15Gi", _evidence} = ClaimSizing.evaluate(context(rollups: rollups))
+      assert {:shrink, "8Gi", _evidence} = ClaimSizing.evaluate(context(rollups: rollups))
     end
 
     test "never shrinks under the validated minimum claim" do
@@ -387,7 +387,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert ClaimSizing.evaluate(recent) == :none
 
       settled = context(rollups: rollups, last_resized_at: DateTime.new!(Date.add(@today, -91), ~T[12:00:00], "Etc/UTC"))
-      assert {:shrink, "15Gi", _evidence} = ClaimSizing.evaluate(settled)
+      assert {:shrink, "10Gi", _evidence} = ClaimSizing.evaluate(settled)
     end
   end
 
@@ -396,7 +396,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
       rollups =
         moderate_churn(14, @today) ++ Enum.map(idle_days(90, @today), &Map.put(&1, :region, "eu-central"))
 
-      assert {:grow, "50Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
+      assert {:grow, "32Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
       assert evidence["region"] == "us-east"
     end
 

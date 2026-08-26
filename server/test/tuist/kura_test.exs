@@ -569,7 +569,7 @@ defmodule Tuist.KuraTest do
 
       assert {:ok, returned} = server |> archive() |> Kura.return_from_archive("0.5.2")
 
-      assert returned.storage_claim_size == "30Gi"
+      assert returned.storage_claim_size == "16Gi"
     end
 
     test "leaves a serving instance on the footprint it was built with", %{account: account} do
@@ -607,7 +607,7 @@ defmodule Tuist.KuraTest do
 
       assert {:ok, target} = Kura.move_server(source, "box-2")
 
-      assert target.storage_claim_size == "50Gi"
+      assert target.storage_claim_size == "32Gi"
     end
 
     test "takes the account's override ahead of the claim its plan buys", %{account: account} do
@@ -682,7 +682,7 @@ defmodule Tuist.KuraTest do
     test "keeps the cache when the claim is lowered", %{account: account} do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
       {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
-      assert server.storage_claim_size == "50Gi"
+      assert server.storage_claim_size == "32Gi"
 
       assert {:ok, %{claim_size: "20Gi", raised: [], lowered: [lowered]}} =
                Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "20Gi"})
@@ -703,7 +703,7 @@ defmodule Tuist.KuraTest do
     test "counts a claim raised back under an oversized volume as raised", %{account: account} do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
       {:ok, server} = Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
-      assert server.storage_claim_size == "50Gi"
+      assert server.storage_claim_size == "32Gi"
 
       {:ok, %{raised: [], lowered: [_]}} =
         Kura.update_storage_claim_override(account, %{"kura_storage_claim_size" => "20Gi"})

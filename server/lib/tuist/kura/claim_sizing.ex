@@ -74,7 +74,12 @@ defmodule Tuist.Kura.ClaimSizing do
     # unkeepable for exactly the accounts with the least room to absorb the
     # churn. What still separates them is where they start (Air at the
     # validated minimum) and how many confirmed steps it takes to get here.
-    ceiling: %{air: "50Gi", pro: "50Gi", enterprise: "200Gi"},
+    #
+    # Powers of two, matching the starting constants in `Tuist.Kura.Regions`,
+    # because a step is clamped at twice the current claim: a ladder of
+    # doubles lands exactly on each ceiling, while an off-ladder value leaves
+    # a final step mostly clamped away.
+    ceiling: %{air: "64Gi", pro: "64Gi", enterprise: "256Gi"},
     # The confirmation ladder, ordered shortest window first, so the most
     # severe rung a reading satisfies is the one that decides it.
     #

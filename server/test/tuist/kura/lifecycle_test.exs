@@ -28,7 +28,7 @@ defmodule Tuist.Kura.LifecycleTest do
   # reserves its plan's claim twice.
   @replicas 2
   @air_resident_gib 8 * @replicas
-  @pro_resident_gib 30 * @replicas
+  @pro_resident_gib 16 * @replicas
   # One more instance than fits under the region's pressure line, derived
   # rather than counted out so the fixtures track the real sizing.
   @instances_to_pressure div(trunc(@node_allocatable_bytes * 0.85 / (1024 * 1024 * 1024)), @air_resident_gib) + 1
@@ -376,9 +376,9 @@ defmodule Tuist.Kura.LifecycleTest do
 
     test "counts what each unconditional archival actually frees" do
       # A Pro instance past the full window is archived regardless, and it frees
-      # its own 60Gi rather than an Air instance's 48Gi. The region lands exactly
+      # its own 32Gi rather than an Air instance's 16Gi. The region lands exactly
       # on its line once that room is counted, so no Air instance is pressured.
-      # Counted at a uniform per-instance figure it would land 12Gi over and take
+      # Counted at a uniform per-instance figure it would land 16Gi over and take
       # one.
       pro = account(plan: :pro, region: :usa)
       pro_server = active_instance(pro)
@@ -392,9 +392,9 @@ defmodule Tuist.Kura.LifecycleTest do
           server
         end
 
-      # 730Gi reserved against a 670Gi line: 60Gi over, exactly what the Pro
+      # 702Gi reserved against a 670Gi line: 32Gi over, exactly what the Pro
       # instance holds across its two replicas.
-      stub_region_pods(List.duplicate(reserved_pod(10), 73))
+      stub_region_pods([reserved_pod(12) | List.duplicate(reserved_pod(10), 69)])
 
       assert :ok = Lifecycle.sweep()
 
