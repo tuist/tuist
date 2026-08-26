@@ -246,7 +246,7 @@ defmodule Tuist.Kura.CapacityTest do
 
       stub_account_pods([egress_pod("tuist", 25), egress_pod("tuist", 25)])
 
-      assert %{node: "box-1", allocatable_mbps: 500, available_mbps: 250, replicas: 2} =
+      assert %{node: "box-1", allocatable_mbps: 500, available_mbps: 250, replicas: 2, boxes: 1} =
                Capacity.egress_headroom(@region, "tuist")
     end
 
@@ -300,7 +300,7 @@ defmodule Tuist.Kura.CapacityTest do
         egress_pod("tuist", 100, node: "constrained")
       ])
 
-      assert %{node: "constrained", available_mbps: 100, replicas: 1} =
+      assert %{node: "constrained", available_mbps: 100, replicas: 1, boxes: 2} =
                Capacity.egress_headroom(@region, "tuist")
     end
 

@@ -665,8 +665,26 @@ defmodule TuistWeb.OpsAccountLive do
   """
   def egress_headroom_label(headroom) do
     case Kura.max_egress_floor_mbps(headroom) do
-      mbps when is_integer(mbps) -> dgettext("dashboard", "up to %{mbps}", mbps: mbps)
-      nil -> nil
+      nil ->
+        nil
+
+      mbps ->
+        # An account whose replicas are split across boxes is bound by the
+        # tightest of them, which reads as an unexplained drop unless the row
+        # says the replicas are not all in one place.
+        case headroom do
+          %{boxes: boxes} when boxes > 1 ->
+            dngettext(
+              "dashboard",
+              "up to %{mbps}, across %{count} box",
+              "up to %{mbps}, across %{count} boxes",
+              boxes,
+              mbps: mbps
+            )
+
+          _ ->
+            dgettext("dashboard", "up to %{mbps}", mbps: mbps)
+        end
     end
   end
 

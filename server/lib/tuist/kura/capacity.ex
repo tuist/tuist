@@ -199,7 +199,7 @@ defmodule Tuist.Kura.Capacity do
   none placed there yet, where nothing pins it and `egress_budget_mbps/1` is the
   whole answer.
 
-      %{node:, allocatable_mbps:, available_mbps:, replicas:}
+      %{node:, allocatable_mbps:, available_mbps:, replicas:, boxes:}
 
   `available_mbps` is the box less what *other* tenants reserve on it: a rollout
   hands each replica's own reservation in before asking for its replacement, so
@@ -273,7 +273,11 @@ defmodule Tuist.Kura.Capacity do
       # By what each box can hold per replica, not by what it has left: an
       # account placed unevenly reserves a different number of replicas on each,
       # and the bound is the smallest floor any of them can take.
-      Enum.min_by(boxes, &(max_floor_mbps(&1) || 0))
+      boxes
+      |> Enum.min_by(&(max_floor_mbps(&1) || 0))
+      # How many boxes the account sits on, so the form can say why a bound is
+      # lower than the box it names would suggest.
+      |> Map.put(:boxes, length(boxes))
     else
       _ -> nil
     end

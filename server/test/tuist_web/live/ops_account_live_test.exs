@@ -563,6 +563,23 @@ defmodule TuistWeb.OpsAccountLiveTest do
     refute html =~ "25 / 1500 Mbps"
   end
 
+  # A split account is bound by its tightest box, which reads as an unexplained
+  # drop unless the row says the replicas are not all in one place.
+  test "says when an account's replicas are spread across boxes", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 1000 end)
+
+    stub(Capacity, :egress_headroom, fn "us-east", _handle ->
+      %{node: "constrained", allocatable_mbps: 1000, available_mbps: 100, replicas: 1, boxes: 2}
+    end)
+
+    kura_server(user, "us-east")
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert html =~ "up to 100, across 2 boxes"
+  end
+
   # The only bound is the box. A number above what its nodes advertise would be
   # clamped there and silently discarded, so the form says so instead.
   test "refuses a value above the region's node budget", %{conn: conn, user: user} do
@@ -593,7 +610,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     stub(Capacity, :egress_budget_mbps, fn _region -> 500 end)
 
     stub(Capacity, :egress_headroom, fn "us-east", _handle ->
-      %{node: "box-1", allocatable_mbps: 500, available_mbps: 500, replicas: 2}
+      %{node: "box-1", allocatable_mbps: 500, available_mbps: 500, replicas: 2, boxes: 1}
     end)
 
     kura_server(user, "us-east")
