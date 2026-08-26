@@ -212,30 +212,39 @@ defmodule Tuist.Kura.CapacityTest do
     }
   end
 
-  # What bounds a tenant's egress floor is everything reserved on its box, so
-  # this is read per node and cluster-wide: a list narrowed to the pods this
-  # control plane labels would miss whatever else the box carries and report the
-  # box as roomier than it is.
+  # What bounds a tenant's egress floor is what its own box has left, so this
+  # reads that box: the account's pods say which one it is, and everything on it
+  # counts against it, whoever owns it.
   describe "egress_headroom/2" do
     setup do
       stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
       :ok
     end
 
-    test "counts every pod on the box against it, not just the account's" do
-      stub_egress_nodes(%{"box-1" => 500})
+    test "asks only for the account's own pods in this region" do
+      stub_box("box-1", 500, [egress_pod("tuist", 25), egress_pod("tuist", 25)])
 
-      stub(Client, :list_pods_on_node, fn "box-1" ->
-        {:ok,
-         [
-           egress_pod("tuist", 25),
-           egress_pod("tuist", 25),
-           egress_pod("neighbour", 150),
-           # No account label and no relation to Kura at all -- it still holds
-           # 100 Mbps of the box, and the scheduler will not hand that out twice.
-           unlabelled_egress_pod(100)
-         ]}
+      stub(Client, :list_pods, fn "kura", selector ->
+        assert selector =~ "tuist.dev/region=#{@region}"
+        assert selector =~ "tuist.dev/account=tuist"
+        assert selector =~ "app.kubernetes.io/managed-by=kura-controller"
+        {:ok, [egress_pod("tuist", 25), egress_pod("tuist", 25)]}
       end)
+
+      assert %{node: "box-1"} = Capacity.egress_headroom(@region, "tuist")
+    end
+
+    test "counts every pod on the box against it, not just the account's" do
+      stub_box("box-1", 500, [
+        egress_pod("tuist", 25),
+        egress_pod("tuist", 25),
+        egress_pod("neighbour", 150),
+        # No account label and no relation to Kura at all -- it still holds
+        # 100 Mbps of the box, and the scheduler will not hand that out twice.
+        unlabelled_egress_pod(100)
+      ])
+
+      stub_account_pods([egress_pod("tuist", 25), egress_pod("tuist", 25)])
 
       assert %{node: "box-1", allocatable_mbps: 500, available_mbps: 250, replicas: 2} =
                Capacity.egress_headroom(@region, "tuist")
@@ -244,8 +253,9 @@ defmodule Tuist.Kura.CapacityTest do
     # The account's own reservation is handed back replica by replica as the
     # rollout goes, so it is not spent from its own point of view.
     test "adds the account's own reservation back" do
-      stub_egress_nodes(%{"box-1" => 500})
-      stub(Client, :list_pods_on_node, fn "box-1" -> {:ok, [egress_pod("tuist", 200), egress_pod("tuist", 200)]} end)
+      pods = [egress_pod("tuist", 200), egress_pod("tuist", 200)]
+      stub_box("box-1", 500, pods)
+      stub_account_pods(pods)
 
       assert %{available_mbps: 500} = Capacity.egress_headroom(@region, "tuist")
     end
@@ -253,106 +263,80 @@ defmodule Tuist.Kura.CapacityTest do
     # An unscheduled pod holds nothing on a node -- it is exactly the pod the
     # measurement exists to make room for.
     test "ignores a pod the scheduler has not placed" do
-      stub_egress_nodes(%{"box-1" => 500})
+      stub_box("box-1", 500, [egress_pod("tuist", 25)])
+      stub_account_pods([egress_pod("tuist", 25), egress_pod("tuist", 300, node: nil)])
 
-      stub(Client, :list_pods_on_node, fn "box-1" ->
-        {:ok, [egress_pod("tuist", 25), egress_pod("neighbour", 300, node: nil)]}
-      end)
-
-      assert %{available_mbps: 500} = Capacity.egress_headroom(@region, "tuist")
-    end
-
-    # A box can carry pods of the same account that belong to something else —
-    # another region's instance, or a self-hosted deployment's own. They reserve
-    # against the box, but they are not replicas of the instance being sized, and
-    # counting them divides the box by too many.
-    test "counts as replicas only the account's pods in this region" do
-      stub_egress_nodes(%{"box-1" => 1000})
-
-      stub(Client, :list_pods_on_node, fn "box-1" ->
-        {:ok,
-         [
-           egress_pod("tuist", 200),
-           egress_pod("tuist", 200),
-           egress_pod("tuist", 0, region: "local"),
-           egress_pod("tuist", 0, region: "local"),
-           egress_pod("tuist", 0, region: "local")
-         ]}
-      end)
-
-      assert %{available_mbps: 1000, replicas: 2} = Capacity.egress_headroom(@region, "tuist")
-    end
-
-    test "takes the box with least room for the account" do
-      stub_egress_nodes(%{"box-1" => 500, "box-2" => 500})
-
-      stub(Client, :list_pods_on_node, fn
-        "box-1" -> {:ok, [egress_pod("tuist", 25, node: "box-1"), egress_pod("neighbour", 100, node: "box-1")]}
-        "box-2" -> {:ok, [egress_pod("tuist", 25, node: "box-2"), egress_pod("neighbour", 300, node: "box-2")]}
-      end)
-
-      assert %{node: "box-2", available_mbps: 200} = Capacity.egress_headroom(@region, "tuist")
+      assert %{available_mbps: 500, replicas: 2} = Capacity.egress_headroom(@region, "tuist")
     end
 
     # A box only ever rebuilds the replicas that live on it -- each one's volume
     # pins it there -- so it is divided by those, not by the account's replicas
-    # in the region. Dividing box-1 by 2 here would bound it twice as tightly as
-    # the rollout it is describing.
+    # in the region.
     test "divides a box by the replicas that live on it" do
-      stub_egress_nodes(%{"box-1" => 1000, "box-2" => 1000})
+      stub_boxes(%{
+        "box-1" => {1000, [egress_pod("tuist", 100, node: "box-1"), egress_pod("neighbour", 400, node: "box-1")]},
+        "box-2" => {1000, [egress_pod("tuist", 100, node: "box-2")]}
+      })
 
-      stub(Client, :list_pods_on_node, fn
-        "box-1" -> {:ok, [egress_pod("tuist", 100, node: "box-1"), egress_pod("neighbour", 400, node: "box-1")]}
-        "box-2" -> {:ok, [egress_pod("tuist", 100, node: "box-2")]}
-      end)
+      stub_account_pods([egress_pod("tuist", 100, node: "box-1"), egress_pod("tuist", 100, node: "box-2")])
 
       assert %{node: "box-1", available_mbps: 600, replicas: 1} = Capacity.egress_headroom(@region, "tuist")
     end
 
     # A replica deleted and not yet recreated is in no pod list, and its volume
     # pins it to the box it left, so the box has to be sized for its return.
-    # Counting only what is there would divide by too few and overstate the room.
     test "counts a replica the account is between" do
-      stub_egress_nodes(%{"box-1" => 1000})
-      stub(Client, :list_pods_on_node, fn "box-1" -> {:ok, [egress_pod("tuist", 100)]} end)
+      stub_box("box-1", 1000, [egress_pod("tuist", 100)])
+      stub_account_pods([egress_pod("tuist", 100)])
 
       assert %{replicas: 2} = Capacity.egress_headroom(@region, "tuist")
     end
 
     test "is unknown for an account with nothing on the region's boxes" do
-      stub_egress_nodes(%{"box-1" => 500})
-      stub(Client, :list_pods_on_node, fn "box-1" -> {:ok, [egress_pod("neighbour", 150)]} end)
+      stub_box("box-1", 500, [egress_pod("neighbour", 150)])
+      stub_account_pods([])
 
       assert Capacity.egress_headroom(@region, "tuist") == nil
     end
 
-    # Answering from the boxes that could be read would report a region as
-    # roomier than it is, which is worse than reporting it as unknown: unknown
-    # falls back to the advertised budget, and the form still refuses a floor it
-    # cannot place.
-    test "is unknown when a box cannot be read" do
-      stub_egress_nodes(%{"box-1" => 500})
-      stub(Client, :list_pods_on_node, fn "box-1" -> {:error, :unavailable} end)
+    # Reporting the box as roomier than it is would be worse than reporting it
+    # as unknown: unknown falls back to the advertised budget, and the form still
+    # refuses a floor it cannot place.
+    test "is unknown when the box cannot be read" do
+      stub(Client, :get_node, fn _node -> {:error, :unavailable} end)
+      stub(Client, :list_pods_on_node, fn _node -> {:error, :unavailable} end)
+      stub_account_pods([egress_pod("tuist", 25)])
 
       assert Capacity.egress_headroom(@region, "tuist") == nil
     end
   end
 
-  defp stub_egress_nodes(allocatable_by_node) do
-    stub(Client, :list_nodes, fn _selector ->
-      {:ok,
-       %{
-         "items" =>
-           Enum.map(allocatable_by_node, fn {name, mbps} ->
-             %{
-               "metadata" => %{"name" => name},
-               "status" => %{
-                 "conditions" => [%{"type" => "Ready", "status" => "True"}],
-                 "allocatable" => %{"tuist.dev/egress-mbps" => Integer.to_string(mbps)}
-               }
-             }
-           end)
-       }}
+  defp stub_account_pods(pods) do
+    stub(Client, :list_pods, fn "kura", _selector -> {:ok, pods} end)
+  end
+
+  defp stub_box(node, allocatable_mbps, pods), do: stub_boxes(%{node => {allocatable_mbps, pods}})
+
+  defp stub_boxes(boxes) do
+    stub(Client, :get_node, fn node ->
+      case Map.fetch(boxes, node) do
+        {:ok, {allocatable_mbps, _pods}} ->
+          {:ok,
+           %{
+             "metadata" => %{"name" => node},
+             "status" => %{"allocatable" => %{"tuist.dev/egress-mbps" => Integer.to_string(allocatable_mbps)}}
+           }}
+
+        :error ->
+          {:error, :not_found}
+      end
+    end)
+
+    stub(Client, :list_pods_on_node, fn node ->
+      case Map.fetch(boxes, node) do
+        {:ok, {_allocatable_mbps, pods}} -> {:ok, pods}
+        :error -> {:error, :not_found}
+      end
     end)
   end
 

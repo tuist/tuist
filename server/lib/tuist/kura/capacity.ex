@@ -216,47 +216,90 @@ defmodule Tuist.Kura.Capacity do
   different values on different replicas, so a bound written in terms of them
   answers differently depending on when it is asked.
 
-  The box is the unit, not the region: a replica's volume pins it to one node,
-  so a roomier sibling box is no help. Where an account spans boxes, the binding
-  one is whichever holds least for it.
+  Read from the box the account is on rather than from the region: a replica's
+  volume pins it to one node, so the rest of the region's boxes cannot take the
+  pod however much room they have.
   """
   def egress_headroom(region_id, account_handle) when is_binary(account_handle) do
-    with %{nodes: nodes, accounts: accounts} <- egress_placement(region_id),
-         %{nodes: [_ | _] = account_nodes} = placement <- Map.get(accounts, account_handle),
-         {node, available} <- worst_node(account_nodes, nodes) do
+    KeyValueStore.get_or_update(
+      [__MODULE__, "egress_headroom", region_id, account_handle],
+      [ttl: to_timeout(minute: 1), locking: true],
+      fn -> measure_egress_headroom(region_id, account_handle) end
+    )
+  end
+
+  defp measure_egress_headroom(region_id, account_handle) do
+    with {:ok, pods} <- Client.list_pods(@namespace, account_selector(region_id, account_handle)),
+         [_ | _] = placed <- Enum.filter(pods, &(pod_node_name(&1) && not terminal?(&1))),
+         [_ | _] = boxes <- Enum.map(account_boxes(placed), &measure_box(&1, region_id, length(placed))),
+         false <- Enum.any?(boxes, &is_nil/1) do
+      Enum.min_by(boxes, & &1.available_mbps)
+    else
+      _ -> nil
+    end
+  end
+
+  # Usually one box: the controller's podAffinity co-locates an account's
+  # replicas and their volumes keep them there. It is only preferred, though --
+  # required would deadlock the first replica -- so a box that cannot fit the
+  # second leaves the account straddling two, and pinned that way. Each box
+  # rebuilds its own replicas, so the tightest is the binding one.
+  defp account_boxes(placed) do
+    placed
+    |> Enum.group_by(&pod_node_name/1)
+    |> Enum.map(fn {node, pods} ->
+      {node, Enum.sum(Enum.map(pods, &pod_egress_mbps/1)), length(pods)}
+    end)
+  end
+
+  defp measure_box({node, own_mbps, pods_here}, region_id, placed_count) do
+    with {:ok, node_body} <- Client.get_node(node),
+         allocatable when is_integer(allocatable) <- egress_mbps(node_body),
+         {:ok, reserved} <- box_reserved_mbps(node) do
       %{
         node: node,
-        allocatable_mbps: nodes[node].allocatable_mbps,
-        available_mbps: available,
-        replicas: replicas_on(placement, node, region_id)
+        allocatable_mbps: allocatable,
+        # The account's own reservation is added back: the rollout hands it in
+        # before asking for the replacement.
+        available_mbps: max(allocatable - (reserved - own_mbps), 0),
+        # Replicas this box will rebuild, which is what it is divided by. Raised
+        # by the replicas the region declares that no other box accounts for: a
+        # replica between deletion and recreation is in no pod list, and its
+        # volume brings it back here.
+        replicas: max(pods_here, declared_replicas(region_id) - (placed_count - pods_here))
       }
     else
       _ -> nil
     end
   end
 
-  # The account's box with the least room for it, its own reservation added back:
-  # the rollout hands that in before asking for the replacement.
-  defp worst_node(account_nodes, nodes) do
-    account_nodes
-    |> Enum.filter(fn {node, _placement} -> Map.has_key?(nodes, node) end)
-    |> Enum.map(fn {node, %{reserved_mbps: reserved}} ->
-      %{allocatable_mbps: allocatable, reserved_mbps: node_reserved} = nodes[node]
-      {node, max(allocatable - (node_reserved - reserved), 0)}
-    end)
-    |> Enum.min_by(fn {_node, available} -> available end, fn -> nil end)
+  # Everything on the box, whoever owns it -- an extended resource is reserved
+  # against the node, not against a namespace. There is no API for a node's
+  # allocated total, so this is summed the way `kubectl describe node` sums it.
+  defp box_reserved_mbps(node) do
+    case Client.list_pods_on_node(node) do
+      {:ok, pods} ->
+        reserved =
+          pods
+          # A pod holds a node's resources from the moment it is bound, not when
+          # it starts. The field selector already guarantees this; restated so
+          # the sum does not depend on a query string elsewhere.
+          |> Enum.filter(&(pod_node_name(&1) == node and not terminal?(&1)))
+          |> Enum.map(&pod_egress_mbps/1)
+          |> Enum.sum()
+
+        {:ok, reserved}
+
+      {:error, _reason} = error ->
+        error
+    end
   end
 
-  # Replicas this box will rebuild, which is what it is divided by. A volume pins
-  # each replica to its own box, so a box rebuilds only what lives on it.
-  #
-  # Raised by the replicas the region declares that no other box accounts for: a
-  # replica between deletion and recreation is in no pod list, and its volume
-  # brings it back here.
-  defp replicas_on(%{nodes: account_nodes, replicas: total}, node, region_id) do
-    on_node = Enum.find_value(account_nodes, 0, fn {name, %{pods: pods}} -> name == node && pods end)
-
-    max(on_node, declared_replicas(region_id) - (total - on_node))
+  # Pods of this account's instance in this region. A box can carry the same
+  # account's pods from another region or from a self-hosted deployment, and
+  # those are neither its replicas nor its reservation.
+  defp account_selector(region_id, account_handle) do
+    "#{@managed_by_selector},tuist.dev/region=#{region_id},tuist.dev/account=#{account_handle}"
   end
 
   defp declared_replicas(region_id) do
@@ -266,114 +309,8 @@ defmodule Tuist.Kura.Capacity do
     end
   end
 
-  @doc """
-  The region's egress as the scheduler sees it: what each Ready box advertises
-  and has reserved, and where each account's pods sit.
-
-  One read for the whole region rather than one per account, because the ops
-  page asks this for every region an account holds an instance in.
-  """
-  def egress_placement(region_id) do
-    KeyValueStore.get_or_update(
-      [__MODULE__, "egress_placement", region_id],
-      [ttl: to_timeout(minute: 1), locking: true],
-      fn -> measure_egress_placement(region_id) end
-    )
-  end
-
-  defp measure_egress_placement(region_id) do
-    with {:ok, region} <- Regions.fetch(region_id),
-         selector when is_binary(selector) <- Regions.node_label_selector(region),
-         {:ok, %{"items" => node_items}} <- Client.list_nodes(selector) do
-      node_items
-      |> Enum.filter(&ready?/1)
-      |> Enum.reduce_while(%{nodes: %{}, accounts: %{}}, fn node, acc ->
-        case {node_name(node), egress_mbps(node)} do
-          {name, mbps} when is_binary(name) and is_integer(mbps) ->
-            measure_node_egress(acc, name, mbps, region_id)
-
-          _ ->
-            {:cont, acc}
-        end
-      end)
-      |> case do
-        nil -> nil
-        %{accounts: accounts} = placement -> %{placement | accounts: close_account_placement(accounts)}
-      end
-    else
-      _ -> nil
-    end
-  end
-
-  # Cluster-wide per box rather than scoped to this control plane's own pods:
-  # everything on a box reserves egress from it, whoever put it there.
-  #
-  # A box that cannot be read abandons the whole measurement. Answering from the
-  # boxes that could would report the region as roomier than it is, where
-  # `nil` falls back to the advertised budget.
-  defp measure_node_egress(acc, node, allocatable_mbps, region_id) do
-    case Client.list_pods_on_node(node) do
-      {:ok, pods} ->
-        # A pod holds a node's resources from the moment it is bound, not when
-        # it starts. The field selector already guarantees this; restated here
-        # so the arithmetic below does not depend on a query string elsewhere.
-        pods = Enum.filter(pods, &(pod_node_name(&1) == node and not terminal?(&1)))
-
-        nodes =
-          Map.put(acc.nodes, node, %{
-            allocatable_mbps: allocatable_mbps,
-            reserved_mbps: pods |> Enum.map(&pod_egress_mbps/1) |> Enum.sum()
-          })
-
-        {:cont, %{nodes: nodes, accounts: account_egress_placement(pods, acc.accounts, region_id)}}
-
-      {:error, _reason} ->
-        {:halt, nil}
-    end
-  end
-
-  # Which pods belong to the account's instance in this region, and what they
-  # hold where. Pods without both labels are reserved against the box but are not
-  # replicas of it: a box can carry the same account's pods from another region
-  # or from a self-hosted deployment, and counting those divides the box by too
-  # many.
-  defp account_egress_placement(pods, accounts, region_id) do
-    Enum.reduce(pods, accounts, fn pod, acc ->
-      with handle when is_binary(handle) <- pod_account_handle(pod),
-           ^region_id <- pod_region(pod),
-           node when is_binary(node) <- pod_node_name(pod) do
-        entry = Map.get(acc, handle, %{nodes: %{}, replicas: 0})
-        on_node = Map.get(entry.nodes, node, %{reserved_mbps: 0, pods: 0})
-
-        Map.put(acc, handle, %{
-          nodes:
-            Map.put(entry.nodes, node, %{
-              reserved_mbps: on_node.reserved_mbps + pod_egress_mbps(pod),
-              pods: on_node.pods + 1
-            }),
-          replicas: entry.replicas + 1
-        })
-      else
-        _ -> acc
-      end
-    end)
-  end
-
-  defp close_account_placement(accounts) do
-    Map.new(accounts, fn {handle, entry} -> {handle, %{entry | nodes: Map.to_list(entry.nodes)}} end)
-  end
-
-  defp node_name(%{"metadata" => %{"name" => name}}), do: name
-  defp node_name(_node), do: nil
-
   defp pod_node_name(%{"spec" => %{"nodeName" => name}}) when is_binary(name) and name != "", do: name
   defp pod_node_name(_pod), do: nil
-
-  defp pod_account_handle(%{"metadata" => %{"labels" => %{"tuist.dev/account" => handle}}}), do: handle
-  defp pod_account_handle(_pod), do: nil
-
-  defp pod_region(%{"metadata" => %{"labels" => %{"tuist.dev/region" => region_id}}}), do: region_id
-  defp pod_region(_pod), do: nil
 
   defp pod_egress_mbps(%{"spec" => %{"containers" => containers}}) when is_list(containers) do
     Enum.reduce(containers, 0, fn container, total -> total + container_egress_mbps(container) end)
