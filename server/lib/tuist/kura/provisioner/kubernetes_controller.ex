@@ -937,7 +937,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # account's whole instance set rather than from this row alone: which
   # instance should answer is a fact about the account, and a per-row rule
   # could leave the name on nobody or on two.
-  defp stable_host_owner?(%Server{account_id: account_id, id: id}) when is_integer(account_id) and is_integer(id) do
+  defp stable_host_owner?(%Server{account_id: account_id, id: id}) when is_integer(account_id) and is_binary(id) do
     case Kura.stable_host_owner(%Account{id: account_id}) do
       %Server{id: owner_id} -> owner_id == id
       nil -> false
