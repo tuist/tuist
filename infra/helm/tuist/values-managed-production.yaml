@@ -944,16 +944,17 @@ macosFleet:
     name: tuist-runner-cache
     cidr: 172.16.0.0/22
 
-# Customer-runner Mac mini fleet. 7 M2-L hosts at one guest each plus
-# 2 M4-XL hosts at two = 11 concurrent customer runs.
+# Customer-runner Mac mini fleet. 9 M2-L hosts at one guest each plus
+# 2 M4-XL hosts at two = 13 concurrent customer runs.
 #
 # Sized against measured demand, not host count. macOS job concurrency
 # over the 7 days to 2026-08-25 ran p50 3 / p95 5 / p99 6 with a peak of
-# 8, so 11 keeps a margin above the observed peak while the M4s absorb
-# what the retired M2-Ls used to hold. The M2-L count came down from 9
-# when the second M4 landed: 2 M4 hosts add 4 slots, so keeping all 9
-# M2-Ls would have meant 13 slots against a workload that has never
-# asked for 9.
+# 8, so 13 keeps burst headroom above the observed peak. Trimming the
+# M2-L group to match the peak more tightly saves nothing: a host
+# released from this fleet is parked back in `tuist-pool-` and keeps
+# billing under Apple's 24h floor either way, so the only thing a
+# smaller hostCount buys is queueing, and a queued macOS job pays a
+# full cold boot.
 #
 # Apple's SLA permits two guests per host and Tart enforces it; whether
 # a host runs two is purely a function of how much CPU/RAM tart-kubelet
@@ -966,8 +967,6 @@ macosFleet:
 # releases can safely bump all enabled managed environments.
 runnersFleet:
   enabled: true
-  # 7, down from 9, offset by the 4 slots the two M4-XL hosts add.
-  #
   # Scaling this DOWN does not stop the bill. On Machine deletion the
   # controller renames the host back into the `tuist-pool-` pool and
   # reinstalls it — the mini stays alive and keeps billing, deliberately,
@@ -979,7 +978,7 @@ runnersFleet:
   # no nodeDrainTimeout, so an evicted Pod is not waited on: retire while
   # the target hosts hold no owned (job-running) runner Pod, or a
   # customer job dies with the node.
-  hostCount: 7
+  hostCount: 9
   # Pre-ordered pool. Operator orders M2-L hosts in the Scaleway
   # console with names starting with `tuist-pool-` ahead of
   # bringing this block live (Mac mini lead times can stretch
@@ -1155,8 +1154,8 @@ runnersFleet:
   # for BOTH shapes (M4: 1 of these or 2 of those; M2-L: 0 or 1), which
   # is the invariant `macosFleetAllocatableMemory` divides against. A 56
   # GB variant would force `hostMemoryMB` to 57344, and the 6 vCPU pools,
-  # which carry all of today's traffic, would then be handed a 15-slot
-  # budget against 11 placeable ones.
+  # which carry all of today's traffic, would then be handed a 17-slot
+  # budget against 13 placeable ones.
   #
   # It is also exactly 2x the baseline shape in both dimensions, so
   # `Catalog.billing_multiplier/3` meters it at precisely 2.0000 compute
@@ -1195,13 +1194,13 @@ runnersFleet:
       # min(cpu, memory) quotient for a shape and caps every pool sharing
       # it at that sum (2 today, both on M4-XL). It has to be derived
       # there rather than written here because the byte budget cannot see
-      # it: 157696 / 28672 reads as 5, pooling memory from M2-L hosts
+      # it: 186368 / 28672 reads as 6, pooling memory from M2-L hosts
       # that cannot seat one of these Pods at all.
       #
       # Set it to the M4-XL host count regardless, as the per-pool bound
       # it is: no single Xcode version should be able to take the whole
       # shape. It moves with `machineGroups[m4].hostCount`, not with the
-      # 11-slot totals the `xcodeOverrides` below use.
+      # 13-slot totals the `xcodeOverrides` below use.
       #
       # Cold: no warm floor. A 12 vCPU Pod parks a whole M4-XL, and idle
       # it would halve the fleet's dual-guest capacity to keep one
@@ -1218,19 +1217,19 @@ runnersFleet:
   # fleet allocator, which apportions the fleet's GUEST-slot budget
   # across all macOS pools using the three-tier (floor / load /
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
-  # guarantee; `maxReplicas: 11` lets either pool absorb the whole
+  # guarantee; `maxReplicas: 13` lets either pool absorb the whole
   # fleet under skewed demand and the allocator caps the joint sum
   # so the pools don't double-book.
   #
   # The budget is slots, not minis: the allocator divides the fleet's
-  # advertised memory by this shape's 14336 MB, so the 7 M2-L hosts are
-  # 7 slots and the 2 M4-XL hosts are 2 each, for 11. These ceilings must
+  # advertised memory by this shape's 14336 MB, so the 9 M2-L hosts are
+  # 9 slots and the 2 M4-XL hosts are 2 each, for 13. These ceilings must
   # move with that number — the allocator never exceeds a pool's
   # maxReplicas, so leaving them behind would let an M4 boot but keep
   # every pool clamped below the capacity it adds, and its second guest
   # would sit idle.
   #
-  # Floors sum to 1 of the 11-slot budget; the remaining 10 slots are
+  # Floors sum to 1 of the 13-slot budget; the remaining 12 slots are
   # dynamically apportioned by queue depth across the pools. Older
   # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
   #
@@ -1247,27 +1246,27 @@ runnersFleet:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
-        maxReplicas: 11
+        maxReplicas: 13
     "26.5":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 11
+        maxReplicas: 13
     "26.4.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 11
+        maxReplicas: 13
     "26.3":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 11
+        maxReplicas: 13
     "26.0.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 11
+        maxReplicas: 13
   # Resolved at deploy time from the latest `runner-image@` git tag.
   runnerImageSemver: ""
   pools: []
