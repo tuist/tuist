@@ -63,6 +63,9 @@ if [ -z "$CLIENT_SECRET" ]; then
 fi
 echo "::add-mask::$CLIENT_SECRET"
 
+log "Reconciling Kura custom resource definitions"
+kubectl apply -f "$CHART_PATH/crds/"
+
 log "Rendering Kura controller manifests for namespace=$KURA_NAMESPACE tag=$KURA_CONTROLLER_IMAGE_TAG profile=$PROFILE"
 HELM_ARGS=(
   helm template kura-platform "$CHART_PATH"
@@ -96,5 +99,25 @@ fi
 
 log "Waiting for Kura controller rollout"
 kubectl -n "$KURA_NAMESPACE" rollout status deployment/kura-platform-tuist-kura-controller --timeout=3m
+
+controller_restart_counts() {
+  kubectl -n "$KURA_NAMESPACE" get pods \
+    -l app.kubernetes.io/component=kura-controller \
+    -o jsonpath='{range .items[*]}{.metadata.uid}{"="}{range .status.containerStatuses[*]}{.restartCount}{","}{end}{"\n"}{end}' \
+    | sort
+}
+
+log "Verifying Kura controller stability"
+restart_counts_before="$(controller_restart_counts)"
+if [ -z "$restart_counts_before" ]; then
+  echo "ERROR: Kura controller rollout completed without controller pods." >&2
+  exit 1
+fi
+sleep 45
+restart_counts_after="$(controller_restart_counts)"
+if [ "$restart_counts_before" != "$restart_counts_after" ]; then
+  echo "ERROR: Kura controller restarted after rollout." >&2
+  exit 1
+fi
 
 log "Kura platform installed in $KURA_NAMESPACE"
