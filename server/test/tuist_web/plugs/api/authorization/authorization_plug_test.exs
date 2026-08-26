@@ -287,6 +287,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
       assert conn.halted
       assert json_response(conn, :too_many_requests)["message"] =~ "too many unauthorized requests"
       assert get_resp_header(conn, "retry-after") == ["30"]
+      assert get_resp_header(conn, "x-tuist-throttle-reason") == ["authorization"]
     end
   end
 end

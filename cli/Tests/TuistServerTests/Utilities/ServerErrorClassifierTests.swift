@@ -1,5 +1,7 @@
 import Foundation
+import OpenAPIRuntime
 import Testing
+import TuistHTTP
 
 @testable import TuistServer
 
@@ -92,6 +94,20 @@ struct ServerErrorClassifierTests {
     func permanentStatusCodesAreNotRetryable(statusCode: Int) {
         #expect(!ServerErrorClassifier.isRetryable(GetCacheServiceError.unknownError(statusCode)))
         #expect(!ServerErrorClassifier.isRetryable(CreateCommandEventServiceError.unknownError(statusCode)))
+    }
+
+    @Test func throttledAuthorizationDenialsAreNotRetryable() {
+        #expect(!ServerErrorClassifier.isRetryable(AuthorizationThrottledError(retryAfterSeconds: 30)))
+        #expect(
+            !ServerErrorClassifier.isRetryable(
+                ClientError(
+                    operationID: "downloadCacheArtifact",
+                    operationInput: "",
+                    causeDescription: "Middleware threw an error.",
+                    underlyingError: AuthorizationThrottledError(retryAfterSeconds: nil)
+                )
+            )
+        )
     }
 
     @Test func unrelatedErrorsAreRetryable() {

@@ -9,7 +9,7 @@ public enum ServerErrorClassifier {
     public static func isRetryable(_ error: Error) -> Bool {
         switch error {
         case let error as any HTTPStatusCodeError:
-            return !HTTPRetryPolicy.isPermanentClientError(statusCode: error.httpStatusCode)
+            return error.isRetryable
         case let error as ClientError:
             return isRetryable(error.underlyingError)
         default:

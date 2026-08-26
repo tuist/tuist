@@ -82,6 +82,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
       {:deny, milliseconds_until_next_window} ->
         conn
         |> put_resp_header("retry-after", Integer.to_string(ceil(milliseconds_until_next_window / 1000)))
+        |> put_resp_header("x-tuist-throttle-reason", "authorization")
         |> put_status(:too_many_requests)
         |> json(%{message: "You have made too many unauthorized requests. Please try again later."})
         |> halt()

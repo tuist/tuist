@@ -1,6 +1,9 @@
 import Foundation
 import Mockable
+import Testing
+import TuistHTTP
 import TuistTesting
+import TuistThreadSafe
 import XCTest
 
 @testable import TuistServer
@@ -87,40 +90,6 @@ final class RetryProviderTests: TuistUnitTestCase {
         XCTAssertEqual(operationCalls, 1)
     }
 
-    func test_runWithRetries_whenErrorIsAPermanentClientError_doesNotRetry() async throws {
-        // Given
-        let error = GetCacheServiceError.forbidden("Not authorized to read cache")
-
-        // When
-        await XCTAssertThrowsSpecific(
-            try await subject.runWithRetries { [self] in
-                operationCalls += 1
-                throw error
-            },
-            error
-        )
-
-        // Then
-        XCTAssertEqual(operationCalls, 1)
-    }
-
-    func test_runWithRetries_whenErrorIsARetryableServerError_retries() async throws {
-        // Given
-        let error = GetCacheServiceError.unknownError(503)
-
-        // When
-        await XCTAssertThrowsSpecific(
-            try await subject.runWithRetries { [self] in
-                operationCalls += 1
-                throw error
-            },
-            error
-        )
-
-        // Then
-        XCTAssertEqual(operationCalls, 4)
-    }
-
     func test_runWithRetries_whenOperationIsCancelled_doesNotRetry() async throws {
         // Given / When
         do {
@@ -156,5 +125,69 @@ final class RetryProviderTests: TuistUnitTestCase {
             XCTFail("Expected cancellation")
         } catch is CancellationError {}
         XCTAssertLessThan(Date().timeIntervalSince(cancellationStartedAt), 0.5)
+    }
+}
+
+struct RetryProviderErrorClassificationTests {
+    private let subject: RetryProviding
+
+    init() {
+        let delayProvider = MockDelayProviding()
+        given(delayProvider)
+            .delay(for: .any)
+            .willReturn(1)
+
+        subject = RetryProvider(maximumRetryCount: 3, delayProvider: delayProvider)
+    }
+
+    @Test func does_not_retry_a_permanent_client_error() async throws {
+        // Given
+        let operationCalls = ThreadSafe(0)
+        let error = GetCacheServiceError.forbidden("Not authorized to read cache")
+
+        // When
+        await #expect(throws: error) {
+            try await subject.runWithRetries {
+                operationCalls.mutate { $0 += 1 }
+                throw error
+            }
+        }
+
+        // Then
+        #expect(operationCalls.value == 1)
+    }
+
+    @Test func does_not_retry_a_throttled_authorization_denial() async throws {
+        // Given
+        let operationCalls = ThreadSafe(0)
+        let error = AuthorizationThrottledError(retryAfterSeconds: 30)
+
+        // When
+        await #expect(throws: error) {
+            try await subject.runWithRetries {
+                operationCalls.mutate { $0 += 1 }
+                throw error
+            }
+        }
+
+        // Then
+        #expect(operationCalls.value == 1)
+    }
+
+    @Test func retries_a_retryable_server_error() async throws {
+        // Given
+        let operationCalls = ThreadSafe(0)
+        let error = GetCacheServiceError.unknownError(503)
+
+        // When
+        await #expect(throws: error) {
+            try await subject.runWithRetries {
+                operationCalls.mutate { $0 += 1 }
+                throw error
+            }
+        }
+
+        // Then
+        #expect(operationCalls.value == 4)
     }
 }
