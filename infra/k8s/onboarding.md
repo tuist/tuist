@@ -129,6 +129,25 @@ mise run k8s:bootstrap-workload <cluster_name> <env> [kubeconfig_item]
 
 On success the script uploads the freshly-minted workload kubeconfig to the per-env 1Password vault. Clusters use the default `kubeconfig: tuist-<env>` title unless you explicitly pass a different document title.
 
+### Recovering confirmed stale Hetzner Cloud Nodes
+
+If bootstrap reports a Hetzner Cloud Node without a live management
+[Cluster API](https://cluster-api.sigs.k8s.io/) Machine reference, do not
+immediately enable pruning. First verify that the reported Node has no live
+management Machine and that its Hetzner Cloud virtual machine is gone. The
+automatic recovery considers only numeric `hcloud://<id>` provider IDs; it
+deliberately excludes bare-metal and workload-local fleet Nodes.
+
+After that verification, rerun the task with the explicit opt-in:
+
+```bash
+PRUNE_ORPHANED_NODES=1 \
+  mise run k8s:bootstrap-workload <cluster_name> <env>
+```
+
+The task refuses the deletion if Hetzner Cloud infrastructure objects are
+still reconciling, and never removes a Node by default.
+
 ## 5. Wire the GitHub Actions deployer
 
 CI uses a namespace-scoped ServiceAccount with a long-lived token, defined in [`mgmt/ci-service-account.yaml`](mgmt/ci-service-account.yaml). Apply it on the workload cluster, mint a kubeconfig, and load it into the GitHub Environment secret:
