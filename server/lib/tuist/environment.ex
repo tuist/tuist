@@ -465,6 +465,20 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Whether the cache endpoints handed to clients use the account's
+  region-independent name.
+
+  Separate from rendering the name onto instances on purpose, and off until
+  someone says otherwise: the Ingress, the certificate and the DNS record for
+  it come up on their own schedule, and handing the name out before they have
+  would give clients an address that does not resolve. Turning this on is the
+  step that says they have.
+  """
+  def kura_stable_endpoint_enabled? do
+    truthy?(System.get_env("TUIST_KURA_STABLE_ENDPOINT_ENABLED"))
+  end
+
+  @doc """
   How many placement proposals the sweep may apply on its own in a day.
 
   Zero unless `TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY` names a number,

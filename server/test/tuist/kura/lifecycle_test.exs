@@ -482,6 +482,7 @@ defmodule Tuist.Kura.LifecycleTest do
       # moving region.
       account = account()
       server = active_instance(account)
+      stub(Environment, :kura_stable_endpoint_enabled?, fn -> true end)
 
       assert Kura.substitute_stable_endpoint([server.url], account) == [Regions.stable_public_url(account.name)]
       refute Regions.stable_public_url(account.name) =~ @region

@@ -23,6 +23,7 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
@@ -182,7 +183,7 @@ defmodule Tuist.Kura do
   end
 
   defp runtime_version do
-    case Tuist.Environment.kura_runtime_image_tag() do
+    case Environment.kura_runtime_image_tag() do
       tag when is_binary(tag) ->
         tag = String.trim(tag)
 
@@ -1654,7 +1655,8 @@ defmodule Tuist.Kura do
   being handed one.
   """
   def substitute_stable_endpoint(urls, %Account{name: handle} = account) do
-    with stable when is_binary(stable) <- Regions.stable_public_url(handle),
+    with true <- Environment.kura_stable_endpoint_enabled?(),
+         stable when is_binary(stable) <- Regions.stable_public_url(handle),
          %Server{url: regional} when is_binary(regional) <- stable_host_owner(account) do
       urls |> Enum.map(&if(&1 == regional, do: stable, else: &1)) |> Enum.uniq()
     else

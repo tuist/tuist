@@ -1658,6 +1658,8 @@ defmodule Tuist.KuraTest do
       # The primary's own address is replaced by the account's name; the
       # secondary keeps its regional one, so a client still picks between
       # regions.
+      stub(Tuist.Environment, :kura_stable_endpoint_enabled?, fn -> true end)
+
       assert Kura.substitute_stable_endpoint([primary.url, secondary.url], account) == [
                Regions.stable_public_url(account.name),
                secondary.url
@@ -1673,6 +1675,21 @@ defmodule Tuist.KuraTest do
 
     test "is nobody for an account with no instances" do
       assert Kura.stable_host_owner(stable_host_account()) == nil
+    end
+  end
+
+  describe "substitute_stable_endpoint/2" do
+    test "hands out regional names until the region-independent one is turned on" do
+      # The Ingress, the certificate and the DNS record come up on their own
+      # schedule; handing the name out before they have would give clients an
+      # address that does not resolve.
+      account = stable_host_account()
+      primary = stable_host_instance(account, "eu-central", :active)
+      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
+
+      stub(Tuist.Environment, :kura_stable_endpoint_enabled?, fn -> false end)
+
+      assert Kura.substitute_stable_endpoint([primary.url], account) == [primary.url]
     end
   end
 
@@ -1702,6 +1719,8 @@ defmodule Tuist.KuraTest do
       secondary = stable_host_instance(account, "us-east", :active)
       {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
       {:ok, _row} = PlacerRegions.put_secondary(account, "us-east")
+
+      stub(Tuist.Environment, :kura_stable_endpoint_enabled?, fn -> true end)
 
       ordered =
         [%{url: secondary.url}, %{url: primary.url}]
