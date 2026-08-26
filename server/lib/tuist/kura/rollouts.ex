@@ -638,8 +638,8 @@ defmodule Tuist.Kura.Rollouts do
     rollout = stamp_wave_started(rollout)
     scope_servers(rollout, max_wave(rollout))
     mint_missing_deployments(rollout)
-    recapture_ineligible_baselines(rollout)
     mark_convergences(rollout)
+    recapture_ineligible_baselines(rollout)
 
     cond do
       failure = hard_failure(rollout) ->
@@ -680,8 +680,8 @@ defmodule Tuist.Kura.Rollouts do
       {:open, rollout} ->
         scope_servers(rollout, rollout.current_wave)
         mint_missing_deployments(rollout)
-        recapture_ineligible_baselines(rollout)
         mark_convergences(rollout)
+        recapture_ineligible_baselines(rollout)
 
         if failure = hard_failure(rollout) do
           pause_rollout(rollout, failure)
@@ -863,46 +863,6 @@ defmodule Tuist.Kura.Rollouts do
     end
   end
 
-  # Soak eligibility is decided from a single sample taken when a server
-  # is scoped, and any transient condition at that instant disqualifies it
-  # for the rest of the rollout. That is too sticky: the deploy rolls the
-  # server and the Kura controller together, so a wave scoped during the
-  # controller's restart sees either no aggregate at all or one whose
-  # sample has gone stale, and `gate_failure/1` then refuses to pass the
-  # wave on no evidence — correctly, but permanently, since nothing
-  # measures those servers again (`resume/3` only re-attempts servers that
-  # have not converged). An ineligible server is therefore re-measured
-  # every tick and becomes eligible as soon as it reads healthy, on a
-  # fresh baseline taken at that moment. A server that keeps reading
-  # unhealthy keeps its original baseline and stays out of the comparative
-  # soak, so pre-existing sickness is still never blamed on the new image.
-  defp recapture_ineligible_baselines(rollout) do
-    RolloutServer
-    |> join(:inner, [rs], s in assoc(rs, :kura_server))
-    |> where([rs], rs.kura_rollout_id == ^rollout.id and not rs.soak_eligible)
-    |> where([_rs, s], s.status not in ^@terminal_server_statuses)
-    |> preload([rs, s], kura_server: s)
-    |> Repo.all()
-    |> Enum.each(fn rollout_server ->
-      case capture_baseline(rollout_server.kura_server) do
-        {baseline, true} ->
-          {:ok, _} =
-            rollout_server
-            |> RolloutServer.update_changeset(%{
-              soak_eligible: true,
-              baseline_outbox_messages: baseline[:outbox_messages],
-              baseline_fd_timeout_count: baseline[:fd_timeout_count],
-              baseline_peer_connection_failures: baseline[:peer_connection_failures],
-              baseline_captured_at: now()
-            })
-            |> Repo.update()
-
-        _ ->
-          :ok
-      end
-    end)
-  end
-
   # Scoped servers with no deployment carrying them to the target: either
   # none could be minted yet (an initial install or move deployment was
   # still open), or the one they had was cancelled out from under the
@@ -944,6 +904,46 @@ defmodule Tuist.Kura.Rollouts do
     |> order_by([d], desc: d.inserted_at, desc: d.id)
     |> limit(1)
     |> Repo.one()
+  end
+
+  # Soak eligibility is decided from a single sample taken when a server is
+  # scoped, and any transient condition at that instant disqualifies it for
+  # the rest of the rollout. That is too sticky: the deploy rolls the server
+  # and the Kura controller together, so a wave scoped during the
+  # controller's restart sees either no aggregate at all or one whose sample
+  # has gone stale, and `gate_failure/1` then refuses to pass the wave on no
+  # evidence — correctly, but permanently, since nothing measures those
+  # servers again (`resume/3` only re-attempts servers that have not
+  # converged). An ineligible server is therefore re-measured every tick and
+  # becomes eligible as soon as it reads healthy, on a fresh baseline taken
+  # at that moment. A server that keeps reading unhealthy keeps its original
+  # baseline and stays out of the comparative soak, so pre-existing sickness
+  # is still never blamed on the new image.
+  defp recapture_ineligible_baselines(rollout) do
+    RolloutServer
+    |> join(:inner, [rs], s in assoc(rs, :kura_server))
+    |> where([rs], rs.kura_rollout_id == ^rollout.id and not rs.soak_eligible)
+    |> where([_rs, s], s.status not in ^@terminal_server_statuses)
+    |> preload([rs, s], kura_server: s)
+    |> Repo.all()
+    |> Enum.each(fn rollout_server ->
+      case capture_baseline(rollout_server.kura_server) do
+        {baseline, true} ->
+          {:ok, _} =
+            rollout_server
+            |> RolloutServer.update_changeset(%{
+              soak_eligible: true,
+              baseline_outbox_messages: baseline[:outbox_messages],
+              baseline_fd_timeout_count: baseline[:fd_timeout_count],
+              baseline_peer_connection_failures: baseline[:peer_connection_failures],
+              baseline_captured_at: now()
+            })
+            |> Repo.update()
+
+        _ ->
+          :ok
+      end
+    end)
   end
 
   defp capture_baseline(server) do

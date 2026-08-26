@@ -59,6 +59,12 @@ defmodule TuistWeb.API.ShardsController do
              items: %Schema{type: :string},
              description: "Test suite names (for suite-level granularity)."
            },
+           skipped_test_suites: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history."
+           },
            parallelizable_modules: %Schema{
              type: :array,
              items: %Schema{type: :string},
@@ -112,6 +118,7 @@ defmodule TuistWeb.API.ShardsController do
       reference: body_params.reference,
       modules: Map.get(body_params, :modules),
       test_suites: Map.get(body_params, :test_suites),
+      skipped_test_suites: Map.get(body_params, :skipped_test_suites),
       parallelizable_modules: Map.get(body_params, :parallelizable_modules),
       shard_min: Map.get(body_params, :shard_min),
       shard_max: Map.get(body_params, :shard_max),

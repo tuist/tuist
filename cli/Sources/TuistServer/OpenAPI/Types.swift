@@ -5228,6 +5228,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/shard_total`.
             public var shard_total: Swift.Int?
+            /// Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/skipped_test_suites`.
+            public var skipped_test_suites: [Swift.String]?
             /// Test suite names (for suite-level granularity).
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/test_suites`.
@@ -5246,6 +5250,7 @@ public enum Components {
             ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
             ///   - shard_min: Minimum number of shards.
             ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
+            ///   - skipped_test_suites: Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
             ///   - test_suites: Test suite names (for suite-level granularity).
             public init(
                 build_run_id: Swift.String? = nil,
@@ -5259,6 +5264,7 @@ public enum Components {
                 shard_max_duration: Swift.Int? = nil,
                 shard_min: Swift.Int? = nil,
                 shard_total: Swift.Int? = nil,
+                skipped_test_suites: [Swift.String]? = nil,
                 test_suites: [Swift.String]? = nil
             ) {
                 self.build_run_id = build_run_id
@@ -5272,6 +5278,7 @@ public enum Components {
                 self.shard_max_duration = shard_max_duration
                 self.shard_min = shard_min
                 self.shard_total = shard_total
+                self.skipped_test_suites = skipped_test_suites
                 self.test_suites = test_suites
             }
             public enum CodingKeys: String, CodingKey {
@@ -5286,6 +5293,7 @@ public enum Components {
                 case shard_max_duration
                 case shard_min
                 case shard_total
+                case skipped_test_suites
                 case test_suites
             }
         }
@@ -18674,6 +18682,57 @@ public enum Operations {
                     }
                 }
             }
+            public struct InternalServerError: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/responses/500/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/responses/500/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateAutomationAlert.Output.InternalServerError.Body
+                /// Creates a new `InternalServerError`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateAutomationAlert.Output.InternalServerError.Body) {
+                    self.body = body
+                }
+            }
+            /// An internal server error occurred
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/put(updateAutomationAlert)/responses/500`.
+            ///
+            /// HTTP response code: `500 internalServerError`.
+            case internalServerError(Operations.updateAutomationAlert.Output.InternalServerError)
+            /// The associated value of the enum case if `self` is `.internalServerError`.
+            ///
+            /// - Throws: An error if `self` is not `.internalServerError`.
+            /// - SeeAlso: `.internalServerError`.
+            public var internalServerError: Operations.updateAutomationAlert.Output.InternalServerError {
+                get throws {
+                    switch self {
+                    case let .internalServerError(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "internalServerError",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -19253,14 +19312,14 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Page number for pagination.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
-                public var page: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Page number for pagination.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
+                public var page: Swift.Int?
                 /// Number of items per page.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
@@ -19268,16 +19327,16 @@ public enum Operations {
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - page: Page number for pagination.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
                 public init(
-                    page: Swift.Int? = nil,
                     git_branch: Swift.String? = nil,
+                    page: Swift.Int? = nil,
                     page_size: Swift.Int? = nil
                 ) {
-                    self.page = page
                     self.git_branch = git_branch
+                    self.page = page
                     self.page_size = page_size
                 }
             }
@@ -42929,6 +42988,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/shard_total`.
                     public var shard_total: Swift.Int?
+                    /// Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/skipped_test_suites`.
+                    public var skipped_test_suites: [Swift.String]?
                     /// Test suite names (for suite-level granularity).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/test_suites`.
@@ -42947,6 +43010,7 @@ public enum Operations {
                     ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
                     ///   - shard_min: Minimum number of shards.
                     ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
+                    ///   - skipped_test_suites: Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
                     ///   - test_suites: Test suite names (for suite-level granularity).
                     public init(
                         build_run_id: Swift.String? = nil,
@@ -42960,6 +43024,7 @@ public enum Operations {
                         shard_max_duration: Swift.Int? = nil,
                         shard_min: Swift.Int? = nil,
                         shard_total: Swift.Int? = nil,
+                        skipped_test_suites: [Swift.String]? = nil,
                         test_suites: [Swift.String]? = nil
                     ) {
                         self.build_run_id = build_run_id
@@ -42973,6 +43038,7 @@ public enum Operations {
                         self.shard_max_duration = shard_max_duration
                         self.shard_min = shard_min
                         self.shard_total = shard_total
+                        self.skipped_test_suites = skipped_test_suites
                         self.test_suites = test_suites
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -42987,6 +43053,7 @@ public enum Operations {
                         case shard_max_duration
                         case shard_min
                         case shard_total
+                        case skipped_test_suites
                         case test_suites
                     }
                 }
@@ -57492,6 +57559,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct InternalServerError: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/responses/500/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/responses/500/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createAutomationAlert.Output.InternalServerError.Body
+                /// Creates a new `InternalServerError`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createAutomationAlert.Output.InternalServerError.Body) {
+                    self.body = body
+                }
+            }
+            /// An internal server error occurred
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/post(createAutomationAlert)/responses/500`.
+            ///
+            /// HTTP response code: `500 internalServerError`.
+            case internalServerError(Operations.createAutomationAlert.Output.InternalServerError)
+            /// The associated value of the enum case if `self` is `.internalServerError`.
+            ///
+            /// - Throws: An error if `self` is not `.internalServerError`.
+            /// - SeeAlso: `.internalServerError`.
+            public var internalServerError: Operations.createAutomationAlert.Output.InternalServerError {
+                get throws {
+                    switch self {
+                    case let .internalServerError(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "internalServerError",
                             response: self
                         )
                     }
