@@ -33,6 +33,12 @@ needs a live GUI session for Virtualization.framework, so hosted
 runners can't do this). Builder fleet operator runbook:
 [`../vm-image-builder.md`](../vm-image-builder.md).
 
+The macOS release build reuses caches that live outside the checkout, at
+`~/.cache/tuist-ci/server-macos-release/<runner-name>/` on each builder
+host: `mix-build` (`MIX_BUILD_ROOT`), `mix-deps` (`MIX_DEPS_PATH`), and
+`nif` (`TUIST_NIF_BUILD_ROOT`, the SwiftPM scratch path for both NIFs).
+Delete that directory on a host to force a cold build there.
+
 Registry publication uses the shared
 [`tart-push`](../../.github/actions/tart-push/action.yml)
 action. Its bounded concurrency, chunking, retry, and route diagnostics are
