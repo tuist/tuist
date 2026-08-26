@@ -1985,11 +1985,10 @@ jobs:
   # --------------------------------------------------------------------------
   build:
     name: Build deployment images
-    needs: [check-releases, tag-infra-releases]
+    needs: [check-releases]
     if: >-
       always() &&
       needs.check-releases.result == 'success' &&
-      needs.tag-infra-releases.result == 'success' &&
       (
         needs.check-releases.outputs.deployable-changed == 'true' ||
         needs.check-releases.outputs.runner-image-should-release == 'true' ||
@@ -2110,12 +2109,12 @@ jobs:
   # fast-path ships straight to production without waiting on the canary
   # cascade.
   canary:
-    needs: [check-releases, build]
+    needs: [check-releases, build, tag-infra-releases]
     # `build` runs under `if: always()` so it survives the many skipped sibling
     # release jobs. A plain-`if` dependent of an `always()`-guarded job gets
     # caught by skip-propagation and is itself skipped even when `build`
     # succeeded, so the whole deploy tail must re-assert success explicitly.
-    if: ${{ always() && needs.build.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    if: ${{ always() && needs.build.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
     # server-deployment.yml's build-kura-runtime job requests id-token: write;
     # a reusable workflow's permissions are validated against the caller at
     # startup, so this leg must grant the callee's full permission union.
@@ -2360,10 +2359,12 @@ jobs:
         acceptance-tests,
         backward-compatibility-acceptance,
         kura-canary-rollout-gate,
+        tag-infra-releases,
       ]
     if: >-
       always() &&
       needs.build.result == 'success' &&
+      needs.tag-infra-releases.result == 'success' &&
       needs.canary.result == 'success' &&
       needs.acceptance-tests.result == 'success' &&
       needs.backward-compatibility-acceptance.result == 'success' &&
@@ -2391,8 +2392,8 @@ jobs:
   # `always() && needs.build.result == 'success'` guard mirrors `canary`
   # (see its comment) so this leg is not skip-propagated away.
   production-hotfix:
-    needs: [check-releases, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
+    needs: [check-releases, build, tag-infra-releases]
+    if: ${{ always() && needs.build.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
     # See `canary` above: grant the callee's full permission union.
     permissions:
       contents: read
