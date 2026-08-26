@@ -16,7 +16,7 @@ defmodule TuistWeb.RateLimit.AuthorizationTest do
       stub(Authentication, :authenticated_subject, fn ^conn -> %User{id: 123} end)
 
       expect(RateLimit, :hit, fn
-        "authorization-denied:user:123", [limit: 60, window: ^timeout] ->
+        "authorization-denied:user:123", [limit: 300, window: ^timeout] ->
           {:allow, 1}
       end)
 
@@ -30,7 +30,7 @@ defmodule TuistWeb.RateLimit.AuthorizationTest do
       stub(Authentication, :authenticated_subject, fn ^conn -> %Project{id: 456} end)
 
       expect(RateLimit, :hit, fn
-        "authorization-denied:project:456", [limit: 60, window: ^timeout] ->
+        "authorization-denied:project:456", [limit: 300, window: ^timeout] ->
           {:allow, 1}
       end)
 
@@ -47,7 +47,7 @@ defmodule TuistWeb.RateLimit.AuthorizationTest do
       end)
 
       expect(RateLimit, :hit, fn
-        "authorization-denied:account:789", [limit: 60, window: ^timeout] ->
+        "authorization-denied:account:789", [limit: 300, window: ^timeout] ->
           {:allow, 1}
       end)
 
@@ -62,7 +62,7 @@ defmodule TuistWeb.RateLimit.AuthorizationTest do
       stub(TuistWeb.RemoteIp, :get, fn ^conn -> "127.0.0.1" end)
 
       expect(RateLimit, :hit, fn
-        "authorization-denied:ip:127.0.0.1", [limit: 60, window: ^timeout] ->
+        "authorization-denied:ip:127.0.0.1", [limit: 300, window: ^timeout] ->
           {:allow, 1}
       end)
 

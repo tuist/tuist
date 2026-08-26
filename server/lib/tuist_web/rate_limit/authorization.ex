@@ -4,6 +4,9 @@ defmodule TuistWeb.RateLimit.Authorization do
 
   Counts only denied requests, so a client working within its permissions is never
   throttled no matter how much traffic it sends.
+
+  In production, ordinary traffic peaks around 20 denials a minute per subject,
+  while an unauthorized cache fan-out runs into the thousands.
   """
 
   alias Tuist.Accounts.AuthenticatedAccount
@@ -13,7 +16,7 @@ defmodule TuistWeb.RateLimit.Authorization do
   alias TuistWeb.RateLimit
   alias TuistWeb.RemoteIp
 
-  @bucket_size 60
+  @bucket_size 300
 
   def hit(conn) do
     RateLimit.hit(key(conn), limit: @bucket_size, window: to_timeout(minute: 1))
