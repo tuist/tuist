@@ -224,7 +224,7 @@ defmodule Tuist.Kura.CapacityTest do
     test "asks only for the account's own pods in this region" do
       stub_box("box-1", 500, [egress_pod("tuist", 25), egress_pod("tuist", 25)])
 
-      stub(Client, :list_pods, fn "kura", selector ->
+      stub(Client, :list_pods, fn "kura", selector, _opts ->
         assert selector =~ "tuist.dev/region=#{@region}"
         assert selector =~ "tuist.dev/account=tuist"
         assert selector =~ "app.kubernetes.io/managed-by=kura-controller"
@@ -289,8 +289,8 @@ defmodule Tuist.Kura.CapacityTest do
     # as unknown: unknown falls back to the advertised budget, and the form still
     # refuses a floor it cannot place.
     test "is unknown when the box cannot be read" do
-      stub(Client, :get_node, fn _node -> {:error, :unavailable} end)
-      stub(Client, :list_pods_on_node, fn _node -> {:error, :unavailable} end)
+      stub(Client, :get_node, fn _node, _opts -> {:error, :unavailable} end)
+      stub(Client, :list_pods_on_node, fn _node, _opts -> {:error, :unavailable} end)
       stub_account_pods([egress_pod("tuist", 25)])
 
       assert Capacity.egress_headroom(@region, "tuist") == nil
@@ -298,11 +298,11 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   defp stub_account_pods(pods) do
-    stub(Client, :list_pods, fn "kura", _selector -> {:ok, pods} end)
+    stub(Client, :list_pods, fn "kura", _selector, _opts -> {:ok, pods} end)
   end
 
   defp stub_box(node, allocatable_mbps, pods) do
-    stub(Client, :get_node, fn ^node ->
+    stub(Client, :get_node, fn ^node, _opts ->
       {:ok,
        %{
          "metadata" => %{"name" => node},
@@ -310,7 +310,7 @@ defmodule Tuist.Kura.CapacityTest do
        }}
     end)
 
-    stub(Client, :list_pods_on_node, fn ^node -> {:ok, pods} end)
+    stub(Client, :list_pods_on_node, fn ^node, _opts -> {:ok, pods} end)
   end
 
   defp egress_pod(handle, mbps, opts \\ []) do

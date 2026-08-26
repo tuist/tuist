@@ -248,8 +248,11 @@ defmodule Tuist.Kubernetes.Client do
   customer (Pods labeled `tuist.dev/runner-pool-owner=<owner>`)
   before claiming a queue entry, to enforce `max_concurrent`.
   """
-  def list_pods(namespace, label_selector) when is_binary(namespace) and is_binary(label_selector) do
-    case request(:get, "/api/v1/namespaces/#{namespace}/pods", query: %{"labelSelector" => label_selector}) do
+  def list_pods(namespace, label_selector, opts \\ []) when is_binary(namespace) and is_binary(label_selector) do
+    case request(:get, "/api/v1/namespaces/#{namespace}/pods",
+           query: %{"labelSelector" => label_selector},
+           timeout: opts[:timeout]
+         ) do
       {:ok, %{"items" => items}} -> {:ok, items}
       {:error, _} = err -> err
     end
@@ -267,8 +270,10 @@ defmodule Tuist.Kubernetes.Client do
   The server SA is granted cluster-wide `pods: [list]` by the
   kura-controller's node-reads ClusterRole.
   """
-  def list_pods_on_node(node) when is_binary(node) do
-    case request(:get, "/api/v1/pods", query: %{"fieldSelector" => "spec.nodeName=#{node}"}) do
+  def list_pods_on_node(node, opts \\ []) when is_binary(node) do
+    selector = "spec.nodeName=#{node},status.phase!=Succeeded,status.phase!=Failed"
+
+    case request(:get, "/api/v1/pods", query: %{"fieldSelector" => selector}, timeout: opts[:timeout]) do
       {:ok, %{"items" => items}} -> {:ok, items}
       {:error, _} = err -> err
     end
@@ -292,8 +297,8 @@ defmodule Tuist.Kubernetes.Client do
   server SA is granted `nodes: [get, list]` by the runners-fleet-reader
   ClusterRole.
   """
-  def get_node(name) when is_binary(name) do
-    get("/api/v1/nodes/#{name}")
+  def get_node(name, opts \\ []) when is_binary(name) do
+    request(:get, "/api/v1/nodes/#{name}", timeout: opts[:timeout])
   end
 
   @doc """
@@ -380,13 +385,16 @@ defmodule Tuist.Kubernetes.Client do
     with {:ok, config} <- config(opts) do
       req_opts =
         maybe_put_body(
-          [
-            method: method,
-            url: url(config, path),
-            headers: request_headers(config, headers),
-            params: query,
-            connect_options: [transport_opts: config.transport_opts]
-          ],
+          maybe_put_timeout(
+            [
+              method: method,
+              url: url(config, path),
+              headers: request_headers(config, headers),
+              params: query,
+              connect_options: [transport_opts: config.transport_opts]
+            ],
+            Keyword.get(options, :timeout)
+          ),
           body
         )
 
@@ -612,6 +620,15 @@ defmodule Tuist.Kubernetes.Client do
 
   defp url(%{server: server}, path), do: server <> path
   defp url(config, path), do: "https://#{config.host}:#{config.port}#{path}"
+
+  # Bounds a read a caller is waiting on, retries included: Req's defaults are a
+  # 15s receive timeout and up to three transient-GET retries, so an apiserver
+  # that hangs holds the caller for the better part of a minute.
+  defp maybe_put_timeout(req_opts, nil), do: req_opts
+
+  defp maybe_put_timeout(req_opts, timeout) do
+    Keyword.merge(req_opts, receive_timeout: timeout, retry: false)
+  end
 
   defp maybe_put_body(req_opts, nil), do: req_opts
   defp maybe_put_body(req_opts, body), do: Keyword.put(req_opts, :body, body)

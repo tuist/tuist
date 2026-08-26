@@ -133,14 +133,6 @@ rules:
   - apiGroups: [""]
     resources: [persistentvolumes]
     verbs: [get, list, watch, update, patch]
-  # Cluster-wide pod list, for the ops page's egress headroom: what bounds a
-  # tenant's floor is everything reserved on its box, and a list narrowed to one
-  # namespace would miss whatever else the box carries and overstate the room
-  # left. list only, and the reader is the server -- the controller has its own
-  # namespaced pod rules above.
-  - apiGroups: [""]
-    resources: [pods]
-    verbs: [list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -157,15 +149,6 @@ subjects:
   - kind: ServiceAccount
     name: {{ $name }}
     namespace: {{ $namespace }}
-  # The server reads the same node capacity the controller does, for the ops
-  # account page: the disk a region has left (Tuist.Kura.Capacity), the egress
-  # budget each box advertises, and what is already reserved on the box an
-  # account's instances sit on. Nodes and a cluster-wide pod list are both
-  # cluster-scoped, so this is the binding that has to name the server too —
-  # without it the form shows "unknown" and silently skips the check.
-  - kind: ServiceAccount
-    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
-    namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -224,6 +207,48 @@ subjects:
     name: {{ $name }}
     namespace: {{ $namespace }}
 {{- if .Values.server.enabled }}
+---
+# The ops account page reads what a region has left: its nodes' allocatable disk
+# and egress, and what is already reserved on the box an account's instances sit
+# on. Both are cluster-scoped, so they cannot live in the namespaced server Role
+# below — and they are deliberately not the controller's -node-reads role, which
+# also carries persistentvolumes update/patch. The server is internet-facing;
+# read-only is the whole of what it needs here.
+#
+# The pod list is cluster-wide because an extended resource is reserved against
+# the node rather than against a namespace, so a box's reservations can only be
+# summed by reading every pod on it. That exposes every namespace's pod specs
+# (inline env values, args) to the server — a conscious grant, list only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $serverRoleName }}-cluster-reads
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $serverRoleName }}-cluster-reads
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $serverRoleName }}-cluster-reads
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role

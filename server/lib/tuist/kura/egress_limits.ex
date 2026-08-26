@@ -201,6 +201,24 @@ defmodule Tuist.Kura.EgressLimits do
   end
 
   @doc """
+  The highest floor a box can hold for an account, or `nil` without a reading.
+
+  One place, because the form refuses against it, labels the column with it and
+  sets the input's `max` from it.
+  """
+  def max_floor_mbps(%{available_mbps: available, replicas: replicas}) when replicas > 0 do
+    div(available, replicas)
+  end
+
+  def max_floor_mbps(_headroom), do: nil
+
+  @doc """
+  Whether an instance in this status still holds pods, and so is one an override
+  reaches.
+  """
+  def holds_pods?(status), do: status not in @podless_statuses
+
+  @doc """
   The account's instances that still hold pods, in the regions that shape egress
   at all. These are the instances an override reaches.
   """
@@ -253,7 +271,11 @@ defmodule Tuist.Kura.EgressLimits do
       nil ->
         case Changeset.get_field(changeset, @floor_field) do
           value when is_integer(value) ->
-            Changeset.add_error(changeset, @floor_field, "cannot be reserved: this region's boxes advertise no budget")
+            Changeset.add_error(
+              changeset,
+              @floor_field,
+              "cannot be reserved: this region's boxes advertise no budget, or it could not be read"
+            )
 
           _ ->
             changeset
@@ -285,11 +307,11 @@ defmodule Tuist.Kura.EgressLimits do
   # it is made and the unschedulable alert stays the backstop.
   defp validate_against_node_headroom(changeset, %Account{} = account, %Regions{} = region) do
     with floor_mbps when is_integer(floor_mbps) <- Changeset.get_field(changeset, @floor_field),
-         %{replicas: replicas, available_mbps: available, node: node} <- node_headroom(account, region),
-         true <- floor_mbps * replicas > available do
+         %{node: node} = headroom <- node_headroom(account, region),
+         max_mbps when floor_mbps > max_mbps <- max_floor_mbps(headroom) do
       # Short on purpose: this renders in a table cell, and the row already
       # carries the same number under the node's limit.
-      Changeset.add_error(changeset, @floor_field, "must be at most #{div(available, replicas)} Mbps on #{node}")
+      Changeset.add_error(changeset, @floor_field, "must be at most #{max_mbps} Mbps on #{node}")
     else
       _ -> changeset
     end

@@ -271,6 +271,50 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) == nil
   end
 
+  # The reading behind the headroom check can move under a table an operator is
+  # looking at. A row they did not touch must not be the thing that refuses the
+  # save of the one they did.
+  test "does not validate a row the operator left alone", %{conn: conn, user: user} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Capacity, :egress_budget_mbps, fn _region -> 3000 end)
+    stub(Capacity, :egress_headroom, fn _region, _handle -> nil end)
+
+    kura_server(user, "us-east")
+    kura_server(user, "eu-central")
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv
+    |> form("#kura-egress-limits-form", %{
+      "account" => %{"us-east" => %{"kura_egress_floor_mbps" => "900", "kura_egress_burst_mbps" => "1200"}}
+    })
+    |> render_submit()
+
+    # us-east's stored floor no longer fits the box, but the operator is editing
+    # eu-central.
+    stub(Capacity, :egress_headroom, fn _region, _handle ->
+      %{node: "box-1", allocatable_mbps: 1000, available_mbps: 200, replicas: 2}
+    end)
+
+    html =
+      lv
+      |> form("#kura-egress-limits-form", %{
+        "account" => %{
+          "us-east" => %{"kura_egress_floor_mbps" => "900", "kura_egress_burst_mbps" => "1200"},
+          "eu-central" => %{"kura_egress_floor_mbps" => "", "kura_egress_burst_mbps" => "200"}
+        }
+      })
+      |> render_submit()
+
+    assert html =~ "Egress limits updated in EU Central"
+
+    assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) ==
+             %{floor_mbps: nil, burst_mbps: 200}
+
+    assert Kura.egress_limits_override(user.account, Kura.region("us-east")) ==
+             %{floor_mbps: 900, burst_mbps: 1200}
+  end
+
   # A browser posts the whole table, untouched rows included, seeded with what
   # they already hold. A save aimed at one region that cleared another's override
   # would roll that region's pods back to the region's numbers unasked.

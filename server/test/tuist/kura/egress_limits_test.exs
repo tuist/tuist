@@ -221,7 +221,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
       assert {:error, changeset} =
                EgressLimits.cast_override(account, region, %{"kura_egress_floor_mbps" => "300"})
 
-      assert ["cannot be reserved: this region's boxes advertise no budget"] =
+      assert ["cannot be reserved: this region's boxes advertise no budget, or it could not be read"] =
                errors_on(changeset).kura_egress_floor_mbps
     end
 

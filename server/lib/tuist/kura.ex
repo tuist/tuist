@@ -307,6 +307,22 @@ defmodule Tuist.Kura do
   defdelegate region_egress_headroom(account, region), to: EgressLimits, as: :node_headroom
 
   @doc """
+  Whether an instance in this status still holds pods, and so is one an egress
+  override reaches.
+  """
+  defdelegate kura_instance_holds_pods?(status), to: EgressLimits, as: :holds_pods?
+
+  @doc """
+  The highest floor a box can hold for an account, from its headroom.
+  """
+  defdelegate max_egress_floor_mbps(headroom), to: EgressLimits, as: :max_floor_mbps
+
+  @doc """
+  The ops egress form's field names, as `{floor, ceiling}`.
+  """
+  defdelegate egress_limits_form_fields, to: EgressLimits, as: :form_fields
+
+  @doc """
   The pair an account gets in a region with nothing overridden, which is what
   applies to the halves it overrides nothing for.
   """

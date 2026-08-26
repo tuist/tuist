@@ -56,6 +56,9 @@ defmodule Tuist.Kura.Capacity do
   @default_claim_gib 200
 
   @namespace "kura"
+  # An operator is waiting on these reads, so they are bounded rather than left
+  # on Req's defaults.
+  @read_timeout to_timeout(second: 5)
   @managed_by_selector "app.kubernetes.io/managed-by=kura-controller"
 
   @doc """
@@ -170,11 +173,7 @@ defmodule Tuist.Kura.Capacity do
   the hardware can do, so it must never be used in this number's place.
   """
   def egress_budget_mbps(region_id) do
-    KeyValueStore.get_or_update(
-      [__MODULE__, "egress_budget_mbps", region_id],
-      [ttl: to_timeout(minute: 1), locking: true],
-      fn -> measure_egress_budget_mbps(region_id) end
-    )
+    cached([__MODULE__, "egress_budget_mbps", region_id], fn -> measure_egress_budget_mbps(region_id) end)
   end
 
   defp measure_egress_budget_mbps(region_id) do
@@ -221,19 +220,35 @@ defmodule Tuist.Kura.Capacity do
   other boxes cannot take the pod however much room they have.
   """
   def egress_headroom(region_id, account_handle) when is_binary(account_handle) do
-    KeyValueStore.get_or_update(
-      [__MODULE__, "egress_headroom", region_id, account_handle],
-      [ttl: to_timeout(minute: 1), locking: true],
-      fn -> measure_egress_headroom(region_id, account_handle) end
-    )
+    cached([__MODULE__, "egress_headroom", region_id, account_handle], fn ->
+      measure_egress_headroom(region_id, account_handle)
+    end)
+  end
+
+  # Two departures from how the disk readings above are cached, both about a
+  # measurement that talks to the apiserver more than once:
+  #
+  # Unlocked, because `locking: true` runs the function inside a Cachex
+  # transaction and Cachex serialises those through one process — a slow
+  # apiserver would park every other locked cache read on the server behind this
+  # one. Two renders measuring the same box at once is harmless.
+  #
+  # Wrapped, because Cachex stores a bare `nil` and reads it back as a miss, so
+  # an unreadable box would be re-measured on every render and every save. The
+  # tuple makes "nothing to report" a cached answer.
+  defp cached(key, measure) do
+    {:ok, value} =
+      KeyValueStore.get_or_update(key, [ttl: to_timeout(minute: 1), locking: false], fn -> {:ok, measure.()} end)
+
+    value
   end
 
   defp measure_egress_headroom(region_id, account_handle) do
-    with {:ok, pods} <- Client.list_pods(@namespace, account_selector(region_id, account_handle)),
+    with {:ok, pods} <- Client.list_pods(@namespace, account_selector(region_id, account_handle), timeout: @read_timeout),
          [pod | _] <- Enum.filter(pods, &(pod_node_name(&1) && not terminal?(&1))),
          node = pod_node_name(pod),
          on_box = Enum.filter(pods, &(pod_node_name(&1) == node)),
-         {:ok, node_body} <- Client.get_node(node),
+         {:ok, node_body} <- Client.get_node(node, timeout: @read_timeout),
          allocatable when is_integer(allocatable) <- egress_mbps(node_body),
          {:ok, reserved} <- box_reserved_mbps(node) do
       own_mbps = on_box |> Enum.map(&pod_egress_mbps/1) |> Enum.sum()
@@ -257,9 +272,9 @@ defmodule Tuist.Kura.Capacity do
   # against the node, not against a namespace. There is no API for a node's
   # allocated total, so this is summed the way `kubectl describe node` sums it.
   defp box_reserved_mbps(node) do
-    case Client.list_pods_on_node(node) do
+    case Client.list_pods_on_node(node, timeout: @read_timeout) do
       {:ok, pods} ->
-        {:ok, pods |> Enum.reject(&terminal?/1) |> Enum.map(&pod_egress_mbps/1) |> Enum.sum()}
+        {:ok, pods |> Enum.map(&pod_egress_mbps/1) |> Enum.sum()}
 
       {:error, _reason} = error ->
         error

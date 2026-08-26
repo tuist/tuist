@@ -444,6 +444,9 @@ defmodule TuistWeb.OpsAccountLive do
   # differ.
   defp kura_egress_regions(account, servers) do
     servers
+    # An instance without pods is not one an override reaches, and offering a row
+    # for it would report a save as recreating nothing.
+    |> Enum.filter(&Kura.kura_instance_holds_pods?(&1.status))
     |> Enum.map(& &1.region)
     |> Enum.uniq()
     |> Enum.flat_map(fn region_id ->
@@ -484,45 +487,70 @@ defmodule TuistWeb.OpsAccountLive do
   defp save_kura_egress_limits(socket, params) do
     account = socket.assigns.account
 
-    params
-    |> Enum.flat_map(fn {region_id, attrs} ->
-      case Kura.region(region_id) do
-        nil -> []
-        region -> [{region, attrs, Kura.cast_egress_limits_override(account, region, attrs)}]
-      end
-    end)
-    |> then(&{&1, Enum.filter(&1, fn {_region, _attrs, result} -> match?({:error, _}, result) end)})
-    |> case do
-      {_rows, [_ | _] = invalid} ->
+    rows =
+      Enum.flat_map(params, fn {region_id, attrs} ->
+        region = Kura.region(region_id)
+
+        # Only the rows whose values moved. An untouched row is not validated:
+        # the live reading behind the check can shift under a table an operator
+        # is looking at, and a row they did not touch must not refuse a save of
+        # the one they did.
+        if region && edited?(account, region, attrs),
+          do: [{region, attrs, Kura.cast_egress_limits_override(account, region, attrs)}],
+          else: []
+      end)
+
+    case Enum.filter(rows, fn {_region, _attrs, result} -> match?({:error, _}, result) end) do
+      [_ | _] = invalid ->
         {:noreply,
          socket
          |> assign(:kura_egress_regions, put_region_errors(socket.assigns.kura_egress_regions, invalid))
          |> assign(:kura_egress_result, %{status: "error", title: kura_egress_limits_error_message(invalid)})}
 
-      {rows, []} ->
-        rows
-        |> Enum.filter(fn {region, _attrs, {:ok, pair}} -> changed?(account, region, pair) end)
-        |> Enum.flat_map(fn {region, attrs, _result} ->
-          case Kura.update_egress_limits_override(account, region, attrs) do
-            {:ok, result} -> [result]
-            {:error, _changeset} -> []
-          end
-        end)
-        |> then(fn results ->
-          socket
-          |> assign_kura(account)
-          |> assign(:kura_egress_result, kura_egress_limits_result(results))
-        end)
-        |> then(&{:noreply, &1})
+      [] ->
+        {written, failed} =
+          Enum.reduce(rows, {[], []}, fn {region, attrs, _result}, {written, failed} ->
+            case Kura.update_egress_limits_override(account, region, attrs) do
+              {:ok, result} -> {[result | written], failed}
+              {:error, _changeset} -> {written, [{region, attrs, :error} | failed]}
+            end
+          end)
+
+        socket = assign_kura(socket, account)
+
+        result =
+          if failed == [],
+            do: kura_egress_limits_result(written),
+            else: %{status: "error", title: kura_egress_limits_error_message(failed)}
+
+        {:noreply, assign(socket, :kura_egress_result, result)}
     end
   end
 
-  defp changed?(account, region, pair) do
-    Kura.egress_limits_override(account, region) != nullify(pair)
+  # Compared as the form submits them, so an untouched row is recognised without
+  # casting it — casting is what a stale reading would make fail.
+  defp edited?(account, region, attrs) do
+    {floor_field, burst_field} = Kura.egress_limits_form_fields()
+    stored = Kura.egress_limits_override(account, region) || %{floor_mbps: nil, burst_mbps: nil}
+
+    {field_value(attrs, floor_field), field_value(attrs, burst_field)} !=
+      {stored.floor_mbps, stored.burst_mbps}
   end
 
-  defp nullify(%{floor_mbps: nil, burst_mbps: nil}), do: nil
-  defp nullify(pair), do: pair
+  defp field_value(attrs, field) do
+    case attrs |> Map.get(Atom.to_string(field), "") |> String.trim() do
+      "" ->
+        nil
+
+      value ->
+        value
+        |> Integer.parse()
+        |> then(fn
+          {int, ""} -> int
+          _ -> value
+        end)
+    end
+  end
 
   # Only the rows the operator got wrong get their invalid changeset back; the
   # others keep the forms they were rendered with, so an error in one region
@@ -612,12 +640,12 @@ defmodule TuistWeb.OpsAccountLive do
   scheduler request that every replica reserves, so what the box has for this
   account, divided by its replicas, is the real limit.
   """
-  def egress_headroom_label(%{available_mbps: available, replicas: replicas})
-      when is_integer(available) and is_integer(replicas) and replicas > 0 do
-    dgettext("dashboard", "up to %{mbps}", mbps: div(available, replicas))
+  def egress_headroom_label(headroom) do
+    case Kura.max_egress_floor_mbps(headroom) do
+      mbps when is_integer(mbps) -> dgettext("dashboard", "up to %{mbps}", mbps: mbps)
+      nil -> nil
+    end
   end
-
-  def egress_headroom_label(_headroom), do: nil
 
   @doc """
   The highest floor the form will take for a region, for the input's `max`.
@@ -628,15 +656,13 @@ defmodule TuistWeb.OpsAccountLive do
   the reading behind it can go stale between rendering the form and rolling the
   pods.
   """
-  def egress_max_floor_mbps(%{headroom: %{available_mbps: available, replicas: replicas}, node_mbps: node_mbps})
-      when is_integer(available) and is_integer(replicas) and replicas > 0 do
-    case node_mbps do
-      mbps when is_integer(mbps) -> min(div(available, replicas), mbps)
-      _ -> div(available, replicas)
+  def egress_max_floor_mbps(%{headroom: headroom, node_mbps: node_mbps}) do
+    case {Kura.max_egress_floor_mbps(headroom), node_mbps} do
+      {nil, node_mbps} -> node_mbps
+      {mbps, node_mbps} when is_integer(node_mbps) -> min(mbps, node_mbps)
+      {mbps, _node_mbps} -> mbps
     end
   end
-
-  def egress_max_floor_mbps(%{node_mbps: node_mbps}), do: node_mbps
 
   defp mbps_label(nil), do: "—"
   defp mbps_label(mbps), do: Integer.to_string(mbps)
