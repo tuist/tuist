@@ -179,6 +179,11 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		return nil, nil
 	}
 
+	siblings, err := r.fleetShapes(ctx, pool)
+	if err != nil {
+		return nil, err
+	}
+
 	var fleetPods corev1.PodList
 	if err := r.List(ctx, &fleetPods, client.InNamespace(pool.Namespace)); err != nil {
 		return nil, fmt.Errorf("list pods for reservation target: %w", err)
@@ -201,7 +206,23 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		if nodeFilterReason(node) != "" || isReserved(node) {
 			continue
 		}
-		if nodeSeatsForShape(node, shape) < 1 {
+		seats := nodeSeatsForShape(node, shape)
+		if seats < 1 {
+			continue
+		}
+		// Reserve only where a reservation can actually achieve
+		// something: this shape must occupy more of the host than the
+		// fleet's most granular shape does, which is precisely the case
+		// where the seats it needs are the ones smaller Pods keep taking.
+		//
+		// Without this a homogeneous single-slot fleet would reserve for
+		// an ordinary Pod that is merely queued behind one other Pod.
+		// Nothing accumulates (the shape already fits one seat), and on a
+		// one-host fleet the taint takes every pool out of service until
+		// the reservation clears. Waiting for the seat is the correct
+		// behaviour there, and it is what the allocator's cross-pool
+		// reclaim already arranges.
+		if seats >= maxSeatsOnNode(node, siblings) {
 			continue
 		}
 		candidates = append(candidates, node)
@@ -313,6 +334,45 @@ func (r *RunnerPoolReconciler) fleetNodes(ctx context.Context, pool *tuistv1.Run
 		return nil, fmt.Errorf("list fleet nodes: %w", err)
 	}
 	return nodes.Items, nil
+}
+
+// fleetShapes is every Pod footprint in play on this pool's fleet. The
+// reservation needs it to know what "large" means here: a shape is only
+// large relative to the smallest thing competing for the same hosts.
+func (r *RunnerPoolReconciler) fleetShapes(ctx context.Context, pool *tuistv1.RunnerPool) ([]podShape, error) {
+	var pools tuistv1.RunnerPoolList
+	if err := r.List(ctx, &pools, client.InNamespace(pool.Namespace)); err != nil {
+		return nil, fmt.Errorf("list runner pools for fleet shapes: %w", err)
+	}
+
+	shapes := make([]podShape, 0, len(pools.Items))
+	for i := range pools.Items {
+		sibling := &pools.Items[i]
+		if sibling.Spec.OS != pool.Spec.OS || sibling.Spec.FleetSelector != pool.Spec.FleetSelector {
+			continue
+		}
+		if sibling.Spec.PodCPUMilli <= 0 || sibling.Spec.PodMemoryMB <= 0 {
+			continue
+		}
+		shapes = append(shapes, podShape{
+			cpuMilli: sibling.Spec.PodCPUMilli,
+			memoryMB: sibling.Spec.PodMemoryMB,
+		})
+	}
+	return shapes, nil
+}
+
+// maxSeatsOnNode is how many Pods the most granular shape on the fleet
+// would get from this node — the yardstick a reservation candidate is
+// measured against.
+func maxSeatsOnNode(node *corev1.Node, shapes []podShape) int32 {
+	var most int32
+	for _, shape := range shapes {
+		if seats := nodeSeatsForShape(node, shape); seats > most {
+			most = seats
+		}
+	}
+	return most
 }
 
 func isReserved(node *corev1.Node) bool {

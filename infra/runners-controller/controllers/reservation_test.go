@@ -86,6 +86,22 @@ func placedPod(name, pool, node string, owner string) *corev1.Pod {
 	return pod
 }
 
+// smallPool is the 6 vCPU shape the large one competes with. A
+// reservation is only taken for a shape that is large RELATIVE to what
+// else runs on the fleet, so the sibling has to exist for the large
+// shape to qualify.
+func smallPool() *tuistv1.RunnerPool {
+	return &tuistv1.RunnerPool{
+		ObjectMeta: metav1.ObjectMeta{Name: "macos-26-6", Namespace: "runners"},
+		Spec: tuistv1.RunnerPoolSpec{
+			OS:            "darwin",
+			FleetSelector: reservationFleet,
+			PodCPUMilli:   6000,
+			PodMemoryMB:   14336,
+		},
+	}
+}
+
 func reservationReconciler(objects ...client.Object) *RunnerPoolReconciler {
 	scheme := runtime.NewScheme()
 	_ = clientgoscheme.AddToScheme(scheme)
@@ -115,7 +131,7 @@ func TestReservation_HoldsAHostForAStarvedShape(t *testing.T) {
 	node := m4Node("m4-0")
 	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
 
-	r := reservationReconciler(pool, node, starved,
+	r := reservationReconciler(pool, smallPool(), node, starved,
 		placedPod("small-0", "macos-26-6", "m4-0", "acme"),
 		placedPod("small-1", "macos-26-6", "m4-0", "acme"),
 	)
@@ -150,7 +166,7 @@ func TestReservation_WaitsOutTheGracePeriod(t *testing.T) {
 	node := m4Node("m4-0")
 	fresh := pendingPod("large-0", pool.Name, 10*time.Second)
 
-	r := reservationReconciler(pool, node, fresh)
+	r := reservationReconciler(pool, smallPool(), node, fresh)
 	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*fresh}); err != nil {
 		t.Fatalf("reconcileReservation: %v", err)
 	}
@@ -176,7 +192,7 @@ func TestReservation_RetiresIdlePodsButNeverRunningJobs(t *testing.T) {
 	idle := placedPod("small-idle", "macos-26-6", "m4-0", "")
 	owned := placedPod("small-owned", "macos-26-6", "m4-0", "acme")
 
-	r := reservationReconciler(pool, node, starved, idle, owned)
+	r := reservationReconciler(pool, smallPool(), node, starved, idle, owned)
 	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
 		t.Fatalf("reconcileReservation: %v", err)
 	}
@@ -211,7 +227,7 @@ func TestReservation_ReleasesWhenThePoolIsServed(t *testing.T) {
 
 	placed := placedPod("large-0", pool.Name, "m4-0", "acme")
 
-	r := reservationReconciler(pool, node, placed)
+	r := reservationReconciler(pool, smallPool(), node, placed)
 	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*placed}); err != nil {
 		t.Fatalf("reconcileReservation: %v", err)
 	}
@@ -236,7 +252,7 @@ func TestReservation_ReleasesOnTimeout(t *testing.T) {
 	}
 	starved := pendingPod("large-0", pool.Name, time.Hour)
 
-	r := reservationReconciler(pool, node, starved)
+	r := reservationReconciler(pool, smallPool(), node, starved)
 	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
 		t.Fatalf("reconcileReservation: %v", err)
 	}
@@ -252,7 +268,7 @@ func TestReservation_SkipsHostsThatCouldNeverSeatTheShape(t *testing.T) {
 	pool := largePool()
 	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
 
-	r := reservationReconciler(pool, m2Node("m2-0"), m2Node("m2-1"), starved)
+	r := reservationReconciler(pool, smallPool(), m2Node("m2-0"), m2Node("m2-1"), starved)
 	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
 		t.Fatalf("reconcileReservation: %v", err)
 	}
@@ -277,7 +293,7 @@ func TestReservation_HoldsAtMostOneHostFleetWide(t *testing.T) {
 	free := m4Node("m4-1")
 	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
 
-	r := reservationReconciler(pool, held, free, starved)
+	r := reservationReconciler(pool, smallPool(), held, free, starved)
 	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
 		t.Fatalf("reconcileReservation: %v", err)
 	}
@@ -293,7 +309,7 @@ func TestReservation_PrefersTheHostThatConvergesSoonest(t *testing.T) {
 	pool := largePool()
 	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
 
-	r := reservationReconciler(pool, m4Node("m4-busy"), m4Node("m4-quiet"), starved,
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-busy"), m4Node("m4-quiet"), starved,
 		placedPod("job-0", "macos-26-6", "m4-busy", "acme"),
 		placedPod("job-1", "macos-26-6", "m4-busy", "acme"),
 		placedPod("idle-0", "macos-26-6", "m4-quiet", ""),
@@ -318,12 +334,50 @@ func TestReservation_SkipsLinuxPools(t *testing.T) {
 	node := m4Node("m4-0")
 	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
 
-	r := reservationReconciler(pool, node, starved)
+	r := reservationReconciler(pool, smallPool(), node, starved)
 	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
 		t.Fatalf("reconcileReservation: %v", err)
 	}
 
 	if isReserved(nodeByName(t, r, "m4-0")) {
 		t.Fatal("Linux pools must not take reservations")
+	}
+}
+
+// A homogeneous fleet whose hosts hold exactly one guest has nothing to
+// accumulate: the shape already fits a single seat, so waiting for it is
+// correct. Reserving there would take a one-host fleet entirely out of
+// service for every other pool until the reservation cleared.
+func TestReservation_SkipsFleetsWhereTheShapeIsNotLarge(t *testing.T) {
+	pool := smallPool()
+	node := m2Node("m2-0")
+	starved := pendingPod("small-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, node, starved,
+		placedPod("other-0", "macos-26-5", "m2-0", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m2-0")) {
+		t.Fatal("a single-seat shape on a single-seat host must not reserve; it should just wait")
+	}
+}
+
+// The 6 vCPU shape is not large on an M4-XL either — it fits any free
+// seat, so it never needs a host drained for it.
+func TestReservation_SkipsTheSmallShapeOnADualSeatHost(t *testing.T) {
+	pool := smallPool()
+	node := m4Node("m4-0")
+	starved := pendingPod("small-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, largePool(), node, starved)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Fatal("the fleet's most granular shape must never trigger a reservation")
 	}
 }

@@ -119,8 +119,19 @@ independent workqueues:
     the race is backed by real queued work, the one tier that never
     yields.
 
-    When a Pod has sat unscheduled past `reservationGrace` (2m), the
-    RunnerPool reconciler taints one eligible host
+    A reservation is only taken for a shape that is LARGE relative to
+    the fleet: this shape must get fewer seats on the candidate host
+    than the fleet's most granular shape does. That is exactly the case
+    where the seats it needs are the ones smaller Pods keep taking. On a
+    homogeneous fleet whose hosts hold one guest (staging, canary) the
+    test never passes, so the mechanism is inert there — nothing can
+    accumulate when the shape already fits a single seat, and reserving
+    a one-host fleet would take every pool out of service until it
+    cleared. Waiting is correct there, and the allocator's cross-pool
+    reclaim already arranges it.
+
+    When a qualifying Pod has sat unscheduled past `reservationGrace`
+    (2m), the RunnerPool reconciler taints one eligible host
     `tuist.dev/reserved-for=<pool>:NoSchedule`. Every runner Pod
     tolerates that key at its OWN pool's value, so the host stops
     admitting everyone else while its seats accumulate. Running jobs are
