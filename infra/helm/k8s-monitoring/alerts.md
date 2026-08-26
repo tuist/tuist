@@ -1515,96 +1515,6 @@ them and they wait a full catalog rotation for another look. A steady
 rate here is upstream repositories going away or a scope problem on the
 mirror's credential, not a quota problem.
 
-### Kura cache pod failing scrapes (retired 2026-08-26)
-
-Rule `cfvvcmpw0wqv4f` (folder `Alerts`, group `Cache`, receiver
-`Slack #notifications 2`) was deleted. It counted absolute failed scrapes:
-
-```promql
-sum by (cluster, pod) (
-  count_over_time((up{job="kura"} == 0)[6h:1m])
-) >= 2
-```
-
-**Do not recreate it.** Three findings, each sufficient on its own.
-
-**1. Redundant whenever the fault was real.** Over the 7 days to 2026-08-26,
-sampled every 30 minutes, the condition held on 11 of the 30 production pods.
-The three that also tripped **Kura cache pod restart loop** were exactly the
-three with the highest scrape-failure counts (100, 53 and 45 samples against
-94, 18 and 13). On every pod where the stall actually happened, the critical
-rule had already fired and, as that section says, is what tells you the scale.
-
-**2. Noise whenever it fired alone.** The other eight pods had zero container
-restarts. A Kura `up == 0` is usually a cluster-wide collection blip rather
-than a Kura event: one 6-hour window held four blips that took down 16, 11, 12
-and 13 unrelated targets at once, spanning nine jobs (`cilium-agent`, `alloy`,
-`cadvisor`, `kubelet`, `resources`, `node_exporter`, `kura`,
-`stable-egress-controller`, `tuist-macos-tart-kubelet`) on hosts at different
-providers, with Kura contributing exactly one target per blip. Over 7 days
-there were 75 minutes carrying 5 or more simultaneous target failures, roughly
-11 a day, so a 6-hour threshold of 2 sat inside the ambient noise floor. The
-6-hour window then stretched each one-second hiccup into a 6-hour warning,
-which is why the no-restart pods cluster on exact multiples of 12 half-hour
-samples.
-
-**3. Blind to the case it was built for.** Its stated value was catching a
-stall the kubelet does not act on. The one documented stall of that kind (a pod
-silent for 25+ minutes with its restart counter unchanged) kept answering
-`/metrics`, so `up` stayed 1 the whole time and this rule saw nothing;
-**Kura metadata store write buffer saturated** caught it at 121.9%. The earlier
-backtest recorded in this file points the same way: a pod that restarted three
-times produced zero failed scrapes.
-
-Coverage for the underlying fault now rests on **Kura cache pod restart loop**
-for stalls that end in a liveness kill, and **Kura metadata store write buffer
-saturated** for stalls that never get killed.
-
-#### Triaging a Kura scrape failure by hand
-
-Resolve the pod's node from `kube_pod_info`, then compare its `up == 0`
-timestamps against the kubelet on that same node:
-
-```promql
-up{cluster="tuist-production", job="kura", instance="<podIP>:4000"} == 0
-up{cluster="tuist-production", job="integrations/kubernetes/kubelet",
-   node="<node>"} == 0
-```
-
-The kubelet is a host process and is not in the pod network, so Kura cannot
-make its scrape fail. Coincident timestamps (1.8 s apart on the 2026-08-26
-incident, three times over) mean the failure is collection-side and the
-investigation is over. Confirm the blip shape with:
-
-```promql
-count(up{cluster="tuist-production"} == 0
-  unless up{job=~"tuist-cnpg-instances|kura-volume-quota-exporter|tuist"})
-```
-
-The `unless` is required: those three jobs carry permanently-down targets
-sitting at roughly 360 failures per 6 hours and otherwise swamp the count.
-Baseline is 0 to 1.
-
-#### If a fleet-relative replacement is ever built
-
-Any replacement has to key on the pod failing when the fleet did **not**. That
-is a cross-sectional comparison against other targets, not the temporal ratio
-that was rejected when this rule was first written: `avg_over_time(up[30m]) <
-0.9` leaves a single stall plus restart at 0.93, above any threshold loose
-enough to survive a rolling update. Note also that "several Kura pods down at
-once" does not work as the gate, because the blips clip only one Kura target
-per instant. Of the 83 minutes in 7 days with a Kura target down, just 20 had
-two or more.
-
-Two defects in the retired expression to avoid inheriting:
-
-- The `[6h:1m]` subquery replays a vanished target's last `0` for up to five
-  steps through the 5-minute lookback, so it over-reported 7 against a true 3
-  during a rollout. The exact count is
-  `count_over_time(up[6h]) - sum_over_time(up[6h])`, valid because `up` is 0/1.
-- Alloy adds a `ready="false"` label, so a pod that flips readiness produces a
-  second `up` series and `sum by (cluster, pod)` counts both.
-
 ### Kura metadata store write buffer saturated
 
 ```promql
@@ -2459,12 +2369,84 @@ min by (cluster, namespace, repo, database) (
 )
 ```
 
+Is a Kura scrape failure actually Kura? Resolve the pod's node from
+`kube_pod_info`, then compare the pod's failed scrapes against the kubelet on
+that same node. The kubelet is a host process and is not in the pod network, so
+Kura cannot make its scrape fail: coincident timestamps mean the failure is
+collection-side and no Kura investigation is warranted.
+
+```promql
+up{cluster="tuist-production", job="kura", instance="<podIP>:4000"} == 0
+```
+
+```promql
+up{cluster="tuist-production", job="integrations/kubernetes/kubelet",
+   node="<node>"} == 0
+```
+
+Confirm the shape across the fleet. Baseline is 0 to 1, and a cluster-wide
+collection blip takes down 10 or more unrelated targets at once. The `unless`
+is required: those three jobs carry permanently-down targets sitting at roughly
+360 failures per 6 hours and otherwise swamp the count.
+
+```promql
+count(up{cluster="tuist-production"} == 0
+  unless up{job=~"tuist-cnpg-instances|kura-volume-quota-exporter|tuist"})
+```
+
+Exact failed-scrape count for a target over a window, valid because `up` is
+0/1. Prefer it to `count_over_time((up == 0)[6h:1m])`, which is a subquery and
+replays a vanished target's last `0` for up to five steps through the 5 minute
+lookback: during a rollout that over-reported 7 against a true 3. Note also
+that Alloy adds a `ready="false"` label, so a pod that flips readiness produces
+a second `up` series and `sum by (cluster, pod)` counts both.
+
+```promql
+count_over_time(up[6h]) - sum_over_time(up[6h])
+```
+
+## Retired rules
+
+Rules deleted on purpose. **Do not recreate them, and skip this section when
+creating rules from this document.**
+
+**Kura cache pod failing scrapes** (`cfvvcmpw0wqv4f`, warning, deleted
+2026-08-26) counted absolute failed scrapes:
+`sum by (cluster, pod) (count_over_time((up{job="kura"} == 0)[6h:1m])) >= 2`.
+Measured over the 7 days to 2026-08-26 at 30 minute sampling, it failed on
+three independent counts.
+
+- **Redundant whenever the fault was real.** The condition held on 11 of the 30
+  production pods, and the 3 that also tripped **Kura cache pod restart loop**
+  were exactly the 3 with the highest scrape-failure counts.
+- **Noise whenever it fired alone.** The other 8 pods had zero container
+  restarts. With 75 minutes in 7 days carrying 5 or more simultaneous target
+  failures, a 6 hour threshold of 2 sat inside the ambient collection-noise
+  floor, and the 6 hour window stretched each one-second hiccup into a 6 hour
+  warning.
+- **Blind to the case it was built for.** The one documented stall the kubelet
+  never killed kept answering `/metrics`, so `up` stayed 1 throughout and
+  **Kura metadata store write buffer saturated** is what caught it.
+
+Coverage is unaffected: the restart-loop rule covers stalls ending in a
+liveness kill, the write-buffer rule covers stalls that are never killed. To
+triage a Kura scrape failure by hand, see **Useful investigation queries**.
+
+Any replacement must key on the pod failing when the fleet did *not*, which is
+a cross-sectional comparison against other targets. It must not be a temporal
+ratio: `avg_over_time(up[30m]) < 0.9` leaves a single stall plus restart at
+0.93, above any threshold loose enough to survive a rolling update. "Several
+Kura pods down at once" does not work as the gate either, because the blips
+clip only one Kura target per instant: of the 83 minutes in 7 days with a Kura
+target down, just 20 had two or more.
+
 ## Create the rules in Grafana
 
 1. Open **Alerts & incident response → Alerting → Alert rules**.
 2. Select **New alert rule**.
 3. Choose the Grafana Cloud metrics data source.
 4. Paste one query from this document and set it as the alert condition.
+   Skip **Retired rules**: those were deleted deliberately.
 5. Set the evaluation interval to one minute and use the pending period shown
    with the query.
 6. Set **No Data** to **Normal** for threshold rules. Healthy comparison
@@ -2507,7 +2489,9 @@ The same rules can be created with Grafana Assistant. Give it this prompt:
 
 ```text
 Create Grafana-managed alert rules from
-infra/helm/k8s-monitoring/alerts.md. Use the Grafana Cloud metrics data source,
+infra/helm/k8s-monitoring/alerts.md. Ignore the Retired rules section: those
+were deleted deliberately and must not be recreated. Use the Grafana Cloud
+metrics data source,
 preserve every query and pending period exactly, put the rules in a folder
 named Tuist infrastructure, add the suggested summary as the annotation, and
 route critical and warning severities through our existing infrastructure
