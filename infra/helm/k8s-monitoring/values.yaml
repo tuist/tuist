@@ -722,6 +722,41 @@ k8s-monitoring:
   #              is running stale config — last reload failed"
   #   - Runbook: kubectl logs <pod> -c alloy to find the parse error;
   #              fix the config in the values overlay, re-deploy, restart pod.
+  #
+  # The include list also carries a small collector self-diagnosis set,
+  # because until 2026-08-26 the two config-load metrics were the ONLY
+  # `alloy_*` series reaching Grafana Cloud and a collector that cannot
+  # report on itself cannot be debugged. That day one alloy-metrics replica
+  # grew from 0.74 GiB to 2.73 GiB over seven days with no restarts while
+  # nine peers doing identical work stayed under 443 MiB, and there was no
+  # way to see whether it held more series, owned more targets, leaked
+  # goroutines, or simply could not drain its queue. Diagnosis fell back to
+  # reading Alloy's own logs out of Loki. `pods/portforward` is a `create`
+  # verb the read-only access tier denies, so the Alloy UI on :12345 is not
+  # a fallback.
+  #
+  # Each name below answers one question about a replica that peers cannot:
+  #   - cluster_node_peers / cluster_node_gossip_health_score: does it see a
+  #     different ring than its peers? A partial membership view makes a
+  #     replica compute a different hash partition and over-claim targets.
+  #   - prometheus_remote_write_wal_storage_active_series: is it holding
+  #     more series, and is that number growing? The first thing to look at.
+  #   - prometheus_sd_discovered_targets: is discovery skewed, or only the
+  #     clustered assignment?
+  #   - prometheus_remote_storage_samples_pending / shards / shards_desired:
+  #     is the send queue backing up?
+  #   - highest_timestamp_in_seconds minus queue_highest_sent_timestamp_seconds:
+  #     remote-write lag. Chronic lag grows the WAL, which grows memory.
+  #   - samples_failed / retried / dropped: is data being lost, and when?
+  #   - go_goroutines, go_memstats_heap_inuse_bytes,
+  #     alloy_resources_process_resident_memory_bytes: goroutine leak vs Go
+  #     heap growth vs RSS growth. Heap flat while RSS climbs is off-heap.
+  #   - alloy_component_controller_running_components: component instances
+  #     accumulating rather than being torn down.
+  #
+  # Roughly 30 series per collector Pod. Kept identical across roles so the
+  # blocks stay comparable; the Prometheus WAL and remote-storage names are
+  # simply not emitted by the Loki-writing role, which costs nothing.
   integrations:
     collector: alloy-metrics
     alloy:
@@ -741,6 +776,24 @@ k8s-monitoring:
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
+                # Collector self-diagnosis. See the block comment above.
+                - alloy_component_controller_running_components
+                - alloy_resources_process_resident_memory_bytes
+                - cluster_node_gossip_health_score
+                - cluster_node_peers
+                - go_goroutines
+                - go_memstats_heap_inuse_bytes
+                - prometheus_remote_storage_highest_timestamp_in_seconds
+                - prometheus_remote_storage_queue_highest_sent_timestamp_seconds
+                - prometheus_remote_storage_samples_dropped_total
+                - prometheus_remote_storage_samples_failed_total
+                - prometheus_remote_storage_samples_pending
+                - prometheus_remote_storage_samples_retried_total
+                - prometheus_remote_storage_shards
+                - prometheus_remote_storage_shards_desired
+                - prometheus_remote_write_wal_storage_active_series
+                - prometheus_sd_discovered_targets
+                - prometheus_wal_watcher_current_segment
               excludeMetrics:
                 - loki_write_request_duration_seconds_bucket
         - name: alloy-logs
@@ -752,6 +805,24 @@ k8s-monitoring:
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
+                # Collector self-diagnosis. See the block comment above.
+                - alloy_component_controller_running_components
+                - alloy_resources_process_resident_memory_bytes
+                - cluster_node_gossip_health_score
+                - cluster_node_peers
+                - go_goroutines
+                - go_memstats_heap_inuse_bytes
+                - prometheus_remote_storage_highest_timestamp_in_seconds
+                - prometheus_remote_storage_queue_highest_sent_timestamp_seconds
+                - prometheus_remote_storage_samples_dropped_total
+                - prometheus_remote_storage_samples_failed_total
+                - prometheus_remote_storage_samples_pending
+                - prometheus_remote_storage_samples_retried_total
+                - prometheus_remote_storage_shards
+                - prometheus_remote_storage_shards_desired
+                - prometheus_remote_write_wal_storage_active_series
+                - prometheus_sd_discovered_targets
+                - prometheus_wal_watcher_current_segment
               excludeMetrics:
                 - loki_write_request_duration_seconds_bucket
         - name: alloy-singleton
@@ -763,6 +834,24 @@ k8s-monitoring:
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
+                # Collector self-diagnosis. See the block comment above.
+                - alloy_component_controller_running_components
+                - alloy_resources_process_resident_memory_bytes
+                - cluster_node_gossip_health_score
+                - cluster_node_peers
+                - go_goroutines
+                - go_memstats_heap_inuse_bytes
+                - prometheus_remote_storage_highest_timestamp_in_seconds
+                - prometheus_remote_storage_queue_highest_sent_timestamp_seconds
+                - prometheus_remote_storage_samples_dropped_total
+                - prometheus_remote_storage_samples_failed_total
+                - prometheus_remote_storage_samples_pending
+                - prometheus_remote_storage_samples_retried_total
+                - prometheus_remote_storage_shards
+                - prometheus_remote_storage_shards_desired
+                - prometheus_remote_write_wal_storage_active_series
+                - prometheus_sd_discovered_targets
+                - prometheus_wal_watcher_current_segment
               excludeMetrics:
                 - loki_write_request_duration_seconds_bucket
         - name: alloy-receiver
@@ -774,6 +863,24 @@ k8s-monitoring:
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
+                # Collector self-diagnosis. See the block comment above.
+                - alloy_component_controller_running_components
+                - alloy_resources_process_resident_memory_bytes
+                - cluster_node_gossip_health_score
+                - cluster_node_peers
+                - go_goroutines
+                - go_memstats_heap_inuse_bytes
+                - prometheus_remote_storage_highest_timestamp_in_seconds
+                - prometheus_remote_storage_queue_highest_sent_timestamp_seconds
+                - prometheus_remote_storage_samples_dropped_total
+                - prometheus_remote_storage_samples_failed_total
+                - prometheus_remote_storage_samples_pending
+                - prometheus_remote_storage_samples_retried_total
+                - prometheus_remote_storage_shards
+                - prometheus_remote_storage_shards_desired
+                - prometheus_remote_write_wal_storage_active_series
+                - prometheus_sd_discovered_targets
+                - prometheus_wal_watcher_current_segment
               excludeMetrics:
                 - loki_write_request_duration_seconds_bucket
         - name: grafana-cloud-traces-sampler
@@ -785,6 +892,24 @@ k8s-monitoring:
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
+                # Collector self-diagnosis. See the block comment above.
+                - alloy_component_controller_running_components
+                - alloy_resources_process_resident_memory_bytes
+                - cluster_node_gossip_health_score
+                - cluster_node_peers
+                - go_goroutines
+                - go_memstats_heap_inuse_bytes
+                - prometheus_remote_storage_highest_timestamp_in_seconds
+                - prometheus_remote_storage_queue_highest_sent_timestamp_seconds
+                - prometheus_remote_storage_samples_dropped_total
+                - prometheus_remote_storage_samples_failed_total
+                - prometheus_remote_storage_samples_pending
+                - prometheus_remote_storage_samples_retried_total
+                - prometheus_remote_storage_shards
+                - prometheus_remote_storage_shards_desired
+                - prometheus_remote_write_wal_storage_active_series
+                - prometheus_sd_discovered_targets
+                - prometheus_wal_watcher_current_segment
               excludeMetrics:
                 - loki_write_request_duration_seconds_bucket
 
