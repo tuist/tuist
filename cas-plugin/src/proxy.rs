@@ -877,17 +877,33 @@ impl PathState {
     /// Split out from `enforce_cache_bounds` so the pairing is testable without
     /// a registered path or a maintenance tick.
     fn enforce_withheld_bound(&self, cap: usize) {
-        if self.withheld_roots.lock().unwrap().len() <= cap {
+        // ONE critical section on `withheld_roots`, held across the instruction
+        // removal. Snapshotting the keys, releasing the lock to clean
+        // `pending_objects`, then re-locking to clear left a window in which a
+        // withhold recorded by a materializer worker was dropped by the clear
+        // (it was not in the snapshot, so its instruction was never removed),
+        // which is precisely the "record forgotten while the instruction
+        // survives" state this function exists to avoid. The regime that fills
+        // this map is the same regime the materializer pool writes to it hardest,
+        // so the trigger and the window coincide rather than being independent.
+        //
+        // `take` rather than `clear` for the same reason: the map must never be
+        // observable half-emptied, and an insert that arrives mid-operation
+        // blocks and then lands in the fresh map with its instruction intact.
+        //
+        // Lock order is `withheld_roots` then `pending_objects`, and nothing
+        // takes them the other way round: the recording site in
+        // `materialize_manifest` holds only `withheld_roots`, and `prefetch_owed`
+        // and the instruction sites hold only `pending_objects`. Keep it that way.
+        let mut withheld = self.withheld_roots.lock().unwrap();
+        if withheld.len() <= cap {
             return;
         }
-        let roots: Vec<Vec<u8>> = self.withheld_roots.lock().unwrap().keys().cloned().collect();
-        {
-            let mut pending = self.pending_objects.lock().unwrap();
-            for root in &roots {
-                pending.remove(root);
-            }
+        let dropped = std::mem::take(&mut *withheld);
+        let mut pending = self.pending_objects.lock().unwrap();
+        for root in dropped.keys() {
+            pending.remove(root);
         }
-        self.withheld_roots.lock().unwrap().clear();
     }
 
     /// Rebinds `cas` to the store that now lives at `cas_path`, releasing the
@@ -5894,6 +5910,74 @@ mod tests {
         assert!(
             state.pending_objects.lock().unwrap().contains_key(&other),
             "while an instruction that was never withheld is untouched"
+        );
+    }
+
+    /// The pairing has to survive a concurrent recorder, not just a quiet map.
+    ///
+    /// The earlier version snapshotted the keys, released the lock to clean
+    /// `pending_objects`, then re-locked and cleared. A withhold recorded in that
+    /// gap was dropped by the clear with its instruction untouched, because it was
+    /// never in the snapshot. That is the one state the bound exists to prevent,
+    /// and the regime that fills the map is the same regime the materializer pool
+    /// is writing to it hardest, so the two coincide.
+    ///
+    /// Production order is instruction first, then record (`commit_and_materialize`
+    /// registers instructions, `materialize_manifest` records the withhold), which
+    /// is also the order that exposes the window.
+    #[test]
+    fn enforcing_the_withheld_bound_never_strands_an_instruction() {
+        let dir = TempCasDir::new("withheld-bound-race");
+        let state = path_state_for(&dir.path());
+        let root_at = |index: u32| {
+            let mut digest = vec![0xC0];
+            digest.extend_from_slice(&index.to_le_bytes());
+            digest
+        };
+        let instruction = || PendingFetch {
+            blob: reapi::Digest { hash: "c0".repeat(32), size_bytes: 4 },
+            contents: None,
+        };
+        // Enough resident entries that removing their instructions takes real
+        // time, which is what made the old window wide enough to hit.
+        const RESIDENT: u32 = 2_000;
+        const RACING: u32 = 2_000;
+        for index in 0..RESIDENT {
+            let root = root_at(index);
+            state.pending_objects.lock().unwrap().insert(root.clone(), instruction());
+            state.withheld_roots.lock().unwrap().insert(root, vec![vec![0xC1]]);
+        }
+
+        let recorder = std::thread::spawn(move || {
+            for index in RESIDENT..RESIDENT + RACING {
+                let root = root_at(index);
+                state.pending_objects.lock().unwrap().insert(root.clone(), instruction());
+                state.withheld_roots.lock().unwrap().insert(root, vec![vec![0xC1]]);
+            }
+        });
+        while !recorder.is_finished() {
+            state.enforce_withheld_bound(0);
+        }
+        recorder.join().expect("recorder");
+        state.enforce_withheld_bound(0);
+
+        // Every root is either fully recorded (record AND instruction) or fully
+        // dropped (neither). The forbidden state is an instruction with no record
+        // saying its root must not be produced.
+        let withheld = state.withheld_roots.lock().unwrap();
+        let pending = state.pending_objects.lock().unwrap();
+        let stranded: Vec<u32> = (0..RESIDENT + RACING)
+            .filter(|index| {
+                let root = root_at(*index);
+                pending.contains_key(&root) && !withheld.contains_key(&root)
+            })
+            .collect();
+        assert!(
+            stranded.is_empty(),
+            "{} root(s) kept an instruction after their withhold was dropped, so a \
+             demand load could put them back over their own hole: first few {:?}",
+            stranded.len(),
+            &stranded[..stranded.len().min(5)]
         );
     }
 
