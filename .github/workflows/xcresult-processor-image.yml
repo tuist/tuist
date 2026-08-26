@@ -161,9 +161,16 @@ jobs:
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         # The production workflow owns semantic-version and latest tags.
         # This on-demand workflow publishes only its commit tag.
+        #
+        # `concurrency` matches the release job's override of the action's
+        # default of 4: this image pushes alone rather than as one leg of the
+        # runner-image matrix, so it has the whole rate-limit budget to
+        # itself. Keeping the two in step means a dispatch run measures what
+        # the release path will do.
         uses: ./.github/actions/tart-push
         with:
           local-name: tuist-xcresult-processor
+          concurrency: "8"
           remote-names: ghcr.io/tuist/tuist-xcresult-processor:${{ steps.image-tag.outputs.value }}
 
       - name: Cleanup
