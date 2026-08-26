@@ -273,11 +273,7 @@ defmodule Tuist.Kura.EgressLimits do
       nil ->
         case Changeset.get_field(changeset, @floor_field) do
           value when is_integer(value) ->
-            Changeset.add_error(
-              changeset,
-              @floor_field,
-              "cannot be reserved: this region's boxes advertise no egress budget to schedule it against"
-            )
+            Changeset.add_error(changeset, @floor_field, "cannot be reserved: this region's boxes advertise no budget")
 
           _ ->
             changeset
@@ -287,7 +283,7 @@ defmodule Tuist.Kura.EgressLimits do
         Enum.reduce(@form_fields, changeset, fn field, acc ->
           case Changeset.get_field(acc, field) do
             value when is_integer(value) and value > budget ->
-              Changeset.add_error(acc, field, "must not exceed the #{budget} Mbps this region's boxes advertise")
+              Changeset.add_error(acc, field, "must not exceed the box's #{budget} Mbps")
 
             _ ->
               acc
@@ -326,12 +322,11 @@ defmodule Tuist.Kura.EgressLimits do
     with floor_mbps when is_integer(floor_mbps) <- Changeset.get_field(changeset, @floor_field),
          %{replicas: replicas, available_mbps: available, node: node} <- node_headroom(account, region),
          true <- floor_mbps * replicas > available do
-      Changeset.add_error(
-        changeset,
-        @floor_field,
-        "must be at most #{div(available, replicas)} Mbps: each of the #{replicas} replicas reserves it, " <>
-          "and #{node} has #{available} Mbps for this account"
-      )
+      # Short on purpose: this renders inside a table cell, and the row already
+      # carries the same number under the node's limit. The reasoning behind it
+      # belongs in the section's description, not in an error that widens the
+      # table it appears in.
+      Changeset.add_error(changeset, @floor_field, "must be at most #{div(available, replicas)} Mbps on #{node}")
     else
       _ -> changeset
     end

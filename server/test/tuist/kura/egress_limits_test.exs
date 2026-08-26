@@ -188,7 +188,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
       assert {:error, changeset} =
                EgressLimits.cast_override(account, region, %{"kura_egress_floor_mbps" => "2000"})
 
-      assert ["must not exceed the 1000 Mbps this region's boxes advertise"] =
+      assert ["must not exceed the box's 1000 Mbps"] =
                errors_on(changeset).kura_egress_floor_mbps
     end
 
@@ -198,7 +198,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
       assert {:error, changeset} =
                EgressLimits.cast_override(account, region, %{"kura_egress_burst_mbps" => "4000"})
 
-      assert ["must not exceed the 1000 Mbps this region's boxes advertise"] =
+      assert ["must not exceed the box's 1000 Mbps"] =
                errors_on(changeset).kura_egress_burst_mbps
     end
 
@@ -221,7 +221,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
       assert {:error, changeset} =
                EgressLimits.cast_override(account, region, %{"kura_egress_floor_mbps" => "300"})
 
-      assert ["cannot be reserved: this region's boxes advertise no egress budget to schedule it against"] =
+      assert ["cannot be reserved: this region's boxes advertise no budget"] =
                errors_on(changeset).kura_egress_floor_mbps
     end
 
@@ -271,7 +271,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
                  "kura_egress_burst_mbps" => "400"
                })
 
-      assert ["must be at most 250 Mbps: each of the 2 replicas reserves it, and box-1 has 500 Mbps for this account"] =
+      assert ["must be at most 250 Mbps on box-1"] =
                errors_on(changeset).kura_egress_floor_mbps
     end
 
@@ -290,7 +290,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
                  "kura_egress_burst_mbps" => "400"
                })
 
-      assert ["must be at most 250 Mbps: each of the 2 replicas reserves it, and box-1 has 500 Mbps for this account"] =
+      assert ["must be at most 250 Mbps on box-1"] =
                errors_on(changeset).kura_egress_floor_mbps
     end
 
@@ -314,7 +314,7 @@ defmodule Tuist.Kura.EgressLimitsTest do
                  "kura_egress_burst_mbps" => "400"
                })
 
-      assert ["must be at most 150 Mbps: each of the 2 replicas reserves it, and box-1 has 300 Mbps for this account"] =
+      assert ["must be at most 150 Mbps on box-1"] =
                errors_on(changeset).kura_egress_floor_mbps
     end
 

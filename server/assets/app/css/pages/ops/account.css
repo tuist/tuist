@@ -97,6 +97,19 @@
      text cells beside it, which already centre this one vertically. */
   & [data-part="egress-input-cell"] {
     padding-inline: var(--noora-spacing-4);
+
+    /* A validation message under the field is inline-flex, so it sizes to its
+       own content and widens the cell — and with it the table, which then grows
+       a horizontal scrollbar and pushes the other columns out of view. Let it
+       wrap inside the cell instead, with the icon staying on the first line. */
+    & .noora-hint-text {
+      align-items: flex-start;
+
+      & span {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+    }
   }
 
   & #prepaid-minutes-form {

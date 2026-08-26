@@ -134,7 +134,7 @@
                 field={region.form[:kura_egress_floor_mbps]}
                 input_type="number"
                 min={1}
-                max={region.node_mbps}
+                max={egress_max_floor_mbps(region)}
                 placeholder={region.defaults.floor_mbps}
               />
             </div>

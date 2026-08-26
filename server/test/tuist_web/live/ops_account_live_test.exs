@@ -334,7 +334,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
       })
       |> render_submit()
 
-    assert html =~ "must not exceed the 500 Mbps this region&#39;s boxes advertise"
+    assert html =~ "must not exceed the box&#39;s 500 Mbps"
     assert Kura.egress_limits_override(user.account, Kura.region("us-east")) == nil
     assert Kura.egress_limits_override(user.account, Kura.region("eu-central")) == nil
   end
@@ -424,7 +424,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
       })
       |> render_submit()
 
-    assert html =~ "must not exceed the 1000 Mbps this region&#39;s boxes advertise"
+    assert html =~ "must not exceed the box&#39;s 1000 Mbps"
     assert Kura.egress_limits_override(user.account, Kura.region("us-east")) == nil
   end
 
@@ -453,7 +453,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
       })
       |> render_submit()
 
-    assert html =~ "must be at most 250 Mbps"
+    assert html =~ "must be at most 250 Mbps on box-1"
     assert Kura.egress_limits_override(user.account, Kura.region("us-east")) == nil
 
     html =

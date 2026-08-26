@@ -604,6 +604,25 @@ defmodule TuistWeb.OpsAccountLive do
 
   def egress_headroom_label(_headroom), do: nil
 
+  @doc """
+  The highest floor the form will take for a region, for the input's `max`.
+
+  The browser refusing the number is the pleasant half of this check: it says so
+  before the row is submitted, in its own chrome rather than as an error inside a
+  table cell. The server still decides — `max` is a hint a client can ignore, and
+  the reading behind it can go stale between rendering the form and rolling the
+  pods.
+  """
+  def egress_max_floor_mbps(%{headroom: %{available_mbps: available, replicas: replicas}, node_mbps: node_mbps})
+      when is_integer(available) and is_integer(replicas) and replicas > 0 do
+    case node_mbps do
+      mbps when is_integer(mbps) -> min(div(available, replicas), mbps)
+      _ -> div(available, replicas)
+    end
+  end
+
+  def egress_max_floor_mbps(%{node_mbps: node_mbps}), do: node_mbps
+
   defp mbps_label(nil), do: "—"
   defp mbps_label(mbps), do: Integer.to_string(mbps)
 

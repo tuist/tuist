@@ -695,22 +695,22 @@ msgstr ""
 msgid "Air"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:659
+#: lib/tuist_web/live/ops_account_live.ex:678
 #, elixir-autogen, elixir-format
 msgid "Argentina"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:660
+#: lib/tuist_web/live/ops_account_live.ex:679
 #, elixir-autogen, elixir-format
 msgid "Australia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:661
+#: lib/tuist_web/live/ops_account_live.ex:680
 #, elixir-autogen, elixir-format
 msgid "Austria"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:662
+#: lib/tuist_web/live/ops_account_live.ex:681
 #, elixir-autogen, elixir-format
 msgid "Belgium"
 msgstr ""
@@ -722,17 +722,17 @@ msgstr ""
 msgid "Billing email"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:663
+#: lib/tuist_web/live/ops_account_live.ex:682
 #, elixir-autogen, elixir-format
 msgid "Brazil"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:664
+#: lib/tuist_web/live/ops_account_live.ex:683
 #, elixir-autogen, elixir-format
 msgid "Bulgaria"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:665
+#: lib/tuist_web/live/ops_account_live.ex:684
 #, elixir-autogen, elixir-format
 msgid "Canada"
 msgstr ""
@@ -763,12 +763,12 @@ msgstr ""
 msgid "Cancelled"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:666
+#: lib/tuist_web/live/ops_account_live.ex:685
 #, elixir-autogen, elixir-format
 msgid "Chile"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:667
+#: lib/tuist_web/live/ops_account_live.ex:686
 #, elixir-autogen, elixir-format
 msgid "China"
 msgstr ""
@@ -778,7 +778,7 @@ msgstr ""
 msgid "City"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:668
+#: lib/tuist_web/live/ops_account_live.ex:687
 #, elixir-autogen, elixir-format
 msgid "Colombia"
 msgstr ""
@@ -793,7 +793,7 @@ msgstr ""
 msgid "Creates a Stripe customer (if missing), sets the billing address, and starts an invoice-billed Enterprise subscription. The customer receives an invoice by email; no card is collected here."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:669
+#: lib/tuist_web/live/ops_account_live.ex:688
 #, elixir-autogen, elixir-format
 msgid "Croatia"
 msgstr ""
@@ -803,17 +803,17 @@ msgstr ""
 msgid "Current version"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:670
+#: lib/tuist_web/live/ops_account_live.ex:689
 #, elixir-autogen, elixir-format
 msgid "Cyprus"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:671
+#: lib/tuist_web/live/ops_account_live.ex:690
 #, elixir-autogen, elixir-format
 msgid "Czechia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:672
+#: lib/tuist_web/live/ops_account_live.ex:691
 #, elixir-autogen, elixir-format
 msgid "Denmark"
 msgstr ""
@@ -833,7 +833,7 @@ msgstr ""
 msgid "Enterprise"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:673
+#: lib/tuist_web/live/ops_account_live.ex:692
 #, elixir-autogen, elixir-format
 msgid "Estonia"
 msgstr ""
@@ -850,67 +850,67 @@ msgstr ""
 msgid "Finished"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:674
+#: lib/tuist_web/live/ops_account_live.ex:693
 #, elixir-autogen, elixir-format
 msgid "Finland"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:675
+#: lib/tuist_web/live/ops_account_live.ex:694
 #, elixir-autogen, elixir-format
 msgid "France"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:676
+#: lib/tuist_web/live/ops_account_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "Germany"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:677
+#: lib/tuist_web/live/ops_account_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "Greece"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:678
+#: lib/tuist_web/live/ops_account_live.ex:697
 #, elixir-autogen, elixir-format
 msgid "Hong Kong"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:679
+#: lib/tuist_web/live/ops_account_live.ex:698
 #, elixir-autogen, elixir-format
 msgid "Hungary"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:680
+#: lib/tuist_web/live/ops_account_live.ex:699
 #, elixir-autogen, elixir-format
 msgid "Iceland"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:681
+#: lib/tuist_web/live/ops_account_live.ex:700
 #, elixir-autogen, elixir-format
 msgid "India"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:682
+#: lib/tuist_web/live/ops_account_live.ex:701
 #, elixir-autogen, elixir-format
 msgid "Indonesia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:683
+#: lib/tuist_web/live/ops_account_live.ex:702
 #, elixir-autogen, elixir-format
 msgid "Ireland"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:684
+#: lib/tuist_web/live/ops_account_live.ex:703
 #, elixir-autogen, elixir-format
 msgid "Israel"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:685
+#: lib/tuist_web/live/ops_account_live.ex:704
 #, elixir-autogen, elixir-format
 msgid "Italy"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:686
+#: lib/tuist_web/live/ops_account_live.ex:705
 #, elixir-autogen, elixir-format
 msgid "Japan"
 msgstr ""
@@ -930,27 +930,27 @@ msgstr ""
 msgid "Latest deployment"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:687
+#: lib/tuist_web/live/ops_account_live.ex:706
 #, elixir-autogen, elixir-format
 msgid "Latvia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:688
+#: lib/tuist_web/live/ops_account_live.ex:707
 #, elixir-autogen, elixir-format
 msgid "Lithuania"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:689
+#: lib/tuist_web/live/ops_account_live.ex:708
 #, elixir-autogen, elixir-format
 msgid "Luxembourg"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:690
+#: lib/tuist_web/live/ops_account_live.ex:709
 #, elixir-autogen, elixir-format
 msgid "Malaysia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:691
+#: lib/tuist_web/live/ops_account_live.ex:710
 #, elixir-autogen, elixir-format
 msgid "Malta"
 msgstr ""
@@ -960,7 +960,7 @@ msgstr ""
 msgid "Manage on Stripe"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:692
+#: lib/tuist_web/live/ops_account_live.ex:711
 #, elixir-autogen, elixir-format
 msgid "Mexico"
 msgstr ""
@@ -977,12 +977,12 @@ msgstr ""
 msgid "Name on invoice"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:693
+#: lib/tuist_web/live/ops_account_live.ex:712
 #, elixir-autogen, elixir-format
 msgid "Netherlands"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:694
+#: lib/tuist_web/live/ops_account_live.ex:713
 #, elixir-autogen, elixir-format
 msgid "New Zealand"
 msgstr ""
@@ -1016,7 +1016,7 @@ msgstr ""
 msgid "None"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:695
+#: lib/tuist_web/live/ops_account_live.ex:714
 #, elixir-autogen, elixir-format
 msgid "Norway"
 msgstr ""
@@ -1043,7 +1043,7 @@ msgstr ""
 msgid "Pending"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:696
+#: lib/tuist_web/live/ops_account_live.ex:715
 #, elixir-autogen, elixir-format
 msgid "Philippines"
 msgstr ""
@@ -1059,12 +1059,12 @@ msgstr ""
 msgid "Plan & billing"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:697
+#: lib/tuist_web/live/ops_account_live.ex:716
 #, elixir-autogen, elixir-format
 msgid "Poland"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:698
+#: lib/tuist_web/live/ops_account_live.ex:717
 #, elixir-autogen, elixir-format
 msgid "Portugal"
 msgstr ""
@@ -1085,7 +1085,7 @@ msgstr ""
 msgid "Region"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:699
+#: lib/tuist_web/live/ops_account_live.ex:718
 #, elixir-autogen, elixir-format
 msgid "Romania"
 msgstr ""
@@ -1105,32 +1105,32 @@ msgstr ""
 msgid "Select a country"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:700
+#: lib/tuist_web/live/ops_account_live.ex:719
 #, elixir-autogen, elixir-format
 msgid "Singapore"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:701
+#: lib/tuist_web/live/ops_account_live.ex:720
 #, elixir-autogen, elixir-format
 msgid "Slovakia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:702
+#: lib/tuist_web/live/ops_account_live.ex:721
 #, elixir-autogen, elixir-format
 msgid "Slovenia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:703
+#: lib/tuist_web/live/ops_account_live.ex:722
 #, elixir-autogen, elixir-format
 msgid "South Africa"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:704
+#: lib/tuist_web/live/ops_account_live.ex:723
 #, elixir-autogen, elixir-format
 msgid "South Korea"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:705
+#: lib/tuist_web/live/ops_account_live.ex:724
 #, elixir-autogen, elixir-format
 msgid "Spain"
 msgstr ""
@@ -1165,22 +1165,22 @@ msgstr ""
 msgid "Succeeded"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:706
+#: lib/tuist_web/live/ops_account_live.ex:725
 #, elixir-autogen, elixir-format
 msgid "Sweden"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:707
+#: lib/tuist_web/live/ops_account_live.ex:726
 #, elixir-autogen, elixir-format
 msgid "Switzerland"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:708
+#: lib/tuist_web/live/ops_account_live.ex:727
 #, elixir-autogen, elixir-format
 msgid "Taiwan"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:709
+#: lib/tuist_web/live/ops_account_live.ex:728
 #, elixir-autogen, elixir-format
 msgid "Thailand"
 msgstr ""
@@ -1190,7 +1190,7 @@ msgstr ""
 msgid "Trialing"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:710
+#: lib/tuist_web/live/ops_account_live.ex:729
 #, elixir-autogen, elixir-format
 msgid "Turkey"
 msgstr ""
@@ -1206,22 +1206,22 @@ msgstr ""
 msgid "URL"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:711
+#: lib/tuist_web/live/ops_account_live.ex:730
 #, elixir-autogen, elixir-format
 msgid "Ukraine"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:712
+#: lib/tuist_web/live/ops_account_live.ex:731
 #, elixir-autogen, elixir-format
 msgid "United Arab Emirates"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:713
+#: lib/tuist_web/live/ops_account_live.ex:732
 #, elixir-autogen, elixir-format
 msgid "United Kingdom"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:714
+#: lib/tuist_web/live/ops_account_live.ex:733
 #, elixir-autogen, elixir-format
 msgid "United States"
 msgstr ""
@@ -1237,7 +1237,7 @@ msgstr ""
 msgid "Upgrade to Enterprise"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:715
+#: lib/tuist_web/live/ops_account_live.ex:734
 #, elixir-autogen, elixir-format
 msgid "Uruguay"
 msgstr ""
@@ -1247,7 +1247,7 @@ msgstr ""
 msgid "User"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:716
+#: lib/tuist_web/live/ops_account_live.ex:735
 #, elixir-autogen, elixir-format
 msgid "Vietnam"
 msgstr ""
@@ -1967,7 +1967,7 @@ msgstr ""
 msgid "Kura disk claim could not be updated."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:621
+#: lib/tuist_web/live/ops_account_live.ex:640
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim set to %{claim}. No running instance changed; it applies the next time volumes are built."
 msgstr ""
@@ -1982,14 +1982,14 @@ msgstr ""
 msgid "Each replica reserves this much disk. Leave it empty to size the account from its plan. Raising it replaces volumes one replica at a time, so the standby keeps serving and the rebuilt replica refills from it; lowering it keeps the cache and evicts down."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:629
+#: lib/tuist_web/live/ops_account_live.ex:648
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim lowered to %{claim}. %{count} running instance keeps its cache and evicts down to the new budget."
 msgid_plural "Kura disk claim lowered to %{claim}. %{count} running instances keep their caches and evict down to the new budget."
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/ops_account_live.ex:644
+#: lib/tuist_web/live/ops_account_live.ex:663
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim raised to %{claim}. Up to %{count} running instance rebuilds its volumes, one replica at a time behind the standby that keeps serving."
 msgid_plural "Kura disk claim raised to %{claim}. Up to %{count} running instances rebuild their volumes, one replica at a time behind the standby that keeps serving."
