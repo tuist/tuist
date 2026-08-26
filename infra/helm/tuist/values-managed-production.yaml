@@ -665,8 +665,15 @@ xcresultProcessor:
     # was being dropped before it left the VM. This is the tailnet hostname of
     # the Tailscale-operator proxy in front of the same receiver Service, set
     # up in the k8s-monitoring chart's production values.
+    #
+    # Fully qualified, not the bare MagicDNS label. The bare form only
+    # resolves when the tailnet search domain is in the guest's resolver,
+    # and on these VMs it is not: tailscaled sets DNS up at boot, so a
+    # short name resolves for the first few minutes and then stops. That
+    # is what the host-side `macosFleet.hostLogs.url` below has always
+    # used, and why host logs kept flowing while the guest's did not.
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://tuist-alloy-receiver-production:4317
+      value: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:4317
     # Push logs to the same tailnet-fronted Alloy. Setting this attaches the
     # in-process handler in Tuist.Application.start_loki_logger/0, which is
     # the only way these pods can ship logs: Alloy cannot tail a Tart guest
@@ -675,7 +682,7 @@ xcresultProcessor:
     # k8s-monitoring chart exposes on 3100. No credentials here: Alloy
     # forwards to Grafana Cloud with the ones it already holds.
     - name: TUIST_LOKI_URL
-      value: http://tuist-alloy-receiver-production:3100
+      value: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:3100
 
 # Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
 # Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to

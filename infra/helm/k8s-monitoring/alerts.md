@@ -1058,6 +1058,89 @@ plugin, the scrape, or the queue's registration went away, not that the
 queue is idle. Production only: staging and canary can legitimately run
 with no processor deployment at all.
 
+### Remote processing queue consumer takes work but completes none
+
+The rule above keys on the queue, which is the right shape when *every*
+consumer is gone. It is blind when one of several is broken: the healthy
+peers keep `available` at zero, so queue depth, queue age and every
+readiness signal read perfectly normal while a fraction of jobs is
+quietly destroyed.
+
+On 2026-08-25 one of the two production xcresult processors entered a
+state where every parse blocked for the full 600s NIF deadline. It
+completed zero jobs for fourteen hours while its sibling completed 84 to
+218 an hour. Nothing fired. Host CPU was flat at 2.5 of 10 cores (a
+wedged parse burns none, which is what distinguishes it from a slow
+one), the Pod stayed `1/1 Running` with zero restarts, and
+`queue_oldest_available_age_seconds` sat at zero throughout because the
+queue genuinely was being drained, just not by both consumers. It was
+found by hand, from `oban_jobs.attempted_by`.
+
+```promql
+count by (cluster, env, queue, node) (
+  (
+    time() - max by (cluster, env, queue, node) (
+      tuist_oban_node_last_attempt_timestamp_seconds{
+        cluster="tuist-production",
+        queue=~"process_xcresult|process_build"
+      }
+    ) < 900
+  )
+  unless
+  (
+    time() - max by (cluster, env, queue, node) (
+      tuist_oban_node_last_completion_timestamp_seconds{
+        cluster="tuist-production",
+        queue=~"process_xcresult|process_build"
+      }
+    ) < 900
+  )
+) > 0
+```
+
+- Pending period: 5 minutes
+- Keep firing for: 5 minutes
+- Severity: critical
+- Summary: `{{ $labels.node }} has been taking {{ $labels.queue }} jobs
+  without completing any for over 15 minutes`
+
+The `count by` wrapper exists to give the threshold something to compare.
+The inner expression's own value is seconds since the node's last
+attempt, which is bounded by the `< 900` filter and can legitimately be
+`0`, so thresholding it directly would need a negative bound to mean
+"any series at all". Wrapping yields exactly `1` per wedged consumer and
+`> 0` then reads as what it is.
+
+Production only, unlike the queue rule above, because this one pages.
+A wedged consumer on canary or staging is worth knowing about and is not
+worth waking someone for; neither serves customer traffic.
+
+Read it as: this node started a job recently, and did not finish one
+recently. Both halves are load-bearing. Without the attempt clause an
+idle node on a quiet queue looks identical to a wedged one, because
+"time since last completion" climbs in both cases. `unless` rather than
+a second comparison is what makes the rule cover a node that wedges
+*before* its first completion: that node has no completion series at
+all, and an `and` against a missing series matches nothing.
+
+Both gauges are absolute unix timestamps rather than elapsed seconds, so
+they need no state between events and no scan of `oban_jobs`, which
+matters: the table is multi-gigabyte and neither `attempted_by` nor
+`completed_at` is indexed, so the per-node question cannot be answered
+from the polling side at all. `node` is Oban's own node name, the value
+it writes into `oban_jobs.attempted_by`, so the alert names the row to
+go and query.
+
+Unlike the queue rules, these are emitted by the consumer about itself,
+so a consumer that stops serving metrics entirely produces no series
+rather than a firing alert. That gap is deliberately left to the
+`xcresult processor guest metrics unavailable` rules below, which key on
+`up` and already cover it.
+
+15 minutes for the same reason as the queue rule: the NIF's own parse
+deadline is 600s plus a 30s cancellation grace, so a single legitimately
+slow job cannot reach it.
+
 ### Swift registry catalog coverage deferred
 
 Same shape as the queue rule above, for the writer rather than a
