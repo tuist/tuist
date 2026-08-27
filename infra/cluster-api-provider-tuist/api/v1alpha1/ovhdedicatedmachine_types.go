@@ -80,6 +80,16 @@ type OVHDedicatedMachineSpec struct {
 	// +optional
 	VRackID string `json:"vRackID,omitempty"`
 
+	// KataRuntime provisions the box to run microVM-isolated Pods: it installs
+	// kata-static under /opt/kata, registers the kata-qemu handler with
+	// containerd, and adds the `katacontainers.io/kata-runtime` label the
+	// kata-qemu RuntimeClass selects on. Required for a Linux runner pool, since
+	// every runner Pod carries `runtimeClassName: kata-qemu` and a node without
+	// the label never matches that RuntimeClass. Cache fleets leave it false and
+	// skip the download entirely.
+	// +optional
+	KataRuntime bool `json:"kataRuntime,omitempty"`
+
 	// EgressBudgetMbps is the throughput, in Mbps, this box may assign across
 	// the Kura pods it hosts — its NIC ceiling minus headroom. When set, the
 	// controller advertises it as the Node's `tuist.dev/egress-mbps` extended

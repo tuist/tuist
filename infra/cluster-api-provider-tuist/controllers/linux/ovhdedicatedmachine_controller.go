@@ -239,6 +239,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			ClusterCAPEM:   identity.CA,
 			K8sMinor:       firstNonEmpty(r.KubernetesMinor, "v1.34"),
 			Taints:         machine.Spec.NodeTaints,
+			KataRuntime:    machine.Spec.KataRuntime,
 			BootstrapUser:  ovhBootstrapUser,
 			ClusterDNS:     discoverClusterDNS(ctx, r.APIReader),
 			InstanceType:   ovhInstanceType,

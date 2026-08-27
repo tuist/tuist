@@ -1453,6 +1453,12 @@ ovhFleet:
 # node registers with. Unset renders `tuist.dev/kura-cache=true:NoSchedule`, the
 # cache-region shape; set it on a fleet that is not a cache region, which also
 # keeps that pool out of the cache-only surfaces keyed off this map.
+#
+# `machine.kataRuntime` installs kata-static and registers the kata-qemu
+# containerd handler in the self-join, and labels the node
+# `katacontainers.io/kata-runtime=true`. Required for a Linux runner pool (every
+# runner Pod carries `runtimeClassName: kata-qemu`, and the RuntimeClass selects
+# on that label); leave it off for cache fleets so they skip the download.
 ovhFleets: {}
 
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.

@@ -853,7 +853,12 @@ ovhFleets:
   # re-check it before raising slots per box rather than box count.
   runners-linux:
     enabled: true
-    replicas: 1
+    # 0 until a RISE-L is ordered, prepped and marked for production. An enabled
+    # fleet with no adoptable box parks the MachineDeployment at 0/1, which
+    # wedges `helm --wait` into an --atomic rollback — the documented cold-start
+    # trap. The dig-based template preserves an explicit 0, so this is the safe
+    # value; raise it to the box count once `baremetal:prep-ovh` has marked them.
+    replicas: 0
     # Same OVHcloud US entity as the cache fleets above, which the RISE range's
     # EU-datacenter plan codes (25risel01-v1-eu, 25rises01-v1-eu) are orderable
     # under. That is what lets a Gravelines box share the one OVH_ENDPOINT the
@@ -878,6 +883,12 @@ ovhFleets:
       # configuration is not offered in Limburg at all.
       datacenter: gra
       os: ubuntu_24.04
+      # Runner Pods carry `runtimeClassName: kata-qemu`, whose RuntimeClass
+      # selects on `katacontainers.io/kata-runtime=true`. The self-join installs
+      # kata-static, registers the kata-qemu containerd handler, and applies that
+      # label. Without it the box joins Ready and every runner Pod stays
+      # unschedulable, which is the failure this flag exists to prevent.
+      kataRuntime: true
       # The box joins with BOTH: runner-tier is the steady-state taint the
       # AX162-R hosts carry, so the DaemonSets that already tolerate it (alloy,
       # kata-deploy) treat this box like any other runner host; fleet-bringup is

@@ -47,6 +47,9 @@ spec:
       {{- with $fleet.machine.egressBudgetMbps }}
       egressBudgetMbps: {{ . }}
       {{- end }}
+      {{- if $fleet.machine.kataRuntime }}
+      kataRuntime: true
+      {{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment

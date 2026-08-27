@@ -511,7 +511,11 @@ ovhFleets:
   # today.
   runners-linux:
     enabled: true
-    replicas: 1
+    # 0 until a RISE-S is ordered, prepped and marked for canary. An enabled
+    # fleet with no adoptable box parks the MachineDeployment at 0/1, which
+    # wedges `helm --wait` into an --atomic rollback. Raise it once
+    # `baremetal:prep-ovh` has marked a box.
+    replicas: 0
     # Same entity as the ca-east fleet above: the RISE range's EU-datacenter
     # plan codes (25rises01-v1-eu) are orderable on OVHcloud US, so a Gravelines
     # box needs no second endpoint.
@@ -531,6 +535,12 @@ ovhFleets:
       # price lists show.
       datacenter: gra
       os: ubuntu_24.04
+      # Runner Pods carry `runtimeClassName: kata-qemu`, whose RuntimeClass
+      # selects on `katacontainers.io/kata-runtime=true`. The self-join installs
+      # kata-static, registers the kata-qemu containerd handler, and applies that
+      # label. Without it the box joins Ready and every runner Pod stays
+      # unschedulable, which is the failure this flag exists to prevent.
+      kataRuntime: true
       # runner-tier is the steady-state taint the bare-metal runner hosts carry;
       # fleet-bringup is the holdout nothing tolerates, and dropping it is what
       # puts the box into service.

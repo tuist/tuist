@@ -590,10 +590,10 @@ ovhFleets:
   # third of the cost. Staging does not need production throughput; it needs to
   # run the production integration.
   #
-  # THIS FLEET SCHEDULES NOTHING. The box joins tainted and carries its own pool
-  # label, so no Runner Profile, RunnerPool, or other workload can land on it.
-  # Nothing here touches the tuist-bm-staging-* bare-metal hosts serving the
-  # fleet today.
+  # IN SERVICE on staging, unlike production and canary. Staging is where the
+  # box is proven by running real jobs, so it carries the same pool label as the
+  # tuist-bm-staging-* hosts and only the steady-state runner-tier taint. The
+  # other two envs keep the fleet-bringup holdout until this has run here.
   runners-linux:
     enabled: true
     replicas: 1
@@ -601,10 +601,11 @@ ovhFleets:
     # plan codes (25rises01-v1-eu) are orderable on OVHcloud US, so a Gravelines
     # box needs no second endpoint.
     endpoint: ovh-us
-    # Deliberately NOT runners-linux, the pool the Linux Runner Profiles select
-    # on. Putting the box in service is renaming this (or repointing the
-    # profiles at it), as one reviewed step.
-    nodePool: runners-linux-ovh
+    # The same pool the Hetzner tuist-bm-staging-* hosts carry, so the existing
+    # Linux Runner Profiles dispatch across both fleets and real jobs exercise
+    # the OVH box. Production and canary stay on the out-of-service
+    # `runners-linux-ovh` pool until that has been proven here.
+    nodePool: runners-linux
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-staging
       # Case-insensitive substring of the box's commercialRange; the range alone
@@ -616,15 +617,18 @@ ovhFleets:
       # price lists show.
       datacenter: gra
       os: ubuntu_24.04
-      # runner-tier is the steady-state taint the bare-metal runner hosts carry;
-      # fleet-bringup is the holdout nothing tolerates, and dropping it is what
-      # puts the box into service.
+      # Runner Pods carry `runtimeClassName: kata-qemu`, whose RuntimeClass
+      # selects on `katacontainers.io/kata-runtime=true`. The self-join installs
+      # kata-static, registers the kata-qemu containerd handler, and applies that
+      # label. Without it the box joins Ready and every runner Pod stays
+      # unschedulable, which is the failure this flag exists to prevent.
+      kataRuntime: true
+      # Only the steady-state runner-tier taint, which runner Pods tolerate and
+      # nothing else does. The fleet-bringup holdout production and canary still
+      # carry is deliberately absent here.
       nodeTaints:
         - key: tuist.dev/runner-tier
           value: bare-metal
-          effect: NoSchedule
-        - key: tuist.dev/fleet-bringup
-          value: "true"
           effect: NoSchedule
       # Unset egressBudgetMbps: it advertises tuist.dev/egress-mbps for Kura
       # cache pod bin-packing and no cache pod runs here. RISE-S also has no
