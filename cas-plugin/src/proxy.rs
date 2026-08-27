@@ -35,6 +35,14 @@ use crate::PublishRecord;
 // well above a single warm build's working set (a warm build touches ~1.9M
 // known-local digests total, i.e. ~60k per shard), so within-build warmth is
 // preserved and only cross-build accumulation is reclaimed.
+/// How often the proxy re-asks where the account's cache is.
+///
+/// Well inside the drain a region gets when an account's cache is placed
+/// elsewhere, so a move is picked up while the old region is still serving and
+/// nothing has to fail first. This process is a per-machine daemon and can
+/// outlive several such moves.
+pub const ENDPOINT_REFRESH_INTERVAL: Duration = Duration::from_secs(600);
+
 const MAX_RESOLVED: usize = 1_000_000;
 const MAX_KNOWN_LOCAL_PER_SHARD: usize = 250_000;
 const MAX_PUBLISH_CACHE: usize = 500_000;
@@ -1343,6 +1351,14 @@ impl Proxy {
         if let Some(remote) = self.remotes.lock().unwrap().get(instance) {
             return remote.clone();
         }
+        // First sight of this instance. On a proxy whose registry was empty at
+        // startup this is the first moment anything is known to serve, so the
+        // maintenance sweep has had nothing to resolve for and the endpoint is
+        // still the one this process was launched with -- which may be a region
+        // the account has since left. Resolved before a client is bound to it,
+        // not after the client has started missing. The lock above is released;
+        // adopting a moved endpoint takes it.
+        self.ensure_endpoint_fresh(instance);
         let remote = Remote::new(
             RemoteConfig {
                 grpc_url: self.grpc_url.read().unwrap().clone(),
@@ -2990,25 +3006,52 @@ impl Proxy {
     /// out or offline says nothing about where the cache went, and dropping a
     /// working endpoint on its say-so would turn a local problem into a cold
     /// cache.
-    pub fn refresh_endpoint(&self, interval: Duration) {
+    pub fn refresh_endpoint(&self) {
+        let Some(instance) = self.remotes.lock().unwrap().keys().next().cloned() else {
+            // Nothing is being served, so nothing depends on the answer. First
+            // sight of an instance resolves before binding a client to it.
+            return;
+        };
+        self.ensure_endpoint_fresh(&instance);
+    }
+
+    /// Re-resolves the endpoint for `instance` unless it was resolved within
+    /// `ENDPOINT_REFRESH_INTERVAL`.
+    ///
+    /// The endpoint is per-account and every instance this proxy serves shares
+    /// it, so any of them answers the question; the caller passes the one it
+    /// has, which is what lets first sight resolve before there is anything in
+    /// the client map to look one up from.
+    ///
+    /// Never called with a lock held: adopting a moved endpoint takes the
+    /// client map.
+    fn ensure_endpoint_fresh(&self, instance: &str) {
         let Some(fetch) = self.tokens.cli_fetch() else {
             return;
         };
-        let now = crate::reapi::now_ms();
-        let last = self.endpoint_resolved_at_ms.load(Ordering::Relaxed);
-        if last != 0 && now.saturating_sub(last) < interval.as_millis() as u64 {
+        if !self.claim_endpoint_resolution(crate::reapi::now_ms(), ENDPOINT_REFRESH_INTERVAL) {
             return;
         }
-        let Some(instance) = self.remotes.lock().unwrap().keys().next().cloned() else {
-            return;
-        };
-        self.endpoint_resolved_at_ms.store(now, Ordering::Relaxed);
-
         if let Some(resolved) =
-            crate::endpoint::resolve(&fetch.tuist_bin, fetch.server_url.as_deref(), &instance)
+            crate::endpoint::resolve(&fetch.tuist_bin, fetch.server_url.as_deref(), instance)
         {
             self.adopt_endpoint(resolved);
         }
+    }
+
+    /// Whether this caller should do the resolution, stamping the attempt when
+    /// it says yes.
+    ///
+    /// Stamped on the attempt rather than on success, so a CLI that is slow or
+    /// failing is retried on the interval instead of on every request that
+    /// finds the endpoint unresolved.
+    fn claim_endpoint_resolution(&self, now: u64, interval: Duration) -> bool {
+        let last = self.endpoint_resolved_at_ms.load(Ordering::Relaxed);
+        if last != 0 && now.saturating_sub(last) < interval.as_millis() as u64 {
+            return false;
+        }
+        self.endpoint_resolved_at_ms.store(now, Ordering::Relaxed);
+        true
     }
 
     /// Points the proxy at `resolved`, returning whether it was a move.
@@ -5123,6 +5166,34 @@ mod tests {
 
     // A Proxy with no remote: the wipe tests only drive `check_generation`,
     // which is local-only (restat, rebind, drop marks).
+    #[test]
+    fn the_endpoint_is_resolved_once_per_interval_not_once_per_request() {
+        // Every first sight of an instance asks, and on a busy proxy that is
+        // often. Resolution shells out to the CLI, so the interval is what
+        // keeps it from becoming a process spawn per request.
+        let proxy = test_proxy();
+        let interval = Duration::from_secs(600);
+        let start = 1_000_000_u64;
+
+        assert!(proxy.claim_endpoint_resolution(start, interval));
+        assert!(!proxy.claim_endpoint_resolution(start + 1, interval));
+        assert!(!proxy.claim_endpoint_resolution(start + 599_999, interval));
+        assert!(proxy.claim_endpoint_resolution(start + 600_000, interval));
+    }
+
+    #[test]
+    fn a_failing_resolution_is_retried_on_the_interval_not_on_every_request() {
+        // The stamp is taken on the attempt, not on success. Stamping only on
+        // success would spawn the CLI for every request while it is failing —
+        // exactly when the machine is least able to afford it.
+        let proxy = test_proxy();
+        let interval = Duration::from_secs(600);
+
+        assert!(proxy.claim_endpoint_resolution(1_000_000, interval));
+        // No adoption follows; the next caller still has to wait its turn.
+        assert!(!proxy.claim_endpoint_resolution(1_000_100, interval));
+    }
+
     #[test]
     fn adopting_a_moved_endpoint_drops_the_clients_bound_to_the_old_one() {
         // A client holds a channel opened against the address it was built
