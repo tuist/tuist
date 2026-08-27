@@ -221,41 +221,71 @@ defmodule Tuist.Accounts do
     )
   end
 
-  def get_organization_members(%Organization{id: organization_id}, role) do
-    query =
-      from(user_role in UserRole,
-        join: r in Role,
-        on: r.resource_type == "Organization" and r.resource_id == ^organization_id,
-        join: u in User,
-        on: user_role.user_id == u.id,
-        on: user_role.role_id == r.id,
-        where: r.name == ^Atom.to_string(role) and r.resource_type == "Organization",
-        select: u
+  def get_organization_members(%Organization{id: organization_id} = organization, role) do
+    stored_members =
+      Repo.all(
+        from(user_role in UserRole,
+          join: r in Role,
+          on: r.resource_type == "Organization" and r.resource_id == ^organization_id,
+          join: u in User,
+          on: user_role.user_id == u.id,
+          on: user_role.role_id == r.id,
+          where: r.name == ^Atom.to_string(role) and r.resource_type == "Organization",
+          select: u
+        )
       )
 
-    invited_members = Repo.all(query)
+    # A member SSO enrolled without a role row of their own resolves to the
+    # organization's configured enrollment role, the same one
+    # `organization_user?/2` and `organization_viewer?/2` answer with, so they
+    # are listed under that role and no other. Anyone holding a stored role is
+    # already covered by it above, whatever that role is.
+    members =
+      if sso_default_role(organization) == Atom.to_string(role) do
+        stored_members ++ sso_enrolled_members_without_role(organization)
+      else
+        stored_members
+      end
 
-    case role do
-      :admin ->
-        Repo.preload(invited_members, :account)
+    Repo.preload(members, :account)
+  end
 
-      :user ->
-        invited_members_ids = Enum.map(invited_members, & &1.id)
+  # "Holds no role in this organization" has to be an anti-join rather than a
+  # left join tested for nil: a left join over the user's roles produces a
+  # non-matching row for every role they hold elsewhere, so a viewer who is also
+  # a member of another organization would satisfy `is_nil(r.id)` and be counted
+  # under the enrollment role as well as their own.
+  #
+  # Eligibility is then the same predicate the membership checks apply, so an
+  # organization that has automatic enrollment switched off lists nobody here,
+  # matching `organization_user?/2` and `organization_viewer?/2` answering false
+  # for those identities.
+  defp sso_enrolled_members_without_role(%Organization{id: organization_id} = organization) do
+    stored_role_for_organization =
+      from(ur in UserRole,
+        join: r in Role,
+        on: r.id == ur.role_id,
+        where:
+          ur.user_id == parent_as(:sso_user).id and r.resource_type == "Organization" and
+            r.resource_id == ^organization_id,
+        select: 1
+      )
 
-        oauth2_identity_query =
-          from(u in User,
-            join: oauth in Oauth2Identity,
-            on: oauth.user_id == u.id,
-            join: org in Organization,
-            on:
-              org.id == ^organization_id and
-                oauth.provider_organization_id == org.sso_organization_id and
-                oauth.provider == org.sso_provider,
-            where: org.id == ^organization_id and u.id not in ^invited_members_ids
-          )
-
-        Repo.preload(invited_members ++ Repo.all(oauth2_identity_query), :account)
-    end
+    from(u in User,
+      as: :sso_user,
+      join: oauth in Oauth2Identity,
+      on: oauth.user_id == u.id,
+      join: org in Organization,
+      on:
+        org.id == ^organization_id and
+          oauth.provider_organization_id == org.sso_organization_id and
+          oauth.provider == org.sso_provider,
+      where: not exists(stored_role_for_organization),
+      distinct: u.id,
+      select: u
+    )
+    |> Repo.all()
+    |> Enum.filter(&sso_automatic_enrollment_allowed?(organization, &1.email))
   end
 
   @doc """
@@ -548,6 +578,7 @@ defmodule Tuist.Accounts do
     sso_login_domain_verification_token = Keyword.get(opts, :sso_login_domain_verification_token)
     sso_login_domain_verified_at = Keyword.get(opts, :sso_login_domain_verified_at)
     sso_automatic_enrollment = Keyword.get(opts, :sso_automatic_enrollment, false)
+    sso_default_role = Keyword.get(opts, :sso_default_role, "user")
     sso_legacy_email_domain_fallback = Keyword.get(opts, :sso_legacy_email_domain_fallback, false)
     oauth2_client_id = Keyword.get(opts, :oauth2_client_id)
     oauth2_client_secret = Keyword.get(opts, :oauth2_client_secret)
@@ -569,6 +600,7 @@ defmodule Tuist.Accounts do
         sso_login_domain_verification_token: sso_login_domain_verification_token,
         sso_login_domain_verified_at: sso_login_domain_verified_at,
         sso_automatic_enrollment: sso_automatic_enrollment,
+        sso_default_role: sso_default_role,
         sso_legacy_email_domain_fallback: sso_legacy_email_domain_fallback,
         oauth2_client_id: oauth2_client_id,
         oauth2_encrypted_client_secret: oauth2_client_secret,
@@ -1091,7 +1123,11 @@ defmodule Tuist.Accounts do
     if organization &&
          (not is_nil(get_user_role_in_organization(user, organization)) ||
             sso_automatic_enrollment_allowed?(organization, user.email)) do
-      add_user_to_organization(user, organization, role: :user)
+      # The organization's configured enrollment role, `user` unless it was
+      # changed. It only applies to members with no role row yet:
+      # `add_user_to_organization/3` is a no-op once a role exists, so a role an
+      # admin set by hand survives the member's next login.
+      add_user_to_organization(user, organization, role: sso_enrollment_role(organization))
     end
   end
 
@@ -1132,8 +1168,10 @@ defmodule Tuist.Accounts do
       |> find_unassigned_sso_users(provider, provider_organization_id)
       |> Enum.filter(&sso_automatic_enrollment_allowed?(organization, &1.email))
 
+    role = sso_enrollment_role(organization)
+
     Enum.each(users, fn user ->
-      add_user_to_organization(user, organization, role: :user)
+      add_user_to_organization(user, organization, role: role)
     end)
 
     length(users)
@@ -1175,54 +1213,61 @@ defmodule Tuist.Accounts do
   # already holds both answers it without touching the database. Resolving cache
   # grants walks every accessible project, and those projects share a handful of
   # accounts, so re-reading the account per project dominated the call.
-  def owns_account_or_belongs_to_account_organization?(
-        user,
-        %Account{organization: %Organization{} = organization} = account
-      ) do
-    owns_account?(user, account) or organization_admin?(user, organization) or
-      organization_user?(user, organization)
+  def owns_account_or_belongs_to_account_organization?(user, account) do
+    owns_account_or_holds_organization_role?(user, account, [:admin, :user])
   end
 
-  def owns_account_or_belongs_to_account_organization?(user, %Account{organization: nil} = account) do
+  def owns_account_or_is_admin_to_account_organization?(user, account) do
+    owns_account_or_holds_organization_role?(user, account, [:admin])
+  end
+
+  @doc """
+  Whether the user is a read-only viewer of the account's organization. Backs the
+  `user_role: :viewer` policy condition, which is granted on read actions only.
+  """
+  def owns_account_or_is_viewer_of_account_organization?(user, account) do
+    owns_account_or_holds_organization_role?(user, account, [:viewer])
+  end
+
+  @doc """
+  Whether the user holds any organization role, `viewer` included. Use this where
+  the question is membership rather than what the member is allowed to do.
+  """
+  def owns_account_or_is_member_of_account_organization?(user, account) do
+    owns_account_or_holds_organization_role?(user, account, [:admin, :user, :viewer])
+  end
+
+  defp owns_account_or_holds_organization_role?(
+         user,
+         %Account{organization: %Organization{} = organization} = account,
+         roles
+       ) do
+    owns_account?(user, account) or holds_any_organization_role?(user, organization, roles)
+  end
+
+  defp owns_account_or_holds_organization_role?(user, %Account{organization: nil} = account, _roles) do
     owns_account?(user, account)
   end
 
-  def owns_account_or_belongs_to_account_organization?(user, %{id: account_id}) do
+  defp owns_account_or_holds_organization_role?(user, %{id: account_id}, roles) do
     case get_account_by_id(account_id, preload: [:organization]) do
       {:ok, %Account{organization: nil} = account} ->
         owns_account?(user, account)
 
       {:ok, %Account{organization: organization} = account} ->
-        owns_account?(user, account) or organization_admin?(user, organization) or
-          organization_user?(user, organization)
+        owns_account?(user, account) or holds_any_organization_role?(user, organization, roles)
 
       {:error, :not_found} ->
         false
     end
   end
 
-  def owns_account_or_is_admin_to_account_organization?(
-        user,
-        %Account{organization: %Organization{} = organization} = account
-      ) do
-    owns_account?(user, account) or organization_admin?(user, organization)
-  end
-
-  def owns_account_or_is_admin_to_account_organization?(user, %Account{organization: nil} = account) do
-    owns_account?(user, account)
-  end
-
-  def owns_account_or_is_admin_to_account_organization?(user, %{id: account_id}) do
-    case get_account_by_id(account_id, preload: [:organization]) do
-      {:ok, %Account{organization: nil} = account} ->
-        owns_account?(user, account)
-
-      {:ok, %Account{organization: organization} = account} ->
-        owns_account?(user, account) or organization_admin?(user, organization)
-
-      {:error, :not_found} ->
-        false
-    end
+  defp holds_any_organization_role?(user, organization, roles) do
+    Enum.any?(roles, fn
+      :admin -> organization_admin?(user, organization)
+      :user -> organization_user?(user, organization)
+      :viewer -> organization_viewer?(user, organization)
+    end)
   end
 
   defp owns_account?(user, account) do
@@ -1364,6 +1409,7 @@ defmodule Tuist.Accounts do
       when is_function(url_fun, 1) do
     account = get_account_from_organization(organization)
     token = Keyword.get(opts, :token, Tuist.Tokens.generate_token(16))
+    role = opts |> Keyword.get(:role, :user) |> to_string()
 
     invitation =
       %Invitation{}
@@ -1371,7 +1417,8 @@ defmodule Tuist.Accounts do
         token: token,
         invitee_email: email,
         inviter_id: user_id,
-        organization_id: organization_id
+        organization_id: organization_id,
+        role: role
       })
       |> Repo.insert()
 
@@ -1409,12 +1456,13 @@ defmodule Tuist.Accounts do
 
   def invitation_expired?(%Invitation{} = invitation), do: Invitation.expired?(invitation)
 
-  def invite_users_to_organization(emails, %{
-        inviter: %User{id: user_id} = inviter,
-        to: %Organization{id: organization_id} = organization,
-        url: url_fun
-      }) do
+  def invite_users_to_organization(
+        emails,
+        %{inviter: %User{id: user_id} = inviter, to: %Organization{id: organization_id} = organization, url: url_fun},
+        opts \\ []
+      ) do
     account = get_account_from_organization(organization)
+    role = opts |> Keyword.get(:role, :user) |> to_string()
 
     multi =
       Enum.reduce(emails, Multi.new(), fn email, multi_acc ->
@@ -1425,7 +1473,8 @@ defmodule Tuist.Accounts do
             token: token,
             invitee_email: email,
             inviter_id: user_id,
-            organization_id: organization_id
+            organization_id: organization_id,
+            role: role
           })
 
         Multi.insert(multi_acc, {:invitation, email}, invitation_changeset)
@@ -1472,7 +1521,7 @@ defmodule Tuist.Accounts do
         if Invitation.expired?(invitation) do
           {:error, :expired}
         else
-          add_user_to_organization(invitee, organization)
+          add_user_to_organization(invitee, organization, role: String.to_existing_atom(invitation.role))
           Repo.delete(invitation)
         end
     end
@@ -1511,7 +1560,8 @@ defmodule Tuist.Accounts do
   end
 
   def belongs_to_organization?(%User{} = user, %Organization{} = organization) do
-    organization_user?(user, organization) or organization_admin?(user, organization)
+    organization_user?(user, organization) or organization_admin?(user, organization) or
+      organization_viewer?(user, organization)
   end
 
   def belongs_to_sso_organization?(%User{} = user, %Organization{} = organization) do
@@ -1645,9 +1695,59 @@ defmodule Tuist.Accounts do
 
   def organization_user?(%User{} = user, %Organization{} = organization) do
     holds_organization_role?(user, organization, "user") or
-      (sso_automatic_enrollment_allowed?(organization, user.email) and
-         belongs_to_sso_organization?(user, organization))
+      holds_sso_enrollment_role?(user, organization, "user")
   end
+
+  def organization_viewer?(%User{} = user, %Organization{} = organization) do
+    holds_organization_role?(user, organization, "viewer") or
+      holds_sso_enrollment_role?(user, organization, "viewer")
+  end
+
+  @doc """
+  The role a member gets when SSO automatic enrollment adds them to the
+  organization. Defaults to `user`, and can be set to `viewer` so that an
+  organization can open SSO up to everyone without handing out write access.
+  Never `admin`: see `Tuist.Accounts.Organization`.
+  """
+  def sso_default_role(%Organization{sso_default_role: role}) when role in ["user", "viewer"], do: role
+  def sso_default_role(%Organization{}), do: "user"
+
+  defp sso_enrollment_role(%Organization{} = organization) do
+    organization |> sso_default_role() |> String.to_existing_atom()
+  end
+
+  # SSO automatic enrollment resolves a role for members that have no role row
+  # of their own, which is how a user signing in through SSO gets access before
+  # anything has been written for them. A stored role always wins, so promoting
+  # or demoting a member is not undone by their next login.
+  defp holds_sso_enrollment_role?(%User{} = user, %Organization{} = organization, name) do
+    sso_default_role(organization) == name and
+      sso_automatic_enrollment_allowed?(organization, user.email) and
+      belongs_to_sso_organization?(user, organization) and
+      not holds_any_stored_organization_role?(user, organization)
+  end
+
+  defp holds_any_stored_organization_role?(%User{organization_roles: roles}, %Organization{id: organization_id})
+       when is_map(roles) do
+    Map.get(roles, organization_id, []) != []
+  end
+
+  defp holds_any_stored_organization_role?(%User{id: user_id}, %Organization{id: organization_id}) do
+    Repo.exists?(
+      from(u in UserRole,
+        join: r in Role,
+        on: u.role_id == r.id,
+        where:
+          u.user_id == ^user_id and r.resource_type == "Organization" and
+            r.resource_id == ^organization_id
+      )
+    )
+  end
+
+  @doc """
+  The role names an organization membership can hold.
+  """
+  defdelegate organization_role_names(), to: Role, as: :names
 
   @doc """
   Resolves every organization role the user holds in one query and attaches it

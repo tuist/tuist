@@ -4,6 +4,9 @@ defmodule TuistWeb.TestCaseLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Accounts
+  alias Tuist.Tests
+  alias TuistTestSupport.Cases.ConnCase
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -21,7 +24,7 @@ defmodule TuistWeb.TestCaseLiveTest do
         conn
         |> assign(:selected_project, project)
         |> assign(:selected_account, account)
-        |> TuistTestSupport.Cases.ConnCase.log_in_user(user)
+        |> ConnCase.log_in_user(user)
 
       %{conn: conn, user: user, account: account, project: project}
     end
@@ -50,11 +53,11 @@ defmodule TuistWeb.TestCaseLiveTest do
       test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
       [test_case_run | _] = test_run.test_case_runs
 
-      expect(Tuist.Tests, :list_test_case_runs, 2, fn attrs ->
+      expect(Tests, :list_test_case_runs, 2, fn attrs ->
         assert %{field: :project_id, op: :==, value: project.id} in attrs.filters
         assert %{field: :test_case_id, op: :==, value: test_case_run.test_case_id} in attrs.filters
 
-        Mimic.call_original(Tuist.Tests, :list_test_case_runs, [attrs])
+        Mimic.call_original(Tests, :list_test_case_runs, [attrs])
       end)
 
       {:ok, _lv, _html} =
@@ -744,7 +747,7 @@ defmodule TuistWeb.TestCaseLiveTest do
         |> Floki.parse_document!()
         |> Floki.find("[data-part='analytics-history'] [data-part='timeline-item']")
 
-      assert length(items) == 8
+      assert length(items) == 6
       assert has_element?(lv, "[data-part='analytics-history'] a", "View more")
     end
 
@@ -782,7 +785,7 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       assert html =~ "Muted"
 
-      {:ok, fetched} = Tuist.Tests.get_test_case_by_id(test_case_run.test_case_id)
+      {:ok, fetched} = Tests.get_test_case_by_id(test_case_run.test_case_id)
       assert fetched.state == "muted"
     end
 
@@ -802,7 +805,7 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       assert html =~ "Skipped"
 
-      {:ok, fetched} = Tuist.Tests.get_test_case_by_id(test_case_run.test_case_id)
+      {:ok, fetched} = Tests.get_test_case_by_id(test_case_run.test_case_id)
       assert fetched.state == "skipped"
     end
 
@@ -822,7 +825,7 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       assert html =~ "Unmark as flaky"
 
-      {:ok, fetched} = Tuist.Tests.get_test_case_by_id(test_case_run.test_case_id)
+      {:ok, fetched} = Tests.get_test_case_by_id(test_case_run.test_case_id)
       assert fetched.is_flaky == true
     end
 
@@ -835,7 +838,7 @@ defmodule TuistWeb.TestCaseLiveTest do
       test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
       [test_case_run | _] = test_run.test_case_runs
 
-      Tuist.Tests.update_test_case(test_case_run.test_case_id, %{is_flaky: true})
+      Tests.update_test_case(test_case_run.test_case_id, %{is_flaky: true})
 
       {:ok, lv, _html} =
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
@@ -844,7 +847,7 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       assert html =~ "Mark as flaky"
 
-      {:ok, fetched} = Tuist.Tests.get_test_case_by_id(test_case_run.test_case_id)
+      {:ok, fetched} = Tests.get_test_case_by_id(test_case_run.test_case_id)
       assert fetched.is_flaky == false
     end
 
@@ -857,14 +860,14 @@ defmodule TuistWeb.TestCaseLiveTest do
       test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
       [test_case_run | _] = test_run.test_case_runs
 
-      Tuist.Tests.update_test_case(test_case_run.test_case_id, %{state: "muted"})
+      Tests.update_test_case(test_case_run.test_case_id, %{state: "muted"})
 
       {:ok, lv, _html} =
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
 
       render_hook(lv, "set-state", %{"data" => "enabled"})
 
-      {:ok, fetched} = Tuist.Tests.get_test_case_by_id(test_case_run.test_case_id)
+      {:ok, fetched} = Tests.get_test_case_by_id(test_case_run.test_case_id)
       assert fetched.state == "enabled"
     end
 
@@ -1019,5 +1022,154 @@ defmodule TuistWeb.TestCaseLiveTest do
     |> Floki.parse_fragment!()
     |> Floki.text()
     |> String.trim()
+  end
+
+  describe "test case state controls by organization role" do
+    setup %{conn: conn} do
+      organization = AccountsFixtures.organization_fixture(preload: [:account])
+      account = organization.account
+      project = ProjectsFixtures.project_fixture(name: "my-project", account_id: account.id)
+
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: account.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      conn =
+        conn
+        |> assign(:selected_project, project)
+        |> assign(:selected_account, account)
+
+      %{
+        conn: conn,
+        organization: organization,
+        account: account,
+        project: project,
+        test_case_id: test_case_run.test_case_id
+      }
+    end
+
+    test "a member that can write sees the state dropdown and the flaky button", %{
+      conn: conn,
+      organization: organization,
+      account: account,
+      project: project,
+      test_case_id: test_case_id
+    } do
+      # Given
+      member = AccountsFixtures.user_fixture()
+      :ok = Accounts.add_user_to_organization(member, organization, role: :user)
+      conn = ConnCase.log_in_user(conn, member)
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      # Then
+      assert has_element?(lv, "#test-case-state-dropdown")
+      assert render(lv) =~ "Mark as flaky"
+    end
+
+    test "a viewer sees the state read-only rather than as a control", %{
+      conn: conn,
+      organization: organization,
+      account: account,
+      project: project,
+      test_case_id: test_case_id
+    } do
+      # Given
+      viewer = AccountsFixtures.user_fixture()
+      :ok = Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+      conn = ConnCase.log_in_user(conn, viewer)
+
+      {:ok, _} = Tests.update_test_case(test_case_id, %{state: "muted"}, actor_id: account.id)
+
+      # When
+      {:ok, lv, html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      # Then — the state stays legible, it just cannot be changed.
+      assert html =~ "Muted"
+      refute has_element?(lv, "#test-case-state-dropdown")
+      refute html =~ "Mark as flaky"
+    end
+
+    test "a viewer sees that a test case is flaky", %{
+      conn: conn,
+      organization: organization,
+      account: account,
+      project: project,
+      test_case_id: test_case_id
+    } do
+      # Given — a writer reads this off the "Unmark as flaky" button, which a
+      # viewer does not get.
+      viewer = AccountsFixtures.user_fixture()
+      :ok = Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+      conn = ConnCase.log_in_user(conn, viewer)
+
+      {:ok, _} = Tests.update_test_case(test_case_id, %{is_flaky: true}, actor_id: account.id)
+
+      # When
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      # Then
+      assert html =~ "Flaky"
+      refute html =~ "Unmark as flaky"
+    end
+
+    test "demoting a member to viewer stops an open page from writing", %{
+      conn: conn,
+      organization: organization,
+      account: account,
+      project: project,
+      test_case_id: test_case_id
+    } do
+      # Given — a writer with the page already open.
+      member = AccountsFixtures.user_fixture()
+      :ok = Accounts.add_user_to_organization(member, organization, role: :user)
+      conn = ConnCase.log_in_user(conn, member)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      # When — they are demoted without reloading. The socket outlives the role
+      # that opened it, so the permission has to be resolved per write.
+      {:ok, _} = Accounts.update_user_role_in_organization(member, organization, :viewer)
+
+      # Then
+      Process.flag(:trap_exit, true)
+      assert catch_exit(render_hook(lv, "set-state", %{"data" => "muted"}))
+
+      {:ok, test_case} = Tests.get_test_case_by_id(test_case_id)
+      assert test_case.state in [nil, "enabled"]
+    end
+
+    test "a viewer cannot quarantine a test case by pushing the event directly", %{
+      conn: conn,
+      organization: organization,
+      account: account,
+      project: project,
+      test_case_id: test_case_id
+    } do
+      # Given — hiding the control is not the guard; the handler is.
+      viewer = AccountsFixtures.user_fixture()
+      :ok = Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+      conn = ConnCase.log_in_user(conn, viewer)
+
+      path = ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}"
+
+      # When / Then — the raise takes the LiveView down, so each event needs its
+      # own mount.
+      Process.flag(:trap_exit, true)
+
+      for event <- ["set-state", "mark-as-flaky"] do
+        {:ok, lv, _html} = live(conn, path)
+        assert catch_exit(render_hook(lv, event, %{"data" => "muted"}))
+      end
+
+      {:ok, test_case} = Tests.get_test_case_by_id(test_case_id)
+      assert test_case.state in [nil, "enabled"]
+      refute test_case.is_flaky
+    end
   end
 end

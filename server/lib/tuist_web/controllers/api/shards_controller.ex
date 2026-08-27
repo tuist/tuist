@@ -4,9 +4,11 @@ defmodule TuistWeb.API.ShardsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Shards
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Shards.Shard
   alias TuistWeb.API.Schemas.Shards.ShardPlan
+  alias TuistWeb.API.StorageError
   alias TuistWeb.Headers
 
   @suite_catch_all_minimum_cli_version Version.parse!("4.202.0-canary.21")
@@ -108,6 +110,7 @@ defmodule TuistWeb.API.ShardsController do
       ok: {"The shard plan", "application/json", ShardPlan},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"Invalid parameters", "application/json", Error}
     }
@@ -194,6 +197,7 @@ defmodule TuistWeb.API.ShardsController do
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The shard plan was not found", "application/json", Error},
       bad_request: {"Invalid parameters", "application/json", Error}
     }
@@ -227,6 +231,9 @@ defmodule TuistWeb.API.ShardsController do
         conn
         |> put_status(:bad_request)
         |> json(%{message: "Either shard_plan_id or reference is required."})
+
+      {:error, _reason} ->
+        StorageError.render(conn)
     end
   end
 
@@ -270,6 +277,7 @@ defmodule TuistWeb.API.ShardsController do
       bad_request: {"The request parameters are invalid", "application/json", Error},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The session or shard was not found", "application/json", Error}
     }
   )
@@ -383,6 +391,7 @@ defmodule TuistWeb.API.ShardsController do
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       bad_request: {"Invalid parameters", "application/json", Error}
     }
   )
@@ -497,6 +506,7 @@ defmodule TuistWeb.API.ShardsController do
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       bad_request: {"Invalid parameters", "application/json", Error}
     }
   )
@@ -554,6 +564,9 @@ defmodule TuistWeb.API.ShardsController do
         conn
         |> put_status(:bad_request)
         |> json(%{message: "Either shard_plan_id or reference is required."})
+
+      {:error, _reason} ->
+        StorageError.render(conn)
     end
   end
 

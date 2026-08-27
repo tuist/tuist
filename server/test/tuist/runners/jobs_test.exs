@@ -1795,7 +1795,7 @@ defmodule Tuist.Runners.JobsTest do
   end
 
   defp mark_running!(workflow_job_id, runner_name) do
-    claim = Repo.get!(Tuist.Runners.Claim, workflow_job_id)
+    claim = Repo.one!(from(c in Tuist.Runners.Claim, where: c.workflow_job_id == ^workflow_job_id))
     Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
   end
 end

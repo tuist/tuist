@@ -10,6 +10,23 @@ import TuistCore
 struct TuistGeneratedProjectManifestMapperTests {
     private let fileSystem = FileSystem()
 
+    @Test func installOptions_mapsManifestEnvironment() {
+        let got = TuistConfig.TuistGeneratedProjectOptions.InstallOptions.from(
+            manifest: .options(
+                passthroughSwiftPackageManagerArguments: ["--force-resolved-versions"],
+                packageManifestEnvironment: .automatic(
+                    including: ["CI_JOB_ID"],
+                    excluding: ["GITHUB_RUN_*"]
+                )
+            )
+        )
+
+        #expect(got.passthroughSwiftPackageManagerArguments == ["--force-resolved-versions"])
+        #expect(got.packageManifestEnvironment.usesAutomaticProviderDefaults == true)
+        #expect(got.packageManifestEnvironment.includedVariablePatterns == ["CI_JOB_ID"])
+        #expect(got.packageManifestEnvironment.excludedVariablePatterns == ["GITHUB_RUN_*"])
+    }
+
     @Test func buildInsightsDisabled_when_fullHandle_is_nil() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
             // When

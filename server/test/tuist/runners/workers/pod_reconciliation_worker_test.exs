@@ -43,7 +43,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     Repo.update_all(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id), set: updates)
   end
 
-  defp claim(workflow_job_id), do: Repo.get(Claim, workflow_job_id)
+  defp claim(workflow_job_id), do: Repo.one(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id))
 
   defp session_fixture(account, pod_name, opts \\ []) do
     now = DateTime.utc_now()

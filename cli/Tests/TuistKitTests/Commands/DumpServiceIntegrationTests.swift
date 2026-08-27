@@ -268,6 +268,15 @@ final class DumpServiceTests: TuistTestCase {
                     }
                   },
                   "installOptions": {
+                    "packageManifestEnvironment": {
+                      "excludedVariablePatterns": [
+
+                      ],
+                      "includedVariablePatterns": [
+
+                      ],
+                      "usesAutomaticProviderDefaults": true
+                    },
                     "passthroughSwiftPackageManagerArguments": [
                       "--replace-scm-with-registry"
                     ]

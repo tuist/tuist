@@ -140,6 +140,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.listTestCaseRunsByTestCase.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listTestCaseRunsByTestCase.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -302,6 +339,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.createTestCaseRunAttachment.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createTestCaseRunAttachment.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -410,6 +484,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.getGeneration.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getGeneration.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -692,6 +803,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.downloadCacheArtifact.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.downloadCacheArtifact.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -814,6 +962,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.completeAnalyticsArtifactMultipartUpload.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeAnalyticsArtifactMultipartUpload.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 case 500:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError.Body
@@ -990,6 +1175,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.getPreview.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getPreview.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -1124,6 +1346,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.deletePreview.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.deletePreview.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -1232,6 +1491,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.getTestCase.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getTestCase.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -1375,6 +1671,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.updateTestCase.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.updateTestCase.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -1483,6 +1816,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.getBundleArtifactTree.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getBundleArtifactTree.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -1632,6 +2002,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.listTestRuns.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listTestRuns.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -1794,6 +2201,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.createTest.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createTest.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 case 503:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.createTest.Output.ServiceUnavailable.Body
@@ -1924,6 +2368,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.getBuild.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getBuild.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -2207,6 +2688,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.listPreviews.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listPreviews.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -2315,6 +2833,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.getAutomationAlert.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getAutomationAlert.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -2456,6 +3011,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .unprocessableContent(.init(body: body))
+                case 429:
+                    let headers: Operations.updateAutomationAlert.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.updateAutomationAlert.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 case 500:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.updateAutomationAlert.Output.InternalServerError.Body
@@ -2586,6 +3178,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.deleteAutomationAlert.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.deleteAutomationAlert.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -2694,6 +3323,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.testMetricDimensionValues.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.testMetricDimensionValues.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -2822,6 +3488,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.listBundles.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listBundles.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -2962,6 +3665,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.createBundle.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createBundle.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -3104,6 +3844,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.startBuildsMultipartUpload.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.startBuildsMultipartUpload.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -3530,6 +4307,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.startAnalyticsArtifactMultipartUpload.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.startAnalyticsArtifactMultipartUpload.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -3652,6 +4466,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.createCommandEvent.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createCommandEvent.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -4739,6 +5590,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.listRuns.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listRuns.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -4902,6 +5790,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.createRun.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createRun.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -5085,6 +6010,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.cacheArtifactExists.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.cacheArtifactExists.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -5221,6 +6183,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.listBuildCASOutputs.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listBuildCASOutputs.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -5622,6 +6621,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.getBuild_space__lpar_2_rpar_.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getBuild_space__lpar_2_rpar_.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -5758,6 +6794,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.listBuildCacheTasks.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listBuildCacheTasks.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -5867,6 +6940,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.cleanCache.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.cleanCache.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -6016,6 +7126,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.listCacheRuns.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listCacheRuns.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -6332,6 +7479,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.uploadCacheActionItem.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.uploadCacheActionItem.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -6474,6 +7658,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -6594,6 +7815,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.listTestCaseRuns.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listTestCaseRuns.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -6702,6 +7960,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.getCacheRun.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getCacheRun.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -6810,6 +8105,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.listTestCaseRunAttachments.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listTestCaseRunAttachments.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -7265,6 +8597,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.listBuilds.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listBuilds.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -7427,6 +8796,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.createBuild.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createBuild.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -7590,6 +8996,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.buildDurationMetrics.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.buildDurationMetrics.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -7752,6 +9195,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.startShardUpload.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.startShardUpload.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -7895,6 +9375,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.startAnalyticsArtifactMultipartUploadProject.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.startAnalyticsArtifactMultipartUploadProject.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -8113,6 +9630,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .conflict(.init(body: body))
+                case 429:
+                    let headers: Operations.completeCacheArtifactMultipartUpload.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeCacheArtifactMultipartUpload.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -8277,6 +9831,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .conflict(.init(body: body))
+                case 429:
+                    let headers: Operations.startPreviewsMultipartUpload.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.startPreviewsMultipartUpload.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -8529,6 +10120,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.testDurationMetrics.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.testDurationMetrics.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -8652,6 +10280,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.getLatestPreview.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getLatestPreview.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -8795,6 +10460,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.generateAnalyticsArtifactMultipartUploadURLProject.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.generateAnalyticsArtifactMultipartUploadURLProject.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -8937,6 +10639,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.generatePreviewsMultipartUploadURL.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.generatePreviewsMultipartUploadURL.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -9045,6 +10784,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.buildMetricDimensionValues.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.buildMetricDimensionValues.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -9187,6 +10963,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.completePreviewsMultipartUpload.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completePreviewsMultipartUpload.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -9330,6 +11143,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.listBuildFiles.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listBuildFiles.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -9472,6 +11322,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.generateBuildsMultipartUploadURL.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.generateBuildsMultipartUploadURL.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -9731,6 +11618,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.listBuildTargets.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listBuildTargets.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -9893,6 +11817,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.getShard.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getShard.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -10001,6 +11962,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.getTestRun.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getTestRun.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -10237,6 +12235,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .unprocessableContent(.init(body: body))
+                case 429:
+                    let headers: Operations.getBundle.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getBundle.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -10485,6 +12520,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.generateShardUploadURL.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.generateShardUploadURL.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -10607,6 +12679,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.listTestCaseEvents.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listTestCaseEvents.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -10785,6 +12894,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.startCacheArtifactMultipartUpload.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.startCacheArtifactMultipartUpload.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -10949,6 +13095,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.createShardPlan.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createShardPlan.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -11111,6 +13294,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.createCrashReport.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createCrashReport.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -11259,6 +13479,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.listBuilds_space__lpar_2_rpar_.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listBuilds_space__lpar_2_rpar_.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -11421,6 +13678,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.createBuild_space__lpar_2_rpar_.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createBuild_space__lpar_2_rpar_.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -11544,6 +13838,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.completeAnalyticsArtifactsUploadsProject.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeAnalyticsArtifactsUploadsProject.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -11684,6 +14015,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.completeShardUpload.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeShardUpload.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -11785,6 +14153,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.listTestCaseRunsByTestRun.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listTestCaseRunsByTestRun.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -11984,6 +14389,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.generateCacheArtifactMultipartUploadURL.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.generateCacheArtifactMultipartUploadURL.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -12218,6 +14660,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.completeAnalyticsArtifactMultipartUploadProject.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeAnalyticsArtifactMultipartUploadProject.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 case 500:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.completeAnalyticsArtifactMultipartUploadProject.Output.InternalServerError.Body
@@ -12551,6 +15030,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.uploadPreviewIcon.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.uploadPreviewIcon.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -12687,6 +15203,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.listGradleBuildTasks.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listGradleBuildTasks.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -12809,6 +15362,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.completeAnalyticsArtifactsUploads.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeAnalyticsArtifactsUploads.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -12938,6 +15528,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.listModuleCacheTargets.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listModuleCacheTargets.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -13081,6 +15708,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.listBuildIssues.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listBuildIssues.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -13825,6 +16489,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.listTestTargets.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listTestTargets.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -13959,6 +16660,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.listGenerations.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listGenerations.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -14095,6 +16833,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.listTestSuiteRuns.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listTestSuiteRuns.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -14249,6 +17024,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.getCacheActionItem.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getCacheActionItem.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -14357,6 +17169,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.getGradleBuild.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getGradleBuild.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -14499,6 +17348,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.completeBuildsMultipartUpload.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.completeBuildsMultipartUpload.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -14628,6 +17514,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.listTestModuleRuns.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listTestModuleRuns.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -15120,6 +18043,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.listGradleBuilds.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listGradleBuilds.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -15238,6 +18198,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.createGradleBuild.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createGradleBuild.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -15565,6 +18562,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .notFound(.init(body: body))
+                case 429:
+                    let headers: Operations.getTestCaseRun.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getTestCaseRun.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -15706,6 +18740,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.listTestCases.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listTestCases.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -15791,6 +18862,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .forbidden(.init(body: body))
+                case 429:
+                    let headers: Operations.listAutomationAlerts.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listAutomationAlerts.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -15909,6 +19017,43 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .unprocessableContent(.init(body: body))
+                case 429:
+                    let headers: Operations.createAutomationAlert.Output.TooManyRequests.Headers = .init(
+                        retry_hyphen_after: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "retry-after",
+                            as: Swift.String.self
+                        ),
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: try converter.getOptionalHeaderFieldAsURI(
+                            in: response.headerFields,
+                            name: "x-tuist-throttle-reason",
+                            as: Swift.String.self
+                        )
+                    )
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createAutomationAlert.Output.TooManyRequests.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 case 500:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.createAutomationAlert.Output.InternalServerError.Body

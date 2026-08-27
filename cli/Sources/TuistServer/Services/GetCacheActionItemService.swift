@@ -84,6 +84,10 @@ public struct GetCacheActionItemService: GetCacheActionItemServicing {
             case let .json(error):
                 throw GetCacheActionItemServiceError.paymentRequired(error.message)
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw GetCacheActionItemServiceError.unknownError(statusCode)
         case let .forbidden(forbiddenResponse):

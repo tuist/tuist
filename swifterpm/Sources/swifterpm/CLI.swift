@@ -602,17 +602,51 @@ enum CLIRunner {
         restore: Bool,
         printOnly: Bool
     ) async throws {
-        let cache = try await Cache(
-            root: cliCacheDir(cli: cli, paths: paths, commandCacheDir: cacheDir))
+        let cacheRoot = try Cache.resolvedRoot(
+            cliCacheDir(cli: cli, paths: paths, commandCacheDir: cacheDir))
         let package = canonicalPackageDir(
             commandPackageDir(cli: cli, paths: paths, commandPackageDir: packageDir))
         let scratch = commandScratchDir(
             cli: cli, paths: paths, packageDir: package, commandScratchDir: nil)
-        let registryConfig = try await cliRegistryConfig(
-            cli: cli, paths: paths, package: package)
         let readOnly =
             cli.forceResolvedVersions || cli.disableAutomaticResolution
             || cli.onlyUseVersionsFromResolvedFile
+
+        // Use the same native cold path as the embeddable API. The direct
+        // invocation is only safe for lockfiles SwiftPM itself understands;
+        // preserve SwifterPM's compatibility path for older custom pin kinds.
+        if try await PackageResolver.shouldUseNativeColdPath(
+            packageDir: package,
+            cacheRoot: cacheRoot
+        ) {
+            let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheDir: cacheRoot,
+                registryConfigurationPath: paths.resolve(cli.configPath),
+                defaultRegistryURL: cli.defaultRegistryURL,
+                disableSandbox: cli.disableSandbox,
+                scmToRegistryTransformation: try scmToRegistryTransformation(cli),
+                useExistingResolvedFile: preferResolvedFile,
+                writeResolvedFile: shouldWrite(write: write, printOnly: printOnly),
+                forceResolvedVersions: readOnly,
+                forwardOutput: !cli.quiet
+            )
+            let cache = try await Cache(root: cacheRoot)
+            try await WorkspaceRestorer.cacheNativeSourceCheckouts(
+                scratchDir: scratch,
+                cache: cache,
+                resolved: resolved
+            )
+            if !cli.quiet {
+                ResolvedFile.print(resolved)
+            }
+            return
+        }
+
+        let cache = try await Cache(root: cacheRoot)
+        let registryConfig = try await cliRegistryConfig(
+            cli: cli, paths: paths, package: package)
 
         let resolved = try await PackageResolver.resolveOrLoad(
             packageDir: package,

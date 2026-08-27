@@ -154,6 +154,106 @@ struct ResolveTests {
         }
     }
 
+    @Test
+    func coldResolutionSeedsTheSwifterPMSourceCache() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path)
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let cache = try await Cache(root: cacheDirectory)
+
+            let result = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: cacheDirectory,
+                    scratchDirectory: root.appendingPathComponent("scratch"),
+                    disableSandbox: true,
+                    quiet: true
+                ))
+
+            #expect(result.pins.map(\.identity) == ["dependency"])
+            #expect(try await cache.hasCachedSources())
+            #expect(
+                try await !PackageResolver.shouldUseNativeColdPath(
+                    packageDir: package,
+                    cacheRoot: cache.root
+                )
+            )
+
+            let pin = try #require(
+                try await ResolvedFile.read(packageDir: package).pins.first
+            )
+            let cachedSource = try cache.sourcePath(pin: pin)
+            try await fileSystem.atomicWrite(
+                "cached\n",
+                to: cachedSource.appendingPathComponent(".swifterpm-cache-marker")
+            )
+
+            let freshScratch = root.appendingPathComponent("fresh-scratch")
+            let warmResult = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: cacheDirectory,
+                    scratchDirectory: freshScratch,
+                    disableSandbox: true,
+                    quiet: true
+                ))
+
+            #expect(warmResult.pins.map(\.identity) == ["dependency"])
+            #expect(
+                try await fileSystem.exists(
+                    freshScratch
+                        .appendingPathComponent("checkouts")
+                        .appendingPathComponent(PinKind.checkoutDirectoryName(pin))
+                        .appendingPathComponent(".swifterpm-cache-marker")
+                        .absolutePath
+                )
+            )
+        }
+    }
+
+    @Test
+    func nativeColdPathIsUsedWhenTheSharedCacheOnlyContainsOtherPackages() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("App")
+            try await writeMinimalPackageManifest(at: package, name: "App")
+            let cache = try await Cache(root: root.appendingPathComponent("cache"))
+            let cachedPin = ResolvedPin(
+                identity: "cached",
+                kind: "remoteSourceControl",
+                location: "https://example.com/cached.git",
+                state: .init(branch: nil, revision: "aaaaaaaa", version: "1.0.0")
+            )
+            let missingPin = ResolvedPin(
+                identity: "missing",
+                kind: "remoteSourceControl",
+                location: "https://example.com/missing.git",
+                state: .init(branch: nil, revision: "bbbbbbbb", version: "1.0.0")
+            )
+            let cachedSource = try cache.sourcePath(pin: cachedPin)
+            try await fileSystem.makeDirectory(
+                at: cachedSource.absolutePath,
+                options: [.createTargetParentDirectories]
+            )
+            try await writeMinimalPackageManifest(at: cachedSource, name: "Cached")
+            try await ResolvedFile.write(
+                packageDir: package,
+                resolved: .init(originHash: "origin", pins: [missingPin], version: 3)
+            )
+
+            #expect(
+                try await PackageResolver.shouldUseNativeColdPath(
+                    packageDir: package,
+                    cacheRoot: cache.root
+                )
+            )
+        }
+    }
+
     private func initGitDependency(at dependency: URL, tags: [String]) async throws {
         try await SystemProcess.run("git", ["init"], workingDirectory: dependency)
         try await SystemProcess.run(

@@ -283,7 +283,12 @@ defmodule Tuist.Runners.Dispatch do
     claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id, account_id)
     session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id, account_id)
     :ok = WorkflowJobs.record_execution(runner_name, executed_workflow_job_id, account_id)
-    outcome = combine_attribution(claim_outcome, session_outcome)
+
+    claim_outcome
+    |> displaced_requeued_jobs()
+    |> report_displaced_requeues(runner_name)
+
+    outcome = combine_attribution(claim_attribution(claim_outcome), session_outcome)
 
     case outcome do
       :mismatch ->
@@ -303,6 +308,38 @@ defmodule Tuist.Runners.Dispatch do
         # dropped/very-late webhook whose rows are long gone.
         {:ignored, :unknown_runner}
     end
+  end
+
+  # Drops the displaced-job payload so both stores' outcomes combine as
+  # the same bare atoms.
+  defp claim_attribution({:mismatch, _displaced}), do: :mismatch
+  defp claim_attribution(outcome), do: outcome
+
+  # The runner took a different job than its claim was minted for, so the
+  # job it was minted for is running nowhere — and nothing else will say
+  # so, because GitHub never re-announces a job it still considers queued.
+  # `Claims.record_execution/3` detaches it from the claim and returns it to
+  # the queue in one transaction, leaving the Pod its slot for the job it
+  # actually took. Without that the job waits for the Pod to stop, which
+  # measured a 5-minute median on macOS. Reported here because this is where
+  # the rest of the mismatch telemetry lives.
+  defp displaced_requeued_jobs({:mismatch, %{workflow_job_id: workflow_job_id, requeued: true}}), do: [workflow_job_id]
+
+  defp displaced_requeued_jobs(_claim_outcome), do: []
+
+  defp report_displaced_requeues(workflow_job_ids, runner_name) do
+    Enum.each(workflow_job_ids, fn workflow_job_id ->
+      Logger.info("runners: re-queued job displaced by the runner shuffle",
+        runner_name: runner_name,
+        workflow_job_id: workflow_job_id
+      )
+
+      :telemetry.execute(
+        Telemetry.event_name_recovery(),
+        %{count: 1},
+        %{kind: "displaced_job_requeued"}
+      )
+    end)
   end
 
   # A real `:matched`/`:mismatch` from either store beats
@@ -400,7 +437,14 @@ defmodule Tuist.Runners.Dispatch do
       # `OrphanedRunnersWorker` cannot reach this class: `Jobs.complete/2`
       # below flips the ClickHouse row to `completed`, and the worker only
       # lists rows still `running` — so the watchdog is what frees it.
-      if account_id, do: Claims.complete_by_runner_name(runner_name, account_id)
+      # `complete_by_runner_name/3` also hands back any job still bound to a
+      # claim it frees, which at a completion means the `in_progress` that
+      # would normally have detached it never arrived. The runner is
+      # finished, so that job ran nowhere.
+      if account_id do
+        %{requeued: requeued} = Claims.complete_by_runner_name(runner_name, account_id, workflow_job_id)
+        report_displaced_requeues(requeued, runner_name)
+      end
 
       case Jobs.complete(workflow_job_id, conclusion) do
         {:ok, %{account_id: account_id}} ->
