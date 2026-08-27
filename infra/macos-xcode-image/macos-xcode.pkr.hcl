@@ -38,7 +38,7 @@ packer {
 #
 # Prereleases arrive here as the slug `mise run xcode-mirror:upload`
 # derived from Apple's version string ("27.0 Beta 6" → 27.0-beta-6),
-# never with the spaces intact — the bundle path, the push tag, the
+# never with the spaces intact. The bundle path, the push tag, the
 # RunnerPool name and its k8s labels are all built out of this value
 # and none of them can hold a space. The major-minor alias applies
 # to them the same way, so a beta image answers `.xcode-version`
@@ -46,8 +46,8 @@ packer {
 # `/Applications/Xcode_27.0-beta-6.app` that names which beta it is.
 #
 # `xcodes install <version> --path <xip>` never resolves the version
-# against Apple's catalog — with a local .xip it goes straight to
-# unxip — so the slug not being a version string xcodes recognises
+# against Apple's catalog. With a local .xip it goes straight to
+# unxip, so the slug not being a version string xcodes recognises
 # costs nothing. The steps below then rename the result by the slug
 # regardless of what xcodes called it.
 #

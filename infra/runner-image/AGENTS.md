@@ -428,7 +428,7 @@ dispatch path above, and are deliberately absent from
   can't move the day a beta lands can't ship from it at all. An
   entry in `profiles.json` only rebuilds when
   a runner-image release fires, which needs a change under
-  `infra/runner-image/**` — a beta could sit weeks behind Apple
+  `infra/runner-image/**`, so a beta could sit weeks behind Apple
   waiting for unrelated work.
 - The catalog entry customers' Runner Profiles store must stay
   fixed across those bumps, so it is the channel (`27.0-beta`)

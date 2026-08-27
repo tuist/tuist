@@ -153,7 +153,7 @@ auto-download entirely:
    The argument is the version string exactly as `xcodes list`
    prints it, because `xcodes download` has to resolve it against
    Apple's catalog and accepts no other form. The task slugs it
-   (lowercase, spaces to dashes) and prints the result — that slug
+   (lowercase, spaces to dashes) and prints the result. That slug
    is the mirror tag and the `xcode_version` every later step
    takes.
 
@@ -168,13 +168,13 @@ auto-download entirely:
    `infra/runner-image/profiles.json` and to
    `runnersFleet.xcodeVersions` in
    `infra/helm/tuist/values-managed-common.yaml`, with an
-   `xcodeOverrides` entry per env — see "Promoting a new Xcode to
+   `xcodeOverrides` entry per env. See "Promoting a new Xcode to
    customer runners" below. Betas take a different route, because
    they must reach the fleet on Apple's cadence rather than the
    server's; see "Promoting an Xcode beta". For the
    xcresult-processor, bump the inline `XCODE_VERSION` env var on
    `server-production-deployment.yml`'s
-   `release-xcresult-processor-image.Build image` step — it should
+   `release-xcresult-processor-image.Build image` step. It should
    track at least as new a *stable* Xcode as the newest active
    runner-image profile (xcresulttool's JSON schema changes across
    Xcode majors). Never point it at a beta: it parses customer
@@ -229,7 +229,7 @@ automatically roll customer runners to Xcode 26.5. To promote:
    so editing it both reshapes the matrix and triggers a
    runner-image release. Commit with a `feat(runner-image): ...`
    message so check-releases picks it up. To retire an Xcode, drop
-   its entry — the `:macos-<dashes>` tag stays in GHCR for
+   its entry. The `:macos-<dashes>` tag stays in GHCR for
    lingering pins; use `runner-image.yml` dispatch for one-off
    refreshes.
 3. Add a matching `runnersFleet.xcodeVersions` entry in
@@ -258,7 +258,7 @@ rather than wait for whenever `infra/runner-image/**` next changes
 and triggers a runner-image release. They also must not churn the
 catalog: a customer's Runner Profile stores the `xcode_version`
 string, and removing the one it names strands the profile on a
-RunnerPool that no longer renders — its jobs then queue forever
+RunnerPool that no longer renders, and its jobs then queue forever
 rather than failing.
 
 Both fall out of one split. The catalog entry is the channel
@@ -296,7 +296,7 @@ To move the channel onto a new beta:
    Mac. Note the slug it prints (`27.0-beta-7`).
 2. `gh workflow run macos-xcode-image.yml -f xcode_version=27.0-beta-7`.
    Publishes `macos-tahoe-xcode:27-0-beta-7`. Budget a couple of
-   hours for a fresh major — `-downloadAllPlatforms` pulls
+   hours for a fresh major: `-downloadAllPlatforms` pulls
    simulator runtimes Apple hasn't cached anywhere yet, and the
    ~50 GB image upload follows.
 3. `gh workflow run runner-image.yml -f xcode_version=27.0-beta-7`.
@@ -312,6 +312,6 @@ reverted to the previous beta if the new one misbehaves.
 
 When the major goes stable, promote `27.0` through the normal
 stable path above and leave `27.0-beta` in the catalog until
-accounts have moved their profiles off it — dropping the entry is
+accounts have moved their profiles off it. Dropping the entry is
 what strands them, and the entry costs nothing while its pool sits
 at `minWarmPoolFloor: 0`.

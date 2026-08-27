@@ -15,7 +15,7 @@ name: macOS + Xcode Image
 # Prereleases go through unchanged, as the slug `mise run
 # xcode-mirror:upload` derived from Apple's version string
 # ("27.0 Beta 6" → 27.0-beta-6). Every published tag names one
-# exact Xcode, betas included — nothing here moves once pushed.
+# exact Xcode, betas included. Nothing here moves once pushed.
 # The beta churn is absorbed one layer up, by the
 # chart's stable `27.0-beta` catalog entry repointing its
 # `xcodeOverrides` imageTag at each new beta's runner image, so a
@@ -124,7 +124,7 @@ jobs:
               echo "ghcr.io/tuist/xcode-xips:${XCODE_VERSION}."
               echo ""
               echo "Populate the mirror from a maintainer Mac, passing the"
-              echo "version string as \`xcodes list\` prints it — the task"
+              echo "version string as \`xcodes list\` prints it. The task"
               echo "slugs it back to ${XCODE_VERSION} and prints what it used:"
               echo ""
               echo "  mise run xcode-mirror:upload <apple-version-string>"

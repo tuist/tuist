@@ -15,7 +15,7 @@
 # prints it, because `xcodes download` is the one consumer that
 # has to resolve it against Apple's catalog and it accepts no
 # other form. Prereleases carry spaces ("27.0 Beta 6"), which no
-# downstream consumer can hold — image tags, Tart bundle paths,
+# downstream consumer can hold: image tags, Tart bundle paths,
 # RunnerPool names and k8s labels are all built by substituting
 # dots for dashes. So the task derives a slug (lowercase, spaces
 # to dashes) and that slug, not the Apple string, is the mirror
@@ -118,8 +118,8 @@ fi
 # One directory per slug, holding exactly one .xip, so the file can
 # be found by extension alone. xcodes names the download after its
 # own semver rendering of the version rather than after the string
-# it was handed — "27.0 Beta 6" arrives as `Xcode-27.0.0-Beta.6.xip`
-# — so globbing for the version we asked for finds nothing on any
+# it was handed. "27.0 Beta 6" arrives as `Xcode-27.0.0-Beta.6.xip`,
+# so globbing for the version we asked for finds nothing on any
 # prerelease.
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/tuist-xcode-mirror/${SLUG}"
 mkdir -p "$CACHE_DIR"
