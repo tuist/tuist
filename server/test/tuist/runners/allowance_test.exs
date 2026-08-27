@@ -257,10 +257,15 @@ defmodule Tuist.Runners.AllowanceTest do
     end
 
     test "reports the period, its projection, what is included and the period before", %{account: account} do
-      # 60 minutes on the 1st of this month, so the projection scales a
-      # known figure across a known number of days.
-      now = DateTime.utc_now()
-      started = %{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}
+      # 60 minutes on the 1st of the period, so the projection scales a
+      # known figure across a known stretch of it. The clock is frozen
+      # because the projection divides by elapsed seconds: against the
+      # real clock the same usage projects to a different figure
+      # depending on the hour of the day and the length of the month the
+      # test happens to run in.
+      now = ~U[2024-01-17 00:00:00.000000Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      started = %{now | day: 1}
 
       Repo.insert!(%RunnerSession{
         account_id: account.id,
@@ -290,11 +295,10 @@ defmodule Tuist.Runners.AllowanceTest do
       # Inside the allowance, so nothing of it is billable yet.
       assert row.billed == Money.new(0, :USD)
 
-      # Straight-line to the end of the window. Measured in seconds
-      # rather than whole days, so allow a minute either side of the
-      # day-granular estimate rather than restating the arithmetic.
-      days_in_month = Date.days_in_month(DateTime.to_date(now))
-      assert_in_delta row.projected_minutes, div(60 * days_in_month, now.day), 2
+      # Straight-line to the end of the window: 60 minutes over the 16
+      # elapsed days of a 31-day month, which is 116 minutes and a
+      # quarter by the end of it.
+      assert row.projected_minutes == 116
       assert row.projected_minutes >= row.minutes
     end
 
