@@ -1,8 +1,6 @@
 package linux
 
 import (
-	"sync"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
@@ -47,49 +45,20 @@ func init() {
 	metrics.Registry.MustRegister(egressReportedGauge, egressConfiguredGauge, egressAdvertisedGauge)
 }
 
-// The label values each series was last published with, per node. A republish tears
-// the node's series down before rebuilding it, and DeletePartialMatch and
-// WithLabelValues take the vec lock separately — so a scrape landing between them
-// renders no series for that node and Prometheus records a staleness marker. Doing
-// that unconditionally spends the window on every reconcile, for labels that change
-// perhaps twice in a box's life. Remembering them means the teardown only happens on
-// the reconcile a label actually moves.
-type advertisedLabels struct{ fleet, source string }
-
-type reportedLabels struct{ fleet, service, tier string }
-
-var (
-	lastAdvertisedLabels sync.Map // node -> advertisedLabels
-	lastReportedLabels   sync.Map // node -> reportedLabels
-)
-
-// egressSeriesNeedsTeardown reports whether a node's series has to be dropped before
-// being republished, and remembers what it is about to be published with. False for a
-// node published for the first time: there is nothing there to leave behind.
-func egressSeriesNeedsTeardown(remembered *sync.Map, node string, labels any) bool {
-	previous, published := remembered.Load(node)
-	remembered.Store(node, labels)
-	return published && previous != labels
-}
-
-// recordEgressReported republishes the reported series, dropping the machine's prior
-// one when its labels moved: `tier` and `service` are labels, so a box moved to
-// another offer — or a machine re-adopted onto a different server — would otherwise
-// leave its old series alongside the new one and both would look current.
+// recordEgressReported republishes the reported series, dropping the machine's
+// prior one first: `tier` and `service` are labels, so a box moved to another
+// offer — or a machine re-adopted onto a different server — would otherwise leave
+// its old series alongside the new one and both would look current.
 func recordEgressReported(node, fleet, service, tier string, mbps int32) {
-	if egressSeriesNeedsTeardown(&lastReportedLabels, node, reportedLabels{fleet, service, tier}) {
-		egressReportedGauge.DeletePartialMatch(prometheus.Labels{"node": node})
-	}
+	egressReportedGauge.DeletePartialMatch(prometheus.Labels{"node": node})
 	egressReportedGauge.WithLabelValues(node, fleet, service, tier).Set(float64(mbps))
 }
 
 func recordEgressBudgets(node, fleet string, configured, advertised int32, source string) {
 	egressConfiguredGauge.WithLabelValues(node, fleet).Set(float64(configured))
-	// `source` is a label, so a node moving from a pin back to discovery would
-	// otherwise keep both series alive.
-	if egressSeriesNeedsTeardown(&lastAdvertisedLabels, node, advertisedLabels{fleet, source}) {
-		egressAdvertisedGauge.DeletePartialMatch(prometheus.Labels{"node": node})
-	}
+	// Republished rather than updated: `source` is a label, so a node that moves
+	// from a pin back to discovery would otherwise keep both series alive.
+	egressAdvertisedGauge.DeletePartialMatch(prometheus.Labels{"node": node})
 	egressAdvertisedGauge.WithLabelValues(node, fleet, source).Set(float64(advertised))
 }
 
@@ -99,7 +68,6 @@ func recordEgressBudgets(node, fleet string, configured, advertised int32, sourc
 // behind the retry floor at worst, and never on a machine discovery is skipping.
 func forgetEgressReported(node string) {
 	egressReportedGauge.DeletePartialMatch(prometheus.Labels{"node": node})
-	lastReportedLabels.Delete(node)
 }
 
 // forgetEgressMetrics drops a machine's series once its CR is gone, so a released
@@ -108,6 +76,4 @@ func forgetEgressMetrics(node string) {
 	for _, gauge := range []*prometheus.GaugeVec{egressReportedGauge, egressConfiguredGauge, egressAdvertisedGauge} {
 		gauge.DeletePartialMatch(prometheus.Labels{"node": node})
 	}
-	lastReportedLabels.Delete(node)
-	lastAdvertisedLabels.Delete(node)
 }
