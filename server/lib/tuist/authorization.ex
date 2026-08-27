@@ -196,9 +196,6 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of an account to read account tokens.")
       allow([:authenticated_as_user, user_role: :admin])
 
-      desc("Allows read-only viewers of an account to read account tokens.")
-      allow([:authenticated_as_user, user_role: :viewer])
-
       desc("Allows users with ops access to read any account tokens.")
       allow([:authenticated_as_user, :ops_access])
     end

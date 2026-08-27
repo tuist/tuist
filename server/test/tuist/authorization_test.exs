@@ -1647,11 +1647,10 @@ defmodule Tuist.AuthorizationTest do
       assert Authorization.authorize(:preview_delete, viewer, project) == {:error, :forbidden}
     end
 
-    test "cannot create or delete account tokens but can read them", %{
-      account: account,
-      viewer: viewer
-    } do
-      assert Authorization.authorize(:account_token_read, viewer, account) == :ok
+    test "cannot reach account tokens at all", %{account: account, viewer: viewer} do
+      # Given — tokens are credentials management rather than dashboard reading,
+      # and granting the read half-opens the settings shell around them.
+      assert Authorization.authorize(:account_token_read, viewer, account) == {:error, :forbidden}
       assert Authorization.authorize(:account_token_create, viewer, account) == {:error, :forbidden}
       assert Authorization.authorize(:account_token_delete, viewer, account) == {:error, :forbidden}
     end
