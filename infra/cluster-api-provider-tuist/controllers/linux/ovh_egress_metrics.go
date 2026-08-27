@@ -34,9 +34,12 @@ var (
 )
 
 // What the source label carries, for the reader of this file rather than the Help
-// string: "discovery" is a reading from OVH, including one the ratchet is holding;
-// "manual" is a machine pinned by the tuist.dev/egress-mbps-override annotation, so
-// a pin left in place is alertable on its age; "configured" is spec.egressBudgetMbps.
+// string: "discovery" is a reading from OVH, including a held floor an earlier
+// reading supports; "manual" is a machine pinned by the tuist.dev/egress-mbps-override
+// annotation, so a pin left in place is alertable on its age; "held" is a floor the
+// ratchet is holding with no reading behind it, which is worth separating from
+// "discovery" so a dashboard filtering on OVH-backed budgets does not count it;
+// "configured" is spec.egressBudgetMbps.
 
 func init() {
 	metrics.Registry.MustRegister(egressReportedGauge, egressConfiguredGauge, egressAdvertisedGauge)

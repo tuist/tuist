@@ -338,8 +338,8 @@ operator chose, in both directions, and is the single lever for changing a live 
 `spec.egressBudgetMbps` reaches a machine only when it is cloned from its template
 (the MachineDeployment is `OnDelete`), so it is the fleet default and the floor rather
 than something an operator moves. `status.egressSource` records what decided the
-budget last time (`discovery` / `manual` / `configured`), which is what makes a pin
-reversible: the ratchet is anchored to what the node advertises, so once a pin is
+budget last time (`discovery` / `manual` / `held` / `configured`), which is what makes
+a pin reversible: the ratchet is anchored to what the node advertises, so once a pin is
 removed that anchor is a number a human typed, and the recorded source is how the
 controller knows to ignore it for one reconcile and re-derive from readings. That
 source is recorded only once the capacity patch has landed, so a failed write leaves
@@ -357,6 +357,14 @@ one-way property is why `spec.egressBudgetMbps: 0` does not withdraw a node that
 already advertising a budget: it stops the controller managing the key, it does not
 remove it. Withdrawing a live box means deleting the machine (which deletes its Node),
 not zeroing the field.
+
+`held` is the one that needs explaining: it is a floor the ratchet is carrying with no
+reading behind it, so the number is whatever the node was already advertising rather
+than anything OVH said. A machine that has never resolved whose node advertises more
+than its spec produces it — the shape left behind by hand-lowering
+`spec.egressBudgetMbps` on a live CR. It is split out from `discovery` so that
+filtering `capt_ovh_egress_advertised_mbps{source="discovery"}` means what it says:
+budgets an actual reading supports.
 
 Events fire when the node's advertised budget actually moves — `EgressBudgetIncreased`
 or `EgressBudgetReduced`, naming both numbers and what decided the new one — not when

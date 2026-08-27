@@ -149,8 +149,10 @@ type OVHDedicatedMachineStatus struct {
 	EgressTier string `json:"egressTier,omitempty"`
 
 	// EgressSource records what decided the node's advertised egress budget last
-	// time: "discovery" (a reading from OVH, including one the ratchet is holding),
-	// "manual" (the tuist.dev/egress-mbps-override annotation) or "configured"
+	// time: "discovery" (a reading from OVH, including a floor the ratchet is holding
+	// that an earlier reading supports), "manual" (the tuist.dev/egress-mbps-override
+	// annotation), "held" (a floor the ratchet is holding with no reading behind it,
+	// so the number is whatever the node already advertised) or "configured"
 	// (Spec.EgressBudgetMbps).
 	//
 	// It answers "why is this node at N" without reading logs, and it is what makes

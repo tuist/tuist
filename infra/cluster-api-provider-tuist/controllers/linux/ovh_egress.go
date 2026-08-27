@@ -87,11 +87,14 @@ func resolvedEgressReading(mbps int32) bool {
 // meant to be, so the budget has to be set first.
 const EgressOverrideAnnotation = "tuist.dev/egress-mbps-override"
 
-// Sources recorded in Status.EgressSource.
+// Sources recorded in Status.EgressSource. Only egressSourceManual is load-bearing
+// — egressFloor reads it to release a removed pin. The rest answer "why is this node
+// at N" for a human, which is a job they only do if each one is true.
 const (
 	egressSourceDiscovery  = "discovery"
 	egressSourceManual     = "manual"
 	egressSourceConfigured = "configured"
+	egressSourceHeld       = "held"
 )
 
 // egressOverrideMbps is the operator's pinned budget, or 0 when the annotation is
@@ -179,9 +182,16 @@ func egressFloor(machine *infrav1.OVHDedicatedMachine, advertisedMbps int32) int
 // (capt_ovh_egress_reported_mbps, against capt_ovh_egress_advertised_mbps — nothing
 // on the node moved, so no event is raised).
 //
-// A held floor above the configured budget reports "discovery" rather than
-// "configured": it is a reading from an earlier reconcile, and calling it
-// configured would make the next reconcile mistake it for a stale pin.
+// A held floor above the configured budget is reported by where the floor came
+// from, which is not always a reading. When one exists, the floor is an earlier
+// reading of the same box and "discovery" is the truth. When none does — a machine
+// that has never resolved whose node advertises more than its spec, which is what an
+// operator hand-lowering spec.egressBudgetMbps on a live CR leaves behind — the
+// number is whatever the node was already carrying, and calling that "discovery"
+// would have status.egressSource and capt_ovh_egress_advertised_mbps assert OVH
+// backing for a figure no reading supports. It reports "held" instead. Nothing
+// branches on either value; the point is that the field answering "why is this node
+// at N" should not answer it wrongly.
 func effectiveEgressMbps(disabled bool, specMbps, discoveredMbps, floorMbps, overrideMbps int32) (int32, string) {
 	if specMbps <= 0 {
 		return specMbps, egressSourceConfigured
@@ -196,7 +206,10 @@ func effectiveEgressMbps(disabled bool, specMbps, discoveredMbps, floorMbps, ove
 		return discoveredMbps, egressSourceDiscovery
 	}
 	if floorMbps > specMbps {
-		return floorMbps, egressSourceDiscovery
+		if resolvedEgressReading(discoveredMbps) {
+			return floorMbps, egressSourceDiscovery
+		}
+		return floorMbps, egressSourceHeld
 	}
 	return specMbps, egressSourceConfigured
 }
@@ -382,6 +395,8 @@ func egressSourceDescription(machine *infrav1.OVHDedicatedMachine, source string
 		return "pinned by " + EgressOverrideAnnotation
 	case egressSourceDiscovery:
 		return "reported by OVH for " + machine.Status.ServiceName
+	case egressSourceHeld:
+		return "held at the budget the node already advertised"
 	default:
 		return "spec.egressBudgetMbps"
 	}

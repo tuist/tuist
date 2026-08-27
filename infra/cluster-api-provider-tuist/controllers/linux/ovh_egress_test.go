@@ -70,11 +70,18 @@ func TestEffectiveEgressMbps(t *testing.T) {
 			spec: 3000, discovered: 4000, floor: 5000, want: 5000, wantSource: egressSourceDiscovery,
 		},
 		{
-			// A held floor above the configured budget came from an earlier reading,
-			// and must not report as configured or the next reconcile would mistake
-			// it for a stale pin.
-			name: "a held floor still reports discovery",
-			spec: 3000, discovered: 0, floor: 5000, want: 5000, wantSource: egressSourceDiscovery,
+			// A held floor with a reading behind it is an earlier reading of the same
+			// box, so "discovery" is the truth.
+			name: "a held floor with a reading behind it reports discovery",
+			spec: 3000, discovered: 4000, floor: 5000, want: 5000, wantSource: egressSourceDiscovery,
+		},
+		{
+			// With no reading, the floor is whatever the node was already carrying.
+			// Calling that "discovery" would claim OVH backing for a number no reading
+			// supports — the shape an operator hand-lowering spec.egressBudgetMbps on a
+			// live CR leaves behind.
+			name: "a held floor with no reading behind it reports held",
+			spec: 3000, discovered: 0, floor: 5000, want: 5000, wantSource: egressSourceHeld,
 		},
 		{
 			name: "a reading equal to the floor is applied",
