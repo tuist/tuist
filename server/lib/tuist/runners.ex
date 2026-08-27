@@ -54,7 +54,7 @@ defmodule Tuist.Runners do
   arrive:
 
     * `workflow_job.completed` webhook, keyed on the executing
-      `runner_name` (`Claims.complete_by_runner_name/2`). Releases
+      `runner_name` (`Claims.complete_by_runner_name/3`). Releases
       nothing when GitHub reports no runner, e.g. a job cancelled while
       queued, or one GitHub placed on a sibling runner.
     * The controller's pod-stopped POST

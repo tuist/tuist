@@ -31,8 +31,8 @@
       content={Tuist.Environment.app_url(path: "/") |> URI.parse() |> Map.get(:host)}
     />
     <meta property="twitter:url" content={Tuist.Environment.app_url()} />
-    
-<!-- Assets -->
+
+    <!-- Assets -->
     <script defer phx-track-static type="module" src={~p"/apidocs/assets/bundle.js"}>
     </script>
     <link phx-track-static rel="stylesheet" href={~p"/apidocs/assets/bundle.css"} />

@@ -14,46 +14,18 @@ defmodule TuistWeb.LayoutComponents do
     """
   end
 
-  attr(:current_user, :map, default: nil)
-
-  def head_plain_script(assigns) do
-    current_user = Map.get(assigns, :current_user)
-    plain_authentication_secret = Tuist.Environment.plain_authentication_secret()
-
-    plain_opts =
-      Map.merge(
-        %{appId: "liveChatApp_01JSH0MMH3KHE7PX1781CV2HZG"},
-        if(is_nil(current_user) or is_nil(plain_authentication_secret),
-          do: %{},
-          else: %{
-            customerDetails: %{
-              email: current_user.email,
-              emailHash:
-                :hmac
-                |> :crypto.mac(:sha256, plain_authentication_secret, current_user.email)
-                |> Base.encode16(case: :lower),
-              chatAvatarUrl: Tuist.Accounts.User.gravatar_url(current_user)
-            }
-          }
-        )
-      )
-
-    assigns = assign(assigns, :plain_opts, plain_opts)
-
+  def head_support_chat_script(assigns) do
     ~H"""
     <script
-      :if={Tuist.Environment.analytics_enabled?() and not Map.get(assigns, :plain_disabled?, false)}
+      :if={!Map.get(assigns, :support_chat_disabled?, false)}
+      defer
       nonce={get_csp_nonce()}
+      src={
+        URI.parse("https://atlas.tuist.dev")
+        |> URI.append_path("/support/chat.js")
+        |> URI.to_string()
+      }
     >
-      (function(d, script) {
-        script = d.createElement('script');
-        script.async = false;
-        script.onload = function(){
-          Plain.init(<%= raw JSON.encode!(@plain_opts) %>);
-        };
-        script.src = 'https://chat.cdn-plain.com/index.js';
-        d.getElementsByTagName('head')[0].appendChild(script);
-      }(document));
     </script>
     """
   end

@@ -1358,6 +1358,51 @@ defmodule TuistWeb.RunnerJobLiveTest do
            )
   end
 
+  test "refuses a shell session to a member demoted while the page is open", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    # Given — a job whose shell is requestable, with the page already open while
+    # the member could still attach.
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_999,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 319_990,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Demoted Linux shell",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-demoted", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_999, "tuist-runner-linux-demoted", claimed_at)
+
+    flush_outbox!()
+
+    # Mounted away from the terminal tab, which auto-requests a session on
+    # connect and would create one before the demotion lands.
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/319990/jobs/31999")
+
+    # When — demoted without reloading. `InteractiveSessions` mints tokens
+    # without authorizing, so the socket's cached answer must not be what
+    # decides this.
+    {:ok, organization} = Accounts.get_organization_by_id(account.organization_id)
+    {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+
+    render_hook(lv, "request_shell_session", %{})
+
+    # Then
+    assert is_nil(InteractiveSessions.current_for_job(account.id, 31_999, :shell))
+  end
+
   test "closes the shell session when the browser terminal disconnects", %{
     conn: conn,
     account: account,

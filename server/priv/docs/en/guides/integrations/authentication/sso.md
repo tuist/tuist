@@ -51,6 +51,12 @@ Google configurations default to automatic enrollment. New Okta and custom-provi
 
 The **Enforce single sign-on** setting is independent of enrollment. Enforcement prevents existing organization members from using email and password; it does not grant organization membership.
 
+### Choose the role enrolled members get {#choose-the-enrollment-role}
+
+Members who join automatically get the <.localized_link href="/guides/server/accounts-and-projects#roles">role</.localized_link> set under **Role for enrolled members**, which is `user` unless an administrator changes it. Setting it to `viewer` opens sign-in to everyone in the directory without giving everyone the ability to change things.
+
+The setting cannot be set to `admin`, applies to members provisioned over <.localized_link href="/guides/integrations/authentication/scim">SCIM</.localized_link> without a role as well as to those signing in, and never overwrites a role an administrator set by hand.
+
 ### Existing organizations {#existing-organizations}
 
 Organizations configured before login email domains were introduced retain their existing behavior:

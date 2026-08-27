@@ -6358,6 +6358,46 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
+    ) func map_macroTarget_withCustomSwiftFlags_addsPackageNameToTargetSettings() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/MyMacro"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [],
+                    targets: [
+                        .test(name: "MyMacro", type: .macro),
+                    ],
+                    platforms: [.macos],
+                    toolsVersion: Version(5, 9, 0)
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: .default.with(
+                    base: ["OTHER_SWIFT_FLAGS": ["-Xfrontend", "-disable-sil-ownership-verifier"]]
+                )
+            )
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(
+            target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+                "-Xfrontend",
+                "-disable-sil-ownership-verifier",
+            ])
+        )
+        #expect(target.settings?.base["SWIFT_PACKAGE_NAME"] == .string("Package"))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenSourcesDirectlyInSourcesDirectory_SE0162Support() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let packagePath = basePath.appending(try RelativePath(validating: "Package"))

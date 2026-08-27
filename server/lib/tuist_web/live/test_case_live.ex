@@ -12,14 +12,20 @@ defmodule TuistWeb.TestCaseLive do
 
   alias Noora.Filter
   alias Tuist.Accounts
+  alias Tuist.Authorization
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Errors.UnauthorizedError
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
+
+  # The overview's history sits in its own column beside the widgets and the
+  # chart, and runs as deep as they do. Anything past that is a tab away.
+  @overview_history_page_size 6
 
   def mount(
         %{"test_case_id" => test_case_id} = _params,
@@ -53,8 +59,32 @@ defmodule TuistWeb.TestCaseLive do
       |> assign(:test_case_detail, test_case_detail)
       |> assign(:head_title, "#{test_case_detail.name} · #{slug} · Tuist")
       |> assign(:available_filters, define_filters(project))
+      |> assign(:can_update_test_case, can_update_test_case?(socket.assigns[:current_user], project))
 
     {:ok, socket}
+  end
+
+  defp can_update_test_case?(current_user, project) do
+    Authorization.authorize(:test_update, current_user, project) == :ok
+  end
+
+  # Reading a test case and changing its state are different permissions: a
+  # read-only viewer reaches this page but must not quarantine anything.
+  #
+  # The permission is resolved again here rather than read off the assign the
+  # mount computed. A socket outlives the role that opened it, so a member
+  # demoted to viewer while the page is open would otherwise keep writing until
+  # they reload.
+  defp authorize_test_case_update!(%{assigns: %{current_user: current_user, selected_project: project}}) do
+    if can_update_test_case?(current_user, project) do
+      :ok
+    else
+      raise UnauthorizedError, dgettext("dashboard_tests", "You are not authorized to update this test case.")
+    end
+  end
+
+  defp authorize_test_case_update!(_socket) do
+    raise UnauthorizedError, dgettext("dashboard_tests", "You are not authorized to update this test case.")
   end
 
   # Renders a failure message span without whitespace around the content.
@@ -128,10 +158,27 @@ defmodule TuistWeb.TestCaseLive do
   # nothing to draw, so the card offers an empty state instead of a flat line.
   defp charted?(%{run_counts: run_counts}), do: Enum.any?(run_counts, &(&1 > 0))
 
+  # The line spans the buckets a test case did not run in (`connectNulls` on the
+  # series) rather than breaking over them, so a test case that runs weekly reads
+  # as a trend instead of as scattered marks. What it spans is drawn, not
+  # measured, so every measured bucket carries a symbol and the stretches between
+  # them are visibly interpolation. A series that measured every bucket has
+  # nothing to disambiguate and stays bare.
   defp chart_points(dates, values) do
-    dates
-    |> Enum.zip(values)
-    |> Enum.map(&Tuple.to_list/1)
+    Enum.zip_with([dates, values, symbol_sizes(values)], fn [date, value, symbol_size] ->
+      %{value: [date, value], symbolSize: symbol_size}
+    end)
+  end
+
+  defp symbol_sizes(values) do
+    if Enum.any?(values, &is_nil/1) do
+      Enum.map(values, fn
+        nil -> 0
+        _measured -> 6
+      end)
+    else
+      Enum.map(values, fn _value -> 0 end)
+    end
   end
 
   # Rates are bounded, so their axis is pinned to 0-100 rather than scaled to the
@@ -338,9 +385,10 @@ defmodule TuistWeb.TestCaseLive do
   defp assign_overview_history(socket) do
     test_case_id = socket.assigns.test_case_id
 
-    {events, meta} = Tests.list_test_case_events(test_case_id, %{page: 1, page_size: 3})
+    {events, meta} =
+      Tests.list_test_case_events(test_case_id, %{page: 1, page_size: @overview_history_page_size})
 
-    has_more = meta.total_count > 3
+    has_more = meta.total_count > @overview_history_page_size
 
     socket
     |> assign(:overview_history_events, events)
@@ -430,6 +478,8 @@ defmodule TuistWeb.TestCaseLive do
         _params,
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
+    :ok = authorize_test_case_update!(socket)
+
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
@@ -448,6 +498,8 @@ defmodule TuistWeb.TestCaseLive do
         _params,
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
+    :ok = authorize_test_case_update!(socket)
+
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
@@ -469,6 +521,8 @@ defmodule TuistWeb.TestCaseLive do
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       )
       when new_state in ["enabled", "muted", "skipped"] do
+    :ok = authorize_test_case_update!(socket)
+
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
@@ -739,6 +793,10 @@ defmodule TuistWeb.TestCaseLive do
   defp state_label("muted"), do: dgettext("dashboard_tests", "Muted")
   defp state_label("skipped"), do: dgettext("dashboard_tests", "Skipped")
   defp state_label(_), do: dgettext("dashboard_tests", "Enabled")
+
+  defp state_color("muted"), do: "neutral"
+  defp state_color("skipped"), do: "neutral"
+  defp state_color(_), do: "success"
 
   defp state_icon("muted"), do: "volume_3"
   defp state_icon("skipped"), do: "player_track_next"

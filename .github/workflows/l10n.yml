@@ -19,9 +19,11 @@ permissions:
   contents: write
   pull-requests: write
 
+# Runs queue instead of cancelling: a cancelled run has already paid for the
+# model calls it made, and cancelling it threw that spend away.
 concurrency:
   group: l10n-translations
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   MISE_VERSION: "2026.5.15"
@@ -31,7 +33,7 @@ jobs:
   translate:
     name: Translate
     runs-on: tuist-linux
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v4.0.1
@@ -62,6 +64,10 @@ jobs:
           title: "chore(server): update translations"
           body: |
             Automated translation update triggered by changes to `.pot` files or `L10N.md` context.
+
+            Merge this promptly. The `.l10n/*.lock` files only advance when this
+            lands, and every run made against stale locks re-translates entries
+            that are already done.
           add-paths: |
             .l10n/**
             server/priv/gettext/**/*.po

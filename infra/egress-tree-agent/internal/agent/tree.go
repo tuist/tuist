@@ -99,15 +99,7 @@ func (t Tree) EnsureTree(ctx context.Context, nodeMbps int64, classes map[uint16
 	// caller degrades the joined error to a requeue.
 	var classErrs []error
 	for minor, class := range classes {
-		// HTB rejects rate 0; a tenant without a floor still needs a class
-		// to be countable and cappable, so it gets a 1 Mbit token trickle
-		// and lives off borrowing.
-		floor := max(class.FloorMbps, 1)
-		ceil := class.BurstMbps
-		if ceil == 0 || ceil > nodeMbps {
-			ceil = nodeMbps
-		}
-		ceil = max(ceil, floor)
+		floor, ceil := classRates(class, nodeMbps)
 		if _, err := run(ctx, "tc", "class", "replace", "dev", t.TrampolineDev,
 			"parent", fmt.Sprintf("1:%x", rootClassMinor), "classid", ClassIDString(minor),
 			"htb", "rate", fmt.Sprintf("%dmbit", floor), "ceil", fmt.Sprintf("%dmbit", ceil),
@@ -279,4 +271,33 @@ func run(ctx context.Context, name string, args ...string) ([]byte, error) {
 
 func writeSysctl(path, value string) error {
 	return os.WriteFile(path, []byte(value), 0o644)
+}
+
+// classRates resolves the rate/ceil pair tc is given for one tenant class,
+// bounded so that whatever the annotation said, the class is buildable and the
+// box cap holds.
+//
+//   - HTB rejects rate 0, and a tenant without a floor still needs a class to be
+//     countable and cappable, so it gets a 1 Mbit token trickle and lives off
+//     borrowing.
+//   - The box cap binds the floor as well as the ceiling. A floor is a promise
+//     out of the node's budget, so one larger than the whole budget is not a
+//     bigger promise, it is an unkeepable one: the root class cannot hand out
+//     what it does not have.
+//   - A ceiling under its own floor is a guarantee that can never be reached:
+//     ceil is the hard cap, so a class whose rate sits above it is throttled
+//     below its own floor for ever. tc accepts such a class without complaint
+//     (measured: `rate 900mbit ceil 100mbit` returns 0 and installs), which is
+//     exactly why this has to be normalised here — the kernel will not object on
+//     our behalf. The floor wins, having already been bounded by the box, so the
+//     tenant keeps a reachable guarantee and the neighbours keep their cap.
+//     Without the floor being bounded first, this last step is what would carry
+//     a bad floor past the box cap and onto the neighbours.
+func classRates(class TenantClass, nodeMbps int64) (floor, ceil int64) {
+	floor = min(max(class.FloorMbps, 1), nodeMbps)
+	ceil = class.BurstMbps
+	if ceil == 0 || ceil > nodeMbps {
+		ceil = nodeMbps
+	}
+	return floor, max(ceil, floor)
 }

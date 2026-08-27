@@ -31,6 +31,16 @@ defmodule Tuist.Authorization.Checks do
     })
   end
 
+  def user_role(%User{} = authenticated_user, %Project{} = project, role) when role == :viewer do
+    Accounts.owns_account_or_is_viewer_of_account_organization?(authenticated_user, project_account(project))
+  end
+
+  def user_role(%User{} = authenticated_user, %Account{} = account, role) when role == :viewer do
+    Accounts.owns_account_or_is_viewer_of_account_organization?(authenticated_user, %{
+      id: account.id
+    })
+  end
+
   def user_role(_, _, _) do
     false
   end
@@ -321,14 +331,14 @@ defmodule Tuist.Authorization.Checks do
   defp object_account_id(_), do: nil
 
   def project_command_event_access(%User{} = user, %{project: %Project{} = project}) do
-    user_role(user, project, :user)
+    project_reader?(user, project)
   end
 
   def project_command_event_access(%User{} = user, command_event) when is_struct(command_event) do
     case Map.get(command_event, :project_id) do
       project_id when not is_nil(project_id) ->
         project = Projects.get_project_by_id(project_id)
-        user_role(user, project, :user)
+        project_reader?(user, project)
 
       _ ->
         false
@@ -380,7 +390,7 @@ defmodule Tuist.Authorization.Checks do
         else
           case user_or_nil do
             %User{} = user ->
-              user_role(user, project, :user)
+              project_reader?(user, project)
 
             _ ->
               false
@@ -394,5 +404,11 @@ defmodule Tuist.Authorization.Checks do
 
   def command_event_project_access(_, _) do
     false
+  end
+
+  # Reading a project is where the viewer role lives, so the command-event
+  # gates accept it alongside members that can also write.
+  defp project_reader?(user, project) do
+    user_role(user, project, :user) or user_role(user, project, :viewer)
   end
 end

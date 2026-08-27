@@ -227,7 +227,7 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `list_accounts` | List personal and organization account handles available to the authenticated user, including whether each account can create projects. | None |
 | `create_organization` | Create a Tuist organization for the authenticated user. | `handle` |
 | `create_project` | Create a Tuist project under an account the authenticated user can access. | `account_handle`, `project_handle` |
-| `add_organization_member` | Add an existing Tuist user to an organization or update an existing member's role. | `organization_handle`, `email` |
+| `add_organization_member` | Add an existing Tuist user to an organization or update an existing member's role. Accepts `user` (the default), `admin`, or `viewer`, where a viewer can read dashboards and runs but cannot change anything. | `organization_handle`, `email` |
 | `list_projects` | List all projects accessible to the authenticated user. | None |
 
 #### Xcode builds

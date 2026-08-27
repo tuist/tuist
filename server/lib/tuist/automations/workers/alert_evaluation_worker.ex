@@ -256,6 +256,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       active_events
       |> Enum.reject(&MapSet.member?(currently_triggered_set, &1.test_case_id))
       |> reject_unevaluated_this_tick(scoped_test_case_ids)
+      |> reject_unmeasurable_test_cases(alert)
 
     # Re-arming (appending the "recovered" event so the next rising edge can
     # fire again) happens for every alert once its condition clears past the
@@ -326,6 +327,24 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp reject_unevaluated_this_tick(candidates, scoped_test_case_ids) do
     evaluated = MapSet.new(scoped_test_case_ids)
     Enum.filter(candidates, &MapSet.member?(evaluated, &1.test_case_id))
+  end
+
+  # `reject_unevaluated_this_tick/2` answers "was this test case in the batch we
+  # looked at"; this answers "was there anything to look at". They are different
+  # questions under default-branch scoping, where a test case can be in the batch
+  # and still have no default-branch runs to measure — a quarantined test whose
+  # work has moved onto pull-request branches, for instance. Absent from the
+  # triggered set for that reason is not the condition clearing, and recovering on
+  # it would un-quarantine a test nothing has re-proven.
+  defp reject_unmeasurable_test_cases([], _alert), do: []
+
+  defp reject_unmeasurable_test_cases(candidates, alert) do
+    measurable =
+      alert
+      |> FlakyTestsMonitor.measurable_test_case_ids(Enum.map(candidates, & &1.test_case_id))
+      |> MapSet.new()
+
+    Enum.filter(candidates, &MapSet.member?(measurable, &1.test_case_id))
   end
 
   # A state filter makes an action conditional on the test case's current

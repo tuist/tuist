@@ -76,6 +76,14 @@ dictate this shape — do not regress them:
   Classid minors are allocated per account (stable, persisted on the
   KuraInstance as `kura.tuist.dev/egress-class-id`) by the controller — one
   component owns the id contract end-to-end.
+  The rates in it are the account's effective pair: the region's floor and
+  ceiling unless staff set a per-account, per-region override on the ops account
+  page, which the server renders into `spec.egressGuaranteedMbps` and the
+  bandwidth pod annotation so the same numbers reach the scheduler's
+  reservation, Cilium's pacing, and this class. Those are pod-spec state, so a
+  retune arrives on freshly created pods; this agent sees the new annotation
+  when the pod informer reports the replacement and converges within about a
+  second of it.
 - **Node budget:** `Node.status.capacity["tuist.dev/egress-mbps"]`
   (advertised by the CAPI provider, see
   `infra/cluster-api-provider-tuist/controllers/shared/node_egress.go`).
@@ -115,6 +123,20 @@ dictate this shape — do not regress them:
   `/sys/fs/bpf/kura-egress-tree/`) keep enforcing across agent restarts and
   upgrades. Removing shaping is an explicit operator action: delete the
   DaemonSet, remove the pin directory, delete `kura-egress0`.
+- **The box cap binds the floor, not just the ceiling.** `classRates` clamps a
+  tenant's floor to the node budget *before* raising its ceiling to meet that
+  floor. Clamping only the ceiling leaves a hole: a floor larger than the whole
+  budget (a mistyped override, a hand-edited CR) carries the ceiling with it past
+  the cap this tree exists to hold — a 2000 Mbps floor on a 1000 Mbps box yields
+  `rate 2Gbit ceil 2Gbit`. The root class cannot hand out what it does not have
+  anyway.
+- **tc validates none of this, so `classRates` is the only guard.** Measured on a
+  live tree: two child classes at `rate 800mbit` under a `rate 1gbit` root both
+  install with exit 0, and a single class with `rate 900mbit ceil 100mbit`
+  installs cleanly. HTB does no admission control on the sum of child rates — it
+  shares out in proportion under contention instead. Nothing in the kernel will
+  say a floor is unkeepable or unreachable; that has to come from this agent's
+  metrics and from the ops form.
 - `default 0` on the root qdisc: unclassified packets transmit unshaped via
   HTB's direct queue and increment a counter that must alert — every packet
   entering the tree was stamped, so a direct packet means a foreign redirect
@@ -181,9 +203,23 @@ growth is the signal.
   GPL-restriction error, that helper needs a license discussion first,
   not a quiet `"GPL"` declaration.
 - Image: `infra/egress-tree-agent/Dockerfile` (alpine + iproute2; the agent
-  shells out to `ip`/`tc`), built by
-  `.github/workflows/egress-tree-agent-image.yml` →
-  `ghcr.io/tuist/egress-tree-agent`. Pin deployments by digest.
+  shells out to `ip`/`tc`) → `ghcr.io/tuist/egress-tree-agent`.
+  `.github/workflows/egress-tree-agent-image.yml` validates PRs and publishes
+  `:sha-<git-sha>` for pre-release iteration.
+- Release + deploy: same shape as the other independently-released infra
+  components (runners-controller, stable-egress-controller). A push to main
+  touching `infra/egress-tree-agent/**` makes `mise run release:check` bump
+  the component (`mise/tasks/release/components.json` +
+  `infra/egress-tree-agent/cliff.toml`, type-only parsers so `feat(infra):`
+  counts); `server-production-deployment.yml`'s `release-egress-tree-agent`
+  job builds `ghcr.io/tuist/egress-tree-agent:<semver>`, `tag-infra-releases`
+  pushes `egress-tree-agent@<semver>` only once that image is confirmed
+  published, and `server-deployment.yml` resolves the highest such tag
+  reachable from the deployed commit into `egressTreeAgent.image.tag`. So
+  there is no in-repo image pin to bump, and the DaemonSet rolls only when
+  the agent itself changed — not on every server deploy. To run an unreleased
+  build, dispatch `server-deployment.yml` with
+  `egress_tree_agent_image_tag: sha-<git-sha>`.
 - Helm: `infra/helm/tuist/templates/egress-tree-agent.yaml`
   (`egressTreeAgent.*` values; privileged DaemonSet on the kura pools). Ships
   with a CiliumClusterwideNetworkPolicy dropping TCP `metricsPort` from

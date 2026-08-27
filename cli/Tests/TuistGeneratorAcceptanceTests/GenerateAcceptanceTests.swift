@@ -655,6 +655,33 @@ struct GenerateAcceptanceTestCommandLineToolWithPackageAccessAndModuleMap {
     }
 }
 
+struct GenerateAcceptanceTestCommandLineToolWithLocalMacroPackage {
+    @Test(.withFixture("generated_command_line_tool_with_local_macro_package"), .inTemporaryDirectory)
+    func command_line_tool_with_local_macro_package() async throws {
+        let fixturePath = try fixtureDirectory()
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "Package", "MacroPackage.xcodeproj").pathString
+        )
+        let macroTarget = try TuistAcceptanceTest.requireTarget("ReproMacro", in: xcodeproj)
+        let buildConfigurations = try #require(macroTarget.buildConfigurationList?.buildConfigurations)
+
+        for buildConfiguration in buildConfigurations {
+            let buildSettings = buildConfiguration.buildSettings
+            #expect(buildSettings["SWIFT_PACKAGE_NAME"]?.stringValue == "MacroPackage")
+
+            let otherSwiftFlags = try #require(buildSettings["OTHER_SWIFT_FLAGS"]?.stringValue)
+            #expect(otherSwiftFlags.contains("-Xfrontend -disable-sil-ownership-verifier"))
+            #expect(!otherSwiftFlags.contains("-package-name"))
+        }
+
+        try await run(BuildCommand.self)
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
     @Test(.withFixture("generated_ios_app_with_objc_static_framework_package"), .inTemporaryDirectory)
     func ios_app_with_objc_and_c_static_framework_package() async throws {

@@ -786,7 +786,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
     dgettext(
       "dashboard_projects",
-      "When test reliability across branches %{symbol} %{threshold}% over %{window}",
+      "When test reliability on the default branch %{symbol} %{threshold}% over %{window}",
       symbol: symbol,
       threshold: threshold,
       window: window_summary(trigger_config)

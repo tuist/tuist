@@ -163,15 +163,13 @@ defmodule TuistWeb.Marketing.MarketingHTML do
           href={@primary_action_href}
           label={@primary_action_title}
           target={@primary_action_target}
-        >
-        </.button>
+        ></.button>
         <.button
           href={@secondary_action_href}
           variant="secondary"
           label={@secondary_action_title}
           target={@secondary_action_target}
-        >
-        </.button>
+        ></.button>
       </nav>
     </div>
     """

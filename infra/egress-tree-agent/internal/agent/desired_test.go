@@ -130,3 +130,37 @@ func TestDiffStrings(t *testing.T) {
 		t.Fatalf("empty diff = %v / %v", added, removed)
 	}
 }
+
+// Whatever the annotation says, the class tc is given has to be buildable and
+// has to stay inside the box. The dangerous case is a floor above the node
+// budget: the ceiling is raised to meet the floor, so an unbounded floor would
+// drag a tenant's ceiling past the cap the whole tree exists to hold.
+func TestClassRatesStayInsideTheBox(t *testing.T) {
+	const node int64 = 1000
+
+	for _, tc := range []struct {
+		name                string
+		class               TenantClass
+		wantFloor, wantCeil int64
+	}{
+		{"ordinary pair", TenantClass{FloorMbps: 25, BurstMbps: 500}, 25, 500},
+		{"no floor gets a trickle", TenantClass{FloorMbps: 0, BurstMbps: 500}, 1, 500},
+		{"uncapped burst takes the box", TenantClass{FloorMbps: 25, BurstMbps: 0}, 25, node},
+		{"burst over the box is capped", TenantClass{FloorMbps: 25, BurstMbps: 5000}, 25, node},
+		{"floor over the box is capped", TenantClass{FloorMbps: 2000, BurstMbps: 1500}, node, node},
+		{"ceiling under its floor is raised", TenantClass{FloorMbps: 400, BurstMbps: 100}, 400, 400},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			floor, ceil := classRates(tc.class, node)
+			if floor != tc.wantFloor || ceil != tc.wantCeil {
+				t.Fatalf("rates = %d/%d, want %d/%d", floor, ceil, tc.wantFloor, tc.wantCeil)
+			}
+			if ceil > node {
+				t.Fatalf("ceiling %d escaped the node budget %d", ceil, node)
+			}
+			if floor > ceil {
+				t.Fatalf("floor %d above ceiling %d is unbuildable", floor, ceil)
+			}
+		})
+	}
+}

@@ -1568,6 +1568,7 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "ready": status.ready,
         "state": status.state.as_str(),
         "ring_members": status.ring_members,
+        "ring_fingerprint": status.ring_fingerprint,
         "initial_discovery_completed": status.initial_discovery_completed,
         "writer_lock_owned": status.writer_lock_owned,
         "http_inflight_requests": status.http_inflight,
@@ -1575,6 +1576,7 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "outbox_messages": status.outbox_messages,
         "memory_pressure_state": status.memory_pressure_state,
         "fd_timeout_count": status.fd_timeout_count,
+        "peer_connection_failure_count": status.peer_connection_failure_count,
         "backfill_initial_cycle": status.backfill.initial_cycle.as_str(),
         "backfill_backfilling_peers": status.backfill.backfilling_peers,
         "backfill_budget_exhausted_real_peers": status.backfill.budget_exhausted_real,
@@ -4446,6 +4448,12 @@ mod tests {
             .state
             .metrics
             .record_file_descriptor_wait("timeout", Duration::from_millis(5));
+        context.state.metrics.record_replication(
+            &peer,
+            "upsert_artifact",
+            "error",
+            Duration::from_millis(3),
+        );
         context.state.enter_draining();
 
         let response = public_router(context.state.clone())
@@ -4467,6 +4475,12 @@ mod tests {
         assert_eq!(body["outbox_messages"], 7);
         assert_eq!(body["memory_pressure_state"], 0);
         assert_eq!(body["fd_timeout_count"], 1);
+        assert_eq!(body["peer_connection_failure_count"], 1);
+        let fingerprint = body["ring_fingerprint"]
+            .as_str()
+            .expect("ring fingerprint should be a string");
+        assert_eq!(fingerprint.len(), 16);
+        assert!(fingerprint.chars().all(|c| c.is_ascii_hexdigit()));
         assert_eq!(body["backfill_initial_cycle"], "complete");
     }
 

@@ -49,7 +49,7 @@ defmodule Noora.Button do
   slot(:icon_right, doc: "Icon displayed on the right of an item")
   slot(:inner_block, required: false, doc: "Inner block that renders HEEx content")
 
-  attr(:rest, :global, include: ~w(phx-click disabled form))
+  attr(:rest, :global, include: ~w(phx-click disabled form target rel type))
 
   def button(assigns) do
     ~H"""
@@ -116,7 +116,7 @@ defmodule Noora.Button do
 
   slot(:inner_block, required: true, doc: "Inner block that renders HEEx content")
 
-  attr(:rest, :global, include: ~w(phx-click disabled))
+  attr(:rest, :global, include: ~w(phx-click disabled target rel))
 
   def neutral_button(assigns) do
     ~H"""
@@ -160,7 +160,7 @@ defmodule Noora.Button do
 
   attr(:underline, :boolean, default: false, doc: "Determines if the button is underlined")
 
-  attr(:rest, :global)
+  attr(:rest, :global, include: ~w(target rel))
 
   slot(:icon_left, doc: "Icon displayed on the left of an item")
   slot(:icon_right, doc: "Icon displayed on the right of an item")

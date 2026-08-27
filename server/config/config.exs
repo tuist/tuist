@@ -417,6 +417,11 @@ config :tuist, :blocked_handles, [
 
 config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
 
+# Baseline machine-minutes every account gets free per billing period.
+# Must match the first tier of the environment's runner Stripe Price;
+# see `Tuist.Runners.Allowance`.
+config :tuist, :runner_free_monthly_minutes, 100
+
 # Runner Profiles shape catalog — the (vCPU, RAM) pairs customers can
 # pick when creating a profile. This is the **dev/test/CI default**;
 # managed deploys override it at boot from `TUIST_RUNNER_LINUX_SHAPES`,
@@ -436,12 +441,17 @@ config :tuist, :runner_linux_shapes, [
   %{vcpus: 16, memory_gb: 32}
 ]
 
-# macOS shape catalog. Same role as `:runner_linux_shapes`. M2-L is the
-# only Scaleway Apple Silicon SKU on the fleet today, so only one shape
-# ships here. Managed deploys override at boot from
-# `TUIST_RUNNER_MACOS_SHAPES` (Helm injects from `runnersFleet.shapes`).
+# macOS shape catalog. Same role as `:runner_linux_shapes`. Managed
+# deploys override at boot from `TUIST_RUNNER_MACOS_SHAPES` (Helm
+# injects from `runnersFleet.shapes`).
+#
+# A macOS shape is only runnable on a host SKU whose advertised
+# `hostCPU`/`hostMemoryMB` fit it, so the catalog is per-environment on
+# the Helm side: the 12 vCPU shape needs an M4-XL and is not offered in
+# environments whose fleet is M2-L only.
 config :tuist, :runner_macos_shapes, [
-  %{vcpus: 6, memory_gb: 14, default: true}
+  %{vcpus: 6, memory_gb: 14, default: true},
+  %{vcpus: 12, memory_gb: 28}
 ]
 
 # macOS Xcode catalog. Each entry is a runnable Xcode version on the
