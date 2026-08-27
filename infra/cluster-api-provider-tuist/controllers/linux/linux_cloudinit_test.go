@@ -412,3 +412,65 @@ func TestContainerdProjectIDCannotCollideWithAVolume(t *testing.T) {
 		t.Fatal("expected a byte ceiling and no inode ceiling on the image store")
 	}
 }
+
+// TestRenderLinux_KataRuntime pins both halves of the runner-fleet opt-in: a box
+// that asked for kata gets the runtime AND the label the kata-qemu RuntimeClass
+// selects on, and a box that did not gets neither. The negative half is the one
+// that matters operationally — the four Kura cache fleets share this renderer,
+// and silently handing them a kata download plus a containerd runtime block is a
+// change to a live cache node's runtime for no reason.
+func TestRenderLinux_KataRuntime(t *testing.T) {
+	opts := linuxCloudInitOptions{
+		NodeName:       "tuist-tuist-ovh-fleet-runners-linux-abc",
+		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
+		K8sMinor:       "v1.34",
+		BootstrapUser:  "ubuntu",
+	}
+
+	optsKata := opts
+	optsKata.KataRuntime = true
+	withKata := renderLinuxBootstrapScript(optsKata)
+
+	for _, want := range []string{
+		"kata-static-" + kataVersion + "-amd64.tar.zst",
+		"runtime_path = \"/opt/kata/bin/containerd-shim-kata-v2\"",
+		"katacontainers.io/kata-runtime=true",
+		"tuist.dev/kata-runtime=true",
+		// Set on the handler itself: the earlier rewrite only touches what the
+		// generated default emitted, and this block is appended after it.
+		"SystemdCgroup = true",
+	} {
+		if !strings.Contains(withKata, want) {
+			t.Errorf("kata-enabled render is missing %q", want)
+		}
+	}
+
+	// The handler is registered under containerd's v3 config syntax, so a box
+	// whose containerd still emits v2 would accept the join and then fail every
+	// kata Pod. The guard has to abort the join instead.
+	if !strings.Contains(withKata, "grep -q '^version = 3' /etc/containerd/config.toml") {
+		t.Errorf("kata-enabled render must refuse to join a box whose containerd config is not version 3")
+	}
+
+	// Appending twice on a re-bootstrap would give containerd a duplicate
+	// runtime table, so the append is guarded.
+	if !strings.Contains(withKata, `grep -q "runtimes.kata-qemu" /etc/containerd/config.toml ||`) {
+		t.Errorf("the kata containerd block must be appended idempotently")
+	}
+
+	// Ordering: the handler has to be registered before containerd restarts,
+	// or kubelet talks to a containerd that has never seen it.
+	kataIdx := strings.Index(withKata, "runtimes.kata-qemu")
+	restartIdx := strings.Index(withKata, "systemctl restart containerd")
+	if kataIdx < 0 || restartIdx < 0 || kataIdx > restartIdx {
+		t.Errorf("expected the kata block before the containerd restart (kata=%d restart=%d)", kataIdx, restartIdx)
+	}
+
+	// Cache fleets: nothing kata anywhere, including the node labels.
+	withoutKata := renderLinuxBootstrapScript(opts)
+	for _, unwanted := range []string{"kata-static", "kata-qemu", "katacontainers.io/kata-runtime"} {
+		if strings.Contains(withoutKata, unwanted) {
+			t.Errorf("cache-fleet render must not contain %q", unwanted)
+		}
+	}
+}
