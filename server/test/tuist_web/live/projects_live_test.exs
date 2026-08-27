@@ -57,6 +57,21 @@ defmodule TuistWeb.ProjectsLiveTest do
     assert html =~ ~s(form="create-project-form")
   end
 
+  test "renders several project cards without duplicating dom ids", %{conn: conn, account: account} do
+    for name <- ["first-project", "second-project", "third-project"] do
+      ProjectsFixtures.project_fixture(account_id: account.id, name: name)
+    end
+
+    {:ok, _view, html} = live(conn, ~p"/#{account.name}/projects")
+
+    document = Floki.parse_fragment!(html)
+
+    assert document |> Floki.find(~s([data-part="project"])) |> length() == 3
+
+    ids = Floki.attribute(document, "[id]", "id")
+    assert ids == Enum.uniq(ids)
+  end
+
   test "ignores a stale pagination cursor on initial load", %{conn: conn, account: account} do
     for index <- 1..7 do
       ProjectsFixtures.project_fixture(account_id: account.id, name: "project-#{index}")
