@@ -12,10 +12,12 @@ defmodule TuistWeb.TestCaseLive do
 
   alias Noora.Filter
   alias Tuist.Accounts
+  alias Tuist.Authorization
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Errors.UnauthorizedError
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -57,8 +59,32 @@ defmodule TuistWeb.TestCaseLive do
       |> assign(:test_case_detail, test_case_detail)
       |> assign(:head_title, "#{test_case_detail.name} · #{slug} · Tuist")
       |> assign(:available_filters, define_filters(project))
+      |> assign(:can_update_test_case, can_update_test_case?(socket.assigns[:current_user], project))
 
     {:ok, socket}
+  end
+
+  defp can_update_test_case?(current_user, project) do
+    Authorization.authorize(:test_update, current_user, project) == :ok
+  end
+
+  # Reading a test case and changing its state are different permissions: a
+  # read-only viewer reaches this page but must not quarantine anything.
+  #
+  # The permission is resolved again here rather than read off the assign the
+  # mount computed. A socket outlives the role that opened it, so a member
+  # demoted to viewer while the page is open would otherwise keep writing until
+  # they reload.
+  defp authorize_test_case_update!(%{assigns: %{current_user: current_user, selected_project: project}}) do
+    if can_update_test_case?(current_user, project) do
+      :ok
+    else
+      raise UnauthorizedError, dgettext("dashboard_tests", "You are not authorized to update this test case.")
+    end
+  end
+
+  defp authorize_test_case_update!(_socket) do
+    raise UnauthorizedError, dgettext("dashboard_tests", "You are not authorized to update this test case.")
   end
 
   # Renders a failure message span without whitespace around the content.
@@ -452,6 +478,8 @@ defmodule TuistWeb.TestCaseLive do
         _params,
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
+    :ok = authorize_test_case_update!(socket)
+
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
@@ -470,6 +498,8 @@ defmodule TuistWeb.TestCaseLive do
         _params,
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
+    :ok = authorize_test_case_update!(socket)
+
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
@@ -491,6 +521,8 @@ defmodule TuistWeb.TestCaseLive do
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       )
       when new_state in ["enabled", "muted", "skipped"] do
+    :ok = authorize_test_case_update!(socket)
+
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
@@ -761,6 +793,10 @@ defmodule TuistWeb.TestCaseLive do
   defp state_label("muted"), do: dgettext("dashboard_tests", "Muted")
   defp state_label("skipped"), do: dgettext("dashboard_tests", "Skipped")
   defp state_label(_), do: dgettext("dashboard_tests", "Enabled")
+
+  defp state_color("muted"), do: "neutral"
+  defp state_color("skipped"), do: "neutral"
+  defp state_color(_), do: "success"
 
   defp state_icon("muted"), do: "volume_3"
   defp state_icon("skipped"), do: "player_track_next"

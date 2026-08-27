@@ -525,6 +525,108 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "get_organization_members/2 with SSO" do
+    test "lists an SSO member with a stored viewer role only as a viewer" do
+      # Given — the member both matches the organization's SSO and holds an
+      # explicit viewer role.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
+        )
+
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+      :ok = Accounts.add_user_to_organization(user, organization, role: :viewer)
+      {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+
+      # Then
+      viewer_ids = Enum.map(Accounts.get_organization_members(organization, :viewer), & &1.id)
+      user_ids = Enum.map(Accounts.get_organization_members(organization, :user), & &1.id)
+
+      assert user.id in viewer_ids
+      refute user.id in user_ids
+    end
+
+    test "a viewer holding a role in another organization is not also listed as a user" do
+      # Given — a left join over the member's roles yields a non-matching row for
+      # the unrelated organization, which would read as "no role here".
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
+        )
+
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+      :ok = Accounts.add_user_to_organization(user, organization, role: :viewer)
+      {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+
+      elsewhere = AccountsFixtures.organization_fixture()
+      :ok = Accounts.add_user_to_organization(user, elsewhere, role: :user)
+
+      # Then
+      viewer_ids = Enum.map(Accounts.get_organization_members(organization, :viewer), & &1.id)
+      user_ids = Enum.map(Accounts.get_organization_members(organization, :user), & &1.id)
+
+      assert user.id in viewer_ids
+      refute user.id in user_ids
+    end
+
+    test "lists nobody by enrollment role when automatic enrollment is off" do
+      # Given — `organization_viewer?/2` answers false for these identities, so
+      # the listing must not claim them either.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: false,
+          sso_default_role: "viewer"
+        )
+
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+      Tuist.Repo.delete_all(from(ur in UserRole, where: ur.user_id == ^user.id))
+
+      # Then
+      refute Accounts.organization_viewer?(user, organization)
+      viewer_ids = Enum.map(Accounts.get_organization_members(organization, :viewer), & &1.id)
+      refute user.id in viewer_ids
+    end
+
+    test "lists a role-less SSO member under the organization's enrollment role" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true,
+          sso_default_role: "viewer"
+        )
+
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+      Tuist.Repo.delete_all(from(ur in UserRole, where: ur.user_id == ^user.id))
+
+      # Then — the enrollment role decides, rather than defaulting to user.
+      viewer_ids = Enum.map(Accounts.get_organization_members(organization, :viewer), & &1.id)
+      user_ids = Enum.map(Accounts.get_organization_members(organization, :user), & &1.id)
+
+      assert user.id in viewer_ids
+      refute user.id in user_ids
+    end
+  end
+
   describe "organization_user?/2" do
     test "organization_user? returns false if the user is not an admin" do
       # Given
@@ -584,6 +686,76 @@ defmodule Tuist.AccountsTest do
 
       # When
       assert Accounts.organization_user?(user, organization) == true
+    end
+
+    test "organization_user? returns false for a viewer that SSO automatic enrollment would otherwise enroll" do
+      # Given — the viewer role is explicit, so it must not be widened into
+      # `user` by the SSO automatic-enrollment path.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
+        )
+
+      # Mirrors what the members API does when an admin sets the role of a
+      # member that SSO enrolled without ever writing a role row.
+      :ok = Accounts.add_user_to_organization(user, organization, role: :viewer)
+
+      # Then
+      assert Accounts.belongs_to_sso_organization?(user, organization)
+      assert Accounts.organization_viewer?(user, organization)
+      refute Accounts.organization_user?(user, organization)
+      refute Accounts.organization_admin?(user, organization)
+      assert Accounts.belongs_to_organization?(user, organization)
+    end
+
+    test "SSO automatic enrollment writes the organization's configured role" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true,
+          sso_default_role: "viewer"
+        )
+
+      # When — signing in is what triggers enrollment.
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+
+      # Then
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(user, organization)
+    end
+
+    test "organization_user? returns false when the organization enrolls SSO members as viewers" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true,
+          sso_default_role: "viewer"
+        )
+
+      # Then — no role row was written, so the organization's configured
+      # enrollment role is what the member resolves to.
+      assert Accounts.belongs_to_sso_organization?(user, organization)
+      assert Accounts.organization_viewer?(user, organization)
+      refute Accounts.organization_user?(user, organization)
+      assert Accounts.belongs_to_organization?(user, organization)
     end
 
     test "organization_user? returns false when only the SSO identity matches and automatic enrollment is disabled" do
@@ -1337,6 +1509,36 @@ defmodule Tuist.AccountsTest do
       assert Accounts.get_invitation_by_id(invitation.id) == nil
     end
 
+    test "accepting a viewer invitation grants the viewer role" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "viewer@tuist.io")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "viewer@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          role: :viewer
+        )
+
+      # When
+      Accounts.accept_invitation(%{
+        invitation: invitation,
+        invitee: invitee,
+        organization: organization
+      })
+
+      # Then
+      assert Accounts.organization_viewer?(invitee, organization)
+      refute Accounts.organization_user?(invitee, organization)
+      refute Accounts.organization_admin?(invitee, organization)
+
+      assert Enum.map(Accounts.get_organization_members(organization, :viewer), & &1.id) == [
+               invitee.id
+             ]
+    end
+
     test "does not accept an expired invitation" do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -1433,6 +1635,30 @@ defmodule Tuist.AccountsTest do
       assert invitation.invitee_email == "test@tuist.io"
       assert invitation.inviter_type == "User"
       assert invitation.organization_id == organization.id
+    end
+
+    test "defaults the invited role to user and records an explicit viewer role" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+
+      # When
+      {:ok, default_invitation} =
+        Accounts.invite_user_to_organization(
+          "default@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end}
+        )
+
+      {:ok, viewer_invitation} =
+        Accounts.invite_user_to_organization(
+          "viewer@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          role: :viewer
+        )
+
+      # Then
+      assert default_invitation.role == "user"
+      assert viewer_invitation.role == "viewer"
     end
 
     test "returns errors" do
@@ -3132,7 +3358,8 @@ defmodule Tuist.AccountsTest do
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: domain
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
         )
 
       Accounts.add_user_to_organization(user_one, organization, role: :user)
@@ -3163,6 +3390,8 @@ defmodule Tuist.AccountsTest do
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
           sso_organization_id: provider_organization_id,
+          sso_automatic_enrollment: true,
+          sso_legacy_email_domain_fallback: true,
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret"
         )

@@ -55,9 +55,9 @@ public struct GetBundleService: GetBundleServicing {
         let response = try await client.getBundle(
             .init(
                 path: .init(
+                    bundle_id: bundleId,
                     account_handle: handles.accountHandle,
-                    project_handle: handles.projectHandle,
-                    bundle_id: bundleId
+                    project_handle: handles.projectHandle
                 )
             )
         )
