@@ -302,3 +302,19 @@ func TestStableHostDoesNotOutliveThePublicHost(t *testing.T) {
 		t.Fatalf("public ingress still present with no public host: %v", err)
 	}
 }
+
+// A moving name is only as good as how fast a resolver lets go of the region
+// it used to be on. The gateways refuse a name they no longer serve, so a
+// client holding a stale answer retries rather than failing quietly; this
+// bounds how long it retries for.
+func TestCustomerIngressesCarryAShortRecordTTL(t *testing.T) {
+	for name, annotations := range map[string]map[string]string{
+		"public": publicIngressAnnotations(),
+		"grpc":   grpcIngressAnnotations(),
+	} {
+		got := annotations["external-dns.alpha.kubernetes.io/ttl"]
+		if got != customerRecordTTLSeconds {
+			t.Errorf("%s ingress TTL = %q, want %q", name, got, customerRecordTTLSeconds)
+		}
+	}
+}
