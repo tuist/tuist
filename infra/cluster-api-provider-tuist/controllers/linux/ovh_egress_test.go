@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -664,6 +665,35 @@ func TestReconcileNodeEgressCannotWithdrawANodeItAlreadyRated(t *testing.T) {
 
 	l.machine.Spec.EgressBudgetMbps = 0
 	l.want("budget zeroed", 5000, egressSourceConfigured)
+}
+
+// The series is only torn down when a label actually moves. Tearing it down on every
+// reconcile leaves a window — DeletePartialMatch and WithLabelValues take the vec lock
+// separately — in which a scrape sees no series for the node at all.
+func TestEgressSeriesTeardownOnlyOnALabelChange(t *testing.T) {
+	var remembered sync.Map
+	const node = "ovh-labels"
+
+	if egressSeriesNeedsTeardown(&remembered, node, advertisedLabels{"fleet", egressSourceDiscovery}) {
+		t.Error("a node published for the first time has nothing to leave behind")
+	}
+	if egressSeriesNeedsTeardown(&remembered, node, advertisedLabels{"fleet", egressSourceDiscovery}) {
+		t.Error("republishing the same labels should not tear the series down")
+	}
+	if !egressSeriesNeedsTeardown(&remembered, node, advertisedLabels{"fleet", egressSourceManual}) {
+		t.Error("a node moving onto a pin must drop the discovery-labelled series")
+	}
+	if egressSeriesNeedsTeardown(&remembered, node, advertisedLabels{"fleet", egressSourceManual}) {
+		t.Error("settled on the new labels, nothing more to tear down")
+	}
+
+	// Forgetting a released box takes its remembered labels with it, so a machine
+	// recreated under the same name starts clean rather than tearing down a series
+	// that is not there.
+	remembered.Delete(node)
+	if egressSeriesNeedsTeardown(&remembered, node, advertisedLabels{"fleet", egressSourceConfigured}) {
+		t.Error("a forgotten node is published for the first time again")
+	}
 }
 
 // A released box must stop reporting a budget nothing is advertising any more.
