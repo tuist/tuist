@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -471,68 +472,160 @@ func TestEgressOverrideMbps(t *testing.T) {
 	}
 }
 
+// egressLifecycle drives the real reconcileNodeEgress against a fake apiserver, so
+// each step asserts on the Node's capacity rather than on a return value. The
+// ordering inside that function is load-bearing — the floor is read before the
+// source is written, and the source is written only after the capacity patch lands —
+// and a test that reimplements the sequence cannot catch that ordering changing.
+type egressLifecycle struct {
+	t       *testing.T
+	machine *infrav1.OVHDedicatedMachine
+	client  client.Client
+	api     *fakeOVHAPI
+	r       *OVHDedicatedMachineReconciler
+}
+
+func newEgressLifecycle(t *testing.T) *egressLifecycle {
+	t.Helper()
+	machine := discoveryMachine() // configured at 3000
+	machine.Name = "ovh-lifecycle"
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: machine.Name}}
+	cl := fake.NewClientBuilder().WithScheme(egressScheme(t)).
+		WithObjects(node).WithStatusSubresource(node).Build()
+	api := &fakeOVHAPI{}
+	r, _ := discoveryReconciler(api)
+	r.Client = cl
+	t.Cleanup(func() { forgetEgressMetrics(machine.Name) })
+	return &egressLifecycle{t: t, machine: machine, client: cl, api: api, r: r}
+}
+
+// reports is what OVH will answer on the next reconcile, with the cached reading
+// marked due so the reconcile actually goes and asks.
+func (l *egressLifecycle) reports(mbps int64) {
+	l.api.body = egressBody(mbps, "Mbps", "improved")
+	l.machine.Status.EgressResolvedAt = nil
+}
+
+// step runs one reconcile and reports what the Node advertises afterwards.
+func (l *egressLifecycle) step(name string) (int32, string) {
+	l.t.Helper()
+	node := &corev1.Node{}
+	if err := l.client.Get(context.Background(), types.NamespacedName{Name: l.machine.Name}, node); err != nil {
+		l.t.Fatalf("%s: get node: %v", name, err)
+	}
+	if err := l.r.reconcileNodeEgress(context.Background(), l.machine, node); err != nil {
+		l.t.Fatalf("%s: %v", name, err)
+	}
+	advertised := advertisedNodeMbps(l.t, l.client, l.machine.Name)
+	l.t.Logf("%s -> node advertises %d (%s)", name, advertised, l.machine.Status.EgressSource)
+	return advertised, l.machine.Status.EgressSource
+}
+
+func (l *egressLifecycle) want(name string, mbps int32, source string) {
+	l.t.Helper()
+	gotMbps, gotSource := l.step(name)
+	if gotMbps != mbps || gotSource != source {
+		l.t.Fatalf("%s: node advertises %d (%s), want %d (%s)", name, gotMbps, gotSource, mbps, source)
+	}
+}
+
 // TestEgressLifecycle walks the sequence an operator actually goes through:
 // discovery raises the node, a low reading is held back, a pin takes it down, the
 // budget is lowered to match, and the pin comes off — which must land on the
 // reading rather than springing back to a stale floor.
 func TestEgressLifecycle(t *testing.T) {
-	machine := discoveryMachine() // configured at 3000
-	advertised := int32(0)        // what the node carries between steps
+	l := newEgressLifecycle(t)
 
-	step := func(name string, discovered int32) (int32, string) {
-		t.Helper()
-		machine.Status.EgressMbps = discovered
-		floor := egressFloor(machine, advertised)
-		value, source := effectiveEgressMbps(egressDiscoveryDisabled(machine),
-			machine.Spec.EgressBudgetMbps, discovered, floor, egressOverrideMbps(machine))
-		machine.Status.EgressSource = source
-		advertised = value
-		t.Logf("%s -> %d (%s)", name, value, source)
-		return value, source
-	}
+	l.reports(5000)
+	l.want("first reading of 5000", 5000, egressSourceDiscovery)
+	l.want("steady state", 5000, egressSourceDiscovery)
 
-	if value, source := step("first reading of 5000", 5000); value != 5000 || source != egressSourceDiscovery {
-		t.Fatalf("first reading = %d %q, want 5000 discovery", value, source)
-	}
-	if value, source := step("steady state", 5000); value != 5000 || source != egressSourceDiscovery {
-		t.Fatalf("steady state = %d %q, want 5000 discovery", value, source)
-	}
-	if value, source := step("OVH drops to 4000", 4000); value != 5000 || source != egressSourceDiscovery {
-		t.Fatalf("after a lower reading = %d %q, want the ratchet to hold 5000", value, source)
-	}
+	// The ratchet: a lower reading is recorded but must not walk the node back down
+	// on the controller's own authority.
+	l.reports(4000)
+	l.want("OVH drops to 4000", 5000, egressSourceDiscovery)
 
-	machine.Annotations = map[string]string{EgressOverrideAnnotation: "1000"}
-	if value, source := step("operator pins 1000", 4000); value != 1000 || source != egressSourceManual {
-		t.Fatalf("pinned = %d %q, want 1000 manual", value, source)
-	}
+	// The reduction is confirmed at 1000, and accepting it is three moves.
+	l.reports(1000)
+	l.machine.Annotations = map[string]string{EgressOverrideAnnotation: "1000"}
+	l.want("operator pins 1000", 1000, egressSourceManual)
 
-	machine.Spec.EgressBudgetMbps = 1000
-	if value, source := step("budget lowered to match, pin still on", 1000); value != 1000 || source != egressSourceManual {
-		t.Fatalf("pinned after lowering the budget = %d %q, want 1000 manual", value, source)
-	}
+	l.machine.Spec.EgressBudgetMbps = 1000
+	l.want("budget lowered to match, pin still on", 1000, egressSourceManual)
 
-	delete(machine.Annotations, EgressOverrideAnnotation)
-	if value, source := step("pin removed", 1000); value != 1000 || source != egressSourceDiscovery {
-		t.Fatalf("unpinned = %d %q, want the node to land on the 1000 reading", value, source)
-	}
-	if value, source := step("steady state again", 1000); value != 1000 || source != egressSourceDiscovery {
-		t.Fatalf("settled = %d %q, want 1000 discovery", value, source)
-	}
+	delete(l.machine.Annotations, EgressOverrideAnnotation)
+	l.want("pin removed", 1000, egressSourceDiscovery)
+	l.want("steady state again", 1000, egressSourceDiscovery)
+}
+
+// The release only has work to do when the pin sat ABOVE the configured budget:
+// that is the case where the ratchet, anchored on what the node advertises, would
+// otherwise hold the node at a number a human typed and never let go. Both other
+// lifecycle paths pin at or below the budget, where the reset is inert and a broken
+// ordering still produces the right answer — so this is the case that actually
+// guards status.egressSource being read before it is written.
+func TestEgressPinAboveTheBudgetIsReleasedCleanly(t *testing.T) {
+	l := newEgressLifecycle(t) // configured at 3000
+
+	l.reports(3000)
+	l.want("settled on the configured budget", 3000, egressSourceDiscovery)
+
+	l.machine.Annotations = map[string]string{EgressOverrideAnnotation: "8000"}
+	l.want("operator pins 8000, above the budget", 8000, egressSourceManual)
+
+	// Without the one-reconcile reset the floor would be max(8000, 3000) and the
+	// node would stay at 8000 for good, labelled as though a reading supported it.
+	delete(l.machine.Annotations, EgressOverrideAnnotation)
+	l.want("pin removed", 3000, egressSourceDiscovery)
+	l.want("steady state", 3000, egressSourceDiscovery)
 }
 
 // The runbook's order matters: unpinning without lowering the budget first hands
 // the node back to the configured value, which is the over-commit the pin was
 // hiding. Pinned here to keep that documented rather than discovered in an incident.
 func TestEgressUnpinningWithoutLoweringTheBudgetSpringsBack(t *testing.T) {
-	machine := discoveryMachine() // configured at 3000
-	machine.Status.EgressSource = egressSourceManual
-	advertised := int32(1000) // the node is carrying a pin of 1000
+	l := newEgressLifecycle(t) // configured at 3000
 
-	floor := egressFloor(machine, advertised)
-	value, source := effectiveEgressMbps(false, machine.Spec.EgressBudgetMbps, 1000, floor, egressOverrideMbps(machine))
+	l.reports(1000)
+	l.machine.Annotations = map[string]string{EgressOverrideAnnotation: "1000"}
+	l.want("operator pins 1000", 1000, egressSourceManual)
 
-	if value != 3000 || source != egressSourceConfigured {
-		t.Fatalf("unpinned with the budget untouched = %d %q, want the configured 3000", value, source)
+	// The budget is left at 3000, which is the mistake.
+	delete(l.machine.Annotations, EgressOverrideAnnotation)
+	l.want("pin removed with the budget untouched", 3000, egressSourceConfigured)
+}
+
+// Zeroing the budget stops the controller managing the capacity key; it does not
+// remove it, because ReconcileNodeEgressCapacity has no path that does. Withdrawing
+// a live box means deleting the machine, which deletes its Node. Asserted against
+// the Node so the limitation is executable rather than a paragraph in AGENTS.md.
+func TestReconcileNodeEgressCannotWithdrawANodeItAlreadyRated(t *testing.T) {
+	l := newEgressLifecycle(t)
+
+	l.reports(5000)
+	l.want("rated at 5000", 5000, egressSourceDiscovery)
+
+	l.machine.Spec.EgressBudgetMbps = 0
+	l.want("budget zeroed", 5000, egressSourceConfigured)
+}
+
+// A released box must stop reporting a budget nothing is advertising any more.
+// reconcileDelete calls this once the CR is going away.
+func TestForgetEgressMetricsDropsEveryNodeSeries(t *testing.T) {
+	const node = "ovh-forgotten"
+	recordEgressBudgets(node, "fleet", 3000, 5000, egressSourceDiscovery)
+	recordEgressReported(node, "fleet", "ns1.ip-1-2-3.us", "improved", 5000)
+
+	forgetEgressMetrics(node)
+
+	for name, gauge := range map[string]*prometheus.GaugeVec{
+		"reported":   egressReportedGauge,
+		"configured": egressConfiguredGauge,
+		"advertised": egressAdvertisedGauge,
+	} {
+		if left := gauge.DeletePartialMatch(prometheus.Labels{"node": node}); left != 0 {
+			t.Errorf("%s still had %d series for a released box", name, left)
+		}
 	}
 }
 
