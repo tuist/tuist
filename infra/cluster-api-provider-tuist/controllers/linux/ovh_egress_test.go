@@ -45,56 +45,55 @@ func TestEffectiveEgressMbps(t *testing.T) {
 		disabled   bool
 		spec       int32
 		discovered int32
+		floor      int32
 		want       int32
 	}{
 		{
-			name: "a reading displaces the configured value",
-			spec: 3000, discovered: 5000, want: 5000,
+			name: "a reading above the floor is applied",
+			spec: 3000, discovered: 5000, floor: 3000, want: 5000,
 		},
 		{
-			// Discovery raises only. A wrong-low reading would re-rate the HTB root
-			// in place and throttle a box that can carry far more, and a genuine
-			// reduction is a plan downgrade — an action that already has a human.
-			name: "a reading below the configured value is not applied",
-			spec: 5000, discovered: 1000, want: 5000,
+			// The ratchet: once the node advertises 5000, a later 4000 reading must
+			// not walk it back down on the controller's own authority.
+			name: "a reading below what the node advertises is not applied",
+			spec: 3000, discovered: 4000, floor: 5000, want: 5000,
 		},
 		{
-			name: "a reading equal to the configured value is applied",
-			spec: 3000, discovered: 3000, want: 3000,
+			name: "a reading equal to the floor is applied",
+			spec: 3000, discovered: 3000, floor: 3000, want: 3000,
 		},
 		{
-			name: "no reading falls back to the configured value",
-			spec: 3000, discovered: 0, want: 3000,
+			name: "no reading holds the floor",
+			spec: 3000, discovered: 0, floor: 5000, want: 5000,
 		},
 		{
-			name: "a reading below the floor is refused: it would strand the node",
-			spec: 3000, discovered: 1, want: 3000,
+			name: "a reading below the plausibility floor holds the budget too",
+			spec: 3000, discovered: 1, floor: 3000, want: 3000,
 		},
 		{
 			// No ceiling: a box faster than anything in the fleet today must be believed.
 			name: "an unusually large reading is still used",
-			spec: 3000, discovered: 500_000, want: 500_000,
+			spec: 3000, discovered: 500_000, floor: 3000, want: 500_000,
 		},
 		{
-			// Annotating must retire a reading already held, not just stop the next call.
-			name:     "an annotated-off machine ignores a reading it already has",
-			disabled: true, spec: 3000, discovered: 5000, want: 3000,
+			// Explicit human decisions apply directly, downward included — the
+			// ratchet only holds against the controller's own readings.
+			name:     "an annotated machine drops to its configured budget",
+			disabled: true, spec: 3000, discovered: 5000, floor: 5000, want: 3000,
 		},
 		{
 			name: "an unset spec with no reading advertises nothing",
-			spec: 0, discovered: 0, want: 0,
+			spec: 0, discovered: 0, floor: 0, want: 0,
 		},
 		{
-			// Zeroing a resolved box's budget is how an operator withdraws it from
-			// egress governance; a cached reading must not keep it enrolled.
-			name: "an unset spec ignores a reading already cached",
-			spec: 0, discovered: 5000, want: 0,
+			name: "an unset spec withdraws the machine even from a held floor",
+			spec: 0, discovered: 5000, floor: 5000, want: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := effectiveEgressMbps(tt.disabled, tt.spec, tt.discovered); got != tt.want {
+			if got := effectiveEgressMbps(tt.disabled, tt.spec, tt.discovered, tt.floor); got != tt.want {
 				t.Fatalf("effectiveEgressMbps = %d, want %d", got, tt.want)
 			}
 		})
@@ -179,7 +178,7 @@ func TestReconcileEgressDiscoveryRecordsAReading(t *testing.T) {
 	r, recorder := discoveryReconciler(api)
 	machine := discoveryMachine()
 
-	r.reconcileEgressDiscovery(context.Background(), machine)
+	r.reconcileEgressDiscovery(context.Background(), machine, machine.Spec.EgressBudgetMbps)
 
 	if machine.Status.EgressMbps != 5000 || machine.Status.EgressTier != "improved" {
 		t.Fatalf("status = %d %q, want 5000 \"improved\"", machine.Status.EgressMbps, machine.Status.EgressTier)
@@ -219,7 +218,7 @@ func TestReconcileEgressDiscoverySkipsWhatItMustNotRead(t *testing.T) {
 			api := &fakeOVHAPI{body: egressBody(5000, "Mbps", "improved")}
 			r, _ := discoveryReconciler(api)
 
-			r.reconcileEgressDiscovery(context.Background(), machine)
+			r.reconcileEgressDiscovery(context.Background(), machine, machine.Spec.EgressBudgetMbps)
 
 			if api.calls != 0 {
 				t.Fatalf("OVH was called %d times, want 0", api.calls)
@@ -242,7 +241,7 @@ func TestReconcileEgressDiscoveryKeepsTheLastReading(t *testing.T) {
 			machine.Status.EgressTier = "included"
 			machine.Status.EgressResolvedServiceName = machine.Status.ServiceName
 
-			r.reconcileEgressDiscovery(context.Background(), machine)
+			r.reconcileEgressDiscovery(context.Background(), machine, machine.Spec.EgressBudgetMbps)
 
 			if machine.Status.EgressMbps != 1000 || machine.Status.EgressTier != "included" {
 				t.Fatalf("status = %d %q, want the previous 1000 \"included\"",
@@ -259,8 +258,8 @@ func TestReconcileEgressDiscoveryBacksOffAFailingRead(t *testing.T) {
 
 	// A failed read leaves EgressResolvedAt unstamped, so without the retry floor
 	// a machine requeuing every 20s would call OVH every 20s.
-	r.reconcileEgressDiscovery(context.Background(), machine)
-	r.reconcileEgressDiscovery(context.Background(), machine)
+	r.reconcileEgressDiscovery(context.Background(), machine, machine.Spec.EgressBudgetMbps)
+	r.reconcileEgressDiscovery(context.Background(), machine, machine.Spec.EgressBudgetMbps)
 
 	if api.calls != 1 {
 		t.Fatalf("OVH was called %d times, want 1: the second attempt should be backed off", api.calls)
@@ -272,9 +271,9 @@ func TestReconcileEgressDiscoveryRetriesAfterTheBackoff(t *testing.T) {
 	r, _ := discoveryReconciler(api)
 	machine := discoveryMachine()
 
-	r.reconcileEgressDiscovery(context.Background(), machine)
+	r.reconcileEgressDiscovery(context.Background(), machine, machine.Spec.EgressBudgetMbps)
 	r.egressReadFailures.Store(machine.UID, time.Now().Add(-2*egressReadRetryInterval))
-	r.reconcileEgressDiscovery(context.Background(), machine)
+	r.reconcileEgressDiscovery(context.Background(), machine, machine.Spec.EgressBudgetMbps)
 
 	if api.calls != 2 {
 		t.Fatalf("OVH was called %d times, want 2: the floor should have expired", api.calls)
@@ -288,7 +287,7 @@ func TestReconcileEgressDiscoveryReportsAnUnusableAnswerEveryRefresh(t *testing.
 	r, _ := discoveryReconciler(api)
 	machine := discoveryMachine()
 
-	r.reconcileEgressDiscovery(context.Background(), machine)
+	r.reconcileEgressDiscovery(context.Background(), machine, machine.Spec.EgressBudgetMbps)
 
 	if machine.Status.EgressResolvedAt == nil {
 		t.Fatal("an unusable answer should still stamp EgressResolvedAt, so it retries daily not per tick")
@@ -308,7 +307,7 @@ func TestReconcileEgressDiscoveryDropsAnotherBoxesReading(t *testing.T) {
 	machine.Status.EgressTier = "included"
 	machine.Status.EgressResolvedServiceName = "ns9.ip-9-9-9.us"
 
-	r.reconcileEgressDiscovery(context.Background(), machine)
+	r.reconcileEgressDiscovery(context.Background(), machine, machine.Spec.EgressBudgetMbps)
 
 	if machine.Status.EgressMbps != 0 || machine.Status.EgressTier != "" {
 		t.Fatalf("status = %d %q, want the previous box's reading dropped",
@@ -321,14 +320,14 @@ func TestReconcileEgressDiscoveryReportsAReductionWithoutApplyingIt(t *testing.T
 	r, recorder := discoveryReconciler(api)
 	machine := discoveryMachine() // configured at 3000
 
-	r.reconcileEgressDiscovery(context.Background(), machine)
+	r.reconcileEgressDiscovery(context.Background(), machine, machine.Spec.EgressBudgetMbps)
 
 	// The reading is recorded — that is what the reported metric and any later
 	// decision to accept it are built on — but it must not rate the node.
 	if machine.Status.EgressMbps != 1000 {
 		t.Fatalf("status = %d, want the reading recorded as 1000", machine.Status.EgressMbps)
 	}
-	if got := effectiveEgressMbps(false, machine.Spec.EgressBudgetMbps, machine.Status.EgressMbps); got != 3000 {
+	if got := effectiveEgressMbps(false, machine.Spec.EgressBudgetMbps, machine.Status.EgressMbps, 3000); got != 3000 {
 		t.Fatalf("advertised = %d, want the configured 3000", got)
 	}
 	select {
@@ -338,5 +337,35 @@ func TestReconcileEgressDiscoveryReportsAReductionWithoutApplyingIt(t *testing.T
 		}
 	default:
 		t.Fatal("a reduction should emit an event to alert on")
+	}
+}
+
+func TestEgressFloor(t *testing.T) {
+	machine := discoveryMachine() // configured at 3000
+	machine.Status.EgressConfiguredMbps = 3000
+
+	if got := egressFloor(machine, 0); got != 3000 {
+		t.Errorf("floor with nothing advertised = %d, want the configured 3000", got)
+	}
+	if got := egressFloor(machine, 5000); got != 5000 {
+		t.Errorf("floor with 5000 advertised = %d, want 5000: the node must not walk back down", got)
+	}
+	if got := egressFloor(machine, 1000); got != 3000 {
+		t.Errorf("floor with 1000 advertised = %d, want the configured 3000", got)
+	}
+
+	// Changing the configured budget is how a confirmed reduction is accepted: it
+	// disagrees with what the controller last acted on, which resets the ratchet.
+	lowered := discoveryMachine()
+	lowered.Spec.EgressBudgetMbps = 1000
+	lowered.Status.EgressConfiguredMbps = 3000
+	if got := egressFloor(lowered, 5000); got != 1000 {
+		t.Errorf("floor after the operator lowered the budget = %d, want 1000", got)
+	}
+
+	// A machine the controller has never acted on has no ratchet yet.
+	fresh := discoveryMachine()
+	if got := egressFloor(fresh, 5000); got != 3000 {
+		t.Errorf("floor before the controller has acted = %d, want the configured 3000", got)
 	}
 }

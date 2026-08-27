@@ -318,9 +318,13 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 	// Advertise the box's egress budget as node capacity so the scheduler
 	// bin-packs egress-floored Kura cache pods against it. Idempotent and
 	// re-applied each reconcile so a kubelet re-register can't strand it.
-	r.reconcileEgressDiscovery(ctx, machine)
+	egressFloorMbps := egressFloor(machine, shared.NodeEgressMbps(node))
+	r.reconcileEgressDiscovery(ctx, machine, egressFloorMbps)
 	egressMbps := effectiveEgressMbps(egressDiscoveryDisabled(machine),
-		machine.Spec.EgressBudgetMbps, machine.Status.EgressMbps)
+		machine.Spec.EgressBudgetMbps, machine.Status.EgressMbps, egressFloorMbps)
+	// Recorded after the floor is computed from it: the ratchet resets when these
+	// disagree, so this must not be updated until the reset has been acted on.
+	machine.Status.EgressConfiguredMbps = machine.Spec.EgressBudgetMbps
 	recordEgressBudgets(machine.Name, machine.Spec.FleetName, machine.Spec.EgressBudgetMbps, egressMbps)
 	if err := shared.ReconcileNodeEgressCapacity(ctx, r.Client, node, egressMbps); err != nil {
 		return ctrl.Result{}, err

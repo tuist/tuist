@@ -59,27 +59,49 @@ func usableDiscoveredEgress(mbps int32) bool {
 	return mbps >= minDiscoveredEgressMbps
 }
 
-// Discovery may raise the configured budget, never lower it. A box's contractual
-// bandwidth does not shrink on its own — it shrinks because someone downgraded the
-// plan, an action that already has a human attached — whereas a wrong-low reading
-// (an API blip, a partial response, a box throttled over its monthly quota) is
-// plausible and expensive: the egress-tree agent re-rates the node's HTB root in
-// place, throttling live cache traffic on a box that can carry far more. The floor
-// only catches garbage; a plausible-but-wrong 1000 on a 3 Gbit/s box clears it.
+// egressFloor is the budget the node may not fall below on its own: whatever it
+// already advertises, or the configured budget, whichever is higher.
 //
-// So a lower reading is recorded and surfaced (capt_ovh_egress_reported_mbps, and
-// an EgressBudgetReduced event) rather than applied. An operator who confirms it
-// accepts it by lowering spec.egressBudgetMbps to the real number, which is also
-// what the next machine cloned from the fleet template should carry.
+// The ratchet exists because the two directions are not symmetric. A box's
+// contractual bandwidth does not shrink on its own — it shrinks because someone
+// downgraded the plan, an action that already has a human attached — whereas a
+// wrong-low reading (an API blip, a partial response, a box throttled over its
+// monthly quota) is plausible and expensive: the egress-tree agent re-rates the
+// node's HTB root in place, throttling live cache traffic on a box that can carry
+// far more. The plausibility floor only catches garbage; a wrong 1000 on a 3
+// Gbit/s box clears it.
 //
-// A zeroed budget withdraws the machine from egress governance even when a reading
-// is already cached — the same guard discovery applies, repeated here because
-// zeroing a resolved box is a live operator action (spec is mutable, and OnDelete
-// means a values change never reaches a machine) that would otherwise silently
-// keep the node rated.
-func effectiveEgressMbps(disabled bool, specMbps, discoveredMbps int32) int32 {
-	if disabled || specMbps <= 0 || !usableDiscoveredEgress(discoveredMbps) || discoveredMbps < specMbps {
+// An operator changing the configured budget resets the ratchet, which is how a
+// confirmed reduction is accepted: lower spec.egressBudgetMbps to the real number
+// and the node follows on the next reconcile. Without that reset a node raised by
+// discovery could never be brought back down, since its own advertised value would
+// hold the floor up forever.
+func egressFloor(machine *infrav1.OVHDedicatedMachine, advertisedMbps int32) int32 {
+	if machine.Status.EgressConfiguredMbps != machine.Spec.EgressBudgetMbps {
+		return machine.Spec.EgressBudgetMbps
+	}
+	if advertisedMbps > machine.Spec.EgressBudgetMbps {
+		return advertisedMbps
+	}
+	return machine.Spec.EgressBudgetMbps
+}
+
+// effectiveEgressMbps is the budget the node should advertise: the discovered
+// reading when it is usable and at or above the floor, the floor otherwise. A
+// reading below the floor is recorded and surfaced (capt_ovh_egress_reported_mbps,
+// and an EgressBudgetReduced event) rather than applied.
+//
+// Disabling discovery or zeroing the budget are explicit human decisions and apply
+// directly, downward included — the ratchet only holds against the controller's own
+// readings. Zero in particular withdraws the machine from egress governance, which
+// is what the chart omitting the field, the capacity helper's no-op and the tree
+// agent's unshaped branch all already mean.
+func effectiveEgressMbps(disabled bool, specMbps, discoveredMbps, floorMbps int32) int32 {
+	if disabled || specMbps <= 0 {
 		return specMbps
+	}
+	if !usableDiscoveredEgress(discoveredMbps) || discoveredMbps < floorMbps {
+		return floorMbps
 	}
 	return discoveredMbps
 }
@@ -103,7 +125,7 @@ func egressDiscoveryDue(machine *infrav1.OVHDedicatedMachine, now time.Time) boo
 // reconciler's deferred patch persists. It returns no error: a failed read must not
 // hold up the node reconcile it rides along with, and the last reading stays in
 // force, so an OVH outage degrades to advertising what we already advertise.
-func (r *OVHDedicatedMachineReconciler) reconcileEgressDiscovery(ctx context.Context, machine *infrav1.OVHDedicatedMachine) {
+func (r *OVHDedicatedMachineReconciler) reconcileEgressDiscovery(ctx context.Context, machine *infrav1.OVHDedicatedMachine, floorMbps int32) {
 	logger := log.FromContext(ctx)
 
 	// A machine with no configured budget is one that does not participate in
@@ -165,13 +187,14 @@ func (r *OVHDedicatedMachineReconciler) reconcileEgressDiscovery(ctx context.Con
 		return
 	}
 
-	if discovered.Mbps < machine.Spec.EgressBudgetMbps {
-		logger.Info("OVH reports less egress than configured; the node keeps its configured budget",
+	if discovered.Mbps < floorMbps {
+		logger.Info("OVH reports less egress than the node advertises; the node keeps its budget",
 			"service", machine.Status.ServiceName, "mbps", discovered.Mbps,
-			"tier", discovered.Tier, "configured_mbps", machine.Spec.EgressBudgetMbps)
+			"tier", discovered.Tier, "floor_mbps", floorMbps,
+			"configured_mbps", machine.Spec.EgressBudgetMbps)
 		r.event(machine, "EgressBudgetReduced",
-			"OVH reports %d Mbps (%s) for %s, below the configured %d Mbps; not applied — lower spec.egressBudgetMbps to accept it",
-			discovered.Mbps, discovered.Tier, machine.Status.ServiceName, machine.Spec.EgressBudgetMbps)
+			"OVH reports %d Mbps (%s) for %s, below the %d Mbps the node advertises; not applied — lower spec.egressBudgetMbps to accept it",
+			discovered.Mbps, discovered.Tier, machine.Status.ServiceName, floorMbps)
 		return
 	}
 

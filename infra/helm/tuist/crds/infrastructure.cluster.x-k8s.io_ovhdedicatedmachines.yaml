@@ -250,6 +250,16 @@ spec:
                       - type
                     type: object
                   type: array
+                egressConfiguredMbps:
+                  description: |-
+                    EgressConfiguredMbps is the Spec.EgressBudgetMbps the controller last acted
+                    on. A discovered reading may raise the node's advertised budget but never
+                    lower it, and this is what lets an operator undo that: changing the
+                    configured budget makes it disagree with this field, which resets the
+                    ratchet to the new configured value. Without it, a node raised to a
+                    discovered value could never be brought back down.
+                  format: int32
+                  type: integer
                 egressMbps:
                   description: |-
                     EgressMbps is the box's public egress limitation (bandwidth.OvhToInternet on

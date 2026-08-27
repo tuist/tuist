@@ -148,6 +148,15 @@ type OVHDedicatedMachineStatus struct {
 	// +optional
 	EgressTier string `json:"egressTier,omitempty"`
 
+	// EgressConfiguredMbps is the Spec.EgressBudgetMbps the controller last acted
+	// on. A discovered reading may raise the node's advertised budget but never
+	// lower it, and this is what lets an operator undo that: changing the
+	// configured budget makes it disagree with this field, which resets the
+	// ratchet to the new configured value. Without it, a node raised to a
+	// discovered value could never be brought back down.
+	// +optional
+	EgressConfiguredMbps int32 `json:"egressConfiguredMbps,omitempty"`
+
 	// EgressResolvedServiceName is the box the cached reading was taken from. A
 	// reading recorded against a different service is always stale, which is what
 	// keeps a re-adopted machine from being rated by the previous box's number.

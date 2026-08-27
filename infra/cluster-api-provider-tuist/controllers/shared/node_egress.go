@@ -14,6 +14,22 @@ import (
 // matching string in the kura-controller; this is the capacity side.
 const EgressMbpsResource corev1.ResourceName = "tuist.dev/egress-mbps"
 
+// NodeEgressMbps is the budget the node currently advertises, or 0 when it
+// advertises none. Callers ratchet against it, so it reads the live object rather
+// than any remembered value: what the node says is what pods are being scheduled
+// and shaped against.
+func NodeEgressMbps(node *corev1.Node) int32 {
+	quantity, ok := node.Status.Capacity[EgressMbpsResource]
+	if !ok {
+		return 0
+	}
+	value, ok := quantity.AsInt64()
+	if !ok || value <= 0 {
+		return 0
+	}
+	return int32(value)
+}
+
 // ReconcileNodeEgressCapacity advertises mbps as the node's
 // tuist.dev/egress-mbps extended-resource capacity, idempotently. No-op when
 // mbps <= 0 (cloud nodes whose NIC isn't shared) or the capacity already

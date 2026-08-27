@@ -324,14 +324,22 @@ field in the block is nullable, so an absent bandwidth block is an ordinary
 answer, not an error: it resolves to zero, which keeps the node on its spec
 value.
 
-Discovery **raises the configured budget, never lowers it**. A box's contractual
+Discovery **raises a node's budget, never lowers it**: the floor is whatever the
+node already advertises, or the configured budget, whichever is higher. A box's contractual
 bandwidth does not shrink on its own — that happens because someone downgraded the
 plan, which already has a human attached — whereas a wrong-low reading (an API
 blip, a partial response, a box throttled over its monthly quota) is plausible and
 expensive: the egress-tree agent re-rates the node's HTB root in place, throttling
 live traffic on a box that can carry far more, and the floor only catches garbage.
-A lower reading is therefore recorded and surfaced rather than applied; an operator
-who confirms it accepts it by lowering `spec.egressBudgetMbps` to the real number.
+A lower reading is therefore recorded and surfaced rather than applied.
+
+An operator accepts a confirmed reduction by lowering `spec.egressBudgetMbps`. That
+resets the ratchet — `status.egressConfiguredMbps` records the configured budget the
+controller last acted on, so a change disagrees with it — and the node follows on the
+next reconcile. Without that reset a node raised by discovery could never come back
+down, since its own advertised value would hold the floor up forever. Disabling
+discovery on a machine also applies downward directly: the ratchet only holds against
+the controller's own readings, never against an explicit human decision.
 
 Three gauges publish the numbers behind a node's budget, all labelled `node`:
 `capt_ovh_egress_reported_mbps` (what OVH says, plus `service` and `tier`),
