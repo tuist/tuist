@@ -23,11 +23,11 @@ use std::process::Command;
 /// about where the cache moved.
 pub fn resolve(tuist_bin: &str, server_url: Option<&str>, full_handle: &str) -> Option<String> {
     let mut command = Command::new(tuist_bin);
+    // The full handle is positional, not an option.
     command
         .arg("cache")
         .arg("config")
         .arg("--json")
-        .arg("--full-handle")
         .arg(full_handle);
     if let Some(url) = server_url {
         command.arg("--url").arg(url);
@@ -38,6 +38,24 @@ pub fn resolve(tuist_bin: &str, server_url: Option<&str>, full_handle: &str) -> 
         return None;
     }
     url_from_json(&String::from_utf8_lossy(&output.stdout))
+}
+
+/// The argv `resolve` runs, so the command's shape is asserted rather than
+/// discovered the next time someone reads the CLI's help.
+#[cfg(test)]
+fn argv(tuist_bin: &str, server_url: Option<&str>, full_handle: &str) -> Vec<String> {
+    let mut argv = vec![
+        tuist_bin.to_string(),
+        "cache".to_string(),
+        "config".to_string(),
+        "--json".to_string(),
+        full_handle.to_string(),
+    ];
+    if let Some(url) = server_url {
+        argv.push("--url".to_string());
+        argv.push(url.to_string());
+    }
+    argv
 }
 
 /// The `url` field of the first JSON object on stdout.
@@ -77,6 +95,44 @@ mod tests {
         assert_eq!(
             url_from_json(stdout).as_deref(),
             Some("https://acme.kura.tuist.dev")
+        );
+    }
+
+    #[test]
+    fn passes_the_full_handle_positionally() {
+        // `tuist cache config` takes it as an argument, not an option; passing
+        // `--full-handle` fails the command outright and every refresh becomes
+        // a silent no-op.
+        assert_eq!(
+            argv(
+                "/usr/bin/tuist",
+                Some("https://staging.tuist.dev"),
+                "acme/app"
+            ),
+            vec![
+                "/usr/bin/tuist",
+                "cache",
+                "config",
+                "--json",
+                "acme/app",
+                "--url",
+                "https://staging.tuist.dev"
+            ]
+        );
+        assert_eq!(
+            argv("/usr/bin/tuist", None, "acme/app"),
+            vec!["/usr/bin/tuist", "cache", "config", "--json", "acme/app"]
+        );
+    }
+
+    #[test]
+    fn reads_the_url_out_of_the_cli_payload_as_the_cli_writes_it() {
+        // Real `tuist cache config --json` output: snake_case keys, escaped
+        // forward slashes, pretty-printed.
+        let stdout = "{\n  \"account_handle\" : \"tuist\",\n  \"url\" : \"https:\\/\\/tuist-eu-central-1-staging.kura.tuist.dev\"\n}";
+        assert_eq!(
+            url_from_json(stdout).as_deref(),
+            Some("https://tuist-eu-central-1-staging.kura.tuist.dev")
         );
     }
 
