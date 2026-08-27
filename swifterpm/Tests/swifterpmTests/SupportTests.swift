@@ -31,6 +31,28 @@ struct SupportTests {
     }
 
     @Test
+    func systemProcessOutcomeReportsFailureWithoutThrowing() async throws {
+        let outcome = try await SystemProcess.outcome(
+            "/bin/sh", ["-c", "printf out; printf err >&2; exit 3"]
+        )
+
+        #expect(!outcome.succeeded)
+        #expect(outcome.stdoutString == "out")
+        #expect(outcome.stderrString == "err")
+        #expect(outcome.failureMessage == "err")
+    }
+
+    @Test
+    func systemProcessCapturesStandardErrorWhileForwardingIt() async throws {
+        let outcome = try await SystemProcess.outcome(
+            "/bin/sh", ["-c", "printf boom >&2; exit 1"], forwardOutput: true
+        )
+
+        #expect(!outcome.succeeded)
+        #expect(outcome.stderrString == "boom")
+    }
+
+    @Test
     func binaryArtifactHeadersAskForRawBytesExactly() async throws {
         let url = try #require(URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1.zip"))
         let headers = await HTTPClient.binaryArtifactHeaders(for: url)
