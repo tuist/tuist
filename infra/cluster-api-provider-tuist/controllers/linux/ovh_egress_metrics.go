@@ -62,6 +62,14 @@ func recordEgressBudgets(node, fleet string, configured, advertised int32, sourc
 	egressAdvertisedGauge.WithLabelValues(node, fleet, source).Set(float64(advertised))
 }
 
+// forgetEgressReported drops just the reported series, for when the reading it was
+// published from stops describing the box the machine holds. Waiting for the next
+// successful read to republish it is not enough: that read is a day away at best,
+// behind the retry floor at worst, and never on a machine discovery is skipping.
+func forgetEgressReported(node string) {
+	egressReportedGauge.DeletePartialMatch(prometheus.Labels{"node": node})
+}
+
 // forgetEgressMetrics drops a machine's series once its CR is gone, so a released
 // box stops reporting a budget nothing is advertising any more.
 func forgetEgressMetrics(node string) {

@@ -268,33 +268,44 @@ func (r *OVHDedicatedMachineReconciler) reconcileNodeEgress(ctx context.Context,
 func (r *OVHDedicatedMachineReconciler) reconcileEgressDiscovery(ctx context.Context, machine *infrav1.OVHDedicatedMachine, floorMbps int32) {
 	logger := log.FromContext(ctx)
 
-	// A machine with no configured budget is one that does not participate in
-	// egress governance at all: the chart omits the field, ReconcileNodeEgressCapacity
-	// no-ops on it, and the tree agent leaves such a node's pods unshaped. Rating it
-	// from OVH would override that opt-out, and the annotation could not take it
-	// back — the shared helper can lower an advertised capacity but never remove
-	// the key.
+	// Ahead of every guard below, because this is a statement about the cached value
+	// rather than about whether a read is owed. A reading recorded against another
+	// service describes hardware this machine no longer holds, and every guard that
+	// follows returns — so dropping it any later leaves the dead box's number in
+	// status and in capt_ovh_egress_reported_mbps for as long as the machine is
+	// skipped: until the retry lands inside the read backoff, until tomorrow on a
+	// fresh reading, and indefinitely on a box that is annotated out or has no
+	// configured budget. cachedEgressMbps already refuses to rate a node from it;
+	// this is the half a human reads, and the runbook's SEEN column is exactly it.
+	//
+	// EgressResolvedServiceName itself stays put: egressFloor keys the ratchet reset
+	// on it still naming the old box, and egressDiscoveryDue keys the re-read on it.
+	if machine.Status.EgressResolvedServiceName != machine.Status.ServiceName {
+		machine.Status.EgressMbps = 0
+		machine.Status.EgressTier = ""
+		forgetEgressReported(machine.Name)
+	}
+
+	// Nothing to ask OVH about: an operator has excluded this box, or it has not been
+	// adopted yet.
 	if egressDiscoveryDisabled(machine) || machine.Status.ServiceName == "" {
 		return
 	}
+	// A machine with no configured budget does not participate in egress governance
+	// at all: the chart omits the field, ReconcileNodeEgressCapacity no-ops on it, and
+	// the tree agent leaves such a node's pods unshaped. Rating it from OVH would
+	// override that opt-out, and the annotation could not take it back — the shared
+	// helper can lower an advertised capacity but never remove the key. A pin does not
+	// opt it back in either (see effectiveEgressMbps), so there is nothing a reading
+	// could rate here. An ignored pin is logged because the annotation is obeyed
+	// everywhere else, and an operator who pinned a box and saw nothing happen has no
+	// other way to find out why.
 	if machine.Spec.EgressBudgetMbps <= 0 {
-		// A pin does not opt such a machine back in (see effectiveEgressMbps), so
-		// there is nothing a reading could rate here. Said out loud because the
-		// annotation is otherwise obeyed everywhere, and an operator who pinned a
-		// box and saw nothing happen has no other way to find out why.
 		if egressOverrideMbps(machine) > 0 {
 			logger.Info("ignoring the egress pin on a machine with no configured budget; set spec.egressBudgetMbps to bring the box into egress governance",
 				"service", machine.Status.ServiceName)
 		}
 		return
-	}
-	// Ahead of the guards below, which return without reading: this is a statement
-	// about the cached value rather than about whether a read is owed, and a
-	// machine inside the read backoff would otherwise keep showing another box's
-	// number in status and in the reported metric until the retry lands.
-	if machine.Status.EgressResolvedServiceName != machine.Status.ServiceName {
-		machine.Status.EgressMbps = 0
-		machine.Status.EgressTier = ""
 	}
 	now := time.Now()
 	if !egressDiscoveryDue(machine, now) || r.egressReadBackedOff(machine, now) {

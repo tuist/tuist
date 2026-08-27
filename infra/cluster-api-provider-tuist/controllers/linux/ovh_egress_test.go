@@ -383,6 +383,56 @@ func TestReconcileEgressDiscoveryDropsAnotherBoxesReading(t *testing.T) {
 	}
 }
 
+// A machine the discovery guards skip still gets its stale reading dropped. Those
+// guards all return, so a reset placed behind them would keep the previous box's
+// number in status — and in the reported metric — for as long as the machine is
+// skipped, which for an annotated-out or zero-budget box is indefinitely.
+func TestReconcileEgressDiscoveryDropsAStaleReadingOnSkippedMachines(t *testing.T) {
+	annotated := discoveryMachine()
+	annotated.Name = "ovh-annotated"
+	annotated.Annotations = map[string]string{DisableEgressDiscoveryAnnotation: ""}
+
+	unconfigured := discoveryMachine()
+	unconfigured.Name = "ovh-unconfigured"
+	unconfigured.Spec.EgressBudgetMbps = 0
+
+	unadopted := discoveryMachine()
+	unadopted.Name = "ovh-unadopted"
+	unadopted.Status.ServiceName = "" // an operator forcing re-adoption
+
+	for name, machine := range map[string]*infrav1.OVHDedicatedMachine{
+		"annotated out":        annotated,
+		"no configured budget": unconfigured,
+		"serviceName cleared":  unadopted,
+	} {
+		t.Run(name, func(t *testing.T) {
+			// A reading from the box this machine used to hold.
+			machine.Status.EgressMbps = 5000
+			machine.Status.EgressTier = "improved"
+			machine.Status.EgressResolvedServiceName = "ns9.ip-9-9-9.us"
+			recordEgressReported(machine.Name, "fleet", "ns9.ip-9-9-9.us", "improved", 5000)
+			t.Cleanup(func() { forgetEgressMetrics(machine.Name) })
+
+			api := &fakeOVHAPI{body: egressBody(1000, "Mbps", "included")}
+			r, _ := discoveryReconciler(api)
+
+			r.reconcileEgressDiscovery(context.Background(), machine, machine.Spec.EgressBudgetMbps)
+
+			if api.calls != 0 {
+				t.Fatalf("OVH was called %d times, want 0: the machine is skipped", api.calls)
+			}
+			if machine.Status.EgressMbps != 0 || machine.Status.EgressTier != "" {
+				t.Fatalf("status = %d %q, want the previous box's reading dropped",
+					machine.Status.EgressMbps, machine.Status.EgressTier)
+			}
+			if left := egressReportedGauge.DeletePartialMatch(
+				prometheus.Labels{"node": machine.Name}); left != 0 {
+				t.Errorf("reported metric still had %d series naming the previous box", left)
+			}
+		})
+	}
+}
+
 func TestReconcileEgressDiscoveryRecordsAReductionWithoutApplyingIt(t *testing.T) {
 	api := &fakeOVHAPI{body: egressBody(1000, "Mbps", "included")}
 	r, recorder := discoveryReconciler(api)
