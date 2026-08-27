@@ -457,10 +457,13 @@ defmodule TuistWeb.MembersLiveTest do
       invitee = AccountsFixtures.user_fixture(email: "viewer@example.com")
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
 
-      # When
+      # When — the role is a dropdown rather than a form field, so it is picked
+      # before the form is submitted.
+      render_hook(lv, "select-invite-role", %{"role" => "viewer"})
+
       lv
       |> element("#invite-member-form")
-      |> render_submit(%{"invitation" => %{"invitee_email" => "viewer@example.com", "role" => "viewer"}})
+      |> render_submit(%{"invitation" => %{"invitee_email" => "viewer@example.com"}})
 
       # Then
       invitation = Accounts.get_invitation_by_invitee_email_and_organization("viewer@example.com", organization)

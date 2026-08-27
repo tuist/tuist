@@ -6,7 +6,9 @@ defmodule Tuist.Accounts.Role do
 
   import Ecto.Changeset
 
-  @names ~w(admin user viewer)
+  # Ordered as the dashboard presents them: the default first, then the two
+  # roles an admin promotes or demotes to.
+  @names ~w(user admin viewer)
 
   schema "roles" do
     field :name, :string

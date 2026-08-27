@@ -380,6 +380,8 @@ defmodule TuistWeb.MembersLive do
   attr :invite_role, :string, default: "user"
 
   defp invite_member_form(assigns) do
+    assigns = assign(assigns, :role_names, @role_names)
+
     ~H"""
     <.form id={@id} for={@form} phx-submit="invite-members">
       <.modal
@@ -439,17 +441,19 @@ defmodule TuistWeb.MembersLive do
                 show_prefix={false}
               />
               <div data-part="invite-role">
-                <.label label={dgettext("dashboard_account", "Role")} />
-                <.select
-                  id={"#{@id}-role"}
-                  name="invitation[role]"
-                  label={dgettext("dashboard_account", "Role")}
-                  value={@invite_role}
-                >
-                  <:item value="user" label={dgettext("dashboard_account", "User")} />
-                  <:item value="admin" label={dgettext("dashboard_account", "Admin")} />
-                  <:item value="viewer" label={dgettext("dashboard_account", "Viewer")} />
-                </.select>
+                <label>{dgettext("dashboard_account", "Role")}</label>
+                <.dropdown id={"#{@id}-role"} label={role_label(@invite_role)}>
+                  <.dropdown_item
+                    :for={role <- @role_names}
+                    value={role}
+                    label={role_label(role)}
+                    phx-click="select-invite-role"
+                    phx-value-role={role}
+                    data-selected={@invite_role == role}
+                  >
+                    <:right_icon><.check /></:right_icon>
+                  </.dropdown_item>
+                </.dropdown>
               </div>
             <% end %>
           </div>
@@ -651,9 +655,13 @@ defmodule TuistWeb.MembersLive do
   #   {:noreply, socket}
   # end
 
-  def handle_event("invite-members", %{"invitation" => %{"invitee_email" => email} = params}, socket) do
+  def handle_event("select-invite-role", %{"role" => role}, socket) when role in @role_names do
+    {:noreply, assign(socket, invite_role: role)}
+  end
+
+  def handle_event("invite-members", %{"invitation" => %{"invitee_email" => email}}, socket) do
     email = String.trim(email)
-    role = invite_role(params)
+    role = socket.assigns.invite_role
 
     # NOTE: Enable this when tag-input is used.
     # Accounts.invite_users_to_organization(socket.assigns.invite_emails, %{
@@ -762,9 +770,6 @@ defmodule TuistWeb.MembersLive do
       %{label: dgettext("dashboard_account", "Pending"), status: "attention"}
     end
   end
-
-  defp invite_role(%{"role" => role}) when role in @role_names, do: role
-  defp invite_role(_params), do: "user"
 
   defp role_label("admin"), do: dgettext("dashboard_account", "Admin")
   defp role_label("viewer"), do: dgettext("dashboard_account", "Viewer")

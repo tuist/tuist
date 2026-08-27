@@ -44,8 +44,7 @@ msgid "Add payment method"
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:150
-#: lib/tuist_web/live/members_live.ex:450
-#: lib/tuist_web/live/members_live.ex:769
+#: lib/tuist_web/live/members_live.ex:774
 #, elixir-autogen, elixir-format
 msgid "Admin"
 msgstr ""
@@ -112,7 +111,7 @@ msgstr ""
 #: lib/tuist_web/live/create_organization_live.ex:84
 #: lib/tuist_web/live/members_live.ex:179
 #: lib/tuist_web/live/members_live.ex:227
-#: lib/tuist_web/live/members_live.ex:471
+#: lib/tuist_web/live/members_live.ex:475
 #: lib/tuist_web/live/webhook_live.html.heex:116
 #: lib/tuist_web/live/webhook_live.html.heex:343
 #: lib/tuist_web/live/webhooks_live.html.heex:111
@@ -339,7 +338,7 @@ msgstr ""
 msgid "Email"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:438
+#: lib/tuist_web/live/members_live.ex:440
 #, elixir-autogen, elixir-format
 msgid "Email address"
 msgstr ""
@@ -452,12 +451,12 @@ msgstr ""
 msgid "Invitations"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:387
+#: lib/tuist_web/live/members_live.ex:389
 #, elixir-autogen, elixir-format
 msgid "Invite member"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:391
+#: lib/tuist_web/live/members_live.ex:393
 #, elixir-autogen, elixir-format
 msgid "Invite members"
 msgstr ""
@@ -585,7 +584,7 @@ msgstr ""
 #: lib/tuist_web/live/account_settings_live.ex:679
 #: lib/tuist_web/live/account_settings_live.ex:682
 #: lib/tuist_web/live/cache_live.ex:384
-#: lib/tuist_web/live/members_live.ex:762
+#: lib/tuist_web/live/members_live.ex:770
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr ""
@@ -702,8 +701,7 @@ msgstr ""
 #: lib/tuist_web/live/members_live.ex:107
 #: lib/tuist_web/live/members_live.ex:131
 #: lib/tuist_web/live/members_live.ex:300
-#: lib/tuist_web/live/members_live.ex:442
-#: lib/tuist_web/live/members_live.ex:446
+#: lib/tuist_web/live/members_live.ex:444
 #, elixir-autogen, elixir-format
 msgid "Role"
 msgstr ""
@@ -903,8 +901,7 @@ msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:587
 #: lib/tuist_web/live/members_live.ex:138
-#: lib/tuist_web/live/members_live.ex:449
-#: lib/tuist_web/live/members_live.ex:771
+#: lib/tuist_web/live/members_live.ex:776
 #, elixir-autogen, elixir-format
 msgid "User"
 msgstr ""
@@ -1286,7 +1283,7 @@ msgstr ""
 #: lib/tuist_web/live/account_tokens_live.html.heex:244
 #: lib/tuist_web/live/authentication_settings_live.html.heex:767
 #: lib/tuist_web/live/cache_live.ex:858
-#: lib/tuist_web/live/members_live.ex:463
+#: lib/tuist_web/live/members_live.ex:467
 #: lib/tuist_web/live/webhook_live.html.heex:404
 #: lib/tuist_web/live/webhooks_live.html.heex:104
 #, elixir-autogen, elixir-format
@@ -1940,7 +1937,7 @@ msgid "Copy client secret"
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:325
-#: lib/tuist_web/live/members_live.ex:428
+#: lib/tuist_web/live/members_live.ex:430
 #, elixir-autogen, elixir-format
 msgid "Copy invite link"
 msgstr ""
@@ -2002,12 +1999,12 @@ msgstr ""
 msgid "Generate one to authorize your self-hosted nodes."
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:400
+#: lib/tuist_web/live/members_live.ex:402
 #, elixir-autogen, elixir-format
 msgid "Invitation link"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:478
+#: lib/tuist_web/live/members_live.ex:482
 #, elixir-autogen, elixir-format
 msgid "Invite"
 msgstr ""
@@ -2116,7 +2113,7 @@ msgstr ""
 msgid "Self-hosted nodes reporting in via registration heartbeats. The CLI routes cache traffic to each node's endpoint, and a node drops off this list when it stops heartbeating."
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:410
+#: lib/tuist_web/live/members_live.ex:412
 #, elixir-autogen, elixir-format
 msgid "Share this link with %{email} so they can join. You'll also find it in the invitations list."
 msgstr ""
@@ -2126,12 +2123,12 @@ msgstr ""
 msgid "Tenant-scoped credentials your nodes present to Tuist. A credential only authorizes this account's traffic."
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:404
+#: lib/tuist_web/live/members_live.ex:406
 #, elixir-autogen, elixir-format
 msgid "We've emailed this invitation to %{email}. You can also share the link directly. It stays in the invitations list."
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:760
+#: lib/tuist_web/live/members_live.ex:768
 #, elixir-autogen, elixir-format
 msgid "Expired"
 msgstr ""
@@ -2857,8 +2854,7 @@ msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:588
 #: lib/tuist_web/live/members_live.ex:162
-#: lib/tuist_web/live/members_live.ex:451
-#: lib/tuist_web/live/members_live.ex:770
+#: lib/tuist_web/live/members_live.ex:775
 #, elixir-autogen, elixir-format
 msgid "Viewer"
 msgstr ""
