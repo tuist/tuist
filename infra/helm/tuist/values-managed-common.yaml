@@ -512,12 +512,24 @@ observability:
 # pool that pins to it. This alignment is a deploy concern: editing
 # THIS file does not trigger a runner-image rebuild — only changes
 # under `infra/runner-image/**` do.
+#
+# A beta entry names a channel (`27.0-beta`), not a beta
+# (`27.0-beta-6`). The channel is what customers' Runner Profiles
+# store, so it has to survive Apple replacing the beta behind it;
+# retiring an entry a profile still names strands that profile on a
+# pool that no longer renders, and its jobs then queue forever
+# rather than failing. `infra/runner-image/profiles.json` names the
+# same channel, so a beta bump needs no edit here at all: the
+# macos-xcode-image build moves the channel tag and the next
+# runner-image release rebuilds against it. Runbook: "Promoting an
+# Xcode beta" in `infra/macos-xcode-image/AGENTS.md`.
 runnersFleet:
   shapes:
     - vcpus: 6
       memoryGb: 14
       default: true
   xcodeVersions:
+    - xcodeVersion: "27.0-beta"
     - xcodeVersion: "26.6"
       default: true
     - xcodeVersion: "26.5"

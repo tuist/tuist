@@ -25,7 +25,7 @@ defmodule TuistWeb.TestCaseLive do
 
   # The overview's history sits in its own column beside the widgets and the
   # chart, and runs as deep as they do. Anything past that is a tab away.
-  @overview_history_page_size 8
+  @overview_history_page_size 6
 
   def mount(
         %{"test_case_id" => test_case_id} = _params,

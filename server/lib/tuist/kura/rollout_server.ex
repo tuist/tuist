@@ -35,6 +35,8 @@ defmodule Tuist.Kura.RolloutServer do
     field :baseline_peer_connection_failures, :integer
     field :baseline_captured_at, :utc_datetime
     field :converged_at, :utc_datetime
+    field :outbox_peak, :integer
+    field :outbox_low_water, :integer
 
     belongs_to :rollout, Rollout, foreign_key: :kura_rollout_id, type: :binary_id
     belongs_to :kura_server, Server, type: :binary_id
@@ -56,7 +58,9 @@ defmodule Tuist.Kura.RolloutServer do
       :baseline_peer_connection_failures,
       :baseline_captured_at,
       :deployment_id,
-      :converged_at
+      :converged_at,
+      :outbox_peak,
+      :outbox_low_water
     ])
     |> validate_required([:kura_rollout_id, :kura_server_id, :wave])
     |> validate_number(:wave, greater_than_or_equal_to: 0)
@@ -75,7 +79,9 @@ defmodule Tuist.Kura.RolloutServer do
       :baseline_peer_connection_failures,
       :baseline_captured_at,
       :deployment_id,
-      :converged_at
+      :converged_at,
+      :outbox_peak,
+      :outbox_low_water
     ])
     |> validate_number(:attempt, greater_than_or_equal_to: 0)
   end

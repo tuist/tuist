@@ -747,7 +747,7 @@ defmodule TuistWeb.TestCaseLiveTest do
         |> Floki.parse_document!()
         |> Floki.find("[data-part='analytics-history'] [data-part='timeline-item']")
 
-      assert length(items) == 8
+      assert length(items) == 6
       assert has_element?(lv, "[data-part='analytics-history'] a", "View more")
     end
 

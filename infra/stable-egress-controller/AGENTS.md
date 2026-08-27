@@ -95,7 +95,7 @@ controller-runtime's fake client + a fake Floating IP manager.
 ## Releasing
 
 Wired into the standard component release flow (`mise/tasks/release/components.json`
-+ `release.yml`), like the other infra controllers: a conventional commit scoped
++ `server-production-deployment.yml`), like the other infra controllers: a conventional commit scoped
 `…(stable-egress-controller)` touching `infra/stable-egress-controller/**`
 triggers a `stable-egress-controller@<semver>` tag + a
 `ghcr.io/tuist/tuist-stable-egress-controller:<semver>` image. The deployed tag

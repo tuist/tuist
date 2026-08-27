@@ -55,9 +55,9 @@ public struct GetBundleService: GetBundleServicing {
         let response = try await client.getBundle(
             .init(
                 path: .init(
+                    bundle_id: bundleId,
                     account_handle: handles.accountHandle,
-                    project_handle: handles.projectHandle,
-                    bundle_id: bundleId
+                    project_handle: handles.projectHandle
                 )
             )
         )
@@ -88,6 +88,10 @@ public struct GetBundleService: GetBundleServicing {
             case let .json(error):
                 throw GetBundleServiceError.unprocessable(error.message)
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw GetBundleServiceError.unknownError(statusCode)
         }
