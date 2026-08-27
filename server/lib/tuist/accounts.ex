@@ -248,27 +248,42 @@ defmodule Tuist.Accounts do
     Repo.preload(members, :account)
   end
 
-  defp sso_enrolled_members_without_role(%Organization{id: organization_id}) do
-    Repo.all(
-      from(u in User,
-        join: oauth in Oauth2Identity,
-        on: oauth.user_id == u.id,
-        join: org in Organization,
-        on:
-          org.id == ^organization_id and
-            oauth.provider_organization_id == org.sso_organization_id and
-            oauth.provider == org.sso_provider,
-        left_join: ur in UserRole,
-        on: ur.user_id == u.id,
-        left_join: r in Role,
-        on:
-          r.id == ur.role_id and r.resource_type == "Organization" and
+  # "Holds no role in this organization" has to be an anti-join rather than a
+  # left join tested for nil: a left join over the user's roles produces a
+  # non-matching row for every role they hold elsewhere, so a viewer who is also
+  # a member of another organization would satisfy `is_nil(r.id)` and be counted
+  # under the enrollment role as well as their own.
+  #
+  # Eligibility is then the same predicate the membership checks apply, so an
+  # organization that has automatic enrollment switched off lists nobody here,
+  # matching `organization_user?/2` and `organization_viewer?/2` answering false
+  # for those identities.
+  defp sso_enrolled_members_without_role(%Organization{id: organization_id} = organization) do
+    stored_role_for_organization =
+      from(ur in UserRole,
+        join: r in Role,
+        on: r.id == ur.role_id,
+        where:
+          ur.user_id == parent_as(:sso_user).id and r.resource_type == "Organization" and
             r.resource_id == ^organization_id,
-        where: is_nil(r.id),
-        distinct: u.id,
-        select: u
+        select: 1
       )
+
+    from(u in User,
+      as: :sso_user,
+      join: oauth in Oauth2Identity,
+      on: oauth.user_id == u.id,
+      join: org in Organization,
+      on:
+        org.id == ^organization_id and
+          oauth.provider_organization_id == org.sso_organization_id and
+          oauth.provider == org.sso_provider,
+      where: not exists(stored_role_for_organization),
+      distinct: u.id,
+      select: u
     )
+    |> Repo.all()
+    |> Enum.filter(&sso_automatic_enrollment_allowed?(organization, &1.email))
   end
 
   @doc """
