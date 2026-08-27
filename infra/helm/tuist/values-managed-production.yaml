@@ -821,6 +821,85 @@ ovhFleets:
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH
+  # Future home of the Linux runner fleet, which runs today on two Hetzner Robot
+  # AX162-R hosts in FSN1 (runnersFleetLinux below, and the runners-linux
+  # bare-metal MachineDeployment in cluster-production.yaml). AX162-R scores
+  # 2,988 PassMark single-thread; RISE-L's Ryzen 9 9950X scores 4,728, and its
+  # 128 GB across 32 threads clears the RAM-per-vCPU floor that rules out the
+  # 64 GB alternatives. Four boxes match today's ~128 slots.
+  #
+  # THIS FLEET SCHEDULES NOTHING. The box joins tainted and carries its own pool
+  # label, so no Runner Profile, RunnerPool, or other workload can land on it; a
+  # follow-up drops the bringup taint and moves pool targeting over. Nothing here
+  # touches the AX162-R hosts, which keep serving the fleet meanwhile.
+  #
+  # Start at one box and validate the whole path (order, prep, adopt, self-join,
+  # Node Ready) before ordering the other three.
+  #
+  # Two shape differences from the AX162-R worth carrying forward. Its 128 GB is
+  # DDR5 On-Die ECC, not registered ECC: On-Die correction happens inside the
+  # DRAM die and reports nothing to the host, so there is no EDAC counter and a
+  # correctable-error trend is invisible. If unreproducible build failures rise
+  # on this fleet, memory is a suspect that cannot be ruled out from the host.
+  #
+  # And 2x960 GB soft RAID against the AX162-R's 2x1.92 TB is half the raw disk,
+  # though per slot it is close to flat: the install carves 1 GiB /boot + a
+  # 64 GiB / and gives the rest to XFS /data, which holds both the kubelet root
+  # and the (64 GiB-capped) containerd image store, so ~765 GiB serves the 32
+  # slots 128 GB of RAM allows at the chart's 1 vCPU / 4 GB slot size: ~24 GiB
+  # each against ~28 GiB on an AX162-R at ~64 slots. The Linux shape catalog
+  # declares no per-slot disk, so nothing enforces that; it holds only while
+  # density stays RAM-bound. Given the ENOSPC history on runner cache volumes,
+  # re-check it before raising slots per box rather than box count.
+  runners-linux:
+    enabled: true
+    replicas: 1
+    # Same OVHcloud US entity as the cache fleets above, which the RISE range's
+    # EU-datacenter plan codes (25risel01-v1-eu, 25rises01-v1-eu) are orderable
+    # under. That is what lets a Gravelines box share the one OVH_ENDPOINT the
+    # reconciler resolves; an EU-entity order would need a second endpoint the
+    # operator Deployment has no room for.
+    endpoint: ovh-us
+    # Deliberately NOT runners-linux: that is the AX162-R pool every Linux Runner
+    # Profile selects on, and reusing it here would route live jobs onto a box
+    # that has never run one. Putting the OVH boxes in service is renaming this
+    # (or repointing the profiles at it), as one reviewed step.
+    nodePool: runners-linux-ovh
+    machine:
+      adoptDisplayNamePrefix: tuist-runners-ovh-production
+      # Case-insensitive substring of the box's commercialRange. The range alone
+      # rather than the full "RISE-L | AMD RYZEN 9 9950X" the catalog bills it
+      # as: RISE-L is one CPU config, so the suffix narrows nothing, and it is
+      # the half most likely to be spelled differently on the server object than
+      # in the catalog. A value matching nothing adopts nothing, silently.
+      offer: rise-l
+      # Prefix-matched, so this claims a box in any gra* datacenter. RISE-L is
+      # in stock in gra and rbx only; fra/sbg/waw report unavailable, and the
+      # configuration is not offered in Limburg at all.
+      datacenter: gra
+      os: ubuntu_24.04
+      # The box joins with BOTH: runner-tier is the steady-state taint the
+      # AX162-R hosts carry, so the DaemonSets that already tolerate it (alloy,
+      # kata-deploy) treat this box like any other runner host; fleet-bringup is
+      # the holdout nothing tolerates, and dropping it is what puts the box into
+      # service. node-exporter tolerates any NoSchedule taint, so host metrics
+      # flow from day one; alloy-logs enumerates the keys it tolerates and so
+      # stays off until the holdout is dropped, which costs nothing on a box
+      # running no pods.
+      nodeTaints:
+        - key: tuist.dev/runner-tier
+          value: bare-metal
+          effect: NoSchedule
+        - key: tuist.dev/fleet-bringup
+          value: "true"
+          effect: NoSchedule
+      # Unset: egressBudgetMbps advertises tuist.dev/egress-mbps for Kura cache
+      # pod bin-packing, and no cache pod runs here. The box does have 1 Gbit/s
+      # public + 1 Gbit/s vRack, which is what the Linux cache region that
+      # follows this fleet would run over.
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
 
 # Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all

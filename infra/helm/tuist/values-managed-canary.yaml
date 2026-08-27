@@ -493,6 +493,62 @@ ovhFleet:
     enabled: true
     item: OVH_FLEET_SSH
 
+# Additional OVH fleets (ovh-fleets.yaml), sharing this env's OVH_API +
+# OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
+# fleet.
+ovhFleets:
+  # Canary half of the OVH Linux runner move: production is going to RISE-L in
+  # Gravelines (see values-managed-production.yaml), and this is the box that
+  # exercises the integration in front of it. RISE-S rather than RISE-L on
+  # purpose: same Zen 5 AM5 family, same single-thread class (4,643 vs 4,728),
+  # same soft-RAID NVMe layout and the same OVHDedicatedMachine code path, at a
+  # third of the cost. Canary does not need production throughput; it needs to
+  # run the production integration.
+  #
+  # THIS FLEET SCHEDULES NOTHING. The box joins tainted and carries its own pool
+  # label, so no Runner Profile, RunnerPool, or other workload can land on it.
+  # Nothing here touches the tuist-bm-canary-* bare-metal hosts serving the fleet
+  # today.
+  runners-linux:
+    enabled: true
+    replicas: 1
+    # Same entity as the ca-east fleet above: the RISE range's EU-datacenter
+    # plan codes (25rises01-v1-eu) are orderable on OVHcloud US, so a Gravelines
+    # box needs no second endpoint.
+    endpoint: ovh-us
+    # Deliberately NOT runners-linux, the pool the Linux Runner Profiles select
+    # on. Putting the box in service is renaming this (or repointing the
+    # profiles at it), as one reviewed step.
+    nodePool: runners-linux-ovh
+    machine:
+      adoptDisplayNamePrefix: tuist-runners-ovh-canary
+      # Case-insensitive substring of the box's commercialRange; the range alone
+      # rather than the full "RISE-S | AMD Ryzen 7 9700X" the catalog bills it
+      # as. A value matching nothing adopts nothing, silently.
+      offer: rise-s
+      # Prefix-matched, so this claims a box in any gra* datacenter. Checked in
+      # stock there alongside RISE-L, not the "soon available" some regional
+      # price lists show.
+      datacenter: gra
+      os: ubuntu_24.04
+      # runner-tier is the steady-state taint the bare-metal runner hosts carry;
+      # fleet-bringup is the holdout nothing tolerates, and dropping it is what
+      # puts the box into service.
+      nodeTaints:
+        - key: tuist.dev/runner-tier
+          value: bare-metal
+          effect: NoSchedule
+        - key: tuist.dev/fleet-bringup
+          value: "true"
+          effect: NoSchedule
+      # Unset egressBudgetMbps: it advertises tuist.dev/egress-mbps for Kura
+      # cache pod bin-packing and no cache pod runs here. RISE-S also has no
+      # vRack option, so the private-link half of the production shape is the
+      # one thing this box cannot rehearse.
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
+
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
   replicas: 1
