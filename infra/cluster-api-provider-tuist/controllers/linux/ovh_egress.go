@@ -259,23 +259,62 @@ func (r *OVHDedicatedMachineReconciler) reconcileEgressDiscovery(ctx context.Con
 		return
 	}
 
+	// Logged, not evented: whether the node's budget actually moves is decided by
+	// the caller, and an event that fires on a reading which changes nothing is an
+	// event nobody can act on. The standing disagreement is a metric —
+	// capt_ovh_egress_reported_mbps against capt_ovh_egress_advertised_mbps — which
+	// has history and does not depend on catching the moment it appeared.
 	if discovered.Mbps < floorMbps {
-		logger.Info("OVH reports less egress than the node advertises; the node keeps its budget",
+		logger.Info("OVH reports less egress than the node's floor; the reading is recorded, not applied",
 			"service", machine.Status.ServiceName, "mbps", discovered.Mbps,
 			"tier", discovered.Tier, "floor_mbps", floorMbps,
 			"configured_mbps", machine.Spec.EgressBudgetMbps)
-		r.event(machine, "EgressBudgetReduced",
-			"OVH reports %d Mbps (%s) for %s, below the %d Mbps the node advertises; not applied — lower spec.egressBudgetMbps to accept it",
-			discovered.Mbps, discovered.Tier, machine.Status.ServiceName, floorMbps)
 		return
 	}
 
-	logger.Info("advertising the box's reported egress limitation",
+	logger.Info("OVH reports egress at or above the node's floor",
 		"service", machine.Status.ServiceName, "mbps", discovered.Mbps,
-		"tier", discovered.Tier, "configured_mbps", machine.Spec.EgressBudgetMbps)
-	r.event(machine, "EgressBudgetDiscovered",
-		"OVH reports %d Mbps (%s) for %s; advertising it in place of the configured %d Mbps",
-		discovered.Mbps, discovered.Tier, machine.Status.ServiceName, machine.Spec.EgressBudgetMbps)
+		"tier", discovered.Tier, "floor_mbps", floorMbps,
+		"configured_mbps", machine.Spec.EgressBudgetMbps)
+}
+
+// recordEgressBudgetChange emits an event when the node's advertised budget
+// actually moves, naming both numbers and what decided the new one. Firing on a
+// change rather than on a reading keeps it to one event per transition, and keeps
+// it truthful: a reading that the floor refuses changes nothing on the node, and
+// saying otherwise is what sends someone chasing a budget that never moved.
+//
+// It deliberately carries no remedy. Accepting a reduction is pin, lower the
+// budget, unpin — in that order, since lowering the budget on its own moves the
+// other side of max(advertised, spec) and leaves the node exactly where it was —
+// and a three-move runbook belongs in AGENTS.md rather than in one line of an event
+// someone reads at 3am.
+func (r *OVHDedicatedMachineReconciler) recordEgressBudgetChange(machine *infrav1.OVHDedicatedMachine, from, to int32, source string) {
+	switch {
+	case from == to:
+	case from == 0:
+		r.event(machine, "EgressBudgetIncreased",
+			"node egress budget set to %d Mbps (%s)", to, egressSourceDescription(machine, source))
+	case to > from:
+		r.event(machine, "EgressBudgetIncreased",
+			"node egress budget raised from %d to %d Mbps (%s)", from, to, egressSourceDescription(machine, source))
+	default:
+		r.event(machine, "EgressBudgetReduced",
+			"node egress budget reduced from %d to %d Mbps (%s)", from, to, egressSourceDescription(machine, source))
+	}
+}
+
+// egressSourceDescription says which input decided the budget, in the terms an
+// operator would use to change it.
+func egressSourceDescription(machine *infrav1.OVHDedicatedMachine, source string) string {
+	switch source {
+	case egressSourceManual:
+		return "pinned by " + EgressOverrideAnnotation
+	case egressSourceDiscovery:
+		return "reported by OVH for " + machine.Status.ServiceName
+	default:
+		return "spec.egressBudgetMbps"
+	}
 }
 
 // egressReadBackedOff reports a machine whose last read failed too recently to try

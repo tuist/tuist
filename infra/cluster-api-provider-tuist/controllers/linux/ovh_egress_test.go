@@ -219,10 +219,12 @@ func TestReconcileEgressDiscoveryRecordsAReading(t *testing.T) {
 	if machine.Status.EgressResolvedAt == nil {
 		t.Fatal("EgressResolvedAt should be stamped after a successful read")
 	}
+	// Reading and evented are separate concerns: whether the node's budget moves is
+	// the caller's decision, so discovery itself raises nothing.
 	select {
-	case <-recorder.Events:
+	case event := <-recorder.Events:
+		t.Fatalf("reading raised %q; events belong to a budget change", event)
 	default:
-		t.Fatal("a first reading should emit an event")
 	}
 }
 
@@ -348,28 +350,26 @@ func TestReconcileEgressDiscoveryDropsAnotherBoxesReading(t *testing.T) {
 	}
 }
 
-func TestReconcileEgressDiscoveryReportsAReductionWithoutApplyingIt(t *testing.T) {
+func TestReconcileEgressDiscoveryRecordsAReductionWithoutApplyingIt(t *testing.T) {
 	api := &fakeOVHAPI{body: egressBody(1000, "Mbps", "included")}
 	r, recorder := discoveryReconciler(api)
 	machine := discoveryMachine() // configured at 3000
 
 	r.reconcileEgressDiscovery(context.Background(), machine, machine.Spec.EgressBudgetMbps)
 
-	// The reading is recorded — that is what the reported metric and any later
-	// decision to accept it are built on — but it must not rate the node.
+	// The reading is recorded — the reported metric and any later decision to accept
+	// it are built on that — but it must not rate the node, and it must not raise an
+	// event: nothing on the node changed.
 	if machine.Status.EgressMbps != 1000 {
 		t.Fatalf("status = %d, want the reading recorded as 1000", machine.Status.EgressMbps)
 	}
-	if got, _ := effectiveEgressMbps(false, machine.Spec.EgressBudgetMbps, machine.Status.EgressMbps, 3000, 0); got != 3000 {
+	if got, _ := effectiveEgressMbps(false, machine.Spec.EgressBudgetMbps, cachedEgressMbps(machine), 3000, 0); got != 3000 {
 		t.Fatalf("advertised = %d, want the configured 3000", got)
 	}
 	select {
 	case event := <-recorder.Events:
-		if !strings.Contains(event, "EgressBudgetReduced") {
-			t.Fatalf("event = %q, want an EgressBudgetReduced event", event)
-		}
+		t.Fatalf("a refused reading raised %q; the budget did not move", event)
 	default:
-		t.Fatal("a reduction should emit an event to alert on")
 	}
 }
 
@@ -595,5 +595,70 @@ func TestResolvedEgressReading(t *testing.T) {
 		if got := resolvedEgressReading(mbps); got != want {
 			t.Errorf("resolvedEgressReading(%d) = %v, want %v", mbps, got, want)
 		}
+	}
+}
+
+func TestRecordEgressBudgetChange(t *testing.T) {
+	machine := discoveryMachine()
+
+	for _, tt := range []struct {
+		name       string
+		from, to   int32
+		source     string
+		wantEvent  string
+		wantAbsent bool
+	}{
+		{name: "unchanged raises nothing", from: 3000, to: 3000, source: egressSourceDiscovery, wantAbsent: true},
+		{name: "first budget", from: 0, to: 3000, source: egressSourceConfigured, wantEvent: "EgressBudgetIncreased"},
+		{name: "raised by a reading", from: 3000, to: 5000, source: egressSourceDiscovery, wantEvent: "EgressBudgetIncreased"},
+		{name: "reduced by a pin", from: 5000, to: 1000, source: egressSourceManual, wantEvent: "EgressBudgetReduced"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := record.NewFakeRecorder(10)
+			r := &OVHDedicatedMachineReconciler{Recorder: recorder}
+
+			r.recordEgressBudgetChange(machine, tt.from, tt.to, tt.source)
+
+			select {
+			case event := <-recorder.Events:
+				if tt.wantAbsent {
+					t.Fatalf("raised %q, want no event", event)
+				}
+				if !strings.Contains(event, tt.wantEvent) {
+					t.Fatalf("event = %q, want %q", event, tt.wantEvent)
+				}
+				// The remedy is a three-move runbook, and naming one move sends
+				// people to do the one that is inert on its own.
+				if strings.Contains(event, "lower spec") {
+					t.Fatalf("event = %q, should not prescribe a remedy", event)
+				}
+			default:
+				if !tt.wantAbsent {
+					t.Fatalf("no event raised, want %q", tt.wantEvent)
+				}
+			}
+		})
+	}
+}
+
+// Lowering the configured budget on its own is inert, which is why no event may
+// prescribe it: the floor is max(advertised, spec), so the edit moves the side of
+// the max that is not binding and the node stays exactly where it was.
+func TestLoweringTheBudgetAloneDoesNotReduceTheNode(t *testing.T) {
+	machine := discoveryMachine() // configured at 3000
+	machine.Status.EgressSource = egressSourceDiscovery
+	machine.Status.EgressMbps = 1000 // OVH now reports 1000
+	machine.Status.EgressResolvedServiceName = machine.Status.ServiceName
+	advertised := int32(5000) // the node was raised by an earlier reading
+
+	machine.Spec.EgressBudgetMbps = 1000 // the operator lowers the budget
+
+	floor := egressFloor(machine, advertised)
+	value, source := effectiveEgressMbps(false, machine.Spec.EgressBudgetMbps,
+		cachedEgressMbps(machine), floor, egressOverrideMbps(machine))
+
+	if value != 5000 || source != egressSourceDiscovery {
+		t.Fatalf("after lowering the budget = %d %q, want the node unchanged at 5000: "+
+			"accepting a reduction is pin, lower, unpin", value, source)
 	}
 }

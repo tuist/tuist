@@ -343,6 +343,14 @@ reversible: the ratchet is anchored to what the node advertises, so once a pin i
 removed that anchor is a number a human typed, and the recorded source is how the
 controller knows to ignore it for one reconcile and re-derive from readings.
 
+Events fire when the node's advertised budget actually moves — `EgressBudgetIncreased`
+or `EgressBudgetReduced`, naming both numbers and what decided the new one — not when
+a reading arrives. A reading the floor refuses changes nothing on the node, and the
+standing disagreement between what OVH reports and what the node advertises is a
+metric with history rather than a moment to catch. The events name no remedy, because
+the remedy is three moves and naming one of them sends people to do the one that is
+inert on its own.
+
 Accepting a confirmed reduction is three moves, in order: **pin** (the node drops
 now), **lower the budget** on the machine and in the fleet values (durable, and
 correct for the next machine cloned from the template), then **unpin** (the node lands
