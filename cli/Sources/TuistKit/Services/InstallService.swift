@@ -89,10 +89,15 @@ struct InstallService: InstallServicing {
             packagePath: packageManifestPath.parentDirectory,
             arguments: mergedArguments
         )
-        let manifestEnvironmentExcluded = config.project.generatedProject?
-            .installOptions.manifestEnvironmentExcluded ?? []
+        let manifestEnvironment = config.project.generatedProject?.installOptions.manifestEnvironment ?? .init()
 
-        try await PackageManifestEnvironment.withExcludedVariables(manifestEnvironmentExcluded) {
+        try await PackageManifestEnvironment.withConfiguration(
+            .init(
+                usesAutomaticProviderDefaults: manifestEnvironment.usesAutomaticProviderDefaults,
+                includedVariablePatterns: manifestEnvironment.includedVariablePatterns,
+                excludedVariablePatterns: manifestEnvironment.excludedVariablePatterns
+            )
+        ) {
             if update {
                 Logger.current.notice("Updating dependencies.", metadata: .section)
 

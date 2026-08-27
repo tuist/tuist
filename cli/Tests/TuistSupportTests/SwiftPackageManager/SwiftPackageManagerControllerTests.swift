@@ -187,7 +187,9 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         ])
 
         // When
-        try await PackageManifestEnvironment.withExcludedVariables(["CI_*"]) {
+        try await PackageManifestEnvironment.withConfiguration(
+            .init(usesAutomaticProviderDefaults: false, excludedVariablePatterns: ["CI_*"])
+        ) {
             try await subject.resolve(at: path, arguments: [], printOutput: false)
         }
 
@@ -216,7 +218,9 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
 
         // When
-        try await PackageManifestEnvironment.withExcludedVariables(["CI_JOB_ID"]) {
+        try await PackageManifestEnvironment.withConfiguration(
+            .init(usesAutomaticProviderDefaults: false, excludedVariablePatterns: ["CI_JOB_ID"])
+        ) {
             try await subject.resolve(at: path, arguments: [], printOutput: false)
         }
 

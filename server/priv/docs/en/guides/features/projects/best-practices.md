@@ -86,7 +86,11 @@ Continuous-integration installations copy cached package directories by default.
 tuist install --cached-directory-materialization=symlink
 ```
 
-Package manifests can read process environment variables while declaring dependencies. The package-manager cache therefore accounts for the whole environment when caching a manifest. A new job identifier can make that cache cold even when it does not change the declared dependencies. Use `manifestEnvironmentExcluded` in `Tuist.swift` to remove such variables before Tuist evaluates `Package.swift` and calculates manifest cache keys:
+Package manifests can read process environment variables while declaring dependencies. The package-manager cache therefore accounts for the whole environment when caching a manifest. A new job identifier can make that cache cold even when it does not change the declared dependencies.
+
+Tuist handles this automatically for [GitLab](https://docs.gitlab.com/ci/variables/predefined_variables/), [GitHub Actions](https://docs.github.com/actions/reference/workflows-and-actions/variables), [Bitrise](https://docs.bitrise.io/en/bitrise-ci/references/available-environment-variables/), and [Codemagic](https://docs.codemagic.io/yaml-basic-configuration/environment-variables/). When it recognizes one of those environments, it hides only volatile run metadata, such as job or run identifiers, retry counts, and per-step temporary paths, before evaluating `Package.swift` and calculating manifest cache keys. Branch, reference, commit, workflow, and other configuration values remain visible.
+
+If a package manifest intentionally uses one of the automatic exclusions to declare dependencies, restore that variable explicitly in `Tuist.swift`:
 
 ```swift
 import ProjectDescription
@@ -94,16 +98,15 @@ import ProjectDescription
 let tuist = Tuist(
     project: .tuist(
         installOptions: .options(
-            manifestEnvironmentExcluded: [
-                "CI_JOB_ID",
-                "CI_PIPELINE_ID",
-            ]
+            manifestEnvironment: .automatic(
+                including: ["CI_JOB_ID"]
+            )
         )
     )
 )
 ```
 
-`manifestEnvironmentExcluded` hides the listed values from every evaluated `Package.swift`, so only exclude variables that do not affect dependency declarations. Entries can be exact names or trailing-wildcard prefixes such as `GITHUB_RUN_*`.
+Use `manifestEnvironment: .all` to preserve the complete process environment. You can also exclude organization-specific volatile values with `manifestEnvironment: .automatic(excluding: ["BUILD_RUN_*"])`. Entries can be exact names or trailing-wildcard prefixes such as `GITHUB_RUN_*`; included entries take precedence over automatic and custom exclusions.
 
 ### Agentic coding and worktrees {#agentic-coding-and-worktrees}
 

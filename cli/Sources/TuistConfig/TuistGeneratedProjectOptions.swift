@@ -201,24 +201,40 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
 
     public struct InstallOptions: Codable, Equatable, Sendable, Hashable {
         public var passthroughSwiftPackageManagerArguments: [String]
-        public var manifestEnvironmentExcluded: [String]
+        public var manifestEnvironment: ManifestEnvironment
 
         public init(
             passthroughSwiftPackageManagerArguments: [String] = [],
-            manifestEnvironmentExcluded: [String] = []
+            manifestEnvironment: ManifestEnvironment = .init()
         ) {
             self.passthroughSwiftPackageManagerArguments = passthroughSwiftPackageManagerArguments
-            self.manifestEnvironmentExcluded = manifestEnvironmentExcluded
+            self.manifestEnvironment = manifestEnvironment
+        }
+
+        public struct ManifestEnvironment: Codable, Equatable, Sendable, Hashable {
+            public let usesAutomaticProviderDefaults: Bool
+            public let includedVariablePatterns: [String]
+            public let excludedVariablePatterns: [String]
+
+            public init(
+                usesAutomaticProviderDefaults: Bool = true,
+                includedVariablePatterns: [String] = [],
+                excludedVariablePatterns: [String] = []
+            ) {
+                self.usesAutomaticProviderDefaults = usesAutomaticProviderDefaults
+                self.includedVariablePatterns = includedVariablePatterns
+                self.excludedVariablePatterns = excludedVariablePatterns
+            }
         }
 
         #if DEBUG
             public static func test(
                 passthroughSwiftPackageManagerArguments: [String] = [],
-                manifestEnvironmentExcluded: [String] = []
+                manifestEnvironment: ManifestEnvironment = .init()
             ) -> Self {
                 .init(
                     passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments,
-                    manifestEnvironmentExcluded: manifestEnvironmentExcluded
+                    manifestEnvironment: manifestEnvironment
                 )
             }
         #endif

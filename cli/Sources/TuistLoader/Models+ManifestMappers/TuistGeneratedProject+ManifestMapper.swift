@@ -54,7 +54,11 @@ extension TuistConfig.TuistGeneratedProjectOptions.InstallOptions {
     ) -> Self {
         return .init(
             passthroughSwiftPackageManagerArguments: manifest.passthroughSwiftPackageManagerArguments,
-            manifestEnvironmentExcluded: manifest.manifestEnvironmentExcluded
+            manifestEnvironment: .init(
+                usesAutomaticProviderDefaults: manifest.manifestEnvironment.usesAutomaticProviderDefaults,
+                includedVariablePatterns: manifest.manifestEnvironment.includedVariablePatterns,
+                excludedVariablePatterns: manifest.manifestEnvironment.excludedVariablePatterns
+            )
         )
     }
 }

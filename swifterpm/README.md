@@ -84,22 +84,21 @@ The cache is content-addressed by package identity, version, and revision, so a 
 
 For a persistent runner that keeps the SwifterPM cache on disk between jobs, configure symlink materialization. It avoids copying every cached checkout into a new scratch directory, leaving the warm path as inexpensive links back to the persistent cache.
 
-When the runner also changes job-specific environment variables between installs, configure Tuist to exclude values that do not affect dependency declarations. Tuist removes these values before evaluating `Package.swift` and before calculating manifest cache keys in both resolver modes:
+Package manifests can read process environment variables while declaring dependencies, so the package-manager cache keys include the environment they observe. Tuist automatically hides volatile run metadata when it recognizes [GitLab](https://docs.gitlab.com/ci/variables/predefined_variables/), [GitHub Actions](https://docs.github.com/actions/reference/workflows-and-actions/variables), [Bitrise](https://docs.bitrise.io/en/bitrise-ci/references/available-environment-variables/), or [Codemagic](https://docs.codemagic.io/yaml-basic-configuration/environment-variables/). This keeps job or run identifiers, retry counts, and per-step temporary paths from needlessly making a warm manifest cache cold. Branch, reference, commit, workflow, and other configuration values remain visible.
+
+Restore an automatically excluded variable only when a package manifest intentionally uses it to declare dependencies:
 
 ```swift
 let config = Config(
     project: .tuist(
         installOptions: .options(
-            passthroughSwiftPackageManagerArguments: [
-                "--cached-directory-materialization=symlink"
-            ],
-            manifestEnvironmentExcluded: ["CI_JOB_ID", "CI_PIPELINE_ID"]
+            manifestEnvironment: .automatic(including: ["CI_JOB_ID"])
         )
     )
 )
 ```
 
-The materialization option is for persistent runner caches. Entries in `manifestEnvironmentExcluded` can be literal names or trailing-wildcard prefixes such as `GITHUB_RUN_*`. Never exclude a value that a package manifest uses to choose dependencies.
+Use `manifestEnvironment: .all` to preserve the complete process environment, or add organization-specific volatile values with `manifestEnvironment: .automatic(excluding: ["BUILD_RUN_*"])`. Entries can be literal names or trailing-wildcard prefixes such as `GITHUB_RUN_*`; included entries take precedence over automatic and custom exclusions. Never exclude a value that a package manifest uses to choose dependencies.
 
 ## Bazel Swift package resolver
 
