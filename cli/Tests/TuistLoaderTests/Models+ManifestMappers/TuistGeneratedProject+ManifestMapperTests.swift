@@ -14,7 +14,7 @@ struct TuistGeneratedProjectManifestMapperTests {
         let got = TuistConfig.TuistGeneratedProjectOptions.InstallOptions.from(
             manifest: .options(
                 passthroughSwiftPackageManagerArguments: ["--force-resolved-versions"],
-                manifestEnvironment: .automatic(
+                packageManifestEnvironment: .automatic(
                     including: ["CI_JOB_ID"],
                     excluding: ["GITHUB_RUN_*"]
                 )
@@ -22,9 +22,9 @@ struct TuistGeneratedProjectManifestMapperTests {
         )
 
         #expect(got.passthroughSwiftPackageManagerArguments == ["--force-resolved-versions"])
-        #expect(got.manifestEnvironment.usesAutomaticProviderDefaults == true)
-        #expect(got.manifestEnvironment.includedVariablePatterns == ["CI_JOB_ID"])
-        #expect(got.manifestEnvironment.excludedVariablePatterns == ["GITHUB_RUN_*"])
+        #expect(got.packageManifestEnvironment.usesAutomaticProviderDefaults == true)
+        #expect(got.packageManifestEnvironment.includedVariablePatterns == ["CI_JOB_ID"])
+        #expect(got.packageManifestEnvironment.excludedVariablePatterns == ["GITHUB_RUN_*"])
     }
 
     @Test func buildInsightsDisabled_when_fullHandle_is_nil() async throws {

@@ -98,7 +98,7 @@ import ProjectDescription
 let tuist = Tuist(
     project: .tuist(
         installOptions: .options(
-            manifestEnvironment: .automatic(
+            packageManifestEnvironment: .automatic(
                 including: ["CI_JOB_ID"]
             )
         )
@@ -106,7 +106,7 @@ let tuist = Tuist(
 )
 ```
 
-Use `manifestEnvironment: .all` to preserve the complete process environment. You can also exclude organization-specific volatile values with `manifestEnvironment: .automatic(excluding: ["BUILD_RUN_*"])`. Entries can be exact names or trailing-wildcard prefixes such as `GITHUB_RUN_*`; included entries take precedence over automatic and custom exclusions.
+Use `packageManifestEnvironment: .all` to preserve the complete process environment. You can also exclude organization-specific volatile values with `packageManifestEnvironment: .automatic(excluding: ["BUILD_RUN_*"])`. Tuist supplies the resulting environment to the package resolver as well as `Package.swift`, so never exclude credentials or another value needed to fetch a dependency. Entries can be exact names or trailing-wildcard prefixes such as `GITHUB_RUN_*`; included entries take precedence over automatic and custom exclusions.
 
 ### Agentic coding and worktrees {#agentic-coding-and-worktrees}
 

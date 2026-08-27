@@ -268,7 +268,7 @@ final class DumpServiceTests: TuistTestCase {
                     }
                   },
                   "installOptions": {
-                    "manifestEnvironment": {
+                    "packageManifestEnvironment": {
                       "excludedVariablePatterns": [
 
                       ],

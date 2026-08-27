@@ -89,13 +89,13 @@ struct InstallService: InstallServicing {
             packagePath: packageManifestPath.parentDirectory,
             arguments: mergedArguments
         )
-        let manifestEnvironment = config.project.generatedProject?.installOptions.manifestEnvironment ?? .init()
+        let packageManifestEnvironment = config.project.generatedProject?.installOptions.packageManifestEnvironment ?? .init()
 
         try await PackageManifestEnvironment.withConfiguration(
             .init(
-                usesAutomaticProviderDefaults: manifestEnvironment.usesAutomaticProviderDefaults,
-                includedVariablePatterns: manifestEnvironment.includedVariablePatterns,
-                excludedVariablePatterns: manifestEnvironment.excludedVariablePatterns
+                usesAutomaticProviderDefaults: packageManifestEnvironment.usesAutomaticProviderDefaults,
+                includedVariablePatterns: packageManifestEnvironment.includedVariablePatterns,
+                excludedVariablePatterns: packageManifestEnvironment.excludedVariablePatterns
             )
         ) {
             if update {

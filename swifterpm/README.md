@@ -92,13 +92,13 @@ Restore an automatically excluded variable only when a package manifest intentio
 let config = Config(
     project: .tuist(
         installOptions: .options(
-            manifestEnvironment: .automatic(including: ["CI_JOB_ID"])
+            packageManifestEnvironment: .automatic(including: ["CI_JOB_ID"])
         )
     )
 )
 ```
 
-Use `manifestEnvironment: .all` to preserve the complete process environment, or add organization-specific volatile values with `manifestEnvironment: .automatic(excluding: ["BUILD_RUN_*"])`. Entries can be literal names or trailing-wildcard prefixes such as `GITHUB_RUN_*`; included entries take precedence over automatic and custom exclusions. Never exclude a value that a package manifest uses to choose dependencies.
+Use `packageManifestEnvironment: .all` to preserve the complete process environment, or add organization-specific volatile values with `packageManifestEnvironment: .automatic(excluding: ["BUILD_RUN_*"])`. Tuist supplies the resulting environment to the package resolver as well as `Package.swift`, so never exclude credentials or another value needed to fetch a dependency. Entries can be literal names or trailing-wildcard prefixes such as `GITHUB_RUN_*`; included entries take precedence over automatic and custom exclusions.
 
 ## Bazel Swift package resolver
 

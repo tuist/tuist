@@ -5,15 +5,15 @@ extension Config {
         public var passthroughSwiftPackageManagerArguments: [String]
 
         /// Controls which process environment variables dependency manifests can observe during installation.
-        public var manifestEnvironment: ManifestEnvironment
+        public var packageManifestEnvironment: ManifestEnvironment
 
         public static func options(
             passthroughSwiftPackageManagerArguments: [String] = [],
-            manifestEnvironment: ManifestEnvironment = .automatic
+            packageManifestEnvironment: ManifestEnvironment = .automatic
         ) -> Self {
             self.init(
                 passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments,
-                manifestEnvironment: manifestEnvironment
+                packageManifestEnvironment: packageManifestEnvironment
             )
         }
 
