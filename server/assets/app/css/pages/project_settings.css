@@ -43,7 +43,7 @@
   & > [data-part="delete-project-card-section"],
   & > [data-part="default-branch-card-section"] {
     & .noora-modal {
-      & [data-part="body"] {
+      & > [data-part="positioner"] > [data-part="content"] > [data-part="body"] {
         display: flex;
         flex-direction: column;
         gap: var(--noora-spacing-8);

@@ -22,7 +22,9 @@
       display: none;
     }
 
-    & .noora-modal [data-part="body"] {
+    /* The role modal sizes to its dropdown rather than to the width the other
+       modals on this page share. */
+    & .noora-modal > [data-part="positioner"] > [data-part="content"] > [data-part="body"] {
       min-width: unset;
     }
 
