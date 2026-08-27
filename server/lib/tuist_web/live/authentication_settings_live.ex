@@ -14,6 +14,8 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   # provider: it derives Entra's endpoints from a directory (tenant)
   # identifier and persists as `:oauth2`, so no new `sso_provider` value,
   # callback route, or identity migration is involved.
+  alias TuistWeb.Errors.UnauthorizedError
+
   @oauth2_form_providers ["okta", "oauth2", "entra"]
   @form_providers ["google" | @oauth2_form_providers]
 
@@ -24,7 +26,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if Authorization.authorize(:account_update, current_user, selected_account) != :ok do
-      raise TuistWeb.Errors.UnauthorizedError,
+      raise UnauthorizedError,
             dgettext("dashboard_account", "You are not authorized to perform this action.")
     end
 
@@ -60,6 +62,19 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   ## SSO events ----------------------------------------------------------
+
+  # A socket outlives the role that opened it, so mount's answer is a snapshot.
+  # Every event that writes resolves `:account_update` again, which is what stops
+  # an administrator demoted while this page is open from carrying on changing
+  # the single sign-on configuration or minting SCIM tokens.
+  defp authorize_account_update!(%{assigns: %{current_user: current_user, selected_account: selected_account}}) do
+    if Authorization.authorize(:account_update, current_user, selected_account) == :ok do
+      :ok
+    else
+      raise UnauthorizedError,
+            dgettext("dashboard_account", "You are not authorized to perform this action.")
+    end
+  end
 
   @impl true
   def handle_event("toggle_sso", _params, socket) do
@@ -221,10 +236,14 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   def handle_event("save_sso", _params, %{assigns: %{sso_enabled: false}} = socket) do
+    :ok = authorize_account_update!(socket)
+
     disable_sso(socket)
   end
 
   def handle_event("save_sso", params, socket) do
+    :ok = authorize_account_update!(socket)
+
     case validate_sso_enforcement(socket) do
       :ok ->
         case socket.assigns.selected_provider do
@@ -238,6 +257,8 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   def handle_event("verify_sso_login_domain", _params, socket) do
+    :ok = authorize_account_update!(socket)
+
     form_domain = normalize_domain(socket.assigns.current_form_params["sso_login_domain"])
 
     case Accounts.get_organization_by_id(socket.assigns.organization.id) do
@@ -294,6 +315,8 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   ## SCIM events ---------------------------------------------------------
 
   def handle_event("generate_scim_token", %{"scim_token" => params}, socket) do
+    :ok = authorize_account_update!(socket)
+
     name = params |> Map.get("name", "") |> String.trim()
 
     if name == "" do
@@ -343,6 +366,8 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   def handle_event("scim_modal_open_change", _params, socket), do: {:noreply, socket}
 
   def handle_event("revoke_scim_token", %{"id" => id}, socket) do
+    :ok = authorize_account_update!(socket)
+
     case SCIM.revoke_token(socket.assigns.organization, id) do
       {:ok, _} ->
         {:noreply, assign(socket, :scim_tokens, SCIM.list_tokens(socket.assigns.organization))}

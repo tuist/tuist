@@ -30,6 +30,47 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     %{conn: conn, user: user, account: account, organization: organization}
   end
 
+  test "rejects a save from an administrator demoted while the page is open", %{
+    conn: conn,
+    account: account,
+    user: user,
+    organization: organization
+  } do
+    # Given — the page open while the user could still change settings.
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+    # When — demoted without reloading. The socket outlives the role that opened
+    # it, so mount's answer must not be what the write is checked against.
+    {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+
+    # Then
+    Process.flag(:trap_exit, true)
+    assert catch_exit(render_hook(lv, "save_sso", %{}))
+
+    {:ok, unchanged} = Accounts.get_organization_by_id(organization.id)
+    assert is_nil(unchanged.sso_provider)
+  end
+
+  test "rejects minting a SCIM token after demotion", %{
+    conn: conn,
+    account: account,
+    user: user,
+    organization: organization
+  } do
+    # Given — tokens are provisioning credentials, so this is the write that
+    # matters most on this page.
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+    # When
+    {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+
+    # Then
+    Process.flag(:trap_exit, true)
+    assert catch_exit(render_hook(lv, "generate_scim_token", %{"scim_token" => %{"name" => "idp"}}))
+
+    assert SCIM.list_tokens(organization) == []
+  end
+
   test "sets the right title", %{conn: conn, account: account} do
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
     assert html =~ "Authentication · #{account.name} · Tuist"
