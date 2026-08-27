@@ -1183,7 +1183,13 @@ fn uploads_by_default() -> bool {
 }
 
 pub struct Proxy {
-    grpc_url: String,
+    // Replaceable: the endpoint an account is served from moves when its cache
+    // is placed in another region, and this process outlives the value it was
+    // launched with. See `refresh_endpoint`.
+    grpc_url: RwLock<String>,
+    // Epoch-ms of the last endpoint resolution, so the sweep can carry the
+    // interval without a timer of its own. 0 means never resolved.
+    endpoint_resolved_at_ms: AtomicU64,
     tokens: Arc<TokenProvider>,
     upstream_plugin: String,
     // Monotonic base for per-path last-used timestamps (see PathState.last_used).
@@ -1278,7 +1284,8 @@ impl Proxy {
             .map(load_registry)
             .unwrap_or_default();
         let proxy: &'static Proxy = Box::leak(Box::new(Proxy {
-            grpc_url,
+            grpc_url: RwLock::new(grpc_url),
+            endpoint_resolved_at_ms: AtomicU64::new(0),
             tokens,
             upstream_plugin,
             epoch: Instant::now(),
@@ -1338,7 +1345,7 @@ impl Proxy {
         }
         let remote = Remote::new(
             RemoteConfig {
-                grpc_url: self.grpc_url.clone(),
+                grpc_url: self.grpc_url.read().unwrap().clone(),
                 instance: reapi::reapi_instance(instance).to_string(),
             },
             self.tokens.clone(),
@@ -2961,6 +2968,64 @@ impl Proxy {
     /// mode or for opaque, non-expiring tokens.
     pub fn maintain_token(&self, lead: std::time::Duration) {
         self.tokens.refresh_if_expiring(lead);
+    }
+
+    /// Re-resolves the machine's cache endpoint, at most once per `interval`.
+    ///
+    /// The endpoint this process was launched with belongs to an account whose
+    /// cache can be placed in another region. The region being left serves for
+    /// a drain window and is then torn down, and its hostname goes out of DNS
+    /// with it — so a proxy that never asks again eventually holds a name that
+    /// resolves to nothing and turns every lookup into a local miss, reporting
+    /// no error because a miss is a legitimate answer from a cache. Asking well
+    /// inside the drain window means the move is picked up before anything
+    /// fails, rather than recovered from afterwards.
+    ///
+    /// Resolved for an instance this proxy is already serving: the endpoint is
+    /// per-account and every instance here shares it, so any known full handle
+    /// answers the question. Before the first build there is none — and nothing
+    /// depending on the answer either.
+    ///
+    /// A resolution that fails changes nothing. A CLI that is absent, logged
+    /// out or offline says nothing about where the cache went, and dropping a
+    /// working endpoint on its say-so would turn a local problem into a cold
+    /// cache.
+    pub fn refresh_endpoint(&self, interval: Duration) {
+        let Some(fetch) = self.tokens.cli_fetch() else {
+            return;
+        };
+        let now = crate::reapi::now_ms();
+        let last = self.endpoint_resolved_at_ms.load(Ordering::Relaxed);
+        if last != 0 && now.saturating_sub(last) < interval.as_millis() as u64 {
+            return;
+        }
+        let Some(instance) = self.remotes.lock().unwrap().keys().next().cloned() else {
+            return;
+        };
+        self.endpoint_resolved_at_ms.store(now, Ordering::Relaxed);
+
+        if let Some(resolved) =
+            crate::endpoint::resolve(&fetch.tuist_bin, fetch.server_url.as_deref(), &instance)
+        {
+            self.adopt_endpoint(resolved);
+        }
+    }
+
+    /// Points the proxy at `resolved`, returning whether it was a move.
+    ///
+    /// Both halves have to go together. The clients hold channels opened
+    /// against the old address and would go on using them, so they are dropped
+    /// here rather than left to fail on their own schedule; each rebuilds
+    /// against the new endpoint on its next request. Keeping the old clients
+    /// would mean the endpoint had changed in name only.
+    fn adopt_endpoint(&self, resolved: String) -> bool {
+        if resolved == *self.grpc_url.read().unwrap() {
+            return false;
+        }
+        *self.grpc_url.write().unwrap() = resolved.clone();
+        self.remotes.lock().unwrap().clear();
+        crate::log_line(&format!("proxy cache endpoint moved to {resolved}"));
+        true
     }
 
     /// Queues a per-key-served manifest for a background re-publish (see
@@ -5058,6 +5123,42 @@ mod tests {
 
     // A Proxy with no remote: the wipe tests only drive `check_generation`,
     // which is local-only (restat, rebind, drop marks).
+    #[test]
+    fn adopting_a_moved_endpoint_drops_the_clients_bound_to_the_old_one() {
+        // A client holds a channel opened against the address it was built
+        // with. Leaving it in place would move the endpoint in name only, and
+        // the proxy would go on talking to a region that is being torn down.
+        let proxy = test_proxy();
+        let _ = proxy.remote_for("acme/app");
+        assert_eq!(proxy.remotes.lock().unwrap().len(), 1);
+
+        assert!(proxy.adopt_endpoint("http://127.0.0.1:2".to_string()));
+
+        assert_eq!(*proxy.grpc_url.read().unwrap(), "http://127.0.0.1:2");
+        assert!(
+            proxy.remotes.lock().unwrap().is_empty(),
+            "clients bound to the old endpoint must not survive the move"
+        );
+    }
+
+    #[test]
+    fn re_resolving_to_the_same_endpoint_keeps_the_clients() {
+        // The common case by far. Rebuilding every client each time the
+        // endpoint is re-read would throw away warm connections on a schedule
+        // for no reason.
+        let proxy = test_proxy();
+        let before = proxy.remote_for("acme/app");
+        let current = proxy.grpc_url.read().unwrap().clone();
+
+        assert!(!proxy.adopt_endpoint(current));
+
+        let after = proxy.remote_for("acme/app");
+        assert!(
+            Arc::ptr_eq(&before, &after),
+            "an unchanged endpoint must not rebuild the client"
+        );
+    }
+
     fn test_proxy() -> &'static Proxy {
         Proxy::new(
             "http://127.0.0.1:1".to_string(),
