@@ -135,9 +135,10 @@ jobs:
           fi
           # Match on the extension, not the version: xcodes names a
           # download after its own semver rendering of the version
-          # rather than after the string it was given, so a
-          # 27.0-beta-6 pull arrives as `Xcode-27.0.0-Beta.6.xip`.
-          # The directory is emptied above, so one .xip is in it.
+          # plus Apple's build number, not after the string it was
+          # given, so a 27.0-beta-6 pull arrives as
+          # `Xcode-27.0.0-Beta.6+27A5252f.xip`. The directory is
+          # emptied above, so one .xip is in it.
           XCODE_XIP=$(ls "$XCODE_XIP_DIR"/*.xip 2>/dev/null | head -n1 || true)
           if [ -z "$XCODE_XIP" ] || [ ! -f "$XCODE_XIP" ]; then
             echo "Error: mirror pull produced no .xip in $XCODE_XIP_DIR" >&2

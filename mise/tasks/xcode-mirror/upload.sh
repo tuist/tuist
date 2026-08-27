@@ -117,10 +117,14 @@ fi
 
 # One directory per slug, holding exactly one .xip, so the file can
 # be found by extension alone. xcodes names the download after its
-# own semver rendering of the version rather than after the string
-# it was handed. "27.0 Beta 6" arrives as `Xcode-27.0.0-Beta.6.xip`,
-# so globbing for the version we asked for finds nothing on any
-# prerelease.
+# own semver rendering of the version plus Apple's build number,
+# not after the string it was handed: "27.0 Beta 6" arrives as
+# `Xcode-27.0.0-Beta.6+27A5252f.xip`, so globbing for the version we
+# asked for finds nothing on any prerelease.
+#
+# Changing this layout invalidates whatever is already cached flat
+# in the parent directory; move a file in by hand rather than
+# re-spending Apple's download budget on it.
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/tuist-xcode-mirror/${SLUG}"
 mkdir -p "$CACHE_DIR"
 
