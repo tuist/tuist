@@ -44,6 +44,7 @@ defmodule Tuist.Tests.TestCaseRun do
     field :account_id, Ch, type: "Nullable(Int64)"
     field :ran_at, Ch, type: "DateTime64(6)"
     field :git_branch, Ch, type: "String"
+    field :is_default_branch, :boolean, default: false
     field :git_commit_sha, Ch, type: "String"
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :is_flaky, :boolean, default: false
@@ -80,6 +81,7 @@ defmodule Tuist.Tests.TestCaseRun do
       :account_id,
       :ran_at,
       :git_branch,
+      :is_default_branch,
       :git_commit_sha,
       :status,
       :is_flaky,

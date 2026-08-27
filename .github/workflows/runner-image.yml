@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       xcode_version:
-        description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1). Use this to refresh a profile that's out of the server-production-deployment.yml matrix without bumping the chart pin."
+        description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1, 27.0-beta-6). Use this to refresh a profile that's out of the server-production-deployment.yml matrix without bumping the chart pin. This is also the build path for betas, which never enter that matrix."
         required: true
       runner_version:
         description: "Override the actions/runner version baked into the image. Leave empty to use `runner_version`'s default in runner.pkr.hcl, which is the Renovate-tracked pin."

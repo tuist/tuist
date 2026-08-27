@@ -33,6 +33,12 @@ needs a live GUI session for Virtualization.framework, so hosted
 runners can't do this). Builder fleet operator runbook:
 [`../vm-image-builder.md`](../vm-image-builder.md).
 
+The macOS release build reuses caches that live outside the checkout, at
+`~/.cache/tuist-ci/server-macos-release/<runner-name>/` on each builder
+host: `mix-build` (`MIX_BUILD_ROOT`), `mix-deps` (`MIX_DEPS_PATH`), and
+`nif` (`TUIST_NIF_BUILD_ROOT`, the SwiftPM scratch path for both NIFs).
+Delete that directory on a host to force a cold build there.
+
 Registry publication uses the shared
 [`tart-push`](../../.github/actions/tart-push/action.yml)
 action. Its bounded concurrency, chunking, retry, and route diagnostics are
@@ -67,20 +73,23 @@ produced by every customer runner profile. xcresulttool's JSON
 schema changes across Xcode majors, so the processor should run on
 at least as new an Xcode as any active runner-image profile.
 
-The Xcode version is declared inline in `.github/workflows/release.yml`'s
+The Xcode version is declared inline in
+`.github/workflows/server-production-deployment.yml`'s
 `release-xcresult-processor-image.Build image` step (current value is
 the `XCODE_VERSION` env var on that step). Bump it alongside the
-runner-image matrix when promoting a new Xcode to the fleet:
+runner-image profile list when promoting a new Xcode to the fleet:
 
 1. Publish a Layer 1 image with the new Xcode — first run
    `mise run xcode-mirror:upload 26.X.Y` on a maintainer Mac to put
    the .xip into `ghcr.io/tuist/xcode-xips:26.X.Y`, then
    `gh workflow run macos-xcode-image.yml -f xcode_version=26.X.Y`.
    See `infra/macos-xcode-image/AGENTS.md` for the runbook.
-2. Update the runner-image active matrix and this image's
-   `XCODE_VERSION` env var in `release.yml` in the same commit so
-   the processor never lags an active runner profile. Merge with
-   a `feat(xcresult-processor-image): bump to Xcode 26.X.Y` message;
+2. Add the version to `infra/runner-image/profiles.json` (the list
+   the runner-image build matrix expands) and bump this image's
+   `XCODE_VERSION` env var in `server-production-deployment.yml` in
+   the same commit so the processor never lags an active runner
+   profile. Merge with a
+   `feat(xcresult-processor-image): bump to Xcode 26.X.Y` message;
    check-releases picks it up from `infra/xcresult-processor-image/**`.
 
 To rebuild against a different Xcode without bumping the inline

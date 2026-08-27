@@ -75,14 +75,12 @@ defmodule Tuist.Marketing.MDExConverter do
   defp compile_heex_template(html, path) do
     env = __ENV__
 
-    EEx.compile_string(
+    Phoenix.LiveView.TagEngine.compile(
       html,
-      engine: Phoenix.LiveView.TagEngine,
       file: path,
       line: 1,
       caller: env,
       indentation: 0,
-      source: html,
       tag_handler: Phoenix.LiveView.HTMLEngine
     )
   end

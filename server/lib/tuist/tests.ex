@@ -312,6 +312,7 @@ defmodule Tuist.Tests do
               test
               |> Repo.preload(pg_preloads)
               |> ClickHouseRepo.preload(ch_preloads)
+              |> dedupe_run_destinations()
 
             {:ok, test}
         end
@@ -320,6 +321,15 @@ defmodule Tuist.Tests do
         {:error, :not_found}
     end
   end
+
+  # `test_run_destinations` has no uniqueness constraint, and a row is written
+  # per shard report and per reprocessing attempt. Collapse them to the
+  # distinct destinations the run executed on.
+  defp dedupe_run_destinations(%Test{run_destinations: destinations} = test) when is_list(destinations) do
+    %{test | run_destinations: Enum.uniq_by(destinations, &{&1.name, &1.platform, &1.os_version})}
+  end
+
+  defp dedupe_run_destinations(test), do: test
 
   def get_latest_test_by_build_run_id(build_run_id) do
     query =
@@ -665,6 +675,11 @@ defmodule Tuist.Tests do
           # uniqueness, so an error hit by several shards is deduplicated on
           # read instead of here.
           create_run_errors(merged_test, Map.get(attrs, :run_errors, []))
+
+          # Every shard reports the destination it executed on, so a merged run
+          # that never takes the branch above would carry none at all. Same
+          # concurrency story as the errors: duplicates are collapsed on read.
+          create_run_destinations(merged_test, Map.get(attrs, :run_destinations, []))
 
           insert_shard_run(
             shard_plan_id,
@@ -1736,9 +1751,16 @@ defmodule Tuist.Tests do
   end
 
   defp create_test_modules(test, test_modules, shard_index, shard_plan) do
+    # Resolved once per run and threaded down rather than looked up where each
+    # row is built: it decides `is_new` for every test case and
+    # `is_default_branch` for every run row, and both used to mean a separate
+    # Postgres round trip on a path that already runs per ingested test run.
+    default_branch = project_default_branch(test.project_id)
+    is_default_branch = default_branch?(test.git_branch, default_branch)
+
     test_case_run_data =
       OpenTelemetry.Tracer.with_span "tests.get_test_case_run_data" do
-        get_test_case_run_data(test, test_modules)
+        get_test_case_run_data(test, test_modules, default_branch)
       end
 
     test_case_ids = collect_test_case_ids(test.project_id, test_modules)
@@ -1822,7 +1844,8 @@ defmodule Tuist.Tests do
           module_test_case_run_data,
           shard_plan,
           shard_index,
-          existing_test_cases
+          existing_test_cases,
+          is_default_branch
         )
 
       {flaky_ids, acc_test_case_runs ++ test_case_runs}
@@ -1853,7 +1876,7 @@ defmodule Tuist.Tests do
     :ok
   end
 
-  defp get_test_case_run_data(test, test_modules) do
+  defp get_test_case_run_data(test, test_modules, default_branch) do
     all_test_cases =
       Enum.flat_map(test_modules, fn module_attrs ->
         module_name = Map.get(module_attrs, :name)
@@ -1884,7 +1907,7 @@ defmodule Tuist.Tests do
 
     mark_test_case_runs_as_flaky(test.project_id, test.git_commit_sha, historical_flaky_runs)
 
-    test_case_data = check_new_test_cases(test, test_case_data)
+    test_case_data = check_new_test_cases(test, test_case_data, default_branch)
 
     Map.new(test_case_data, fn data ->
       {data.identity_key, %{status: data.status, is_flaky: data.is_flaky, is_new: data.is_new}}
@@ -1966,10 +1989,7 @@ defmodule Tuist.Tests do
     |> Enum.group_by(& &1.test_case_id)
   end
 
-  defp check_new_test_cases(test, test_case_data) do
-    project = Tuist.Projects.get_project_by_id(test.project_id)
-    default_branch = project && project.default_branch
-
+  defp check_new_test_cases(test, test_case_data, default_branch) do
     if is_nil(default_branch) do
       Enum.map(test_case_data, &Map.put(&1, :is_new, false))
     else
@@ -1982,6 +2002,29 @@ defmodule Tuist.Tests do
       end)
     end
   end
+
+  defp project_default_branch(project_id) do
+    project = Tuist.Projects.get_project_by_id(project_id)
+    project && project.default_branch
+  end
+
+  # Classifying a run against the default branch is done here, at ingestion,
+  # because the aggregates that need it are ClickHouse materialized views and
+  # the default branch lives in Postgres. A view cannot reach across, so the
+  # answer has to be denormalized onto the row while it is being written.
+  #
+  # A project that renames its default branch leaves the runs written before
+  # the rename classified against the old name. Nothing rewrites them: the
+  # aggregate this feeds is only ever read over a trailing window, so a rename
+  # heals on its own once the window has moved past it, and the alternative is
+  # rewriting a multi-billion-row fact table on a settings change.
+  #
+  # An unset default branch means no run is on it, which is the same answer the
+  # listing gives for a project whose default branch simply never ran. The
+  # empty string is not a branch name, so it never matches an unset column.
+  defp default_branch?(_git_branch, nil), do: false
+  defp default_branch?(_git_branch, ""), do: false
+  defp default_branch?(git_branch, default_branch), do: git_branch == default_branch
 
   defp get_test_case_ids_with_ci_runs_on_branch(project_id, branch) do
     ninety_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -90, :day)
@@ -2108,7 +2151,8 @@ defmodule Tuist.Tests do
          test_case_run_data,
          shard_plan,
          shard_index,
-         existing_test_cases
+         existing_test_cases,
+         is_default_branch
        ) do
     test_case_data_list =
       test_cases
@@ -2165,6 +2209,7 @@ defmodule Tuist.Tests do
           account_id: test.account_id,
           ran_at: test.ran_at,
           git_branch: test.git_branch,
+          is_default_branch: is_default_branch,
           git_commit_sha: test.git_commit_sha || "",
           status: status,
           is_flaky: is_flaky,
@@ -3685,6 +3730,16 @@ defmodule Tuist.Tests do
     test_case_ids = corrections |> Enum.map(& &1.test_case_id) |> Enum.uniq()
     test_case_run_ids = Enum.map(corrections, & &1.test_case_run_id)
 
+    # Recomputed rather than carried forward from the row being corrected.
+    # Aggregates seeded before this column existed classified their rows by
+    # comparing `git_branch` against the project's default branch, but the source
+    # rows themselves still hold the column's `false` default. Copying that value
+    # into the correction would hand the branch-filtered views a row they discard,
+    # so a run seeded as default-branch would never be seen to become flaky and
+    # the aggregate would sit on its pre-correction state indefinitely.
+    default_branch = project_default_branch(project_id)
+    default_branch_match_expr = default_branch_match_expr(default_branch)
+
     sql = """
     INSERT INTO test_case_runs (
       id,
@@ -3699,6 +3754,7 @@ defmodule Tuist.Tests do
       account_id,
       ran_at,
       git_branch,
+      is_default_branch,
       git_commit_sha,
       status,
       is_flaky,
@@ -3724,6 +3780,7 @@ defmodule Tuist.Tests do
       account_id,
       ran_at,
       git_branch,
+      #{default_branch_match_expr},
       git_commit_sha,
       status,
       true,
@@ -3751,12 +3808,15 @@ defmodule Tuist.Tests do
 
     IngestRepo.query!(
       sql,
-      %{
-        project_id: project_id,
-        test_case_ids: test_case_ids,
-        git_commit_sha: git_commit_sha,
-        test_case_run_ids: test_case_run_ids
-      },
+      correction_params(
+        %{
+          project_id: project_id,
+          test_case_ids: test_case_ids,
+          git_commit_sha: git_commit_sha,
+          test_case_run_ids: test_case_run_ids
+        },
+        default_branch
+      ),
       settings:
         [
           insert_deduplication_token: "test-case-run-flaky-correction:#{flaky_correction_batch_id(test_case_run_ids)}",
@@ -3764,6 +3824,20 @@ defmodule Tuist.Tests do
         ] ++ ClickHouseCapabilities.insert_select_deduplication_settings(IngestRepo)
     )
   end
+
+  # A project with no default branch configured has no trunk for a run to be on,
+  # which is the same answer `default_branch?/2` gives at ingestion. Rendering the
+  # literal keeps the parameter off the query entirely rather than binding an
+  # empty string, which a run with no branch recorded would otherwise match.
+  defp default_branch_match_expr(default_branch) when is_binary(default_branch) and default_branch != "",
+    do: "git_branch = {default_branch:String}"
+
+  defp default_branch_match_expr(_default_branch), do: "false"
+
+  defp correction_params(params, default_branch) when is_binary(default_branch) and default_branch != "",
+    do: Map.put(params, :default_branch, default_branch)
+
+  defp correction_params(params, _default_branch), do: params
 
   defp report_test_case_run_multiplicity(project_id, git_commit_sha, corrections) do
     test_case_ids = corrections |> Enum.map(& &1.test_case_id) |> Enum.uniq()

@@ -37,6 +37,18 @@ Authenticating with an organization's identity provider does not grant membershi
 
 Administrators can invite a member from the dashboard or with <.localized_link href="/cli/organization/invite">`tuist organization invite`</.localized_link>.
 
+### Roles {#roles}
+
+Every organization member holds one of three roles:
+
+| Role | What it grants |
+| --- | --- |
+| **Admin** | Everything a user can do, plus managing the organization: members and invitations, projects, billing, tokens, webhooks, and settings. |
+| **User** | Reads and acts on the organization's work: running builds and tests, writing to the cache, creating and deleting previews, and changing a test case's state. |
+| **Viewer** | Reads the organization's work and changes none of it. Dashboards, builds, test runs, flaky and quarantined tests, previews, bundles, and runner activity are all readable. Attaching an interactive shell or VNC session to a runner is not, because it runs commands on the machine. |
+
+Pick a role when you invite someone, and change it later from **Members** in the dashboard. A role set this way is never overwritten by a later sign-in.
+
 ## Projects {#projects}
 
 Your projects need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the <.localized_link href="/cli/project">`tuist project`</.localized_link> to create and manage projects.

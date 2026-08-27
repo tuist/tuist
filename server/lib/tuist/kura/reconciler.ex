@@ -49,7 +49,7 @@ defmodule Tuist.Kura.Reconciler do
     unique: [
       fields: [:worker],
       period: :infinity,
-      states: [:available, :scheduled, :executing, :retryable]
+      states: :incomplete
     ]
 
   import Ecto.Query
@@ -81,23 +81,59 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   def reconcile do
-    # Converge runner-cache nodes with runner enablement before the rest
-    # of the loop so a freshly enabled account's node enters the normal
-    # provisioning/observation path within the same tick.
-    RunnerCache.reconcile()
+    if Tuist.Environment.kura_control_plane?() do
+      # Version scheduling runs before runner-cache convergence so that on
+      # the first tick after a tag change the rollout record already
+      # exists when a runner-cache node is created or retried — otherwise
+      # `Rollouts.provisioning_image_tag/2` sees no active rollout and
+      # hands the node the target tag outside its account's wave. A
+      # freshly enabled account's node is created one step later in the
+      # same tick and joins its wave on the next one.
+      schedule_runtime_rollout_safely()
+      RunnerCache.reconcile()
+      # Converge account-region instances with cache demand next, for the same
+      # reason: an account that just asked for cache enters the provisioning
+      # path this tick, and an instance that just reached its inactivity window
+      # unpublishes its endpoint before anything else observes it.
+      Lifecycle.reconcile()
+      reconcile_retired_region_servers()
+      reconcile_destroying_servers()
+      reconcile_moving_out_servers()
+      handled = reconcile_deployments()
+      reconcile_observed_servers(handled)
+    else
+      Logger.info("[Kura.Reconciler] skipping: not the Kura control plane (no TUIST_KURA_RUNTIME_IMAGE_TAG in env)")
 
-    # Converge account-region instances with cache demand next, for the same
-    # reason: an account that just asked for cache enters the provisioning
-    # path this tick, and an instance that just reached its inactivity window
-    # unpublishes its endpoint before anything else observes it.
-    Lifecycle.reconcile()
+      :ok
+    end
+  end
 
-    schedule_runtime_image_deployments()
-    reconcile_retired_region_servers()
-    reconcile_destroying_servers()
-    reconcile_moving_out_servers()
-    handled = reconcile_deployments()
-    reconcile_observed_servers(handled)
+  # Rollout scheduling is the first step of the tick, so a raise here would
+  # skip every step after it — including the observation projection that
+  # server status is derived from. A stalled rollout is visible on
+  # /ops/kura; a stalled reconciler is not, so the rollout is contained
+  # rather than allowed to take the control plane down with it.
+  defp schedule_runtime_rollout_safely do
+    schedule_runtime_rollout()
+  rescue
+    error ->
+      Logger.error("[Kura.Reconciler] runtime rollout scheduling raised: #{Exception.message(error)}")
+
+      Sentry.capture_exception(error, stacktrace: __STACKTRACE__)
+      :ok
+  end
+
+  # Version scheduling has two paths (spec #79): the rollout
+  # orchestration — durable rollout records, account-grouped waves with
+  # the health gate in production, expedited fan-out elsewhere — on by
+  # default, and the interim-paced scheduler behind the kill-switch flag
+  # as the no-deploy rollback path.
+  defp schedule_runtime_rollout do
+    if Tuist.FeatureFlags.kura_rollout_orchestration_enabled?() do
+      Tuist.Kura.Rollouts.sync()
+    else
+      schedule_runtime_image_deployments()
+    end
   end
 
   defp schedule_runtime_image_deployments do
@@ -675,6 +711,12 @@ defmodule Tuist.Kura.Reconciler do
 
   defp fail(deployment, server, reason) do
     message = if is_binary(reason), do: reason, else: inspect(reason)
+
+    # Logged as well as Sentry-captured: environments without a DSN
+    # would otherwise fail deployments with no trace outside the DB.
+    Logger.error(
+      "[Kura.Reconciler] deployment #{deployment.id} (#{deployment.image_tag}) failed for server #{(server && server.id) || "unknown"}: #{message}"
+    )
 
     capture_deploy_failure(deployment, server, reason, message)
 

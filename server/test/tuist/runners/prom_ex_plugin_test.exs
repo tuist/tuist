@@ -67,7 +67,6 @@ defmodule Tuist.Runners.PromExPluginTest do
           head_sha: "deadbeef"
         })
 
-      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 1}, %{fleet: "fleet-poll"}},
@@ -78,12 +77,11 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_queue_length())
 
       # Fleet is declared in the cluster but has no queued rows in
-      # ClickHouse. Without the drain-to-zero path, `last_value`
+      # Postgres. Without the drain-to-zero path, `last_value`
       # would keep whatever the last non-zero sample was; this
       # asserts we emit an explicit `0` instead.
       stub_pool_list(["fleet-empty"])
 
-      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 0}, %{fleet: "fleet-empty"}},
@@ -123,7 +121,6 @@ defmodule Tuist.Runners.PromExPluginTest do
           })
       end
 
-      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length],
@@ -137,7 +134,6 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_queue_length())
       stub_pool_list(["fleet-empty-age"])
 
-      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{oldest_age_seconds: 0},
@@ -169,7 +165,6 @@ defmodule Tuist.Runners.PromExPluginTest do
           head_sha: "deadbeef"
         })
 
-      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 1}, %{fleet: "fleet-gone"}},
@@ -181,11 +176,48 @@ defmodule Tuist.Runners.PromExPluginTest do
       # last_value would hold the stale non-zero age forever.
       {:ok, _} = Jobs.complete(999_020, "success")
 
-      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 0, oldest_age_seconds: 0},
                       %{fleet: "fleet-gone"}},
+                     500
+    end
+
+    test "ignores a ClickHouse row still queued after Postgres reached a terminal state",
+         %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_queue_length())
+      stub_pool_list(["fleet-diverged"])
+
+      account = account_fixture()
+
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: 999_030,
+          account_id: account.id,
+          fleet_name: "fleet-diverged",
+          repository: "acme/cli",
+          workflow_run_id: 9030,
+          run_attempt: 1,
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef"
+        })
+
+      # Flush only the `queued` transition, so ClickHouse holds a
+      # `queued` row, then complete the job WITHOUT flushing again. That
+      # is the shape production ended up in: the outbox dropped a batch
+      # of terminal transitions and the replica froze mid-lifecycle. A
+      # terminal job emits no further events, so nothing ever corrects
+      # those rows — a gauge reading ClickHouse reports them as a
+      # backlog forever, while dispatch, which reads Postgres, cannot
+      # see them at all.
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
+      {:ok, _} = Jobs.complete(999_030, "success")
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 0, oldest_age_seconds: 0},
+                      %{fleet: "fleet-diverged"}},
                      500
     end
   end

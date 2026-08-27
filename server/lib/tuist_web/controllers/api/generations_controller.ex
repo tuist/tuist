@@ -4,6 +4,7 @@ defmodule TuistWeb.API.GenerationsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
 
@@ -151,7 +152,8 @@ defmodule TuistWeb.API.GenerationsController do
            },
            required: [:generations, :pagination_metadata]
          }},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -295,7 +297,8 @@ defmodule TuistWeb.API.GenerationsController do
            ]
          }},
       not_found: {"Generation not found", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 

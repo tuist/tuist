@@ -31,7 +31,7 @@ msgstr ""
 msgid "Already have an account?"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:97
+#: lib/tuist_web/live/connect_live.ex:100
 #, elixir-autogen, elixir-format
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
 msgstr ""
@@ -88,7 +88,7 @@ msgstr ""
 msgid "Connect"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:55
+#: lib/tuist_web/live/connect_live.ex:58
 #, elixir-autogen, elixir-format
 msgid "Connect your project"
 msgstr ""
@@ -142,7 +142,7 @@ msgstr ""
 msgid "Email is already taken"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:75
+#: lib/tuist_web/live/connect_live.ex:78
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
 msgstr ""
@@ -167,7 +167,7 @@ msgstr ""
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:41
+#: lib/tuist_web/live/connect_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Install Tuist CLI"
 msgstr ""
@@ -211,12 +211,12 @@ msgstr ""
 msgid "New password"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:73
+#: lib/tuist_web/live/connect_live.ex:76
 #, elixir-autogen, elixir-format
 msgid "Next steps"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:91
+#: lib/tuist_web/live/connect_live.ex:94
 #, elixir-autogen, elixir-format
 msgid "OR"
 msgstr ""
@@ -237,7 +237,7 @@ msgstr ""
 msgid "Previews"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:94
+#: lib/tuist_web/live/connect_live.ex:97
 #, elixir-autogen, elixir-format
 msgid "Project Ready? Proceed to dashboard"
 msgstr ""
@@ -248,12 +248,12 @@ msgstr ""
 msgid "Reset password"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:43
+#: lib/tuist_web/live/connect_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Run the following command to install Tuist CLI."
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:57
+#: lib/tuist_web/live/connect_live.ex:60
 #, elixir-autogen, elixir-format
 msgid "Run this command to link your project to the dashboard."
 msgstr ""
@@ -304,12 +304,12 @@ msgstr ""
 msgid "Tuist app is connected!"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:104
+#: lib/tuist_web/live/connect_live.ex:107
 #, elixir-autogen, elixir-format
 msgid "Tuist dashboard"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:82
+#: lib/tuist_web/live/connect_live.ex:85
 #, elixir-autogen, elixir-format
 msgid "Tuist documentation"
 msgstr ""
@@ -391,14 +391,14 @@ msgstr ""
 msgid "Your new password must be different to previously used passwords."
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:49
-#: lib/tuist_web/live/connect_live.ex:67
+#: lib/tuist_web/live/connect_live.ex:52
+#: lib/tuist_web/live/connect_live.ex:70
 #, elixir-autogen, elixir-format
 msgid "homebrew"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:46
-#: lib/tuist_web/live/connect_live.ex:62
+#: lib/tuist_web/live/connect_live.ex:49
+#: lib/tuist_web/live/connect_live.ex:65
 #, elixir-autogen, elixir-format
 msgid "mise"
 msgstr ""

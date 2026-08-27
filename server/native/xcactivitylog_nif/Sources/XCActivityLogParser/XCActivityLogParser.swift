@@ -37,8 +37,8 @@ public struct XCActivityLogParser: Sendable {
                 name: step.title.replacingOccurrences(of: "Build target ", with: ""),
                 project: extractProject(from: subSteps.first { extractProject(from: [$0]).first?.project != "" }
                     .map { [$0] } ?? []).first?.project ?? "",
-                build_duration: Int((step.duration * 1000).rounded(.up)),
-                compilation_duration: Int((step.compilationDuration * 1000).rounded(.up)),
+                build_duration: SafeNumeric.milliseconds(step.duration),
+                compilation_duration: SafeNumeric.milliseconds(step.compilationDuration),
                 status: hasErrors ? "failure" : "success"
             )
         }
@@ -60,8 +60,10 @@ public struct XCActivityLogParser: Sendable {
             casReader: casReader
         )
 
-        let duration = Int(activityLog.mainSection.timeStoppedRecording * 1000)
-            - Int(activityLog.mainSection.timeStartedRecording * 1000)
+        let duration = SafeNumeric.milliseconds(
+            activityLog.mainSection.timeStoppedRecording - activityLog.mainSection.timeStartedRecording,
+            rounding: .towardZero
+        )
 
         return BuildData(
             unique_identifier: activityLog.mainSection.uniqueIdentifier,
@@ -207,10 +209,10 @@ public struct XCActivityLogParser: Sendable {
                     step_type: stepTypeString(from: step.signature),
                     path: path,
                     message: notice.detail.flatMap(cleanIssueDetail),
-                    starting_line: Int(notice.startingLineNumber),
-                    ending_line: Int(notice.endingLineNumber),
-                    starting_column: Int(notice.startingColumnNumber),
-                    ending_column: Int(notice.endingColumnNumber)
+                    starting_line: SafeNumeric.location(notice.startingLineNumber),
+                    ending_line: SafeNumeric.location(notice.endingLineNumber),
+                    starting_column: SafeNumeric.location(notice.startingColumnNumber),
+                    ending_column: SafeNumeric.location(notice.endingColumnNumber)
                 ))
             }
         }
@@ -287,7 +289,7 @@ public struct XCActivityLogParser: Sendable {
                 target: extractTargetFromSignature(step.signature),
                 project: extractProjectFromSignature(step.signature),
                 path: doc,
-                compilation_duration: Int((step.compilationDuration * 1000).rounded(.up))
+                compilation_duration: SafeNumeric.milliseconds(step.compilationDuration)
             )
         }
     }

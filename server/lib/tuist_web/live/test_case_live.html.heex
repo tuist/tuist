@@ -54,7 +54,30 @@
       </div>
     </div>
     <div data-part="actions">
+      <.badge
+        :if={!@can_update_test_case}
+        label={state_label(@test_case_detail.state || "enabled")}
+        color={state_color(@test_case_detail.state || "enabled")}
+        style="light-fill"
+        size="large"
+      >
+        <:icon>
+          <.icon name={state_icon(@test_case_detail.state || "enabled")} />
+        </:icon>
+      </.badge>
+      <.badge
+        :if={!@can_update_test_case and @test_case_detail.is_flaky}
+        label={dgettext("dashboard_tests", "Flaky")}
+        color="warning"
+        style="light-fill"
+        size="large"
+      >
+        <:icon>
+          <.icon name="alert_triangle" />
+        </:icon>
+      </.badge>
       <.dropdown
+        :if={@can_update_test_case}
         id="test-case-state-dropdown"
         label={state_label(@test_case_detail.state || "enabled")}
       >
@@ -90,7 +113,7 @@
         </.dropdown_item>
       </.dropdown>
       <.button
-        :if={@test_case_detail.is_flaky}
+        :if={@can_update_test_case and @test_case_detail.is_flaky}
         label={dgettext("dashboard_tests", "Unmark as flaky")}
         variant="secondary"
         size="medium"
@@ -101,7 +124,7 @@
         </:icon_left>
       </.button>
       <.button
-        :if={!@test_case_detail.is_flaky}
+        :if={@can_update_test_case and !@test_case_detail.is_flaky}
         label={dgettext("dashboard_tests", "Mark as flaky")}
         variant="secondary"
         size="medium"
@@ -580,7 +603,8 @@
                 name: selected_chart(@analytics_selected_widget, @series.result).name,
                 type: "line",
                 smooth: 0.1,
-                symbol: "none"
+                symbol: "circle",
+                connectNulls: true
               }
             ]}
             y_axis_min={0}
@@ -654,7 +678,8 @@
                 name: dgettext("dashboard_tests", "Average"),
                 type: "line",
                 smooth: 0.1,
-                symbol: "none"
+                symbol: "circle",
+                connectNulls: true
               },
               %{
                 color: "var:noora-chart-p99",
@@ -662,7 +687,8 @@
                 name: dgettext("dashboard_tests", "p99"),
                 type: "line",
                 smooth: 0.1,
-                symbol: "none"
+                symbol: "circle",
+                connectNulls: true
               },
               %{
                 color: "var:noora-chart-p90",
@@ -670,7 +696,8 @@
                 name: dgettext("dashboard_tests", "p90"),
                 type: "line",
                 smooth: 0.1,
-                symbol: "none"
+                symbol: "circle",
+                connectNulls: true
               },
               %{
                 color: "var:noora-chart-p50",
@@ -678,7 +705,8 @@
                 name: dgettext("dashboard_tests", "p50"),
                 type: "line",
                 smooth: 0.1,
-                symbol: "none"
+                symbol: "circle",
+                connectNulls: true
               }
             ]}
             y_axis_min={0}
