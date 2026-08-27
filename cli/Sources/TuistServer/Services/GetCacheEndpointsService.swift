@@ -14,20 +14,9 @@ public struct CacheEndpointsResolution: Equatable, Sendable {
     public let endpoints: [String]
     public let maxAge: TimeInterval?
 
-    /// The endpoint that keeps naming this account's cache wherever it is
-    /// served from, or `nil` when nothing is answering on one.
-    ///
-    /// Only the server can say which endpoint this is. `endpoints` is ordered
-    /// by proximity to the caller rather than by durability, so position does
-    /// not identify it, and recognising it by its shape would put the server's
-    /// host template in the client. A server that predates the field omits it,
-    /// leaving this nil.
-    public let stableEndpoint: String?
-
-    public init(endpoints: [String], maxAge: TimeInterval?, stableEndpoint: String? = nil) {
+    public init(endpoints: [String], maxAge: TimeInterval?) {
         self.endpoints = endpoints
         self.maxAge = maxAge
-        self.stableEndpoint = stableEndpoint
     }
 }
 
@@ -92,8 +81,7 @@ public struct GetCacheEndpointsService: GetCacheEndpointsServicing {
                 // `maxAge` nil and the client on its own default.
                 return CacheEndpointsResolution(
                     endpoints: payload.endpoints,
-                    maxAge: Self.maxAge(from: okResponse.headers.cache_hyphen_control),
-                    stableEndpoint: payload.stable_endpoint
+                    maxAge: Self.maxAge(from: okResponse.headers.cache_hyphen_control)
                 )
             }
         case let .forbidden(forbidden):

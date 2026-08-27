@@ -476,18 +476,6 @@ defmodule Tuist.Kura.LifecycleTest do
       assert url == server.url
     end
 
-    test "the endpoint an account is handed does not name a region" do
-      # `tuist bazel setup` writes whatever this is into `.bazelrc.tuist` and
-      # never resolves again, so it has to be a name that survives the account
-      # moving region.
-      account = account()
-      server = active_instance(account)
-      stub(Environment, :kura_stable_endpoint_enabled?, fn -> true end)
-
-      assert Kura.substitute_stable_endpoint([server.url], account) == [Regions.stable_public_url(account.name)]
-      refute Regions.stable_public_url(account.name) =~ @region
-    end
-
     test "emits an archive cancellation" do
       account = account()
       server = active_instance(account)

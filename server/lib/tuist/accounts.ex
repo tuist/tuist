@@ -2580,11 +2580,7 @@ defmodule Tuist.Accounts do
     if Environment.tuist_hosted?() and technology == :kura and is_binary(account_handle) do
       hosted_kura_resolution(account_handle, origin)
     else
-      %{
-        endpoints: cache_endpoints_for_handle(account_handle, technology),
-        provisioning: false,
-        stable_endpoint: nil
-      }
+      %{endpoints: cache_endpoints_for_handle(account_handle, technology), provisioning: false}
     end
   end
 
@@ -2596,20 +2592,19 @@ defmodule Tuist.Accounts do
       %Account{} = account ->
         Demand.record(account.id, origin)
 
-        case account |> kura_cache_endpoint_urls(Origins.value(origin)) |> Kura.substitute_stable_endpoint(account) do
+        case kura_cache_endpoint_urls(account, Origins.value(origin)) do
           [] ->
             %{
               endpoints: absent_kura_endpoint_urls(account),
-              provisioning: Demand.instance_expected?(account),
-              stable_endpoint: nil
+              provisioning: Demand.instance_expected?(account)
             }
 
           urls ->
-            %{endpoints: urls, provisioning: false, stable_endpoint: Kura.stable_endpoint(urls, account)}
+            %{endpoints: urls, provisioning: false}
         end
 
       _ ->
-        %{endpoints: CacheEndpoints.active_endpoint_urls(), provisioning: false, stable_endpoint: nil}
+        %{endpoints: CacheEndpoints.active_endpoint_urls(), provisioning: false}
     end
   end
 
@@ -2638,7 +2633,7 @@ defmodule Tuist.Accounts do
     # memory and flushed periodically, so this stays one ETS insert.
     Demand.record(account.id)
 
-    case account |> kura_cache_endpoint_urls() |> Kura.substitute_stable_endpoint(account) do
+    case kura_cache_endpoint_urls(account) do
       [] -> absent_kura_endpoint_urls(account)
       endpoints -> endpoints
     end
@@ -2702,9 +2697,7 @@ defmodule Tuist.Accounts do
   The Kura cache endpoint URLs the CLI resolves for this account.
   Public so runner dispatch (`Tuist.Kura.runner_cache_endpoint_url/2`)
   derives its in-cluster fallback from these, rather than a parallel query
-  that could drift. It matches on each instance's own regional URL, which is
-  why the account's region-independent name is substituted in at the two call
-  sites that answer the CLI rather than here.
+  that could drift.
   """
   def kura_cache_endpoint_urls(%Account{} = account, origin \\ nil) do
     static_urls =

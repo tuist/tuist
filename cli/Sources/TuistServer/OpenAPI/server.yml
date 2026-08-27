@@ -908,12 +908,6 @@ components:
           type: array
           x-struct:
           x-validate:
-        stable_endpoint:
-          description: The endpoint that keeps naming this account's cache wherever it is served from, present only while an instance is answering on it. Clients that persist an endpoint rather than resolving one per build should prefer it; it cannot be identified from the list, which is ordered by proximity to the caller.
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
       required:
         - endpoints
       title: CacheEndpoints
@@ -6781,12 +6775,6 @@ paths:
                       x-struct:
                       x-validate:
                     type: array
-                    x-struct:
-                    x-validate:
-                  stable_endpoint:
-                    description: The endpoint that keeps naming this account's cache wherever it is served from, present only while an instance is answering on it. Clients that persist an endpoint rather than resolving one per build should prefer it; it cannot be identified from the list, which is ordered by proximity to the caller.
-                    nullable: true
-                    type: string
                     x-struct:
                     x-validate:
                 required:

@@ -11,11 +11,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   @behaviour Tuist.Kura.Provisioner
 
-  alias Tuist.Accounts.Account
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client
-  alias Tuist.Kura
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.EgressLimits
   alias Tuist.Kura.Mesh
@@ -275,8 +273,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       storage_claim(account, region, server),
       self_hosted_peers(account, region, entitlements),
       entitlements,
-      effective_egress(account, region, entitlements),
-      rendered_stable_host(account, region, server)
+      effective_egress(account, region, entitlements)
     )
   end
 
@@ -323,8 +320,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     external_peers = entitled_self_hosted_peers(region, external_peers, entitlements)
     claim = storage_claim(account, region, server)
     egress = effective_egress(account, region, entitlements)
-    stable_host = rendered_stable_host(account, region, server)
-    revision = manifest_revision_string(region, claim, external_peers, entitlements, egress, stable_host)
+    revision = manifest_revision_string(region, claim, external_peers, entitlements, egress)
     annotations = %{@manifest_revision_annotation => revision}
 
     %{
@@ -352,11 +348,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           # until the peer endpoint has a stable account-region owner.
           "publicHost" => if(owns_public_endpoints?(server), do: public_host(account_handle, region)),
           "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(account_handle, region)),
-          # The account's region-independent host, on whichever instance
-          # currently answers on it. Rendered from the account rather than the
-          # region on purpose: it is the name a client may write down, and it
-          # has to survive the account being served from somewhere else.
-          "stableHost" => stable_host,
           "ingressClassName" => ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
           "peerTLSSecretName" => peer_tls_secret_name(region),
@@ -487,26 +478,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # The desired revision the reconciler compares against the live CR's
   # annotation. Both the reconcile check (manifest_revision/2) and the applied
   # manifest (manifest/7) build it here so they can never disagree and loop.
-  defp manifest_revision_string(%Regions{} = region, claim, peer_urls, entitlements, egress, stable_host) do
+  defp manifest_revision_string(%Regions{} = region, claim, peer_urls, entitlements, egress) do
     @manifest_revision <>
       peers_revision_suffix(peer_urls) <>
       mesh_peers_sync_revision_suffix(region, entitlements) <>
       backfill_revision_suffix(entitlements) <>
       memory_revision_suffix(region, entitlements) <>
       claim_revision_suffix(claim) <>
-      egress_revision_suffix(egress) <>
-      stable_host_revision_suffix(stable_host)
+      egress_revision_suffix(egress)
   end
-
-  # Which instance answers on the account's region-independent host is a
-  # property of the account, not of this row, so nothing else in the revision
-  # moves when it changes hands. Without it the reconciler compares equal
-  # revisions and re-applies neither instance, and the name stays on whichever
-  # one happened to be rendered last — until that instance is destroyed and
-  # takes the DNS record with it. The name would then be dead exactly when a
-  # relocation was supposed to be carrying it across.
-  defp stable_host_revision_suffix(nil), do: ""
-  defp stable_host_revision_suffix(host), do: "+stable#{host}"
 
   # Keyed on the pair the manifest renders rather than on the override alone: the
   # reconciler converges on the revision, so anything that moves these two fields
@@ -946,62 +926,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   # Only the steady-state (`:none`) server publishes the account's customer and
   # peer endpoints. See the endpoint fields in `manifest/7`.
-  # One instance per account at a time, decided in `Tuist.Kura` from the
-  # account's whole instance set rather than from this row alone: which
-  # instance should answer is a fact about the account, and a per-row rule
-  # could leave the name on nobody or on two.
-  # The instance that owns the name, and — while a region is on its way out —
-  # the one leaving, for as long as it is still up.
-  #
-  # Ownership is decided from the account's whole instance set, but each
-  # instance re-renders on its own schedule, so a handover is two writes rather
-  # than one. Observed on staging: the region being left dropped the name four
-  # minutes before the destination picked it up, and external-dns withdrew the
-  # record in between. For a name that exists so a written-down endpoint keeps
-  # working, minutes of NXDOMAIN is the failure it was built to prevent.
-  #
-  # Carrying it on both through the handover cannot fail that way. Two
-  # addresses for one name is two instances of the same account, both serving,
-  # both converging on the same content-addressed blobs, so a client reaching
-  # either is correct and at worst pays a miss. Zero addresses is a broken
-  # build.
-  defp carries_stable_host?(%Account{} = account, %Regions{id: region_id}, %Server{account_id: account_id} = server)
-       when is_integer(account_id) do
-    stable_host_owner?(server) or region_id in Kura.retiring_regions(%{account | id: account_id})
-  end
-
-  defp carries_stable_host?(_account, _region, _server), do: false
-
-  defp stable_host_owner?(%Server{account_id: account_id, id: id}) when is_integer(account_id) and is_binary(id) do
-    case Kura.stable_host_owner(%Account{id: account_id}) do
-      %Server{id: owner_id} -> owner_id == id
-      nil -> false
-    end
-  end
-
-  # An unsaved row owns nothing: it is not in the set the decision is taken
-  # over, so there is nobody for it to be compared against.
-  defp stable_host_owner?(%Server{}), do: false
-
-  # The account's region-independent host, on this row, or nil when this is not
-  # the row that answers on it.
-  #
-  # Only where the regional host comes from the managed template, so a region
-  # that names its instances some other way (the local controller does) is not
-  # handed a name in a zone it has nothing to do with.
-  defp rendered_stable_host(
-         %Account{name: handle} = account,
-         %Regions{provisioner_config: %{public_host_template: template}} = region,
-         server
-       )
-       when is_binary(template) do
-    if owns_public_endpoints?(server) and carries_stable_host?(account, region, server) do
-      Regions.stable_public_host(handle)
-    end
-  end
-
-  defp rendered_stable_host(_account, _region, _server), do: nil
-
   defp owns_public_endpoints?(%Server{move_phase: :moving_in}), do: false
   defp owns_public_endpoints?(%Server{move_phase: :moving_out}), do: false
   defp owns_public_endpoints?(%Server{}), do: true

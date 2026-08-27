@@ -1619,134 +1619,11 @@ defmodule Tuist.KuraTest do
     server
   end
 
-  describe "stable_host_owner/1" do
-    test "is the account's primary once that instance is serving" do
-      account = stable_host_account()
-      _source = stable_host_instance(account, "us-east", :active)
-      destination = stable_host_instance(account, "eu-central", :active)
-      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
-
-      assert %Server{id: id} = Kura.stable_host_owner(account)
-      assert id == destination.id
-    end
-
-    test "stays with whatever is still serving while the primary comes up" do
-      # Handing the name to an instance that is still provisioning would take
-      # the account's cache away for the length of the rollout, which is the
-      # outage the name exists to avoid during a move.
-      account = stable_host_account()
-      source = stable_host_instance(account, "us-east", :active)
-      _destination = stable_host_instance(account, "eu-central", :provisioning)
-      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
-
-      assert %Server{id: id} = Kura.stable_host_owner(account)
-      assert id == source.id
-    end
-
-    test "is exactly one instance for an account served from several regions" do
-      serving_public_regions()
-      account = stable_host_account()
-      primary = stable_host_instance(account, "us-east", :active)
-      secondary = stable_host_instance(account, "eu-central", :active)
-      {:ok, _row} = PlacerRegions.put_primary(account, "us-east")
-      {:ok, _row} = PlacerRegions.put_secondary(account, "eu-central")
-
-      owner = Kura.stable_host_owner(account)
-
-      assert owner.id == primary.id
-      refute owner.id == secondary.id
-
-      # The primary's own address is replaced by the account's name; the
-      # secondary keeps its regional one, so a client still picks between
-      # regions.
-      stub(Tuist.Environment, :kura_stable_endpoint_enabled?, fn -> true end)
-
-      assert Kura.substitute_stable_endpoint([primary.url, secondary.url], account) == [
-               Regions.stable_public_url(account.name),
-               secondary.url
-             ]
-    end
-
-    test "ignores a private runner cache" do
-      account = stable_host_account()
-      _runner_cache = stable_host_instance(account, "scw-fr-par-runners", :active)
-
-      assert Kura.stable_host_owner(account) == nil
-    end
-
-    test "is nobody for an account with no instances" do
-      assert Kura.stable_host_owner(stable_host_account()) == nil
-    end
-  end
-
-  describe "substitute_stable_endpoint/2" do
-    test "hands out regional names until the region-independent one is turned on" do
-      # The Ingress, the certificate and the DNS record come up on their own
-      # schedule; handing the name out before they have would give clients an
-      # address that does not resolve.
-      account = stable_host_account()
-      primary = stable_host_instance(account, "eu-central", :active)
-      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
-
-      stub(Tuist.Environment, :kura_stable_endpoint_enabled?, fn -> false end)
-
-      assert Kura.substitute_stable_endpoint([primary.url], account) == [primary.url]
-    end
-  end
-
-  describe "stable_endpoint/2" do
-    test "names the region-independent endpoint among the ones handed out" do
-      serving_public_regions()
-      account = stable_host_account()
-      primary = stable_host_instance(account, "eu-central", :active)
-      secondary = stable_host_instance(account, "us-east", :active)
-      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
-      {:ok, _row} = PlacerRegions.put_secondary(account, "us-east")
-
-      stub(Tuist.Environment, :kura_stable_endpoint_enabled?, fn -> true end)
-
-      urls = Kura.substitute_stable_endpoint([primary.url, secondary.url], account)
-
-      assert Kura.stable_endpoint(urls, account) == Regions.stable_public_url(account.name)
-    end
-
-    test "names nothing when the caller is nearest a region that is not the primary" do
-      # The list is ordered by proximity, so the region-independent name is not
-      # first here. A client picking by position would take the secondary's
-      # regional address and bake an endpoint that a later retirement removes.
-      serving_public_regions()
-      account = stable_host_account()
-      primary = stable_host_instance(account, "eu-central", :active)
-      secondary = stable_host_instance(account, "us-east", :active)
-      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
-      {:ok, _row} = PlacerRegions.put_secondary(account, "us-east")
-
-      stub(Tuist.Environment, :kura_stable_endpoint_enabled?, fn -> true end)
-
-      urls = Kura.substitute_stable_endpoint([secondary.url, primary.url], account)
-
-      assert List.first(urls) == secondary.url
-      assert Kura.stable_endpoint(urls, account) == Regions.stable_public_url(account.name)
-    end
-
-    test "names nothing while nothing is answering on the name" do
-      account = stable_host_account()
-      primary = stable_host_instance(account, "eu-central", :active)
-      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
-
-      stub(Tuist.Environment, :kura_stable_endpoint_enabled?, fn -> false end)
-
-      urls = Kura.substitute_stable_endpoint([primary.url], account)
-
-      assert Kura.stable_endpoint(urls, account) == nil
-    end
-  end
-
   describe "order_endpoints_by_origin/3" do
     test "puts the region nearest the caller first for a multi-region account" do
-      account = stable_host_account()
-      primary = stable_host_instance(account, "eu-central", :active)
-      secondary = stable_host_instance(account, "us-east", :active)
+      account = placed_account()
+      primary = placed_instance(account, "eu-central", :active)
+      secondary = placed_instance(account, "us-east", :active)
       {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
       {:ok, _row} = PlacerRegions.put_secondary(account, "us-east")
 
@@ -1759,48 +1636,17 @@ defmodule Tuist.KuraTest do
       assert first == secondary.url
     end
 
-    test "the ordering survives the region-independent name being substituted in" do
-      serving_public_regions()
-
-      # Ordering runs on the stored regional URLs and substitution replaces one
-      # of them afterwards, so the nearest region still comes first and the
-      # account's own name is what stands in for it.
-      account = stable_host_account()
-      primary = stable_host_instance(account, "eu-central", :active)
-      secondary = stable_host_instance(account, "us-east", :active)
-      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
-      {:ok, _row} = PlacerRegions.put_secondary(account, "us-east")
-
-      stub(Tuist.Environment, :kura_stable_endpoint_enabled?, fn -> true end)
-
-      ordered =
-        [%{url: secondary.url}, %{url: primary.url}]
-        |> Kura.order_endpoints_by_origin(account, "FR")
-        |> Enum.map(& &1.url)
-        |> Kura.substitute_stable_endpoint(account)
-
-      assert ordered == [Regions.stable_public_url(account.name), secondary.url]
-    end
-
     test "leaves an empty list alone" do
-      assert Kura.order_endpoints_by_origin([], stable_host_account(), "FR") == []
+      assert Kura.order_endpoints_by_origin([], placed_account(), "FR") == []
     end
   end
 
-  # The account's region-independent name only exists where the deployment
-  # actually serves a publicly hosted region.
-  defp serving_public_regions do
-    stub(Tuist.Environment, :dev?, fn -> false end)
-    stub(Tuist.Environment, :test?, fn -> false end)
-    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-central", "us-east"] end)
-  end
-
-  defp stable_host_account do
+  defp placed_account do
     user = AccountsFixtures.user_fixture()
     Accounts.get_account_from_user(user)
   end
 
-  defp stable_host_instance(account, region, status) do
+  defp placed_instance(account, region, status) do
     Repo.insert!(%Server{
       account_id: account.id,
       region: region,

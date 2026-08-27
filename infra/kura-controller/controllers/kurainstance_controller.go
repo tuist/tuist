@@ -1400,23 +1400,14 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 			"app.kubernetes.io/managed-by": "kura-controller",
 			"tuist.dev/account":            instance.Spec.AccountHandle,
 		})
-		// One record per customer-facing name, both pointing at the box the
-		// account's pods are on. The region-independent host needs this as much
-		// as the regional one: the Ingress-sourced record for it targets every
-		// cache node in the region, so without a per-account record a client on
-		// that name lands on an arbitrary box and its traffic is proxied
-		// cross-box, outside the per-pod egress shaping the whole scheme rests
-		// on.
-		records := make([]interface{}, 0, 2)
-		for _, host := range customerHosts(instance) {
-			records = append(records, map[string]interface{}{
-				"dnsName":    host,
+		if err := unstructured.SetNestedSlice(endpoint.Object, []interface{}{
+			map[string]interface{}{
+				"dnsName":    instance.Spec.PublicHost,
 				"recordType": "A",
 				"recordTTL":  int64(60),
 				"targets":    []interface{}{target},
-			})
-		}
-		if err := unstructured.SetNestedSlice(endpoint.Object, records, "spec", "endpoints"); err != nil {
+			},
+		}, "spec", "endpoints"); err != nil {
 			return err
 		}
 		return controllerutil.SetControllerReference(instance, endpoint, r.Scheme)
@@ -1601,25 +1592,20 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 		ingress.Labels = labels(instance)
 		ingress.Annotations = publicIngressAnnotations()
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
-		hosts := customerHosts(instance)
 		ingress.Spec.TLS = []networkingv1.IngressTLS{{
-			Hosts:      hosts,
+			Hosts:      []string{instance.Spec.PublicHost},
 			SecretName: publicTLSSecretName(instance),
 		}}
-		rules := make([]networkingv1.IngressRule, 0, len(hosts))
-		for _, host := range hosts {
-			rules = append(rules, networkingv1.IngressRule{
-				Host: host,
-				IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
-					Paths: []networkingv1.HTTPIngressPath{{
-						Path:     "/",
-						PathType: ptr(networkingv1.PathTypePrefix),
-						Backend:  ingressBackend(instance.Name, "http"),
-					}},
+		ingress.Spec.Rules = []networkingv1.IngressRule{{
+			Host: instance.Spec.PublicHost,
+			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+				Paths: []networkingv1.HTTPIngressPath{{
+					Path:     "/",
+					PathType: ptr(networkingv1.PathTypePrefix),
+					Backend:  ingressBackend(instance.Name, "http"),
 				}},
-			})
-		}
-		ingress.Spec.Rules = rules
+			}},
+		}}
 		return nil
 	})
 	return err
@@ -1692,35 +1678,15 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 				Backend:  ingressBackend(instance.Name, "http"),
 			})
 		}
-		rules := make([]networkingv1.IngressRule, 0, 2)
-		for _, host := range customerHosts(instance) {
-			rules = append(rules, networkingv1.IngressRule{
-				Host: host,
-				IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
-					Paths: paths,
-				}},
-			})
-		}
-		ingress.Spec.Rules = rules
+		ingress.Spec.Rules = []networkingv1.IngressRule{{
+			Host: instance.Spec.PublicHost,
+			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+				Paths: paths,
+			}},
+		}}
 		return nil
 	})
 	return err
-}
-
-// customerHosts are the client-facing names this instance answers on, in a
-// stable order: the per-region host it always has, and the region-independent
-// one when this instance is the account's current owner of it.
-//
-// The stable host rides the same Ingress and the same certificate rather than
-// objects of its own, so it appears and disappears with the regional host and
-// needs no cleanup path: both Ingress specs are rewritten in full on every
-// reconcile, so clearing the field removes the rule and the SAN with it.
-func customerHosts(instance *kurav1alpha1.KuraInstance) []string {
-	hosts := []string{instance.Spec.PublicHost}
-	if stable := strings.TrimSpace(instance.Spec.StableHost); stable != "" && stable != instance.Spec.PublicHost {
-		hosts = append(hosts, stable)
-	}
-	return hosts
 }
 
 func ingressBackend(serviceName string, servicePortName string) networkingv1.IngressBackend {
@@ -2221,7 +2187,7 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": publicTLSSecretName(instance),
-			"dnsNames":   dnsNames(customerHosts(instance)...),
+			"dnsNames":   dnsNames(instance.Spec.PublicHost),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",
@@ -3574,16 +3540,13 @@ func grpcIngressAnnotations() map[string]string {
 // customerRecordTTLSeconds is how long a resolver may keep pointing a
 // customer at a region.
 //
-// It bounds the only window a moving name cannot be protected from. A client
-// holds its connection and re-resolves when that connection fails, so once a
-// region stops serving a name the client depends on DNS handing it the new
-// one; until this expires, a resolver can keep returning the region that has
-// gone. The gateways refuse names they do not serve (ssl-reject-handshake in
+// A cache client resolves a name once and then holds the connection, so when a
+// region stops serving a name the client depends on DNS handing it another
+// one. The gateways refuse names they do not serve (ssl-reject-handshake in
 // infra/helm/platform), which turns that into a retry rather than a silent
-// failure, and this is what bounds how long the retrying lasts.
-//
-// The provider default is 300s. These names resolve once per connection, so a
-// shorter one costs little, and 60s is the floor the DNS provider accepts.
+// failure, and this bounds how long the retrying lasts. The provider default
+// is 300s; these names are resolved once per connection, so a shorter one
+// costs little and 60s is the floor the DNS provider accepts.
 const customerRecordTTLSeconds = "60"
 
 func streamingIngressAnnotations(backendProtocol string) map[string]string {

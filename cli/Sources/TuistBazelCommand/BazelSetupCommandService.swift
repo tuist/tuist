@@ -19,7 +19,6 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let cacheURLStore: CacheURLStoring
-    private let getCacheEndpointsService: GetCacheEndpointsServicing
     private let remoteCacheProbeService: RemoteCacheProbing
     private let fullHandleService: FullHandleServicing
     private let configLoader: ConfigLoading
@@ -29,7 +28,6 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         cacheURLStore: CacheURLStoring = CacheURLStore(),
-        getCacheEndpointsService: GetCacheEndpointsServicing = GetCacheEndpointsService(),
         remoteCacheProbeService: RemoteCacheProbing = RemoteCacheProbeService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         configLoader: ConfigLoading = ConfigLoader(),
@@ -38,7 +36,6 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
         self.serverEnvironmentService = serverEnvironmentService
         self.serverAuthenticationController = serverAuthenticationController
         self.cacheURLStore = cacheURLStore
-        self.getCacheEndpointsService = getCacheEndpointsService
         self.remoteCacheProbeService = remoteCacheProbeService
         self.fullHandleService = fullHandleService
         self.configLoader = configLoader
@@ -62,7 +59,7 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
             throw BazelSetupCommandServiceError.notAuthenticated
         }
 
-        let cacheURL = try await bazelCacheURL(serverURL: serverURL, accountHandle: accountHandle)
+        let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
         guard let host = cacheURL.host else {
             throw BazelSetupCommandServiceError.invalidCacheEndpoint(cacheURL.absoluteString)
         }
@@ -100,36 +97,6 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
                 ]
             )
         )
-    }
-
-    /// The endpoint to write into `.bazelrc.tuist`, preferring the one that
-    /// keeps naming the account's cache wherever it is served from.
-    ///
-    /// Bazel is handed an endpoint in a file that is committed and shared, and
-    /// it never resolves again. Picking by latency is the right answer for the
-    /// lanes that resolve per build and the wrong one here twice over: the
-    /// probe measures whichever machine happened to run `setup`, not the team
-    /// that reads the file, and a regional endpoint stops existing when
-    /// placement moves or retires that region, breaking everyone at once.
-    ///
-    /// Falls back to the latency-picked endpoint when the account has no such
-    /// name, which is the case for a self-hosted server, an older server, or
-    /// an account whose instance is still coming up.
-    private func bazelCacheURL(serverURL: URL, accountHandle: String) async throws -> URL {
-        // An explicit override is a deliberate answer to this same question,
-        // so it wins outright rather than being second-guessed.
-        if Environment.current.variables["TUIST_CACHE_ENDPOINT"] == nil {
-            let resolution = try await getCacheEndpointsService.getCacheEndpoints(
-                serverURL: serverURL,
-                accountHandle: accountHandle
-            )
-
-            if let stableEndpoint = resolution.stableEndpoint, let url = URL(string: stableEndpoint) {
-                return url
-            }
-        }
-
-        return try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
     }
 
     private func createCredentialHelperScriptIfNeeded() async throws -> AbsolutePath {

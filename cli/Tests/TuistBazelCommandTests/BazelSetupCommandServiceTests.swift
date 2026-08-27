@@ -21,7 +21,7 @@ struct BazelSetupCommandServiceTests {
     private let cacheURL = URL(string: "https://cache.tuist.dev")!
     private let fileSystem = FileSystem()
 
-    private func makeSubject(cacheURL: URL? = nil, stableEndpoint: String? = nil) -> (
+    private func makeSubject(cacheURL: URL? = nil) -> (
         subject: BazelSetupCommandService,
         serverAuthenticationController: MockServerAuthenticationControlling,
         configLoader: MockConfigLoading,
@@ -30,7 +30,6 @@ struct BazelSetupCommandServiceTests {
         let serverEnvironmentService = MockServerEnvironmentServicing()
         let serverAuthenticationController = MockServerAuthenticationControlling()
         let cacheURLStore = MockCacheURLStoring()
-        let getCacheEndpointsService = MockGetCacheEndpointsServicing()
         let remoteCacheProbeService = MockRemoteCacheProbing()
         let configLoader = MockConfigLoading()
 
@@ -46,16 +45,6 @@ struct BazelSetupCommandServiceTests {
             .getCacheURL(for: .any, accountHandle: .value("my-account"))
             .willReturn(cacheURL ?? self.cacheURL)
 
-        given(getCacheEndpointsService)
-            .getCacheEndpoints(serverURL: .any, accountHandle: .any)
-            .willReturn(
-                CacheEndpointsResolution(
-                    endpoints: [(cacheURL ?? self.cacheURL).absoluteString],
-                    maxAge: nil,
-                    stableEndpoint: stableEndpoint
-                )
-            )
-
         given(remoteCacheProbeService)
             .probe(endpoint: .any, accountHandle: .any, instanceName: .any, token: .any)
             .willReturn(())
@@ -64,7 +53,6 @@ struct BazelSetupCommandServiceTests {
             serverEnvironmentService: serverEnvironmentService,
             serverAuthenticationController: serverAuthenticationController,
             cacheURLStore: cacheURLStore,
-            getCacheEndpointsService: getCacheEndpointsService,
             remoteCacheProbeService: remoteCacheProbeService,
             fullHandleService: FullHandleService(),
             configLoader: configLoader,
@@ -120,70 +108,6 @@ struct BazelSetupCommandServiceTests {
             """
         )
         #expect(FileManager.default.isExecutableFile(atPath: scriptPath.pathString))
-    }
-
-    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
-    func run_prefers_the_region_independent_endpoint_over_the_nearest_one() async throws {
-        // `.bazelrc.tuist` is committed and shared, so the endpoint written into it
-        // outlives both this machine and the region the account is served from
-        // today. The nearest endpoint is the wrong answer twice: it is measured from
-        // whoever ran setup, and it stops existing when placement moves the account.
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let (subject, serverAuthenticationController, _, remoteCacheProbeService) = makeSubject(
-            cacheURL: URL(string: "https://my-account-eu-central-1.kura.tuist.dev")!,
-            stableEndpoint: "https://my-account.cache.tuist.dev"
-        )
-        given(serverAuthenticationController)
-            .authenticationToken(serverURL: .any)
-            .willReturn(.project("token"))
-
-        try await subject.run(directory: temporaryDirectory.pathString)
-
-        let scriptPath = try credentialHelperPath()
-        let bazelrcContent = try await fileSystem.readTextFile(
-            at: temporaryDirectory.appending(component: ".bazelrc.tuist")
-        )
-        #expect(
-            bazelrcContent == """
-            build --remote_cache=grpcs://my-account.cache.tuist.dev
-            build --remote_header=x-tuist-account-handle=my-account
-            build --credential_helper=my-account.cache.tuist.dev=\(scriptPath.pathString)
-            build --remote_instance_name=my-project
-
-            """
-        )
-
-        // Probed before it is written, so an unreachable name fails setup rather
-        // than a build.
-        verify(remoteCacheProbeService)
-            .probe(
-                endpoint: .matching { $0.host == "my-account.cache.tuist.dev" },
-                accountHandle: .any,
-                instanceName: .any,
-                token: .any
-            )
-            .called(1)
-    }
-
-    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
-    func run_falls_back_to_the_nearest_endpoint_when_there_is_no_region_independent_one() async throws {
-        // A self-hosted server, a server that predates the field, or an account
-        // whose instance is still coming up.
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let (subject, serverAuthenticationController, _, _) = makeSubject(
-            cacheURL: URL(string: "https://my-account-eu-central-1.kura.tuist.dev")!,
-            stableEndpoint: nil
-        )
-        given(serverAuthenticationController)
-            .authenticationToken(serverURL: .any)
-            .willReturn(.project("token"))
-
-        try await subject.run(directory: temporaryDirectory.pathString)
-
-        let bazelrcContent = try await fileSystem.readTextFile(
-            at: temporaryDirectory.appending(component: ".bazelrc.tuist")
-        )
-        #expect(bazelrcContent.contains("build --remote_cache=grpcs://my-account-eu-central-1.kura.tuist.dev"))
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)

@@ -128,12 +128,6 @@ server:
       # funds Air in one region and omits this, so the single-region variable
       # above still decides there.
       value: ca-east,eu-central
-    - name: TUIST_KURA_STABLE_ENDPOINT_ENABLED
-      # Every instance answers on its account's region-independent name here,
-      # every certificate covers it and every record resolves, so the endpoints
-      # the CLI is handed can be that name. Production turns this on the same
-      # way, once the same three things are true of its fleet.
-      value: "1"
     - name: TUIST_KURA_INACTIVE_DAYS
       # Production reclaims after 90 days, which no environment can wait out,
       # so the archival half of the lifecycle would first run for real against

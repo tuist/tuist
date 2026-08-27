@@ -311,45 +311,6 @@ defmodule Tuist.Kura do
   defdelegate sized_storage_claim(account), to: PlacerClaims, as: :claim_for
 
   @doc """
-  Which of the account's instances answers on its region-independent host, or
-  `nil` when none can.
-
-  The account's primary once that instance is serving, and whatever is still
-  serving until then. Getting this order right is the whole point of the name:
-  handing it to a primary that is still provisioning would take the account's
-  cache away for as long as the rollout takes, which is precisely the outage
-  the name exists to avoid during a move.
-
-  Exactly one instance at a time, because two would put two addresses behind
-  one name and split the account's cache across them.
-  """
-  def stable_host_owner(%Account{} = account) do
-    servers = live_public_servers(account.id)
-    primary = PlacerRegions.primary_region(account) || servers |> List.first() |> region_of()
-
-    in_primary = Enum.find(servers, &(&1.region == primary))
-    active_in_primary = if in_primary && in_primary.status == :active, do: in_primary
-
-    active_in_primary || Enum.find(servers, &(&1.status == :active)) || in_primary || List.first(servers)
-  end
-
-  defp region_of(nil), do: nil
-  defp region_of(%Server{region: region}), do: region
-
-  # Oldest first, so "whatever is still serving" is a total order rather than
-  # whichever row the database happened to return.
-  defp live_public_servers(account_id) do
-    private_region_ids = Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id)
-
-    Server
-    |> where([server], server.account_id == ^account_id)
-    |> where([server], server.status not in ^@volumeless_statuses and server.move_phase == :none)
-    |> where([server], server.region not in ^private_region_ids)
-    |> order_by([server], asc: server.inserted_at, asc: server.id)
-    |> Repo.all()
-  end
-
-  @doc """
   Orders an account's managed cache endpoints so the one nearest the caller
   comes first, leaving the order alone when there is no origin to order by or
   only one endpoint to order.
@@ -426,11 +387,6 @@ defmodule Tuist.Kura do
   Every region the account is served from, primary first.
   """
   defdelegate placement_regions(account), to: PlacerRegions, as: :all_for
-
-  @doc """
-  The account's regions that are on their way out.
-  """
-  defdelegate retiring_regions(account), to: PlacerRegions
 
   @doc """
   Where the account's cache traffic came from over the last `days`, busiest
@@ -1640,56 +1596,6 @@ defmodule Tuist.Kura do
 
       {:error, _reason} ->
         {:error, {:unknown_region, server.region}}
-    end
-  end
-
-  @doc """
-  Substitutes the account's region-independent name for the regional one it
-  currently answers on, in a list of endpoint URLs.
-
-  Applied when the endpoints are handed out rather than when they are stored,
-  so the mirror of `kura_servers` keeps naming instances by their own
-  addresses and nothing about publishing, pruning or the warm-handoff sharing
-  rule has to know about a name that moves.
-
-  Handing out the region-independent name is the point of having one: `tuist
-  bazel setup` writes what it is given into `.bazelrc.tuist` and never
-  resolves again, so a client that takes it away in a file keeps working when
-  the account moves region. The regional name keeps being served either way,
-  so a client still holding one is not broken by the switch, it simply stops
-  being handed one.
-  """
-  def substitute_stable_endpoint(urls, %Account{name: handle} = account) do
-    with true <- Environment.kura_stable_endpoint_enabled?(),
-         stable when is_binary(stable) <- Regions.stable_public_url(handle),
-         %Server{url: regional} when is_binary(regional) <- stable_host_owner(account) do
-      urls |> Enum.map(&if(&1 == regional, do: stable, else: &1)) |> Enum.uniq()
-    else
-      _ -> urls
-    end
-  end
-
-  @doc """
-  Which of a list of endpoint URLs is the account's region-independent one, or
-  `nil` when none of them is.
-
-  Answered against the list rather than from the handle alone, so the name is
-  only ever offered while an instance is actually answering on it. A client
-  told about a name that nothing serves would write it into a file and fail on
-  the next build.
-
-  A client cannot work this out for itself. The list is ordered by proximity
-  to the caller, so position does not identify the name, and recognising it by
-  its shape would put the server's host template in the client, where it would
-  drift silently.
-  """
-  def stable_endpoint(urls, %Account{name: handle}) do
-    with true <- Environment.kura_stable_endpoint_enabled?(),
-         stable when is_binary(stable) <- Regions.stable_public_url(handle),
-         true <- stable in urls do
-      stable
-    else
-      _ -> nil
     end
   end
 

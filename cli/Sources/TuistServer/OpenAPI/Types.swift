@@ -3910,25 +3910,15 @@ public enum Components {
         public struct CacheEndpoints: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CacheEndpoints/endpoints`.
             public var endpoints: [Swift.String]
-            /// The endpoint that keeps naming this account's cache wherever it is served from, present only while an instance is answering on it. Clients that persist an endpoint rather than resolving one per build should prefer it; it cannot be identified from the list, which is ordered by proximity to the caller.
-            ///
-            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/stable_endpoint`.
-            public var stable_endpoint: Swift.String?
             /// Creates a new `CacheEndpoints`.
             ///
             /// - Parameters:
             ///   - endpoints:
-            ///   - stable_endpoint: The endpoint that keeps naming this account's cache wherever it is served from, present only while an instance is answering on it. Clients that persist an endpoint rather than resolving one per build should prefer it; it cannot be identified from the list, which is ordered by proximity to the caller.
-            public init(
-                endpoints: [Swift.String],
-                stable_endpoint: Swift.String? = nil
-            ) {
+            public init(endpoints: [Swift.String]) {
                 self.endpoints = endpoints
-                self.stable_endpoint = stable_endpoint
             }
             public enum CodingKeys: String, CodingKey {
                 case endpoints
-                case stable_endpoint
             }
         }
         /// The page number to return.
@@ -12652,25 +12642,15 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/endpoints`.
                         public var endpoints: [Swift.String]
-                        /// The endpoint that keeps naming this account's cache wherever it is served from, present only while an instance is answering on it. Clients that persist an endpoint rather than resolving one per build should prefer it; it cannot be identified from the list, which is ordered by proximity to the caller.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/stable_endpoint`.
-                        public var stable_endpoint: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - endpoints:
-                        ///   - stable_endpoint: The endpoint that keeps naming this account's cache wherever it is served from, present only while an instance is answering on it. Clients that persist an endpoint rather than resolving one per build should prefer it; it cannot be identified from the list, which is ordered by proximity to the caller.
-                        public init(
-                            endpoints: [Swift.String],
-                            stable_endpoint: Swift.String? = nil
-                        ) {
+                        public init(endpoints: [Swift.String]) {
                             self.endpoints = endpoints
-                            self.stable_endpoint = stable_endpoint
                         }
                         public enum CodingKeys: String, CodingKey {
                             case endpoints
-                            case stable_endpoint
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/application\/json`.
