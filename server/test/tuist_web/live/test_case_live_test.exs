@@ -1069,7 +1069,7 @@ defmodule TuistWeb.TestCaseLiveTest do
       assert render(lv) =~ "Mark as flaky"
     end
 
-    test "a viewer sees neither control", %{
+    test "a viewer sees the state read-only rather than as a control", %{
       conn: conn,
       organization: organization,
       account: account,
@@ -1081,13 +1081,40 @@ defmodule TuistWeb.TestCaseLiveTest do
       :ok = Accounts.add_user_to_organization(viewer, organization, role: :viewer)
       conn = ConnCase.log_in_user(conn, viewer)
 
+      {:ok, _} = Tests.update_test_case(test_case_id, %{state: "muted"}, actor_id: account.id)
+
       # When
       {:ok, lv, html} =
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
 
-      # Then
+      # Then — the state stays legible, it just cannot be changed.
+      assert html =~ "Muted"
       refute has_element?(lv, "#test-case-state-dropdown")
       refute html =~ "Mark as flaky"
+    end
+
+    test "a viewer sees that a test case is flaky", %{
+      conn: conn,
+      organization: organization,
+      account: account,
+      project: project,
+      test_case_id: test_case_id
+    } do
+      # Given — a writer reads this off the "Unmark as flaky" button, which a
+      # viewer does not get.
+      viewer = AccountsFixtures.user_fixture()
+      :ok = Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+      conn = ConnCase.log_in_user(conn, viewer)
+
+      {:ok, _} = Tests.update_test_case(test_case_id, %{is_flaky: true}, actor_id: account.id)
+
+      # When
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      # Then
+      assert html =~ "Flaky"
+      refute html =~ "Unmark as flaky"
     end
 
     test "a viewer cannot quarantine a test case by pushing the event directly", %{

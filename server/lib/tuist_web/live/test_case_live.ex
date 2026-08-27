@@ -785,6 +785,10 @@ defmodule TuistWeb.TestCaseLive do
   defp state_label("skipped"), do: dgettext("dashboard_tests", "Skipped")
   defp state_label(_), do: dgettext("dashboard_tests", "Enabled")
 
+  defp state_color("muted"), do: "neutral"
+  defp state_color("skipped"), do: "neutral"
+  defp state_color(_), do: "success"
+
   defp state_icon("muted"), do: "volume_3"
   defp state_icon("skipped"), do: "player_track_next"
   defp state_icon(_), do: "player_play"

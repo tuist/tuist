@@ -54,6 +54,28 @@
       </div>
     </div>
     <div data-part="actions">
+      <.badge
+        :if={!@can_update_test_case}
+        label={state_label(@test_case_detail.state || "enabled")}
+        color={state_color(@test_case_detail.state || "enabled")}
+        style="light-fill"
+        size="large"
+      >
+        <:icon>
+          <.icon name={state_icon(@test_case_detail.state || "enabled")} />
+        </:icon>
+      </.badge>
+      <.badge
+        :if={!@can_update_test_case and @test_case_detail.is_flaky}
+        label={dgettext("dashboard_tests", "Flaky")}
+        color="warning"
+        style="light-fill"
+        size="large"
+      >
+        <:icon>
+          <.icon name="alert_triangle" />
+        </:icon>
+      </.badge>
       <.dropdown
         :if={@can_update_test_case}
         id="test-case-state-dropdown"
