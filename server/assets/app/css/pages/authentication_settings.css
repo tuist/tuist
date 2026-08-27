@@ -76,11 +76,13 @@
         gap: var(--noora-spacing-4);
         min-width: 0;
 
-        /* A select holds one short value out of a fixed set, so it sizes to the
-           control rather than the column. Aligned to the trailing edge so it
-           still lines up with the free-text fields, which keep the full column
-           because a long value makes the room worth having. */
-        & > .noora-dropdown {
+        /* Controls sit at one width on the trailing edge rather than stretching
+           the column. The values here are domains, identifiers, and endpoint
+           URLs, so the width is set by what reads comfortably rather than by
+           the widest value: a long URL scrolls inside its field at any width
+           this column could offer. */
+        & > .noora-dropdown,
+        & > .noora-text-input {
           align-self: flex-end;
           width: 320px;
           max-width: 100%;
