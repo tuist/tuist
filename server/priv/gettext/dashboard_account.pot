@@ -925,7 +925,8 @@ msgstr ""
 #: lib/tuist_web/live/account_settings_live.ex:23
 #: lib/tuist_web/live/account_token_live.ex:19
 #: lib/tuist_web/live/account_tokens_live.ex:27
-#: lib/tuist_web/live/authentication_settings_live.ex:28
+#: lib/tuist_web/live/authentication_settings_live.ex:30
+#: lib/tuist_web/live/authentication_settings_live.ex:75
 #: lib/tuist_web/live/billing_live.ex:18
 #: lib/tuist_web/live/cache_live.ex:23
 #: lib/tuist_web/live/members_live.ex:18
@@ -1104,7 +1105,7 @@ msgstr ""
 msgid "Single Sign-On"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:564
+#: lib/tuist_web/live/authentication_settings_live.ex:589
 #, elixir-autogen, elixir-format
 msgid "You must be authenticated with Google using an email tied to this domain. Please sign in with Google first."
 msgstr ""
@@ -1174,7 +1175,7 @@ msgstr ""
 msgid "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:545
+#: lib/tuist_web/live/authentication_settings_live.ex:570
 #, elixir-autogen, elixir-format
 msgid "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
 msgstr ""
@@ -1240,12 +1241,12 @@ msgstr ""
 msgid "Allow members to sign in to Tuist through your identity provider."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:56
+#: lib/tuist_web/live/authentication_settings_live.ex:58
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:33
+#: lib/tuist_web/live/authentication_settings_live.ex:35
 #, elixir-autogen, elixir-format
 msgid "Authentication settings are only available for organizations."
 msgstr ""
@@ -1380,12 +1381,12 @@ msgid "Token name"
 msgstr ""
 
 #: lib/tuist_web/live/account_tokens_live.ex:156
-#: lib/tuist_web/live/authentication_settings_live.ex:304
+#: lib/tuist_web/live/authentication_settings_live.ex:327
 #, elixir-autogen, elixir-format
 msgid "Token name is required."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:351
+#: lib/tuist_web/live/authentication_settings_live.ex:376
 #, elixir-autogen, elixir-format
 msgid "Token not found."
 msgstr ""
@@ -2607,7 +2608,7 @@ msgstr ""
 msgid "Automatic enrollment"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:272
+#: lib/tuist_web/live/authentication_settings_live.ex:293
 #, elixir-autogen, elixir-format
 msgid "Configure and save a login domain first."
 msgstr ""
@@ -2632,7 +2633,7 @@ msgstr ""
 msgid "Record value"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:289
+#: lib/tuist_web/live/authentication_settings_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "Save the login domain before verifying it."
 msgstr ""
@@ -2642,12 +2643,12 @@ msgstr ""
 msgid "Select the identity provider that authenticates your organization members."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:252
+#: lib/tuist_web/live/authentication_settings_live.ex:273
 #, elixir-autogen, elixir-format
 msgid "The login domain has been verified."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:261
+#: lib/tuist_web/live/authentication_settings_live.ex:282
 #, elixir-autogen, elixir-format
 msgid "The verification text record was not found. Domain record changes can take time to become available."
 msgstr ""
