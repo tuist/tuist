@@ -14,6 +14,11 @@ defmodule Tuist.SCIM do
   when SCIM POSTs an email that already exists globally. Attached users
   receive an email notification so they can audit/leave if unexpected.
 
+  A provisioning request that names a role gets that role. One that does not
+  gets the organization's configured SSO enrollment role, so the setting
+  applies whether a member arrives through the identity provider or by signing
+  in.
+
   Groups are synthetic: each organization exposes one group per organization
   role, "Admins", "Users", and "Viewers", which mirror the existing role
   hierarchy. Group membership ops (PATCH) translate into role assignments on
@@ -230,7 +235,7 @@ defmodule Tuist.SCIM do
   """
   def provision_user(%Organization{} = organization, attrs) do
     email = attrs |> Map.fetch!(:user_name) |> String.downcase()
-    role = attrs |> Map.get(:role, :user) |> normalize_role()
+    role = attrs |> Map.get(:role) |> normalize_role(organization)
     active = Map.get(attrs, :active, true)
 
     case Repo.transaction(fn -> apply_provision(organization, email, role, active) end) do
@@ -467,9 +472,21 @@ defmodule Tuist.SCIM do
     end
   end
 
-  defp normalize_role(role) when role in [:admin, :user, :viewer], do: role
-  defp normalize_role(other) when is_binary(other), do: normalize_role_string(other) || :user
-  defp normalize_role(_), do: :user
+  # An identity provider that names a role decides it. One that says nothing, or
+  # names something this server does not recognise, falls back to the role the
+  # organization enrolls SSO members at rather than to `user`, so the setting
+  # governs provisioning the same way it governs signing in.
+  defp normalize_role(role, _organization) when role in [:admin, :user, :viewer], do: role
+
+  defp normalize_role(other, organization) when is_binary(other) do
+    normalize_role_string(other) || enrollment_role(organization)
+  end
+
+  defp normalize_role(_other, organization), do: enrollment_role(organization)
+
+  defp enrollment_role(%Organization{} = organization) do
+    organization |> Accounts.sso_default_role() |> String.to_existing_atom()
+  end
 
   @doc """
   Deprovisions a user via SCIM `DELETE /Users/:id` by removing their role in the organization.
