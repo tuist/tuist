@@ -5,17 +5,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
-// The three numbers behind a node's egress budget, published where all three are
-// known at once. Splitting them across sources would mean joining the operator's
-// view against kube-state-metrics and the egress-tree agent at different scrape
-// offsets; here they move together, so `reported < configured` is a fact about one
-// reconcile rather than a race between two exporters.
+// The three numbers behind a node's egress budget, published together so that
+// `reported < configured` is a fact about one reconcile rather than a race between
+// exporters scraped at different offsets.
 //
-// The `node` label is set explicitly and equals the machine name for the Linux
-// kinds. Nothing adds it at scrape time: the operator's series carry `instance`
-// and `pod` for the operator's own pod, which runs on a general node, so a
-// scrape-added label would name the wrong host. With `node` set, these join
-// directly against kube_node_status_capacity{resource="tuist_dev_egress_mbps"}.
+// `node` is set explicitly — nothing adds it at scrape time, and the operator's own
+// `instance`/`pod` labels name the node the operator runs on, not the box. With it
+// set, these join against kube_node_status_capacity{resource="tuist_dev_egress_mbps"}.
 var (
 	egressReportedGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "capt_ovh_egress_reported_mbps",
@@ -33,11 +29,9 @@ var (
 	}, []string{"node", "fleet", "source"})
 )
 
-// What the source label carries, for the reader of this file rather than the Help
-// string: "discovery" is a reading from OVH, including a held floor an earlier
-// reading supports; "manual" is a machine pinned by the tuist.dev/egress-mbps-override
-// annotation, so a pin left in place is alertable on its age; "held" is a floor the
-// ratchet is holding with no reading behind it, which is worth separating from
+// The source label: "discovery" is a reading from OVH, a held floor an earlier
+// reading supports included; "manual" is a pinned machine, so a pin left in place is
+// alertable on its age; "held" is a floor with no reading behind it, kept apart from
 // "discovery" so a dashboard filtering on OVH-backed budgets does not count it;
 // "configured" is spec.egressBudgetMbps.
 
@@ -45,10 +39,9 @@ func init() {
 	metrics.Registry.MustRegister(egressReportedGauge, egressConfiguredGauge, egressAdvertisedGauge)
 }
 
-// recordEgressReported republishes the reported series, dropping the machine's
-// prior one first: `tier` and `service` are labels, so a box moved to another
-// offer — or a machine re-adopted onto a different server — would otherwise leave
-// its old series alongside the new one and both would look current.
+// recordEgressReported republishes rather than updates: `tier` and `service` are
+// labels, so a box that changes offer — or a machine re-adopted onto another server —
+// would otherwise leave its old series alongside the new one, both looking current.
 func recordEgressReported(node, fleet, service, tier string, mbps int32) {
 	egressReportedGauge.DeletePartialMatch(prometheus.Labels{"node": node})
 	egressReportedGauge.WithLabelValues(node, fleet, service, tier).Set(float64(mbps))
@@ -62,10 +55,9 @@ func recordEgressBudgets(node, fleet string, configured, advertised int32, sourc
 	egressAdvertisedGauge.WithLabelValues(node, fleet, source).Set(float64(advertised))
 }
 
-// forgetEgressReported drops just the reported series, for when the reading it was
-// published from stops describing the box the machine holds. Waiting for the next
-// successful read to republish it is not enough: that read is a day away at best,
-// behind the retry floor at worst, and never on a machine discovery is skipping.
+// forgetEgressReported drops just the reported series, for when its reading stops
+// describing the box the machine holds. The next read would republish it, but that is
+// a day away at best and never on a machine discovery is skipping.
 func forgetEgressReported(node string) {
 	egressReportedGauge.DeletePartialMatch(prometheus.Labels{"node": node})
 }

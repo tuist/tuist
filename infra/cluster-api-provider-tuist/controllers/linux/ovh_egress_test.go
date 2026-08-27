@@ -64,8 +64,7 @@ func TestEffectiveEgressMbps(t *testing.T) {
 			spec: 3000, discovered: 5000, floor: 3000, want: 5000, wantSource: egressSourceDiscovery,
 		},
 		{
-			// The ratchet: once the node advertises 5000, a later 4000 reading must
-			// not walk it back down on the controller's own authority.
+			// The ratchet holds against our own readings, not against a human.
 			name: "a reading below what the node advertises is not applied",
 			spec: 3000, discovered: 4000, floor: 5000, want: 5000, wantSource: egressSourceDiscovery,
 		},
@@ -92,14 +91,12 @@ func TestEffectiveEgressMbps(t *testing.T) {
 			spec: 3000, discovered: 0, floor: 3000, want: 3000, wantSource: egressSourceConfigured,
 		},
 		{
-			// No plausibility band: a decode yielding 1 after a response-shape change
-			// is refused by the floor like any other low reading, and surfaced as a
-			// reduction rather than quietly dropped.
+			// No plausibility band; the floor catches it like any other low reading.
 			name: "a nonsense reading is refused by the floor like any other",
 			spec: 3000, discovered: 1, floor: 3000, want: 3000, wantSource: egressSourceConfigured,
 		},
 		{
-			// No ceiling: a box faster than anything in the fleet today must be believed.
+			// No ceiling: a box faster than anything in the fleet must be believed.
 			name: "an unusually large reading is still used",
 			spec: 3000, discovered: 500_000, floor: 3000, want: 500_000, wantSource: egressSourceDiscovery,
 		},
@@ -133,8 +130,6 @@ func TestEffectiveEgressMbps(t *testing.T) {
 			spec: 0, discovered: 5000, floor: 5000, override: 500, want: 0, wantSource: egressSourceConfigured,
 		},
 		{
-			// Explicit human decisions apply directly, downward included — the
-			// ratchet only holds against the controller's own readings.
 			name:     "an annotated machine drops to its configured budget",
 			disabled: true, spec: 3000, discovered: 5000, floor: 5000, want: 3000, wantSource: egressSourceConfigured,
 		},
