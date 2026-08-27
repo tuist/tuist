@@ -73,6 +73,12 @@ func resolvedEgressReading(mbps int32) bool {
 // larger action than the annotation asked for, and one Spec.EgressBudgetMbps: 0
 // already expresses deliberately.
 //
+// Pinning downward is not free on a busy box: the capacity it lowers is a
+// non-overcommittable extended resource the cache pods already hold, and lowering it
+// under what is allocated is neither refused nor evicting. The node sits
+// over-allocated until the next admission decision, which then fails those pods.
+// Check the allocated total first — see the reduction runbook in AGENTS.md.
+//
 // It does not apply to a machine whose configured budget is zero. That machine is
 // out of egress governance, and a pin cannot bring it in for one reconcile and let
 // it back out later: the node-capacity helper writes the key but has no path that

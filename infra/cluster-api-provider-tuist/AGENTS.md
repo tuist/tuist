@@ -374,6 +374,29 @@ configured value — the over-commit the pin was hiding. Disabling discovery als
 applies downward directly: the ratchet only ever holds against the controller's own
 readings, never against an explicit human decision.
 
+**Check what is already allocated before pinning downward.** `tuist.dev/egress-mbps`
+is an integer extended resource and the cache pods request it with `request == limit`,
+so it is not overcommittable — but lowering a node's capacity below the sum of what
+its pods already hold is not refused, and does not evict anything. The node simply
+sits over-allocated, looking fine, until the next admission decision has to fit those
+pods into the new number: a kubelet restart, a pod restart, a reschedule. Then they
+fail admission with `OutOfExtendedResource` / `UnexpectedAdmissionError`, possibly
+long after whoever ran the pin has moved on, and on a box whose tenants had no part
+in the decision.
+
+```
+# Requests column, against the capacity above it
+kubectl describe node <name> | grep -A12 'Allocated resources'
+```
+
+If the number you are about to pin sits below that total, move or delete the excess
+cache pods first and let them reschedule elsewhere; the pin is safe once the node's
+allocated total fits inside it. The same applies to lowering `spec.egressBudgetMbps`
+for a machine that is about to be recreated, and to any reduction discovery itself
+would apply — the ratchet is what keeps that last one from happening behind your back,
+which is precisely why accepting a reduction is a deliberate, staged action rather
+than something the controller does on a reading.
+
 A reading is either a number or nothing: there is no plausibility band around it.
 The floor already refuses anything below the configured budget, so a decode that
 starts yielding 1 after a response-shape change is refused and surfaced as a
