@@ -507,3 +507,80 @@ func TestEgressUnpinningWithoutLoweringTheBudgetSpringsBack(t *testing.T) {
 		t.Fatalf("unpinned with the budget untouched = %d %q, want the configured 3000", value, source)
 	}
 }
+
+func TestCachedEgressMbps(t *testing.T) {
+	machine := discoveryMachine()
+	machine.Status.EgressMbps = 5000
+	machine.Status.EgressResolvedServiceName = machine.Status.ServiceName
+	if got := cachedEgressMbps(machine); got != 5000 {
+		t.Errorf("cached reading for the current box = %d, want 5000", got)
+	}
+
+	// Re-adopted onto another server: the reading describes a box this machine no
+	// longer holds, so no path may rate the new one from it.
+	machine.Status.ServiceName = "ns9.ip-9-9-9.us"
+	if got := cachedEgressMbps(machine); got != 0 {
+		t.Errorf("cached reading from another box = %d, want 0", got)
+	}
+
+	// An operator clearing serviceName to force re-adoption is the unbounded case:
+	// discovery returns early, so nothing else would ever invalidate the reading.
+	machine.Status.ServiceName = ""
+	if got := cachedEgressMbps(machine); got != 0 {
+		t.Errorf("cached reading with no service = %d, want 0", got)
+	}
+}
+
+func TestEgressFloorHoldsForANeverResolvedMachine(t *testing.T) {
+	// No recorded service is not a mismatch: every machine looks like this on the
+	// first reconcile after the fields ship, and resetting them all would drop any
+	// node whose advertised budget sits above its configured one.
+	machine := discoveryMachine()
+	machine.Status.EgressSource = egressSourceDiscovery
+
+	if got := egressFloor(machine, 5000); got != 5000 {
+		t.Fatalf("floor for a never-resolved machine = %d, want the advertised 5000 held", got)
+	}
+}
+
+func TestEgressFloorResetsOnReAdoption(t *testing.T) {
+	// The node still advertises the previous box's 5000 — our extended resource
+	// survives a kubelet re-registration by design — so dropping the reading alone
+	// would leave the floor holding the new box up at a number it cannot serve.
+	machine := discoveryMachine()
+	machine.Status.EgressSource = egressSourceDiscovery
+	machine.Status.EgressResolvedServiceName = "ns9.ip-9-9-9.us"
+
+	if got := egressFloor(machine, 5000); got != 3000 {
+		t.Fatalf("floor after re-adoption = %d, want the configured 3000", got)
+	}
+}
+
+// The backoff window is the path the drop used to sit behind: a failed read arms a
+// 10-minute floor, and a machine re-adopted inside it would keep the previous box's
+// reading in status, in the reported metric, and — before cachedEgressMbps — on the
+// new box's node.
+func TestReconcileEgressDiscoveryDropsAStaleReadingWhileBackedOff(t *testing.T) {
+	api := &fakeOVHAPI{err: errors.New("ovh is down")}
+	r, _ := discoveryReconciler(api)
+	machine := discoveryMachine()
+	machine.Status.EgressMbps = 5000
+	machine.Status.EgressTier = "improved"
+	machine.Status.EgressResolvedServiceName = machine.Status.ServiceName
+
+	r.reconcileEgressDiscovery(context.Background(), machine, 3000) // fails, arms the backoff
+
+	machine.Status.ServiceName = "ns9.ip-9-9-9.us" // re-adopted onto another box
+	r.reconcileEgressDiscovery(context.Background(), machine, 3000)
+
+	if api.calls != 1 {
+		t.Fatalf("OVH was called %d times, want 1: the second attempt is backed off", api.calls)
+	}
+	if machine.Status.EgressMbps != 0 || machine.Status.EgressTier != "" {
+		t.Fatalf("status = %d %q, want the previous box's reading dropped even while backed off",
+			machine.Status.EgressMbps, machine.Status.EgressTier)
+	}
+	if got := cachedEgressMbps(machine); got != 0 {
+		t.Fatalf("cached reading = %d, want 0 for a box this machine no longer holds", got)
+	}
+}

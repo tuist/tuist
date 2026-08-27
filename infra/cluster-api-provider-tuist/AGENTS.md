@@ -370,8 +370,14 @@ A failed call is additionally floored to one attempt per 10 minutes (in memory, 
 machine UID), because it leaves the refresh timestamp unstamped and a machine in
 the not-yet-Ready tail requeues every 20s. The reading records the service name it
 came from, so a machine re-adopted onto a different box is read again rather than
-rated from its predecessor's number — and the cached value is dropped before that
-read, so neither keep-the-last-value path can preserve it. A machine carrying
+rated from its predecessor's number. That check is applied where the budget is
+decided, not only inside the discovery function: most paths reaching a capacity
+decision never enter it — a machine inside the read backoff, or one whose
+`serviceName` an operator cleared to force re-adoption — and a reading from another
+box must not rate this one on any of them. A mismatch also resets the ratchet,
+because the anchor is the node's advertised capacity and that survives a kubelet
+re-registration by design, so dropping the reading alone would leave the previous
+box's budget holding the new one up. A machine carrying
 `tuist.dev/disable-egress-discovery` is skipped entirely.
 
 That annotation survives CAPI's in-place propagation because of an ownership

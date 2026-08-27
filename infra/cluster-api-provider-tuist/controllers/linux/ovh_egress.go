@@ -95,6 +95,18 @@ func egressOverrideMbps(machine *infrav1.OVHDedicatedMachine) int32 {
 	return int32(mbps)
 }
 
+// cachedEgressMbps is the machine's reading, or 0 when it was taken from a box this
+// machine no longer holds. Read here rather than checked inside the discovery
+// function because most paths that reach a capacity decision never enter it: a
+// machine inside the read backoff, or one whose serviceName an operator cleared to
+// force re-adoption, would otherwise rate a new box from its predecessor's number.
+func cachedEgressMbps(machine *infrav1.OVHDedicatedMachine) int32 {
+	if machine.Status.EgressResolvedServiceName != machine.Status.ServiceName {
+		return 0
+	}
+	return machine.Status.EgressMbps
+}
+
 // egressFloor is the budget the node may not fall below on its own: whatever it
 // already advertises, or the configured budget, whichever is higher.
 //
@@ -114,6 +126,19 @@ func egressOverrideMbps(machine *infrav1.OVHDedicatedMachine) int32 {
 // its readings; from the next reconcile the anchor is a discovered value again.
 func egressFloor(machine *infrav1.OVHDedicatedMachine, advertisedMbps int32) int32 {
 	if machine.Status.EgressSource == egressSourceManual && egressOverrideMbps(machine) == 0 {
+		return machine.Spec.EgressBudgetMbps
+	}
+	// A machine re-adopted onto another box resets it too, and dropping the stale
+	// reading is not enough on its own: the anchor is the node's advertised
+	// capacity, which survives a kubelet re-registration by design, so the previous
+	// box's budget would otherwise hold the new one up forever.
+	//
+	// Only when a reading actually exists to be stale. A machine that has never
+	// resolved has no recorded service, which is not a mismatch — treating it as one
+	// would reset the ratchet for every machine on the first reconcile after this
+	// ships.
+	if machine.Status.EgressResolvedServiceName != "" &&
+		machine.Status.EgressResolvedServiceName != machine.Status.ServiceName {
 		return machine.Spec.EgressBudgetMbps
 	}
 	if advertisedMbps > machine.Spec.EgressBudgetMbps {
@@ -186,17 +211,17 @@ func (r *OVHDedicatedMachineReconciler) reconcileEgressDiscovery(ctx context.Con
 	if machine.Spec.EgressBudgetMbps <= 0 && egressOverrideMbps(machine) == 0 {
 		return
 	}
+	// Ahead of the guards below, which return without reading: this is a statement
+	// about the cached value rather than about whether a read is owed, and a
+	// machine inside the read backoff would otherwise keep showing another box's
+	// number in status and in the reported metric until the retry lands.
+	if machine.Status.EgressResolvedServiceName != machine.Status.ServiceName {
+		machine.Status.EgressMbps = 0
+		machine.Status.EgressTier = ""
+	}
 	now := time.Now()
 	if !egressDiscoveryDue(machine, now) || r.egressReadBackedOff(machine, now) {
 		return
-	}
-	if machine.Status.EgressResolvedServiceName != machine.Status.ServiceName {
-		// The cached reading describes a box this machine no longer holds, and the
-		// paths below deliberately keep the last value when a read fails or comes
-		// back unusable. Drop it first so neither can preserve another server's
-		// number for this one.
-		machine.Status.EgressMbps = 0
-		machine.Status.EgressTier = ""
 	}
 
 	discovered, err := r.OVHClient.PublicEgress(ctx, machine.Status.ServiceName)

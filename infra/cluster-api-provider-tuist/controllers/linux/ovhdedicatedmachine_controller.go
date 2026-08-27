@@ -321,7 +321,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 	egressFloorMbps := egressFloor(machine, shared.NodeEgressMbps(node))
 	r.reconcileEgressDiscovery(ctx, machine, egressFloorMbps)
 	egressMbps, egressSource := effectiveEgressMbps(egressDiscoveryDisabled(machine),
-		machine.Spec.EgressBudgetMbps, machine.Status.EgressMbps, egressFloorMbps,
+		machine.Spec.EgressBudgetMbps, cachedEgressMbps(machine), egressFloorMbps,
 		egressOverrideMbps(machine))
 	// Written after the floor was computed from the previous value: the reset that
 	// releases a removed pin lasts exactly one reconcile, and recording the new
