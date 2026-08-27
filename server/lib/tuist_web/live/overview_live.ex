@@ -17,10 +17,10 @@ defmodule TuistWeb.OverviewLive do
       |> assign(OpenGraph.og_image_assigns("overview"))
 
     socket =
-      if Project.gradle_project?(project) do
-        socket
-      else
-        TuistWeb.XcodeOverviewLive.assign_mount(socket)
+      cond do
+        Project.xcode_project?(project) -> TuistWeb.XcodeOverviewLive.assign_mount(socket)
+        Project.bazel_project?(project) -> TuistWeb.BazelOverviewLive.assign_mount(socket)
+        true -> socket
       end
 
     {:ok, socket}
@@ -85,10 +85,15 @@ defmodule TuistWeb.OverviewLive do
     full_uri = URI.parse(request_uri)
 
     socket =
-      if Project.gradle_project?(project) do
-        TuistWeb.GradleOverviewLive.assign_handle_params(socket, params, full_uri.path)
-      else
-        TuistWeb.XcodeOverviewLive.assign_handle_params(socket, params, full_uri.path)
+      cond do
+        Project.gradle_project?(project) ->
+          TuistWeb.GradleOverviewLive.assign_handle_params(socket, params, full_uri.path)
+
+        Project.xcode_project?(project) ->
+          TuistWeb.XcodeOverviewLive.assign_handle_params(socket, params, full_uri.path)
+
+        true ->
+          socket
       end
 
     {:noreply, socket}

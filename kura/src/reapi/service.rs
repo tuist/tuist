@@ -36,6 +36,7 @@ use super::protobuf_shape::*;
 use super::{admission::*, snapshot::*};
 
 use crate::{
+    analytics::ReapiCacheAnalyticsEvent,
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
     auth::{AccessDecision, RequestContext},
     constants::{
@@ -58,6 +59,7 @@ const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejec
 // timer resets on every chunk received, so an actively transferring upload is
 // never interrupted, while a stalled or vanished client is reclaimed promptly.
 const REAPI_WRITE_STALL_TIMEOUT: Duration = Duration::from_secs(60);
+const REAPI_REQUEST_METADATA_HEADER: &str = "build.bazel.remote.execution.v2.requestmetadata-bin";
 #[derive(Clone)]
 pub struct ReapiService {
     state: SharedState,
@@ -262,6 +264,36 @@ impl ReapiService {
             REAPI_USAGE_ARTIFACT_KIND,
             bytes,
         );
+    }
+
+    fn record_reapi_action_cache_event(
+        &self,
+        metadata: &tonic::metadata::MetadataMap,
+        namespace_id: &str,
+        outcome: &str,
+        action_digest: &str,
+        size: u64,
+        duration: Duration,
+    ) {
+        let Some(analytics) = self.state.analytics.as_ref() else {
+            return;
+        };
+
+        let attribution = reapi_request_metadata(metadata);
+        analytics.enqueue_reapi_cache_event(ReapiCacheAnalyticsEvent {
+            account_handle: usage_tenant_id(metadata, &self.state.config.tenant_id),
+            project_handle: namespace_id.to_owned(),
+            client_kind: attribution.client_kind,
+            operation: "action_cache".into(),
+            outcome: outcome.into(),
+            action_digest: action_digest.to_owned(),
+            size,
+            duration_ms: duration.as_millis().try_into().unwrap_or(u64::MAX),
+            invocation_id: attribution.invocation_id,
+            action_mnemonic: attribution.action_mnemonic,
+            target_label: attribution.target_label,
+            configuration_id: attribution.configuration_id,
+        });
     }
 
     // Body of ByteStream::write. Every step here is fallible via `?`; the caller
@@ -1056,6 +1088,7 @@ impl ActionCache for ReapiService {
             artifact_hash: Some(digest.hash.clone()),
         };
         self.authorize_request(&request, auth.clone()).await?;
+        let analytics_started_at = Instant::now();
         // Instance-wide action-cache snapshot: a reserved action key whose
         // "result" is the namespace's complete key→value map (deduplicated
         // node table + per-key node lists), inlined into a single output
@@ -1108,7 +1141,7 @@ impl ActionCache for ReapiService {
         }
         let mut materialization_budget =
             std::sync::Mutex::new(MaterializationBudget::new(&self.state));
-        let (size_bytes, mut action_result) = fetch_keyvalue_proto::<reapi::ActionResult>(
+        let (size_bytes, mut action_result) = match fetch_keyvalue_proto::<reapi::ActionResult>(
             &self.state,
             namespace_id,
             &key,
@@ -1119,7 +1152,23 @@ impl ActionCache for ReapiService {
                     .expect("action-cache materialization budget lock poisoned"),
             ),
         )
-        .await?;
+        .await
+        {
+            Ok(result) => result,
+            Err(status) => {
+                if status.code() == tonic::Code::NotFound {
+                    self.record_reapi_action_cache_event(
+                        request.metadata(),
+                        namespace_id,
+                        "miss",
+                        &digest.hash,
+                        0,
+                        analytics_started_at.elapsed(),
+                    );
+                }
+                return Err(status);
+            }
+        };
         // Presence gate, the per-key counterpart of the snapshot reconcile's:
         // an entry whose output blobs were evicted is unserveable by
         // construction — the client replaying it hard-fails the build on the
@@ -1166,6 +1215,14 @@ impl ActionCache for ReapiService {
                     }
                 }
             }
+            self.record_reapi_action_cache_event(
+                request.metadata(),
+                namespace_id,
+                "miss",
+                &digest.hash,
+                0,
+                analytics_started_at.elapsed(),
+            );
             return Err(Status::not_found(
                 "action result references evicted output blobs",
             ));
@@ -1315,6 +1372,14 @@ impl ActionCache for ReapiService {
         // Book usage only after the response is fully built (headers applied),
         // matching the other handlers' success-arm convention.
         self.record_reapi_download(request.metadata(), namespace_id, served_bytes);
+        self.record_reapi_action_cache_event(
+            request.metadata(),
+            namespace_id,
+            "hit",
+            &digest.hash,
+            served_bytes,
+            analytics_started_at.elapsed(),
+        );
         Ok(response)
     }
 
@@ -1349,6 +1414,7 @@ impl ActionCache for ReapiService {
             artifact_hash: Some(digest.hash.clone()),
         };
         self.authorize_request(&request, auth.clone()).await?;
+        let analytics_started_at = Instant::now();
         let branch = ref_metadata(&request, "x-tuist-branch", "x-tuist-branch-bin");
         let trunk = ref_metadata(&request, "x-tuist-trunk-branch", "x-tuist-trunk-branch-bin");
         let bytes = action_result.encode_to_vec();
@@ -1403,6 +1469,14 @@ impl ActionCache for ReapiService {
         // and bills nothing.
         if applied {
             self.record_reapi_upload(request.metadata(), namespace_id, manifest.size);
+            self.record_reapi_action_cache_event(
+                request.metadata(),
+                namespace_id,
+                "write",
+                &digest.hash,
+                manifest.size,
+                analytics_started_at.elapsed(),
+            );
         }
         Ok(response)
     }
@@ -2428,6 +2502,48 @@ const TENANT_HEADER_KEYS: &[&str] = &["x-kura-tenant-id", "x-tuist-account-handl
 
 const REAPI_USAGE_ARTIFACT_KIND: &str = "reapi";
 
+#[derive(Default)]
+struct ReapiRequestMetadata {
+    client_kind: String,
+    invocation_id: String,
+    action_mnemonic: String,
+    target_label: String,
+    configuration_id: String,
+}
+
+fn reapi_request_metadata(metadata: &tonic::metadata::MetadataMap) -> ReapiRequestMetadata {
+    let Some(value) = metadata
+        .get_bin(REAPI_REQUEST_METADATA_HEADER)
+        .and_then(|value| value.to_bytes().ok())
+    else {
+        return ReapiRequestMetadata {
+            client_kind: "unknown".into(),
+            ..Default::default()
+        };
+    };
+
+    let Ok(metadata) = reapi::RequestMetadata::decode(value) else {
+        return ReapiRequestMetadata {
+            client_kind: "unknown".into(),
+            ..Default::default()
+        };
+    };
+
+    let client_kind = metadata
+        .tool_details
+        .map(|details| details.tool_name)
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "unknown".into());
+
+    ReapiRequestMetadata {
+        client_kind,
+        invocation_id: metadata.tool_invocation_id,
+        action_mnemonic: metadata.action_mnemonic,
+        target_label: metadata.target_id,
+        configuration_id: metadata.configuration_id,
+    }
+}
+
 // The request-declared tenant, read straight from the metadata: the first
 // non-empty `TENANT_HEADER_KEYS` value, taking the first value of a repeated
 // key. Authorization (`grpc_request_context`) and billing (`usage_tenant_id`)
@@ -3291,6 +3407,35 @@ mod tests {
             ref_metadata(&empty, "x-tuist-branch", "x-tuist-branch-bin"),
             None
         );
+    }
+
+    #[test]
+    fn extracts_request_metadata_for_cache_analytics() {
+        let mut request = Request::new(());
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "bazel".into(),
+                tool_version: "8.0.0".into(),
+            }),
+            action_id: "action-1".into(),
+            tool_invocation_id: "invocation-1".into(),
+            correlated_invocations_id: "".into(),
+            action_mnemonic: "SwiftCompile".into(),
+            target_id: "//app:app".into(),
+            configuration_id: "config-1".into(),
+        };
+        request.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+
+        let extracted = reapi_request_metadata(request.metadata());
+
+        assert_eq!(extracted.client_kind, "bazel");
+        assert_eq!(extracted.invocation_id, "invocation-1");
+        assert_eq!(extracted.action_mnemonic, "SwiftCompile");
+        assert_eq!(extracted.target_label, "//app:app");
+        assert_eq!(extracted.configuration_id, "config-1");
     }
 
     #[tokio::test]

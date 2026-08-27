@@ -3,12 +3,15 @@ defmodule TuistWeb.ConnectLive do
   use TuistWeb, :live_view
   use Noora
 
+  alias Tuist.Projects.Project
+
   @impl true
   def mount(_params, _uri, socket) do
     socket =
       assign(socket,
         sidebar_enabled?: false,
         connected?: false,
+        bazel_project?: Project.bazel_project?(socket.assigns.selected_project),
         head_title: "#{dgettext("dashboard_auth", "Connect")} · Tuist"
       )
 
@@ -71,6 +74,16 @@ defmodule TuistWeb.ConnectLive do
                 command={"tuist init #{@selected_account.name}/#{@selected_project.name}"}
               />
             </.terminal>
+          </div>
+          <div :if={@bazel_project?} data-part="step">
+            <span data-part="title">{dgettext("dashboard_auth", "Set up Bazel remote cache")}</span>
+            <span data-part="description">
+              {dgettext(
+                "dashboard_auth",
+                "Run this command from the root of your Bazel repository after connecting the project."
+              )}
+            </span>
+            <TuistWeb.Components.Terminal.terminal id="bazel-setup" command="tuist bazel setup" />
           </div>
           <div data-part="step">
             <span data-part="title">{dgettext("dashboard_auth", "Next steps")}</span>
