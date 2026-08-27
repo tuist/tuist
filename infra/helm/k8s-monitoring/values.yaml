@@ -1044,26 +1044,36 @@ k8s-monitoring:
       # The floor that leaves is per-env, and nothing overrides these
       # resources per env: 15.1 GiB in production, whose general pool is
       # ccx23, against 7.47 GiB in staging, canary and pentest, whose pools
-      # are cpx32. So 3Gi is ~20% of a production general node but ~40% of a
+      # are cpx32. So 4Gi is ~26% of a production general node but ~53% of a
       # staging one. That is a ceiling, not a reservation. Only the 512Mi
       # request is reserved, and those envs scrape a fraction of production's
       # targets, so a replica there should never approach it; if one ever
       # does, the cgroup kill still contains it, which is the whole point.
       #
-      # 3Gi rather than something near the 443 MiB that most replicas use: a
+      # 4Gi rather than something near the 443 MiB that most replicas use: a
       # legitimately heavy shard is real, not a leak. The ap-southeast
-      # replica holds a steady 2.2 GiB working set, oscillating 1.6 to 2.75
-      # over 24h with no trend and no restarts. A limit under that would
-      # OOMKill it, hand its targets to a peer, and walk the same kill around
-      # the ring. No CPU limit: throttling a scraper turns into scrape
-      # timeouts and gaps.
+      # replica holds a steady working set, oscillating 1.6 to 2.75 GiB over
+      # 24h with no trend and no restarts. A limit under that would OOMKill
+      # it, hand its targets to a peer, and walk the same kill around the
+      # ring.
+      #
+      # The headroom above 2.75 GiB is not slack, it is the cost of the
+      # toleration removal above. Dropping two members from an 11-node ring
+      # grows every survivor's share by 11/9, so that replica projects to
+      # ~3.2 GiB mean and ~3.3 GiB peak once its targets redistribute. Sizing
+      # this against the pre-change distribution would have had the same
+      # commit that removes the members OOMKill the replica that absorbs
+      # them. Re-derive it if the ring loses members again.
+      #
+      # No CPU limit: throttling a scraper turns into scrape timeouts and
+      # gaps.
       alloy:
         resources:
           requests:
             cpu: 100m
             memory: 512Mi
           limits:
-            memory: 3Gi
+            memory: 4Gi
       # Custom scrape jobs for the macOS fleet's node_exporter (:9100)
       # and tart-kubelet controller-runtime metrics (:8080). Both bind
       # to the tailnet interface on each Mac mini — see
