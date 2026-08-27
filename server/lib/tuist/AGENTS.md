@@ -42,6 +42,7 @@ This directory contains the core business logic and domain modules for the serve
 - Projects: `server/lib/tuist/projects/AGENTS.md`
 - Prom Ex: `server/lib/tuist/prom_ex/AGENTS.md`
 - Registry (Swift Package Registry writer): `server/lib/tuist/registry/AGENTS.md`
+- Remote Execution API Cache: `server/lib/tuist/reapi_cache/AGENTS.md`
 - Repo: `server/lib/tuist/repo/AGENTS.md`
 - Result Bundle: `server/lib/tuist/result_bundle/AGENTS.md`
 - Runs: `server/lib/tuist/runs/AGENTS.md`

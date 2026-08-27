@@ -22,6 +22,7 @@ type HmacSha256 = Hmac<Sha256>;
 
 const XCODE_WEBHOOK_PATH: &str = "/webhooks/cache";
 const GRADLE_WEBHOOK_PATH: &str = "/webhooks/gradle-cache";
+const REAPI_CACHE_WEBHOOK_PATH: &str = "/webhooks/reapi-cache";
 
 #[derive(Clone)]
 pub struct Analytics {
@@ -35,6 +36,7 @@ pub struct Analytics {
 enum AnalyticsEvent {
     Xcode(XcodeAnalyticsEvent),
     Gradle(GradleAnalyticsEvent),
+    ReapiCache(ReapiCacheAnalyticsEvent),
 }
 
 #[derive(Clone)]
@@ -62,6 +64,22 @@ struct GradleAnalyticsEvent {
     action: String,
     size: u64,
     cache_key: String,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct ReapiCacheAnalyticsEvent {
+    pub account_handle: String,
+    pub project_handle: String,
+    pub client_kind: String,
+    pub operation: String,
+    pub outcome: String,
+    pub action_digest: String,
+    pub size: u64,
+    pub duration_ms: u64,
+    pub invocation_id: String,
+    pub action_mnemonic: String,
+    pub target_label: String,
+    pub configuration_id: String,
 }
 
 #[derive(Serialize)]
@@ -185,6 +203,10 @@ impl Analytics {
         }));
     }
 
+    pub fn enqueue_reapi_cache_event(&self, event: ReapiCacheAnalyticsEvent) {
+        self.enqueue(AnalyticsEvent::ReapiCache(event));
+    }
+
     fn enqueue(&self, event: AnalyticsEvent) {
         match self.sender.try_send(event) {
             Ok(()) => {
@@ -207,13 +229,17 @@ impl AnalyticsRuntime {
 
         let mut xcode_batch = Vec::with_capacity(self.config.batch_size);
         let mut gradle_batch = Vec::with_capacity(self.config.batch_size);
+        let mut reapi_cache_batch = Vec::with_capacity(self.config.batch_size);
         let mut xcode_breaker = CircuitBreaker::new();
         let mut gradle_breaker = CircuitBreaker::new();
+        let mut reapi_cache_breaker = CircuitBreaker::new();
 
         self.metrics
             .update_analytics_circuit_state("xcode", xcode_breaker.state.code());
         self.metrics
             .update_analytics_circuit_state("gradle", gradle_breaker.state.code());
+        self.metrics
+            .update_analytics_circuit_state("reapi_cache", reapi_cache_breaker.state.code());
 
         loop {
             tokio::select! {
@@ -221,6 +247,7 @@ impl AnalyticsRuntime {
                     let Some(event) = maybe_event else {
                         self.flush_xcode(&mut xcode_batch, &mut xcode_breaker).await;
                         self.flush_gradle(&mut gradle_batch, &mut gradle_breaker).await;
+                        self.flush_reapi_cache(&mut reapi_cache_batch, &mut reapi_cache_breaker).await;
                         break;
                     };
 
@@ -241,11 +268,18 @@ impl AnalyticsRuntime {
                                 self.flush_gradle(&mut gradle_batch, &mut gradle_breaker).await;
                             }
                         }
+                        AnalyticsEvent::ReapiCache(event) => {
+                            reapi_cache_batch.push(event);
+                            if reapi_cache_batch.len() >= self.config.batch_size {
+                                self.flush_reapi_cache(&mut reapi_cache_batch, &mut reapi_cache_breaker).await;
+                            }
+                        }
                     }
                 }
                 _ = ticker.tick() => {
                     self.flush_xcode(&mut xcode_batch, &mut xcode_breaker).await;
                     self.flush_gradle(&mut gradle_batch, &mut gradle_breaker).await;
+                    self.flush_reapi_cache(&mut reapi_cache_batch, &mut reapi_cache_breaker).await;
                 }
             }
         }
@@ -291,6 +325,31 @@ impl AnalyticsRuntime {
             count,
             breaker,
             |count, result| self.metrics.record_analytics_event("gradle", result, count),
+        )
+        .await;
+    }
+
+    async fn flush_reapi_cache(
+        &self,
+        batch: &mut Vec<ReapiCacheAnalyticsEvent>,
+        breaker: &mut CircuitBreaker,
+    ) {
+        if batch.is_empty() {
+            return;
+        }
+
+        let count = batch.len() as u64;
+        let events = std::mem::take(batch);
+        self.flush(
+            "reapi_cache",
+            REAPI_CACHE_WEBHOOK_PATH,
+            &EventBatch { events },
+            count,
+            breaker,
+            |count, result| {
+                self.metrics
+                    .record_analytics_event("reapi_cache", result, count)
+            },
         )
         .await;
     }
@@ -543,7 +602,9 @@ mod tests {
 
     use crate::{config::AnalyticsConfig, metrics::Metrics};
 
-    use super::{Analytics, CircuitBreaker, CircuitState, analytics_endpoint, sign};
+    use super::{
+        Analytics, CircuitBreaker, CircuitState, ReapiCacheAnalyticsEvent, analytics_endpoint, sign,
+    };
 
     #[derive(Clone, Debug)]
     struct CapturedRequest {
@@ -553,7 +614,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn batches_and_signs_xcode_and_gradle_events() {
+    async fn batches_and_signs_xcode_gradle_and_reapi_cache_events() {
         let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
         let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
         let analytics = Analytics::from_config(
@@ -575,10 +636,24 @@ mod tests {
 
         analytics.enqueue_xcode_upload("acme", "ios", "cas-1", 42);
         analytics.enqueue_gradle_download("acme", "android", "gradle-key", 64);
+        analytics.enqueue_reapi_cache_event(ReapiCacheAnalyticsEvent {
+            account_handle: "acme".into(),
+            project_handle: "bazel".into(),
+            client_kind: "bazel".into(),
+            operation: "action_cache".into(),
+            outcome: "hit".into(),
+            action_digest: "digest-1".into(),
+            size: 128,
+            duration_ms: 9,
+            invocation_id: "invocation-1".into(),
+            action_mnemonic: "SwiftCompile".into(),
+            target_label: "//app:app".into(),
+            configuration_id: "config-1".into(),
+        });
 
         timeout(Duration::from_secs(2), async {
             loop {
-                if captured.lock().expect("captured requests lock").len() >= 2 {
+                if captured.lock().expect("captured requests lock").len() >= 3 {
                     break;
                 }
                 sleep(Duration::from_millis(10)).await;
@@ -588,7 +663,7 @@ mod tests {
         .expect("analytics batches should be delivered");
 
         let requests = captured.lock().expect("captured requests lock");
-        assert_eq!(requests.len(), 2);
+        assert_eq!(requests.len(), 3);
 
         let xcode = requests
             .iter()
@@ -626,6 +701,37 @@ mod tests {
                     "action": "download",
                     "size": 64,
                     "cache_key": "gradle-key"
+                }]
+            })
+        );
+
+        let reapi_cache = requests
+            .iter()
+            .find(|request| request.path == "/webhooks/reapi-cache")
+            .expect("REAPI cache analytics request should be present");
+        assert_signed(
+            reapi_cache,
+            "secret-key",
+            "cache-us-east-3.example.com:7443",
+        );
+        let reapi_cache_body: Value =
+            serde_json::from_slice(&reapi_cache.body).expect("REAPI cache payload should decode");
+        assert_eq!(
+            reapi_cache_body,
+            serde_json::json!({
+                "events": [{
+                    "account_handle": "acme",
+                    "project_handle": "bazel",
+                    "client_kind": "bazel",
+                    "operation": "action_cache",
+                    "outcome": "hit",
+                    "action_digest": "digest-1",
+                    "size": 128,
+                    "duration_ms": 9,
+                    "invocation_id": "invocation-1",
+                    "action_mnemonic": "SwiftCompile",
+                    "target_label": "//app:app",
+                    "configuration_id": "config-1"
                 }]
             })
         );
@@ -760,6 +866,13 @@ mod tests {
                     move |request| capture_request(captured.clone(), request, status)
                 }),
             );
+        let router = router.route(
+            "/webhooks/reapi-cache",
+            post({
+                let captured = captured.clone();
+                move |request| capture_request(captured.clone(), request, status)
+            }),
+        );
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

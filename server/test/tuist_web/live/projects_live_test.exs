@@ -39,6 +39,20 @@ defmodule TuistWeb.ProjectsLiveTest do
     assert project.build_system == :gradle
   end
 
+  test "creates a Bazel project", %{conn: conn, account: account} do
+    {:ok, view, _html} = live(conn, ~p"/#{account.name}/projects")
+
+    render_hook(view, "select_build_system", %{"value" => ["bazel"]})
+
+    view
+    |> form("#create-project-form", project: %{name: "my-bazel-project"})
+    |> render_submit()
+
+    project = Projects.get_project_by_account_and_project_handles(account.name, "my-bazel-project")
+
+    assert project.build_system == :bazel
+  end
+
   test "shows why a reserved project name cannot be created", %{conn: conn, account: account} do
     {:ok, view, _html} = live(conn, ~p"/#{account.name}/projects")
 
