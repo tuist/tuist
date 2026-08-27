@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,8 +52,15 @@ func TestEffectiveEgressMbps(t *testing.T) {
 			spec: 3000, discovered: 5000, want: 5000,
 		},
 		{
-			name: "a lower reading displaces it too",
-			spec: 5000, discovered: 1000, want: 1000,
+			// Discovery raises only. A wrong-low reading would re-rate the HTB root
+			// in place and throttle a box that can carry far more, and a genuine
+			// reduction is a plan downgrade — an action that already has a human.
+			name: "a reading below the configured value is not applied",
+			spec: 5000, discovered: 1000, want: 5000,
+		},
+		{
+			name: "a reading equal to the configured value is applied",
+			spec: 3000, discovered: 3000, want: 3000,
 		},
 		{
 			name: "no reading falls back to the configured value",
@@ -305,5 +313,30 @@ func TestReconcileEgressDiscoveryDropsAnotherBoxesReading(t *testing.T) {
 	if machine.Status.EgressMbps != 0 || machine.Status.EgressTier != "" {
 		t.Fatalf("status = %d %q, want the previous box's reading dropped",
 			machine.Status.EgressMbps, machine.Status.EgressTier)
+	}
+}
+
+func TestReconcileEgressDiscoveryReportsAReductionWithoutApplyingIt(t *testing.T) {
+	api := &fakeOVHAPI{body: egressBody(1000, "Mbps", "included")}
+	r, recorder := discoveryReconciler(api)
+	machine := discoveryMachine() // configured at 3000
+
+	r.reconcileEgressDiscovery(context.Background(), machine)
+
+	// The reading is recorded — that is what the reported metric and any later
+	// decision to accept it are built on — but it must not rate the node.
+	if machine.Status.EgressMbps != 1000 {
+		t.Fatalf("status = %d, want the reading recorded as 1000", machine.Status.EgressMbps)
+	}
+	if got := effectiveEgressMbps(false, machine.Spec.EgressBudgetMbps, machine.Status.EgressMbps); got != 3000 {
+		t.Fatalf("advertised = %d, want the configured 3000", got)
+	}
+	select {
+	case event := <-recorder.Events:
+		if !strings.Contains(event, "EgressBudgetReduced") {
+			t.Fatalf("event = %q, want an EgressBudgetReduced event", event)
+		}
+	default:
+		t.Fatal("a reduction should emit an event to alert on")
 	}
 }

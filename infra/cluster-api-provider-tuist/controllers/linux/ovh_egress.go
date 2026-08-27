@@ -59,14 +59,26 @@ func usableDiscoveredEgress(mbps int32) bool {
 	return mbps >= minDiscoveredEgressMbps
 }
 
-// Falls back to the spec value rather than to zero: it is what the fleet ran on
-// before discovery existed. A zeroed budget withdraws the machine from egress
-// governance even when a reading is already cached — the same guard discovery
-// applies, repeated here because zeroing a resolved box is a live operator action
-// (spec is mutable, and OnDelete means a values change never reaches a machine)
-// that would otherwise silently keep the node rated.
+// Discovery may raise the configured budget, never lower it. A box's contractual
+// bandwidth does not shrink on its own — it shrinks because someone downgraded the
+// plan, an action that already has a human attached — whereas a wrong-low reading
+// (an API blip, a partial response, a box throttled over its monthly quota) is
+// plausible and expensive: the egress-tree agent re-rates the node's HTB root in
+// place, throttling live cache traffic on a box that can carry far more. The floor
+// only catches garbage; a plausible-but-wrong 1000 on a 3 Gbit/s box clears it.
+//
+// So a lower reading is recorded and surfaced (capt_ovh_egress_reported_mbps, and
+// an EgressBudgetReduced event) rather than applied. An operator who confirms it
+// accepts it by lowering spec.egressBudgetMbps to the real number, which is also
+// what the next machine cloned from the fleet template should carry.
+//
+// A zeroed budget withdraws the machine from egress governance even when a reading
+// is already cached — the same guard discovery applies, repeated here because
+// zeroing a resolved box is a live operator action (spec is mutable, and OnDelete
+// means a values change never reaches a machine) that would otherwise silently
+// keep the node rated.
 func effectiveEgressMbps(disabled bool, specMbps, discoveredMbps int32) int32 {
-	if disabled || specMbps <= 0 || !usableDiscoveredEgress(discoveredMbps) {
+	if disabled || specMbps <= 0 || !usableDiscoveredEgress(discoveredMbps) || discoveredMbps < specMbps {
 		return specMbps
 	}
 	return discoveredMbps
@@ -147,8 +159,19 @@ func (r *OVHDedicatedMachineReconciler) reconcileEgressDiscovery(ctx context.Con
 	machine.Status.EgressTier = discovered.Tier
 	machine.Status.EgressResolvedAt = &metav1.Time{Time: now}
 	machine.Status.EgressResolvedServiceName = machine.Status.ServiceName
+	recordEgressReported(machine.Name, machine.Spec.FleetName, machine.Status.ServiceName, discovered.Tier, discovered.Mbps)
 
 	if discovered.Mbps == previous {
+		return
+	}
+
+	if discovered.Mbps < machine.Spec.EgressBudgetMbps {
+		logger.Info("OVH reports less egress than configured; the node keeps its configured budget",
+			"service", machine.Status.ServiceName, "mbps", discovered.Mbps,
+			"tier", discovered.Tier, "configured_mbps", machine.Spec.EgressBudgetMbps)
+		r.event(machine, "EgressBudgetReduced",
+			"OVH reports %d Mbps (%s) for %s, below the configured %d Mbps; not applied — lower spec.egressBudgetMbps to accept it",
+			discovered.Mbps, discovered.Tier, machine.Status.ServiceName, machine.Spec.EgressBudgetMbps)
 		return
 	}
 

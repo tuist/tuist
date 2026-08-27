@@ -1,0 +1,60 @@
+package linux
+
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
+)
+
+// The three numbers behind a node's egress budget, published where all three are
+// known at once. Splitting them across sources would mean joining the operator's
+// view against kube-state-metrics and the egress-tree agent at different scrape
+// offsets; here they move together, so `reported < configured` is a fact about one
+// reconcile rather than a race between two exporters.
+//
+// The `node` label is set explicitly and equals the machine name for the Linux
+// kinds. Nothing adds it at scrape time: the operator's series carry `instance`
+// and `pod` for the operator's own pod, which runs on a general node, so a
+// scrape-added label would name the wrong host. With `node` set, these join
+// directly against kube_node_status_capacity{resource="tuist_dev_egress_mbps"}.
+var (
+	egressReportedGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "capt_ovh_egress_reported_mbps",
+		Help: "Public egress limitation OVH reports for the box (bandwidth.OvhToInternet), in Mbps. Absent until a reading is resolved; 0 when the response carried nothing usable. Labels: node, fleet, service, tier (the bandwidth offer tier: standard|included|improved|...).",
+	}, []string{"node", "fleet", "service", "tier"})
+
+	egressConfiguredGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "capt_ovh_egress_configured_mbps",
+		Help: "Egress budget configured on the machine (spec.egressBudgetMbps), in Mbps. 0 means the machine does not participate in egress governance. Labels: node, fleet.",
+	}, []string{"node", "fleet"})
+
+	egressAdvertisedGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "capt_ovh_egress_advertised_mbps",
+		Help: "Egress budget the operator advertised as the node's tuist.dev/egress-mbps capacity, in Mbps. Labels: node, fleet.",
+	}, []string{"node", "fleet"})
+)
+
+func init() {
+	metrics.Registry.MustRegister(egressReportedGauge, egressConfiguredGauge, egressAdvertisedGauge)
+}
+
+// recordEgressReported republishes the reported series, dropping the machine's
+// prior one first: `tier` and `service` are labels, so a box moved to another
+// offer — or a machine re-adopted onto a different server — would otherwise leave
+// its old series alongside the new one and both would look current.
+func recordEgressReported(node, fleet, service, tier string, mbps int32) {
+	egressReportedGauge.DeletePartialMatch(prometheus.Labels{"node": node})
+	egressReportedGauge.WithLabelValues(node, fleet, service, tier).Set(float64(mbps))
+}
+
+func recordEgressBudgets(node, fleet string, configured, advertised int32) {
+	egressConfiguredGauge.WithLabelValues(node, fleet).Set(float64(configured))
+	egressAdvertisedGauge.WithLabelValues(node, fleet).Set(float64(advertised))
+}
+
+// forgetEgressMetrics drops a machine's series once its CR is gone, so a released
+// box stops reporting a budget nothing is advertising any more.
+func forgetEgressMetrics(node string) {
+	for _, gauge := range []*prometheus.GaugeVec{egressReportedGauge, egressConfiguredGauge, egressAdvertisedGauge} {
+		gauge.DeletePartialMatch(prometheus.Labels{"node": node})
+	}
+}

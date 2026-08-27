@@ -324,6 +324,25 @@ field in the block is nullable, so an absent bandwidth block is an ordinary
 answer, not an error: it resolves to zero, which keeps the node on its spec
 value.
 
+Discovery **raises the configured budget, never lowers it**. A box's contractual
+bandwidth does not shrink on its own — that happens because someone downgraded the
+plan, which already has a human attached — whereas a wrong-low reading (an API
+blip, a partial response, a box throttled over its monthly quota) is plausible and
+expensive: the egress-tree agent re-rates the node's HTB root in place, throttling
+live traffic on a box that can carry far more, and the floor only catches garbage.
+A lower reading is therefore recorded and surfaced rather than applied; an operator
+who confirms it accepts it by lowering `spec.egressBudgetMbps` to the real number.
+
+Three gauges publish the numbers behind a node's budget, all labelled `node`:
+`capt_ovh_egress_reported_mbps` (what OVH says, plus `service` and `tier`),
+`capt_ovh_egress_configured_mbps` (the spec value) and
+`capt_ovh_egress_advertised_mbps` (what was patched onto the node). They are
+published together because a divergence is then a fact about one reconcile rather
+than a race between exporters, and the `node` label is explicit — nothing adds one
+at scrape time, and the operator's own `instance`/`pod` labels name the node the
+*operator* runs on. `reported < configured` is the alert; the same series are what
+a later decision to auto-apply reductions would be argued from.
+
 The reading is cached in status and refreshed daily, not per reconcile: the
 machine reconciles every 10 minutes and the number tracks a contract. Neither a
 failed call nor an unusable answer overwrites the cached value — a renamed or

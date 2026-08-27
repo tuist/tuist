@@ -321,6 +321,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 	r.reconcileEgressDiscovery(ctx, machine)
 	egressMbps := effectiveEgressMbps(egressDiscoveryDisabled(machine),
 		machine.Spec.EgressBudgetMbps, machine.Status.EgressMbps)
+	recordEgressBudgets(machine.Name, machine.Spec.FleetName, machine.Spec.EgressBudgetMbps, egressMbps)
 	if err := shared.ReconcileNodeEgressCapacity(ctx, r.Client, node, egressMbps); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -427,6 +428,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, mac
 		logger.Info("reinstalling OVH box on release", "service", machine.Status.ServiceName)
 	}
 	r.egressReadFailures.Delete(machine.UID)
+	forgetEgressMetrics(machine.Name)
 	controllerutil.RemoveFinalizer(machine, OVHDedicatedMachineFinalizer)
 	return ctrl.Result{}, nil
 }
