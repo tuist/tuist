@@ -1242,6 +1242,14 @@ runnersFleet:
   # one. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
+    # Warm floor stays 0. The floors are drawn against the fleet's
+    # guest-slot budget, and a beta pool holding a warm slot parks a
+    # whole host for traffic that is by definition experimental.
+    "27.0-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 13
     "26.6":
       autoscaling:
         enabled: true
