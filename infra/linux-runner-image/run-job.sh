@@ -102,6 +102,29 @@ export ACTIONS_RUNNER_HOOK_JOB_STARTED="${JOB_STARTED_HOOK}"
 
 idle_timeout="${TUIST_RUNNER_IDLE_TIMEOUT_SECONDS:-0}"
 
+# RUNNER_PERFLOG makes the Listener append a `MessageReceived_<type>` line to
+# `<dir>/Runner.perf` the instant a message arrives from GitHub, before it
+# acknowledges the assignment and before it fetches the job body. That is
+# seconds ahead of Runner.Worker, and it is the earliest local evidence that
+# this runner has been given work.
+#
+# The Listener's poll loop returns nothing on an idle timeout, so the file
+# stays empty until GitHub actually routes something here. Only the two
+# job-request message types count; a refresh or cancel message is not an
+# assignment.
+RUNNER_PERF_DIR=/home/runner/actions-runner/_perf
+RUNNER_PERF_FILE="${RUNNER_PERF_DIR}/Runner.perf"
+rm -rf "${RUNNER_PERF_DIR}"
+export RUNNER_PERFLOG="${RUNNER_PERF_DIR}"
+# 404/409/422 on the job fetch make the Listener skip the message and go back
+# to waiting, so a received message does not always become a Worker. Bound how
+# long the watchdog defers on one.
+WORKER_GRACE_SECONDS=60
+job_message_received() {
+  grep -q 'MessageReceived_PipelineAgentJobRequest\|MessageReceived_RunnerJobRequest' \
+    "${RUNNER_PERF_FILE}" 2>/dev/null
+}
+
 ./run.sh --jitconfig "${jit}" --disableupdate &
 runner_pid=$!
 
@@ -118,30 +141,27 @@ if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
       sleep 1
       waited=$((waited + 1))
     done
-    # Neither latch can see a job GitHub has only just placed. The Listener
-    # acknowledges the assignment, forks Runner.Worker two to four seconds
-    # later, and the hook writes the marker a beat after that, so a single
-    # check at the deadline reads "idle" for a runner GitHub has already,
-    # irrevocably, given work to. An ephemeral runner killed
-    # post-acknowledgment marks that job failed rather than re-queuing it,
-    # and GitHub then spends ten minutes waiting out the job's lock before
-    # anyone learns it died.
+    # Both process-level latches trail the assignment. The Listener
+    # acknowledges the job, fetches its body over HTTP and only then forks
+    # Runner.Worker, with the job-started hook later still, so a check at the
+    # deadline reads "idle" for a runner GitHub has already, irrevocably,
+    # given work to. Killing it there marks that job failed rather than
+    # re-queuing it, and GitHub then spends ten minutes waiting out the job's
+    # lock before anyone learns it died.
     #
-    # Confirming the idle state across that gap closes it. Both latches are
-    # re-read every round and either one standing down ends the watchdog for
-    # good. The last read is immediately before the signal, so what stays
-    # exposed is the instant between them rather than the whole multi-second
-    # gap.
-    IDLE_CONFIRM_ROUNDS=4
-    IDLE_CONFIRM_SLEEP=2
-    confirmations=0
+    # Deferring on the Listener's own record of the inbound message covers
+    # that gap, because that record predates the acknowledgment rather than
+    # trailing it. What stays exposed is the interval between the last read
+    # and the signal below, not the fetch.
+    worker_wait=0
     while :; do
       [ -e "${JOB_STARTED_MARKER}" ] && exit 0
       pgrep -f "Runner.Worker" >/dev/null 2>&1 && exit 0
       kill -0 "${runner_pid}" 2>/dev/null || exit 0
-      [ "${confirmations}" -ge "${IDLE_CONFIRM_ROUNDS}" ] && break
-      sleep "${IDLE_CONFIRM_SLEEP}"
-      confirmations=$((confirmations + 1))
+      job_message_received || break
+      [ "${worker_wait}" -ge "${WORKER_GRACE_SECONDS}" ] && break
+      sleep 1
+      worker_wait=$((worker_wait + 1))
     done
     echo "$(date -u +%FT%TZ) run-job: no job assigned within ${idle_timeout}s; terminating idle runner"
     kill -TERM "${runner_pid}" 2>/dev/null || true
