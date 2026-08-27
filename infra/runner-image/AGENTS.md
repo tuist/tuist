@@ -416,6 +416,32 @@ Bumping the Xcode customers see on their runners:
    dispatch path above stays available for a one-off refresh if
    security work needs to land there.
 
+### Betas are not in `profiles.json`
+
+Xcode betas ship as a catalog entry whose pool pins an explicit
+`xcodeOverrides[].imageTag`, built through the `runner-image.yml`
+dispatch path above, and are deliberately absent from
+`profiles.json`. Two reasons, both about cadence:
+
+- Apple replaces a beta every few weeks and stops accepting
+  TestFlight uploads built with superseded ones, so a fleet that
+  can't move the day a beta lands can't ship from it at all. An
+  entry in `profiles.json` only rebuilds when
+  a runner-image release fires, which needs a change under
+  `infra/runner-image/**` — a beta could sit weeks behind Apple
+  waiting for unrelated work.
+- The catalog entry customers' Runner Profiles store must stay
+  fixed across those bumps, so it is the channel (`27.0-beta`)
+  rather than the beta (`27.0-beta-6`). Retiring a catalog entry a
+  profile still names strands it on a RunnerPool that no longer
+  renders, and a stranded macOS profile queues its jobs forever
+  rather than failing them.
+
+Keeping betas out also spares every runner-image release the ~30 min
+bake of a profile whose image the pool would ignore in favour of its
+pin. Full runbook: "Promoting an Xcode beta" in
+[`../macos-xcode-image/AGENTS.md`](../macos-xcode-image/AGENTS.md).
+
 ## Profile tagging
 
 Push tags are per-Xcode-profile: `:macos-26-4-1` (rolling, latest
