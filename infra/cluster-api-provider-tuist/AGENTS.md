@@ -270,8 +270,10 @@ re-applied every reconcile so a kubelet re-registration that resets status
 cannot strand them. Each exists because the scheduler's native bin-pack cannot
 see the quantity in question:
 
-- `tuist.dev/egress-mbps` — the box's NIC budget, which Kubernetes has no
-  concept of. Taken from the machine's `EgressBudgetMbps`.
+- `tuist.dev/egress-mbps` — the box's public egress budget, which Kubernetes has
+  no concept of. Taken from what OVH reports for the individual box, falling back
+  to the machine's `EgressBudgetMbps` (see below); the other Linux kinds take the
+  spec value directly.
 - `tuist.dev/memory-ceiling-mib` — a bounded multiple
   (`MemoryCeilingOversubscription`) of the node's own allocatable memory.
   Kura cache pods run a memory *ceiling* above their *floor*, so their ceilings
@@ -283,6 +285,65 @@ Consumers request the matching resource with request == limit (extended
 resources are integer and non-overcommittable). A pod that requests one on a
 node that does not advertise it never schedules, which is why both are opt-in
 on the consumer side.
+
+### Per-box egress discovery (OVH)
+
+`EgressBudgetMbps` reaches a machine from its MachineTemplate, so every box a
+MachineDeployment clones carries the same number. That is fine while a fleet is
+one box per region and wrong the moment a region holds mixed hardware — a box on
+a purchased uplink upgrade, or a slower one added later. Over-stating a box's
+budget fails silently: the scheduler bin-packs floors the wire cannot deliver and
+the egress-tree agent rates its HTB root to match, so the symptom is traffic
+overrunning the link, not an error anyone is paged about.
+
+The reconciler therefore resolves the budget from the box, reading
+`bandwidth.OvhToInternet` from OVH's
+`/dedicated/server/{serviceName}/specifications/network`
+(`internal/ovh/client.go`, `controllers/linux/ovh_egress.go`), and falls back to
+the spec value for a box it cannot read. It is on for every OVH machine with a
+configured budget — zero already means "does not participate in egress governance"
+(the chart omits the field, the capacity helper no-ops, the tree agent leaves the
+node's pods unshaped), and rating such a box would override that opt-out with no
+way back, since the helper can lower an advertised capacity but never remove the
+key. The `tuist.dev/disable-egress-discovery` annotation on one OVHDedicatedMachine
+excludes that box — no call is made for it, and any reading already recorded on it stops
+counting. Presence is the whole signal, the value is never read (the same shape as
+CAPI's own `cluster.x-k8s.io/paused`, honoured a few lines up in that reconciler),
+so a disable flag never has to answer what `false` or a misspelling means. Removing
+the annotation brings the box back. There is no fleet-wide switch: the blast radius of a bad reading
+is one node, and a staged rollout is expressed by annotating the boxes that should
+wait and removing those annotations one at a time.
+
+Three things about that response are load-bearing. `connection` and
+`vrack.bandwidth` sit next to the field we read and report the switch link (25
+Gbit/s on every box we run, whatever the public path is limited to), so keying
+off either over-commits the public path a cache actually serves from. The value
+is a `{unit, value}` pair whose unit is a free-form string, not an enum — taking
+the bare number would advertise 5 Mbps for a box reported as "5 Gbps". And every
+field in the block is nullable, so an absent bandwidth block is an ordinary
+answer, not an error: it resolves to zero, which keeps the node on its spec
+value.
+
+The reading is cached in status and refreshed daily, not per reconcile: the
+machine reconciles every 10 minutes and the number tracks a contract. Neither a
+failed call nor an unusable answer overwrites the cached value — a renamed or
+dropped bandwidth block is an ordinary answer returning zero, and writing it
+through would hand the node back to a spec value that may sit well above the wire.
+A failed call is additionally floored to one attempt per 10 minutes (in memory, per
+machine UID), because it leaves the refresh timestamp unstamped and a machine in
+the not-yet-Ready tail requeues every 20s. The reading records the service name it
+came from, so a machine re-adopted onto a different box is read again rather than
+rated from its predecessor's number — and the cached value is dropped before that
+read, so neither keep-the-last-value path can preserve it. A machine carrying
+`tuist.dev/disable-egress-discovery` is skipped entirely.
+
+That annotation survives CAPI's in-place propagation because of an ownership
+detail worth knowing: every MachineSet reconcile SSA-patches the InfraMachine's
+labels and annotations from the MachineSet template under the `capi-machineset`
+field manager, and SSA prunes only keys that manager owns. Our templates set no
+annotations, so it owns none. Adding this key to a MachineDeployment's
+`spec.template.metadata.annotations` therefore turns it into a per-fleet switch
+that overrides every per-box annotation in that fleet.
 
 ## Node memory governance
 
