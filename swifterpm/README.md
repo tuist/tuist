@@ -58,7 +58,7 @@ Useful SwiftPM-shaped flags are supported, including `--package-path`, `--cache-
 
 Credentials for registries and binary artifact downloads are read from `~/.netrc`, from the `SWIFTPM_NETRC_DATA` environment variable, or from the file given by `--netrc-file`. Pass `--disable-netrc` to skip all of them. A `--netrc-file` that does not exist is an error rather than a silent fallback to unauthenticated requests.
 
-By default, `swifterpm` copies cached directories into the project scratch directory on CI and symlinks them elsewhere. Pass `--cached-directory-materialization symlink` to preserve global-cache symlinks on CI. The accepted values are `automatic`, `copy`, and `symlink`.
+By default, `swifterpm` copies cached directories into the project scratch directory during [continuous integration](https://en.wikipedia.org/wiki/Continuous_integration) (CI) and symlinks them elsewhere. Pass `--cached-directory-materialization=symlink` to preserve global-cache symlinks during continuous integration. The accepted values are `automatic`, `copy`, and `symlink`.
 
 > [!NOTE]
 > `swifterpm resolve` writes `Package.resolved` with an `originHash` derived from `Package.swift`, while SwiftPM derives its hash from the dependency graph. Running `swift package resolve` after `swifterpm resolve` in the same checkout may treat the lockfile as stale and resolve again.
@@ -66,11 +66,11 @@ By default, `swifterpm` copies cached directories into the project scratch direc
 ## Continuous integration
 
 > [!IMPORTANT]
-> Cache `~/.cache/swifterpm` (or `$XDG_CACHE_HOME/swifterpm`). Without it, every CI run is a cold run.
+> Cache `~/.cache/swifterpm` (or `$XDG_CACHE_HOME/swifterpm`). Without it, every continuous-integration run is a cold run.
 
-The order-of-magnitude numbers in [Benchmarks](#benchmarks-) all come from the warm global cache, not from resolution itself, which is still delegated to SwiftPM. Warm runs range from 8.96x to 201x faster than SwiftPM; cold runs range from 9.15x faster to 0.78x *slower*, depending on the graph. A pipeline that caches SwiftPM's directories but not this one therefore gives up the large wins and lands back in that cold range.
+The order-of-magnitude numbers in [Benchmarks](#benchmarks-) all come from the warm global cache, not from resolution itself, which is still delegated to SwiftPM. Warm runs range from 8.96x to 201x faster than SwiftPM. When any pin for the current package is missing from SwifterPM's source cache, SwifterPM delegates the installation directly to SwiftPM rather than doing a second restoration pass first. That keeps a cold package on SwiftPM's path while preserving SwifterPM's cache benefit once every pin is available.
 
-The scratch directory (`.build`) is cold on every CI run regardless, since it lives in the freshly checked out workspace. The global cache is the only part that can carry over, and it is a new path that no pre-existing configuration knows about, so this bites hardest when switching an existing pipeline over:
+The scratch directory (`.build`) is cold on every continuous-integration run regardless, since it lives in the freshly checked out workspace. The global cache is the only part that can carry over, and it is a new path that no pre-existing configuration knows about, so this bites hardest when switching an existing pipeline over:
 
 ```yaml
 - uses: actions/cache@v4
@@ -81,6 +81,25 @@ The scratch directory (`.build`) is cold on every CI run regardless, since it li
 ```
 
 The cache is content-addressed by package identity, version, and revision, so a stale restore is safe: entries that no longer match are simply unused, and `restore-keys` lets a run start from the closest previous cache instead of from nothing.
+
+For a persistent runner that keeps the SwifterPM cache on disk between jobs, configure symlink materialization. It avoids copying every cached checkout into a new scratch directory, leaving the warm path as inexpensive links back to the persistent cache.
+
+When the runner also changes job-specific environment variables between installs, configure Tuist to exclude values that do not affect dependency declarations. Tuist removes these values before evaluating `Package.swift` and before calculating manifest cache keys in both resolver modes:
+
+```swift
+let config = Config(
+    project: .tuist(
+        installOptions: .options(
+            passthroughSwiftPackageManagerArguments: [
+                "--cached-directory-materialization=symlink"
+            ],
+            manifestEnvironmentExcluded: ["CI_JOB_ID", "CI_PIPELINE_ID"]
+        )
+    )
+)
+```
+
+The materialization option is for persistent runner caches. Entries in `manifestEnvironmentExcluded` can be literal names or trailing-wildcard prefixes such as `GITHUB_RUN_*`. Never exclude a value that a package manifest uses to choose dependencies.
 
 ## Bazel Swift package resolver
 

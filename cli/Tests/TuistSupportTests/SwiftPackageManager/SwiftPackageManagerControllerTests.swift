@@ -163,6 +163,68 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         XCTAssertTrue(swifterPM.resolveRequests.isEmpty)
     }
 
+    func test_resolve_excludes_configured_manifest_environment_variables() async throws {
+        // Given
+        let path = try temporaryPath()
+        let environment = [
+            "TUIST_USE_SWIFTERPM": "0",
+            "CI_JOB_ID": "first-job",
+            "CI_PIPELINE_ID": "pipeline",
+            "RETAINED": "value",
+        ]
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { environment }
+        )
+        mockCommandRunner.succeedCommand([
+            "swift",
+            "package",
+            "--package-path",
+            path.pathString,
+            "resolve",
+        ])
+
+        // When
+        try await PackageManifestEnvironment.withExcludedVariables(["CI_*"]) {
+            try await subject.resolve(at: path, arguments: [], printOutput: false)
+        }
+
+        // Then
+        XCTAssertEqual(
+            mockCommandRunner.env,
+            [
+                "TUIST_USE_SWIFTERPM": "0",
+                "RETAINED": "value",
+            ]
+        )
+    }
+
+    func test_resolve_passes_excluded_manifest_environment_to_swifterpm() async throws {
+        // Given
+        let path = try temporaryPath()
+        let environment = [
+            "CI_JOB_ID": "first-job",
+            "RETAINED": "value",
+        ]
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { environment }
+        )
+
+        // When
+        try await PackageManifestEnvironment.withExcludedVariables(["CI_JOB_ID"]) {
+            try await subject.resolve(at: path, arguments: [], printOutput: false)
+        }
+
+        // Then
+        let request = try XCTUnwrap(swifterPM.resolveRequests.first)
+        XCTAssertEqual(request.manifestEnvironment, ["RETAINED": "value"])
+    }
+
     func test_resolve_when_swifterpm_is_enabled_and_packagePathArgument_is_passed_usesIt() async throws {
         // Given
         let path = try temporaryPath()

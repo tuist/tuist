@@ -4,6 +4,18 @@ import Testing
 
 struct SupportTests {
     @Test
+    func customProcessEnvironmentDoesNotInheritExcludedVariables() async throws {
+        let result = try await SystemProcess.run(
+            "/usr/bin/env",
+            [],
+            customEnvironment: ["SWIFTERPM_TEST_RETAINED": "value"]
+        )
+
+        #expect(result.stdoutString.contains("SWIFTERPM_TEST_RETAINED=value"))
+        #expect(!result.stdoutString.contains("HOME="))
+    }
+
+    @Test
     func hashingAndRevisionHelpersAreStable() {
         let expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         #expect(Hashing.sha256Hex(Data("abc".utf8)) == expected)

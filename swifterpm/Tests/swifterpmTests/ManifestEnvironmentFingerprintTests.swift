@@ -21,6 +21,21 @@ struct ManifestEnvironmentFingerprintTests {
     }
 
     @Test
+    func currentUsesScopedManifestEnvironment() async throws {
+        try await Environment.$values.withValue([
+            "BENCH_NONCE": "first",
+            "RETAINED": "value",
+        ]) {
+            try await Environment.withManifestEnvironment(["RETAINED": "value"]) {
+                #expect(
+                    ManifestEnvironmentFingerprint.current()
+                        == ManifestEnvironmentFingerprint.digest(for: ["RETAINED": "value"])
+                )
+            }
+        }
+    }
+
+    @Test
     func digestDistinguishesEmbeddedNewlinesFromSeparateEntries() {
         // A value containing the delimiter must not collide with two distinct entries.
         let withNewline = ManifestEnvironmentFingerprint.digest(for: ["A": "x\nB=y"])

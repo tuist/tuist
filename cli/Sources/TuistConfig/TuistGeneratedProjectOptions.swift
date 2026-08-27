@@ -201,21 +201,26 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
 
     public struct InstallOptions: Codable, Equatable, Sendable, Hashable {
         public var passthroughSwiftPackageManagerArguments: [String]
+        public var manifestEnvironmentExcluded: [String]
 
         public init(
-            passthroughSwiftPackageManagerArguments: [String] = []
+            passthroughSwiftPackageManagerArguments: [String] = [],
+            manifestEnvironmentExcluded: [String] = []
         ) {
             self.passthroughSwiftPackageManagerArguments = passthroughSwiftPackageManagerArguments
+            self.manifestEnvironmentExcluded = manifestEnvironmentExcluded
         }
 
         #if DEBUG
-            public static func test(
-                passthroughSwiftPackageManagerArguments: [String] = []
-            ) -> Self {
-                .init(
-                    passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments
-                )
-            }
+        public static func test(
+            passthroughSwiftPackageManagerArguments: [String] = [],
+            manifestEnvironmentExcluded: [String] = []
+        ) -> Self {
+            .init(
+                passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments,
+                manifestEnvironmentExcluded: manifestEnvironmentExcluded
+            )
+        }
         #endif
     }
 

@@ -89,23 +89,27 @@ struct InstallService: InstallServicing {
             packagePath: packageManifestPath.parentDirectory,
             arguments: mergedArguments
         )
+        let manifestEnvironmentExcluded = config.project.generatedProject?
+            .installOptions.manifestEnvironmentExcluded ?? []
 
-        if update {
-            Logger.current.notice("Updating dependencies.", metadata: .section)
+        try await PackageManifestEnvironment.withExcludedVariables(manifestEnvironmentExcluded) {
+            if update {
+                Logger.current.notice("Updating dependencies.", metadata: .section)
 
-            try await swiftPackageManagerController.update(
-                at: packageManifestPath.parentDirectory,
-                arguments: mergedArguments,
-                printOutput: true
-            )
-        } else {
-            Logger.current.notice("Resolving and fetching dependencies.", metadata: .section)
+                try await swiftPackageManagerController.update(
+                    at: packageManifestPath.parentDirectory,
+                    arguments: mergedArguments,
+                    printOutput: true
+                )
+            } else {
+                Logger.current.notice("Resolving and fetching dependencies.", metadata: .section)
 
-            try await swiftPackageManagerController.resolve(
-                at: packageManifestPath.parentDirectory,
-                arguments: mergedArguments,
-                printOutput: true
-            )
+                try await swiftPackageManagerController.resolve(
+                    at: packageManifestPath.parentDirectory,
+                    arguments: mergedArguments,
+                    printOutput: true
+                )
+            }
         }
 
         try await savePackageResolved(
