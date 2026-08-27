@@ -77,6 +77,12 @@ defmodule TuistWeb.API.CacheController do
                 endpoints: %Schema{
                   type: :array,
                   items: %Schema{type: :string}
+                },
+                stable_endpoint: %Schema{
+                  type: :string,
+                  nullable: true,
+                  description:
+                    "The endpoint that keeps naming this account's cache wherever it is served from, present only while an instance is answering on it. Clients that persist an endpoint rather than resolving one per build should prefer it; it cannot be identified from the list, which is ordered by proximity to the caller."
                 }
               }
             }
@@ -102,16 +108,19 @@ defmodule TuistWeb.API.CacheController do
   # never be reported here; the refusal belongs on the token exchange, and
   # finally on the cache node itself.
   def endpoints(conn, params) do
-    %{endpoints: endpoints, provisioning: provisioning} =
+    %{endpoints: endpoints, provisioning: provisioning, stable_endpoint: stable_endpoint} =
       params[:account_handle]
       |> authorized_account_handle(conn)
       |> Accounts.get_cache_resolution_for_handle(technology(conn), RemoteIp.attributed_origin(conn))
 
     max_age = if provisioning, do: @provisioning_cache_max_age, else: Kura.endpoint_freshness_seconds()
 
+    body = %{endpoints: Enum.reject(endpoints, &is_nil/1)}
+    body = if stable_endpoint, do: Map.put(body, :stable_endpoint, stable_endpoint), else: body
+
     conn
     |> put_resp_header("cache-control", "private, max-age=#{max_age}")
-    |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1)})
+    |> json(body)
   end
 
   defp free_tier_exhausted_account(nil), do: nil

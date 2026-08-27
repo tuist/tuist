@@ -1694,6 +1694,54 @@ defmodule Tuist.KuraTest do
     end
   end
 
+  describe "stable_endpoint/2" do
+    test "names the region-independent endpoint among the ones handed out" do
+      serving_public_regions()
+      account = stable_host_account()
+      primary = stable_host_instance(account, "eu-central", :active)
+      secondary = stable_host_instance(account, "us-east", :active)
+      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _row} = PlacerRegions.put_secondary(account, "us-east")
+
+      stub(Tuist.Environment, :kura_stable_endpoint_enabled?, fn -> true end)
+
+      urls = Kura.substitute_stable_endpoint([primary.url, secondary.url], account)
+
+      assert Kura.stable_endpoint(urls, account) == Regions.stable_public_url(account.name)
+    end
+
+    test "names nothing when the caller is nearest a region that is not the primary" do
+      # The list is ordered by proximity, so the region-independent name is not
+      # first here. A client picking by position would take the secondary's
+      # regional address and bake an endpoint that a later retirement removes.
+      serving_public_regions()
+      account = stable_host_account()
+      primary = stable_host_instance(account, "eu-central", :active)
+      secondary = stable_host_instance(account, "us-east", :active)
+      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _row} = PlacerRegions.put_secondary(account, "us-east")
+
+      stub(Tuist.Environment, :kura_stable_endpoint_enabled?, fn -> true end)
+
+      urls = Kura.substitute_stable_endpoint([secondary.url, primary.url], account)
+
+      assert List.first(urls) == secondary.url
+      assert Kura.stable_endpoint(urls, account) == Regions.stable_public_url(account.name)
+    end
+
+    test "names nothing while nothing is answering on the name" do
+      account = stable_host_account()
+      primary = stable_host_instance(account, "eu-central", :active)
+      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
+
+      stub(Tuist.Environment, :kura_stable_endpoint_enabled?, fn -> false end)
+
+      urls = Kura.substitute_stable_endpoint([primary.url], account)
+
+      assert Kura.stable_endpoint(urls, account) == nil
+    end
+  end
+
   describe "order_endpoints_by_origin/3" do
     test "puts the region nearest the caller first for a multi-region account" do
       account = stable_host_account()

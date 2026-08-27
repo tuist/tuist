@@ -3910,15 +3910,25 @@ public enum Components {
         public struct CacheEndpoints: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CacheEndpoints/endpoints`.
             public var endpoints: [Swift.String]
+            /// The endpoint that keeps naming this account's cache wherever it is served from, present only while an instance is answering on it. Clients that persist an endpoint rather than resolving one per build should prefer it; it cannot be identified from the list, which is ordered by proximity to the caller.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/stable_endpoint`.
+            public var stable_endpoint: Swift.String?
             /// Creates a new `CacheEndpoints`.
             ///
             /// - Parameters:
             ///   - endpoints:
-            public init(endpoints: [Swift.String]) {
+            ///   - stable_endpoint: The endpoint that keeps naming this account's cache wherever it is served from, present only while an instance is answering on it. Clients that persist an endpoint rather than resolving one per build should prefer it; it cannot be identified from the list, which is ordered by proximity to the caller.
+            public init(
+                endpoints: [Swift.String],
+                stable_endpoint: Swift.String? = nil
+            ) {
                 self.endpoints = endpoints
+                self.stable_endpoint = stable_endpoint
             }
             public enum CodingKeys: String, CodingKey {
                 case endpoints
+                case stable_endpoint
             }
         }
         /// The page number to return.
@@ -12642,15 +12652,25 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/endpoints`.
                         public var endpoints: [Swift.String]
+                        /// The endpoint that keeps naming this account's cache wherever it is served from, present only while an instance is answering on it. Clients that persist an endpoint rather than resolving one per build should prefer it; it cannot be identified from the list, which is ordered by proximity to the caller.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/stable_endpoint`.
+                        public var stable_endpoint: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - endpoints:
-                        public init(endpoints: [Swift.String]) {
+                        ///   - stable_endpoint: The endpoint that keeps naming this account's cache wherever it is served from, present only while an instance is answering on it. Clients that persist an endpoint rather than resolving one per build should prefer it; it cannot be identified from the list, which is ordered by proximity to the caller.
+                        public init(
+                            endpoints: [Swift.String],
+                            stable_endpoint: Swift.String? = nil
+                        ) {
                             self.endpoints = endpoints
+                            self.stable_endpoint = stable_endpoint
                         }
                         public enum CodingKeys: String, CodingKey {
                             case endpoints
+                            case stable_endpoint
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/application\/json`.
@@ -19312,10 +19332,6 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -19324,20 +19340,24 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
-                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
-                    self.git_branch = git_branch
                     self.page = page
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query

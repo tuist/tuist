@@ -1670,6 +1670,30 @@ defmodule Tuist.Kura do
   end
 
   @doc """
+  Which of a list of endpoint URLs is the account's region-independent one, or
+  `nil` when none of them is.
+
+  Answered against the list rather than from the handle alone, so the name is
+  only ever offered while an instance is actually answering on it. A client
+  told about a name that nothing serves would write it into a file and fail on
+  the next build.
+
+  A client cannot work this out for itself. The list is ordered by proximity
+  to the caller, so position does not identify the name, and recognising it by
+  its shape would put the server's host template in the client, where it would
+  drift silently.
+  """
+  def stable_endpoint(urls, %Account{name: handle}) do
+    with true <- Environment.kura_stable_endpoint_enabled?(),
+         stable when is_binary(stable) <- Regions.stable_public_url(handle),
+         true <- stable in urls do
+      stable
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
   Marks a drained server archived once its backing resource is gone.
 
   Archival is not destruction: the row stays, still owning `(account,

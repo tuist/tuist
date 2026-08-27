@@ -908,6 +908,12 @@ components:
           type: array
           x-struct:
           x-validate:
+        stable_endpoint:
+          description: The endpoint that keeps naming this account's cache wherever it is served from, present only while an instance is answering on it. Clients that persist an endpoint rather than resolving one per build should prefer it; it cannot be identified from the list, which is ordered by proximity to the caller.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - endpoints
       title: CacheEndpoints
@@ -6777,6 +6783,12 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
+                  stable_endpoint:
+                    description: The endpoint that keeps naming this account's cache wherever it is served from, present only while an instance is answering on it. Clients that persist an endpoint rather than resolving one per build should prefer it; it cannot be identified from the list, which is ordered by proximity to the caller.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                 required:
                   - endpoints
                 title: CacheEndpoints
@@ -8855,10 +8867,10 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -8871,10 +8883,18 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
           schema:
             type: string
             x-struct:
@@ -8885,14 +8905,6 @@ paths:
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
-          schema:
-            type: integer
             x-struct:
             x-validate:
       responses:

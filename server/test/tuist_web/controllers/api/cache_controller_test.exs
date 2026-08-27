@@ -8,6 +8,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.Billing
   alias Tuist.CacheActionItems
   alias Tuist.Kura.Demand
+  alias Tuist.Kura.PlacerRegions
   alias Tuist.Projects.Workers.CleanProjectWorker
   alias Tuist.Repo
   alias Tuist.Storage
@@ -166,6 +167,63 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> get(~p"/api/cache/endpoints?account_handle=#{victim_account.name}")
 
       assert json_response(conn, :ok) == %{"endpoints" => default_endpoints}
+    end
+
+    test "names the region-independent endpoint so a client that persists one can prefer it", %{conn: conn} do
+      # `tuist bazel setup` writes an endpoint into a file that outlives the
+      # resolution, so it needs to know which one keeps naming this account
+      # after a move. It cannot tell from the list: that is ordered by
+      # proximity to the caller, not by durability.
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :kura_stable_endpoint_enabled?, fn -> true end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> [] end)
+      serving_public_regions()
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      server = kura_instance(account, "eu-central")
+      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{url: server.url, technology: :kura})
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_client_feature_flags(["kura"])
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      response = json_response(conn, :ok)
+      stable = Tuist.Kura.Regions.stable_public_url(account.name)
+
+      assert response["stable_endpoint"] == stable
+      assert stable in response["endpoints"]
+      refute server.url in response["endpoints"]
+    end
+
+    test "names no region-independent endpoint while nothing answers on one", %{conn: conn} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :kura_stable_endpoint_enabled?, fn -> false end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> [] end)
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      server = kura_instance(account, "eu-central")
+      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{url: server.url, technology: :kura})
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_client_feature_flags(["kura"])
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      response = json_response(conn, :ok)
+
+      refute Map.has_key?(response, "stable_endpoint")
+      assert response["endpoints"] == [server.url]
     end
 
     test "returns Kura endpoints to a project-scoped account token", %{conn: conn} do
@@ -1553,5 +1611,22 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert JSON.decode!(payload) ==
                %{"message" => "The project #{account.name}/non-existing-project was not found."}
     end
+  end
+
+  defp serving_public_regions do
+    stub(Tuist.Environment, :dev?, fn -> false end)
+    stub(Tuist.Environment, :test?, fn -> false end)
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-central", "us-east"] end)
+  end
+
+  defp kura_instance(account, region) do
+    Repo.insert!(%Tuist.Kura.Server{
+      account_id: account.id,
+      region: region,
+      status: :active,
+      url: "https://#{account.name}-#{region}-1.kura.tuist.dev",
+      current_image_tag: "0.5.2",
+      provisioner_node_ref: "kura-#{account.id}-#{region}"
+    })
   end
 end

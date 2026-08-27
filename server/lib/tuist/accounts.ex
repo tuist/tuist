@@ -2580,7 +2580,11 @@ defmodule Tuist.Accounts do
     if Environment.tuist_hosted?() and technology == :kura and is_binary(account_handle) do
       hosted_kura_resolution(account_handle, origin)
     else
-      %{endpoints: cache_endpoints_for_handle(account_handle, technology), provisioning: false}
+      %{
+        endpoints: cache_endpoints_for_handle(account_handle, technology),
+        provisioning: false,
+        stable_endpoint: nil
+      }
     end
   end
 
@@ -2596,15 +2600,16 @@ defmodule Tuist.Accounts do
           [] ->
             %{
               endpoints: absent_kura_endpoint_urls(account),
-              provisioning: Demand.instance_expected?(account)
+              provisioning: Demand.instance_expected?(account),
+              stable_endpoint: nil
             }
 
           urls ->
-            %{endpoints: urls, provisioning: false}
+            %{endpoints: urls, provisioning: false, stable_endpoint: Kura.stable_endpoint(urls, account)}
         end
 
       _ ->
-        %{endpoints: CacheEndpoints.active_endpoint_urls(), provisioning: false}
+        %{endpoints: CacheEndpoints.active_endpoint_urls(), provisioning: false, stable_endpoint: nil}
     end
   end
 
