@@ -69,7 +69,7 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                 if let casPluginPath = try await resolvedCASPluginPath() {
                     baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] = "YES"
                     baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] = "YES"
-                    baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] = .string(casPluginPath.pathString)
+                    baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] = Self.pluginPathSetting(casPluginPath)
                     // Hand the plugin its per-project options as compiler flags, which
                     // reach every frontend — including an Xcode ⌘B build that carries
                     // no CLI environment — so the proxy can route (and honor the upload
@@ -153,6 +153,18 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
             return candidate
         }
         return nil
+    }
+
+    /// The CAS plugin dylib's path as it is written into the build setting.
+    ///
+    /// `$HOME`-relative for the same reason as the proxy socket: the value is baked
+    /// into the generated pbxproj and reaches the target content hash through the
+    /// project's base settings, so a raw install path (Homebrew locally, mise on CI)
+    /// would give identical code a different module-cache key on every machine.
+    /// A plugin installed outside `$HOME` has no prefix to factor out and is written
+    /// verbatim.
+    private static func pluginPathSetting(_ path: AbsolutePath) -> SettingValue {
+        .string(Environment.current.homeRelativePathString(path))
     }
 
     /// Appends the plugin's per-project `-cas-plugin-option` flags

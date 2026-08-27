@@ -52,7 +52,8 @@ independent workqueues:
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
 
-  The capacity unit and per-Pod cost depend on OS:
+  The capacity unit is allocatable memory bytes on both platforms; only
+  what the per-Pod cost includes differs:
 
   - Linux: budget = sum of allocatable memory across nodes labeled
     `node.cluster.x-k8s.io/pool=<FleetSelector>` (scaled by
@@ -66,10 +67,129 @@ independent workqueues:
     failures still use the independent per-pool target so a transient
     read failure cannot freeze scale-up for queued work. Memory is the
     only dimension — Kata pins it per microVM and CPU is oversubscribed.
-  - macOS: budget = count of nodes labeled `tuist.dev/fleet=<FleetSelector>`
-    + `kubernetes.io/os=darwin`; cost = 1 per Pod (one VM per Mac
-    mini under the Virtualization.framework SLA). The allocator
-    apportions the host budget across competing Xcode pools.
+  - macOS: budget = sum of allocatable memory across nodes labeled
+    `tuist.dev/fleet=<FleetSelector>` + `kubernetes.io/os=darwin`,
+    unscaled; cost = `spec.podMemoryMB` (no RuntimeClass — the guest is
+    a Tart VM, not a sandboxed container). The quotient is the fleet's
+    guest-slot budget, which the allocator apportions across competing
+    Xcode pools.
+
+    No reserve fraction here, unlike Linux: `hostMemoryMB` is a number
+    the operator picks for tart-kubelet to advertise, already net of
+    what Apple's Virtualization.framework holds back, and macOS runs no
+    memory-requesting DaemonSets on these Nodes. Scaling it again would
+    double-count that reserve and strand a whole guest slot.
+
+    **Slots are not hosts.** One `tuist.dev/fleet` value can span
+    several MachineDeployments — that is how a mixed-SKU fleet is
+    expressed — so an M2-L advertising 14336 MB contributes one slot
+    while an M4-XL advertising 28672 MB contributes two. This is the
+    same division kube-scheduler performs when it places the Pod, which
+    is the point: the allocator agrees with the scheduler by
+    construction rather than via a second number kept in sync by hand.
+    Apple's SLA caps any single host at 2 guests and Tart enforces it.
+
+    **Shape placement caps.** The byte budget above answers "how much
+    fleet is there", which over-counts as soon as a shape does not fit
+    every host. A 12 vCPU / 28 GB guest fits only an M4-XL, yet a fleet
+    advertising 157696 MB divides to five such slots when two are real,
+    because the sum pools memory from M2-L hosts that cannot seat one at
+    all. It also cannot see CPU, which binds a guest whose memory-per-
+    vCPU is richer than its host's. So the autoscaler additionally
+    computes, per shape, the sum over Ready nodes of each node's OWN
+    `min(cpu, memory)` quotient, and `AllocateFleet` caps every pool
+    sharing that shape at it.
+
+    This has to be a shared cap rather than `maxReplicas`, because a
+    macOS shape renders one pool per Xcode version: five pools each
+    capped at the two M4-XL hosts compose to ten. Inside the cap, seats
+    go load first, then warm floor, then headroom, one Pod per pool per
+    round (so contenders do not both lose a seat) in name order (so the
+    split is stable across reconciles). darwin only — Linux kata pins
+    memory and oversubscribes CPU by design, and those hosts are
+    homogeneous, so the byte budget is already exact there.
+
+    **Node reservation.** A shape needing more than one guest slot on a
+    single host cannot accumulate them on its own. kube-scheduler does
+    not hold its queue on an unschedulable Pod, so each slot that frees
+    is taken by the next smaller Pod that fits, and the large Pod waits
+    for a coincidence of two simultaneously-free slots that a steady
+    trickle of small jobs prevents. The cross-pool reclaim does not help
+    either: it reclaims speculative warm capacity, and the Pod winning
+    the race is backed by real queued work, the one tier that never
+    yields.
+
+    A reservation is only taken for a shape that is LARGE relative to
+    the fleet: this shape must get fewer seats on the candidate host
+    than the fleet's most granular shape does. That is exactly the case
+    where the seats it needs are the ones smaller Pods keep taking. On a
+    homogeneous fleet whose hosts hold one guest (staging, canary) the
+    test never passes, so the mechanism is inert there — nothing can
+    accumulate when the shape already fits a single seat, and reserving
+    a one-host fleet would take every pool out of service until it
+    cleared. Waiting is correct there, and the allocator's cross-pool
+    reclaim already arranges it.
+
+    When a qualifying Pod has sat unscheduled past `reservationGrace`
+    (2m), the RunnerPool reconciler taints one eligible host
+    `tuist.dev/reserved-for=<pool>:NoSchedule`. Every runner Pod
+    tolerates that key at its OWN pool's value, so the host stops
+    admitting everyone else while its seats accumulate. Running jobs are
+    waited out, never evicted; only idle Pods of other pools are
+    retired. The taint is removed when the Pod lands or after
+    `reservationTimeout` (15m), and at most one host is held fleet-wide
+    (`maxFleetReservations`), since a reservation is capacity withdrawn
+    from the small shapes while it converges.
+
+    A timed-out release rests the host for `reservationCooldown` (15m)
+    via a `tuist.dev/reservation-cooldown-until` annotation. Without it
+    the timeout does nothing: `starvedPod` measures a Pod's own age, so
+    the Pod that triggered the reservation is still far past the grace
+    period the moment the taint lifts, and the next reconcile would
+    re-reserve the same host immediately. The cooldown is on the NODE
+    rather than the pool because the host is what is being rested — a
+    pool blocked on one host stays free to reserve a different eligible
+    one. A release because the Pod landed sets no cooldown; it achieved
+    what it was for.
+
+    A dedicated taint, not a cordon: a cordoned node is indistinguishable
+    from one Cluster API is replacing, and `reapIdlePodsOnCordonedNodes`
+    would retire the reserved pool's own Pod the moment it landed and was
+    still warm-polling.
+
+    Three properties the taint being pool-named forces:
+
+      - **Orphans must be swept.** Only the pool named in a taint can
+        find and release its own reservation, so a deleted or renamed
+        pool would strand the host out of the fleet forever and keep its
+        reservation counting against `maxFleetReservations`. The delete
+        path releases explicitly (`reconcileDelete` returns before
+        reservation reconciliation), and every reconcile sweeps taints
+        naming a pool that no longer exists as a backstop.
+      - **The fleet limit is confirmed uncached.** `MaxConcurrentReconciles: 1`
+        serializes the workers but not their reads; the informer cache
+        can lag a taint another pool wrote moments ago. The one path that
+        takes the fleet's reservation re-reads nodes through the
+        `APIReader` before committing.
+      - **Node writes are optimistically locked.** Taints are a plain
+        list, so a merge patch replaces the whole array with the one
+        computed from our copy. Without a resourceVersion precondition a
+        taint added since the read — a kubelet pressure taint, Cluster
+        API's cordon, a sibling reservation — is silently dropped.
+
+    Candidate selection subtracts the pool's OWN Pods from a host's
+    usable seats. The reaper never retires own-pool Pods, so a host
+    already holding one cannot be cleared for a second; ranking on
+    occupancy alone made exactly that host look ideal, since its own idle
+    Pod counts as zero occupancy.
+
+    PriorityClass preemption cannot substitute. The scheduler picks
+    victims by priority, `spec.priority` is immutable after admission,
+    and a runner Pod becomes job-owning in place — so a priority high
+    enough to evict for the large Pod would also kill customer builds.
+    The signal that separates them (`isIdle`) reads init-container
+    status the scheduler never sees, which is why this lives in the
+    controller.
 
   Only nodes that report `Ready=True`, remain schedulable, and have no
   memory, disk, or process identifier pressure contribute to either

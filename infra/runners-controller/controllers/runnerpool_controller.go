@@ -54,7 +54,13 @@ const defaultRollMaxConcurrentPercent = 5
 // the previous Pod freed.
 type RunnerPoolReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+
+	// APIReader is an uncached reader. The reservation path confirms the
+	// fleet-wide reservation limit through it, because the informer
+	// cache can lag a taint written moments earlier by another pool's
+	// reconcile. Optional: falls back to the cached client when unset.
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
 
 	// SessionsClient closes a Pod's billing session immediately before
 	// the reap deletes it — see reapRunner for why the ordering matters.
@@ -117,7 +123,7 @@ func (r *RunnerPoolReconciler) now() time.Time {
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;delete
-// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;patch
 
 func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("pool", req.NamespacedName)
@@ -143,6 +149,14 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// finish their single-shot job. Only then is the finalizer
 	// dropped, letting the CR and any remaining terminal Pods/SAs GC.
 	if !pool.DeletionTimestamp.IsZero() {
+		// Before the drain, hand back any host this pool was holding.
+		// reconcileDelete returns without reaching reconcileReservation,
+		// and once the CR is gone nothing can match the taint's value,
+		// so the host would be tainted out of the fleet permanently.
+		if err := r.ReleaseReservationsForPool(ctx, pool); err != nil {
+			logger.Error(err, "release node reservation for a deleting pool; will retry")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
 		return r.reconcileDelete(ctx, pool)
 	}
 	if controllerutil.AddFinalizer(pool, runnerPoolFinalizer) {
@@ -187,6 +201,17 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	pods.Items = survivors
 	if cordonReaped > 0 {
 		logger.Info("retired idle runner pods for node drain", "count", cordonReaped)
+	}
+
+	// Node reservation. Runs after the drain reap so a Pod already
+	// retired above is not counted as an occupant a reservation must
+	// wait on, and before the accounting below because retiring another
+	// pool's idle Pod here changes what this fleet has free. Failures are
+	// logged and skipped rather than returned: a reservation is an
+	// optimization for a starved shape, and a fleet that cannot take one
+	// must still converge its Pods.
+	if err := r.reconcileReservation(ctx, pool, pods.Items); err != nil {
+		logger.Error(err, "reconcile node reservation; will retry next tick")
 	}
 
 	// Warm capacity is counted here, in the one pass with no early
@@ -668,9 +693,16 @@ func (r *RunnerPoolReconciler) reportStopped(ctx context.Context, pod *corev1.Po
 		return
 	}
 
-	if err := r.SessionsClient.Stopped(ctx, pod.Name, podEndedAt(pod, r.now())); err != nil {
+	endedAt := podEndedAt(pod, r.now())
+	if err := r.SessionsClient.Stopped(ctx, pod.Name, endedAt); err != nil {
 		log.FromContext(ctx).Error(err, "close session before reap; backstop will retry", "pod", pod.Name)
+		return
 	}
+	// Logged for the same reason as the pod-lifecycle reconciler's
+	// report, and tagged so the two are distinguishable: the reconcilers
+	// race for the same Pod, and which one lands decides whether the
+	// report happens before or after the Pod is deleted.
+	log.FromContext(ctx).Info("reported pod stopped", "pod", pod.Name, "endedAt", endedAt, "source", "reap")
 }
 
 type podPhaseReplicaCounts struct {

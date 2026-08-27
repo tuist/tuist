@@ -381,6 +381,52 @@ struct ModuleCacheRemoteStorageTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
+    func fetch_when_download_service_is_rate_limited() async throws {
+        // Given
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willThrow(DownloadModuleCacheServiceError.rateLimited("Busy", retryAfterSeconds: 1))
+
+        // When
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(got.isEmpty == true)
+        // Backpressure is worth retrying: the server asked for it. Classifying it with
+        // the terminal errors would make this a single attempt.
+        verify(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .called(4)
+        #expect(AlertController.current.warnings().map(\.message)
+            .map { $0.plain() } ==
+            [
+                "The remote cache is busy and asked us to back off, so these artifacts were built from source instead: target",
+            ]
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
     func fetch_cache_action_items_when_get_cache_action_item_returns_unauthorized() async throws {
         // Given
         given(getCacheActionItemService)

@@ -33,4 +33,13 @@ defmodule Tuist.OpenGraphImageRendererTest do
       refute log =~ "terminating"
     end
   end
+
+  describe "the browser pool in the test environment" do
+    test "is not started" do
+      assert Process.whereis(Tuist.OpenGraphImagePool) == nil,
+             "the headless-browser pool must not start under `mix test` — CI runners have no " <>
+               "Chrome, and `Browse.Pool.init_worker/1` raising `:chrome_not_found` makes " <>
+               "NimblePool re-send itself `:init_worker` forever, flooding the suite output"
+    end
+  end
 end

@@ -134,7 +134,14 @@ func (r *PodLifecycleReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	r.reported.Store(key, struct{}{})
-	logger.V(1).Info("reported pod stopped", "endedAt", endedAt)
+	// Info, not V(1): this POST is the only edge that recovers a job
+	// stranded on a Pod that took its JIT config and never ran it, and
+	// the server emits no request log for it (`Plug.Telemetry` is
+	// configured with `log: false`). At debug level the success case was
+	// invisible on both ends, so "the fast path did not fire" and "the
+	// POST never happened" could not be told apart from the logs. One
+	// line per Pod death is a rounding error against this stream.
+	logger.Info("reported pod stopped", "endedAt", endedAt, "source", "phase-transition")
 	return ctrl.Result{}, nil
 }
 

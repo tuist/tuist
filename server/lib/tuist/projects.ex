@@ -11,7 +11,6 @@ defmodule Tuist.Projects do
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
   alias Tuist.Automations
-  alias Tuist.Automations.Alerts.Alert
   alias Tuist.Base64
   alias Tuist.CommandEvents
   alias Tuist.Projects.Project
@@ -23,9 +22,9 @@ defmodule Tuist.Projects do
     Repo.aggregate(Project, :count, :id)
   end
 
-  def get_project_count_for_account(%Account{id: account_id}) do
+  def get_project_count_for_account(%Account{id: account_id}, opts \\ []) do
     query = from p in Project, where: p.account_id == ^account_id
-    Repo.aggregate(query, :count, :id)
+    Repo.aggregate(maybe_filter_visibility(query, opts), :count, :id)
   end
 
   def legacy_token?(token) do
@@ -198,6 +197,7 @@ defmodule Tuist.Projects do
       where: p.account_id in ^account_ids,
       preload: ^preload
     )
+    |> maybe_filter_visibility(opts)
     |> Repo.all()
     |> maybe_filter_recent(opts)
   end
@@ -209,6 +209,7 @@ defmodule Tuist.Projects do
       where: p.account_id == ^account_id,
       preload: ^preload
     )
+    |> maybe_filter_visibility(opts)
     |> Repo.all()
     |> maybe_filter_recent(opts)
   end
@@ -257,6 +258,13 @@ defmodule Tuist.Projects do
         account: project.account
       }
     end)
+  end
+
+  defp maybe_filter_visibility(query, opts) do
+    case Keyword.get(opts, :visibility) do
+      nil -> query
+      visibility -> from(p in query, where: p.visibility == ^visibility)
+    end
   end
 
   defp maybe_filter_recent(projects, opts) do
@@ -328,9 +336,7 @@ defmodule Tuist.Projects do
   end
 
   defp seed_default_alert(%Project{id: project_id}) do
-    %Alert{}
-    |> Alert.changeset(Automations.default_alert_attrs(project_id))
-    |> Repo.insert()
+    Automations.create_alert(Automations.default_alert_attrs(project_id), source: "system")
   end
 
   def delete_project(%Project{} = project) do
@@ -512,7 +518,7 @@ defmodule Tuist.Projects do
     {projects_with_interaction, meta}
   end
 
-  def get_recent_projects_for_account(account, limit \\ 3) do
+  def get_recent_projects_for_account(account, limit \\ 3, opts \\ []) do
     # Get all interaction data from CommandEvents
     interaction_data = CommandEvents.get_all_project_last_interaction_data()
 
@@ -521,6 +527,7 @@ defmodule Tuist.Projects do
       where: p.account_id == ^account.id,
       preload: [:previews]
     )
+    |> maybe_filter_visibility(opts)
     |> Repo.all()
     |> Enum.map(fn project ->
       last_interacted_at = Map.get(interaction_data, project.id)

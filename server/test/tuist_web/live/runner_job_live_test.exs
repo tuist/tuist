@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
@@ -1097,6 +1098,109 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert has_element?(lv, ~s{#request-vnc-session-button})
   end
 
+  test "does not let a signed-out visitor on a public account close an open VNC session", %{
+    account: account,
+    user: user
+  } do
+    {:ok, account} = Accounts.update_account_visibility(account, :public)
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_758,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_580,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Public VNC",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
+
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-public-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_758, "tuist-runner-public-vnc", claimed_at)
+
+    flush_outbox!()
+    {:ok, job} = Jobs.get_for_account(account.id, 31_758)
+    {:ok, session} = InteractiveSessions.request_vnc(job, account, user)
+
+    session
+    |> InteractiveSession.changeset(%{state: :ready})
+    |> Repo.update!()
+
+    flush_outbox!()
+
+    # A signed-out visitor can reach the page, but never the VNC client.
+    {:ok, lv, _html} =
+      live(build_conn(), ~p"/#{account.name}/runners/runs/317580/jobs/31758?tab=vnc")
+
+    refute has_element?(lv, ~s{#runner-vnc-client})
+
+    # Forging the event a rendered client would have pushed must not close
+    # the member's session.
+    render_hook(lv, "interactive_vnc_disconnected", %{})
+
+    still_open = Repo.reload!(session)
+    assert still_open.state == :ready
+    assert is_nil(still_open.closed_at)
+  end
+
+  # Opening the VNC tab deliberately takes the session over (`refresh_token/2`
+  # reassigns `requested_by_user_id`), so this covers the member who never
+  # opened it and forges the event straight from the overview tab.
+  test "does not let a member who does not hold the session close it", %{account: account, user: user} do
+    other_member = AccountsFixtures.user_fixture()
+    organization = Repo.preload(account, :organization).organization
+    Accounts.add_user_to_organization(other_member, organization, role: :user)
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_759,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_590,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Contended VNC",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
+
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-contended-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_759, "tuist-runner-contended-vnc", claimed_at)
+
+    flush_outbox!()
+    {:ok, job} = Jobs.get_for_account(account.id, 31_759)
+    {:ok, session} = InteractiveSessions.request_vnc(job, account, user)
+
+    session
+    |> InteractiveSession.changeset(%{state: :ready})
+    |> Repo.update!()
+
+    flush_outbox!()
+
+    {:ok, lv, _html} =
+      build_conn()
+      |> log_in_user(other_member)
+      |> live(~p"/#{account.name}/runners/runs/317590/jobs/31759")
+
+    render_hook(lv, "interactive_vnc_disconnected", %{})
+
+    still_open = Repo.reload!(session)
+    assert still_open.state == :ready
+    assert is_nil(still_open.closed_at)
+  end
+
   test "renders a local development VNC placeholder with a fake ready session", %{
     conn: conn,
     account: account
@@ -1252,6 +1356,51 @@ defmodule TuistWeb.RunnerJobLiveTest do
              lv,
              ~s{#runner-shell-terminal[phx-hook="RunnerShellTerminal"][data-shell-path="/#{account.name}/runners/interactive/shell"][data-shell-token]}
            )
+  end
+
+  test "refuses a shell session to a member demoted while the page is open", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    # Given — a job whose shell is requestable, with the page already open while
+    # the member could still attach.
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_999,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 319_990,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Demoted Linux shell",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-demoted", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_999, "tuist-runner-linux-demoted", claimed_at)
+
+    flush_outbox!()
+
+    # Mounted away from the terminal tab, which auto-requests a session on
+    # connect and would create one before the demotion lands.
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/319990/jobs/31999")
+
+    # When — demoted without reloading. `InteractiveSessions` mints tokens
+    # without authorizing, so the socket's cached answer must not be what
+    # decides this.
+    {:ok, organization} = Accounts.get_organization_by_id(account.organization_id)
+    {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+
+    render_hook(lv, "request_shell_session", %{})
+
+    # Then
+    assert is_nil(InteractiveSessions.current_for_job(account.id, 31_999, :shell))
   end
 
   test "closes the shell session when the browser terminal disconnects", %{

@@ -41,6 +41,7 @@ pub struct Metrics {
     artifact_writes: Family<ArtifactOpLabels, Counter>,
     artifact_read_bytes: Family<ArtifactOpLabels, Counter>,
     artifact_write_bytes: Family<ArtifactOpLabels, Counter>,
+    artifact_write_size_bytes: Family<ArtifactRouteLabels, Histogram>,
     artifact_egress_completions: Family<ArtifactOpLabels, Counter>,
     artifact_egress_bytes: Family<ArtifactOpLabels, Counter>,
     artifact_egress_duration: Family<ArtifactRouteLabels, Histogram>,
@@ -50,6 +51,11 @@ pub struct Metrics {
     segment_refresh_bytes: Family<SegmentRefreshLabels, Counter>,
     segment_refresh_duration: Family<SegmentRefreshRouteLabels, Histogram>,
     segment_evicted_artifacts: Family<ArtifactOpLabels, Counter>,
+    // Age of the youngest content in a ring-evicted segment: how soon after
+    // being written an artifact can be shed under size pressure. The claim
+    // sizing signal, mirrored to the control plane through the usage batch.
+    segment_shed_age_seconds: Histogram,
+    capacity_eviction_reports_dropped: Counter,
     // Action-cache entries removed by the eviction cascade (an evicted blob
     // taking its referencing entries with it). A healthy nonzero rate is the
     // cascade doing its job; compare against the serve-side presence-gate hit
@@ -66,6 +72,7 @@ pub struct Metrics {
     replication_bandwidth_effective_limit_bytes_per_second: Gauge,
     replication_bandwidth_public_latency_target_ms: Gauge,
     multipart_parts: Family<MultipartLabels, Counter>,
+    capacity_sheds: Family<CapacityShedLabels, Counter>,
     node_info: Family<NodeInfoLabels, Gauge>,
     node_geo: Family<NodeGeoLabels, Gauge>,
     file_descriptor_wait: Family<FileDescriptorWaitLabels, Histogram>,
@@ -159,6 +166,7 @@ pub struct Metrics {
     memory_protection_min_bytes: Gauge,
     memory_protection_low_bytes: Gauge,
     memory_transient_reserved_bytes: Gauge,
+    memory_transient_capacity_bytes: Gauge,
     foreground_memory_waiters: Gauge,
     response_stream_pool_capacity_bytes: Gauge,
     response_stream_foreground_pool_capacity_bytes: Gauge,
@@ -189,6 +197,7 @@ pub struct Metrics {
     mmap_partial_page_exemptions: Counter,
     promotion_queue_depth: Gauge,
     promotion_failures: Counter,
+    peer_connection_failures: Counter,
     promotion_drops: Family<RefreshTriggerLabels, Counter>,
 }
 
@@ -196,12 +205,53 @@ pub struct Metrics {
 struct RolloutSnapshot {
     outbox_messages: AtomicU64,
     fd_timeout_count: AtomicU64,
+    peer_connection_failure_count: AtomicU64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RolloutMetricsSnapshot {
     pub outbox_messages: u64,
     pub fd_timeout_count: u64,
+    pub peer_connection_failure_count: u64,
+}
+
+/// The limits that can refuse a public request, one label value each.
+///
+/// Every kind is materialised at construction so its series exists from the
+/// first scrape, before the node has shed anything. Alert and dashboard
+/// queries rely on that: they select the response-stream kind and fall back to
+/// counting bare 429s where the series is absent, which is how one query stays
+/// correct across a fleet running both the old and new image. If a new pod
+/// only published the series after its first shed, that fallback would count
+/// its write sheds as read sheds until it happened to shed a read.
+pub mod shed_kind {
+    pub const RESPONSE_STREAM: &str = "response_stream";
+    pub const MULTIPART_UPLOADS: &str = "multipart_uploads";
+    pub const MULTIPART_STORAGE: &str = "multipart_storage";
+    pub const UPLOAD_MEMORY: &str = "upload_memory";
+    pub const TMP_STAGING: &str = "tmp_staging";
+    pub const MEMORY_PRESSURE_WRITE: &str = "memory_pressure_write";
+    pub const OUTBOX: &str = "outbox";
+    // The remote-execution surface sheds against the same transient budget the
+    // HTTP kinds above do, so it belongs in the counter that names which limit
+    // refused a request. It carries no HTTP status of its own -- gRPC answers
+    // RESOURCE_EXHAUSTED, which is already the retryable code -- so without a
+    // kind here a node shedding remote-execution traffic is invisible to the
+    // query operators are told to reach for first.
+    pub const REAPI_WRITE_DECODE: &str = "reapi_write_decode";
+    pub const REAPI_MATERIALIZATION: &str = "reapi_materialization";
+
+    pub const ALL: [&str; 9] = [
+        RESPONSE_STREAM,
+        MULTIPART_UPLOADS,
+        MULTIPART_STORAGE,
+        UPLOAD_MEMORY,
+        TMP_STAGING,
+        MEMORY_PRESSURE_WRITE,
+        OUTBOX,
+        REAPI_WRITE_DECODE,
+        REAPI_MATERIALIZATION,
+    ];
 }
 
 impl Metrics {
@@ -228,6 +278,10 @@ impl Metrics {
         let action_cache_cascade_removed = Counter::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
+        let artifact_write_size_bytes =
+            Family::<ArtifactRouteLabels, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_buckets(4096.0, 2.0, 20))
+            });
         let artifact_egress_completions = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_egress_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_egress_duration =
@@ -245,6 +299,21 @@ impl Metrics {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
             });
         let segment_evicted_artifacts = Family::<ArtifactOpLabels, Counter>::default();
+        // One hour up to 30 days: below the first bucket the ring is churning
+        // artifacts it just stored; the top buckets distinguish rings holding
+        // days of history, which is what per-plan retention floors care about.
+        let segment_shed_age_seconds = Histogram::new([
+            3_600.0,
+            21_600.0,
+            43_200.0,
+            86_400.0,
+            172_800.0,
+            259_200.0,
+            604_800.0,
+            1_209_600.0,
+            2_592_000.0,
+        ]);
+        let capacity_eviction_reports_dropped = Counter::default();
         let replication_requests = Family::<ReplicationLabels, Counter>::default();
         let replication_request_duration =
             Family::<ReplicationRouteLabels, Histogram>::new_with_constructor(|| {
@@ -255,6 +324,12 @@ impl Metrics {
         let replication_bandwidth_effective_limit_bytes_per_second = Gauge::default();
         let replication_bandwidth_public_latency_target_ms = Gauge::default();
         let multipart_parts = Family::<MultipartLabels, Counter>::default();
+        let capacity_sheds = Family::<CapacityShedLabels, Counter>::default();
+        for kind in shed_kind::ALL {
+            let _ = capacity_sheds.get_or_create(&CapacityShedLabels {
+                kind: kind.to_owned(),
+            });
+        }
         let node_info = Family::<NodeInfoLabels, Gauge>::default();
         let node_geo = Family::<NodeGeoLabels, Gauge>::default();
         let file_descriptor_wait =
@@ -365,6 +440,7 @@ impl Metrics {
         let memory_protection_min_bytes = Gauge::default();
         let memory_protection_low_bytes = Gauge::default();
         let memory_transient_reserved_bytes = Gauge::default();
+        let memory_transient_capacity_bytes = Gauge::default();
         let foreground_memory_waiters = Gauge::default();
         let response_stream_pool_capacity_bytes = Gauge::default();
         let response_stream_foreground_pool_capacity_bytes = Gauge::default();
@@ -401,6 +477,7 @@ impl Metrics {
         let mmap_partial_page_exemptions = Counter::default();
         let promotion_queue_depth = Gauge::default();
         let promotion_failures = Counter::default();
+        let peer_connection_failures = Counter::default();
         let promotion_drops = Family::<RefreshTriggerLabels, Counter>::default();
         let process_start_time_seconds = Gauge::<i64>::default();
         process_start_time_seconds.set(
@@ -471,6 +548,11 @@ impl Metrics {
             artifact_write_bytes.clone(),
         );
         registry.register(
+            "kura_artifact_write_size_bytes",
+            "Size of each stored artifact by producer. For producer=\"module\" this is the per-upload payload that stages to the tmp dir, so its upper quantiles size the staging reserve and the TmpBudget::try_reserve floor",
+            artifact_write_size_bytes.clone(),
+        );
+        registry.register(
             "kura_artifact_egress_completions_total",
             "Artifact response body stream completions by producer and result",
             artifact_egress_completions.clone(),
@@ -516,6 +598,16 @@ impl Metrics {
             segment_evicted_artifacts.clone(),
         );
         registry.register(
+            "kura_segment_shed_age_seconds",
+            "Age of the youngest content in a segment evicted by ring rotation, i.e. how soon after being written an artifact can be shed under size pressure",
+            segment_shed_age_seconds.clone(),
+        );
+        registry.register(
+            "kura_capacity_eviction_reports_dropped_total",
+            "Capacity-eviction reports dropped because the pending queue for the usage reporter was full",
+            capacity_eviction_reports_dropped.clone(),
+        );
+        registry.register(
             "kura_replication_requests_total",
             "Peer replication requests by target, operation, and result",
             replication_requests.clone(),
@@ -549,6 +641,11 @@ impl Metrics {
             "kura_multipart_parts_total",
             "Multipart part uploads by result",
             multipart_parts.clone(),
+        );
+        registry.register(
+            "kura_capacity_sheds_total",
+            "Public requests shed for capacity, by which limit refused them",
+            capacity_sheds.clone(),
         );
         registry.register(
             "kura_node_info",
@@ -1016,6 +1113,11 @@ impl Metrics {
             memory_transient_reserved_bytes.clone(),
         );
         registry.register(
+            "kura_memory_transient_capacity_bytes",
+            "Transient admission capacity: the anonymous-memory budget every upload, response stream and REAPI materialization is admitted against",
+            memory_transient_capacity_bytes.clone(),
+        );
+        registry.register(
             "kura_foreground_memory_waiters",
             "Foreground requests currently waiting for memory admission",
             foreground_memory_waiters.clone(),
@@ -1161,6 +1263,11 @@ impl Metrics {
             promotion_failures.clone(),
         );
         registry.register(
+            "kura_peer_connection_failures_total",
+            "Peer-plane request failures: outbox replication deliveries and backfill passes that errored against a peer",
+            peer_connection_failures.clone(),
+        );
+        registry.register(
             "kura_promotion_drops_total",
             "Promotions dropped for lack of queue room, by the trigger that queued them",
             promotion_drops.clone(),
@@ -1194,6 +1301,7 @@ impl Metrics {
             action_cache_cascade_removed,
             artifact_read_bytes,
             artifact_write_bytes,
+            artifact_write_size_bytes,
             artifact_egress_completions,
             artifact_egress_bytes,
             artifact_egress_duration,
@@ -1203,6 +1311,8 @@ impl Metrics {
             segment_refresh_bytes,
             segment_refresh_duration,
             segment_evicted_artifacts,
+            segment_shed_age_seconds,
+            capacity_eviction_reports_dropped,
             replication_requests,
             replication_request_duration,
             replication_apply_results,
@@ -1210,6 +1320,7 @@ impl Metrics {
             replication_bandwidth_effective_limit_bytes_per_second,
             replication_bandwidth_public_latency_target_ms,
             multipart_parts,
+            capacity_sheds,
             node_info,
             node_geo,
             file_descriptor_wait,
@@ -1303,6 +1414,7 @@ impl Metrics {
             memory_protection_min_bytes,
             memory_protection_low_bytes,
             memory_transient_reserved_bytes,
+            memory_transient_capacity_bytes,
             foreground_memory_waiters,
             response_stream_pool_capacity_bytes,
             response_stream_foreground_pool_capacity_bytes,
@@ -1333,6 +1445,7 @@ impl Metrics {
             mmap_partial_page_exemptions,
             promotion_queue_depth,
             promotion_failures,
+            peer_connection_failures,
             promotion_drops,
         };
 
@@ -1452,6 +1565,11 @@ impl Metrics {
             self.artifact_write_bytes
                 .get_or_create(&labels)
                 .inc_by(bytes);
+            self.artifact_write_size_bytes
+                .get_or_create(&ArtifactRouteLabels {
+                    producer: producer.as_str().to_owned(),
+                })
+                .observe(bytes as f64);
         }
     }
 
@@ -1567,6 +1685,14 @@ impl Metrics {
             .inc_by(artifacts);
     }
 
+    pub fn record_segment_shed_age(&self, seconds: f64) {
+        self.segment_shed_age_seconds.observe(seconds);
+    }
+
+    pub fn record_capacity_eviction_report_dropped(&self) {
+        self.capacity_eviction_reports_dropped.inc();
+    }
+
     pub fn record_action_cache_cascade(&self, removed_entries: u64) {
         if removed_entries == 0 {
             return;
@@ -1594,6 +1720,16 @@ impl Metrics {
                 operation: operation.to_owned(),
             })
             .observe(duration.as_secs_f64());
+        if result == "error" {
+            self.note_peer_connection_failure();
+        }
+    }
+
+    fn note_peer_connection_failure(&self) {
+        self.peer_connection_failures.inc();
+        self.rollout_snapshot
+            .peer_connection_failure_count
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn record_replication_apply(&self, source: &str, item_type: &str, outcome: &str) {
@@ -1618,6 +1754,21 @@ impl Metrics {
             .set(effective_bytes_per_second as i64);
         self.replication_bandwidth_public_latency_target_ms
             .set(public_latency_target_ms as i64);
+    }
+
+    /// One shed request, labelled by which limit refused it.
+    ///
+    /// The HTTP status cannot carry this: 429 is shared by every shed, and
+    /// `kura_http_requests_total` has no method label, so the read routes that
+    /// also accept writes cannot be split by route either. Alert rules that
+    /// mean "response-stream pressure" specifically have to select on `kind`
+    /// rather than on a bare 429.
+    pub fn record_capacity_shed(&self, kind: &str) {
+        self.capacity_sheds
+            .get_or_create(&CapacityShedLabels {
+                kind: kind.to_owned(),
+            })
+            .inc();
     }
 
     pub fn record_multipart_part(&self, result: &str) {
@@ -1867,6 +2018,11 @@ impl Metrics {
                 event: event.to_owned(),
             })
             .inc();
+        // A pass that failed is a request that errored against a peer, the
+        // successor to the bootstrap-run error the rollout gate used to read.
+        if event == "failed" {
+            self.note_peer_connection_failure();
+        }
     }
 
     pub fn update_backfill_cycle_peers(&self, backfilling: usize, budget_exhausted: usize) {
@@ -2074,6 +2230,11 @@ impl Metrics {
     pub fn update_transient_memory_reserved(&self, reserved_bytes: u64) {
         self.memory_transient_reserved_bytes
             .set(reserved_bytes as i64);
+    }
+
+    pub fn update_transient_memory_capacity(&self, capacity_bytes: u64) {
+        self.memory_transient_capacity_bytes
+            .set(capacity_bytes as i64);
     }
 
     pub fn update_foreground_memory_waiters(&self, waiters: u64) {
@@ -2307,6 +2468,10 @@ impl Metrics {
                 .rollout_snapshot
                 .fd_timeout_count
                 .load(Ordering::Relaxed),
+            peer_connection_failure_count: self
+                .rollout_snapshot
+                .peer_connection_failure_count
+                .load(Ordering::Relaxed),
         }
     }
 
@@ -2447,6 +2612,11 @@ struct ReplicationApplyLabels {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct MultipartLabels {
     result: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct CapacityShedLabels {
+    kind: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -2596,6 +2766,28 @@ struct MembershipChangeLabels {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn every_shed_kind_is_published_before_the_first_shed() {
+        // The alert and dashboard queries select the response-stream kind and
+        // fall back to counting bare 429s wherever that series is missing, so
+        // a fleet running both images reads correctly. That fallback is only
+        // safe while "series missing" means "old image" — a new pod that
+        // published the series lazily would be read as an old one and have its
+        // write sheds counted as read sheds.
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let rendered = metrics.render();
+
+        for kind in shed_kind::ALL {
+            assert!(
+                rendered
+                    .lines()
+                    .any(|line| line.starts_with("kura_capacity_sheds_total")
+                        && line.contains(&format!("kind=\"{kind}\""))),
+                "{kind} is missing from a freshly constructed registry:\n{rendered}"
+            );
+        }
+    }
+
     use super::*;
 
     #[test]
@@ -2665,6 +2857,35 @@ mod tests {
     }
 
     #[test]
+    fn module_write_sizes_are_bucketed_by_producer_alone() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        metrics.record_artifact_write(ArtifactProducer::Module, "ok", 21 * 1024 * 1024);
+        metrics.record_artifact_write(ArtifactProducer::Module, "error", 0);
+
+        let rendered = metrics.render();
+        let lines: Vec<&str> = rendered
+            .lines()
+            .filter(|line| line.starts_with("kura_artifact_write_size_bytes"))
+            .collect();
+
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("producer=\"module\""))
+        );
+        // A failed write carries no payload, so it must not land in the zero
+        // bucket and drag the quantiles that size the staging reserve down.
+        assert!(lines.iter().any(
+            |line| line.starts_with("kura_artifact_write_size_bytes_count") && line.ends_with(" 1")
+        ));
+        // The June 2026 series blowup came from a high-cardinality label on a
+        // Kura histogram; the size distribution stays producer-scoped.
+        assert!(lines.iter().all(|line| !line.contains("tenant")
+            && !line.contains("namespace")
+            && !line.contains("result=")));
+    }
+
+    #[test]
     fn render_includes_recorded_metrics() {
         let metrics = Metrics::new("eu-west".into(), "acme".into());
         metrics.record_http("/up".into(), StatusCode::OK, Duration::from_millis(10));
@@ -2690,6 +2911,8 @@ mod tests {
             Duration::from_millis(4),
         );
         metrics.record_segment_eviction(ArtifactProducer::Xcode, "ok", 2);
+        metrics.record_segment_shed_age(7_200.0);
+        metrics.record_capacity_eviction_report_dropped();
         metrics.record_replication(
             "https://kura.example.com/internal",
             "upsert_artifact",
@@ -2805,6 +3028,7 @@ mod tests {
         );
         assert!(rendered.contains("kura_artifact_reads_total"));
         assert!(rendered.contains("kura_artifact_write_bytes_total"));
+        assert!(rendered.contains("kura_artifact_write_size_bytes_bucket"));
         assert!(rendered.contains("kura_artifact_egress_completions_total"));
         assert!(rendered.contains("kura_artifact_egress_bytes_total"));
         assert!(rendered.contains("kura_artifact_egress_duration_seconds"));
@@ -2814,6 +3038,8 @@ mod tests {
         assert!(rendered.contains("transport=\"http\""));
         assert!(rendered.contains("kura_segment_refreshes_total"));
         assert!(rendered.contains("kura_segment_evicted_artifacts_total"));
+        assert!(rendered.contains("kura_segment_shed_age_seconds"));
+        assert!(rendered.contains("kura_capacity_eviction_reports_dropped_total"));
         assert!(rendered.contains("kura_replication_requests_total"));
         assert!(rendered.contains("kura_replication_apply_results_total"));
         assert!(rendered.contains("source=\"replication\""));

@@ -341,6 +341,36 @@ _member_user =
       member
   end
 
+# Create a read-only organization member. `viewer` can read dashboards, runs,
+# and tests but cannot mutate anything, so this is the account to sign in as
+# when checking that a surface degrades correctly for read-only members.
+viewer_email = "viewer@tuist.dev"
+
+_viewer_user =
+  case Accounts.get_user_by_email(viewer_email) do
+    {:error, :not_found} ->
+      {:ok, viewer} =
+        Accounts.create_user(viewer_email,
+          password: password,
+          confirmed_at: NaiveDateTime.utc_now(),
+          setup_billing: false
+        )
+
+      :ok = Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+
+      viewer
+
+    {:ok, viewer} ->
+      # `add_user_to_organization/3` is a no-op once any role row exists, so a
+      # viewer seeded before the role existed (or demoted by hand) would keep
+      # whatever role it had. Re-stamp it so re-running the seed is enough to
+      # get a working viewer back.
+      :ok = Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+      Accounts.update_user_role_in_organization(viewer, organization, :viewer)
+
+      viewer
+  end
+
 okta_seed_value = fn key, default ->
   case Environment.get([:okta, key]) do
     value when is_binary(value) ->
@@ -476,6 +506,8 @@ seed_account_token.(organization_account, "organization-projects-ci",
   all_projects: false,
   project_ids: [tuist_project.id, android_project.id]
 )
+
+Code.eval_file(Path.join(__DIR__, "automation_history_seeds.exs"))
 
 IO.puts("Generating #{seed_config.build_runs} build runs in parallel...")
 

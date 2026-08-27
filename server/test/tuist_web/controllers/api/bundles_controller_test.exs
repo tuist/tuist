@@ -308,7 +308,13 @@ defmodule TuistWeb.API.BundlesControllerTest do
 
       assert_enqueued(
         worker: BundleThresholdWorker,
-        args: %{project_id: project.id, git_commit_sha: "abc123"}
+        args: %{
+          project_id: project.id,
+          git_commit_sha: "abc123",
+          bundle_name: "Test Bundle",
+          git_ref: "refs/pull/1/merge",
+          install_size: 1024
+        }
       )
     end
 

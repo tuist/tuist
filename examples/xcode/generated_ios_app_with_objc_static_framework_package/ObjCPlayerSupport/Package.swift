@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "ObjCPlayerSupport",
+    name: "ObjCPlayer-Support",
     platforms: [
         .iOS(.v16),
     ],
@@ -16,6 +16,7 @@ let package = Package(
     targets: [
         .target(
             name: "ObjCPlayerSupport",
+            resources: [.process("Resources")],
             publicHeadersPath: "."
         ),
     ]

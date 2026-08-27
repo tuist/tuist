@@ -255,6 +255,37 @@ defmodule TuistWeb.IntegrationsLiveTest do
     assert error_html =~ "Required"
   end
 
+  test "disables the Install button on the github.com tab when no github.com App is configured",
+       %{conn: conn, organization: organization} do
+    # Regression: the install URL interpolates `TUIST_GITHUB_APP_NAME`, so
+    # with no github.com App configured the button linked to
+    # `https://github.com/apps//installations/new`, which 404s on GitHub.
+    stub(Tuist.Environment, :github_app_configured?, fn -> false end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+
+    html = render_click(lv, "select-github-com")
+
+    assert html =~ "No github.com App is configured"
+    assert html =~ "TUIST_GITHUB_APP_NAME"
+    assert has_element?(lv, "button[disabled]", "Install GitHub App")
+    refute has_element?(lv, "a", "Install GitHub App")
+  end
+
+  test "keeps the Install button enabled on the github.com tab when the App is configured", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
+      "https://github.com/apps/test-app/installations/new"
+    end)
+
+    {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+
+    refute html =~ "No github.com App is configured"
+    assert has_element?(lv, "a", "Install GitHub App")
+  end
+
   describe "delete-connection" do
     test "does not allow deleting a VCS connection belonging to a different account", %{
       conn: conn,

@@ -68,6 +68,49 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   agent registers → GH dispatches the workflow_job); 5 min is a
   generous floor that won't false-positive a slow boot.
 
+  It is a floor on *asking*, not on acting, and it is only needed
+  while the Pod is still there — the sweep cannot tell a booting
+  runner from a dead one without GitHub's answer, and paying a GitHub
+  call per `running` row per minute to find out is what the floor
+  buys off. Once the Pod is gone the ambiguity is gone with it, so the
+  pod-gone arm below skips the wait. Cutting the floor itself would
+  trade directly against cold-boot time, which is why it stays where
+  it is now that the arm covers the case it was costing.
+
+  ## Pod-gone arm
+
+  The push signal that a Pod stopped (`pods/stopped` →
+  `OrphanedRunnersWorker` in targeted mode) is the fast path, but it
+  rides a best-effort billing endpoint: a dropped POST, a controller
+  restart mid-reap, or a Pod removed by node loss, eviction or drain
+  rather than by the reap all leave nothing behind, and the customer
+  waits out the floor plus up to a full cron period of phase
+  misalignment on top.
+
+  So the same question is also asked level-triggered, off one cluster
+  read per tick: is the Pod bound to this `running` row still there?
+  Age decides which rows are candidates; absence decides what evidence
+  each candidate carries. Keeping those two separate is load-bearing: a
+  row that crosses the floor before the first successful read would
+  otherwise be filed under age for the rest of its life and never regain
+  the absence that settles the busy guard below.
+  Absence widens what is asked about, never what is acted on — every
+  candidate still goes through the GitHub cross-check — and any read
+  that fails or comes back empty narrows straight back to the age
+  gate.
+
+  Absence also settles the `executing?/1` busy guard in the queued
+  branch, which is why the evidence is threaded through rather than
+  just used to pick candidates. That guard holds a claim recording an
+  execution because the runner is presumed hard at work on a sibling's
+  job. A Pod that is gone is not, and since GitHub binds a JIT runner
+  by label set, executing a sibling's job is the *common* shape — so
+  leaving the guard in force would send precisely the population this
+  arm exists for back to `PodReconciliationWorker`'s 10-minute grace
+  plus 5-minute confirmation. The release stays handle-guarded on
+  `claimed_at`, so a row a replacement Pod has since re-claimed is
+  still untouchable.
+
   ## Targeted mode
 
   The threshold exists because the sweep cannot distinguish a
@@ -95,12 +138,13 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   so nothing else moves it. The customer sees "waiting for a
   runner" for that whole window with warm capacity sitting idle.
 
-  Targeted mode is the same `recover_one/1` with the same GitHub
+  Targeted mode is the same recovery with the same GitHub
   cross-check, so the safety story is unchanged; only the age gate
-  is skipped. The `executing?/1` guard inside it is naturally
-  satisfied rather than special-cased: the caller has already
-  deleted the claim, so a Pod that ran a sibling's job no longer
-  looks busy, which is correct — it has stopped.
+  is skipped. It also carries `:pod_stopped`, which settles the
+  `executing?/1` busy guard described under the pod-gone arm. That
+  used to be satisfied only as a side effect of the caller having
+  deleted the claim first, which made a correctness path depend on
+  one release winning a race it is not guaranteed to win.
 
   ## Cost
 
@@ -115,7 +159,9 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   use Oban.Worker, queue: :default, max_attempts: 1
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.GitHub.Client, as: GitHubClient
+  alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Telemetry
@@ -125,6 +171,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   require Logger
 
   @stale_after_seconds 300
+  @runner_label_selector "tuist.dev/runner=true"
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"workflow_job_id" => workflow_job_id, "pod_name" => pod_name}})
@@ -137,7 +184,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
         :ok
 
       %{pod_name: ^pod_name} = orphan ->
-        recover_one(orphan)
+        recover_one(orphan, :pod_stopped)
         :ok
 
       %{pod_name: current_pod} ->
@@ -175,14 +222,20 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   def perform(_job) do
     threshold = DateTime.add(DateTime.utc_now(), -@stale_after_seconds, :second)
 
-    rescued =
+    recovered =
       threshold
-      |> Jobs.list_orphaned_running()
-      |> Enum.count(&recover_one/1)
+      |> candidates()
+      |> Enum.filter(fn {orphan, evidence} -> recover_one(orphan, evidence) end)
+      |> Enum.frequencies_by(fn {_orphan, evidence} -> evidence end)
 
-    if rescued > 0 do
+    aged_out = Map.get(recovered, :aged_out, 0)
+    pod_gone = Map.get(recovered, :pod_stopped, 0)
+
+    if aged_out + pod_gone > 0 do
       Logger.warning("runners: rescued orphaned running rows",
-        count: rescued,
+        count: aged_out + pod_gone,
+        aged_out: aged_out,
+        pod_gone: pod_gone,
         stale_after_seconds: @stale_after_seconds
       )
     end
@@ -190,18 +243,106 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     :ok
   end
 
-  defp recover_one(%{workflow_job_id: workflow_job_id, account_id: account_id, repository: repository} = orphan) do
+  # `{orphan, evidence}` pairs for everything worth asking GitHub about.
+  #
+  # The floor is a stand-in for evidence: the sweep cannot tell a healthy
+  # in-flight build from an orphan without asking GitHub, so it waits 5
+  # minutes before asking. A Pod that is gone is that evidence directly.
+  # `pods/stopped` carries it sooner, but only as a push on a best-effort
+  # billing path — a dropped POST, a controller restart mid-reap, or a Pod
+  # removed by node loss, eviction or drain rather than by the reap all
+  # leave nothing behind. This asks the same question level-triggered, so
+  # the answer does not depend on how we learned.
+  #
+  # Absence widens what is asked about, never what is acted on:
+  # `recover_one/2` still cross-checks GitHub before re-queueing.
+  defp candidates(threshold) do
+    case {Jobs.list_orphaned_running(threshold), Jobs.list_running_since(threshold)} do
+      # Nothing running, no cluster read — steady state costs two queries.
+      {[], []} -> []
+      {aged, recent} -> tag_evidence(aged, recent)
+    end
+  end
+
+  defp tag_evidence(aged, recent) do
+    observed = observed_pod_names()
+
+    # An aged row is a candidate on age alone; absence, where the read
+    # proves it, is the stronger evidence and outranks age. Evaluating it
+    # here rather than only for `recent` is what stops a row that aged
+    # past the floor from losing that evidence permanently.
+    aged_candidates = Enum.map(aged, &{&1, evidence(&1, observed)})
+
+    # A row inside the floor is a candidate only once its Pod is gone. The
+    # floor still owns "Pod present but the runner never registered".
+    recent_candidates =
+      recent
+      |> Enum.filter(&pod_gone?(&1, observed))
+      |> Enum.map(&{&1, :pod_stopped})
+
+    aged_candidates ++ recent_candidates
+  end
+
+  defp evidence(orphan, observed) do
+    if pod_gone?(orphan, observed), do: :pod_stopped, else: :aged_out
+  end
+
+  defp pod_gone?(%{pod_name: pod_name}, {:ok, observed}) do
+    # A blank name matches no Pod, so it would read as absent
+    # unconditionally. Every `running` row carries the Pod that minted
+    # it; anything else is not ours to recover on this signal.
+    is_binary(pod_name) and pod_name != "" and not MapSet.member?(observed, pod_name)
+  end
+
+  defp pod_gone?(_candidate, :error), do: false
+
+  defp observed_pod_names do
+    case K8sClient.list_pods(Environment.runners_namespace(), @runner_label_selector) do
+      {:ok, items} ->
+        observed =
+          items
+          |> Enum.map(&get_in(&1, ["metadata", "name"]))
+          |> Enum.reject(&is_nil/1)
+          |> MapSet.new()
+
+        if MapSet.size(observed) == 0 do
+          # Rows are running, so the fleet cannot really be empty: a
+          # wrong selector or an empty page reads the same as every Pod
+          # vanishing at once. Narrow back to the age gate.
+          Logger.error("runners: orphan sweep read no Pods while rows are running; skipping the pod-gone arm")
+
+          :error
+        else
+          {:ok, observed}
+        end
+
+      {:error, reason} ->
+        Logger.warning("runners: orphan sweep cluster read failed; skipping the pod-gone arm",
+          reason: inspect(reason)
+        )
+
+        :error
+    end
+  end
+
+  # `evidence` is what the caller knows about the Pod behind the claim:
+  # `:pod_stopped` when it has been observed gone (reported stopped, or
+  # absent from the cluster read), `:aged_out` when the row's age is all
+  # there is to go on — including when the read failed, so a read we
+  # could not trust degrades to the old behaviour rather than to a
+  # guess. Only the queued branch reads it.
+  defp recover_one(%{workflow_job_id: workflow_job_id, account_id: account_id, repository: repository} = orphan, evidence) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id) do
       case GitHubClient.get_workflow_job(installation, repository, workflow_job_id) do
         {:ok, %{status: gh_status, conclusion: conclusion}} ->
-          handle_gh_status(gh_status, conclusion, orphan, account)
+          handle_gh_status(gh_status, conclusion, orphan, account, evidence)
 
         {:error, :not_found} ->
           # GH pruned the workflow_job (90-day retention by default).
           # The job can't be live; treat as completed so the PG cap
           # slot doesn't leak forever.
-          handle_gh_status("completed", "", orphan, account)
+          handle_gh_status("completed", "", orphan, account, evidence)
 
         {:error, reason} ->
           Logger.warning("runners: orphan worker GH lookup failed; will retry next tick",
@@ -219,7 +360,13 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     end
   end
 
-  defp handle_gh_status("queued", _conclusion, %{workflow_job_id: workflow_job_id, pod_name: pod_name} = orphan, account) do
+  defp handle_gh_status(
+         "queued",
+         _conclusion,
+         %{workflow_job_id: workflow_job_id, pod_name: pod_name} = orphan,
+         account,
+         evidence
+       ) do
     # GitHub still has this job queued, so the runner minted for it never
     # took it. That does NOT mean the Pod holding the claim is idle: GitHub
     # assigns jobs to any label-eligible runner, so it may be busy executing
@@ -231,7 +378,14 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     # `executed_workflow_job_id` is set once GitHub proves this runner took
     # some job, so it's the busy signal: skip those and let the executor's
     # completion (or the Pod stopping) free the slot.
-    if Claims.executing?(workflow_job_id) do
+    #
+    # Unless the Pod has already stopped, which is what `:pod_stopped`
+    # carries. A gone Pod is not busy, so the guard's premise is false and
+    # holding it would strand the job until the executed job's completion
+    # or `PodReconciliationWorker`'s much longer confirmation. The release
+    # below stays handle-guarded on `claimed_at`, so this cannot reach a
+    # replacement Pod's claim.
+    if evidence == :aged_out and Claims.executing?(workflow_job_id) do
       Logger.info("runners: orphaned running row — claim's runner is executing another job; leaving it",
         workflow_job_id: workflow_job_id,
         account: account.name,
@@ -244,13 +398,14 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     end
   end
 
-  defp handle_gh_status("in_progress", _conclusion, _orphan, _account), do: false
+  defp handle_gh_status("in_progress", _conclusion, _orphan, _account, _evidence), do: false
 
   defp handle_gh_status(
          "completed",
          conclusion,
          %{workflow_job_id: workflow_job_id, pod_name: pod_name, fleet_name: fleet_name},
-         account
+         account,
+         _evidence
        ) do
     # GH has a terminal status but we never saw the corresponding
     # `workflow_job.completed` webhook (or it was retry-exhausted
@@ -282,7 +437,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     true
   end
 
-  defp handle_gh_status(other, _conclusion, %{workflow_job_id: workflow_job_id}, _account) do
+  defp handle_gh_status(other, _conclusion, %{workflow_job_id: workflow_job_id}, _account, _evidence) do
     # Unknown / future GH status. Log and skip; if it's actually
     # terminal we'll catch it on a later tick once GitHub-side
     # state settles or the 404 fallback above handles retention.

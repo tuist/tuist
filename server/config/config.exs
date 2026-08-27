@@ -10,6 +10,7 @@ import Config
 # esbuild
 noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
 node_modules_path = Path.expand("../node_modules", __DIR__)
+build_path = Mix.Project.build_path()
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
@@ -48,15 +49,19 @@ config :esbuild,
       "--loader:.jpg=dataurl",
       "--loader:.png=dataurl",
       "--loader:.webp=dataurl",
+      "--loader:.woff=file",
+      "--loader:.woff2=file",
+      "--loader:.ttf=file",
       "--target=es2017",
       "--outfile=../../priv/static/marketing/assets/bundle.js",
       "--external:/fonts/*",
       "--external:/images/*",
+      "--alias:@=.",
       "--alias:noora=#{noora_static_path}/noora.js",
       "--alias:noora/noora.css=#{noora_static_path}/noora.css"
     ],
     cd: Path.expand("../assets/marketing", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+    env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{build_path}"}
   ],
   docs: [
     args: [
@@ -125,11 +130,33 @@ config :logger, :console,
     :status,
     :duration_ms,
     :auth_account_handle,
+    # Source of the request. A failed authentication carries no account, so
+    # this is the only thing it can be attributed to.
+    :client_address,
+    # Explicit sign-in outcome. Every outcome redirects, so the response status
+    # cannot distinguish a failure from a success.
+    :auth_outcome,
     :selected_account_handle,
     :selected_project_handle,
     # Operator project-access grant (forensic join key for the audit trail)
     :operator_grant_jti,
     :operator_grant_sub,
+    # Dormant operator account sweep — this line is the evidence record for
+    # the inactivity control, so the ids have to survive into the log output
+    :disabled_user_ids,
+    :scrubbed_user_ids,
+    :disabled_clock_started_user_ids,
+    :unassessable_user_ids,
+    :more_pending,
+    # Object storage deletions destroy customer data and mostly run from
+    # background workers, so these fields are the only attribution they get
+    :storage_operation,
+    :storage_account,
+    :storage_bucket,
+    :storage_prefix,
+    :storage_object_count,
+    :storage_key_prefixes,
+    :storage_outcome,
     :session_payload_bytes,
     :warning_threshold_bytes,
     # Tuist.Runners structured fields
@@ -176,6 +203,8 @@ config :logger, :console,
     :org,
     :count,
     :stale_after_seconds,
+    :aged_out,
+    :pod_gone,
     :verify_after_seconds,
     :reap_after_seconds,
     :confirmed_absent_seconds,
@@ -388,6 +417,11 @@ config :tuist, :blocked_handles, [
 
 config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
 
+# Baseline machine-minutes every account gets free per billing period.
+# Must match the first tier of the environment's runner Stripe Price;
+# see `Tuist.Runners.Allowance`.
+config :tuist, :runner_free_monthly_minutes, 100
+
 # Runner Profiles shape catalog — the (vCPU, RAM) pairs customers can
 # pick when creating a profile. This is the **dev/test/CI default**;
 # managed deploys override it at boot from `TUIST_RUNNER_LINUX_SHAPES`,
@@ -407,12 +441,17 @@ config :tuist, :runner_linux_shapes, [
   %{vcpus: 16, memory_gb: 32}
 ]
 
-# macOS shape catalog. Same role as `:runner_linux_shapes`. M2-L is the
-# only Scaleway Apple Silicon SKU on the fleet today, so only one shape
-# ships here. Managed deploys override at boot from
-# `TUIST_RUNNER_MACOS_SHAPES` (Helm injects from `runnersFleet.shapes`).
+# macOS shape catalog. Same role as `:runner_linux_shapes`. Managed
+# deploys override at boot from `TUIST_RUNNER_MACOS_SHAPES` (Helm
+# injects from `runnersFleet.shapes`).
+#
+# A macOS shape is only runnable on a host SKU whose advertised
+# `hostCPU`/`hostMemoryMB` fit it, so the catalog is per-environment on
+# the Helm side: the 12 vCPU shape needs an M4-XL and is not offered in
+# environments whose fleet is M2-L only.
 config :tuist, :runner_macos_shapes, [
-  %{vcpus: 6, memory_gb: 14, default: true}
+  %{vcpus: 6, memory_gb: 14, default: true},
+  %{vcpus: 12, memory_gb: 28}
 ]
 
 # macOS Xcode catalog. Each entry is a runnable Xcode version on the

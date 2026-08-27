@@ -125,10 +125,13 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
 
     subscription_plan = if(is_nil(subscription), do: :air, else: subscription.plan)
 
+    # `get_current_active_subscription/1` matches "active" and "trialing", so
+    # both count as live here. Comparing against "active" alone rejected every
+    # subscription in trial.
     subscription_active? =
       if(is_nil(subscription),
         do: subscription_plan == :air,
-        else: subscription.status == "active"
+        else: subscription.status in ["active", "trialing"]
       )
 
     {subscription_plan, subscription_active?, thresholds_surpassed, account.name}

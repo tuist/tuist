@@ -62,6 +62,11 @@ pub struct CacheGrants {
     pub account: GrantBucket,
     #[serde(default)]
     pub project: GrantBucket,
+    /// Accounts the server withheld from the grants because their free tier is
+    /// exhausted. Absence from the grants is otherwise indistinguishable from
+    /// never having had access, and the two need different answers.
+    #[serde(default)]
+    pub payment_required: Vec<String>,
 }
 
 impl CacheGrants {
@@ -69,7 +74,22 @@ impl CacheGrants {
     /// Absent or malformed grants read as empty rather than failing, so a token
     /// that predates them falls through to the paths that handle it.
     pub fn from_body(body: &Value) -> Self {
-        Self::from_grants_value(body.get("cache_grants"))
+        let mut grants = Self::from_grants_value(body.get("cache_grants"));
+        // Claims namespace the field alongside `cache_grants`; the introspection
+        // response names it for the object it sits in. Both carry the same list.
+        grants.payment_required = normalized_handles(
+            body.get("cache_payment_required")
+                .or_else(|| body.get("payment_required")),
+        );
+        grants
+    }
+
+    /// Whether the target was withheld for payment rather than never granted.
+    pub fn payment_required_for(&self, target: &RequestTarget) -> bool {
+        let account = target.account.to_lowercase();
+        self.payment_required
+            .iter()
+            .any(|handle| handle == &account)
     }
 
     /// The level these grants give one target: write implies read, so the
@@ -79,6 +99,8 @@ impl CacheGrants {
             Access::ReadWrite
         } else if self.allow(target, &Action::Read) {
             Access::Read
+        } else if self.payment_required_for(target) {
+            Access::PaymentRequired
         } else {
             Access::Refused
         }
@@ -86,6 +108,9 @@ impl CacheGrants {
 
     fn from_grants_value(grants: Option<&Value>) -> Self {
         Self {
+            // Filled in by `from_body`, which sees the enclosing object this
+            // only receives the grants out of.
+            payment_required: Vec::new(),
             account: GrantBucket::from_value(grants.and_then(|grants| grants.get("account"))),
             project: GrantBucket::from_value(grants.and_then(|grants| grants.get("project"))),
         }
@@ -135,6 +160,52 @@ mod tests {
 
         assert_eq!(grants.account.read, vec!["acme"]);
         assert_eq!(grants.project.write, vec!["acme/ios"]);
+    }
+
+    // Absence from the grants is how an exhausted plan arrives, and on its own
+    // it cannot be told apart from never having had access. The server names
+    // the accounts it withheld so the two get different answers.
+    #[test]
+    fn names_an_account_withheld_for_payment() {
+        for body in [
+            json!({ "cache_grants": {}, "cache_payment_required": ["acme"] }),
+            json!({ "projects": [], "payment_required": ["ACME"] }),
+        ] {
+            let grants = CacheGrants::from_body(&body);
+
+            assert!(grants.payment_required_for(&target(Scope::Project, "acme/ios")));
+            assert_eq!(
+                grants.level(&target(Scope::Project, "acme/ios")),
+                Access::PaymentRequired
+            );
+        }
+    }
+
+    #[test]
+    fn an_account_not_named_is_refused_rather_than_billed() {
+        let grants = CacheGrants::from_body(&json!({
+            "cache_grants": {},
+            "cache_payment_required": ["someone-else"]
+        }));
+
+        assert!(!grants.payment_required_for(&target(Scope::Project, "acme/ios")));
+        assert_eq!(
+            grants.level(&target(Scope::Project, "acme/ios")),
+            Access::Refused
+        );
+    }
+
+    #[test]
+    fn a_granted_account_is_never_billed() {
+        let grants = CacheGrants::from_body(&json!({
+            "cache_grants": { "project": { "read": ["acme/ios"], "write": [] } },
+            "cache_payment_required": ["acme"]
+        }));
+
+        assert_eq!(
+            grants.level(&target(Scope::Project, "acme/ios")),
+            Access::Read
+        );
     }
 
     #[test]

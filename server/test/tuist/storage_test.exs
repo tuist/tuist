@@ -627,21 +627,133 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation, opts ->
+      expect(ExAws, :request, fn ^operation, opts ->
         # Verify fast_api_req_opts are included
         assert Map.get(opts, :receive_timeout) == 5_000
         assert Map.get(opts, :pool_timeout) == 1_000
         assert Map.get(opts, :test) == :config
-        %{body: %{upload_id: upload_id}}
+        {:ok, %{body: %{upload_id: upload_id}}}
       end)
 
       # When
-      assert Storage.multipart_start(object_key, :test) == upload_id
+      assert Storage.multipart_start(object_key, :test) == {:ok, upload_id}
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
 
       assert is_number(duration)
+    end
+
+    test "returns an error and reports it when the object storage rejects the request" do
+      # Given
+      event_name = Tuist.Telemetry.event_name_storage_multipart_start_upload()
+      event_ref = :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      reason = {:http_error, 403, %{body: "<Code>InvalidAccessKeyId</Code>"}}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> %{test: :config} end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :initiate_multipart_upload, fn ^bucket_name, ^object_key ->
+        operation
+      end)
+
+      expect(ExAws, :request, fn ^operation, _opts -> {:error, reason} end)
+
+      expect(Sentry, :capture_message, fn message, opts ->
+        assert message == "Object storage rejected the start of a multipart upload"
+        assert Keyword.get(opts, :level) == :error
+        assert Keyword.get(opts, :extra)[:object_key] == object_key
+        assert Keyword.get(opts, :extra)[:reason] =~ "InvalidAccessKeyId"
+        :ok
+      end)
+
+      # When
+      got = Storage.multipart_start(object_key, :test)
+
+      # Then
+      assert got == {:error, reason}
+      refute_received {^event_name, ^event_ref, _measurements, _metadata}
+    end
+  end
+
+  describe "deletion audit logging" do
+    # The test environment runs Logger at :warning, which filters the audit
+    # line before it reaches any handler, so the level is lowered around the
+    # capture and restored afterwards. Safe here because this file is
+    # `async: false`.
+    defp capture_info_log(fun) do
+      previous = Logger.level()
+      Logger.configure(level: :info)
+
+      try do
+        ExUnit.CaptureLog.capture_log(fun)
+      after
+        Logger.configure(level: previous)
+      end
+    end
+
+    test "records the account and prefix when a prefix is deleted" do
+      # Given
+      project_slug = UUIDv7.generate()
+      account = %Account{name: "acme"}
+
+      stub(Environment, :object_storage_provider, fn -> :azure_blob end)
+      stub(AzureBlob, :delete_all_objects, fn ^project_slug -> :ok end)
+
+      # When
+      log =
+        capture_info_log(fn ->
+          Storage.delete_all_objects(project_slug, account)
+        end)
+
+      # Then
+      assert log =~ "object storage deletion"
+      assert log =~ "delete_all_objects"
+      assert log =~ "acme"
+      assert log =~ project_slug
+    end
+
+    test "records how many objects were deleted" do
+      # Given
+      account = %Account{name: "acme"}
+      object_keys = [UUIDv7.generate(), UUIDv7.generate()]
+
+      stub(Environment, :object_storage_provider, fn -> :azure_blob end)
+      stub(AzureBlob, :delete_objects, fn ^object_keys, _opts -> :ok end)
+
+      # When
+      log =
+        capture_info_log(fn ->
+          Storage.delete_objects(object_keys, account)
+        end)
+
+      # Then
+      assert log =~ "object storage deletion"
+      assert log =~ "delete_objects"
+      assert log =~ "storage_object_count=2"
+    end
+
+    test "records a failed deletion as a failure rather than staying silent" do
+      # Given
+      project_slug = UUIDv7.generate()
+      account = %Account{name: "acme"}
+
+      stub(Environment, :object_storage_provider, fn -> :azure_blob end)
+      stub(AzureBlob, :delete_all_objects, fn ^project_slug -> {:error, :list_failed} end)
+
+      # When
+      log =
+        capture_info_log(fn ->
+          Storage.delete_all_objects(project_slug, account)
+        end)
+
+      # Then
+      assert log =~ "storage_outcome=failure"
     end
   end
 
@@ -1117,14 +1229,14 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn updated_operation, _opts ->
+      expect(ExAws, :request, fn updated_operation, _opts ->
         # Verify region header is added
         assert updated_operation.headers == %{"X-Tigris-Regions" => "eur"}
-        %{body: %{upload_id: upload_id}}
+        {:ok, %{body: %{upload_id: upload_id}}}
       end)
 
       # When
-      assert Storage.multipart_start(object_key, account) == upload_id
+      assert Storage.multipart_start(object_key, account) == {:ok, upload_id}
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
@@ -1151,14 +1263,14 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn updated_operation, _opts ->
+      expect(ExAws, :request, fn updated_operation, _opts ->
         # Verify region header is added
         assert updated_operation.headers == %{"X-Tigris-Regions" => "usa"}
-        %{body: %{upload_id: upload_id}}
+        {:ok, %{body: %{upload_id: upload_id}}}
       end)
 
       # When
-      assert Storage.multipart_start(object_key, account) == upload_id
+      assert Storage.multipart_start(object_key, account) == {:ok, upload_id}
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
@@ -1185,14 +1297,14 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation, _opts ->
+      expect(ExAws, :request, fn ^operation, _opts ->
         # Verify no region headers are added
         assert operation.headers == %{}
-        %{body: %{upload_id: upload_id}}
+        {:ok, %{body: %{upload_id: upload_id}}}
       end)
 
       # When
-      assert Storage.multipart_start(object_key, account) == upload_id
+      assert Storage.multipart_start(object_key, account) == {:ok, upload_id}
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
@@ -1352,16 +1464,16 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn updated_operation, _opts ->
+      expect(ExAws, :request, fn updated_operation, _opts ->
         assert updated_operation.headers == %{}
-        %{body: %{upload_id: upload_id}}
+        {:ok, %{body: %{upload_id: upload_id}}}
       end)
 
       # When
       result = Storage.multipart_start(object_key, account)
 
       # Then
-      assert result == upload_id
+      assert result == {:ok, upload_id}
     end
 
     test "object_exists? uses custom S3 config" do

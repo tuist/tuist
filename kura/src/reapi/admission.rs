@@ -43,6 +43,10 @@ struct GrpcWriteReservation {
     decode_structural_high_water_bytes: u64,
     stream_staging_bytes: u64,
     decode_copy_multiplier: u64,
+    /// The node's whole transient budget, captured once so the staging window
+    /// can be bounded by it. A window wider than the budget it is admitted
+    /// against can never be granted, however idle the node is.
+    transient_capacity_bytes: u64,
 }
 
 impl GrpcWriteReservation {
@@ -59,6 +63,7 @@ impl GrpcWriteReservation {
             decode_structural_high_water_bytes: 0,
             stream_staging_bytes: 0,
             decode_copy_multiplier: decode_copy_multiplier.max(1),
+            transient_capacity_bytes: memory.transient_capacity_bytes(),
         })
     }
 
@@ -89,23 +94,43 @@ impl GrpcWriteReservation {
     }
 
     fn try_configure_staging(&mut self, declared_or_max_bytes: u64) -> Result<FileCachePolicy, ()> {
-        let staging_bytes = declared_or_max_bytes
-            .min(FOREGROUND_STAGING_WINDOW_BYTES)
-            .saturating_mul(2);
-        let requested_bytes = self
+        // Staging charges source plus destination -- the incoming bytes and the
+        // segment range they are copied into are both resident while the copy
+        // runs -- so the window costs twice itself. Bound the window by half the
+        // transient budget before doubling, the way `reserve_foreground_staging`
+        // does on the non-gRPC path: an unbounded window asks for a flat 32 MiB
+        // on every write of a full window or more, which a node whose whole
+        // budget is smaller than that can never grant, at any concurrency. That
+        // turns a small instance into one that refuses large blobs outright
+        // rather than staging them in narrower passes.
+        // The decode buffers are already reserved by the time the handler
+        // configures staging -- the codec grows them as it starts each message,
+        // and the first chunk carries the resource name this is derived from --
+        // so the window is bounded by what is left of the budget, not by the
+        // whole of it. Halving what remains keeps source plus destination
+        // inside it.
+        let decode_bytes = self
             .stream_message_high_water_bytes
             .saturating_mul(self.decode_copy_multiplier)
-            .saturating_add(self.decode_structural_high_water_bytes)
-            .saturating_add(staging_bytes);
+            .saturating_add(self.decode_structural_high_water_bytes);
+        let staging_budget_bytes = self.transient_capacity_bytes.saturating_sub(decode_bytes);
+        let desired_window_bytes = declared_or_max_bytes.min(FOREGROUND_STAGING_WINDOW_BYTES);
+        let window_bytes = desired_window_bytes.min(staging_budget_bytes.saturating_div(2));
+        let window_was_clamped = window_bytes < desired_window_bytes;
+        let staging_bytes = window_bytes.saturating_mul(2);
+        let requested_bytes = decode_bytes.saturating_add(staging_bytes);
         self.file_cache.try_resize(requested_bytes)?;
         self.stream_staging_bytes = staging_bytes;
-        let policy = if declared_or_max_bytes > FOREGROUND_STAGING_WINDOW_BYTES {
-            FileCachePolicy::Bounded
-        } else {
-            FileCachePolicy::Foreground {
-                reservation_bytes: requested_bytes,
-            }
-        };
+        // A clamped window holds less than the upload will move, so completed
+        // ranges have to be released as it goes rather than at the end.
+        let policy =
+            if window_was_clamped || declared_or_max_bytes > FOREGROUND_STAGING_WINDOW_BYTES {
+                FileCachePolicy::Bounded
+            } else {
+                FileCachePolicy::Foreground {
+                    reservation_bytes: requested_bytes,
+                }
+            };
         self.file_cache.set_policy(policy);
         Ok(policy)
     }
@@ -140,6 +165,8 @@ impl GrpcWriteAdmission {
             .map_err(|_| {
                 self.metrics
                     .record_memory_action("grpc_write_decode_admission_rejected");
+                self.metrics
+                    .record_capacity_shed(crate::metrics::shed_kind::REAPI_WRITE_DECODE);
                 Status::resource_exhausted(
                     "server is limiting concurrent remote-execution write decoding; retry the write",
                 )
@@ -159,6 +186,8 @@ impl GrpcWriteAdmission {
             .map_err(|_| {
                 self.metrics
                     .record_memory_action("bytestream_staging_admission_rejected");
+                self.metrics
+                    .record_capacity_shed(crate::metrics::shed_kind::REAPI_WRITE_DECODE);
                 Status::resource_exhausted(
                     "server is limiting concurrent ByteStream staging; retry the write",
                 )
@@ -475,6 +504,109 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // The remote-execution shed has to reach `kura_capacity_sheds_total`, the
+    // counter operators are told to reach for before the per-subsystem ones.
+    // It answers RESOURCE_EXHAUSTED rather than an HTTP status, so nothing else
+    // in the shed taxonomy would show a node turning writes away.
+    #[test]
+    fn a_shed_write_is_counted_as_a_capacity_shed() {
+        let metrics = crate::metrics::Metrics::new("eu-west".into(), "tenant".into());
+        let mebibyte = 1024 * 1024;
+        let memory = MemoryController::with_runtime_limit(
+            metrics.clone(),
+            256 * mebibyte,
+            64 * mebibyte,
+            96 * mebibyte,
+        );
+        memory.observe(mebibyte);
+
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.clone())
+            .expect("the initial reservation should fit");
+        // Far past the whole transient budget, so admission must refuse it.
+        admission
+            .try_grow_decode(memory.transient_capacity_bytes() * 2, 0)
+            .expect_err("a message larger than the budget must be shed");
+
+        let rendered = metrics.render();
+        assert!(
+            rendered
+                .lines()
+                .any(|line| line.starts_with("kura_capacity_sheds_total")
+                    && line.contains("reapi_write_decode")
+                    && !line.ends_with(" 0")),
+            "the write shed did not reach kura_capacity_sheds_total"
+        );
+    }
+
+    // A node whose whole transient budget is smaller than two full staging
+    // windows must still accept a large blob. Before the window was bounded by
+    // the budget, a write of one window or more asked for a flat 32 MiB and a
+    // 32 MiB node refused every one of them at concurrency one -- not under
+    // load, but always.
+    #[test]
+    fn a_large_write_fits_a_budget_smaller_than_two_staging_windows() {
+        let metrics = crate::metrics::Metrics::new("eu-west".into(), "tenant".into());
+        let mebibyte = 1024 * 1024;
+        // Watermarks chosen so the transient budget lands at 32 MiB, the pool a
+        // 176 MiB memory floor fits to.
+        let memory = MemoryController::with_runtime_limit(
+            metrics.clone(),
+            256 * mebibyte,
+            64 * mebibyte,
+            96 * mebibyte,
+        );
+        memory.observe(mebibyte);
+        assert_eq!(memory.transient_capacity_bytes(), 32 * mebibyte);
+
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.clone())
+            .expect("the initial reservation should fit");
+        // The codec reserves the first chunk's decode buffers before the
+        // handler reaches staging, so staging sees a budget already spent into.
+        admission
+            .try_grow_decode(256 * 1024, 0)
+            .expect("the first chunk's decode buffers should fit");
+        let policy = admission
+            .try_configure_staging(FOREGROUND_STAGING_WINDOW_BYTES)
+            .expect("a full-window write must be admitted on a 32 MiB budget");
+        // Bounded, not Foreground: the window is narrower than the upload, so
+        // completed ranges are released as it goes.
+        assert_eq!(policy, FileCachePolicy::Bounded);
+        assert!(
+            memory.transient_reserved_bytes() <= memory.transient_capacity_bytes(),
+            "staging reserved {} of a {} budget",
+            memory.transient_reserved_bytes(),
+            memory.transient_capacity_bytes()
+        );
+    }
+
+    // The clamp must not shrink a window the budget can afford, or every node
+    // large enough to stage at full width would start dropping page cache it
+    // had room to keep.
+    #[test]
+    fn a_budget_with_room_keeps_the_full_staging_window() {
+        let metrics = crate::metrics::Metrics::new("eu-west".into(), "tenant".into());
+        let mebibyte = 1024 * 1024;
+        let memory = MemoryController::with_runtime_limit(
+            metrics.clone(),
+            1024 * mebibyte,
+            256 * mebibyte,
+            512 * mebibyte,
+        );
+        memory.observe(mebibyte);
+        assert!(memory.transient_capacity_bytes() >= 2 * FOREGROUND_STAGING_WINDOW_BYTES);
+
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.clone())
+            .expect("the initial reservation should fit");
+        admission
+            .try_configure_staging(FOREGROUND_STAGING_WINDOW_BYTES)
+            .expect("a full-window write fits a budget with room");
+        assert_eq!(
+            memory.transient_reserved_bytes(),
+            2 * FOREGROUND_STAGING_WINDOW_BYTES,
+            "an unclamped window still charges source plus destination"
+        );
+    }
 
     #[test]
     fn streaming_reservation_expands_before_the_next_message() {

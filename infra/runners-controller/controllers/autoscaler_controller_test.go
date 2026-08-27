@@ -78,8 +78,14 @@ func newAutoscalerPool(name string, replicas int32, autoscaling *tuistv1.RunnerP
 			Namespace: "tuist-runners",
 		},
 		Spec: tuistv1.RunnerPoolSpec{
-			Replicas:      replicas,
-			Image:         "ghcr.io/tuist/tuist-linux-runner:test",
+			Replicas: replicas,
+			Image:    "ghcr.io/tuist/tuist-linux-runner:test",
+			// The apiserver defaults podMemoryMB (see the CRD marker on
+			// RunnerPoolSpec); the fake client used here does not apply
+			// CRD defaults, so the fixture has to. A pool that genuinely
+			// declares no memory request is refused by perPodCost rather
+			// than allocated at zero cost.
+			PodMemoryMB:   14336,
 			FleetSelector: name + "-fleet",
 			DispatchLabel: name + "-label",
 			Autoscaling:   autoscaling,
@@ -523,6 +529,11 @@ func TestAutoscaler_FleetReclaimsIdleHeadroomForRealLoad(t *testing.T) {
 	}
 }
 
+// macosGuestMemoryMB is the fleet's macOS Pod shape (6 vCPU / 14 GB).
+// A Mac mini host admits allocatable/this many guests, which is what
+// the allocator charges per Pod.
+const macosGuestMemoryMB = 14336
+
 func macosFleetPool(name, fleetSelector string, replicas, floor, maxRepl int32) *tuistv1.RunnerPool {
 	return &tuistv1.RunnerPool{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "tuist-runners"},
@@ -532,6 +543,7 @@ func macosFleetPool(name, fleetSelector string, replicas, floor, maxRepl int32) 
 			OS:            "darwin",
 			FleetSelector: fleetSelector,
 			DispatchLabel: name + "-label",
+			PodMemoryMB:   macosGuestMemoryMB,
 			Autoscaling: &tuistv1.RunnerPoolAutoscaling{
 				Enabled:                  true,
 				MinWarmPoolFloor:         ptr.To(floor),
@@ -542,7 +554,15 @@ func macosFleetPool(name, fleetSelector string, replicas, floor, maxRepl int32) 
 	}
 }
 
+// macosNode is a Mac mini advertising room for exactly one guest — the
+// M2-L shape. macosNodeWithGuests builds the multi-guest SKUs.
 func macosNode(name, fleetSelector string) *corev1.Node {
+	return macosNodeWithGuests(name, fleetSelector, 1)
+}
+
+// macosNodeWithGuests is a Mac mini advertising allocatable memory for
+// `guests` Pods of the fleet's shape: 1 for an M2-L, 2 for an M4-XL.
+func macosNodeWithGuests(name, fleetSelector string, guests int64) *corev1.Node {
 	return &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -551,10 +571,16 @@ func macosNode(name, fleetSelector string) *corev1.Node {
 				macosNodeOSLabel: macosNodeOSDarwin,
 			},
 		},
-		Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{
-			Type:   corev1.NodeReady,
-			Status: corev1.ConditionTrue,
-		}}},
+		Status: corev1.NodeStatus{
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceMemory: *resource.NewQuantity(
+					guests*macosGuestMemoryMB*1024*1024, resource.BinarySI),
+			},
+			Conditions: []corev1.NodeCondition{{
+				Type:   corev1.NodeReady,
+				Status: corev1.ConditionTrue,
+			}},
+		},
 	}
 }
 
@@ -590,7 +616,7 @@ func TestAutoscaler_FleetCapacityExcludesUnhealthyNodes(t *testing.T) {
 	}
 }
 
-func TestAutoscaler_MacosFleetCountExcludesUnhealthyNodes(t *testing.T) {
+func TestAutoscaler_MacosFleetCapacityExcludesUnhealthyNodes(t *testing.T) {
 	const fleet = "runners-macos"
 	ready := macosNode("ready", fleet)
 	notReady := macosNode("not-ready", fleet)
@@ -609,12 +635,42 @@ func TestAutoscaler_MacosFleetCountExcludesUnhealthyNodes(t *testing.T) {
 		Build()
 	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
 
-	got, err := r.fleetHostCount(context.Background(), fleet)
+	got, err := r.macosFleetAllocatableMemory(context.Background(), fleet)
 	if err != nil {
-		t.Fatalf("fleetHostCount: %v", err)
+		t.Fatalf("macosFleetAllocatableMemory: %v", err)
 	}
-	if got != 1 {
-		t.Fatalf("fleetHostCount = %d, want 1 Ready node", got)
+	want := int64(macosGuestMemoryMB) * 1024 * 1024
+	if got != want {
+		t.Fatalf("macosFleetAllocatableMemory = %d, want only the Ready node's memory %d", got, want)
+	}
+}
+
+// TestAutoscaler_MacosFleetCapacityCountsGuestsNotHosts is the
+// mixed-SKU case the byte-based budget exists for: one fleet label
+// spanning a single-guest M2-L and a dual-guest M4-XL. Counting hosts
+// would report 2 and leave the M4's second guest slot permanently
+// unreachable to the allocator.
+func TestAutoscaler_MacosFleetCapacityCountsGuestsNotHosts(t *testing.T) {
+	const fleet = "runners-macos"
+	m2 := macosNodeWithGuests("mac-m2", fleet, 1)
+	m4 := macosNodeWithGuests("mac-m4", fleet, 2)
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(m2, m4).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	got, err := r.macosFleetAllocatableMemory(context.Background(), fleet)
+	if err != nil {
+		t.Fatalf("macosFleetAllocatableMemory: %v", err)
+	}
+
+	perGuest := int64(macosGuestMemoryMB) * 1024 * 1024
+	if slots := got / perGuest; slots != 3 {
+		t.Fatalf("guest slots = %d, want 3 (1 from the M2-L + 2 from the M4-XL)", slots)
 	}
 }
 
@@ -642,17 +698,17 @@ func TestAutoscaler_FilteredZeroCapacityFallsBackToPerPoolTarget(t *testing.T) {
 
 // TestAutoscaler_MacosFleetSqueezesIdleHeadroomAgainstHostBudget is
 // the macOS analog of TestAutoscaler_FleetReclaimsIdleHeadroomForRealLoad:
-// two Xcode pools share a Mac mini fleet, each Pod claims one host
-// (PerPodCost = 1). With hostCount = 3 the busy pool's real load is
-// honored in full and the idle pool's speculative p95 warm buffer is
-// reclaimed against the slot budget.
+// two Xcode pools share a Mac mini fleet, each Pod charging one guest
+// slot's worth of memory. With a 3-slot fleet the busy pool's real
+// load is honored in full and the idle pool's speculative p95 warm
+// buffer is reclaimed against the budget.
 func TestAutoscaler_MacosFleetSqueezesIdleHeadroomAgainstHostBudget(t *testing.T) {
 	const fleet = "runners-macos"
 	busy := macosFleetPool("macos-busy", fleet, 1, 1, 5)
 	idle := macosFleetPool("macos-idle", fleet, 1, 1, 5)
-	// 3 Mac minis = 3 slots. Floors sum to 2; busy load = 2 needs 2
-	// more; that leaves 0 slots for speculative headroom — idle's p95
-	// buffer is fully reclaimed.
+	// 3 single-guest Mac minis = 3 slots. Floors sum to 2; busy load =
+	// 2 needs 2 more; that leaves 0 slots for speculative headroom —
+	// idle's p95 buffer is fully reclaimed.
 	host1 := macosNode("mac-1", fleet)
 	host2 := macosNode("mac-2", fleet)
 	host3 := macosNode("mac-3", fleet)
@@ -716,8 +772,8 @@ func TestAutoscaler_MacosFleetGrantsHeadroomWhenSlotsAvailable(t *testing.T) {
 	const fleet = "runners-macos"
 	a := macosFleetPool("macos-a", fleet, 1, 1, 9)
 	b := macosFleetPool("macos-b", fleet, 1, 0, 9)
-	// 9 hosts, floors sum to 1, no queued load anywhere — plenty of
-	// headroom for `a`'s speculative warm.
+	// 9 single-guest hosts = 9 slots, floors sum to 1, no queued load
+	// anywhere — plenty of headroom for `a`'s speculative warm.
 	var nodes []client.Object
 	for i := 1; i <= 9; i++ {
 		nodes = append(nodes, macosNode(fmt.Sprintf("mac-%d", i), fleet))
@@ -765,5 +821,200 @@ func TestAutoscaler_MacosFleetGrantsHeadroomWhenSlotsAvailable(t *testing.T) {
 	// only its floor (0). Full target granted.
 	if gotA.Spec.Replicas != 5 {
 		t.Errorf("a Replicas = %d, want 5 (full speculative buffer granted)", gotA.Spec.Replicas)
+	}
+}
+
+// A pool with no per-Pod cost must not take its siblings down with it.
+// perPodCost returning an error freezes every pool in the capacity
+// domain at its current replicas — correct for an unreadable
+// RuntimeClass, far too broad for one pool with a bad number in its own
+// spec. The costless pool is dropped from the allocation; its siblings
+// keep allocating normally.
+func TestAutoscaler_CostlessPoolDoesNotFreezeItsSiblings(t *testing.T) {
+	const fleet = "runners-macos"
+	healthy := macosFleetPool("macos-healthy", fleet, 1, 1, 5)
+	broken := macosFleetPool("macos-broken", fleet, 3, 1, 5)
+	broken.Spec.PodMemoryMB = 0
+
+	nodes := []client.Object{
+		macosNodeWithGuests("mac-1", fleet, 1),
+		macosNodeWithGuests("mac-2", fleet, 2),
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	objs := append([]client.Object{healthy, broken}, nodes...)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objs...).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	signalsByFleet := map[string]scaling.Signals{
+		"macos-healthy": {Fleet: "macos-healthy", Claimed: 0, Queued: 0, P95ConcurrentLastHour: 2},
+		"macos-broken":  {Fleet: "macos-broken", Claimed: 0, Queued: 0, P95ConcurrentLastHour: 0},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(signalsByFleet[r.URL.Query().Get("fleet")])
+	}))
+	defer server.Close()
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	_ = os.WriteFile(tokenPath, []byte("test-token"), 0o600)
+	sc := scaling.NewClient(server.URL)
+	sc.TokenPath = tokenPath
+
+	r := &AutoscalerReconciler{
+		Client:        fakeClient,
+		Scheme:        scheme,
+		SignalsClient: sc,
+		PollInterval:  time.Millisecond,
+	}
+
+	reconcileOnce(t, r, "macos-healthy")
+
+	got := &tuistv1.RunnerPool{}
+	if err := fakeClient.Get(context.Background(),
+		client.ObjectKey{Name: "macos-healthy", Namespace: "tuist-runners"}, got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+
+	// 3 slots, sibling excluded, so the healthy pool gets its full
+	// per-pool target (p95 2 + floor 1 = 3). Frozen-at-current would
+	// have left it on the 1 it started with.
+	if got.Spec.Replicas != 3 {
+		t.Fatalf("healthy pool Replicas = %d, want 3; a sibling with no podMemoryMB froze the whole capacity domain",
+			got.Spec.Replicas)
+	}
+}
+
+// Kata's podFixed overhead is a legitimate source of per-Pod cost, so a
+// Linux pool declaring podMemoryMB: 0 alongside a RuntimeClass still has
+// a real cost and must keep allocating. The zero check runs after the
+// overhead is folded in for exactly this reason.
+func TestAutoscaler_PerPodCostCountsRuntimeClassOverheadOnZeroRequest(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 0, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+
+	rc := &nodev1.RuntimeClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "kata-qemu"},
+		Handler:    "kata-qemu",
+		Overhead: &nodev1.Overhead{
+			PodFixed: corev1.ResourceList{
+				corev1.ResourceMemory: *resource.NewQuantity(256*1024*1024, resource.BinarySI),
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(pool, rc).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	cost, err := r.perPodCost(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("perPodCost: %v", err)
+	}
+	if want := int64(256 * 1024 * 1024); cost != want {
+		t.Fatalf("perPodCost = %d, want the RuntimeClass overhead %d", cost, want)
+	}
+}
+
+// macosNodeWithResources is a Mac mini advertising both dimensions, as
+// tart-kubelet does (hostCPU / hostMemoryMB verbatim, no reserve). The
+// memory-only helper above predates the shape cap, which needs CPU too.
+func macosNodeWithResources(name, fleetSelector string, cpu int64, memoryMB int64) *corev1.Node {
+	node := macosNodeWithGuests(name, fleetSelector, 1)
+	node.Status.Allocatable = corev1.ResourceList{
+		corev1.ResourceCPU:    *resource.NewQuantity(cpu, resource.DecimalSI),
+		corev1.ResourceMemory: *resource.NewQuantity(memoryMB*1024*1024, resource.BinarySI),
+	}
+	return node
+}
+
+// The production topology: 9 M2-L (8 CPU / 14336 MB) + 2 M4-XL
+// (12 CPU / 28672 MB). The 6 vCPU shape seats 13, the 12 vCPU shape
+// seats 2 — and the second number is the one no fleet-wide division can
+// produce, since 186368 MB / 28672 reads as 6.
+func TestAutoscaler_ShapePlacementCapsCountSeatsPerNode(t *testing.T) {
+	const fleet = "runners-macos"
+
+	objects := []client.Object{}
+	for i := 0; i < 9; i++ {
+		objects = append(objects, macosNodeWithResources(fmt.Sprintf("m2-%d", i), fleet, 8, 14336))
+	}
+	for i := 0; i < 2; i++ {
+		objects = append(objects, macosNodeWithResources(fmt.Sprintf("m4-%d", i), fleet, 12, 28672))
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	small := podShape{cpuMilli: 6000, memoryMB: 14336}
+	large := podShape{cpuMilli: 12000, memoryMB: 28672}
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "darwin", FleetSelector: fleet}}
+
+	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{
+		small.key(): small,
+		large.key(): large,
+	})
+	if err != nil {
+		t.Fatalf("shapePlacementCaps: %v", err)
+	}
+
+	if got := caps[small.key()]; got != 13 {
+		t.Fatalf("6 vCPU seats = %d, want 13 (9 M2-L at one + 2 M4-XL at two)", got)
+	}
+	if got := caps[large.key()]; got != 2 {
+		t.Fatalf("12 vCPU seats = %d, want 2 (M4-XL only, one guest each)", got)
+	}
+}
+
+// CPU binds a shape whose memory-per-vCPU is richer than its host's.
+// Dividing advertised memory alone would report four seats on a host
+// whose twelve cores can only run two.
+func TestAutoscaler_ShapePlacementCapsBindOnCPUNotOnlyMemory(t *testing.T) {
+	const fleet = "runners-macos"
+	node := macosNodeWithResources("m4", fleet, 12, 57344)
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(node).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	shape := podShape{cpuMilli: 6000, memoryMB: 14336}
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "darwin", FleetSelector: fleet}}
+
+	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape})
+	if err != nil {
+		t.Fatalf("shapePlacementCaps: %v", err)
+	}
+	if got := caps[shape.key()]; got != 2 {
+		t.Fatalf("seats = %d, want 2 (12 cores / 6), not the 4 that 57344/14336 would suggest", got)
+	}
+}
+
+// Linux opts out: kata pins memory per sandbox and oversubscribes CPU,
+// so a CPU quotient would cap a fleet that is not CPU-bound.
+func TestAutoscaler_ShapePlacementCapsSkipLinux(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	shape := podShape{cpuMilli: 2000, memoryMB: 8192}
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: "runners-linux"}}
+
+	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape})
+	if err != nil {
+		t.Fatalf("shapePlacementCaps: %v", err)
+	}
+	if caps != nil {
+		t.Fatalf("Linux must not be capped, got %v", caps)
 	}
 }

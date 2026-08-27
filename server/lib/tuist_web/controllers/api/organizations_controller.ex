@@ -266,11 +266,28 @@ defmodule TuistWeb.API.OrganizationsController do
             }
           )
 
+        member_ids = admin_ids ++ Enum.map(users, & &1.id)
+
+        viewers =
+          organization
+          |> Accounts.get_organization_members(:viewer)
+          |> Enum.filter(fn member ->
+            member.id not in member_ids
+          end)
+          |> Enum.map(
+            &%{
+              id: &1.id,
+              email: &1.email,
+              name: &1.account.name,
+              role: "viewer"
+            }
+          )
+
         json(conn, %{
           id: organization.id,
           name: organization_name,
           plan: Billing.effective_plan(organization.account),
-          members: admins ++ users,
+          members: admins ++ users ++ viewers,
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
           sso_enforced: organization.sso_enforced,
@@ -286,7 +303,8 @@ defmodule TuistWeb.API.OrganizationsController do
                   name: &1.inviter.account.name
                 },
                 token: &1.token,
-                organization_id: &1.organization_id
+                organization_id: &1.organization_id,
+                role: &1.role
               }
             )
         })
@@ -613,7 +631,7 @@ defmodule TuistWeb.API.OrganizationsController do
          properties: %{
            role: %Schema{
              type: :string,
-             enum: ["admin", "user"],
+             enum: Accounts.organization_role_names(),
              description: "The role to update the member to"
            }
          },

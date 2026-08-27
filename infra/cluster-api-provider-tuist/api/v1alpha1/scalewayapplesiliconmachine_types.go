@@ -93,6 +93,102 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// +optional
 	HostMemoryMB int `json:"hostMemoryMB,omitempty"`
 
+	// GuestCapacity is how many Tart guests this host is expected to
+	// run concurrently. Falls back to the operator's
+	// `--tartkubelet-guest-capacity` global default (1) when unset.
+	//
+	// This is the SKU's INTENT, not an enforcement point. What
+	// actually bounds the guest count is (a) kube-scheduler fitting
+	// Pods into HostCPU/HostMemoryMB and (b) Tart refusing to start a
+	// third VM per Apple's SLA. GuestCapacity exists because several
+	// host-level resources are sized per guest and would otherwise
+	// each need their own field:
+	//
+	//   * the VNC relay port range — a pinned relay port is per-host
+	//     but a relay is per-Pod, so a second guest needs a second
+	//     port (and the per-Mac egress Service has to declare it).
+	//   * the disk-pressure goldens floor — a host running guests from
+	//     two pools wants one golden per pool, or reclaiming under
+	//     pressure strands a pool into a full cold image pull.
+	//
+	// Keep it consistent with HostCPU/HostMemoryMB: the value should be
+	// what those two actually admit at the fleet's Pod shape. Setting
+	// it higher does not create capacity, it only over-provisions the
+	// per-guest resources above; setting it lower silently degrades the
+	// second guest (no relay port, a golden it has to re-pull).
+	// +optional
+	GuestCapacity int `json:"guestCapacity,omitempty"`
+
+	// MaxPods is the Pod ceiling tart-kubelet advertises on its Node
+	// (`--max-pods`). Falls back to the operator's
+	// `--tartkubelet-max-pods` global default (2) when unset.
+	//
+	// It counts EVERY Pod bound to the Node, not just Tart-VM Pods,
+	// and a Pod stays bound after it finishes — a terminal Pod holds
+	// its slot until GC collects it. Measured on the live fleet
+	// (2026-08-25): a single-guest host was carrying its Running Pod
+	// plus the previous rollout's Succeeded one. So size this as
+	// guests x 2 + 1: each guest slot can transiently hold its running
+	// Pod and one not-yet-collected predecessor, and the +1 is margin.
+	// 3 for a single-guest host, 5 for a dual-guest one.
+	//
+	// Keep the margin. HostCPU/HostMemoryMB bind the guest count before
+	// MaxPods does, so a higher value admits no extra guest; but a node
+	// sitting exactly at its ceiling rejects Pods with "Too many pods"
+	// while the autoscaler still counts its slots as available, so it
+	// keeps targeting a node that cannot take them until GC catches up.
+	//
+	// No allowance for host-system Pods. hcloud-csi-node, the usual
+	// suspect, is kept off macOS by a `kubernetes.io/os NotIn [darwin]`
+	// required nodeAffinity — not by the macOS taint, which its blanket
+	// `Exists` tolerations ignore — and nothing else targets these
+	// Nodes.
+	//
+	// This is not where Apple's 2-guest SLA is enforced and does not
+	// need to be: Tart refuses to start a third VM, and
+	// HostCPU/HostMemoryMB bind the guest count before MaxPods does.
+	// The error costs are lopsided — too low stalls a real guest slot
+	// until GC catches up, too high admits nothing extra — so it is
+	// sized for the worst case.
+	// +optional
+	MaxPods int `json:"maxPods,omitempty"`
+
+	// RunnerCacheVolumeGiB is the quota (GiB) of the dedicated APFS
+	// volume host bootstrap provisions to hold per-account cache-volume
+	// images. Unset (nil) falls back to the operator's
+	// `--runner-cache-volume-gib` global default; an explicit 0
+	// disables cache volumes on this host entirely (every VM boots on
+	// the cold path).
+	//
+	// A pointer, unlike its sibling sizing fields, because 0 is a
+	// meaningful value here and nonsense for them — a host with no CPU
+	// or no Pod ceiling does not exist, but a host with cache volumes
+	// switched off is an ordinary thing to want. With a scalar the two
+	// states collapse and an operator asking a SKU to run cold gets the
+	// fleet default instead, silently. That matters when bringing a new
+	// SKU into a fleet whose global is already non-zero: staging the
+	// host cold first and enabling the cache once it is validated is
+	// how this feature was rolled out in the first place.
+	//
+	// Per-Machine because the right quota is a function of the SKU's
+	// disk, and the SKUs differ by 4x: the 512 GB M2-L has no room
+	// above ~80 GiB once the ~85 GB goldens and a job VM's transient
+	// CoW growth are accounted for, while a 2 TB M4 can hold several
+	// times that. Resident masters scale as
+	// `gib / masterCapGib - (liveBranches + 1)`, and a dual-guest host
+	// can have two live branches, so a host that runs two VMs needs a
+	// LARGER quota than a single-guest host just to hold the same
+	// number of accounts hot.
+	//
+	// The provisioning script never resizes an existing volume (see
+	// renderRunnerCacheVolumeScript), so changing this on a live host
+	// is inert until that host is replaced. That is why it is safe to
+	// vary per Machine even though it participates in the host-config
+	// hash: a drifted host re-runs an idempotent script that early-
+	// returns on the already-mounted volume.
+	// +optional
+	RunnerCacheVolumeGiB *int `json:"runnerCacheVolumeGiB,omitempty"`
+
 	// AdoptPoolPrefix is the Scaleway-side name prefix the controller
 	// scans when claiming a Mac mini for this Machine. The controller
 	// has no auto-order path, so a prefix must resolve from somewhere:

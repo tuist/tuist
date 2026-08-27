@@ -7,13 +7,25 @@ name: macOS + Xcode Image
 # Per-Xcode image model: each invocation produces ONE image with
 # ONE Xcode. The push tag carries the full version with dots →
 # dashes:
-#   xcode_version=26.5     → <registry>/macos-tahoe-xcode:26-5
-#   xcode_version=26.4.1   → <registry>/macos-tahoe-xcode:26-4-1
-#   xcode_version=26.0.1   → <registry>/macos-tahoe-xcode:26-0-1
+#   xcode_version=26.5         → <registry>/macos-tahoe-xcode:26-5
+#   xcode_version=26.4.1       → <registry>/macos-tahoe-xcode:26-4-1
+#   xcode_version=26.0.1       → <registry>/macos-tahoe-xcode:26-0-1
+#   xcode_version=27.0-beta-6  → <registry>/macos-tahoe-xcode:27-0-beta-6
+#                                 plus the :27-0-beta channel tag
 #
-# Customer-facing fleet selects between these via a runner profile
-# (`runs-on: tuist-macos-xcode-26-5`, etc.) once that wiring lands.
-# For now, the chart pins one image at a time as the default.
+# Prereleases publish both: the exact tag is immutable and records
+# which beta an image holds, the channel tag moves onto each new
+# one. `profiles.json` and the chart catalog both name the channel,
+# so a beta bump is a republish here plus the next runner-image
+# release, with no repo edit. Naming the exact tag instead would
+# strand every Runner Profile pointing at it once beta 7 landed,
+# and a stranded macOS profile queues its jobs forever. Newest
+# dispatch wins the channel.
+#
+# Publishing here does not put a tag in front of customers: the
+# active set is `profiles.json` crossed with
+# `runnersFleet.xcodeVersions`. Runbook in
+# `infra/macos-xcode-image/AGENTS.md`.
 #
 # .xip source: pulled from `ghcr.io/tuist/xcode-xips:<version>`,
 # our in-house mirror populated by `mise run xcode-mirror:upload`
@@ -26,7 +38,7 @@ on:
   workflow_dispatch:
     inputs:
       xcode_version:
-        description: "Xcode version to install (e.g. 26.4.1, 26.5). Must be available on developer.apple.com. Drives the push tag (dots → dashes)."
+        description: "Xcode version slug as printed by `mise run xcode-mirror:upload` (e.g. 26.4.1, 26.5, 27.0-beta-6). Must already be in the .xip mirror. Drives the push tag (dots → dashes)."
         required: true
       base_image:
         description: "Base Tart image to layer Xcode onto"
@@ -51,7 +63,7 @@ jobs:
     # A fresh Xcode major's `-downloadAllPlatforms` pulls brand-new
     # simulator runtimes from Apple that aren't cached yet, which can
     # push the build step alone past 50 min (26.6 took ~54 min) and
-    # leave little room for a deliberately low-concurrency image upload.
+    # leave little room for the image upload that follows.
     # Three hours covers both phases and the upload's retry budget.
     timeout-minutes: 180
     steps:
@@ -98,6 +110,7 @@ jobs:
         run: |
           set -euo pipefail
           XCODE_XIP_DIR="${RUNNER_TEMP:-/tmp}/xcode-xip"
+          rm -rf "$XCODE_XIP_DIR"
           mkdir -p "$XCODE_XIP_DIR"
           # Explicit oras login here (not at workflow top) because
           # oras' login persists to ~/.docker/config.json, which
@@ -109,16 +122,27 @@ jobs:
               echo "Error: Xcode ${XCODE_VERSION} is not in the mirror at"
               echo "ghcr.io/tuist/xcode-xips:${XCODE_VERSION}."
               echo ""
-              echo "Populate the mirror from a maintainer Mac:"
+              echo "Populate the mirror from a maintainer Mac, passing the"
+              echo "version string as \`xcodes list\` prints it. The task"
+              echo "slugs it back to ${XCODE_VERSION} and prints what it used:"
               echo ""
-              echo "  mise run xcode-mirror:upload ${XCODE_VERSION}"
+              echo "  mise run xcode-mirror:upload <apple-version-string>"
               echo ""
-              echo "Then re-trigger this workflow."
+              echo "Then re-trigger this workflow with xcode_version=${XCODE_VERSION}."
             } >&2
             exit 1
           fi
-          XCODE_XIP=$(ls "$XCODE_XIP_DIR"/Xcode-${XCODE_VERSION}*.xip | head -n1)
-          test -f "$XCODE_XIP"
+          # Match on the extension, not the version: xcodes names a
+          # download after its own semver rendering of the version
+          # plus Apple's build number, not after the string it was
+          # given, so a 27.0-beta-6 pull arrives as
+          # `Xcode-27.0.0-Beta.6+27A5252f.xip`. The directory is
+          # emptied above, so one .xip is in it.
+          XCODE_XIP=$(ls "$XCODE_XIP_DIR"/*.xip 2>/dev/null | head -n1 || true)
+          if [ -z "$XCODE_XIP" ] || [ ! -f "$XCODE_XIP" ]; then
+            echo "Error: mirror pull produced no .xip in $XCODE_XIP_DIR" >&2
+            exit 1
+          fi
           echo "Have $(basename "$XCODE_XIP") ($(du -h "$XCODE_XIP" | awk '{print $1}'))"
           echo "path=${XCODE_XIP}" >> "$GITHUB_OUTPUT"
 
@@ -177,8 +201,9 @@ jobs:
             macos-xcode.pkr.hcl
 
           # Tag is the full version with dots → dashes:
-          #   26.4.1 → 26-4-1
-          #   26.5   → 26-5
+          #   26.4.1      → 26-4-1
+          #   26.5        → 26-5
+          #   27.0-beta-6 → 27-0-beta-6
           # Downstream images (runner-image, xcresult-processor) and
           # the chart's `runnersFleet.runnerImage` digest pin reference
           # this tag, so a 26.4.0 → 26.4.1 Apple bump is a *new* tag
@@ -186,29 +211,51 @@ jobs:
           TAG=$(echo "${XCODE_VERSION}" | tr '.' '-')
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
+          # Prereleases also publish a channel tag with the beta
+          # number dropped. That is the tag profiles.json names, so
+          # moving it is what puts a new beta in front of the next
+          # runner-image release. Beta 1 carries no number, so its
+          # slug already IS the channel and the second tag is
+          # skipped rather than pushed twice.
+          #   27.0-beta-6              is 27-0-beta
+          #   27.0-release-candidate-2 is 27-0-release-candidate
+          #   26.4.1                   has none; stable
+          CHANNEL_TAG=""
+          if [[ "$TAG" =~ ^(.+-(beta|rc|release-candidate))-[0-9]+$ ]]; then
+            CHANNEL_TAG="${BASH_REMATCH[1]}"
+          fi
+          echo "channel_tag=${CHANNEL_TAG}" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$CHANNEL_TAG" ]; then
+            echo "Publishing :${TAG} and moving :${CHANNEL_TAG} onto it"
+          else
+            echo "Publishing :${TAG}"
+          fi
+
       # Logging in AFTER the Packer build is intentional: this image's
       # base is the *public* `ghcr.io/cirruslabs/macos-tahoe-base`, so
       # Packer's clone is anonymous (see the credential-dropping step
       # above). Auth is needed only for the push that follows.
-      - name: Log in to the Tuist OCI registry
-        uses: ./.github/actions/oci-registry-login
-        with:
-          host: ${{ vars.OCI_REGISTRY_HOST }}
-          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
-          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
-      # 64 MB chunks, where GHCR was pinned at 3 because it rejects
-      # anything from 4 up and rate-limited the resulting request
-      # volume. For a ~50 GB image that is roughly 1,000 requests
-      # instead of ~17,000, which is the reason for the move.
-      - name: Push image to the Tuist OCI registry
+      - name: Push image to GHCR
         timeout-minutes: 90
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         uses: ./.github/actions/tart-push
         with:
           local-name: macos-tahoe-xcode
-          remote-names: ${{ vars.OCI_REGISTRY_HOST }}/macos-tahoe-xcode:${{ steps.build.outputs.tag }}
-          chunk-size: "64"
-          concurrency: "4"
+          # `tart push` takes several remote names in one call and
+          # the blobs are shared, so the channel tag costs a manifest
+          # write rather than a second upload of a ~50 GB image.
+          remote-names: |
+            ghcr.io/tuist/macos-tahoe-xcode:${{ steps.build.outputs.tag }}
+            ${{ steps.build.outputs.channel_tag && format('ghcr.io/tuist/macos-tahoe-xcode:{0}', steps.build.outputs.channel_tag) || '' }}
 
       - name: Cleanup
         if: always()

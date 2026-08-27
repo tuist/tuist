@@ -31,6 +31,7 @@ pub(super) struct MemoryPools {
     elastic_foreground_response_streaming: Arc<Semaphore>,
     background_response_streaming: Arc<Semaphore>,
     response_stream_waiters: Arc<Semaphore>,
+    response_stream_waiter_capacity: usize,
     response_stream_admission: Arc<Mutex<()>>,
     degraded_response_streaming: Arc<Semaphore>,
     mmap_serving_bytes: usize,
@@ -105,6 +106,7 @@ impl MemoryPools {
                 background_response_streaming_bytes,
             )),
             response_stream_waiters: Arc::new(Semaphore::new(response_stream_waiters)),
+            response_stream_waiter_capacity: response_stream_waiters,
             response_stream_admission: Arc::new(Mutex::new(())),
             degraded_response_streaming: Arc::new(Semaphore::new(degraded_response_stream_slots)),
             mmap_serving_bytes,
@@ -215,6 +217,10 @@ impl MemoryPools {
             .clone()
             .try_acquire_many_owned(permits)
             .map_err(|_| ())
+    }
+
+    pub(super) fn response_stream_waiter_capacity(&self) -> usize {
+        self.response_stream_waiter_capacity
     }
 
     pub(super) fn try_acquire_response_stream_waiter(&self) -> Result<OwnedSemaphorePermit, ()> {

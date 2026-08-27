@@ -96,7 +96,33 @@ type Reconciler struct {
 	VNCRelayHost string
 	// VNCRelayPort pins the host-side VNC relay port. 0 uses an
 	// ephemeral port, matching the per-request relay default.
+	//
+	// When VNCRelayPortCount > 1 this is the BASE of a contiguous
+	// range rather than a single port.
 	VNCRelayPort int
+
+	// VNCRelayPortCount is how many contiguous ports from VNCRelayPort
+	// a relay may bind. 0 or 1 means the single pinned port, which is
+	// the historical behaviour.
+	//
+	// A pinned port is a per-HOST resource but a relay is a per-POD
+	// one, so a host running more than one guest needs more than one
+	// port or the second guest's relay fails to bind and interactive
+	// sessions silently stop working on half the fleet. The range is
+	// walked in order and the first port that binds wins; the OS is
+	// the authority on what is free, so there is no allocation table
+	// to keep in sync with reality across restarts.
+	//
+	// Callers must declare every port in the range on whatever fronts
+	// the host (the per-Mac Tailscale egress Service). Downstream
+	// consumers already read the ACTUAL bound port out of the
+	// listener (writeVNCState) and republish it on the
+	// tuist.dev/vnc-relay-port Pod annotation, so nothing besides the
+	// bind needs to know which port a given Pod won.
+	//
+	// Ignored when VNCRelayPort is 0: an ephemeral relay has the whole
+	// ephemeral range and never collides.
+	VNCRelayPortCount int
 
 	Tart     *tart.Client
 	Resolver *envresolver.Resolver
@@ -290,6 +316,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// status share (and the guest's report in it) with it.
 			exitCode, exitReason := r.runnerTermination(entry, exitErr)
 			finishedAt := runnerFinishedAt(entry)
+			// Re-emit the guest's own log before deleteByKey takes the
+			// status share with it. This is tart-kubelet's durable stdout,
+			// which the host log shipper already tails, so the trail reaches
+			// Loki without the shipper needing to discover per-VM shares.
+			// Unconditional: exitCode does not discriminate here (a runner
+			// that halted without taking a job reports 0 exactly like a
+			// finished one), so gating on it would drop the cases worth
+			// keeping.
+			if tail := readRunnerLog(entry.VolumeStatusDir); tail != "" {
+				logger.Info("runner log", "vm", entry.VMName, "runnerLog", tail)
+			}
 			r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], exitErr == nil)
 			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
 
@@ -856,16 +893,11 @@ func (r *Reconciler) startVNCForwarder(ctx context.Context, pod *corev1.Pod, ent
 	if entry.VNCForwarder == nil {
 		target := net.JoinHostPort(vncInfo.Host, strconv.Itoa(vncInfo.Port))
 		resolve := func() (string, error) { return target, nil }
-		listenPort := "0"
-		if r.VNCRelayPort > 0 {
-			listenPort = strconv.Itoa(r.VNCRelayPort)
-		}
-		listenAddr := net.JoinHostPort(r.NodeIP, listenPort)
 		allowed := r.ScrapeAllowedCIDRs
 		if len(allowed) == 0 {
 			allowed = DefaultScrapeAllowedCIDRs()
 		}
-		fw, err := NewVNCForwarder(listenAddr, resolve, vncInfo.Password, relayTokenHash, TCPForwarderOptions{AllowedCIDRs: allowed})
+		fw, listenAddr, err := r.bindVNCForwarder(resolve, vncInfo.Password, relayTokenHash, allowed)
 		if err != nil {
 			return fmt.Errorf("start VNC forwarder for %s/%s on %s: %w", pod.Namespace, pod.Name, listenAddr, err)
 		}
@@ -874,6 +906,58 @@ func (r *Reconciler) startVNCForwarder(ctx context.Context, pod *corev1.Pod, ent
 	}
 
 	return r.writeVNCState(ctx, pod, entry, vncInfo)
+}
+
+// bindVNCForwarder starts the host-side relay on the first port of the
+// pinned range that is free, or on an ephemeral port when no range is
+// pinned. Returns the forwarder and the address it bound (or, on
+// failure, the last address attempted, so the caller's error names
+// something concrete).
+//
+// Walking the range instead of tracking allocations ourselves means a
+// relay leaked by a crashed process, a port taken by something else on
+// the host, and a sibling guest's live relay are all the same case: the
+// bind fails and we move on. There is no table that can disagree with
+// the kernel.
+func (r *Reconciler) bindVNCForwarder(
+	resolve func() (string, error),
+	password string,
+	relayTokenHash string,
+	allowed []*net.IPNet,
+) (*TCPForwarder, string, error) {
+	opts := TCPForwarderOptions{AllowedCIDRs: allowed}
+
+	if r.VNCRelayPort <= 0 {
+		listenAddr := net.JoinHostPort(r.NodeIP, "0")
+		fw, err := NewVNCForwarder(listenAddr, resolve, password, relayTokenHash, opts)
+		return fw, listenAddr, err
+	}
+
+	count := r.VNCRelayPortCount
+	if count < 1 {
+		count = 1
+	}
+
+	var (
+		lastErr  error
+		lastAddr string
+	)
+	for offset := 0; offset < count; offset++ {
+		port := r.VNCRelayPort + offset
+		if port > 65535 {
+			break
+		}
+		lastAddr = net.JoinHostPort(r.NodeIP, strconv.Itoa(port))
+		fw, err := NewVNCForwarder(lastAddr, resolve, password, relayTokenHash, opts)
+		if err == nil {
+			return fw, lastAddr, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no port in range %d-%d", r.VNCRelayPort, r.VNCRelayPort+count-1)
+	}
+	return nil, lastAddr, lastErr
 }
 
 func (r *Reconciler) stopVNCForwarder(namespace, name string, entry *Entry) {
@@ -1239,6 +1323,12 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		// and the only exit time there will ever be.
 		exitCode, exitReason := r.runnerTermination(entry, nil)
 		finishedAt := runnerFinishedAt(entry)
+		// Same reason as the terminal path: publish the guest's log while
+		// the share still exists. This path has even less to go on — there
+		// is no `tart run` error at all — so the log is the whole story.
+		if tail := readRunnerLog(entry.VolumeStatusDir); tail != "" {
+			log.FromContext(ctx).Info("runner log", "vm", entry.VMName, "runnerLog", tail)
+		}
 		r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], true)
 		// Tear down the Tart clone + Store entry so the host state mirrors what
 		// the API server will see post-update, then mark the Pod Succeeded so

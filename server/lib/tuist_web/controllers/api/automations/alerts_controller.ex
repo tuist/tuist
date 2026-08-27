@@ -5,6 +5,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
   alias OpenApiSpex.Schema
   alias Tuist.Automations
   alias TuistWeb.API.RequestParams
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.AutomationAlert
   alias TuistWeb.API.Schemas.AutomationAlertAction
   alias TuistWeb.API.Schemas.Error
@@ -49,7 +50,8 @@ defmodule TuistWeb.API.Automations.AlertsController do
            },
            required: [:alerts]
          }},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -87,7 +89,8 @@ defmodule TuistWeb.API.Automations.AlertsController do
     responses: %{
       ok: {"Alert details", "application/json", AutomationAlert},
       not_found: {"Not found", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -141,7 +144,9 @@ defmodule TuistWeb.API.Automations.AlertsController do
     responses: %{
       created: {"Created alert", "application/json", AutomationAlert},
       unprocessable_entity: {"Validation error", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      internal_server_error: {"An internal server error occurred", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -151,9 +156,12 @@ defmodule TuistWeb.API.Automations.AlertsController do
       |> RequestParams.normalize()
       |> Map.put("project_id", project.id)
 
-    case Automations.create_alert(attrs) do
+    case Automations.create_alert(attrs, actor: conn.assigns[:current_user], source: "integration") do
       {:ok, alert} ->
         conn |> put_status(:created) |> json(AutomationAlert.from_model(alert))
+
+      {:error, :revision} ->
+        conn |> put_status(:internal_server_error) |> json(%{message: "Could not record automation history."})
 
       {:error, changeset} ->
         conn
@@ -204,7 +212,9 @@ defmodule TuistWeb.API.Automations.AlertsController do
       ok: {"Updated alert", "application/json", AutomationAlert},
       not_found: {"Not found", "application/json", Error},
       unprocessable_entity: {"Validation error", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      internal_server_error: {"An internal server error occurred", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -216,9 +226,12 @@ defmodule TuistWeb.API.Automations.AlertsController do
          true <- alert.project_id == project.id do
       attrs = RequestParams.normalize(body_params)
 
-      case Automations.update_alert(alert, attrs) do
+      case Automations.update_alert(alert, attrs, actor: conn.assigns[:current_user], source: "integration") do
         {:ok, updated} ->
           json(conn, AutomationAlert.from_model(updated))
+
+        {:error, :revision} ->
+          conn |> put_status(:internal_server_error) |> json(%{message: "Could not record automation history."})
 
         {:error, changeset} ->
           conn
@@ -260,7 +273,8 @@ defmodule TuistWeb.API.Automations.AlertsController do
     responses: %{
       no_content: {"Deleted", "application/json", nil},
       not_found: {"Not found", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
