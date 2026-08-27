@@ -540,7 +540,7 @@ defmodule Tuist.Runners.PromExPlugin do
     query =
       from(c in Claim,
         group_by: [c.fleet_name, c.lifecycle_state],
-        select: {c.fleet_name, c.lifecycle_state, count(c.workflow_job_id)}
+        select: {c.fleet_name, c.lifecycle_state, count(c.pod_name)}
       )
 
     query
