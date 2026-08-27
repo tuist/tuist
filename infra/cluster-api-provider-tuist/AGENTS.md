@@ -343,6 +343,18 @@ reversible: the ratchet is anchored to what the node advertises, so once a pin i
 removed that anchor is a number a human typed, and the recorded source is how the
 controller knows to ignore it for one reconcile and re-derive from readings.
 
+The pin does not apply to a machine whose configured budget is zero, and that is the
+one place it refines nothing. Such a box is outside egress governance, and the
+node-capacity helper writes the extended resource but has no path that removes it —
+so a pin would bring the box in and then have no way to take it back out, leaving the
+node advertising the operator's number after the annotation was gone. Give the machine
+a budget first; the pin then moves it, reversibly, like anywhere else. A pin left on a
+zero-budget machine is ignored and logged rather than silently dropped. The same
+one-way property is why `spec.egressBudgetMbps: 0` does not withdraw a node that is
+already advertising a budget: it stops the controller managing the key, it does not
+remove it. Withdrawing a live box means deleting the machine (which deletes its Node),
+not zeroing the field.
+
 Events fire when the node's advertised budget actually moves — `EgressBudgetIncreased`
 or `EgressBudgetReduced`, naming both numbers and what decided the new one — not when
 a reading arrives. A reading the floor refuses changes nothing on the node, and the
@@ -355,9 +367,9 @@ Accepting a confirmed reduction is three moves, in order: **pin** (the node drop
 now), **lower the budget** on the machine and in the fleet values (durable, and
 correct for the next machine cloned from the template), then **unpin** (the node lands
 on the reading). Unpinning before lowering the budget springs the node back to the
-configured value — the over-commit the pin was hiding. Disabling discovery, and
-`spec.egressBudgetMbps: 0`, also apply downward directly: the ratchet only ever holds
-against the controller's own readings, never against an explicit human decision.
+configured value — the over-commit the pin was hiding. Disabling discovery also
+applies downward directly: the ratchet only ever holds against the controller's own
+readings, never against an explicit human decision.
 
 A reading is either a number or nothing: there is no plausibility band around it.
 The floor already refuses anything below the configured budget, so a decode that

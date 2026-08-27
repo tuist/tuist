@@ -66,10 +66,17 @@ func resolvedEgressReading(mbps int32) bool {
 // default and the floor rather than something an operator moves.
 //
 // Reversible by removing it — see EgressSource for why that needs the source to be
-// recorded. A value that is not a positive integer is logged and ignored rather
-// than treated as zero, which would withdraw the machine from egress governance
-// entirely: a much larger action than the annotation asked for, and one
-// Spec.EgressBudgetMbps: 0 already expresses deliberately.
+// recorded. A value that is not a positive integer is ignored rather than treated
+// as zero, which would withdraw the machine from egress governance entirely: a much
+// larger action than the annotation asked for, and one Spec.EgressBudgetMbps: 0
+// already expresses deliberately.
+//
+// It does not apply to a machine whose configured budget is zero. That machine is
+// out of egress governance, and a pin cannot bring it in for one reconcile and let
+// it back out later: the node-capacity helper writes the key but has no path that
+// removes it, so removing the annotation would leave the node advertising the
+// operator's number for good. A pin that cannot be undone is not the lever this is
+// meant to be, so the budget has to be set first.
 const EgressOverrideAnnotation = "tuist.dev/egress-mbps-override"
 
 // Sources recorded in Status.EgressSource.
@@ -147,23 +154,34 @@ func egressFloor(machine *infrav1.OVHDedicatedMachine, advertisedMbps int32) int
 
 // effectiveEgressMbps is the budget the node should advertise, and what decided it.
 //
-// A pin wins outright, in both directions: it is the most specific and most
-// deliberate signal there is, including against Spec.EgressBudgetMbps: 0, where it
-// opts a machine back into egress governance. Disabling discovery or zeroing the
-// budget are explicit decisions too and apply directly, downward included — the
-// ratchet only ever holds against the controller's own readings. Otherwise the
-// reading is taken when it is usable and at or above the floor; below it, the floor
-// holds and the reading is recorded and surfaced instead
-// (capt_ovh_egress_reported_mbps, and an EgressBudgetReduced event).
+// A machine with no configured budget is answered first, ahead of the pin. Zero
+// means the box does not participate in egress governance, and a pin must not opt
+// it back in: ReconcileNodeEgressCapacity writes the capacity key but has no path
+// that removes it, so a pinned zero-budget machine could never be un-pinned — the
+// node would keep advertising the operator's number after the annotation was gone,
+// with nothing left running that would correct it. Refusing the pin is what keeps
+// the annotation reversible everywhere it applies.
+//
+// A pin otherwise wins outright, in both directions, including against a machine
+// whose discovery is disabled: it is the most specific and most deliberate signal
+// there is. Disabling discovery is an explicit decision too and applies directly,
+// downward included — the ratchet only ever holds against the controller's own
+// readings. Otherwise the reading is taken when it is usable and at or above the
+// floor; below it, the floor holds and the reading is recorded and surfaced instead
+// (capt_ovh_egress_reported_mbps, against capt_ovh_egress_advertised_mbps — nothing
+// on the node moved, so no event is raised).
 //
 // A held floor above the configured budget reports "discovery" rather than
 // "configured": it is a reading from an earlier reconcile, and calling it
 // configured would make the next reconcile mistake it for a stale pin.
 func effectiveEgressMbps(disabled bool, specMbps, discoveredMbps, floorMbps, overrideMbps int32) (int32, string) {
+	if specMbps <= 0 {
+		return specMbps, egressSourceConfigured
+	}
 	if overrideMbps > 0 {
 		return overrideMbps, egressSourceManual
 	}
-	if disabled || specMbps <= 0 {
+	if disabled {
 		return specMbps, egressSourceConfigured
 	}
 	if resolvedEgressReading(discoveredMbps) && discoveredMbps >= floorMbps {
@@ -206,7 +224,15 @@ func (r *OVHDedicatedMachineReconciler) reconcileEgressDiscovery(ctx context.Con
 	if egressDiscoveryDisabled(machine) || machine.Status.ServiceName == "" {
 		return
 	}
-	if machine.Spec.EgressBudgetMbps <= 0 && egressOverrideMbps(machine) == 0 {
+	if machine.Spec.EgressBudgetMbps <= 0 {
+		// A pin does not opt such a machine back in (see effectiveEgressMbps), so
+		// there is nothing a reading could rate here. Said out loud because the
+		// annotation is otherwise obeyed everywhere, and an operator who pinned a
+		// box and saw nothing happen has no other way to find out why.
+		if egressOverrideMbps(machine) > 0 {
+			logger.Info("ignoring the egress pin on a machine with no configured budget; set spec.egressBudgetMbps to bring the box into egress governance",
+				"service", machine.Status.ServiceName)
+		}
 		return
 	}
 	// Ahead of the guards below, which return without reading: this is a statement
@@ -291,6 +317,10 @@ func (r *OVHDedicatedMachineReconciler) reconcileEgressDiscovery(ctx context.Con
 // someone reads at 3am.
 func (r *OVHDedicatedMachineReconciler) recordEgressBudgetChange(machine *infrav1.OVHDedicatedMachine, from, to int32, source string) {
 	switch {
+	case to <= 0:
+		// ReconcileNodeEgressCapacity does not write a non-positive budget, and has
+		// no path that removes the key, so whatever the node already advertises it
+		// keeps. Nothing moved, whatever `from` says.
 	case from == to:
 	case from == 0:
 		r.event(machine, "EgressBudgetIncreased",

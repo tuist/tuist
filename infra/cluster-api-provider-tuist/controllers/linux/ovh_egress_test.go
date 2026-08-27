@@ -102,10 +102,19 @@ func TestEffectiveEgressMbps(t *testing.T) {
 			disabled: true, spec: 3000, discovered: 5000, floor: 3000, override: 500, want: 500, wantSource: egressSourceManual,
 		},
 		{
-			// The one case where the annotation contradicts the spec rather than
-			// refining it: it opts a withdrawn machine back into governance.
-			name: "a pin wins over a withdrawn machine",
-			spec: 0, discovered: 0, floor: 0, override: 500, want: 500, wantSource: egressSourceManual,
+			// A pin refines the spec, it does not contradict it. Opting a withdrawn
+			// machine in would be the one irreversible thing the annotation can do:
+			// ReconcileNodeEgressCapacity would write the key and nothing would ever
+			// remove it, so removing the annotation would leave the node advertising
+			// the operator's number for good.
+			name: "a pin does not opt a withdrawn machine back in",
+			spec: 0, discovered: 0, floor: 0, override: 500, want: 0, wantSource: egressSourceConfigured,
+		},
+		{
+			// Same for a machine that already holds a reading: zero is answered
+			// before the pin, so no path re-enters governance through the annotation.
+			name: "a pin does not opt a withdrawn machine in over a held floor",
+			spec: 0, discovered: 5000, floor: 5000, override: 500, want: 0, wantSource: egressSourceConfigured,
 		},
 		{
 			// Explicit human decisions apply directly, downward included — the
@@ -235,6 +244,13 @@ func TestReconcileEgressDiscoverySkipsWhatItMustNotRead(t *testing.T) {
 	unconfigured := discoveryMachine()
 	unconfigured.Spec.EgressBudgetMbps = 0
 
+	// A pin does not opt a zero-budget machine into governance, so it must not make
+	// one worth reading either — otherwise the box costs OVH calls to produce a
+	// reading nothing may rate it from.
+	unconfiguredPinned := discoveryMachine()
+	unconfiguredPinned.Spec.EgressBudgetMbps = 0
+	unconfiguredPinned.Annotations = map[string]string{EgressOverrideAnnotation: "500"}
+
 	unadopted := discoveryMachine()
 	unadopted.Status.ServiceName = ""
 
@@ -244,10 +260,11 @@ func TestReconcileEgressDiscoverySkipsWhatItMustNotRead(t *testing.T) {
 	fresh.Status.EgressResolvedServiceName = fresh.Status.ServiceName
 
 	for name, machine := range map[string]*infrav1.OVHDedicatedMachine{
-		"annotated out":           annotated,
-		"no configured budget":    unconfigured,
-		"not adopted yet":         unadopted,
-		"read again inside a day": fresh,
+		"annotated out":                    annotated,
+		"no configured budget":             unconfigured,
+		"no configured budget, but pinned": unconfiguredPinned,
+		"not adopted yet":                  unadopted,
+		"read again inside a day":          fresh,
 	} {
 		t.Run(name, func(t *testing.T) {
 			api := &fakeOVHAPI{body: egressBody(5000, "Mbps", "improved")}
@@ -612,6 +629,10 @@ func TestRecordEgressBudgetChange(t *testing.T) {
 		{name: "first budget", from: 0, to: 3000, source: egressSourceConfigured, wantEvent: "EgressBudgetIncreased"},
 		{name: "raised by a reading", from: 3000, to: 5000, source: egressSourceDiscovery, wantEvent: "EgressBudgetIncreased"},
 		{name: "reduced by a pin", from: 5000, to: 1000, source: egressSourceManual, wantEvent: "EgressBudgetReduced"},
+		// The helper does not write a non-positive budget and cannot remove the key,
+		// so the node keeps what it had. Reporting a reduction to zero would claim a
+		// change that never landed — the thing raising on the change was meant to stop.
+		{name: "a withdrawn machine raises nothing", from: 5000, to: 0, source: egressSourceConfigured, wantAbsent: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			recorder := record.NewFakeRecorder(10)
