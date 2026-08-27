@@ -134,6 +134,24 @@ kura-eu-central-ingress-nginx:
       use-proxy-protocol: "true"
       compute-full-forwarded-for: "true"
       upstream-keepalive-timeout: "10"
+      # Refuse the handshake for a name this gateway does not serve, rather
+      # than answering it from the default backend.
+      #
+      # A cache client resolves a name once and then holds the connection: a
+      # gRPC channel re-resolves only when the connection fails, never when a
+      # request fails. So a 404 from the default backend is the worst possible
+      # answer — it arrives on a healthy connection, which reads as "the server
+      # is fine, your request was not", and the client stays pinned to a region
+      # that has stopped serving it. Bazel and the CAS plugin retry into it;
+      # the Gradle cache reads a 404 as a plain cache miss, so it degrades to
+      # nothing cached and reports no error at all.
+      #
+      # Rejecting at TLS makes it a connection failure, which is the one thing
+      # every client already handles: re-resolve and reconnect, landing on
+      # whichever region now serves the name. This is what makes a name moving
+      # between regions safe for clients holding a stale answer, and it costs
+      # nothing when the name is served here.
+      ssl-reject-handshake: "true"
       # HTTP/2 request-body flow control. nginx's 64KB default window caps
       # every upload stream (gRPC ByteStream writes and HTTP/2 CLI uploads
       # alike) at ~window/RTT — ~310KB/s from a 193ms-RTT client. Both knobs
