@@ -393,7 +393,7 @@ msgstr ""
 msgid "Tuist Icon"
 msgstr ""
 
-#: lib/tuist_web/components/layout_components.ex:64
+#: lib/tuist_web/components/layout_components.ex:36
 #, elixir-autogen, elixir-format
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
 msgstr ""
@@ -412,6 +412,7 @@ msgstr ""
 #: lib/tuist_web/components/runs/ran_by_badge.ex:104
 #: lib/tuist_web/live/ops_account_helpers.ex:15
 #: lib/tuist_web/live/ops_account_helpers.ex:24
+#: lib/tuist_web/live/ops_account_live.ex:811
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
@@ -652,13 +653,13 @@ msgstr ""
 msgid "This GitHub app installation is already connected."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:295
+#: lib/tuist_web/live/ops_account_live.ex:321
 #, elixir-autogen, elixir-format
 msgid "%{account} plan set to cancel at the end of the current period."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:244
-#: lib/tuist_web/live/ops_account_live.ex:272
+#: lib/tuist_web/live/ops_account_live.ex:270
+#: lib/tuist_web/live/ops_account_live.ex:298
 #, elixir-autogen, elixir-format
 msgid "%{account} upgraded to Enterprise. Stripe will send an invoice for the first period."
 msgstr ""
@@ -670,7 +671,8 @@ msgstr ""
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:89
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:23
-#: lib/tuist_web/live/ops_account_live.ex:47
+#: lib/tuist_web/live/ops_account_kura_sizing_live.ex:19
+#: lib/tuist_web/live/ops_account_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Account not found."
 msgstr ""
@@ -680,12 +682,12 @@ msgstr ""
 msgid "Active"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:503
+#: lib/tuist_web/live/ops_account_live.html.heex:586
 #, elixir-autogen, elixir-format
 msgid "Address line 1"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:511
+#: lib/tuist_web/live/ops_account_live.html.heex:594
 #, elixir-autogen, elixir-format
 msgid "Address line 2 (optional)"
 msgstr ""
@@ -695,64 +697,64 @@ msgstr ""
 msgid "Air"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:760
+#: lib/tuist_web/live/ops_account_live.ex:876
 #, elixir-autogen, elixir-format
 msgid "Argentina"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:761
+#: lib/tuist_web/live/ops_account_live.ex:877
 #, elixir-autogen, elixir-format
 msgid "Australia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:762
+#: lib/tuist_web/live/ops_account_live.ex:878
 #, elixir-autogen, elixir-format
 msgid "Austria"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:763
+#: lib/tuist_web/live/ops_account_live.ex:879
 #, elixir-autogen, elixir-format
 msgid "Belgium"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:412
 #: lib/tuist_web/live/ops_account_live.html.heex:495
+#: lib/tuist_web/live/ops_account_live.html.heex:578
 #: lib/tuist_web/live/ops_accounts_live.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Billing email"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:764
+#: lib/tuist_web/live/ops_account_live.ex:880
 #, elixir-autogen, elixir-format
 msgid "Brazil"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:765
+#: lib/tuist_web/live/ops_account_live.ex:881
 #, elixir-autogen, elixir-format
 msgid "Bulgaria"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:766
+#: lib/tuist_web/live/ops_account_live.ex:882
 #, elixir-autogen, elixir-format
 msgid "Canada"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:553
+#: lib/tuist_web/live/ops_account_live.html.heex:636
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:445
+#: lib/tuist_web/live/ops_account_live.html.heex:528
 #, elixir-autogen, elixir-format
 msgid "Cancel %{account}'s subscription at the end of the current billing period? Access is kept until then."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:302
+#: lib/tuist_web/live/ops_account_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "Cancel failed: %{reason}"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:442
+#: lib/tuist_web/live/ops_account_live.html.heex:525
 #, elixir-autogen, elixir-format
 msgid "Cancel plan"
 msgstr ""
@@ -763,37 +765,37 @@ msgstr ""
 msgid "Cancelled"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:767
+#: lib/tuist_web/live/ops_account_live.ex:883
 #, elixir-autogen, elixir-format
 msgid "Chile"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:768
+#: lib/tuist_web/live/ops_account_live.ex:884
 #, elixir-autogen, elixir-format
 msgid "China"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:517
+#: lib/tuist_web/live/ops_account_live.html.heex:600
 #, elixir-autogen, elixir-format
 msgid "City"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:769
+#: lib/tuist_web/live/ops_account_live.ex:885
 #, elixir-autogen, elixir-format
 msgid "Colombia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:537
+#: lib/tuist_web/live/ops_account_live.html.heex:620
 #, elixir-autogen, elixir-format
 msgid "Country"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:465
+#: lib/tuist_web/live/ops_account_live.html.heex:548
 #, elixir-autogen, elixir-format
 msgid "Creates a Stripe customer (if missing), sets the billing address, and starts an invoice-billed Enterprise subscription. The customer receives an invoice by email; no card is collected here."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:770
+#: lib/tuist_web/live/ops_account_live.ex:886
 #, elixir-autogen, elixir-format
 msgid "Croatia"
 msgstr ""
@@ -803,17 +805,17 @@ msgstr ""
 msgid "Current version"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:771
+#: lib/tuist_web/live/ops_account_live.ex:887
 #, elixir-autogen, elixir-format
 msgid "Cyprus"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:772
+#: lib/tuist_web/live/ops_account_live.ex:888
 #, elixir-autogen, elixir-format
 msgid "Czechia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:773
+#: lib/tuist_web/live/ops_account_live.ex:889
 #, elixir-autogen, elixir-format
 msgid "Denmark"
 msgstr ""
@@ -833,7 +835,7 @@ msgstr ""
 msgid "Enterprise"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:774
+#: lib/tuist_web/live/ops_account_live.ex:890
 #, elixir-autogen, elixir-format
 msgid "Estonia"
 msgstr ""
@@ -850,67 +852,67 @@ msgstr ""
 msgid "Finished"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:775
+#: lib/tuist_web/live/ops_account_live.ex:891
 #, elixir-autogen, elixir-format
 msgid "Finland"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:776
+#: lib/tuist_web/live/ops_account_live.ex:892
 #, elixir-autogen, elixir-format
 msgid "France"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:777
+#: lib/tuist_web/live/ops_account_live.ex:893
 #, elixir-autogen, elixir-format
 msgid "Germany"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:778
+#: lib/tuist_web/live/ops_account_live.ex:894
 #, elixir-autogen, elixir-format
 msgid "Greece"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:779
+#: lib/tuist_web/live/ops_account_live.ex:895
 #, elixir-autogen, elixir-format
 msgid "Hong Kong"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:780
+#: lib/tuist_web/live/ops_account_live.ex:896
 #, elixir-autogen, elixir-format
 msgid "Hungary"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:781
+#: lib/tuist_web/live/ops_account_live.ex:897
 #, elixir-autogen, elixir-format
 msgid "Iceland"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:782
+#: lib/tuist_web/live/ops_account_live.ex:898
 #, elixir-autogen, elixir-format
 msgid "India"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:783
+#: lib/tuist_web/live/ops_account_live.ex:899
 #, elixir-autogen, elixir-format
 msgid "Indonesia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:784
+#: lib/tuist_web/live/ops_account_live.ex:900
 #, elixir-autogen, elixir-format
 msgid "Ireland"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:785
+#: lib/tuist_web/live/ops_account_live.ex:901
 #, elixir-autogen, elixir-format
 msgid "Israel"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:786
+#: lib/tuist_web/live/ops_account_live.ex:902
 #, elixir-autogen, elixir-format
 msgid "Italy"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:787
+#: lib/tuist_web/live/ops_account_live.ex:903
 #, elixir-autogen, elixir-format
 msgid "Japan"
 msgstr ""
@@ -931,37 +933,37 @@ msgstr ""
 msgid "Latest deployment"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:788
+#: lib/tuist_web/live/ops_account_live.ex:904
 #, elixir-autogen, elixir-format
 msgid "Latvia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:789
+#: lib/tuist_web/live/ops_account_live.ex:905
 #, elixir-autogen, elixir-format
 msgid "Lithuania"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:790
+#: lib/tuist_web/live/ops_account_live.ex:906
 #, elixir-autogen, elixir-format
 msgid "Luxembourg"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:791
+#: lib/tuist_web/live/ops_account_live.ex:907
 #, elixir-autogen, elixir-format
 msgid "Malaysia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:792
+#: lib/tuist_web/live/ops_account_live.ex:908
 #, elixir-autogen, elixir-format
 msgid "Malta"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:425
+#: lib/tuist_web/live/ops_account_live.html.heex:508
 #, elixir-autogen, elixir-format
 msgid "Manage on Stripe"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:793
+#: lib/tuist_web/live/ops_account_live.ex:909
 #, elixir-autogen, elixir-format
 msgid "Mexico"
 msgstr ""
@@ -973,17 +975,17 @@ msgstr ""
 msgid "Name"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:487
+#: lib/tuist_web/live/ops_account_live.html.heex:570
 #, elixir-autogen, elixir-format
 msgid "Name on invoice"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:794
+#: lib/tuist_web/live/ops_account_live.ex:910
 #, elixir-autogen, elixir-format
 msgid "Netherlands"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:795
+#: lib/tuist_web/live/ops_account_live.ex:911
 #, elixir-autogen, elixir-format
 msgid "New Zealand"
 msgstr ""
@@ -998,7 +1000,7 @@ msgstr ""
 msgid "No accounts match the current filter."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:285
+#: lib/tuist_web/live/ops_account_live.ex:311
 #, elixir-autogen, elixir-format
 msgid "No active subscription to cancel."
 msgstr ""
@@ -1006,23 +1008,23 @@ msgstr ""
 #: lib/tuist/utilities/date_formatter.ex:5
 #: lib/tuist/utilities/date_formatter.ex:76
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:87
-#: lib/tuist_web/live/ops_account_live.ex:637
+#: lib/tuist_web/live/ops_account_live.ex:665
 #: lib/tuist_web/live/ops_account_live.html.heex:41
 #: lib/tuist_web/live/ops_account_live.html.heex:53
 #: lib/tuist_web/live/ops_account_live.html.heex:57
 #: lib/tuist_web/live/ops_account_live.html.heex:63
-#: lib/tuist_web/live/ops_account_live.html.heex:413
+#: lib/tuist_web/live/ops_account_live.html.heex:496
 #: lib/tuist_web/live/ops_accounts_live.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:796
+#: lib/tuist_web/live/ops_account_live.ex:912
 #, elixir-autogen, elixir-format
 msgid "Norway"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:416
+#: lib/tuist_web/live/ops_account_live.html.heex:499
 #: lib/tuist_web/live/ops_accounts_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Not created"
@@ -1044,33 +1046,33 @@ msgstr ""
 msgid "Pending"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:797
+#: lib/tuist_web/live/ops_account_live.ex:913
 #, elixir-autogen, elixir-format
 msgid "Philippines"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:398
+#: lib/tuist_web/live/ops_account_live.html.heex:481
 #: lib/tuist_web/live/ops_accounts_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Plan"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:395
+#: lib/tuist_web/live/ops_account_live.html.heex:478
 #, elixir-autogen, elixir-format
 msgid "Plan & billing"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:798
+#: lib/tuist_web/live/ops_account_live.ex:914
 #, elixir-autogen, elixir-format
 msgid "Poland"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:799
+#: lib/tuist_web/live/ops_account_live.ex:915
 #, elixir-autogen, elixir-format
 msgid "Portugal"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:531
+#: lib/tuist_web/live/ops_account_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "Postal code"
 msgstr ""
@@ -1080,13 +1082,16 @@ msgstr ""
 msgid "Pro"
 msgstr ""
 
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:26
 #: lib/tuist_web/live/ops_account_live.html.heex:28
-#: lib/tuist_web/live/ops_account_live.html.heex:116
+#: lib/tuist_web/live/ops_account_live.html.heex:137
+#: lib/tuist_web/live/ops_account_live.html.heex:178
+#: lib/tuist_web/live/ops_account_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:800
+#: lib/tuist_web/live/ops_account_live.ex:916
 #, elixir-autogen, elixir-format
 msgid "Romania"
 msgstr ""
@@ -1101,37 +1106,37 @@ msgstr ""
 msgid "Search by name"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:540
+#: lib/tuist_web/live/ops_account_live.html.heex:623
 #, elixir-autogen, elixir-format
 msgid "Select a country"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:801
+#: lib/tuist_web/live/ops_account_live.ex:917
 #, elixir-autogen, elixir-format
 msgid "Singapore"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:802
+#: lib/tuist_web/live/ops_account_live.ex:918
 #, elixir-autogen, elixir-format
 msgid "Slovakia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:803
+#: lib/tuist_web/live/ops_account_live.ex:919
 #, elixir-autogen, elixir-format
 msgid "Slovenia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:804
+#: lib/tuist_web/live/ops_account_live.ex:920
 #, elixir-autogen, elixir-format
 msgid "South Africa"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:805
+#: lib/tuist_web/live/ops_account_live.ex:921
 #, elixir-autogen, elixir-format
 msgid "South Korea"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:806
+#: lib/tuist_web/live/ops_account_live.ex:922
 #, elixir-autogen, elixir-format
 msgid "Spain"
 msgstr ""
@@ -1141,7 +1146,7 @@ msgstr ""
 msgid "Started"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:525
+#: lib/tuist_web/live/ops_account_live.html.heex:608
 #, elixir-autogen, elixir-format
 msgid "State / region (optional)"
 msgstr ""
@@ -1149,13 +1154,13 @@ msgstr ""
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:13
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:18
 #: lib/tuist_web/live/ops_account_live.html.heex:31
-#: lib/tuist_web/live/ops_account_live.html.heex:405
+#: lib/tuist_web/live/ops_account_live.html.heex:488
 #: lib/tuist_web/live/ops_accounts_live.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:415
+#: lib/tuist_web/live/ops_account_live.html.heex:498
 #: lib/tuist_web/live/ops_accounts_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Stripe customer"
@@ -1166,22 +1171,22 @@ msgstr ""
 msgid "Succeeded"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:807
+#: lib/tuist_web/live/ops_account_live.ex:923
 #, elixir-autogen, elixir-format
 msgid "Sweden"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:808
+#: lib/tuist_web/live/ops_account_live.ex:924
 #, elixir-autogen, elixir-format
 msgid "Switzerland"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:809
+#: lib/tuist_web/live/ops_account_live.ex:925
 #, elixir-autogen, elixir-format
 msgid "Taiwan"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:810
+#: lib/tuist_web/live/ops_account_live.ex:926
 #, elixir-autogen, elixir-format
 msgid "Thailand"
 msgstr ""
@@ -1191,7 +1196,7 @@ msgstr ""
 msgid "Trialing"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:811
+#: lib/tuist_web/live/ops_account_live.ex:927
 #, elixir-autogen, elixir-format
 msgid "Turkey"
 msgstr ""
@@ -1207,38 +1212,38 @@ msgstr ""
 msgid "URL"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:812
+#: lib/tuist_web/live/ops_account_live.ex:928
 #, elixir-autogen, elixir-format
 msgid "Ukraine"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:813
+#: lib/tuist_web/live/ops_account_live.ex:929
 #, elixir-autogen, elixir-format
 msgid "United Arab Emirates"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:814
+#: lib/tuist_web/live/ops_account_live.ex:930
 #, elixir-autogen, elixir-format
 msgid "United Kingdom"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:815
+#: lib/tuist_web/live/ops_account_live.ex:931
 #, elixir-autogen, elixir-format
 msgid "United States"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:460
+#: lib/tuist_web/live/ops_account_live.html.heex:543
 #, elixir-autogen, elixir-format
 msgid "Upgrade %{account} to Enterprise"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:433
-#: lib/tuist_web/live/ops_account_live.html.heex:561
+#: lib/tuist_web/live/ops_account_live.html.heex:516
+#: lib/tuist_web/live/ops_account_live.html.heex:644
 #, elixir-autogen, elixir-format
 msgid "Upgrade to Enterprise"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:816
+#: lib/tuist_web/live/ops_account_live.ex:932
 #, elixir-autogen, elixir-format
 msgid "Uruguay"
 msgstr ""
@@ -1248,7 +1253,7 @@ msgstr ""
 msgid "User"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:817
+#: lib/tuist_web/live/ops_account_live.ex:933
 #, elixir-autogen, elixir-format
 msgid "Vietnam"
 msgstr ""
@@ -1826,49 +1831,49 @@ msgstr ""
 msgid "Tokens"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:184
+#: lib/tuist_web/live/ops_account_live.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "Limits apply independently to Linux and macOS. A new runner starts only when both its vCPU and memory fit within that platform's remaining capacity."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:196
+#: lib/tuist_web/live/ops_account_live.html.heex:279
 #, elixir-autogen, elixir-format
 msgid "Linux"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:209
-#: lib/tuist_web/live/ops_account_live.html.heex:228
+#: lib/tuist_web/live/ops_account_live.html.heex:292
+#: lib/tuist_web/live/ops_account_live.html.heex:311
 #, elixir-autogen, elixir-format
 msgid "Memory limit (GB)"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:181
+#: lib/tuist_web/live/ops_account_live.html.heex:264
 #, elixir-autogen, elixir-format
 msgid "Runner concurrency"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:90
+#: lib/tuist_web/live/ops_account_live.ex:92
 #, elixir-autogen, elixir-format
 msgid "Runner concurrency limits could not be updated."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:84
+#: lib/tuist_web/live/ops_account_live.ex:86
 #, elixir-autogen, elixir-format
 msgid "Runner concurrency limits updated."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:238
+#: lib/tuist_web/live/ops_account_live.html.heex:321
 #, elixir-autogen, elixir-format
 msgid "Save runner limits"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:215
+#: lib/tuist_web/live/ops_account_live.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "macOS"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:201
-#: lib/tuist_web/live/ops_account_live.html.heex:220
+#: lib/tuist_web/live/ops_account_live.html.heex:284
+#: lib/tuist_web/live/ops_account_live.html.heex:303
 #, elixir-autogen, elixir-format
 msgid "vCPU limit"
 msgstr ""
@@ -1888,69 +1893,64 @@ msgstr ""
 msgid "Your organization must verify a login email domain that matches your email before new users can sign in. Ask an organization admin to review the single sign-on domain settings."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:218
+#: lib/tuist_web/live/ops_account_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "%{account} is now %{visibility}."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:225
+#: lib/tuist_web/live/ops_account_live.ex:251
 #, elixir-autogen, elixir-format
 msgid "Account visibility could not be updated."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:378
+#: lib/tuist_web/live/ops_account_live.html.heex:461
 #, elixir-autogen, elixir-format
 msgid "Actions"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:360
+#: lib/tuist_web/live/ops_account_live.html.heex:443
 #, elixir-autogen, elixir-format
 msgid "Dashboards"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:384
+#: lib/tuist_web/live/ops_account_live.html.heex:467
 #, elixir-autogen, elixir-format
 msgid "Make private"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:385
+#: lib/tuist_web/live/ops_account_live.html.heex:468
 #, elixir-autogen, elixir-format
 msgid "Make public"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:375
+#: lib/tuist_web/live/ops_account_live.html.heex:458
 #, elixir-autogen, elixir-format
 msgid "Nothing."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:364
+#: lib/tuist_web/live/ops_account_live.html.heex:447
 #, elixir-autogen, elixir-format
 msgid "Private"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:363
+#: lib/tuist_web/live/ops_account_live.html.heex:446
 #, elixir-autogen, elixir-format
 msgid "Public"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:371
+#: lib/tuist_web/live/ops_account_live.html.heex:454
 #, elixir-autogen, elixir-format
 msgid "Public projects, runners, and usage. Members, webhooks, cache, billing, and settings stay private."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:367
+#: lib/tuist_web/live/ops_account_live.html.heex:450
 #, elixir-autogen, elixir-format
 msgid "Signed-out visitors see"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:357
+#: lib/tuist_web/live/ops_account_live.html.heex:440
 #, elixir-autogen, elixir-format
 msgid "Visibility"
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_live.html.heex:89
-#, elixir-autogen, elixir-format
-msgid "A Kubernetes storage quantity of at least %{minimum}."
 msgstr ""
 
 #: lib/tuist_web/live/ops_account_live.html.heex:38
@@ -1958,201 +1958,181 @@ msgstr ""
 msgid "Claim"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:86
-#, elixir-autogen, elixir-format
-msgid "Disk claim override"
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_live.ex:197
-#, elixir-autogen, elixir-format
-msgid "Kura disk claim could not be updated."
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_live.ex:722
+#: lib/tuist_web/live/ops_account_live.ex:838
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim set to %{claim}. No running instance changed; it applies the next time volumes are built."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:98
-#, elixir-autogen, elixir-format
-msgid "Save disk claim"
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_live.html.heex:74
-#, elixir-autogen, elixir-format
-msgid "Each replica reserves this much disk. Leave it empty to size the account from its plan. Raising it replaces volumes one replica at a time, so the standby keeps serving and the rebuilt replica refills from it; lowering it keeps the cache and evicts down."
-msgstr ""
-
-#: lib/tuist_web/live/ops_account_live.ex:730
+#: lib/tuist_web/live/ops_account_live.ex:846
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim lowered to %{claim}. %{count} running instance keeps its cache and evicts down to the new budget."
 msgid_plural "Kura disk claim lowered to %{claim}. %{count} running instances keep their caches and evict down to the new budget."
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/ops_account_live.ex:745
+#: lib/tuist_web/live/ops_account_live.ex:861
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim raised to %{claim}. Up to %{count} running instance rebuilds its volumes, one replica at a time behind the standby that keeps serving."
 msgid_plural "Kura disk claim raised to %{claim}. Up to %{count} running instances rebuild their volumes, one replica at a time behind the standby that keeps serving."
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/ops_account_live.ex:104
+#: lib/tuist_web/live/ops_account_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "%{account} is on a runner trial and will not be billed for runner usage until it is cancelled."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:127
+#: lib/tuist_web/live/ops_account_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "%{account}'s runner trial is over. Runner usage is billable from now on."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:338
+#: lib/tuist_web/live/ops_account_live.html.heex:421
 #, elixir-autogen, elixir-format
 msgid "Added to next invoice"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:248
+#: lib/tuist_web/live/ops_account_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "An account on a runner trial is not billed for runner usage. Usage is still metered and still reported, but the subscription carries no runner item for Stripe to invoice it against. The trial runs until it is cancelled here."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:277
+#: lib/tuist_web/live/ops_account_live.html.heex:360
 #, elixir-autogen, elixir-format
 msgid "Cancel runner trial"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:137
+#: lib/tuist_web/live/ops_account_live.ex:139
 #, elixir-autogen, elixir-format
 msgid "Could not cancel the trial: %{reason}"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:113
+#: lib/tuist_web/live/ops_account_live.ex:115
 #, elixir-autogen, elixir-format
 msgid "Could not start the trial: %{reason}"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:315
+#: lib/tuist_web/live/ops_account_live.html.heex:398
 #, elixir-autogen, elixir-format
 msgid "Expires"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:296
+#: lib/tuist_web/live/ops_account_live.html.heex:379
 #, elixir-autogen, elixir-format
 msgid "No active subscription"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:413
+#: lib/tuist_web/live/ops_account_live.ex:439
 #, elixir-autogen, elixir-format
 msgid "No expiry"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:258
+#: lib/tuist_web/live/ops_account_live.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "On a runner trial"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:334
+#: lib/tuist_web/live/ops_account_live.html.heex:417
 #, elixir-autogen, elixir-format
 msgid "Prepaid minutes (macOS 6 vCPU / 14 GB)"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:245
+#: lib/tuist_web/live/ops_account_live.html.heex:328
 #, elixir-autogen, elixir-format
 msgid "Runner trial"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:271
+#: lib/tuist_web/live/ops_account_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "Start runner trial"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:298
+#: lib/tuist_web/live/ops_account_live.html.heex:381
 #, elixir-autogen, elixir-format
 msgid "This account has no subscription, so Stripe never generates an invoice for it. A prepaid charge added now would sit unbilled until one exists."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:312
+#: lib/tuist_web/live/ops_account_live.html.heex:395
 #, elixir-autogen, elixir-format
 msgid "Minutes remaining"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:411
+#: lib/tuist_web/live/ops_account_live.ex:437
 #, elixir-autogen, elixir-format
 msgid "Prepaid"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:283
+#: lib/tuist_web/live/ops_account_live.html.heex:366
 #, elixir-autogen, elixir-format
 msgid "Prepaid runner minutes"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:309
+#: lib/tuist_web/live/ops_account_live.html.heex:392
 #, elixir-autogen, elixir-format
 msgid "Source"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:320
+#: lib/tuist_web/live/ops_account_live.html.heex:403
 #, elixir-autogen, elixir-format
 msgid "This account has no prepaid runner minutes."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:410
+#: lib/tuist_web/live/ops_account_live.ex:436
 #, elixir-autogen, elixir-format
 msgid "Trial"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:260
+#: lib/tuist_web/live/ops_account_live.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "Cancelling adds the runner items to this account's subscription, which makes its runner usage billable from that moment. Minutes it ran during the trial stay free, including those already recorded in the current billing period."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:342
+#: lib/tuist_web/live/ops_account_live.html.heex:425
 #, elixir-autogen, elixir-format
 msgid "Granted now"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:384
+#: lib/tuist_web/live/ops_account_live.ex:410
 #, elixir-autogen, elixir-format
 msgid "%{account} now holds %{minutes} prepaid runner minutes. %{amount} was added to its next invoice."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:173
+#: lib/tuist_web/live/ops_account_live.ex:175
 #, elixir-autogen, elixir-format
 msgid "Could not set prepaid minutes: %{reason}"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:178
+#: lib/tuist_web/live/ops_account_live.ex:180
 #, elixir-autogen, elixir-format
 msgid "Enter a whole number of minutes, or zero to clear."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:350
+#: lib/tuist_web/live/ops_account_live.html.heex:433
 #, elixir-autogen, elixir-format
 msgid "Set minutes"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:286
+#: lib/tuist_web/live/ops_account_live.html.heex:369
 #, elixir-autogen, elixir-format
 msgid "Setting this replaces what the account holds rather than adding to it, and the minutes are granted straight away so it can run on them. The charge rides its next invoice alongside the rest of the bill. Minutes expire at the end of the billing period they were bought for and do not roll over. The figures are minutes on the macOS 6 vCPU / 14 GB baseline; a larger machine draws them down faster than one minute per minute it runs."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:378
+#: lib/tuist_web/live/ops_account_live.ex:404
 #, elixir-autogen, elixir-format
 msgid "%{account} no longer holds any prepaid runner minutes."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:640
+#: lib/tuist_web/live/ops_account_live.ex:668
 #, elixir-autogen, elixir-format
 msgid "%{floor} / %{burst} Mbps"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:655
+#: lib/tuist_web/live/ops_account_live.ex:683
 #, elixir-autogen, elixir-format
 msgid "%{mbps} Mbps"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:142
+#: lib/tuist_web/live/ops_account_live.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Ceiling override (Mbps)"
 msgstr ""
@@ -2162,27 +2142,27 @@ msgstr ""
 msgid "Egress floor / ceiling"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:131
+#: lib/tuist_web/live/ops_account_live.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Floor override (Mbps)"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:125
+#: lib/tuist_web/live/ops_account_live.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "Node limit"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:119
+#: lib/tuist_web/live/ops_account_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Now"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:122
+#: lib/tuist_web/live/ops_account_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Region default"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:168
+#: lib/tuist_web/live/ops_account_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "Save egress limits"
 msgstr ""
@@ -2192,53 +2172,54 @@ msgstr ""
 msgid "Unshaped"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:654
+#: lib/tuist_web/live/ops_account_live.ex:682
+#: lib/tuist_web/live/ops_account_live.ex:788
 #, elixir-autogen, elixir-format
 msgid "unknown"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:105
+#: lib/tuist_web/live/ops_account_live.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "The floor this account's pods reserve and the ceiling they may burst to, set per region because the boxes differ. Empty a field to hand that number back to the region, which is a default rather than a limit: where the two disagree the region's half gives way to the one you set. The only limit is each region's node budget, since the floor is what the scheduler bin-packs against it. Saving recreates the account's instances in that region so the new pair takes effect. They keep their volumes and restart one at a time behind the standby, so no cache is lost."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:686
+#: lib/tuist_web/live/ops_account_live.ex:714
 #, elixir-autogen, elixir-format
 msgid "up to %{mbps}"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:596
+#: lib/tuist_web/live/ops_account_live.ex:624
 #, elixir-autogen, elixir-format
 msgid "Egress limits updated in %{regions}. %{count} instance is recreated to pick them up."
 msgid_plural "Egress limits updated in %{regions}. %{count} instances are recreated to pick them up."
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/ops_account_live.ex:571
+#: lib/tuist_web/live/ops_account_live.ex:599
 #, elixir-autogen, elixir-format
 msgid "No egress limits changed."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:610
+#: lib/tuist_web/live/ops_account_live.ex:638
 #, elixir-autogen, elixir-format
 msgid "Nothing was saved: %{regions} was rejected."
 msgid_plural "Nothing was saved: %{regions} were rejected."
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:170
+#: lib/tuist_web/live/ops_account_live.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Saving recreates this account's Kura instances in the regions you changed. They keep their volumes and restart one at a time behind the standby, so no cache is lost. Continue?"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.ex:620
+#: lib/tuist_web/live/ops_account_live.ex:648
 #, elixir-autogen, elixir-format
 msgid "%{regions} was rejected and not saved."
 msgid_plural "%{regions} were rejected and not saved."
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/ops_account_live.ex:677
+#: lib/tuist_web/live/ops_account_live.ex:705
 #, elixir-autogen, elixir-format
 msgid "up to %{mbps}, across %{count} box"
 msgid_plural "up to %{mbps}, across %{count} boxes"
@@ -2253,4 +2234,222 @@ msgstr ""
 #: lib/tuist_web/live/ops_kura_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Kura Rollouts"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:792
+#, elixir-autogen, elixir-format
+msgid "%{count} days"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "%{count} decision"
+msgid_plural "%{count} decisions"
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/tuist_web/live/ops_account_live.ex:793
+#, elixir-autogen, elixir-format
+msgid "%{count} hours"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:794
+#, elixir-autogen, elixir-format
+msgid "%{count} minutes"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:827
+#, elixir-autogen, elixir-format
+msgid "%{used} of %{budget}"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:109
+#, elixir-autogen, elixir-format
+msgid "Apply proposal"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:104
+#, elixir-autogen, elixir-format
+msgid "Apply the proposed claim? Growing rebuilds volumes one replica at a time behind the standby; shrinking keeps the cache and evicts down."
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:127
+#, elixir-autogen, elixir-format
+msgid "Automatic sizing set this account's claim to %{claim}."
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:23
+#: lib/tuist_web/live/ops_account_live.html.heex:175
+#, elixir-autogen, elixir-format
+msgid "By"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:16
+#: lib/tuist_web/live/ops_account_live.html.heex:168
+#, elixir-autogen, elixir-format
+msgid "Change"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:121
+#, elixir-autogen, elixir-format
+msgid "Disk is sized automatically: the claim grows when the cache starts discarding work sooner than the plan promises to keep it, and shrinks when it goes a long time without filling up. Growing rebuilds volumes one replica at a time behind the standby that keeps serving; shrinking keeps the cache and evicts down."
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:140
+#, elixir-autogen, elixir-format
+msgid "Disk used"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:115
+#, elixir-autogen, elixir-format
+msgid "Dismiss"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "History"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:151
+#, elixir-autogen, elixir-format
+msgid "No pod has reported its disk in the last week."
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:35
+#, elixir-autogen, elixir-format
+msgid "No sizing decisions"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:805
+#, elixir-autogen, elixir-format
+msgid "Not resolved yet"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:19
+#: lib/tuist_web/live/ops_account_live.html.heex:171
+#, elixir-autogen, elixir-format
+msgid "Outcome"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:134
+#, elixir-autogen, elixir-format
+msgid "Pod"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:146
+#, elixir-autogen, elixir-format
+msgid "Reported"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:769
+#, elixir-autogen, elixir-format
+msgid "Seen on %{count} day of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
+msgid_plural "Seen on %{count} consecutive days of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/tuist_web/live/ops_account_live.ex:780
+#, elixir-autogen, elixir-format
+msgid "Seen on %{count} day of measurements."
+msgid_plural "Seen on %{count} consecutive days of measurements."
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:143
+#, elixir-autogen, elixir-format
+msgid "Segments"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.ex:24
+#: lib/tuist_web/live/ops_account_live.ex:808
+#, elixir-autogen, elixir-format
+msgid "Sizing"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:3
+#: lib/tuist_web/live/ops_account_live.html.heex:156
+#, elixir-autogen, elixir-format
+msgid "Sizing decisions"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Sizing has not decided anything for this account yet."
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:220
+#, elixir-autogen, elixir-format
+msgid "Sizing proposal dismissed."
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:76
+#, elixir-autogen, elixir-format
+msgid "Sizing proposes growing the disk claim from %{current} to %{recommended}."
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:84
+#, elixir-autogen, elixir-format
+msgid "Sizing proposes shrinking the disk claim from %{current} to %{recommended}."
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:757
+#, elixir-autogen, elixir-format
+msgid "The cache in %{region} has not filled past %{peak}% of the disk it reserves, and has discarded nothing."
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:747
+#, elixir-autogen, elixir-format
+msgid "The cache in %{region} is discarding work a median of %{shed_age} after it was written, when it should keep everything for at least %{floor}."
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:202
+#, elixir-autogen, elixir-format
+msgid "The proposal no longer applies; the next sizing sweep re-evaluates the account."
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:159
+#, elixir-autogen, elixir-format
+msgid "View more"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:13
+#: lib/tuist_web/live/ops_account_live.html.heex:165
+#, elixir-autogen, elixir-format
+msgid "When"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_sizing_live.html.heex:29
+#: lib/tuist_web/live/ops_account_live.html.heex:181
+#, elixir-autogen, elixir-format
+msgid "Why"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:800
+#, elixir-autogen, elixir-format
+msgid "applied"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:816
+#, elixir-autogen, elixir-format
+msgid "discarding work after %{shed_age}, target %{floor}"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:801
+#, elixir-autogen, elixir-format
+msgid "dismissed"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:823
+#, elixir-autogen, elixir-format
+msgid "peaked at %{peak}% of its disk"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:802
+#, elixir-autogen, elixir-format
+msgid "superseded"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.ex:803
+#, elixir-autogen, elixir-format
+msgid "waiting"
 msgstr ""

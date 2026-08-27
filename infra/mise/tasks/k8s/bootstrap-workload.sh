@@ -563,7 +563,7 @@ to point at $LB_IP.
   canary    -> canary.tuist.dev
   production -> tuist.dev (and any apex aliases)
   preview   -> ExternalDNS reconciles *.preview.tuist.dev from the ingress Service
-  pentest   -> pentest.tuist.dev (plus registry-pentest.tuist.dev and kura-pentest.tuist.dev)
+  pentest   -> pentest.tuist.dev
 
 Verify the certificate and ingress on the new cluster (domain cut not needed for this):
   curl -k --resolve "staging.tuist.dev:443:$LB_IP" https://staging.tuist.dev/health

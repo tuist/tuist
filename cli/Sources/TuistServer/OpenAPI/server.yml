@@ -6466,6 +6466,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: 'List runs for a test case. Deprecated: use listTestCaseRuns with test_case_id query param instead.'
       tags:
         - Test Case Runs
@@ -6580,6 +6601,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Create a test case run attachment and get a presigned upload URL.
       tags:
         - Tests
@@ -6745,6 +6787,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Generation not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get a generation by ID.
       tags:
         - Generations
@@ -6873,6 +6936,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Downloads an artifact from the cache.
       tags:
         - Cache
@@ -6929,6 +7013,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '500':
           content:
             application/json:
@@ -6995,6 +7100,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The preview does not exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Deletes a preview.
       tags:
         - Previews
@@ -7058,6 +7184,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The preview does not exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Returns a preview with a given id.
       tags:
         - Previews
@@ -7242,6 +7389,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Test case not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get a test case by ID.
       tags:
         - Test Cases
@@ -7400,6 +7568,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Test case not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Update a test case.
       tags:
         - Test Cases
@@ -7492,6 +7681,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Bundle not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get the artifact tree for a bundle.
       tags:
         - Bundles
@@ -7690,6 +7900,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List test runs for a project.
       tags:
         - Tests
@@ -8191,6 +8422,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '503':
           content:
             application/json:
@@ -8390,6 +8642,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Build not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get a build by ID.
       tags:
         - Builds
@@ -8571,6 +8844,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List previews.
       tags:
         - Previews
@@ -8621,6 +8915,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Delete an automation alert.
       tags:
         - Automation Alerts
@@ -8672,6 +8987,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get an automation alert by ID.
       tags:
         - Automation Alerts
@@ -8775,6 +9111,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Validation error
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '500':
           content:
             application/json:
@@ -8847,6 +9204,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List the values seen for a test filter dimension.
       tags:
         - Metrics
@@ -8855,10 +9233,10 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -8871,10 +9249,18 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
           schema:
             type: string
             x-struct:
@@ -8885,14 +9271,6 @@ paths:
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
-          schema:
-            type: integer
             x-struct:
             x-validate:
       responses:
@@ -8928,6 +9306,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You are not authorized to list bundles
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List bundles for a project
       tags:
         - Bundles
@@ -9067,6 +9466,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You are not authorized to create a bundle
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Create a new bundle with artifacts
       tags:
         - Bundles
@@ -9137,6 +9557,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Start a multipart upload for a build archive.
       tags:
         - Builds
@@ -9306,6 +9747,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The run doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: It initiates a multipart upload for a run artifact
       tags:
         - Analytics
@@ -9938,6 +10400,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to create runs for the project.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Create a a new command analytics event
       tags:
         - Analytics
@@ -10457,6 +10940,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: 'List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.'
       tags:
         - Runs
@@ -11320,6 +11824,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: 'Create a new run. DEPRECATED: Use POST /builds or POST /tests instead.'
       tags:
         - Runs
@@ -11434,6 +11959,27 @@ paths:
                 x-struct:
                 x-validate:
           description: The artifact doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: It checks if an artifact exists in the cache.
       tags:
         - Cache
@@ -11703,6 +12249,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Build not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List CAS outputs for a given build.
       tags:
         - Builds
@@ -12023,6 +12590,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Build not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get a build by ID.
       tags:
         - Builds
@@ -12194,6 +12782,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Build not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List cacheable tasks for a given build.
       tags:
         - Builds
@@ -12239,6 +12848,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project was not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Cleans cache for a given project
       tags:
         - Cache
@@ -12502,6 +13132,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List cache runs associated with a given project.
       tags:
         - Cache Runs
@@ -12623,6 +13274,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: It uploads a given cache action item.
       tags:
         - Cache
@@ -12683,6 +13355,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: It generates a signed URL for uploading a part.
       tags:
         - Analytics
@@ -12771,6 +13464,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List test case runs.
       tags:
         - Test Case Runs
@@ -12936,6 +13650,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Cache run not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get a cache run by ID.
       tags:
         - Cache Runs
@@ -13035,6 +13770,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Test case run not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List attachments for a test case run.
       tags:
         - Tests
@@ -13638,6 +14394,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List builds associated with a given project.
       tags:
         - Builds
@@ -14269,6 +15046,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Create a new build.
       tags:
         - Builds
@@ -14384,6 +15182,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Time-bucketed build duration percentiles for a project.
       tags:
         - Metrics
@@ -14478,6 +15297,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The shard plan was not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Start a multipart upload for the test products bundle.
       tags:
         - Shards
@@ -14543,6 +15383,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The run doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: It initiates a multipart upload for a run artifact
       tags:
         - Analytics
@@ -14673,6 +15534,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The multipart upload is no longer active
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: It completes a multi-part upload.
       tags:
         - Cache
@@ -14841,6 +15723,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: An app build with the same binary ID and build version already exists
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: It initiates a multipart upload for a preview artifact.
       tags:
         - Previews
@@ -14969,6 +15872,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Time-bucketed test run duration percentiles for a project.
       tags:
         - Metrics
@@ -15035,6 +15959,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get the latest preview for a binary.
       tags:
         - Previews
@@ -15110,6 +16055,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: It generates a signed URL for uploading a part
       tags:
         - Analytics
@@ -15186,6 +16152,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: It generates a signed URL for uploading a part.
       tags:
         - Previews
@@ -15253,6 +16240,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List the values seen for a build filter dimension.
       tags:
         - Metrics
@@ -15330,6 +16338,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project or preview doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: It completes a multi-part upload.
       tags:
         - Previews
@@ -15490,6 +16519,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Build not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List compiled files for a given build.
       tags:
         - Builds
@@ -15563,6 +16613,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Generate a signed URL for uploading a build archive part.
       tags:
         - Builds
@@ -15744,6 +16815,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Build not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List build targets for a given build.
       tags:
         - Builds
@@ -15825,6 +16917,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The session or shard was not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get a shard.
       tags:
         - Shards
@@ -15989,6 +17102,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Test run not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get a test run by ID.
       tags:
         - Tests
@@ -16109,6 +17243,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Invalid request parameters
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get a single bundle by ID
       tags:
         - Bundles
@@ -16269,6 +17424,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Generate a signed URL for uploading a part of the test bundle.
       tags:
         - Shards
@@ -16406,6 +17582,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Test case not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List events for a test case.
       tags:
         - Test Cases
@@ -16476,6 +17673,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: It initiates a multipart upload in the cache.
       tags:
         - Cache
@@ -16631,6 +17849,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Create a shard plan.
       tags:
         - Shards
@@ -16729,6 +17968,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Upload a crash report for a test case run.
       tags:
         - Tests
@@ -17037,6 +18297,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List builds associated with a given project.
       tags:
         - Builds
@@ -17668,6 +18949,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Create a new build.
       tags:
         - Builds
@@ -17732,6 +19034,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The run doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Completes artifacts uploads for a given run
       tags:
         - Analytics
@@ -17844,6 +19167,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Complete the multipart upload and trigger per-shard xctestrun creation.
       tags:
         - Shards
@@ -17916,6 +19260,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: 'List test case runs for a test run. Deprecated: use listTestCaseRuns with test_run_id query param instead.'
       tags:
         - Test Case Runs
@@ -18010,6 +19375,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: It generates a signed URL for uploading a part.
       tags:
         - Cache
@@ -18127,6 +19513,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '500':
           content:
             application/json:
@@ -18287,6 +19694,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project or preview doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Uploads a preview icon.
       tags:
         - Previews
@@ -18470,6 +19898,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Build not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List tasks for a Gradle build.
       tags:
         - Gradle
@@ -18520,6 +19969,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The run doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Completes artifacts uploads for a given run
       tags:
         - Analytics
@@ -18677,6 +20147,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Run not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List module cache targets for a run.
       tags:
         - Runs
@@ -18874,6 +20365,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Build not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List build issues for a given build.
       tags:
         - Builds
@@ -19261,6 +20773,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Test run not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List targets for a test run.
       tags:
         - Tests
@@ -19506,6 +21039,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List generations associated with a given project.
       tags:
         - Generations
@@ -19659,6 +21213,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Test run not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List test suite runs for a test run.
       tags:
         - Tests
@@ -19723,6 +21298,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The item doesn't exist in the actino cache
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get a cache action item.
       tags:
         - Cache
@@ -19924,6 +21520,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Build not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get a Gradle build by ID.
       tags:
         - Gradle
@@ -19997,6 +21614,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Complete a multipart upload for a build archive.
       tags:
         - Builds
@@ -20145,6 +21783,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Test run not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List test module runs for a test run.
       tags:
         - Tests
@@ -20498,6 +22157,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List Gradle builds for a project.
       tags:
         - Gradle
@@ -20767,6 +22447,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Create a Gradle build with task data.
       tags:
         - Gradle
@@ -21156,6 +22857,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Test case run not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: Get a test case run by ID.
       tags:
         - Test Case Runs
@@ -21285,6 +23007,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List test cases associated with a given project.
       tags:
         - Test Cases
@@ -21333,6 +23076,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Forbidden
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
       summary: List automation alerts for a project.
       tags:
         - Automation Alerts
@@ -21429,6 +23193,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Validation error
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
         '500':
           content:
             application/json:

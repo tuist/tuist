@@ -8,6 +8,7 @@ defmodule TuistWeb.API.PreviewsController do
   alias Tuist.AppBuilds
   alias Tuist.Projects.Project
   alias Tuist.Storage
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadParts
@@ -131,6 +132,7 @@ defmodule TuistWeb.API.PreviewsController do
       conflict: {"An app build with the same binary ID and build version already exists", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -266,6 +268,7 @@ defmodule TuistWeb.API.PreviewsController do
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -350,6 +353,7 @@ defmodule TuistWeb.API.PreviewsController do
       ok: {"The upload has been completed", "application/json", TuistWeb.API.Schemas.Preview},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project or preview doesn't exist", "application/json", Error}
     }
   )
@@ -438,6 +442,7 @@ defmodule TuistWeb.API.PreviewsController do
       ok: {"The preview exists and can be downloaded", "application/json", Schemas.Preview},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The preview does not exist", "application/json", Error},
       bad_request: {"The request is invalid", "application/json", Error}
     }
@@ -565,7 +570,8 @@ defmodule TuistWeb.API.PreviewsController do
            required: [:previews, :pagination_metadata]
          }},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -658,7 +664,8 @@ defmodule TuistWeb.API.PreviewsController do
            }
          }},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -737,6 +744,7 @@ defmodule TuistWeb.API.PreviewsController do
       ok: {"The presigned upload URL", "application/json", ArtifactUploadURL},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project or preview doesn't exist", "application/json", Error}
     }
   )
@@ -830,6 +838,7 @@ defmodule TuistWeb.API.PreviewsController do
       no_content: "The preview was deleted",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The preview does not exist", "application/json", Error},
       bad_request: {"The request is invalid", "application/json", Error}
     }

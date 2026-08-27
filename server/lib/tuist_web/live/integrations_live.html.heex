@@ -61,6 +61,34 @@
           />
         </form>
       </div>
+      <.alert
+        :if={
+          is_nil(@github_app_installation) and not @github_app_configured? and
+            not @show_github_enterprise_input
+        }
+        status="information"
+        type="secondary"
+        size="large"
+        title={dgettext("dashboard_integrations", "No github.com App is configured")}
+        description={
+          dgettext(
+            "dashboard_integrations",
+            "This Tuist server needs its own GitHub App on github.com before it can install one. Register the App, then set TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET, and TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 and restart the server."
+          )
+        }
+      >
+        <:action>
+          <.button
+            label={dgettext("dashboard_integrations", "Read the setup guide")}
+            variant="secondary"
+            size="medium"
+            href="/en/docs/guides/server/self-host/server#platform-github"
+            target="_blank"
+          >
+            <:icon_right><.external_link /></:icon_right>
+          </.button>
+        </:action>
+      </.alert>
       <div data-part="actions">
         <.button
           :if={is_nil(@github_app_installation)}

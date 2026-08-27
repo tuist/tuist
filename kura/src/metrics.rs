@@ -51,6 +51,11 @@ pub struct Metrics {
     segment_refresh_bytes: Family<SegmentRefreshLabels, Counter>,
     segment_refresh_duration: Family<SegmentRefreshRouteLabels, Histogram>,
     segment_evicted_artifacts: Family<ArtifactOpLabels, Counter>,
+    // Age of the youngest content in a ring-evicted segment: how soon after
+    // being written an artifact can be shed under size pressure. The claim
+    // sizing signal, mirrored to the control plane through the usage batch.
+    segment_shed_age_seconds: Histogram,
+    capacity_eviction_reports_dropped: Counter,
     // Action-cache entries removed by the eviction cascade (an evicted blob
     // taking its referencing entries with it). A healthy nonzero rate is the
     // cascade doing its job; compare against the serve-side presence-gate hit
@@ -294,6 +299,21 @@ impl Metrics {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
             });
         let segment_evicted_artifacts = Family::<ArtifactOpLabels, Counter>::default();
+        // One hour up to 30 days: below the first bucket the ring is churning
+        // artifacts it just stored; the top buckets distinguish rings holding
+        // days of history, which is what per-plan retention floors care about.
+        let segment_shed_age_seconds = Histogram::new([
+            3_600.0,
+            21_600.0,
+            43_200.0,
+            86_400.0,
+            172_800.0,
+            259_200.0,
+            604_800.0,
+            1_209_600.0,
+            2_592_000.0,
+        ]);
+        let capacity_eviction_reports_dropped = Counter::default();
         let replication_requests = Family::<ReplicationLabels, Counter>::default();
         let replication_request_duration =
             Family::<ReplicationRouteLabels, Histogram>::new_with_constructor(|| {
@@ -576,6 +596,16 @@ impl Metrics {
             "kura_segment_evicted_artifacts_total",
             "Artifacts removed when old segments are evicted",
             segment_evicted_artifacts.clone(),
+        );
+        registry.register(
+            "kura_segment_shed_age_seconds",
+            "Age of the youngest content in a segment evicted by ring rotation, i.e. how soon after being written an artifact can be shed under size pressure",
+            segment_shed_age_seconds.clone(),
+        );
+        registry.register(
+            "kura_capacity_eviction_reports_dropped_total",
+            "Capacity-eviction reports dropped because the pending queue for the usage reporter was full",
+            capacity_eviction_reports_dropped.clone(),
         );
         registry.register(
             "kura_replication_requests_total",
@@ -1281,6 +1311,8 @@ impl Metrics {
             segment_refresh_bytes,
             segment_refresh_duration,
             segment_evicted_artifacts,
+            segment_shed_age_seconds,
+            capacity_eviction_reports_dropped,
             replication_requests,
             replication_request_duration,
             replication_apply_results,
@@ -1651,6 +1683,14 @@ impl Metrics {
                 result: result.to_owned(),
             })
             .inc_by(artifacts);
+    }
+
+    pub fn record_segment_shed_age(&self, seconds: f64) {
+        self.segment_shed_age_seconds.observe(seconds);
+    }
+
+    pub fn record_capacity_eviction_report_dropped(&self) {
+        self.capacity_eviction_reports_dropped.inc();
     }
 
     pub fn record_action_cache_cascade(&self, removed_entries: u64) {
@@ -2871,6 +2911,8 @@ mod tests {
             Duration::from_millis(4),
         );
         metrics.record_segment_eviction(ArtifactProducer::Xcode, "ok", 2);
+        metrics.record_segment_shed_age(7_200.0);
+        metrics.record_capacity_eviction_report_dropped();
         metrics.record_replication(
             "https://kura.example.com/internal",
             "upsert_artifact",
@@ -2996,6 +3038,8 @@ mod tests {
         assert!(rendered.contains("transport=\"http\""));
         assert!(rendered.contains("kura_segment_refreshes_total"));
         assert!(rendered.contains("kura_segment_evicted_artifacts_total"));
+        assert!(rendered.contains("kura_segment_shed_age_seconds"));
+        assert!(rendered.contains("kura_capacity_eviction_reports_dropped_total"));
         assert!(rendered.contains("kura_replication_requests_total"));
         assert!(rendered.contains("kura_replication_apply_results_total"));
         assert!(rendered.contains("source=\"replication\""));
