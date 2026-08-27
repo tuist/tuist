@@ -49,7 +49,8 @@ defmodule TuistWeb.API.Automations.AlertsController do
            },
            required: [:alerts]
          }},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -87,7 +88,8 @@ defmodule TuistWeb.API.Automations.AlertsController do
     responses: %{
       ok: {"Alert details", "application/json", AutomationAlert},
       not_found: {"Not found", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -142,7 +144,8 @@ defmodule TuistWeb.API.Automations.AlertsController do
       created: {"Created alert", "application/json", AutomationAlert},
       unprocessable_entity: {"Validation error", "application/json", Error},
       internal_server_error: {"An internal server error occurred", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -209,7 +212,8 @@ defmodule TuistWeb.API.Automations.AlertsController do
       not_found: {"Not found", "application/json", Error},
       unprocessable_entity: {"Validation error", "application/json", Error},
       internal_server_error: {"An internal server error occurred", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -268,7 +272,8 @@ defmodule TuistWeb.API.Automations.AlertsController do
     responses: %{
       no_content: {"Deleted", "application/json", nil},
       not_found: {"Not found", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 

@@ -106,6 +106,8 @@ public struct UploadPreviewIconService: UploadPreviewIconServicing {
             case let .json(error):
                 throw UploadPreviewIconServiceError.forbidden(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw UploadPreviewIconServiceError.unknownError(statusCode)
         case let .unauthorized(unauthorized):

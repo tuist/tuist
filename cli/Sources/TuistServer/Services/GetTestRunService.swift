@@ -72,6 +72,8 @@ public struct GetTestRunService: GetTestRunServicing {
             case let .json(error):
                 throw GetTestRunServiceError.forbidden(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw GetTestRunServiceError.unknownError(statusCode)
         }

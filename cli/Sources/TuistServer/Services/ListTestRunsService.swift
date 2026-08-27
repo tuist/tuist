@@ -90,6 +90,8 @@ public struct ListTestRunsService: ListTestRunsServicing {
             case let .json(error):
                 throw ListTestRunsServiceError.badRequest(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw ListTestRunsServiceError.unknownError(statusCode)
         }

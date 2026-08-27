@@ -77,6 +77,8 @@ public struct DeletePreviewService: DeletePreviewServicing {
             case let .json(error):
                 throw DeletePreviewServiceError.unauthorized(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw DeletePreviewServiceError.unknownError(statusCode)
         }

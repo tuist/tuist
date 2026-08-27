@@ -89,6 +89,8 @@ public struct ListTestTargetsService: ListTestTargetsServicing {
             case let .json(error):
                 throw ListTestTargetsServiceError.notFound(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw ListTestTargetsServiceError.unknownError(statusCode)
         }

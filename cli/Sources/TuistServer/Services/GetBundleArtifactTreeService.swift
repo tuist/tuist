@@ -76,6 +76,8 @@ public struct GetBundleArtifactTreeService: GetBundleArtifactTreeServicing {
             case let .json(error):
                 throw GetBundleArtifactTreeServiceError.notFound(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw GetBundleArtifactTreeServiceError.unknownError(statusCode)
         }

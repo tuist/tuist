@@ -72,7 +72,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
     ],
     responses: %{
       ok: {"List of test case runs", "application/json", TestCaseRunsList},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -143,7 +144,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
     ],
     responses: %{
       ok: {"List of test case runs", "application/json", TestCaseRunsList},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -207,7 +209,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
     ],
     responses: %{
       ok: {"List of test case runs for a test run", "application/json", TestCaseRunsList},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -402,7 +405,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
            ]
          }},
       not_found: {"Test case run not found", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 

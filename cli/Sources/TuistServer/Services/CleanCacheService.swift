@@ -76,6 +76,8 @@ public struct CleanCacheService: CleanCacheServicing {
             case let .json(error):
                 throw CleanCacheServiceError.unauthorized(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw CleanCacheServiceError.unknownError(statusCode)
         }

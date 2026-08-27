@@ -151,7 +151,8 @@ defmodule TuistWeb.API.GenerationsController do
            },
            required: [:generations, :pagination_metadata]
          }},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -295,7 +296,8 @@ defmodule TuistWeb.API.GenerationsController do
            ]
          }},
       not_found: {"Generation not found", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 

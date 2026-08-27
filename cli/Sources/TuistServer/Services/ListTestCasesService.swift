@@ -84,6 +84,8 @@ public struct ListTestCasesService: ListTestCasesServicing {
             case let .json(error):
                 throw ListTestCasesServiceError.forbidden(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw ListTestCasesServiceError.unknownError(statusCode)
         }

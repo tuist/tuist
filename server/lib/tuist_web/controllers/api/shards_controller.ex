@@ -108,6 +108,7 @@ defmodule TuistWeb.API.ShardsController do
       ok: {"The shard plan", "application/json", ShardPlan},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"Invalid parameters", "application/json", Error}
     }
@@ -194,6 +195,7 @@ defmodule TuistWeb.API.ShardsController do
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
       not_found: {"The shard plan was not found", "application/json", Error},
       bad_request: {"Invalid parameters", "application/json", Error}
     }
@@ -270,6 +272,7 @@ defmodule TuistWeb.API.ShardsController do
       bad_request: {"The request parameters are invalid", "application/json", Error},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
       not_found: {"The session or shard was not found", "application/json", Error}
     }
   )
@@ -383,6 +386,7 @@ defmodule TuistWeb.API.ShardsController do
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
       bad_request: {"Invalid parameters", "application/json", Error}
     }
   )
@@ -497,6 +501,7 @@ defmodule TuistWeb.API.ShardsController do
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
       bad_request: {"Invalid parameters", "application/json", Error}
     }
   )

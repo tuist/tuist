@@ -270,6 +270,8 @@ import TuistHTTP
                 case let .json(error):
                     throw CreateTestServiceError.forbidden(error.message)
                 }
+            case .tooManyRequests:
+                throw AuthorizationThrottledError(retryAfterSeconds: nil)
             case let .undocumented(statusCode, _):
                 throw CreateTestServiceError.unknownError(statusCode)
             case let .unauthorized(unauthorized):

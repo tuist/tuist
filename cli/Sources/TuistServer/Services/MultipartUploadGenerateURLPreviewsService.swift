@@ -80,6 +80,8 @@ public struct MultipartUploadGenerateURLPreviewsService: MultipartUploadGenerate
             case let .json(cacheArtifact):
                 return cacheArtifact.data.url
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw MultipartUploadGenerateURLPreviewsServiceError.unknownError(statusCode)
         case let .forbidden(forbiddenResponse):

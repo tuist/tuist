@@ -86,6 +86,8 @@ public struct ListBundlesService: ListBundlesServicing {
             case let .json(error):
                 throw ListBundlesServiceError.forbidden(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw ListBundlesServiceError.unknownError(statusCode)
         }

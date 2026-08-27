@@ -65,6 +65,8 @@ public struct GetPreviewService: GetPreviewServicing {
             case let .json(preview):
                 return preview
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw GetPreviewServiceError.unknownError(statusCode)
         case let .forbidden(forbiddenResponse):

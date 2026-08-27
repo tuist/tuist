@@ -452,7 +452,8 @@ defmodule TuistWeb.API.AnalyticsController do
     responses: %{
       ok: {"The run was created", "application/json", CommandEvent},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"You don't have permission to create runs for the project.", "application/json", Error}
+      forbidden: {"You don't have permission to create runs for the project.", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -685,6 +686,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
@@ -745,6 +747,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -806,6 +809,7 @@ defmodule TuistWeb.API.AnalyticsController do
       no_content: "The upload has been completed",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       internal_server_error: {"An internal server error occurred", "application/json", Error}
     }
@@ -866,6 +870,7 @@ defmodule TuistWeb.API.AnalyticsController do
       no_content: "The run artifact uploads were successfully finished",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
@@ -906,6 +911,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
@@ -951,6 +957,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -995,6 +1002,7 @@ defmodule TuistWeb.API.AnalyticsController do
       no_content: "The upload has been completed",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       internal_server_error: {"An internal server error occurred", "application/json", Error}
     }
@@ -1038,6 +1046,7 @@ defmodule TuistWeb.API.AnalyticsController do
       no_content: "The run artifact uploads were successfully finished",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )

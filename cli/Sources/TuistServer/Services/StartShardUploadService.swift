@@ -87,6 +87,8 @@ public struct StartShardUploadService: StartShardUploadServicing {
             case let .json(error):
                 throw StartShardUploadServiceError.unauthorized(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .notFound(notFoundResponse):
             switch notFoundResponse.body {
             case let .json(error):

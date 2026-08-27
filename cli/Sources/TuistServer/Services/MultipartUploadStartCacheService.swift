@@ -89,6 +89,8 @@
                 case let .json(error):
                     throw MultipartUploadStartCacheServiceError.unauthorized(error.message)
                 }
+            case .tooManyRequests:
+                throw AuthorizationThrottledError(retryAfterSeconds: nil)
             }
         }
     }

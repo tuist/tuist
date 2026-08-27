@@ -95,7 +95,8 @@ defmodule TuistWeb.API.BuildTargetsController do
            required: [:targets, :pagination_metadata]
          }},
       not_found: {"Build not found", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 

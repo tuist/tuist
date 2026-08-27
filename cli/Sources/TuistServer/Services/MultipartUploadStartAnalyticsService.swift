@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistHTTP
 
 @Mockable
 public protocol MultipartUploadStartAnalyticsServicing {
@@ -69,6 +70,8 @@ public struct MultipartUploadStartAnalyticsService: MultipartUploadStartAnalytic
             case let .json(error):
                 throw MultipartUploadStartAnalyticsServiceError.unauthorized(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         }
     }
 }

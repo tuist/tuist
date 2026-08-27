@@ -91,6 +91,8 @@ public struct UpdateTestCaseService: UpdateTestCaseServicing {
             case let .json(error):
                 throw UpdateTestCaseServiceError.forbidden(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw UpdateTestCaseServiceError.unknownError(statusCode)
         }

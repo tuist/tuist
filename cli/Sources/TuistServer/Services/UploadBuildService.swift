@@ -122,6 +122,8 @@ public struct UploadBuildService: UploadBuildServicing {
             case let .json(error):
                 throw UploadBuildServiceError.notFound(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw UploadBuildServiceError.unknownError(statusCode)
         }
@@ -171,6 +173,8 @@ public struct UploadBuildService: UploadBuildServicing {
             case let .json(error):
                 throw UploadBuildServiceError.notFound(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw UploadBuildServiceError.unknownError(statusCode)
         }
@@ -218,6 +222,8 @@ public struct UploadBuildService: UploadBuildServicing {
             case let .json(error):
                 throw UploadBuildServiceError.notFound(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw UploadBuildServiceError.unknownError(statusCode)
         }

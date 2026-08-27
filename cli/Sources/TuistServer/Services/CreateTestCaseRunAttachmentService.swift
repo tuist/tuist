@@ -114,6 +114,8 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
             case let .json(error):
                 throw CreateTestCaseRunAttachmentServiceError.forbidden(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode, _):
             throw CreateTestCaseRunAttachmentServiceError.unknownError(statusCode)
         case let .unauthorized(unauthorized):

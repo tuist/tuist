@@ -117,6 +117,8 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
             case let .json(error):
                 throw CreateShardPlanServiceError.badRequest(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode, _):
             throw CreateShardPlanServiceError.unknownError(statusCode)
         }

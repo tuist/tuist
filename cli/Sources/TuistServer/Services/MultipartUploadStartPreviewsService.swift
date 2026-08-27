@@ -129,6 +129,8 @@ public struct MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsS
             case let .json(error):
                 throw MultipartUploadStartPreviewsServiceError.unauthorized(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .conflict(conflictResponse):
             switch conflictResponse.body {
             case let .json(error):

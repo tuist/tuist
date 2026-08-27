@@ -78,6 +78,8 @@ public struct ListTestCaseEventsService: ListTestCaseEventsServicing {
             case let .json(error):
                 throw ListTestCaseEventsServiceError.forbidden(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw ListTestCaseEventsServiceError.unknownError(statusCode)
         }

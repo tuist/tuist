@@ -78,6 +78,8 @@
                 case let .json(error):
                     throw GetCacheServiceError.paymentRequired(error.message)
                 }
+            case .tooManyRequests:
+                throw AuthorizationThrottledError(retryAfterSeconds: nil)
             case let .undocumented(statusCode: statusCode, _):
                 throw GetCacheServiceError.unknownError(statusCode)
             case let .forbidden(forbiddenResponse):

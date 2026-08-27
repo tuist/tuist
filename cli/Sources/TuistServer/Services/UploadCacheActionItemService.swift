@@ -96,6 +96,8 @@ public struct UploadCacheActionItemService: UploadCacheActionItemServicing {
             case let .json(error):
                 throw UploadCacheActionItemServiceError.paymentRequired(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw UploadCacheActionItemServiceError.unknownError(statusCode)
         case let .forbidden(forbiddenResponse):

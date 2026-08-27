@@ -91,6 +91,8 @@
                 case let .json(previewsIndex):
                     return try ServerPreviewsPage(previewsIndex)
                 }
+            case .tooManyRequests:
+                throw AuthorizationThrottledError(retryAfterSeconds: nil)
             case let .undocumented(statusCode: statusCode, _):
                 throw ListPreviewsServiceError.unknownError(statusCode)
             case let .forbidden(forbiddenResponse):

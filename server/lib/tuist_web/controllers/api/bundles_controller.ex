@@ -77,7 +77,8 @@ defmodule TuistWeb.API.BundlesController do
            required: [:bundles, :meta]
          }},
       unauthorized: {"You need to be authenticated to list bundles", "application/json", Error},
-      forbidden: {"You are not authorized to list bundles", "application/json", Error}
+      forbidden: {"You are not authorized to list bundles", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -151,7 +152,8 @@ defmodule TuistWeb.API.BundlesController do
       unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       not_found: {"Bundle not found", "application/json", Error},
       unauthorized: {"You need to be authenticated to view this bundle", "application/json", Error},
-      forbidden: {"You are not authorized to view this bundle", "application/json", Error}
+      forbidden: {"You are not authorized to view this bundle", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -266,7 +268,8 @@ defmodule TuistWeb.API.BundlesController do
       ok: {"The bundle was created successfully", "application/json", Bundle},
       bad_request: {"Validation errors occurred", "application/json", ValidationError},
       unauthorized: {"You need to be authenticated to create a bundle", "application/json", Error},
-      forbidden: {"You are not authorized to create a bundle", "application/json", Error}
+      forbidden: {"You are not authorized to create a bundle", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 

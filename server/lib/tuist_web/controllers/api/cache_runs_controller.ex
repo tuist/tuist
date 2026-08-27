@@ -149,7 +149,8 @@ defmodule TuistWeb.API.CacheRunsController do
            required: [:cache_runs, :pagination_metadata]
          }},
       bad_request: {"The request was invalid", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -286,7 +287,8 @@ defmodule TuistWeb.API.CacheRunsController do
            ]
          }},
       not_found: {"Cache run not found", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 

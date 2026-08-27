@@ -85,6 +85,8 @@ public struct GetShardService: GetShardServicing {
             case let .json(error):
                 throw GetShardServiceError.notFound(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode, _):
             throw GetShardServiceError.unknownError(statusCode)
         }

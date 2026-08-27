@@ -90,6 +90,8 @@ public struct ListBuildCacheTasksService: ListBuildCacheTasksServicing {
             case let .json(error):
                 throw ListBuildCacheTasksServiceError.notFound(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw ListBuildCacheTasksServiceError.unknownError(statusCode)
         }

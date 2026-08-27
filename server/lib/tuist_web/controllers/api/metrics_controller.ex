@@ -67,7 +67,8 @@ defmodule TuistWeb.API.MetricsController do
     responses: %{
       ok: {"Build duration metrics", "application/json", DurationMetrics},
       bad_request: {"The request was invalid", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -120,7 +121,8 @@ defmodule TuistWeb.API.MetricsController do
     responses: %{
       ok: {"Test duration metrics", "application/json", DurationMetrics},
       bad_request: {"The request was invalid", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -163,7 +165,8 @@ defmodule TuistWeb.API.MetricsController do
            properties: %{values: %Schema{type: :array, items: %Schema{type: :string}}}
          }},
       bad_request: {"The request was invalid", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 
@@ -208,7 +211,8 @@ defmodule TuistWeb.API.MetricsController do
            properties: %{values: %Schema{type: :array, items: %Schema{type: :string}}}
          }},
       bad_request: {"The request was invalid", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
     }
   )
 

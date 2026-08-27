@@ -83,6 +83,8 @@ import TuistHTTP
                 case let .json(error):
                     throw CreateCrashReportServiceError.forbidden(error.message)
                 }
+            case .tooManyRequests:
+                throw AuthorizationThrottledError(retryAfterSeconds: nil)
             case let .undocumented(statusCode, _):
                 throw CreateCrashReportServiceError.unknownError(statusCode)
             case let .unauthorized(unauthorized):

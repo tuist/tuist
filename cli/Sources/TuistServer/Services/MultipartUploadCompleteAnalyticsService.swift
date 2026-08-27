@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import OpenAPIRuntime
+import TuistHTTP
 
 @Mockable
 public protocol MultipartUploadCompleteAnalyticsServicing {
@@ -62,6 +63,8 @@ public struct MultipartUploadCompleteAnalyticsService: MultipartUploadCompleteAn
         switch response {
         case .noContent:
             return
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw MultipartUploadCompleteAnalyticsServiceError.unknownError(statusCode)
         case let .forbidden(forbiddenResponse):

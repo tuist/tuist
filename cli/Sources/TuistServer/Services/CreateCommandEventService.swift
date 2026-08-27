@@ -120,6 +120,8 @@
                 case let .json(commandEvent):
                     return ServerCommandEvent(commandEvent)
                 }
+            case .tooManyRequests:
+                throw AuthorizationThrottledError(retryAfterSeconds: nil)
             case let .undocumented(statusCode: statusCode, _):
                 throw CreateCommandEventServiceError.unknownError(statusCode)
             case let .forbidden(forbiddenResponse):

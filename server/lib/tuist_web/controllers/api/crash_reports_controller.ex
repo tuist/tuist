@@ -71,6 +71,7 @@ defmodule TuistWeb.API.CrashReportsController do
       ok: {"The crash report was uploaded", "application/json", nil},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"Not authorized to perform this action", "application/json", Error},
+      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"The request parameters are invalid", "application/json", Error}
     }

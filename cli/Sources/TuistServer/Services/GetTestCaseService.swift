@@ -80,6 +80,8 @@ public struct GetTestCaseService: GetTestCaseServicing {
             case let .json(error):
                 throw GetTestCaseServiceError.forbidden(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw GetTestCaseServiceError.unknownError(statusCode)
         }
@@ -129,6 +131,8 @@ public struct GetTestCaseService: GetTestCaseServicing {
             case let .json(error):
                 throw GetTestCaseServiceError.forbidden(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw GetTestCaseServiceError.unknownError(statusCode)
         }

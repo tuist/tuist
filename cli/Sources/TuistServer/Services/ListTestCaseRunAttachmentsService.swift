@@ -78,6 +78,8 @@ public struct ListTestCaseRunAttachmentsService: ListTestCaseRunAttachmentsServi
             case let .json(error):
                 throw ListTestCaseRunAttachmentsServiceError.notFound(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw ListTestCaseRunAttachmentsServiceError.unknownError(statusCode)
         }

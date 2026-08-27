@@ -94,6 +94,8 @@ public struct ListBuildsService: ListBuildsServicing {
             case let .json(error):
                 throw ListBuildsServiceError.forbidden(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw ListBuildsServiceError.unknownError(statusCode)
         }

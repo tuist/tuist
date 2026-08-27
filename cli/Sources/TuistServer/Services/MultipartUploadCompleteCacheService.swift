@@ -81,6 +81,8 @@
                 case let .json(error):
                     throw MultipartUploadCompleteCacheServiceError.paymentRequired(error.message)
                 }
+            case .tooManyRequests:
+                throw AuthorizationThrottledError(retryAfterSeconds: nil)
             case let .undocumented(statusCode: statusCode, _):
                 throw MultipartUploadCompleteCacheServiceError.unknownError(statusCode)
             case let .forbidden(forbiddenResponse):

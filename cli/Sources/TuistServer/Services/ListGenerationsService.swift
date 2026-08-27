@@ -76,6 +76,8 @@ public struct ListGenerationsService: ListGenerationsServicing {
             case let .json(error):
                 throw ListGenerationsServiceError.forbidden(error.message)
             }
+        case .tooManyRequests:
+            throw AuthorizationThrottledError(retryAfterSeconds: nil)
         case let .undocumented(statusCode: statusCode, _):
             throw ListGenerationsServiceError.unknownError(statusCode)
         }

@@ -118,6 +118,8 @@
                 case let .json(bundle):
                     return bundle
                 }
+            case .tooManyRequests:
+                throw AuthorizationThrottledError(retryAfterSeconds: nil)
             case let .undocumented(statusCode: statusCode, _):
                 throw CreateBundleServiceError.unknownError(statusCode)
             case let .badRequest(badRequestResponse):
