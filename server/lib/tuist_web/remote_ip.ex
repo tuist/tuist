@@ -72,17 +72,19 @@ defmodule TuistWeb.RemoteIp do
   @doc """
   `origin/1`, with the reason when there is no origin to give.
 
-  The two reasons need different fixes and are otherwise indistinguishable
-  from the outside: `:untrusted_hop` means the request did not arrive through
-  a hop allowed to speak for the client, and `:no_location` means it did and
-  the edge sent no location — which on a Cloudflare zone means the visitor
-  location headers are not turned on for it.
+  `:no_location` means the request arrived through a trusted hop and the edge
+  sent no location, which on a Cloudflare zone means the visitor location
+  headers are not turned on for it. `:untrusted_hop` and
+  `:location_from_untrusted_hop` both mean the hop was not one allowed to
+  speak for the client, and differ by whether a location was present anyway —
+  which is what says whether the zone is configured, without having to go and
+  look.
   """
   def attributed_origin(conn) do
     country = country_code(conn)
 
     cond do
-      not trusted_cloudflare_hop?(conn.remote_ip, header(conn, "x-forwarded-for")) ->
+      not trusted_cloudflare_hop?(conn.remote_ip, header(conn, "x-forwarded-for"), edge_address(conn)) ->
         # Whether a location was there at all separates "the edge is not
         # sending one" from "it is, and we are declining to believe this hop",
         # which are opposite investigations: one is the zone's configuration,
@@ -127,12 +129,14 @@ defmodule TuistWeb.RemoteIp do
   defp cloudflare_ip(conn, forwarded_for) do
     with value when not is_nil(value) <- header(conn, "cf-connecting-ip"),
          {:ok, address} <- parse_address(value),
-         true <- trusted_cloudflare_hop?(conn.remote_ip, forwarded_for) do
+         true <- trusted_cloudflare_hop?(conn.remote_ip, forwarded_for, edge_address(conn)) do
       format_ip(address)
     else
       _ -> nil
     end
   end
+
+  defp edge_address(conn), do: header(conn, "x-tuist-edge-address")
 
   defp header(conn, name) do
     conn
@@ -153,9 +157,21 @@ defmodule TuistWeb.RemoteIp do
     |> List.first()
   end
 
-  defp trusted_cloudflare_hop?(peer_address, forwarded_for) do
+  # `edge_address` is the address of the edge that opened the connection, set
+  # by the ingress from what the load balancer declared. It is needed because
+  # the forwarded-for chain the ingress builds ends at the load balancer
+  # rather than at the edge, so the edge address reaches the application
+  # nowhere else.
+  #
+  # Believed only from a private peer, which is the whole of its security. The
+  # ingress overwrites any inbound value of this header, so it cannot be
+  # asserted by a client that reaches the origin directly — and such a client
+  # carries a public address, which fails the peer check before the header is
+  # read at all.
+  defp trusted_cloudflare_hop?(peer_address, forwarded_for, edge_address) do
     cloudflare_address?(peer_address) or
-      (private_address?(peer_address) and cloudflare_address?(last_forwarded_ip(forwarded_for)))
+      (private_address?(peer_address) and
+         (cloudflare_address?(edge_address) or cloudflare_address?(last_forwarded_ip(forwarded_for))))
   end
 
   defp last_forwarded_ip(nil), do: nil

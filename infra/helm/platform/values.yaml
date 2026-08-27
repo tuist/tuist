@@ -80,6 +80,18 @@ ingress-nginx:
       compute-full-forwarded-for: "true"
       upstream-keepalive-connections: "0"
       upstream-keepalive-timeout: "10"
+    # The address of the edge that opened this connection, which the
+    # application needs and cannot otherwise see. With PROXY protocol,
+    # $remote_addr is the CDN edge the load balancer declared, but the
+    # forwarded-for chain nginx builds ends in $realip_remote_addr — the
+    # load balancer itself — so the edge address exists here and reaches
+    # nothing downstream. Everything that reads it must treat it as
+    # authoritative only from a private peer: the load balancer holds a
+    # public address, so a client can reach the origin directly, and
+    # proxy_set_header overwriting any inbound value is what makes this
+    # unforgeable rather than a header anyone can assert.
+    proxySetHeaders:
+      X-Tuist-Edge-Address: "$remote_addr"
     metrics:
       enabled: true
       service:

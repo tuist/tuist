@@ -131,7 +131,7 @@ struct BazelSetupCommandServiceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let (subject, serverAuthenticationController, _, remoteCacheProbeService) = makeSubject(
             cacheURL: URL(string: "https://my-account-eu-central-1.kura.tuist.dev")!,
-            stableEndpoint: "https://my-account.cache.kura.tuist.dev"
+            stableEndpoint: "https://my-account.cache.tuist.dev"
         )
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
@@ -145,9 +145,9 @@ struct BazelSetupCommandServiceTests {
         )
         #expect(
             bazelrcContent == """
-            build --remote_cache=grpcs://my-account.cache.kura.tuist.dev
+            build --remote_cache=grpcs://my-account.cache.tuist.dev
             build --remote_header=x-tuist-account-handle=my-account
-            build --credential_helper=my-account.cache.kura.tuist.dev=\(scriptPath.pathString)
+            build --credential_helper=my-account.cache.tuist.dev=\(scriptPath.pathString)
             build --remote_instance_name=my-project
 
             """
@@ -157,7 +157,7 @@ struct BazelSetupCommandServiceTests {
         // than a build.
         verify(remoteCacheProbeService)
             .probe(
-                endpoint: .matching { $0.host == "my-account.cache.kura.tuist.dev" },
+                endpoint: .matching { $0.host == "my-account.cache.tuist.dev" },
                 accountHandle: .any,
                 instanceName: .any,
                 token: .any

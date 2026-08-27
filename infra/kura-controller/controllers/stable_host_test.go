@@ -21,7 +21,7 @@ import (
 
 const (
 	stableHostRegional = "tuist-eu-central-1.kura.tuist.dev"
-	stableHostStable   = "tuist.kura.tuist.dev"
+	stableHostStable   = "tuist.cache.tuist.dev"
 )
 
 func stableHostInstance(name string, region string, ingressClass string, stable string) *kurav1alpha1.KuraInstance {

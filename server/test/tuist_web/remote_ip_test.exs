@@ -154,6 +154,29 @@ defmodule TuistWeb.RemoteIpTest do
         |> Map.put(:remote_ip, {203, 0, 113, 20})
         |> Plug.Conn.put_req_header("cf-ipcountry", "FR")
 
+      # The forwarded chain ends at our own load balancer rather than the edge,
+      # so the edge address arrives in its own header. Trusted only from a
+      # private peer: nginx overwrites any inbound value, so a client that
+      # reaches the origin directly cannot assert one, and its own address is
+      # public and fails the peer check.
+      via_edge_header =
+        build_conn()
+        |> Map.put(:remote_ip, {192, 168, 6, 220})
+        |> Plug.Conn.put_req_header("x-forwarded-for", "89.24.10.5, 10.0.0.7")
+        |> Plug.Conn.put_req_header("x-tuist-edge-address", "141.101.68.26")
+        |> Plug.Conn.put_req_header("cf-ipcountry", "CZ")
+
+      assert TuistWeb.RemoteIp.attributed_origin(via_edge_header) == {:ok, "CZ"}
+
+      forged_edge_header =
+        build_conn()
+        |> Map.put(:remote_ip, {203, 0, 113, 20})
+        |> Plug.Conn.put_req_header("x-tuist-edge-address", "141.101.68.26")
+        |> Plug.Conn.put_req_header("cf-ipcountry", "CZ")
+
+      assert TuistWeb.RemoteIp.attributed_origin(forged_edge_header) ==
+               {:error, :location_from_untrusted_hop}
+
       bare = Map.put(build_conn(), :remote_ip, {203, 0, 113, 20})
 
       # A location present but disbelieved says the zone is configured and the
