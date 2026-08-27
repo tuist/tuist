@@ -29,6 +29,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"strings"
 
@@ -102,6 +103,86 @@ type service struct {
 
 type serviceResource struct {
 	DisplayName string `json:"displayName"`
+}
+
+type EgressSpec struct {
+	// Zero means "unknown" — no bandwidth block, or a unit we cannot convert — so
+	// callers keep their configured value rather than re-rate a node from a
+	// response they did not understand.
+	Mbps int32
+	// bandwidth.type: what distinguishes a box on a purchased uplink upgrade from
+	// its identically-specced neighbours, which is the drift this exists to catch.
+	Tier string
+	// The raw pair, so an unconverted response logs as what OVH said.
+	Unit  string
+	Value int64
+}
+
+// The same response carries `connection` and `vrack.bandwidth`, deliberately not
+// read: both report the switch-side link, 25 Gbit/s on every box we run whatever
+// the public path may carry, so either would over-commit it — 25x on a box limited
+// to 1 Gbit/s.
+type networkSpecifications struct {
+	Bandwidth *bandwidthDetails `json:"bandwidth"`
+}
+
+// The unit is a free-form string in OVH's schema, not an enum, so it has to be
+// read rather than assumed.
+type bandwidthDetails struct {
+	OvhToInternet *unitAndValue `json:"OvhToInternet"`
+	Type          string        `json:"type"`
+}
+
+// PublicEgress reads the box's OVH-to-Internet bandwidth limitation.
+//
+// OVH marks every field in the block nullable, so an absent or unconvertible
+// reading is an ordinary answer rather than an error: it yields Mbps 0 and leaves
+// the caller on its fallback. Only transport/decode failures are errors.
+func (c *Client) PublicEgress(ctx context.Context, serviceName string) (EgressSpec, error) {
+	var spec networkSpecifications
+	if err := c.API.GetWithContext(ctx, "/dedicated/server/"+serviceName+"/specifications/network", &spec); err != nil {
+		return EgressSpec{}, fmt.Errorf("get network specifications for %s: %w", serviceName, err)
+	}
+	if spec.Bandwidth == nil {
+		return EgressSpec{}, nil
+	}
+	out := EgressSpec{Tier: spec.Bandwidth.Type}
+	if spec.Bandwidth.OvhToInternet == nil {
+		return out, nil
+	}
+	out.Unit = spec.Bandwidth.OvhToInternet.Unit
+	out.Value = spec.Bandwidth.OvhToInternet.Value
+	out.Mbps = mbpsFromUnitAndValue(out.Unit, out.Value)
+	return out, nil
+}
+
+// Taking the bare value is the expensive bug here: a 5 Gbit/s box reported as
+// "5 Gbps" would advertise 5 Mbps and starve every pod on it.
+func mbpsFromUnitAndValue(unit string, value int64) int32 {
+	if value <= 0 {
+		return 0
+	}
+	switch strings.ToLower(strings.TrimSpace(unit)) {
+	case "mbps":
+		return mbpsInt32(value)
+	case "gbps":
+		if value > math.MaxInt64/1000 {
+			return 0
+		}
+		return mbpsInt32(value * 1000)
+	default:
+		return 0
+	}
+}
+
+// A wrapped conversion is worse than an obviously bad one: 4294967596 wraps to
+// 300, which clears the caller's floor and reads like a real reading. Out of range
+// joins everything else we cannot interpret at zero.
+func mbpsInt32(value int64) int32 {
+	if value > math.MaxInt32 {
+		return 0
+	}
+	return int32(value)
 }
 
 // AdoptParams scopes which pre-ordered servers a fleet may claim.
