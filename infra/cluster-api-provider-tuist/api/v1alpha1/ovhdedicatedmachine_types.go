@@ -134,6 +134,31 @@ type OVHDedicatedMachineStatus struct {
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 
+	// EgressMbps is the box's public egress limitation (bandwidth.OvhToInternet on
+	// OVH's /specifications/network) as last read. Cached here rather than re-read
+	// per reconcile, and in status rather than memory so a rollout doesn't refetch
+	// for the whole fleet at once. Zero — unresolved, or resolved to something
+	// unusable — leaves the node on Spec.EgressBudgetMbps.
+	// +optional
+	EgressMbps int32 `json:"egressMbps,omitempty"`
+
+	// EgressTier is the bandwidth offer tier behind EgressMbps (standard, included,
+	// improved, ...), which is what distinguishes a box on a purchased uplink
+	// upgrade from its identically-specced neighbours.
+	// +optional
+	EgressTier string `json:"egressTier,omitempty"`
+
+	// EgressResolvedServiceName is the box the cached reading was taken from. A
+	// reading recorded against a different service is always stale, which is what
+	// keeps a re-adopted machine from being rated by the previous box's number.
+	// +optional
+	EgressResolvedServiceName string `json:"egressResolvedServiceName,omitempty"`
+
+	// EgressResolvedAt bounds the refresh. A failed read leaves it and EgressMbps
+	// untouched, so the last known-good value survives an OVH outage.
+	// +optional
+	EgressResolvedAt *metav1.Time `json:"egressResolvedAt,omitempty"`
+
 	// BootstrapAttempts counts consecutive bootstrap failures on the current
 	// server. Reset on a successful bootstrap or whenever the underlying
 	// ServiceName changes.
