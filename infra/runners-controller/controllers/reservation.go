@@ -84,8 +84,8 @@ const (
 	// maxFleetReservations is how many hosts may be held across the whole
 	// fleet at once. Every reservation is capacity withdrawn from the
 	// small shapes while it converges, so this stays at one: a second
-	// concurrent drain would take a quarter of an 11-slot fleet offline
-	// to serve two large jobs.
+	// concurrent drain would hold two hosts at once, up to 4 of the
+	// 13-slot production fleet, to serve two large jobs.
 	maxFleetReservations = 1
 )
 

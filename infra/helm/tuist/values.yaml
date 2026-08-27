@@ -711,6 +711,7 @@ server:
       app.kubernetes.io/component: controller
     dnsNamespace: kube-system
     observabilityNamespace: observability
+    kuraEnabled: true
     kuraNamespace: kura
     # Additional labels for Kura runtime pods allowed to call the server.
     # Empty preserves the existing namespace-wide behavior.

@@ -2,6 +2,7 @@
     import Foundation
     import Mockable
     import TuistCore
+    import TuistHTTP
 
     @Mockable
     public protocol MultipartUploadStartCacheServicing {
@@ -27,6 +28,18 @@
                 return "The remote cache artifact could not be uploaded due to an unknown Tuist response of \(statusCode)."
             case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
                 return message
+            }
+        }
+    }
+
+    extension MultipartUploadStartCacheServiceError: HTTPStatusCodeError {
+        public var httpStatusCode: Int {
+            switch self {
+            case let .unknownError(statusCode): return statusCode
+            case .notFound: return 404
+            case .paymentRequired: return 402
+            case .forbidden: return 403
+            case .unauthorized: return 401
             }
         }
     }
