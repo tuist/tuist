@@ -32,13 +32,74 @@ defmodule Tuist.Kura.PlacementProposalsTest do
   describe "sweep/1" do
     test "opens a relocation when traffic has durably moved" do
       account = paid_account()
-      insert_server!(account, "us-east")
+      insert_server!(account, "us-east", held_for_days: 60)
       seed_runs(account, "FR", 30, 20)
 
       assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
 
       assert %PlacementProposal{kind: :relocate, from_region: "us-east", to_region: "eu-central", status: :open} =
                PlacementProposals.open_proposal_for(account)
+    end
+
+    test "corrects a first placement on a week of evidence rather than waiting a month" do
+      # First placement is a guess: the region is chosen the moment a build
+      # first asks, from whatever origin history exists then. Waiting for the
+      # relocation rung would leave that guess standing for a quarter.
+      account = paid_account()
+      insert_server!(account, "us-east")
+      seed_runs(account, "FR", 7, 20)
+
+      assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
+
+      assert %PlacementProposal{kind: :correct, from_region: "us-east", to_region: "eu-central", status: :open} =
+               PlacementProposals.open_proposal_for(account)
+    end
+
+    test "leaves a settled placement to the slower rung" do
+      # Past the correction window the account has a cache worth keeping, so
+      # the decision belongs to the rung that reads a month.
+      account = paid_account()
+      insert_server!(account, "us-east", held_for_days: 30)
+      seed_runs(account, "FR", 7, 20)
+
+      assert {:ok, %{evaluated: 1, open: 0}} = PlacementProposals.sweep(@today)
+      assert PlacementProposals.open_proposal_for(account) == nil
+    end
+
+    test "corrects a guess once and never again" do
+      # Applying records a placement row, which makes the primary decided; the
+      # rung only ever replaces a region nothing chose.
+      account = paid_account()
+      insert_server!(account, "us-east")
+      seed_runs(account, "FR", 7, 20)
+      {:ok, _summary} = PlacementProposals.sweep(@today)
+
+      proposal = PlacementProposals.open_proposal_for(account)
+      assert {:ok, %{kind: :correct}} = Kura.apply_placement_proposal(proposal, "operator@tuist.dev")
+      assert PlacerRegions.primary_region(account) == "eu-central"
+      assert PlacerRegions.retiring_regions(account) == ["us-east"]
+
+      # Traffic swings back; the guess has already been replaced by a decision,
+      # so this is a relocation to be judged on a month, not another correction.
+      seed_runs(account, "US-VA", 7, 40)
+
+      assert {:ok, %{open: 0}} = PlacementProposals.sweep(@today)
+    end
+
+    test "a correction does not spend the quarterly relocation budget" do
+      # Replacing a guess is the system arriving at an answer rather than
+      # changing its mind, so it must not use up the one move a quarter that a
+      # genuine relocation gets.
+      account = paid_account()
+      insert_server!(account, "us-east")
+      seed_runs(account, "FR", 7, 20)
+      {:ok, _summary} = PlacementProposals.sweep(@today)
+      {:ok, _applied} = Kura.apply_placement_proposal(PlacementProposals.open_proposal_for(account), "op@tuist.dev")
+
+      assert [] =
+               PlacementProposal
+               |> Repo.all()
+               |> Enum.filter(&(&1.kind == :relocate and &1.status == :applied))
     end
 
     test "opens nothing for an account whose traffic is where it already is" do
@@ -127,7 +188,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
   describe "apply_placement_proposal/2" do
     test "relocating writes the destination as primary and marks the source retiring" do
       account = paid_account()
-      insert_server!(account, "us-east")
+      insert_server!(account, "us-east", held_for_days: 60)
       seed_runs(account, "FR", 30, 20)
       {:ok, _summary} = PlacementProposals.sweep(@today)
 
@@ -305,7 +366,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
     account
   end
 
-  defp insert_server!(account, region) do
+  defp insert_server!(account, region, opts \\ []) do
     {:ok, server} =
       %Server{}
       |> Server.create_changeset(%{
@@ -315,7 +376,21 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       })
       |> Repo.insert()
 
-    server
+    # How long the account has been served here is what separates correcting a
+    # first placement from relocating a settled one, and it is read from the
+    # row's age. A test seeding a month of traffic has to age the placement to
+    # match, or it describes an account that was never served while it ran.
+    case Keyword.get(opts, :held_for_days) do
+      nil ->
+        server
+
+      days ->
+        inserted_at = DateTime.add(DateTime.utc_now(), -days * 24 * 3600, :second)
+
+        server
+        |> Ecto.Changeset.change(inserted_at: inserted_at)
+        |> Repo.update!()
+    end
   end
 
   defp seed_runs(account, origin, days, runs_per_day) do

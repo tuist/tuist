@@ -116,7 +116,7 @@ defmodule Tuist.Kura.PlacementTest do
       assert evidence["retire_source"] == true
     end
 
-    test "always gives up the source on a plan that holds one region" do
+    test "gives up a source an Air account's own traffic does not earn" do
       context =
         context(
           plan: :air,
@@ -127,6 +127,68 @@ defmodule Tuist.Kura.PlacementTest do
 
       assert {:relocate, "us-east", "eu-central", evidence} = Placement.evaluate(context)
       assert evidence["retire_source"] == true
+    end
+
+    test "corrects a guess on a short window at a higher bar" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          primary_decided?: false,
+          serving: ["us-east"],
+          held_since: %{"us-east" => Date.add(@today, -3)},
+          rollups: daily("FR", 7, 90) ++ daily("US-VA", 7, 10)
+        )
+
+      assert {:correct, "us-east", "eu-central", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "initial_placement_missed"
+    end
+
+    test "does not correct a placement something decided" do
+      # The rung replaces a guess. An applied relocation, an operator pin or
+      # the backfill are decisions, and a decision is not corrected on a week.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          primary_decided?: true,
+          serving: ["us-east"],
+          held_since: %{"us-east" => Date.add(@today, -3)},
+          rollups: daily("FR", 7, 90) ++ daily("US-VA", 7, 10)
+        )
+
+      refute match?({:correct, _from, _to, _evidence}, Placement.evaluate(context))
+    end
+
+    test "does not correct a guess that has stopped being new" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          primary_decided?: false,
+          serving: ["us-east"],
+          held_since: %{"us-east" => Date.add(@today, -20)},
+          rollups: daily("FR", 7, 90) ++ daily("US-VA", 7, 10)
+        )
+
+      refute match?({:correct, _from, _to, _evidence}, Placement.evaluate(context))
+    end
+
+    test "does not correct on a majority the slower rung would accept" do
+      # Acting on a week of evidence demands more than acting on a month: a
+      # 65/35 split moves a settled primary but is not enough to overturn a
+      # guess this early.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          primary_decided?: false,
+          serving: ["us-east"],
+          held_since: %{"us-east" => Date.add(@today, -3)},
+          rollups: daily("FR", 7, 65) ++ daily("US-VA", 7, 35)
+        )
+
+      refute match?({:correct, _from, _to, _evidence}, Placement.evaluate(context))
     end
 
     test "stops at the relocation cap" do
@@ -177,13 +239,39 @@ defmodule Tuist.Kura.PlacementTest do
       assert evidence["runs_per_day"] >= 25
     end
 
-    test "never expands an Air account" do
+    test "holds an Air account at one region below its floor" do
+      # Air can hold two, but a second instance is the expensive thing, so its
+      # floor is higher than a paid plan's rather than lower.
       context =
         context(
           plan: :air,
           primary: "us-east",
           serving: ["us-east"],
           rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 40)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "opens a second Air region once its own traffic clears the floor" do
+      context =
+        context(
+          plan: :air,
+          primary: "us-east",
+          serving: ["us-east"],
+          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 120)
+        )
+
+      assert {:expand, "eu-central", _evidence} = Placement.evaluate(context)
+    end
+
+    test "holds an Air account at two regions" do
+      context =
+        context(
+          plan: :air,
+          primary: "us-east",
+          serving: ["us-east", "eu-central"],
+          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 120) ++ daily("JP", 14, 200)
         )
 
       assert Placement.evaluate(context) == :none
@@ -388,6 +476,9 @@ defmodule Tuist.Kura.PlacementTest do
       rollups: [],
       permitted: @permitted,
       primary: nil,
+      # Settled by default: these describe placements that were decided, so the
+      # correction rung is not the one under test unless a case says so.
+      primary_decided?: true,
       serving: [],
       retiring: [],
       held_since: %{},

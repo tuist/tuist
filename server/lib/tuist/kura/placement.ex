@@ -23,21 +23,42 @@ defmodule Tuist.Kura.Placement do
 
   @default_policy %{
     air: %{
-      # One instance, so nothing to expand into or retire.
-      max_instances: 1,
+      # Two, so an account whose work is genuinely split is not forced to serve
+      # half of it from the wrong side of an ocean. The floors are higher than
+      # Pro's rather than lower: a second instance is the expensive thing, so a
+      # plan that funds fewer of them should take more traffic to open one, not
+      # less. Without a second slot every Air relocation also tore the source
+      # down unconditionally (`retire_source?` has no other answer at
+      # `max_instances: 1`), which is the destroy-and-cold-refill that rung
+      # exists to avoid.
+      max_instances: 2,
+      correct_initial: %{
+        window_days: 7,
+        majority_share: 0.8,
+        min_runs_per_day: 10,
+        min_active_days: 3,
+        within_days: 14
+      },
       relocate: %{
         window_days: 30,
         majority_share: 0.6,
         min_runs_per_day: 10,
         min_active_days: 10
       },
-      expand: nil,
-      retire: nil,
+      expand: %{window_days: 14, min_runs_per_day: 100, min_active_days: 7},
+      retire: %{window_days: 90, max_runs_per_day: 20},
       relocation_window_days: 90,
       max_relocations_per_window: 1
     },
     pro: %{
       max_instances: 3,
+      correct_initial: %{
+        window_days: 7,
+        majority_share: 0.8,
+        min_runs_per_day: 10,
+        min_active_days: 3,
+        within_days: 14
+      },
       relocate: %{
         window_days: 30,
         majority_share: 0.6,
@@ -51,6 +72,13 @@ defmodule Tuist.Kura.Placement do
     },
     enterprise: %{
       max_instances: 5,
+      correct_initial: %{
+        window_days: 7,
+        majority_share: 0.8,
+        min_runs_per_day: 10,
+        min_active_days: 3,
+        within_days: 14
+      },
       relocate: %{
         window_days: 30,
         majority_share: 0.6,
@@ -74,7 +102,7 @@ defmodule Tuist.Kura.Placement do
     policy
     |> Map.values()
     |> Enum.flat_map(fn plan ->
-      [plan.relocate, plan.expand, plan.retire]
+      [plan.correct_initial, plan.relocate, plan.expand, plan.retire]
       |> Enum.reject(&is_nil/1)
       |> Enum.map(& &1.window_days)
     end)
@@ -108,7 +136,8 @@ defmodule Tuist.Kura.Placement do
     plan_policy = Map.get(policy, context.plan, policy.air)
     runs = runs_by_region_and_date(context)
 
-    relocate(context, plan_policy, runs) ||
+    correct_initial(context, plan_policy, runs) ||
+      relocate(context, plan_policy, runs) ||
       expand(context, plan_policy, runs) ||
       retire(context, plan_policy, runs) ||
       :none
@@ -127,6 +156,64 @@ defmodule Tuist.Kura.Placement do
       end
     end)
     |> Enum.group_by(fn {region, _date, _runs} -> region end, fn {_region, date, runs} -> {date, runs} end)
+  end
+
+  # Corrects a first placement, which is a guess rather than a decision.
+  #
+  # An account's first region is chosen the moment a build first asks where to
+  # send cache traffic, from whatever origin history exists then — for a new
+  # account, often a single day of it. `relocate` needs 300 runs over 30 days
+  # at a 60% majority and fires once a quarter, so a guess made on a week of
+  # evidence would otherwise stand for months. What justifies that slowness is
+  # the cost of being wrong, and that cost is not constant: moving an account
+  # whose cache is days old and nearly cold is cheap, moving one with a warm
+  # working set is not.
+  #
+  # So this is narrow rather than merely faster. It reads the same short window
+  # the guess itself read, but demands a clearly higher majority for acting on
+  # less evidence, and it only ever runs while the primary is young AND was
+  # never decided. Applying it records a placement row, which makes the primary
+  # decided and disqualifies this rung for good — the once-only guarantee needs
+  # no counter of its own, and correcting a guess does not spend the quarterly
+  # relocation budget, because converging on the right answer for the first
+  # time is not churn.
+  defp correct_initial(_context, %{correct_initial: nil}, _runs), do: nil
+  defp correct_initial(%{primary: nil}, _plan_policy, _runs), do: nil
+  defp correct_initial(%{primary_decided?: true}, _plan_policy, _runs), do: nil
+
+  defp correct_initial(context, plan_policy, runs) do
+    rung = plan_policy.correct_initial
+
+    if guessed_recently?(context, rung) do
+      window = window_range(context.today, rung.window_days)
+      totals = totals_in(runs, window)
+      total = totals |> Map.values() |> Enum.sum()
+
+      candidate =
+        totals
+        |> Enum.reject(fn {region, _runs} -> region == context.primary or region in context.retiring end)
+        |> Enum.max_by(fn {_region, region_runs} -> region_runs end, fn -> nil end)
+
+      with {region, region_runs} <- candidate,
+           true <- total >= rung.min_runs_per_day * rung.window_days,
+           true <- region_runs / total >= rung.majority_share,
+           active = active_days(runs, region, window),
+           true <- active >= rung.min_active_days do
+        {:correct, context.primary, region, evidence("initial_placement_missed", rung, region_runs, total, active)}
+      else
+        _ -> nil
+      end
+    end
+  end
+
+  # Only while the region has been held for less than the rung's reach. An
+  # account past it has a cache worth keeping, and the slower rung is the one
+  # that should decide.
+  defp guessed_recently?(context, rung) do
+    case Map.get(context.held_since, context.primary) do
+      nil -> false
+      held_since -> Date.diff(context.today, held_since) <= rung.within_days
+    end
   end
 
   defp relocate(_context, %{relocate: nil}, _runs), do: nil

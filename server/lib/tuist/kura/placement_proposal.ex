@@ -10,7 +10,10 @@ defmodule Tuist.Kura.PlacementProposal do
 
   alias Tuist.Accounts.Account
 
-  @kinds [:relocate, :expand, :retire]
+  # `:correct` is a relocation of a first placement, kept distinct from
+  # `:relocate` so it does not spend the quarterly relocation budget: replacing
+  # a guess is the system arriving at an answer, not changing its mind.
+  @kinds [:relocate, :correct, :expand, :retire]
   @statuses [:open, :applied, :dismissed, :superseded]
 
   @derive {
@@ -61,7 +64,7 @@ defmodule Tuist.Kura.PlacementProposal do
   # cannot describe a transition its apply path has no way to perform.
   defp validate_regions(changeset) do
     case get_field(changeset, :kind) do
-      :relocate -> validate_required(changeset, [:from_region, :to_region])
+      kind when kind in [:relocate, :correct] -> validate_required(changeset, [:from_region, :to_region])
       :expand -> changeset |> validate_required([:to_region]) |> put_change(:from_region, nil)
       :retire -> changeset |> validate_required([:from_region]) |> put_change(:to_region, nil)
       _ -> changeset

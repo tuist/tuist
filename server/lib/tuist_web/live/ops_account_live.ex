@@ -874,7 +874,9 @@ defmodule TuistWeb.OpsAccountLive do
     dgettext("dashboard", "peaked at %{peak}% of its disk", peak: evidence["max_occupancy_percent"])
   end
 
-  def placement_history_change(%{kind: :relocate, from_region: from, to_region: to}), do: "#{from} → #{to}"
+  def placement_history_change(%{kind: kind, from_region: from, to_region: to}) when kind in [:relocate, :correct],
+    do: "#{from} → #{to}"
+
   def placement_history_change(%{kind: :expand, to_region: to}), do: dgettext("dashboard", "add %{region}", region: to)
 
   def placement_history_change(%{kind: :retire, from_region: from}),
@@ -890,7 +892,7 @@ defmodule TuistWeb.OpsAccountLive do
 
   # Compact enough for a table cell; the open proposal above carries the full
   # sentence.
-  def placement_history_reason(%{kind: :relocate, evidence: evidence}) do
+  def placement_history_reason(%{kind: kind, evidence: evidence}) when kind in [:relocate, :correct] do
     dgettext("dashboard", "%{share}%% of runs over %{days} days",
       share: round((evidence["share"] || 0) * 100),
       days: evidence["window_days"]
@@ -914,7 +916,7 @@ defmodule TuistWeb.OpsAccountLive do
   # What the apply actually did, rather than "saved". Nothing moves at the
   # moment a proposal is applied: the lifecycle provisions the destination on
   # the account's next demand, and the source leaves only once it is serving.
-  defp kura_placement_message(%{kind: :relocate, from_region: from, to_region: to}) do
+  defp kura_placement_message(%{kind: kind, from_region: from, to_region: to}) when kind in [:relocate, :correct] do
     dgettext(
       "dashboard",
       "Placement moved to %{to}. %{from} keeps serving until %{to} is up, then drains.",

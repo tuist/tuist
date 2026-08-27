@@ -204,6 +204,10 @@ defmodule Tuist.Kura.PlacementProposals do
       rollups: Map.get(inputs.rollups, account.id, []),
       permitted: AccountPolicies.placeable_regions(account, plan),
       primary: primary_from(placer_rows, live),
+      # A primary with no placement row behind it was never decided: it came
+      # from the resolution chain, which is a guess. Applying anything records
+      # a row, so this flips once and stays flipped.
+      primary_decided?: Enum.any?(placer_rows, &(&1.role == :primary)),
       serving: serving_from(placer_rows, live),
       retiring: for(row <- placer_rows, row.status == :retiring, do: row.region),
       held_since: held_since(placer_rows, Map.get(inputs.instance_ages, account.id, %{})),
@@ -245,6 +249,9 @@ defmodule Tuist.Kura.PlacementProposals do
 
   defp attrs_for({:relocate, from, to, evidence}),
     do: %{kind: :relocate, from_region: from, to_region: to, evidence: evidence}
+
+  defp attrs_for({:correct, from, to, evidence}),
+    do: %{kind: :correct, from_region: from, to_region: to, evidence: evidence}
 
   defp attrs_for({:expand, to, evidence}), do: %{kind: :expand, from_region: nil, to_region: to, evidence: evidence}
 

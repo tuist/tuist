@@ -586,7 +586,8 @@ defmodule Tuist.Kura do
   # A proposal describes an instance set. If that set has changed since the
   # sweep read it — an operator pinned the account, another proposal landed, an
   # instance was archived — the evidence no longer describes what would happen.
-  defp placement_premises_hold?(%PlacementProposal{kind: :relocate} = proposal, primary, serving, _claimed) do
+  defp placement_premises_hold?(%PlacementProposal{kind: kind} = proposal, primary, serving, _claimed)
+       when kind in [:relocate, :correct] do
     proposal.from_region == primary and proposal.to_region != primary and
       proposal.to_region in permitted_for(proposal) and serving != []
   end
@@ -614,6 +615,17 @@ defmodule Tuist.Kura do
     if Map.get(proposal.evidence, "retire_source", true) do
       {:ok, _row} = PlacerRegions.mark_retiring(account, proposal.from_region, proposal.evidence)
     end
+
+    :ok
+  end
+
+  # A correction always gives the source up. It fires only while the primary is
+  # young and carrying a clear minority of the traffic, so the region being left
+  # cannot be one the account's own work earns — and leaving it standing would
+  # spend a slot on a region chosen by a guess.
+  defp apply_placement(account, %PlacementProposal{kind: :correct} = proposal) do
+    {:ok, _row} = PlacerRegions.put_primary(account, proposal.to_region, proposal.evidence)
+    {:ok, _row} = PlacerRegions.mark_retiring(account, proposal.from_region, proposal.evidence)
 
     :ok
   end
