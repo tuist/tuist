@@ -2866,5 +2866,5 @@ msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:573
 #, elixir-autogen, elixir-format
-msgid "The role members get when they join through automatic enrollment. Viewers can read dashboards and runs but cannot change anything. A role an admin sets by hand is never overwritten by a later sign-in."
+msgid "The role members get when they join through automatic enrollment."
 msgstr ""
