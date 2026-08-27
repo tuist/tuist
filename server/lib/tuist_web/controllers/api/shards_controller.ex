@@ -4,6 +4,7 @@ defmodule TuistWeb.API.ShardsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Shards
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Shards.Shard
   alias TuistWeb.API.Schemas.Shards.ShardPlan
@@ -59,6 +60,12 @@ defmodule TuistWeb.API.ShardsController do
              items: %Schema{type: :string},
              description: "Test suite names (for suite-level granularity)."
            },
+           skipped_test_suites: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history."
+           },
            parallelizable_modules: %Schema{
              type: :array,
              items: %Schema{type: :string},
@@ -102,6 +109,7 @@ defmodule TuistWeb.API.ShardsController do
       ok: {"The shard plan", "application/json", ShardPlan},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"Invalid parameters", "application/json", Error}
     }
@@ -112,6 +120,7 @@ defmodule TuistWeb.API.ShardsController do
       reference: body_params.reference,
       modules: Map.get(body_params, :modules),
       test_suites: Map.get(body_params, :test_suites),
+      skipped_test_suites: Map.get(body_params, :skipped_test_suites),
       parallelizable_modules: Map.get(body_params, :parallelizable_modules),
       shard_min: Map.get(body_params, :shard_min),
       shard_max: Map.get(body_params, :shard_max),
@@ -187,6 +196,7 @@ defmodule TuistWeb.API.ShardsController do
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The shard plan was not found", "application/json", Error},
       bad_request: {"Invalid parameters", "application/json", Error}
     }
@@ -263,6 +273,7 @@ defmodule TuistWeb.API.ShardsController do
       bad_request: {"The request parameters are invalid", "application/json", Error},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The session or shard was not found", "application/json", Error}
     }
   )
@@ -376,6 +387,7 @@ defmodule TuistWeb.API.ShardsController do
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       bad_request: {"Invalid parameters", "application/json", Error}
     }
   )
@@ -490,6 +502,7 @@ defmodule TuistWeb.API.ShardsController do
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       bad_request: {"Invalid parameters", "application/json", Error}
     }
   )

@@ -218,6 +218,254 @@ defmodule Tuist.ShardsTest do
       refute Enum.any?(regular.download_urls, &String.ends_with?(&1, "/modules/NewTests.aar"))
     end
 
+    test "collapses to a single catch-all shard that discards its own suite assignment" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      # Only "AppTests" has suite history, and only one suite of it. "NewTests" is built and
+      # uploaded but has never reported a module run, so it resolves no suites at all.
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [%{name: "LoginSuite", status: "success", duration: 10_000}]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "single-shard-collapse",
+        modules: ["AppTests", "NewTests"],
+        granularity: "suite",
+        shard_max: 4
+      }
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+      stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
+
+      result = Shards.create_shard_plan(project, params)
+
+      # A single resolvable unit caps the shard count at 1, even though 4 were allowed.
+      assert result.shard_count == 1
+
+      assert result.shard_assignments == [
+               %{"index" => 0, "test_targets" => ["AppTests/LoginSuite"], "estimated_duration_ms" => 10_000}
+             ]
+
+      # The plan records the assignment...
+      assert planned_suite_durations(result.plan) == %{"AppTests/LoginSuite" => 10_000}
+
+      # ...but with one shard, index 0 is also the catch-all, so the shard endpoint hands back no
+      # selection whatsoever: no -only-testing (suites/modules empty) and no -skip-testing (there
+      # are no earlier shards whose suites it would exclude).
+      assert {:ok, shard} =
+               Shards.get_shard(project, account, "single-shard-collapse", 0, suite_catch_all?: true)
+
+      assert shard.suites == %{}
+      assert shard.modules == []
+      assert shard.skip == []
+    end
+
+    test "emits an explicit selection for the same suite once a second unit exists" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      # Identical to the test above except that a second suite has history, so two units resolve.
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 10_000},
+              %{name: "SignupSuite", status: "success", duration: 10_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "two-unit-plan",
+        modules: ["AppTests", "NewTests"],
+        granularity: "suite",
+        shard_max: 4
+      }
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+      stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
+
+      result = Shards.create_shard_plan(project, params)
+      assert result.shard_count == 2
+
+      # Shard 0 is now a regular shard, so it selects its assigned suite with -only-testing instead
+      # of running unfiltered. Which of the two suites lands here is up to the bin packer.
+      assert {:ok, shard} = Shards.get_shard(project, account, "two-unit-plan", 0, suite_catch_all?: true)
+      assert %{"AppTests" => [selected]} = shard.suites
+      assert selected in ["LoginSuite", "SignupSuite"]
+    end
+
+    test "does not plan a suite the built products skip, even when history still has it" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppUITests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "OnboardingFlowTests", status: "success", duration: 6_000},
+              %{name: "CheckoutFlowTests", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "skipped-history-1",
+        modules: ["AppUITests"],
+        skipped_test_suites: ["AppUITests/OnboardingFlowTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      # The test plan disabled the suite, so the built products cannot run it. Resolving the module
+      # from history would resurrect it and hand a shard work that executes nothing.
+      assert planned_targets(result) == MapSet.new(["AppUITests/CheckoutFlowTests"])
+    end
+
+    test "does not plan a suite the built products both select and skip" do
+      project = ProjectsFixtures.project_fixture()
+
+      params = %{
+        reference: "skipped-selected-1",
+        modules: ["AppUITests"],
+        test_suites: ["AppUITests/OnboardingFlowTests", "AppUITests/CheckoutFlowTests"],
+        skipped_test_suites: ["AppUITests/OnboardingFlowTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      assert planned_targets(result) == MapSet.new(["AppUITests/CheckoutFlowTests"])
+    end
+
+    test "leaves a module whose every selected suite is skipped to the catch-all rather than history" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppUITests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "OnboardingFlowTests", status: "success", duration: 6_000},
+              %{name: "CheckoutFlowTests", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "skipped-selected-2",
+        modules: ["AppUITests"],
+        test_suites: ["AppUITests/OnboardingFlowTests"],
+        skipped_test_suites: ["AppUITests/OnboardingFlowTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      # The products limit the module to a suite that is then skipped, so it runs nothing. History
+      # must not step in: CheckoutFlowTests is outside what the products would run.
+      assert planned_targets(result) == MapSet.new([])
+    end
+
+    test "collapses to a single catch-all shard when every suite is skipped" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppUITests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "OnboardingFlowTests", status: "success", duration: 6_000},
+              %{name: "CheckoutFlowTests", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> true end)
+      stub(Tuist.Storage, :generate_download_url, fn key, _account -> key end)
+
+      params = %{
+        reference: "all-skipped-1",
+        modules: ["AppUITests"],
+        skipped_test_suites: ["AppUITests/OnboardingFlowTests", "AppUITests/CheckoutFlowTests"],
+        granularity: "suite",
+        shard_total: 4
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      # Nothing is left to distribute, so the requested shard count is ignored rather than spreading
+      # an empty plan over four shards, three of which would resolve to nothing at all.
+      assert result.shard_count == 1
+      assert planned_targets(result) == MapSet.new([])
+
+      # The one shard is the catch-all, and it still runs. An empty unit set means "nothing to
+      # distribute", which is also what a project with no recorded suites produces, so it cannot be
+      # read as "nothing to run". The shard carries no -only-testing and no skip list, which leaves
+      # the decision to the bundle's own SkipTestIdentifiers.
+      assert {:ok, shard} = Shards.get_shard(project, account, "all-skipped-1", 0, suite_catch_all?: true)
+      assert shard.modules == []
+      assert shard.suites == %{}
+      assert shard.skip == []
+      assert Enum.any?(shard.download_urls, &String.ends_with?(&1, "/modules/AppUITests.aar"))
+    end
+
     test "does not append a catch-all shard for module granularity" do
       project = ProjectsFixtures.project_fixture()
 

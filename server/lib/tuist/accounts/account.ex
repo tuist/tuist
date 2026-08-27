@@ -50,6 +50,7 @@ defmodule Tuist.Accounts.Account do
     field :customer_id, :string
     field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
+    field :free_tier_reset_at, :utc_datetime
     field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
     field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
 
@@ -64,6 +65,8 @@ defmodule Tuist.Accounts.Account do
     field :s3_endpoint, :string
 
     field :custom_cache_endpoints_enabled, :boolean, default: false
+    field :runner_trial_started_at, :utc_datetime
+    field :runner_trial_ended_at, :utc_datetime
 
     belongs_to :organization, Organization
     belongs_to :user, User
@@ -128,6 +131,10 @@ defmodule Tuist.Accounts.Account do
       :current_month_remote_cache_hits_count,
       :current_month_remote_cache_hits_count_updated_at
     ])
+  end
+
+  def runner_trial_changeset(account, attrs) do
+    cast(account, attrs, [:runner_trial_started_at, :runner_trial_ended_at])
   end
 
   def update_changeset(account, attrs) do

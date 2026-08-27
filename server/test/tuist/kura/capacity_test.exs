@@ -38,18 +38,40 @@ defmodule Tuist.Kura.CapacityTest do
     })
   end
 
+  defp region, do: elem(Regions.fetch(@region), 1)
+
   defp installed(machines) do
     stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, machines)}])
   end
 
-  describe "resident_gib/1" do
-    test "counts every co-located replica of the region's claim" do
-      # us-east declares a 50Gi claim and two replicas, and the bare-metal
-      # regions co-locate an account's replicas, so both land on one box.
-      {:ok, region} = Regions.fetch(@region)
+  describe "resident_gib/2" do
+    test "counts the instance's own claim, not the region's" do
+      # us-east co-locates an account's two replicas on one box, so each claim
+      # is reserved twice on the same disk.
+      instance = %Server{storage_claim_size: "24Gi"}
 
-      assert Capacity.resident_gib(region) == 50 * 2
-      assert Capacity.resident_bytes(region) == 50 * 2 * @gib
+      assert Capacity.resident_gib(region(), instance) == 24 * 2
+      assert Capacity.resident_bytes(region(), instance) == 24 * 2 * @gib
+    end
+
+    test "reads an unpinned instance the way the manifest renders it" do
+      # us-east declares no claim of its own, so an instance carrying none is
+      # sized from its account's plan rather than read at the controller's
+      # 200Gi fallback, which would overstate it by an order of magnitude.
+      air = %Server{account: %Tuist.Accounts.Account{id: 1, name: "air", subscriptions: []}}
+
+      assert Capacity.resident_gib(region(), air) == 8 * 2
+    end
+
+    test "reads every unit a claim may be persisted in" do
+      # A claim is stored in whatever unit Kubernetes accepts and renders
+      # verbatim onto the manifest. A parser that only understood Gi would read
+      # the rest as unparseable and quietly substitute the region's claim, so an
+      # instance reserving a terabyte would be counted at 50Gi.
+      for {claim, gib} <- [{"1Ti", 1024}, {"40Gi", 40}, {"20480Mi", 20}, {"50G", 46}] do
+        assert Capacity.resident_gib(region(), %Server{storage_claim_size: claim}) == gib * 2,
+               "expected #{claim} to be read as #{gib} GiB per replica"
+      end
     end
   end
 
@@ -186,6 +208,196 @@ defmodule Tuist.Kura.CapacityTest do
       "status" => %{"phase" => "Running"},
       "spec" => %{
         "containers" => [%{"resources" => %{"requests" => %{"ephemeral-storage" => "#{gib}Gi"}}}]
+      }
+    }
+  end
+
+  # What bounds a tenant's egress floor is what its own box has left, so this
+  # reads that box: the account's pods say which one it is, and everything on it
+  # counts against it, whoever owns it.
+  describe "egress_headroom/2" do
+    setup do
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+      :ok
+    end
+
+    test "asks only for the account's own pods in this region" do
+      stub_box("box-1", 500, [egress_pod("tuist", 25), egress_pod("tuist", 25)])
+
+      stub(Client, :list_pods, fn "kura", selector, _opts ->
+        assert selector =~ "tuist.dev/region=#{@region}"
+        assert selector =~ "tuist.dev/account=tuist"
+        assert selector =~ "app.kubernetes.io/managed-by=kura-controller"
+        {:ok, [egress_pod("tuist", 25), egress_pod("tuist", 25)]}
+      end)
+
+      assert %{node: "box-1"} = Capacity.egress_headroom(@region, "tuist")
+    end
+
+    test "counts every pod on the box against it, not just the account's" do
+      stub_box("box-1", 500, [
+        egress_pod("tuist", 25),
+        egress_pod("tuist", 25),
+        egress_pod("neighbour", 150),
+        # No account label and no relation to Kura at all -- it still holds
+        # 100 Mbps of the box, and the scheduler will not hand that out twice.
+        unlabelled_egress_pod(100)
+      ])
+
+      stub_account_pods([egress_pod("tuist", 25), egress_pod("tuist", 25)])
+
+      assert %{node: "box-1", allocatable_mbps: 500, available_mbps: 250, replicas: 2, boxes: 1} =
+               Capacity.egress_headroom(@region, "tuist")
+    end
+
+    # The account's own reservation is handed back replica by replica as the
+    # rollout goes, so it is not spent from its own point of view.
+    test "adds the account's own reservation back" do
+      pods = [egress_pod("tuist", 200), egress_pod("tuist", 200)]
+      stub_box("box-1", 500, pods)
+      stub_account_pods(pods)
+
+      assert %{available_mbps: 500} = Capacity.egress_headroom(@region, "tuist")
+    end
+
+    # A terminal replica -- evicted off a disk-pressured box, and lingering in
+    # the API until something deletes it -- is excluded from the box's reserved
+    # total by the field selector, so counting it as the account's own would add
+    # back a reservation nobody holds and report more available than the box has.
+    test "ignores a terminal pod of the account's own" do
+      stub_box("box-1", 1000, [egress_pod("tuist", 100), egress_pod("neighbour", 200)])
+
+      stub_account_pods([
+        egress_pod("tuist", 100),
+        egress_pod("tuist", 400, phase: "Failed")
+      ])
+
+      assert %{available_mbps: 800, replicas: 2} = Capacity.egress_headroom(@region, "tuist")
+    end
+
+    # An unscheduled pod holds nothing on a node -- it is exactly the pod the
+    # measurement exists to make room for.
+    test "ignores a pod the scheduler has not placed" do
+      stub_box("box-1", 500, [egress_pod("tuist", 25)])
+      stub_account_pods([egress_pod("tuist", 25), egress_pod("tuist", 300, node: nil)])
+
+      assert %{available_mbps: 500, replicas: 2} = Capacity.egress_headroom(@region, "tuist")
+    end
+
+    # podAffinity is preferred, not required, so a box that cannot fit the second
+    # replica leaves the account straddling two — and each replica's volume pins
+    # it where it landed. Reporting the roomy box would admit a floor the other
+    # one can never place.
+    test "takes the box that can hold the smallest floor" do
+      stub_boxes(%{
+        "roomy" => {1000, [egress_pod("tuist", 100, node: "roomy")]},
+        "constrained" =>
+          {1000, [egress_pod("tuist", 100, node: "constrained"), egress_pod("neighbour", 900, node: "constrained")]}
+      })
+
+      stub_account_pods([
+        egress_pod("tuist", 100, node: "roomy"),
+        egress_pod("tuist", 100, node: "constrained")
+      ])
+
+      assert %{node: "constrained", available_mbps: 100, replicas: 1, boxes: 2} =
+               Capacity.egress_headroom(@region, "tuist")
+    end
+
+    # Each box rebuilds only its own replicas, so a split box is divided by one,
+    # not by the region's two.
+    test "divides each box by the replicas that live on it" do
+      stub_boxes(%{
+        "box-1" => {1000, [egress_pod("tuist", 100, node: "box-1"), egress_pod("neighbour", 400, node: "box-1")]},
+        "box-2" => {1000, [egress_pod("tuist", 100, node: "box-2")]}
+      })
+
+      stub_account_pods([
+        egress_pod("tuist", 100, node: "box-1"),
+        egress_pod("tuist", 100, node: "box-2")
+      ])
+
+      assert %{node: "box-1", available_mbps: 600, replicas: 1} = Capacity.egress_headroom(@region, "tuist")
+    end
+
+    # A replica deleted and not yet recreated is in no pod list, and its volume
+    # pins it to the box it left, so the box has to be sized for its return.
+    test "counts a replica the account is between" do
+      stub_box("box-1", 1000, [egress_pod("tuist", 100)])
+      stub_account_pods([egress_pod("tuist", 100)])
+
+      assert %{replicas: 2} = Capacity.egress_headroom(@region, "tuist")
+    end
+
+    test "is unknown for an account with nothing on the region's boxes" do
+      stub_box("box-1", 500, [egress_pod("neighbour", 150)])
+      stub_account_pods([])
+
+      assert Capacity.egress_headroom(@region, "tuist") == nil
+    end
+
+    # Reporting the box as roomier than it is would be worse than reporting it
+    # as unknown: unknown falls back to the advertised budget, and the form still
+    # refuses a floor it cannot place.
+    test "is unknown when the box cannot be read" do
+      stub(Client, :get_node, fn _node, _opts -> {:error, :unavailable} end)
+      stub(Client, :list_pods_on_node, fn _node, _opts -> {:error, :unavailable} end)
+      stub_account_pods([egress_pod("tuist", 25)])
+
+      assert Capacity.egress_headroom(@region, "tuist") == nil
+    end
+  end
+
+  defp stub_account_pods(pods) do
+    stub(Client, :list_pods, fn "kura", _selector, _opts -> {:ok, pods} end)
+  end
+
+  defp stub_box(node, allocatable_mbps, pods), do: stub_boxes(%{node => {allocatable_mbps, pods}})
+
+  defp stub_boxes(boxes) do
+    stub(Client, :get_node, fn node, _opts ->
+      case Map.fetch(boxes, node) do
+        {:ok, {allocatable_mbps, _pods}} ->
+          {:ok,
+           %{
+             "metadata" => %{"name" => node},
+             "status" => %{"allocatable" => %{"tuist.dev/egress-mbps" => Integer.to_string(allocatable_mbps)}}
+           }}
+
+        :error ->
+          {:error, :not_found}
+      end
+    end)
+
+    stub(Client, :list_pods_on_node, fn node, _opts ->
+      case Map.fetch(boxes, node) do
+        {:ok, {_allocatable_mbps, pods}} -> {:ok, pods}
+        :error -> {:error, :not_found}
+      end
+    end)
+  end
+
+  defp egress_pod(handle, mbps, opts \\ []) do
+    node = Keyword.get(opts, :node, "box-1")
+    region = Keyword.get(opts, :region, @region)
+
+    %{
+      "metadata" => %{"labels" => %{"tuist.dev/account" => handle, "tuist.dev/region" => region}},
+      "status" => %{"phase" => Keyword.get(opts, :phase, "Running")},
+      "spec" =>
+        Enum.into(if(node, do: %{"nodeName" => node}, else: %{}), %{
+          "containers" => [%{"resources" => %{"requests" => %{"tuist.dev/egress-mbps" => Integer.to_string(mbps)}}}]
+        })
+    }
+  end
+
+  defp unlabelled_egress_pod(mbps) do
+    %{
+      "metadata" => %{"labels" => %{}},
+      "status" => %{"phase" => "Running"},
+      "spec" => %{
+        "nodeName" => "box-1",
+        "containers" => [%{"resources" => %{"requests" => %{"tuist.dev/egress-mbps" => Integer.to_string(mbps)}}}]
       }
     }
   end

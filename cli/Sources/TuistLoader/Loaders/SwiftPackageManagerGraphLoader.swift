@@ -334,7 +334,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                         nil
                     } else {
                         SwiftPackageManagerPaths
-                            .scratchDirectory(containingCheckout: packageInfo.folder)
+                            .scratchDirectory(containingPackageSource: packageInfo.folder)
                             .map { Path.path($0.pathString) }
                     }
                     result[.path(packageInfo.folder.pathString)] = DependenciesGraph.ExternalProject(

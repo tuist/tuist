@@ -22,26 +22,59 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
 
     date = Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")
 
+    {head_image, head_image_dimensions} = changelog_entry_head_image(entry, date)
+
     {:noreply,
      socket
      |> assign(:entry, entry)
      |> assign(:head_title, entry.title)
      |> assign(:head_description, entry.description)
-     |> assign(
-       :head_image,
-       Tuist.Environment.app_url(
-         path:
-           OpenGraph.image_path(:changelog_entry,
-             title: entry.title,
-             description: entry.description,
-             date: date,
-             pull_request: entry.pull_request
-           )
-       )
-     )
+     |> assign(:head_image, head_image)
+     |> assign(:head_image_dimensions, head_image_dimensions)
      |> assign(:head_twitter_card, "summary_large_image")
      |> assign(:head_include_blog_rss_and_atom, false)
      |> assign(:head_include_changelog_rss_and_atom, true)
      |> assign_structured_data(get_changelog_entry_structured_data(entry))}
+  end
+
+  defp changelog_entry_head_image(entry, date) do
+    case entry |> Changelog.get_entry_image_source() |> absolute_image_url() do
+      nil ->
+        {generated_changelog_image_url(entry, date), {1920, 1080}}
+
+      image_url ->
+        {image_url, nil}
+    end
+  end
+
+  defp absolute_image_url(nil), do: nil
+
+  defp absolute_image_url(source) do
+    case URI.parse(source) do
+      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
+        source
+
+      %URI{path: path} when is_binary(path) ->
+        if String.starts_with?(path, "/") do
+          source
+          |> TuistWeb.Marketing.MarketingHTML.static_asset_path()
+          |> then(&Tuist.Environment.app_url(path: &1))
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp generated_changelog_image_url(entry, date) do
+    Tuist.Environment.app_url(
+      path:
+        OpenGraph.image_path(:changelog_entry,
+          title: entry.title,
+          description: entry.description,
+          date: date,
+          pull_request: entry.pull_request
+        )
+    )
   end
 end

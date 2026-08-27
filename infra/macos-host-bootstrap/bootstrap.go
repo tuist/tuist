@@ -271,12 +271,36 @@ type Config struct {
 	HostMemoryMB int
 	MaxPods      int
 
+	// MinGoldensKept floors how many golden base VMs tart-kubelet's
+	// disk-pressure reclaim may leave on the host
+	// (`--min-goldens-kept`). 0 uses tart-kubelet's own default of 1.
+	//
+	// A host that runs guests from more than one pool wants at least
+	// one golden per pool: reclaiming to a single golden under
+	// pressure strands the other pool into a full cold image pull
+	// (~10 min) on its next job. Only relevant once a host runs more
+	// than one guest — a single-guest host has one live pool at a
+	// time by construction.
+	MinGoldensKept int
+
 	// VNCRelayHost / VNCRelayPort configure the server-facing runner VNC
 	// relay coordinates that tart-kubelet advertises after a dashboard
 	// session is requested. Managed tailnet clusters set these to the
 	// per-Mac Tailscale egress Service DNS name and port.
 	VNCRelayHost string
 	VNCRelayPort int
+
+	// VNCRelayPortCount is how many contiguous ports from VNCRelayPort
+	// tart-kubelet may bind for relays (`--vnc-relay-port-count`). 0 or
+	// 1 is the single pinned port.
+	//
+	// A pinned relay port is a per-host resource but a relay is a
+	// per-Pod one, so this must be at least the number of guests the
+	// host can run concurrently or the second guest's relay fails to
+	// bind and interactive sessions break on that half of the fleet.
+	// Every port in the range has to be declared on whatever fronts
+	// the host (the per-Mac Tailscale egress Service).
+	VNCRelayPortCount int
 
 	// NodeLabels is the set of labels tart-kubelet stamps on the
 	// Node it registers. The bootstrap layer is generic — fleet
@@ -429,6 +453,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installTailnetResolver(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailnet resolver: %w", err)
 	}
+	if err := installLocalNetworkAllowlist(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install local network allowlist: %w", err)
+	}
 	// After installTailscale: the guard's unconditional allowance is the
 	// tailnet, so it must not narrow :22 before that path exists.
 	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
@@ -548,6 +575,13 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	// sets SkipTailscaleInstall.
 	if err := installTailnetResolver(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailnet resolver: %w", err)
+	}
+	// On the drift path as well as first bootstrap, because the fleet
+	// predates this setting and a converged hostConfigHash otherwise
+	// certifies hosts that cannot build an image. Same mistake the
+	// tailnet resolver made.
+	if err := installLocalNetworkAllowlist(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install local network allowlist: %w", err)
 	}
 	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh ssh ingress guard: %w", err)
@@ -690,6 +724,7 @@ func HostConfigHash(cfg Config) string {
 		{"tailscale", renderTailscaleScript(cfg)},
 		{"node-exporter", renderNodeExporterScript()},
 		{"tailnet-resolver", renderTailnetResolverScript()},
+		{"local-network-allowlist", renderLocalNetworkAllowlistScript()},
 		{"log-shipper", renderLogShipperScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
 		{"ssh-reachability", renderSSHReachabilityScript()},
@@ -896,6 +931,12 @@ exit 1
 `, shellQuote(cfg.SSHUser))
 }
 
+// defaultMinGoldensKept mirrors tart-kubelet's own default for
+// --min-goldens-kept. Kept here so the plist renderer can tell "the
+// operator asked for the default" apart from "the operator asked for
+// more", and omit the flag in the first case.
+const defaultMinGoldensKept = 1
+
 func renderLaunchdPlist(cfg Config) string {
 	cpu := cfg.HostCPU
 	if cpu == 0 {
@@ -987,6 +1028,21 @@ func renderLaunchdPlist(cfg Config) string {
 	vncRelayPortArg := ""
 	if cfg.VNCRelayPort > 0 {
 		vncRelayPortArg = fmt.Sprintf("\n    <string>--vnc-relay-port=%d</string>", cfg.VNCRelayPort)
+		// Only rendered above 1 so a single-guest host's plist is
+		// byte-identical to what it rendered before the range existed
+		// and the fleet doesn't drift for a no-op flag.
+		if cfg.VNCRelayPortCount > 1 {
+			vncRelayPortArg += fmt.Sprintf("\n    <string>--vnc-relay-port-count=%d</string>", cfg.VNCRelayPortCount)
+		}
+	}
+	// Same rule, and the threshold is 1 rather than 0 because that is
+	// tart-kubelet's own default: a single-guest host resolves this to
+	// 1, and rendering it explicitly would say nothing while changing
+	// the fleet-wide config hash — drifting every existing mini to push
+	// a flag that does not alter behaviour.
+	minGoldensKeptArg := ""
+	if cfg.MinGoldensKept > defaultMinGoldensKept {
+		minGoldensKeptArg = fmt.Sprintf("\n    <string>--min-goldens-kept=%d</string>", cfg.MinGoldensKept)
 	}
 	// Turn on per-account cache volumes when the fleet provisioned
 	// a runner-cache volume. --runner-cache-root points at the auto-mounted
@@ -1025,7 +1081,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s%[13]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -1039,7 +1095,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg, minGoldensKeptArg)
 }
 
 func shellQuote(s string) string {
@@ -2544,6 +2600,53 @@ sudo chmod 0644 /etc/resolver/ts.net
 # for as long as the cache holds them.
 sudo dscacheutil -flushcache || true
 sudo killall -HUP mDNSResponder 2>/dev/null || true
+`
+}
+
+// installLocalNetworkAllowlist exempts the private address ranges a Tart
+// guest can land on from macOS local network privacy.
+//
+// Since macOS Sequoia, a process must hold the "Local Network" permission
+// to open a connection to a LAN address. There is no way to grant it
+// without a user answering a dialog, and nothing on a builder runs in
+// front of a person: the Actions runner is a LaunchAgent in a headless
+// Aqua session. So Packer, which drives the build from the host and has
+// to reach the guest it just booted, is denied.
+//
+// The denial is invisible in every way that matters. The guest boots
+// normally, takes a DHCP lease, and listens on :22 — `nc` and `ping` from
+// a shell on the same host both succeed, because that shell is a
+// different process with a different permission verdict. Only Packer is
+// blocked, and the block presents as silence rather than a refusal, so
+// the build sits in "Waiting for SSH to become available..." until it
+// times out 15 minutes later. A healthy build connects in about 20
+// seconds. Nothing in the failure names the cause.
+//
+// This is why it hid for so long: a host that was already granted the
+// permission keeps working indefinitely, so the fleet looked fine while
+// every host rebuilt after the requirement arrived came back unable to
+// build images at all. Recycling a host through the pool is the
+// documented repair for a wedged builder, which means the repair itself
+// was breaking image builds.
+//
+// The allowlist is the workaround the packer-plugin-tart README
+// documents. It is written per host and only takes effect on the next
+// boot, so a host converged by the drift path carries the setting but
+// keeps failing until it restarts.
+func installLocalNetworkAllowlist(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderLocalNetworkAllowlistScript())
+}
+
+func renderLocalNetworkAllowlistScript() string {
+	// The whole of RFC1918 rather than just 192.168.64.0/24, because the
+	// range vmnet hands out is Tart's to choose and has moved before.
+	// Widening it costs nothing here: this exempts addresses from a
+	// privacy prompt on a single-tenant build host, it does not open a
+	// path that was closed.
+	return `set -euo pipefail
+for key in AllowedEthernetLocalNetworkAddresses AllowedWiFiLocalNetworkAddresses; do
+  sudo defaults write com.apple.network.local-network "$key" -array "10.0.0.0/8" "172.16.0.0/12" "192.168.0.0/16"
+done
 `
 }
 

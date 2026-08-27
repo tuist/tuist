@@ -21,6 +21,10 @@ defmodule TuistWeb.TestCaseLive do
 
   @table_page_size 20
 
+  # The overview's history sits in its own column beside the widgets and the
+  # chart, and runs as deep as they do. Anything past that is a tab away.
+  @overview_history_page_size 6
+
   def mount(
         %{"test_case_id" => test_case_id} = _params,
         _session,
@@ -128,10 +132,27 @@ defmodule TuistWeb.TestCaseLive do
   # nothing to draw, so the card offers an empty state instead of a flat line.
   defp charted?(%{run_counts: run_counts}), do: Enum.any?(run_counts, &(&1 > 0))
 
+  # The line spans the buckets a test case did not run in (`connectNulls` on the
+  # series) rather than breaking over them, so a test case that runs weekly reads
+  # as a trend instead of as scattered marks. What it spans is drawn, not
+  # measured, so every measured bucket carries a symbol and the stretches between
+  # them are visibly interpolation. A series that measured every bucket has
+  # nothing to disambiguate and stays bare.
   defp chart_points(dates, values) do
-    dates
-    |> Enum.zip(values)
-    |> Enum.map(&Tuple.to_list/1)
+    Enum.zip_with([dates, values, symbol_sizes(values)], fn [date, value, symbol_size] ->
+      %{value: [date, value], symbolSize: symbol_size}
+    end)
+  end
+
+  defp symbol_sizes(values) do
+    if Enum.any?(values, &is_nil/1) do
+      Enum.map(values, fn
+        nil -> 0
+        _measured -> 6
+      end)
+    else
+      Enum.map(values, fn _value -> 0 end)
+    end
   end
 
   # Rates are bounded, so their axis is pinned to 0-100 rather than scaled to the
@@ -338,9 +359,10 @@ defmodule TuistWeb.TestCaseLive do
   defp assign_overview_history(socket) do
     test_case_id = socket.assigns.test_case_id
 
-    {events, meta} = Tests.list_test_case_events(test_case_id, %{page: 1, page_size: 3})
+    {events, meta} =
+      Tests.list_test_case_events(test_case_id, %{page: 1, page_size: @overview_history_page_size})
 
-    has_more = meta.total_count > 3
+    has_more = meta.total_count > @overview_history_page_size
 
     socket
     |> assign(:overview_history_events, events)

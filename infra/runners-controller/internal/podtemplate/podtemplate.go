@@ -24,6 +24,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -41,6 +42,25 @@ const (
 	// revision used at creation so the controller can roll old admission
 	// accounting without inspecting mutable cluster state.
 	RuntimeClassRevisionAnnotation = "tuist.dev/runtime-class-revision"
+
+	// ReservationTaintKey is the taint the controller puts on a node it
+	// is draining to make room for a pool whose Pods no node can seat
+	// right now. Its value is the pool the node is being held for, and
+	// every runner Pod tolerates that key at its OWN pool's value — so a
+	// reserved node stops admitting everyone else's Pods while the seat
+	// it is clearing accumulates, and admits the reserved pool's Pod the
+	// moment it fits.
+	//
+	// NoSchedule, never NoExecute: the Pods already on the node are
+	// running customer jobs and must finish. The controller retires the
+	// IDLE ones itself, which is the only eviction a reservation does.
+	//
+	// A dedicated taint rather than a cordon. Cordoning would make the
+	// node indistinguishable from one Cluster API is replacing, and
+	// `reapIdlePodsOnCordonedNodes` would then retire the reserved pool's
+	// own Pod the moment it landed and was still warm-polling — the
+	// reservation would eat its own result.
+	ReservationTaintKey = "tuist.dev/reserved-for"
 
 	// jitMountPath is where the JIT-handoff emptyDir is mounted in
 	// both the poller (rw) and runner (ro) containers. Deliberately
@@ -649,6 +669,7 @@ func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Tolera
 					Value:    "bare-metal",
 					Effect:   corev1.TaintEffectNoSchedule,
 				},
+				reservationToleration(pool),
 			}
 	default:
 		return map[string]string{
@@ -661,6 +682,39 @@ func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Tolera
 					Operator: corev1.TolerationOpExists,
 					Effect:   corev1.TaintEffectNoSchedule,
 				},
+				reservationToleration(pool),
 			}
 	}
 }
+
+// reservationToleration lets a pool's Pods land on a node reserved for
+// that same pool, and only that pool. Every runner Pod carries it, on
+// both platforms, so the reservation mechanism needs no per-pool opt-in
+// and an operator can reserve for any pool without a redeploy.
+//
+// Pods created before this toleration existed keep scheduling normally;
+// they simply cannot use a reservation, and the reservation releases on
+// its timeout if one is held for such a Pod.
+func reservationToleration(pool *tuistv1.RunnerPool) corev1.Toleration {
+	return corev1.Toleration{
+		Key:      ReservationTaintKey,
+		Operator: corev1.TolerationOpEqual,
+		Value:    ReservationValue(pool.Name),
+		Effect:   corev1.TaintEffectNoSchedule,
+	}
+}
+
+// ReservationValue is the taint/toleration value identifying a pool.
+// Pool names are readable and almost always short enough to use as-is,
+// which keeps `kubectl describe node` self-explanatory; a name too long
+// to be a valid label value falls back to a digest so the mechanism
+// still works rather than producing a node the apiserver rejects.
+func ReservationValue(poolName string) string {
+	if len(poolName) <= 63 && labelValue.MatchString(poolName) {
+		return poolName
+	}
+	sum := sha256.Sum256([]byte(poolName))
+	return fmt.Sprintf("pool-%x", sum[:8])
+}
+
+var labelValue = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$`)

@@ -14,7 +14,7 @@
   & > svg {
     width: 16px;
     height: 16px;
-    color: var(--noora-icons-information-label);
+    color: var(--noora-font-color-information);
   }
 
   & > [data-part="wrapper"] {

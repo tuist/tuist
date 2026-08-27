@@ -136,7 +136,7 @@ defmodule Tuist.Accounts do
   end
 
   def get_account_by_handle(handle) do
-    Repo.one(from(a in Account, where: ilike(a.name, ^handle)))
+    Repo.one(from(a in Account, where: a.name == ^handle))
   end
 
   @doc """

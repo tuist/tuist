@@ -24,7 +24,8 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorker do
   A whole closed day is exactly what the cron reports, so a manual request
   deduplicates against it rather than racing it. Narrower windows still
   occur internally when `Billing.usage_windows/3` splits at a subscription
-  boundary; both paths split identically, so the identifiers match.
+  or runner-trial boundary; both paths split identically, so the
+  identifiers match.
 
   Either way the customer jobs are released in per-second batches rather
   than all at once, so the Stripe requests they go on to make arrive at a

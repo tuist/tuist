@@ -97,7 +97,7 @@ Logs shall be reviewed periodically. Review frequency is driven by the risk of t
 | Internal tooling and collaboration systems | Restricted | Quarterly |
 | Public-facing marketing and documentation systems | Public | Annually |
 
-Reviews shall be performed by a person other than the primary operator of the system under review wherever staffing allows. Where the size of the team makes full separation impractical, the review shall be documented and countersigned by a second reviewer.
+Reviews shall be performed by a person other than the primary operator of the system under review wherever staffing allows. At the current team size that separation is not achievable for most production systems, so where the reviewer is also an operator of a system under review, the review shall state that limitation explicitly alongside its findings. Naming the limitation in each record is what a reader needs in order to weigh the review, and it is a requirement this team can actually meet, which a second signature on every monthly review is not.
 
 Each review shall be recorded with the reviewer, the date, the period covered, the sources examined, and the findings. Records of reviews shall be retained for at least one year and serve as evidence of compliance.
 

@@ -24,7 +24,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     max_attempts: 20,
     unique: [
       keys: [:test_run_id, :shard_index],
-      states: [:scheduled, :available, :executing, :retryable],
+      states: :incomplete,
       period: :infinity
     ]
 
@@ -235,12 +235,20 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     end
   end
 
-  # A parse that extracted no test modules found nothing usable in the bundle
-  # (an aborted or empty xcresult). The Swift parser reports that as "skipped"
-  # — vacuously, from an empty test-case list — which reads on the dashboard as
-  # a real skip rather than "we couldn't parse this". Surface it as
-  # failed_processing so it isn't mistaken for a passing or skipped run.
-  defp run_status(_parsed_data, []), do: "failed_processing"
+  # A runner error empties the module list without the run having passed: a target
+  # whose `.xctest` cannot be loaded, or a UI-test runner that cannot launch, is
+  # lifted out of the test cases by the parser, so it arrives with no modules and
+  # `status: "failure"`. That verdict is the parser's, and it stands. Keyed on the
+  # status rather than on `errors` being non-empty, because `errors` also carries
+  # unattributed issues, which deliberately leave the status alone.
+  defp run_status(%{"status" => "failure"}, []), do: "failure"
+
+  # Otherwise no test modules means xcodebuild finished without running anything:
+  # the selection resolved to zero tests. Xcode reports that as a passing run with
+  # `totalTestCount: 0` and no issues, so this mirrors it. The Swift parser's own
+  # status would be "skipped", derived vacuously from an empty test-case list,
+  # which reads as a deliberate skip instead.
+  defp run_status(_parsed_data, []), do: "success"
   defp run_status(parsed_data, _test_modules), do: parsed_data["status"] || "success"
 
   # The xcresult `platform` field uses display strings ("iOS Simulator",

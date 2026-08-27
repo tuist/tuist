@@ -45,6 +45,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Kura.Reconciler},
     {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},
     {"*/5 * * * *", Tuist.Kura.Workers.StaleSelfHostedPeersWorker},
+    {"*/10 * * * *", Tuist.Kura.Workers.ClaimSizingWorker},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
     {"* * * * *", Tuist.Runners.Workers.PodReconciliationWorker},
@@ -52,7 +53,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Runners.Workers.ExpireInteractiveSessionsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},
-    {"* * * * *", Tuist.Runners.Workers.FlushJobTransitionEventsWorker}
+    {"* * * * *", Tuist.Runners.Workers.FlushJobTransitionEventsWorker},
+    {"* * * * *", Tuist.Runners.Workers.ReplicateRunnerSessionsWorker}
   ]
 
   @database_artifact_retention_resource_types [

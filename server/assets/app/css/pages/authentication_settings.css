@@ -293,13 +293,13 @@
       font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
       &[data-status="verified"] {
-        background: var(--noora-surface-background-success);
-        color: var(--noora-surface-label-success);
+        background: var(--noora-badge-light-fill-success-background);
+        color: var(--noora-badge-light-fill-success-label);
       }
 
       &[data-status="pending"] {
-        background: var(--noora-surface-background-warning);
-        color: var(--noora-surface-label-warning);
+        background: var(--noora-badge-light-fill-warning-background);
+        color: var(--noora-badge-light-fill-warning-label);
       }
     }
 

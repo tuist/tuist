@@ -5,7 +5,9 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.API.Pipeline
+  alias Tuist.Billing
   alias Tuist.CacheActionItems
+  alias Tuist.Kura.Demand
   alias Tuist.Projects.Workers.CleanProjectWorker
   alias Tuist.Repo
   alias Tuist.Storage
@@ -288,7 +290,12 @@ defmodule TuistWeb.API.CacheControllerTest do
 
     test "returns custom endpoints when the client requests Kura but the account has no Kura endpoints", %{conn: conn} do
       # Given
+      # An account that has never routed through Kura keeps the custom-endpoint
+      # behaviour. Stubbed rather than arranged, because the demand this very
+      # request records is what makes an account lifecycle-managed, and the
+      # window before it is flushed is exactly what this branch serves.
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Demand, :lifecycle_managed?, fn _account -> false end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
@@ -460,7 +467,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert expires_in == Tuist.Cache.cache_token_ttl_seconds()
 
       handle = "#{project.account.name}/#{project.name}"
-      {:ok, claims} = Tuist.Guardian.decode_and_verify(token)
+      {:ok, claims} = Tuist.CacheGuardian.decode_and_verify(token)
       assert claims["cache_grants"]["project"]["read"] == [handle]
       assert claims["cache_grants"]["project"]["write"] == [handle]
     end
@@ -485,9 +492,76 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       # Then
       assert %{"token" => token} = json_response(conn, 200)
-      {:ok, claims} = Tuist.Guardian.decode_and_verify(token)
+      {:ok, claims} = Tuist.CacheGuardian.decode_and_verify(token)
       assert claims["cache_grants"]["project"]["read"] == [handle]
       assert claims["cache_grants"]["project"]["write"] == [handle]
+    end
+  end
+
+  describe "POST /api/cache/token free tier" do
+    test "returns payment required when the scoped account is over the free tier", %{conn: conn} do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold,
+          preload: [:account]
+        )
+
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn = post(conn, ~p"/api/cache/token?#{[full_handle: "#{user.account.name}/#{project.name}"]}")
+
+      # Then
+      assert json_response(conn, 402)["message"] =~ "Tuist Air"
+    end
+
+    # `full_handle` is caller-controlled, so answering 402 for an account the
+    # subject cannot reach would turn this into a probe for which accounts are
+    # over the free tier.
+    test "does not reveal the billing status of an account the subject cannot reach", %{conn: conn} do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      blocked =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold,
+          preload: [:account]
+        )
+
+      project = ProjectsFixtures.project_fixture(account_id: blocked.account.id)
+      outsider = AccountsFixtures.user_fixture(preload: [:account])
+      conn = Authentication.put_current_user(conn, outsider)
+
+      # When
+      conn =
+        post(conn, ~p"/api/cache/token?#{[full_handle: "#{blocked.account.name}/#{project.name}"]}")
+
+      # Then
+      assert json_response(conn, 200)["token"]
+    end
+
+    test "still mints a token while the account is under the free tier", %{conn: conn} do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold - 1,
+          preload: [:account]
+        )
+
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn = post(conn, ~p"/api/cache/token?#{[full_handle: "#{user.account.name}/#{project.name}"]}")
+
+      # Then
+      assert json_response(conn, 200)["token"]
     end
   end
 
@@ -542,6 +616,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       # Then
       assert json_response(conn, 200) == %{
+               "payment_required" => [],
                "accounts" => [],
                "projects" => ["#{organization.account.name}/#{project.name}"]
              }
@@ -602,7 +677,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -840,7 +915,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -967,7 +1042,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -1075,7 +1150,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -1151,7 +1226,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -1360,7 +1435,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 

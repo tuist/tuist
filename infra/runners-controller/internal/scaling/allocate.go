@@ -1,21 +1,26 @@
 package scaling
 
+import "sort"
+
 // PoolDemand is one pool's input to the fleet-capacity allocation.
-// All pools in a single AllocateFleet call share one capacity
-// budget (the contention domain): for Linux that's the schedulable
-// memory across a bare-metal node pool, for macOS the number of
-// available host slots (1 VM per Mac mini).
+// All pools in a single AllocateFleet call share one capacity budget
+// (the contention domain): the schedulable memory across the fleet's
+// nodes, for both Linux bare metal and macOS Mac minis.
 type PoolDemand struct {
 	Name string
 
 	// PerPodCost is what one Pod consumes from the shared budget,
-	// in the same unit as `fleetCapacity`:
-	//   - Linux: per-Pod memory request in bytes (kata microVMs
-	//     pin memory per sandbox; CPU is deliberately
-	//     oversubscribed, so memory is the only bin-packed
-	//     dimension).
-	//   - macOS: always 1 (one Mac mini = one slot = one VM,
-	//     per Apple's Virtualization.framework SLA).
+	// in the same unit as `fleetCapacity` — per-Pod memory request
+	// in bytes on both platforms, because memory is the only
+	// bin-packed dimension on either:
+	//   - Linux: kata microVMs pin memory per sandbox; CPU is
+	//     deliberately oversubscribed. Includes RuntimeClass
+	//     overhead, which is charged at admission.
+	//   - macOS: tart-kubelet advertises the host's usable RAM and
+	//     the guest is sized from the Pod's request, so the
+	//     quotient is how many Tart guests the host admits. Apple's
+	//     Virtualization.framework SLA caps that at 2 regardless,
+	//     and Tart enforces it.
 	PerPodCost int64
 
 	// Floor is `minWarmPoolFloor` — the always-on warm guarantee.
@@ -31,6 +36,12 @@ type PoolDemand struct {
 	// including the speculative p95 warm buffer, already clamped to
 	// `maxReplicas`.
 	Target int32
+
+	// ShapeKey groups pools whose Pods place identically on a node, so
+	// their grants can be capped against what the fleet's nodes can
+	// actually seat for that shape. Empty opts the pool out of the cap.
+	// See AllocateFleet's `shapeCaps`.
+	ShapeKey string
 }
 
 // AllocateFleet distributes `fleetCapacity` across pools sharing a
@@ -65,8 +76,15 @@ type PoolDemand struct {
 // proportionally to requested cost and all lower tiers get nothing.
 // Result per pool is in `[load_i, Target_i]`. The algorithm is
 // unit-agnostic: `fleetCapacity` and `PerPodCost` just need to be in
-// the same unit (memory bytes for Linux, host slots for macOS).
-func AllocateFleet(pools []PoolDemand, fleetCapacity int64) map[string]int32 {
+// the same unit (allocatable memory bytes on both platforms today).
+//
+// `shapeCaps` is an optional per-ShapeKey ceiling on the number of Pods
+// the fleet can actually place for that shape, applied before the byte
+// budget. A nil or empty map disables it. See capByShape for why the
+// byte budget cannot express this on its own.
+func AllocateFleet(pools []PoolDemand, fleetCapacity int64, shapeCaps map[string]int32) map[string]int32 {
+	pools = capByShape(pools, shapeCaps)
+
 	out := make(map[string]int32, len(pools))
 
 	type tierWant struct {
@@ -168,4 +186,124 @@ func AllocateFleet(pools []PoolDemand, fleetCapacity int64) map[string]int32 {
 	}
 
 	return out
+}
+
+// capByShape clamps each pool's Target so that the pools sharing a
+// ShapeKey never sum above what the fleet's nodes can actually seat for
+// that shape.
+//
+// `maxReplicas` cannot do this. It is a PER-POOL ceiling, and the pools
+// sharing a shape are siblings: five Xcode pools each capped at the two
+// M4 hosts that can seat a 12 vCPU guest compose to ten, not two. Nor
+// can the shared byte budget catch it, because that budget pools memory
+// across nodes which cannot host the shape at all — a fleet advertising
+// 157 GB reads as five 28 GB slots when only two hosts can seat one.
+// Everything above the real count is a Pod that no node will ever
+// accept, so it is not the transient "add a host" overshoot the load
+// tier deliberately allows; it is permanent.
+//
+// The cap is handed out by the same priority the tiers use — load
+// first, then the warm floor, then headroom — one Pod per pool per
+// round, so two pools contending for a single slot do not both lose it,
+// and in name order so the split is identical on every reconcile.
+//
+// Clamping Target (rather than the tiers directly) is enough: the tier
+// decomposition already clamps load and floor to it.
+func capByShape(pools []PoolDemand, shapeCaps map[string]int32) []PoolDemand {
+	if len(shapeCaps) == 0 {
+		return pools
+	}
+
+	groups := map[string][]int{}
+	for i, pool := range pools {
+		if pool.ShapeKey == "" {
+			continue
+		}
+		if _, capped := shapeCaps[pool.ShapeKey]; !capped {
+			continue
+		}
+		groups[pool.ShapeKey] = append(groups[pool.ShapeKey], i)
+	}
+	if len(groups) == 0 {
+		return pools
+	}
+
+	out := make([]PoolDemand, len(pools))
+	copy(out, pools)
+
+	for key, members := range groups {
+		limit := shapeCaps[key]
+		if limit < 0 {
+			limit = 0
+		}
+
+		var asked int32
+		for _, i := range members {
+			asked += clampMin(out[i].Target, 0)
+		}
+		if asked <= limit {
+			continue
+		}
+
+		sort.Slice(members, func(a, b int) bool { return out[members[a]].Name < out[members[b]].Name })
+
+		granted := make([]int32, len(members))
+		remaining := limit
+		for _, ceiling := range []func(PoolDemand) int32{loadCeiling, floorCeiling, targetCeiling} {
+			for remaining > 0 {
+				progressed := false
+				for j, i := range members {
+					if remaining == 0 {
+						break
+					}
+					if granted[j] < ceiling(out[i]) {
+						granted[j]++
+						remaining--
+						progressed = true
+					}
+				}
+				if !progressed {
+					break
+				}
+			}
+		}
+
+		for j, i := range members {
+			out[i].Target = granted[j]
+			out[i].Load = clampMax(out[i].Load, granted[j])
+			out[i].Floor = clampMax(out[i].Floor, granted[j])
+		}
+	}
+
+	return out
+}
+
+// The three ceilings capByShape fills in priority order, each the top of
+// one tier and each already bounded by the pool's own Target.
+func targetCeiling(p PoolDemand) int32 { return clampMin(p.Target, 0) }
+
+func loadCeiling(p PoolDemand) int32 {
+	return clampMax(clampMin(p.Load, 0), targetCeiling(p))
+}
+
+func floorCeiling(p PoolDemand) int32 {
+	floor := clampMin(p.Floor, 0)
+	if load := loadCeiling(p); floor < load {
+		floor = load
+	}
+	return clampMax(floor, targetCeiling(p))
+}
+
+func clampMin(v, min int32) int32 {
+	if v < min {
+		return min
+	}
+	return v
+}
+
+func clampMax(v, max int32) int32 {
+	if v > max {
+		return max
+	}
+	return v
 }

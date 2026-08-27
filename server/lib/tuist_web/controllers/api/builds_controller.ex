@@ -6,6 +6,7 @@ defmodule TuistWeb.API.BuildsController do
   alias Tuist.Builds
   alias Tuist.Builds.CASOutput
   alias Tuist.Storage
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadCompletion
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadParts
@@ -184,7 +185,8 @@ defmodule TuistWeb.API.BuildsController do
            },
            required: [:builds, :pagination_metadata]
          }},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -322,7 +324,8 @@ defmodule TuistWeb.API.BuildsController do
            ]
          }},
       not_found: {"Build not found", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -844,6 +847,7 @@ defmodule TuistWeb.API.BuildsController do
       },
       unauthorized: {"You need to be authenticated to create a build", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"The request parameters are invalid", "application/json", Error}
     }
@@ -1025,6 +1029,7 @@ defmodule TuistWeb.API.BuildsController do
       ok: {"The multipart upload has been started", "application/json", ArtifactUploadId},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -1079,6 +1084,7 @@ defmodule TuistWeb.API.BuildsController do
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -1148,6 +1154,7 @@ defmodule TuistWeb.API.BuildsController do
       ok: {"The upload has been completed", "application/json", ArtifactMultipartUploadCompletion},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )

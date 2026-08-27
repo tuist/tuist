@@ -210,6 +210,36 @@ defmodule Tuist.AccountsTest do
       assert %{remote_cache_hits_count: 1} == got
     end
 
+    test "ignores events that ran before the free tier was reset" do
+      # Given
+      now = ~U[2025-05-18 15:27:00Z]
+      _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
+      _project = %{id: project_id} = ProjectsFixtures.project_fixture(account_id: account_id)
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project_id,
+        remote_cache_target_hits: ["Kit"],
+        ran_at: ~U[2025-05-10 00:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project_id,
+        remote_cache_target_hits: ["Kit"],
+        ran_at: ~U[2025-05-17 00:00:00Z]
+      )
+
+      Account
+      |> Repo.get!(account_id)
+      |> Ecto.Changeset.change(free_tier_reset_at: ~U[2025-05-15 00:00:00Z])
+      |> Repo.update!()
+
+      # When
+      got = Accounts.account_month_usage(account_id, now)
+
+      # Then
+      assert %{remote_cache_hits_count: 1} == got
+    end
+
     test "returns the right value when there are no remote cache hits" do
       # Given
       now = ~U[2025-05-18 15:27:00Z]
@@ -2021,6 +2051,29 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert got
+    end
+
+    test "returns nil when the handle is a percent wildcard" do
+      # Given
+      AccountsFixtures.user_fixture(preload: [:account])
+      AccountsFixtures.user_fixture(preload: [:account])
+
+      # When
+      got = Accounts.get_account_by_handle("%")
+
+      # Then
+      assert is_nil(got)
+    end
+
+    test "returns nil when the handle is made of underscore wildcards" do
+      # Given
+      %{account: %{name: handle}} = AccountsFixtures.user_fixture(preload: [:account])
+
+      # When
+      got = Accounts.get_account_by_handle(String.duplicate("_", String.length(handle)))
+
+      # Then
+      assert is_nil(got)
     end
   end
 
@@ -4756,7 +4809,12 @@ defmodule Tuist.AccountsTest do
 
     test "returns custom endpoints when the client requests Kura but the account has no Kura endpoints" do
       # Given
+      # An account that has never routed through Kura keeps the custom-endpoint
+      # behaviour. Stubbed rather than arranged, because the demand this very
+      # call records is what makes an account lifecycle-managed, and the window
+      # before it is flushed is exactly what this branch serves.
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Demand, :lifecycle_managed?, fn _account -> false end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
@@ -4771,7 +4829,7 @@ defmodule Tuist.AccountsTest do
       assert endpoints == ["https://custom-cache.example.com"]
     end
 
-    test "serves authoritative object storage while a lifecycle-managed account has no Kura instance" do
+    test "serves the Tuist-hosted default lane while a lifecycle-managed account has no Kura instance" do
       # Given
       # An archived account must not fall back to the legacy custom-endpoint
       # path: that would make archiving accounts the thing that keeps the
@@ -4839,8 +4897,25 @@ defmodule Tuist.AccountsTest do
 
     test "does not report provisioning for an account with no resolvable service region" do
       # Given
-      # A paid account allowing every region needs a versioned assignment
-      # before Kura can route it, so no instance is coming.
+      # A plan Kura does not serve resolves to no region, so no instance is
+      # coming and the client must not poll for one.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :open_source)
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      refute resolution.provisioning
+    end
+
+    test "reports provisioning for a paid account that allows every storage region" do
+      # Given
+      # These accounts used to be refused a region outright, which left them on
+      # a stand-in lane indefinitely with the client told nothing was coming.
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
@@ -4852,7 +4927,8 @@ defmodule Tuist.AccountsTest do
       resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
 
       # Then
-      refute resolution.provisioning
+      assert resolution.endpoints == ["https://default.tuist.dev"]
+      assert resolution.provisioning
     end
 
     test "does not report provisioning once an instance is serving" do

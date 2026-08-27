@@ -112,6 +112,35 @@ defmodule Tuist.Kura.ServerTest do
       assert changeset.valid?
     end
 
+    test "accepts a storage claim" do
+      changeset =
+        Server.create_changeset(%{
+          account_id: account_id(),
+          region: "local-controller",
+          provisioner_node_ref: "kura-tuist-local-controller",
+          storage_claim_size: "24Gi"
+        })
+
+      assert changeset.valid?
+    end
+
+    test "rejects a claim the manifest could not render" do
+      # Only the paths that create the volumes write one, so a claim the
+      # provisioner would raise on is a bug where it is pinned.
+      for claim_size <- ["24 Gi", "24GB", "0Gi", "big"] do
+        changeset =
+          Server.create_changeset(%{
+            account_id: account_id(),
+            region: "local-controller",
+            provisioner_node_ref: "kura-tuist-local-controller",
+            storage_claim_size: claim_size
+          })
+
+        refute changeset.valid?, "expected #{claim_size} to be rejected"
+        assert %{storage_claim_size: ["must be a Kubernetes storage quantity like 24Gi"]} = errors_on(changeset)
+      end
+    end
+
     test "rejects unknown regions" do
       changeset =
         Server.create_changeset(%{

@@ -2,6 +2,7 @@ package scaleway
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	baremetal "github.com/scaleway/scaleway-sdk-go/api/baremetal/v1"
@@ -15,6 +16,26 @@ type fakeBaremetalAPI struct {
 	getServer  *baremetal.Server
 	osList     []*baremetal.OS
 	installReq *baremetal.InstallServerRequest
+	// defaultSchema is what the offer reports as its own layout. Nil serves the
+	// mirrored two-NVMe shape the cache fleet runs.
+	defaultSchema *baremetal.Schema
+	// validated records the schema the client asked the API to check, and
+	// validateErr makes that check fail, which is how a box gets protected from
+	// an install that would wipe it onto an unusable layout.
+	validated   *baremetal.Schema
+	validateErr error
+}
+
+func (f *fakeBaremetalAPI) GetDefaultPartitioningSchema(*baremetal.GetDefaultPartitioningSchemaRequest, ...scw.RequestOption) (*baremetal.Schema, error) {
+	if f.defaultSchema != nil {
+		return f.defaultSchema, nil
+	}
+	return mirroredDefaultSchema(), nil
+}
+
+func (f *fakeBaremetalAPI) ValidatePartitioningSchema(req *baremetal.ValidatePartitioningSchemaRequest, _ ...scw.RequestOption) error {
+	f.validated = req.PartitioningSchema
+	return f.validateErr
 }
 
 func (f *fakeBaremetalAPI) ListServers(*baremetal.ListServersRequest, ...scw.RequestOption) (*baremetal.ListServersResponse, error) {
@@ -110,5 +131,51 @@ func TestReinstallServerResolvesOSAndReauthorizesKey(t *testing.T) {
 	}
 	if len(api.installReq.SSHKeyIDs) != 1 || api.installReq.SSHKeyIDs[0] != "key-1" {
 		t.Fatalf("ReinstallServer SSHKeyIDs = %v, want [key-1]", api.installReq.SSHKeyIDs)
+	}
+}
+
+// Every install has to land a separate XFS /data, and the reinstall path is how
+// a released box is returned to the pool, so it is also how an already-adopted
+// box gets converted.
+func TestReinstallServerInstallsWithAPartitioningSchema(t *testing.T) {
+	api := &fakeBaremetalAPI{
+		getServer: &baremetal.Server{ID: "srv", Name: "kura-1", OfferID: "offer", Zone: scw.Zone("fr-par-2")},
+		osList:    []*baremetal.OS{{ID: "os", Name: "Ubuntu", Version: "24.04 LTS"}},
+	}
+	c := &BaremetalClient{Baremetal: api}
+
+	if err := c.ReinstallServer(context.Background(), scw.Zone("fr-par-2"), "srv", "ubuntu_24.04", []string{"key"}); err != nil {
+		t.Fatalf("ReinstallServer: %v", err)
+	}
+	if api.installReq == nil || api.installReq.PartitioningSchema == nil {
+		t.Fatal("reinstall posted no partitioning schema; the box would come up on the default single-root layout")
+	}
+	if fs := filesystemAt(api.installReq.PartitioningSchema, DataMountPoint); fs == nil ||
+		fs.Format != baremetal.SchemaFilesystemFormatXfs {
+		t.Fatalf("reinstall schema has no xfs /data: %+v", api.installReq.PartitioningSchema.Filesystems)
+	}
+	// The same schema must be the one that was checked, or the check proves
+	// nothing about what gets installed.
+	if api.validated != api.installReq.PartitioningSchema {
+		t.Fatal("the validated schema is not the one that was installed")
+	}
+}
+
+// Validation is the only pre-flight that exists before a wipe, so a schema the
+// provider rejects must stop the install rather than being sent anyway.
+func TestPartitioningSchemaForFailsClosedOnValidationError(t *testing.T) {
+	api := &fakeBaremetalAPI{
+		getServer:   &baremetal.Server{ID: "srv", Name: "kura-1", OfferID: "offer"},
+		osList:      []*baremetal.OS{{ID: "os", Name: "Ubuntu", Version: "24.04 LTS"}},
+		validateErr: errors.New("invalid schema"),
+	}
+	c := &BaremetalClient{Baremetal: api}
+
+	err := c.ReinstallServer(context.Background(), scw.Zone("fr-par-2"), "srv", "ubuntu_24.04", []string{"key"})
+	if err == nil {
+		t.Fatal("expected the reinstall to fail when the schema does not validate")
+	}
+	if api.installReq != nil {
+		t.Fatalf("a rejected schema still reached the install: %+v", api.installReq)
 	}
 }

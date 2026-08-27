@@ -722,6 +722,41 @@ k8s-monitoring:
   #              is running stale config — last reload failed"
   #   - Runbook: kubectl logs <pod> -c alloy to find the parse error;
   #              fix the config in the values overlay, re-deploy, restart pod.
+  #
+  # The include list also carries a small collector self-diagnosis set,
+  # because until 2026-08-26 the two config-load metrics were the ONLY
+  # `alloy_*` series reaching Grafana Cloud and a collector that cannot
+  # report on itself cannot be debugged. That day one alloy-metrics replica
+  # grew from 0.74 GiB to 2.73 GiB over seven days with no restarts while
+  # nine peers doing identical work stayed under 443 MiB, and there was no
+  # way to see whether it held more series, owned more targets, leaked
+  # goroutines, or simply could not drain its queue. Diagnosis fell back to
+  # reading Alloy's own logs out of Loki. `pods/portforward` is a `create`
+  # verb the read-only access tier denies, so the Alloy UI on :12345 is not
+  # a fallback.
+  #
+  # Each name below answers one question about a replica that peers cannot:
+  #   - cluster_node_peers / cluster_node_gossip_health_score: does it see a
+  #     different ring than its peers? A partial membership view makes a
+  #     replica compute a different hash partition and over-claim targets.
+  #   - prometheus_remote_write_wal_storage_active_series: is it holding
+  #     more series, and is that number growing? The first thing to look at.
+  #   - prometheus_sd_discovered_targets: is discovery skewed, or only the
+  #     clustered assignment?
+  #   - prometheus_remote_storage_samples_pending / shards / shards_desired:
+  #     is the send queue backing up?
+  #   - highest_timestamp_in_seconds minus queue_highest_sent_timestamp_seconds:
+  #     remote-write lag. Chronic lag grows the WAL, which grows memory.
+  #   - samples_failed / retried / dropped: is data being lost, and when?
+  #   - go_goroutines, go_memstats_heap_inuse_bytes,
+  #     alloy_resources_process_resident_memory_bytes: goroutine leak vs Go
+  #     heap growth vs RSS growth. Heap flat while RSS climbs is off-heap.
+  #   - alloy_component_controller_running_components: component instances
+  #     accumulating rather than being torn down.
+  #
+  # Roughly 30 series per collector Pod. Kept identical across roles so the
+  # blocks stay comparable; the Prometheus WAL and remote-storage names are
+  # simply not emitted by the Loki-writing role, which costs nothing.
   integrations:
     collector: alloy-metrics
     alloy:
@@ -741,6 +776,24 @@ k8s-monitoring:
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
+                # Collector self-diagnosis. See the block comment above.
+                - alloy_component_controller_running_components
+                - alloy_resources_process_resident_memory_bytes
+                - cluster_node_gossip_health_score
+                - cluster_node_peers
+                - go_goroutines
+                - go_memstats_heap_inuse_bytes
+                - prometheus_remote_storage_highest_timestamp_in_seconds
+                - prometheus_remote_storage_queue_highest_sent_timestamp_seconds
+                - prometheus_remote_storage_samples_dropped_total
+                - prometheus_remote_storage_samples_failed_total
+                - prometheus_remote_storage_samples_pending
+                - prometheus_remote_storage_samples_retried_total
+                - prometheus_remote_storage_shards
+                - prometheus_remote_storage_shards_desired
+                - prometheus_remote_write_wal_storage_active_series
+                - prometheus_sd_discovered_targets
+                - prometheus_wal_watcher_current_segment
               excludeMetrics:
                 - loki_write_request_duration_seconds_bucket
         - name: alloy-logs
@@ -752,6 +805,24 @@ k8s-monitoring:
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
+                # Collector self-diagnosis. See the block comment above.
+                - alloy_component_controller_running_components
+                - alloy_resources_process_resident_memory_bytes
+                - cluster_node_gossip_health_score
+                - cluster_node_peers
+                - go_goroutines
+                - go_memstats_heap_inuse_bytes
+                - prometheus_remote_storage_highest_timestamp_in_seconds
+                - prometheus_remote_storage_queue_highest_sent_timestamp_seconds
+                - prometheus_remote_storage_samples_dropped_total
+                - prometheus_remote_storage_samples_failed_total
+                - prometheus_remote_storage_samples_pending
+                - prometheus_remote_storage_samples_retried_total
+                - prometheus_remote_storage_shards
+                - prometheus_remote_storage_shards_desired
+                - prometheus_remote_write_wal_storage_active_series
+                - prometheus_sd_discovered_targets
+                - prometheus_wal_watcher_current_segment
               excludeMetrics:
                 - loki_write_request_duration_seconds_bucket
         - name: alloy-singleton
@@ -763,6 +834,24 @@ k8s-monitoring:
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
+                # Collector self-diagnosis. See the block comment above.
+                - alloy_component_controller_running_components
+                - alloy_resources_process_resident_memory_bytes
+                - cluster_node_gossip_health_score
+                - cluster_node_peers
+                - go_goroutines
+                - go_memstats_heap_inuse_bytes
+                - prometheus_remote_storage_highest_timestamp_in_seconds
+                - prometheus_remote_storage_queue_highest_sent_timestamp_seconds
+                - prometheus_remote_storage_samples_dropped_total
+                - prometheus_remote_storage_samples_failed_total
+                - prometheus_remote_storage_samples_pending
+                - prometheus_remote_storage_samples_retried_total
+                - prometheus_remote_storage_shards
+                - prometheus_remote_storage_shards_desired
+                - prometheus_remote_write_wal_storage_active_series
+                - prometheus_sd_discovered_targets
+                - prometheus_wal_watcher_current_segment
               excludeMetrics:
                 - loki_write_request_duration_seconds_bucket
         - name: alloy-receiver
@@ -774,6 +863,24 @@ k8s-monitoring:
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
+                # Collector self-diagnosis. See the block comment above.
+                - alloy_component_controller_running_components
+                - alloy_resources_process_resident_memory_bytes
+                - cluster_node_gossip_health_score
+                - cluster_node_peers
+                - go_goroutines
+                - go_memstats_heap_inuse_bytes
+                - prometheus_remote_storage_highest_timestamp_in_seconds
+                - prometheus_remote_storage_queue_highest_sent_timestamp_seconds
+                - prometheus_remote_storage_samples_dropped_total
+                - prometheus_remote_storage_samples_failed_total
+                - prometheus_remote_storage_samples_pending
+                - prometheus_remote_storage_samples_retried_total
+                - prometheus_remote_storage_shards
+                - prometheus_remote_storage_shards_desired
+                - prometheus_remote_write_wal_storage_active_series
+                - prometheus_sd_discovered_targets
+                - prometheus_wal_watcher_current_segment
               excludeMetrics:
                 - loki_write_request_duration_seconds_bucket
         - name: grafana-cloud-traces-sampler
@@ -785,6 +892,24 @@ k8s-monitoring:
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
+                # Collector self-diagnosis. See the block comment above.
+                - alloy_component_controller_running_components
+                - alloy_resources_process_resident_memory_bytes
+                - cluster_node_gossip_health_score
+                - cluster_node_peers
+                - go_goroutines
+                - go_memstats_heap_inuse_bytes
+                - prometheus_remote_storage_highest_timestamp_in_seconds
+                - prometheus_remote_storage_queue_highest_sent_timestamp_seconds
+                - prometheus_remote_storage_samples_dropped_total
+                - prometheus_remote_storage_samples_failed_total
+                - prometheus_remote_storage_samples_pending
+                - prometheus_remote_storage_samples_retried_total
+                - prometheus_remote_storage_shards
+                - prometheus_remote_storage_shards_desired
+                - prometheus_remote_write_wal_storage_active_series
+                - prometheus_sd_discovered_targets
+                - prometheus_wal_watcher_current_segment
               excludeMetrics:
                 - loki_write_request_duration_seconds_bucket
 
@@ -881,16 +1006,74 @@ k8s-monitoring:
       controller:
         # Tolerate the customer-facing cache-node taint so host metrics
         # keep flowing from the dedicated Dedibox/OVH cache boxes.
+        #
+        # Deliberately NOT tolerating tuist.dev/stable-egress. Scraping does
+        # not require locality: hostMetrics scrapes the node-exporter
+        # DaemonSet over the pod network and clusterMetrics scrapes the
+        # kubelet API, so a peer collects the egress nodes' targets just as
+        # well. What locality does require is node-exporter and alloy-logs,
+        # which read /proc and local container logs, and both keep their own
+        # stable-egress toleration. Running a clustered collector there is
+        # what caused the 2026-08-26 incident below.
         tolerations:
           - key: tuist.dev/kura-cache
             operator: Exists
             effect: NoSchedule
-          # Keep scraping host/pod metrics from the tainted stable-egress
-          # gateway nodes — otherwise the egress pool is a monitoring blind spot
-          # and the egress alerts can't see it.
-          - key: tuist.dev/stable-egress
-            operator: Exists
-            effect: NoSchedule
+      # The subchart ships this container with no requests and no limits, so
+      # the scheduler accounts nothing for it and nothing caps its growth.
+      #
+      # On 2026-08-26 the replica on md-egress-r4rrm reached 2.73 GiB on a
+      # node with 3.72 GiB allocatable and produced 27 node-level OOM kills
+      # in 24h, the only node in production with any. Without a limit the
+      # kernel OOMs at node scope rather than the cgroup, so the blast radius
+      # was the whole node: kubelet and containerd stalled
+      # (ContainerGCFailed), the Node flapped NotReady five times in six
+      # hours, and hcloud-csi-node's 3s liveness probe timed out and
+      # restarted the CSI driver 20 times. The stable-egress controller
+      # carried the Floating IP to the healthy peer, which is the only reason
+      # this was not an egress outage.
+      #
+      # Placement is the root of it. This is a DaemonSet, so it lands on
+      # every Linux node, but clustering hash-partitions targets across the
+      # ring, so what a replica must hold has nothing to do with which node
+      # it runs on. In production that fleet spans 3.72 GiB to 125 GiB, so
+      # the mismatch is guaranteed to land a heavy shard on a node too small
+      # for it. Dropping the stable-egress toleration removes the 3.72 GiB
+      # gateway nodes, which every env runs.
+      #
+      # The floor that leaves is per-env, and nothing overrides these
+      # resources per env: 15.1 GiB in production, whose general pool is
+      # ccx23, against 7.47 GiB in staging, canary and pentest, whose pools
+      # are cpx32. So 4Gi is ~26% of a production general node but ~53% of a
+      # staging one. That is a ceiling, not a reservation. Only the 512Mi
+      # request is reserved, and those envs scrape a fraction of production's
+      # targets, so a replica there should never approach it; if one ever
+      # does, the cgroup kill still contains it, which is the whole point.
+      #
+      # 4Gi rather than something near the 443 MiB that most replicas use: a
+      # legitimately heavy shard is real, not a leak. The ap-southeast
+      # replica holds a steady working set, oscillating 1.6 to 2.75 GiB over
+      # 24h with no trend and no restarts. A limit under that would OOMKill
+      # it, hand its targets to a peer, and walk the same kill around the
+      # ring.
+      #
+      # The headroom above 2.75 GiB is not slack, it is the cost of the
+      # toleration removal above. Dropping two members from an 11-node ring
+      # grows every survivor's share by 11/9, so that replica projects to
+      # ~3.2 GiB mean and ~3.3 GiB peak once its targets redistribute. Sizing
+      # this against the pre-change distribution would have had the same
+      # commit that removes the members OOMKill the replica that absorbs
+      # them. Re-derive it if the ring loses members again.
+      #
+      # No CPU limit: throttling a scraper turns into scrape timeouts and
+      # gaps.
+      alloy:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            memory: 4Gi
       # Custom scrape jobs for the macOS fleet's node_exporter (:9100)
       # and tart-kubelet controller-runtime metrics (:8080). Both bind
       # to the tailnet interface on each Mac mini — see
@@ -1393,6 +1576,11 @@ k8s-monitoring:
             effect: NoSchedule
           # Keep tailing logs from the tainted stable-egress gateway nodes.
           - key: tuist.dev/stable-egress
+            operator: Exists
+            effect: NoSchedule
+          # Scaleway Elastic Metal cache pool (kura-scw-fr-par), which
+          # registers with tuist.dev/runner-cache=true:NoSchedule.
+          - key: tuist.dev/runner-cache
             operator: Exists
             effect: NoSchedule
     # Kubernetes Events must come from exactly one replica — otherwise

@@ -11,23 +11,33 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   @behaviour Tuist.Kura.Provisioner
 
-  alias Tuist.Billing
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.AccountPolicies
+  alias Tuist.Kura.EgressLimits
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
 
   @namespace "kura"
+  @egress_bandwidth_annotation "kubernetes.io/egress-bandwidth"
   @manifest_revision "2026-08-19-ephemeral-storage-request-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
-  # Mirrors Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
-  # MAX_REPLICATION_BODY_BYTES, itself 4 x MAX_SEGMENT_BYTES. We never set
-  # KURA_TMP_DIR_MAX_BYTES, so this default is what upload staging can reach
-  # inside the data volume. Keep in sync if either constant moves.
-  @kura_tmp_dir_max_bytes 8 * 1024 * 1024 * 1024
+  # Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
+  # MAX_REPLICATION_BODY_BYTES, itself 4 x MAX_SEGMENT_BYTES. The ceiling upload
+  # staging reaches inside the data volume when nothing narrows it. Keep in sync
+  # if either constant moves.
+  @kura_default_tmp_dir_max_bytes 8 * 1024 * 1024 * 1024
+  # Kura's MAX_MODULE_TOTAL_BYTES: the largest single thing that stages here. A
+  # multipart module upload reserves its whole assembled size in one call, and
+  # `TmpBudget::try_reserve` rejects outright when one request exceeds the whole
+  # budget, so a staging budget under this cannot stage a max-size module upload
+  # at all — not slower, impossible. Peer catch-up is not in this number: it
+  # charges a separate `peer_staging_budget`, sized from memory, so the two
+  # cannot starve each other.
+  @kura_max_staged_request_bytes 2 * 1024 * 1024 * 1024
   # Kura's MAX_SEGMENT_BYTES: the one extra segment a ring rotation appends
   # before evicting the oldest one.
   @kura_max_segment_bytes 512 * 1024 * 1024
@@ -178,6 +188,74 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
+  def rollout_health(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, %{"status" => %{"rolloutHealth" => health}}} when is_map(health) ->
+        {:ok, parse_rollout_health(health)}
+
+      {:ok, _} ->
+        {:ok, nil}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # The controller publishes the aggregate with explicit per-field
+  # semantics (conjunctions, sums with reset clamping, max pressure,
+  # oldest sample); this only normalizes the wire shape. Missing numeric
+  # fields default to 0 and missing booleans to false so an old
+  # controller that publishes a partial aggregate reads as unhealthy
+  # rather than crashing the gate.
+  defp parse_rollout_health(health) when is_map(health) do
+    %{
+      ready: health["ready"] == true,
+      serving: health["serving"] == true,
+      ring_consistent: health["ringConsistent"] == true,
+      backfilling_peers: integer_field(health, "backfillingPeers"),
+      backfill_degraded: health["backfillDegraded"] == true,
+      backfill_budget_exhausted_peers: integer_field(health, "backfillBudgetExhaustedPeers"),
+      outbox_messages: integer_field(health, "outboxMessages"),
+      fd_timeout_count: counter_field(health, "fdTimeoutCount"),
+      peer_connection_failures: counter_field(health, "peerConnectionFailures"),
+      memory_pressure_state: integer_field(health, "memoryPressureState"),
+      sampled_pods: integer_field(health, "sampledPods"),
+      expected_pods: integer_field(health, "expectedPods"),
+      sampled_at: datetime_field(health, "sampledAt")
+    }
+  end
+
+  # The cumulative failure counters are read as `nil` when the aggregate does
+  # not carry them, not as 0. They are the two fields the gate compares a
+  # server against its own pre-upgrade baseline, and a runtime too old to
+  # emit one reports the same absence as a runtime reporting none — recording
+  # that as a baseline of 0 would make the first error after the upgrade read
+  # as a regression from a baseline that was never measured. A `nil` baseline
+  # simply skips the comparison until there is one to make.
+  defp counter_field(health, key) do
+    case Map.get(health, key) do
+      value when is_integer(value) -> value
+      _ -> nil
+    end
+  end
+
+  defp integer_field(health, key) do
+    case Map.get(health, key) do
+      value when is_integer(value) -> value
+      _ -> 0
+    end
+  end
+
+  defp datetime_field(health, key) do
+    with value when is_binary(value) <- Map.get(health, key),
+         {:ok, datetime, _offset} <- DateTime.from_iso8601(value) do
+      datetime
+    else
+      _ -> nil
+    end
+  end
+
+  @impl true
   def current_manifest_revision(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
       {:ok, %{"metadata" => %{"annotations" => %{@manifest_revision_annotation => revision}}}} -> {:ok, revision}
@@ -187,9 +265,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
-  def manifest_revision(account, %Regions{} = region) do
+  def manifest_revision(%Server{account: account} = server, %Regions{} = region) do
     entitlements = manifest_entitlements(account, region)
-    manifest_revision_string(region, self_hosted_peers(account, region, entitlements), entitlements)
+
+    manifest_revision_string(
+      region,
+      storage_claim(account, region, server),
+      self_hosted_peers(account, region, entitlements),
+      entitlements,
+      effective_egress(account, region, entitlements)
+    )
   end
 
   @doc "The base manifest revision, independent of dynamic per-account inputs."
@@ -233,7 +318,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp render_manifest(name, image_tag, account, region, server, external_peers, entitlements) do
     account_handle = dns_handle(account.name)
     external_peers = entitled_self_hosted_peers(region, external_peers, entitlements)
-    revision = manifest_revision_string(region, external_peers, entitlements)
+    claim = storage_claim(account, region, server)
+    egress = effective_egress(account, region, entitlements)
+    revision = manifest_revision_string(region, claim, external_peers, entitlements, egress)
     annotations = %{@manifest_revision_annotation => revision}
 
     %{
@@ -273,17 +360,21 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "private" => Regions.private?(region),
           "exposeNodePort" => Regions.node_port_data_plane?(region),
           "clientCIDRs" => client_cidrs(region),
-          "podAnnotations" => pod_annotations(region),
-          "egressGuaranteedMbps" => entitlements.egress_guaranteed_mbps,
+          # The account's effective pair, not the region's. The controller
+          # derives the shaper's tuist.dev/egress-class from these same two
+          # fields, so one number per knob keeps the reservation, the pacing and
+          # the shaped class from describing different limits.
+          "podAnnotations" => pod_annotations(region, egress.burst_mbps),
+          "egressGuaranteedMbps" => egress.floor_mbps,
           "memoryFloorMib" => entitlements.memory && entitlements.memory.floor_mib,
           "memoryCeilingMib" => entitlements.memory && entitlements.memory.ceiling_mib,
           "memoryCeilingBinPacked" => Regions.memory_ceiling_bin_packed?(region),
           "storageClassName" => storage_class(region),
-          "storageSize" => storage_size(region),
+          "storageSize" => claim,
           "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
           "tolerations" => tolerations(region),
-          "extraEnv" => auth_env(region, entitlements)
+          "extraEnv" => auth_env(region, claim, entitlements)
         }
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
         |> Map.new()
@@ -349,27 +440,20 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
     allowed_features = Entitlements.allowed_features(account, features)
 
+    # Resolved through the context so the ops form validates an override against
+    # the same floor the instance is actually built with, entitlement included.
     egress_guaranteed_mbps =
-      case configured_egress_mbps do
-        nil -> nil
-        mbps -> if MapSet.member?(allowed_features, :guaranteed_egress_floor), do: mbps, else: 0
-      end
+      if is_nil(configured_egress_mbps),
+        do: nil,
+        else: EgressLimits.region_floor_mbps(region, MapSet.member?(allowed_features, :guaranteed_egress_floor))
 
-    memory = if memory_governed?, do: Regions.memory_profile(memory_plan(account))
+    memory = if memory_governed?, do: Regions.memory_profile(AccountPolicies.sizing_plan(account))
 
     %{
       allowed_features: allowed_features,
       egress_guaranteed_mbps: egress_guaranteed_mbps,
       memory: memory
     }
-  end
-
-  # A self-hosted deployment has no subscriptions, so `effective_plan/1` would
-  # resolve every account to `:air`. Its Enterprise license is the entitlement,
-  # matching how `Entitlements.allowed_features/2` grants everything off the
-  # hosted server.
-  defp memory_plan(account) do
-    if Environment.tuist_hosted?(), do: Billing.effective_plan(account), else: :enterprise
   end
 
   defp maybe_request_entitlement(features, true, feature), do: [feature | features]
@@ -394,13 +478,50 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # The desired revision the reconciler compares against the live CR's
   # annotation. Both the reconcile check (manifest_revision/2) and the applied
   # manifest (manifest/7) build it here so they can never disagree and loop.
-  defp manifest_revision_string(%Regions{} = region, peer_urls, entitlements) do
+  defp manifest_revision_string(%Regions{} = region, claim, peer_urls, entitlements, egress) do
     @manifest_revision <>
       peers_revision_suffix(peer_urls) <>
       mesh_peers_sync_revision_suffix(region, entitlements) <>
       backfill_revision_suffix(entitlements) <>
-      memory_revision_suffix(region, entitlements)
+      memory_revision_suffix(region, entitlements) <>
+      claim_revision_suffix(claim) <>
+      egress_revision_suffix(egress)
   end
+
+  # Keyed on the pair the manifest renders rather than on the override alone: the
+  # reconciler converges on the revision, so anything that moves these two fields
+  # — the override, the region's own numbers, the entitlement gating the floor —
+  # has to move it too or sit unapplied.
+  #
+  # Cheap where the pair has not moved: the spec is identical, so the CR takes a
+  # new annotation and no pod is touched.
+  defp egress_revision_suffix(%{floor_mbps: nil, burst_mbps: nil}), do: ""
+
+  defp egress_revision_suffix(%{floor_mbps: floor_mbps, burst_mbps: burst_mbps}) do
+    "+egress#{floor_mbps || "-"}-#{burst_mbps || "-"}"
+  end
+
+  # Resolved from the entitlements this manifest already carries, so an override
+  # costs no extra subscription lookup.
+  defp effective_egress(account, %Regions{} = region, entitlements) do
+    if Regions.egress_governed?(region) do
+      EgressLimits.effective_limits(account, region, entitlements.egress_guaranteed_mbps)
+    else
+      %{floor_mbps: entitlements.egress_guaranteed_mbps, burst_mbps: nil}
+    end
+  end
+
+  # The instance's claim is desired state like any other field on the manifest,
+  # so moving it has to move the revision. The reconciler converges on the
+  # revision alone: without this, a claim that changed would alter what the
+  # manifest renders while leaving the desired revision where it was, and the
+  # change would sit unapplied until some unrelated input happened to move it.
+  #
+  # Rendered from what the manifest actually carries rather than from the pinned
+  # column, so an instance that pins nothing still moves when what it resolves
+  # to moves.
+  defp claim_revision_suffix(nil), do: ""
+  defp claim_revision_suffix(claim), do: "+disk#{claim}"
 
   # Folded in so an account whose plan changes re-applies onto the other profile. Without it the instance would keep the
   # profile it was created with until some unrelated field happened to change.
@@ -518,8 +639,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  # Tuist-platform-wide secrets (JWT verifier, control-plane client
-  # secret) are
+  # Tuist-platform-wide authorization material (cache-token public key,
+  # control-plane client secret) is
   # mounted into the Kura pod from the shared kura-shared-secrets
   # Secret in the kura namespace, not embedded in the KuraInstance
   # spec. Anyone with list/watch on kurainstances can read its spec, so
@@ -527,7 +648,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # that ever runs Kura. The controller's envFrom on the StatefulSet
   # picks up that Secret automatically. Non-secret knobs such as the
   # introspection client ID are safe to keep in the spec.
-  defp auth_env(%Regions{} = region, entitlements) do
+  defp auth_env(%Regions{} = region, claim, entitlements) do
     [
       # Emitted alongside the URL so that authorizing is an instruction rather
       # than an inference. A node reads a blank URL as no configuration at all
@@ -543,7 +664,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         "KURA_CONTROL_PLANE_CLIENT_ID",
         Environment.kura_control_plane_client_id()
       ) ++
-      cas_capacity_env(region) ++
+      cas_capacity_env(region, claim) ++
+      staging_env(region, claim) ++
       mesh_peers_sync_env(region, entitlements) ++
       backfill_env(entitlements) ++
       node_location_env(region) ++
@@ -576,13 +698,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # reaches its own budget, so Kura's ring rotation never gets to evict and the
   # node evicts the whole region instead.
   #
-  # Budget from the size the region declares. That is normally storage_size, so
-  # the ring stays inside the claim on a class that enforces it; a region whose
-  # claim bounds nothing (local-path) can override with disk_envelope_size rather
-  # than inflate storage_size, which the controller would try to apply to the
-  # live PVCs.
-  defp cas_capacity_env(%Regions{} = region) do
-    case cas_capacity_source(region) do
+  # Budget from the size the instance's volume was created at, so the ring stays
+  # inside the claim on a class that enforces it and, on a class that enforces
+  # nothing, inside the ephemeral-storage the pod reserved. A region whose claim
+  # bounds nothing (local-path) can override with disk_envelope_size rather than
+  # inflate storage_size, which the controller would try to apply to the live
+  # PVCs.
+  defp cas_capacity_env(%Regions{} = region, claim) do
+    case cas_capacity_source(region, claim) do
       size when is_binary(size) and size != "" ->
         size
         |> parse_storage_quantity!(region)
@@ -601,10 +724,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp cas_capacity_env_var(nil), do: []
 
-  defp cas_capacity_source(%Regions{provisioner_config: %{disk_envelope_size: size}}) when is_binary(size) and size != "",
-    do: size
+  defp cas_capacity_source(%Regions{provisioner_config: %{disk_envelope_size: size}}, _claim)
+       when is_binary(size) and size != "", do: size
 
-  defp cas_capacity_source(%Regions{} = region), do: storage_size(region)
+  defp cas_capacity_source(%Regions{}, claim), do: claim
 
   # KURA_CAS_CAPACITY_BYTES budgets the CAS segment ring only, but the ring is
   # not the only thing in the data dir: the controller points KURA_TMP_DIR at
@@ -613,12 +736,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # them rather than taking a flat percentage — the tmp budget is a fixed 8 GiB,
   # so a percentage that fits a 50Gi volume overruns a 20Gi one.
   #
-  # Reserves, in order: the tmp dir's own ceiling; one extra segment, which a
-  # rotation appends before it evicts the oldest one; and a few percent for the
-  # RocksDB index, which tracks entry count rather than bytes (measured ~1.2% of
+  # Reserves, in order: the staging budget; one extra segment, which a rotation
+  # appends before it evicts the oldest one; and a few percent for the RocksDB
+  # index, which tracks entry count rather than bytes (measured ~1.2% of
   # resident segment bytes on a production instance, so 3% is slack).
   defp cas_capacity_bytes(storage_bytes) do
-    usable = storage_bytes - @kura_tmp_dir_max_bytes - @kura_max_segment_bytes
+    usable = storage_bytes - staging_bytes(storage_bytes) - @kura_max_segment_bytes
 
     if usable > 0 do
       budget = div(usable * 97, 100)
@@ -636,9 +759,38 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  # Region specs are compile-time constants, so an unparseable size is a typo
-  # that would otherwise degrade to exactly the statvfs behaviour this
-  # derivation exists to prevent. Fail loudly instead of silently regressing.
+  # Upload staging is a ceiling on <data dir>/tmp, which shares the volume with
+  # the ring: an upload streams to disk there before it is committed into a
+  # segment, so every byte reserved for it is a byte the ring cannot hold. On a
+  # small claim Kura's flat 8 GiB default is most of the volume and would leave
+  # an 8Gi claim no ring at all, so the reserve scales with the claim and is
+  # capped at that default, which is what the large claims keep.
+  #
+  # An eighth rather than a half, because the half was a guess and the eighth
+  # is measured. Peak `kura_tmp_dir_bytes` across production over a week is
+  # about 840 MiB, on the busiest instance in the fleet holding the largest
+  # claim; the CAS lane's largest single upload in a day of 6.4 million of them
+  # is 21.6 MiB. A half-of-claim reserve therefore ran at roughly a tenth of
+  # its budget while taking half of every small volume, which is exactly where
+  # the ring can least afford it.
+  #
+  # The floor stays. A max-size module upload reserves its whole assembled size
+  # in one call and `TmpBudget::try_reserve` rejects it outright rather than
+  # queuing it when the budget is smaller, so a budget under
+  # `@kura_max_staged_request_bytes` does not make that upload slow, it makes it
+  # impossible. That leaves roughly 2.4x headroom over the observed peak at the
+  # floor, and the floor binds only for claims under 16Gi.
+  defp staging_bytes(storage_bytes) do
+    storage_bytes
+    |> div(8)
+    |> min(@kura_default_tmp_dir_max_bytes)
+    |> max(@kura_max_staged_request_bytes)
+  end
+
+  # Region specs are compile-time constants and an instance's pinned claim is
+  # validated where it is written, so an unparseable size is a typo that would
+  # otherwise degrade to exactly the statvfs behaviour this derivation exists to
+  # prevent. Fail loudly instead of silently regressing.
   defp parse_storage_quantity!(value, %Regions{} = region) do
     case parse_storage_quantity(value) do
       {:ok, bytes} ->
@@ -646,30 +798,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
       :error ->
         raise ArgumentError,
-              "region #{region.id} declares an unparseable storage quantity #{inspect(value)}; " <>
+              "an instance in region #{region.id} carries an unparseable storage quantity #{inspect(value)}; " <>
                 "expected an integer with an optional Ki/Mi/Gi/Ti suffix"
     end
   end
 
-  defp parse_storage_quantity(value) do
-    case Integer.parse(value) do
-      {quantity, suffix} when quantity > 0 ->
-        case storage_multiplier(String.trim(suffix)) do
-          nil -> :error
-          multiplier -> {:ok, quantity * multiplier}
-        end
-
-      _ ->
-        :error
-    end
-  end
-
-  defp storage_multiplier(""), do: 1
-  defp storage_multiplier("Ki"), do: 1024
-  defp storage_multiplier("Mi"), do: 1024 * 1024
-  defp storage_multiplier("Gi"), do: 1024 * 1024 * 1024
-  defp storage_multiplier("Ti"), do: 1024 * 1024 * 1024 * 1024
-  defp storage_multiplier(_), do: nil
+  defp parse_storage_quantity(value), do: Regions.parse_storage_quantity(value)
 
   # Managed pods of self-hosting-capable accounts fetch the account's
   # self-hosted peer list from the control plane at boot and on cadence, so a
@@ -732,8 +866,56 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp storage_class(_), do: nil
 
-  defp storage_size(%Regions{provisioner_config: %{storage_size: storage_size}}), do: storage_size
-  defp storage_size(_), do: nil
+  # The claim carried on the instance wins over anything else. A claim cannot be
+  # expanded on the local-path class these regions run, so an instance whose
+  # claim silently tracked its account would have that attempted under it every
+  # time the account moved; `Tuist.Kura.Server` writes it where the volumes are
+  # built instead.
+  #
+  # An instance carrying none has no volumes to contradict, so a region that
+  # sizes per plan resolves the claim provisioning would build it at, and every
+  # other region renders its own. Neither is a re-derivation of a carried value.
+  defp storage_claim(_account, %Regions{}, %Server{storage_claim_size: size}) when is_binary(size) and size != "",
+    do: size
+
+  defp storage_claim(account, %Regions{} = region, %Server{}) do
+    if Regions.storage_governed?(region) do
+      # The plan's claim, deliberately, and not the account's claim override
+      # (`Tuist.Kura.PlacerClaims`). Reading a sized claim means reading a table,
+      # and this renders on every reconcile tick from an account the caller
+      # already holds; the plan resolves from that account in memory. Nothing is
+      # lost by it: a governed region pins a claim on every path that creates
+      # volumes, and setting an override pins the rows that somehow carry none,
+      # so a row reaching here with an override to apply is not a state this
+      # reaches.
+      Regions.storage_profile(AccountPolicies.sizing_plan(account)).claim_size
+    else
+      declared_storage_size(region)
+    end
+  end
+
+  defp declared_storage_size(%Regions{provisioner_config: %{storage_size: storage_size}}), do: storage_size
+  defp declared_storage_size(_), do: nil
+
+  # Emitted only where the derivation lands somewhere other than Kura's own
+  # default, which is every claim small enough for half of it to be under 8 GiB.
+  # A claim big enough to keep the default renders exactly the manifest it
+  # renders today, so nothing already running gains an env var — and gaining one
+  # is not free, since it is part of the pod template and would roll the fleet
+  # for a value identical to the one it already uses.
+  #
+  # The ring budget is derived against this same number, and the claim it is
+  # derived from is part of the manifest revision, so the two can never be
+  # applied out of step.
+  defp staging_env(%Regions{} = region, claim) do
+    with size when is_binary(size) and size != "" <- cas_capacity_source(region, claim),
+         bytes when bytes != @kura_default_tmp_dir_max_bytes <-
+           size |> parse_storage_quantity!(region) |> staging_bytes() do
+      [env_var("KURA_TMP_DIR_MAX_BYTES", Integer.to_string(bytes))]
+    else
+      _ -> []
+    end
+  end
 
   defp replicas(%Regions{provisioner_config: %{replicas: replicas}}), do: replicas
   defp replicas(_), do: nil
@@ -771,10 +953,27 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp client_cidrs(%Regions{provisioner_config: %{client_cidrs: [_ | _] = cidrs}}), do: cidrs
   defp client_cidrs(_), do: nil
 
-  defp pod_annotations(%Regions{provisioner_config: %{pod_annotations: annotations}})
-       when is_map(annotations) and map_size(annotations) > 0, do: annotations
+  # The region's annotations with the burst ceiling replaced by the account's.
+  defp pod_annotations(region, burst_mbps) do
+    region
+    |> region_pod_annotations()
+    |> then(fn annotations ->
+      if is_integer(burst_mbps) do
+        Map.put(annotations, @egress_bandwidth_annotation, "#{burst_mbps}M")
+      else
+        annotations
+      end
+    end)
+    |> case do
+      annotations when map_size(annotations) > 0 -> annotations
+      _empty -> nil
+    end
+  end
 
-  defp pod_annotations(_), do: nil
+  defp region_pod_annotations(%Regions{provisioner_config: %{pod_annotations: annotations}}) when is_map(annotations),
+    do: annotations
+
+  defp region_pod_annotations(_), do: %{}
 
   # Guaranteed egress floor: the region's per-tenant Mbps reserved as the
   # tuist.dev/egress-mbps extended resource so the scheduler bin-packs the pod
