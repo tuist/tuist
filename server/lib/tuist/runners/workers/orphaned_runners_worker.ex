@@ -149,12 +149,27 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   ## Cost
 
   One GitHub API call per orphaned candidate per tick, plus a second
-  one for the candidates GitHub reports as `queued`: the branch that
-  resolves the parent run. Steady-state candidates are zero (real
-  running builds are filtered out by the GH status check, but only
-  after one call per row). With 5 concurrent builds and a 1-min
-  cadence that's at most 10 calls/min ≈ 600/hr per installation, well
-  under the 5,000/hr app-token limit.
+  one only for candidates GitHub reports as `queued`, which is the
+  branch that resolves the parent run. A real in-flight build reports
+  `in_progress` and never pays the second call, so in steady state the
+  run lookups are a handful per hour: they track the orphan rate, not
+  the build rate.
+
+  The bound that matters is the pathological one, where every candidate
+  reports `queued` (mass dispatch failure, or GitHub degraded) and the
+  rate doubles. Candidates are capped by concurrent `running` rows, and
+  the observed peak across all fleets is ~30, so the ceiling is ~60
+  calls/min ≈ 3,600/hr. That fits inside the 5,000/hr app-token limit,
+  which is per installation and therefore per account: `recover_one/2`
+  resolves each orphan's own installation, so no account's fleet can
+  spend another's budget.
+
+  Headroom is not unlimited. `Tuist.GitHub.Retry` retries `429` up to
+  three times, so sustained secondary-limit pressure multiplies calls
+  rather than shedding them. If concurrency per account grows well past
+  the current peak, gate the run lookup on the row's age: a genuine
+  strand clears in one re-queue, so only a job that keeps coming back
+  needs its run resolved.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1
