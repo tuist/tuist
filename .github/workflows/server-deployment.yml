@@ -1154,6 +1154,93 @@ jobs:
             registry_image_tag="registry-disabled"
           fi
 
+
+          # Helm patches custom resources with a two-way JSON merge between the
+          # previously released manifest and the new one. A field whose rendered
+          # value has not changed is therefore absent from the patch, so a manual
+          # `kubectl patch` to it survives every later deploy: the RunnerPool
+          # `linux-4vcpu-16gb` sat at `maxReplicas: 8` from 2026-08-14 while the
+          # chart said 120, capping the pool at a fifteenth of its siblings.
+          # Reassert the ceiling keys so the chart is the source of truth again.
+          #
+          # Scoped to the two keys nothing else writes. `minWarmPoolFloor` is
+          # excluded because live values are owned by other field managers, and
+          # `spec.replicas` because the chart only seeds it and the
+          # runners-controller owns it from then on. Reasserting either would
+          # have this step fight the controller on every deploy.
+          echo "::group::Reassert chart-owned RunnerPool scaling ceiling"
+          runner_pools_render="$(mktemp)"
+          if helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+               "${helm_values_args[@]}" \
+               --set server.image.tag="$IMAGE_TAG" \
+               --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
+               --set registry.image.tag="$registry_probe_tag" \
+               --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
+               "${image_sets[@]}" \
+               --show-only templates/runner-pool.yaml \
+               > "$runner_pools_render" 2>/dev/null; then
+            # `mapfile` does not report failures from a process substitution, so
+            # the pipeline is captured first: a `kubectl` or `jq` error would
+            # otherwise read as "no pools to reconcile" and let the upgrade
+            # proceed unreconciled.
+            rendered_pools_json="$(
+              kubectl create --dry-run=client -o json -f "$runner_pools_render" |
+                jq -c -s '[.[] | if .kind == "List" then .items[] else . end
+                            | select(.kind == "RunnerPool" and .spec.autoscaling != null)
+                            | {name: .metadata.name, namespace: .metadata.namespace,
+                               autoscaling: (.spec.autoscaling
+                                 | with_entries(select(.key | . == "maxReplicas"
+                                                         or . == "scaleDownCooldownSeconds")))}
+                            | select(.autoscaling != {})]
+                          | .[]'
+            )"
+            rendered_pools=()
+            if [ -n "$rendered_pools_json" ]; then
+              mapfile -t rendered_pools <<< "$rendered_pools_json"
+            fi
+            for rendered_pool in "${rendered_pools[@]}"; do
+              pool_name="$(jq -r '.name' <<< "$rendered_pool")"
+              # RunnerPools render into the runners namespace, which is not the
+              # release namespace the rest of this step operates in.
+              pool_namespace="$(jq -r '.namespace' <<< "$rendered_pool")"
+              want="$(jq -Sc '.autoscaling' <<< "$rendered_pool")"
+
+              # `--ignore-not-found` separates the three states this read can be
+              # in: a missing pool prints nothing and exits 0, an existing one
+              # prints its JSON, and a genuine API error exits non-zero and stops
+              # the step instead of being swallowed into "nothing to do".
+              pool_json="$(
+                kubectl -n "$pool_namespace" get runnerpool "$pool_name" \
+                  --ignore-not-found -o json
+              )"
+              if [ -z "$pool_json" ]; then
+                # Not created yet; the upgrade below renders it from scratch.
+                continue
+              fi
+
+              # A pool whose autoscaling object was removed outright reads as
+              # `{}` and is drift the upgrade cannot repair either: an unset
+              # `maxReplicas` opts the pool out of autoscaling altogether.
+              have="$(jq -Sc '.spec.autoscaling // {}' <<< "$pool_json")"
+              # Merging the chart's keys over the live object is a no-op exactly
+              # when every reasserted key already matches, which leaves every
+              # other key alone rather than reporting it as drift.
+              if [ "$(jq -n --argjson h "$have" --argjson w "$want" '($h + $w) == $h')" = "true" ]; then
+                continue
+              fi
+
+              echo "RunnerPool $pool_namespace/$pool_name: scaling ceiling drifted from the chart; reasserting."
+              echo "  live:  $have"
+              echo "  chart: $want"
+              kubectl -n "$pool_namespace" patch runnerpool "$pool_name" --type=merge \
+                -p "$(jq -nc --argjson w "$want" '{spec: {autoscaling: $w}}')"
+            done
+          else
+            echo "Chart renders no RunnerPools for this environment; nothing to reassert."
+          fi
+          rm -f "$runner_pools_render"
+          echo "::endgroup::"
+
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
             "${helm_values_args[@]}" \
