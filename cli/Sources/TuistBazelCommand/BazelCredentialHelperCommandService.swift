@@ -1,7 +1,11 @@
+import FileSystem
 import Foundation
 import Noora
+import Path
+import TuistCAS
 import TuistConfigLoader
 import TuistEnvironment
+import TuistREAPI
 import TuistServer
 
 public protocol BazelCredentialHelperCommandServicing {
@@ -15,6 +19,8 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let configLoader: ConfigLoading
+    private let cacheURLStore: CacheURLStoring
+    private let fileSystem: FileSysteming
     private let date: () -> Date
 
     /// How far before a token's real expiry Bazel is asked to come back for a fresh
@@ -30,11 +36,15 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         configLoader: ConfigLoading = ConfigLoader(),
+        cacheURLStore: CacheURLStoring = CacheURLStore(),
+        fileSystem: FileSysteming = FileSystem(),
         date: @escaping () -> Date = { Date() }
     ) {
         self.serverEnvironmentService = serverEnvironmentService
         self.serverAuthenticationController = serverAuthenticationController
         self.configLoader = configLoader
+        self.cacheURLStore = cacheURLStore
+        self.fileSystem = fileSystem
         self.date = date
     }
 
@@ -44,6 +54,53 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
     ) async throws {
         let response = try await credentials(helperCommand: helperCommand, directory: directory)
         try Noora.current.json(response)
+        await refreshBazelrcEndpoint(directory: directory)
+    }
+
+    /// Points `.bazelrc.tuist` at wherever the account's cache is now.
+    ///
+    /// Bazel reads the file once at startup and nothing in a build re-resolves,
+    /// so a cache placed in another region would otherwise strand the file:
+    /// the region it names serves for a drain window, is torn down, and its
+    /// hostname leaves DNS. This helper is the only Tuist code a build runs, so
+    /// it is the only thing positioned to notice. Bazel re-invokes it lazily on
+    /// the first request after the credential it returned expires, which makes
+    /// the token lifetime the refresh interval — no timer needed, and no work
+    /// on a build that is already authenticated.
+    ///
+    /// Written after the credential has been emitted, so resolving never
+    /// delays the answer Bazel is waiting on, and best-effort throughout: an
+    /// endpoint that cannot be resolved says nothing about where the cache
+    /// went, and a build should not fail because its `.bazelrc` could not be
+    /// tidied. The rewrite lands on the next build, since this one read the
+    /// file before we ran.
+    private func refreshBazelrcEndpoint(directory: String?) async {
+        do {
+            let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
+            let bazelrcPath = directoryPath.appending(component: BazelrcFile.name)
+            guard try await fileSystem.exists(bazelrcPath) else { return }
+
+            let config = try await configLoader.loadConfig(path: directoryPath)
+            guard let fullHandle = config.fullHandle else { return }
+            let accountHandle = String(fullHandle.split(separator: "/")[0])
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+            let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+            guard let host = cacheURL.host else { return }
+            let endpoint = GRPCEndpoint(host: host, explicitPort: cacheURL.port, isTLS: cacheURL.scheme != "http")
+
+            let contents = try await fileSystem.readTextFile(at: bazelrcPath)
+            guard let rewritten = BazelrcFile.replacingRemoteCache(in: contents, with: endpoint) else { return }
+
+            try await fileSystem.writeText(
+                rewritten,
+                at: bazelrcPath,
+                encoding: .utf8,
+                options: Set([.overwrite])
+            )
+        } catch {
+            // Best-effort by design; see above.
+        }
     }
 
     func credentials(
