@@ -2065,8 +2065,10 @@ runnersFleet:
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
   # Customers route via account-scoped Runner Profiles; the server
   # resolves (account, requested-label) → profile → pool. Keep this
-  # list in sync with the `runner-image-build.strategy.matrix.xcode`
-  # matrix in `.github/workflows/release.yml`.
+  # list in sync with `infra/runner-image/profiles.json` — the list
+  # `server-production-deployment.yml`'s `runner-image-build` matrix
+  # expands. A catalog entry with no runner image published for it
+  # renders a pool that can never pull.
   xcodeVersions:
     - xcodeVersion: "26.6"
       default: true

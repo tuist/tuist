@@ -298,7 +298,7 @@ packer build runner.pkr.hcl
 CI:
 - **Steady state.** `feat(runner-image)` / `fix(runner-image)`
   conventional commits on `main` trigger a two-job chain in
-  `release.yml`:
+  `server-production-deployment.yml`:
   1. `runner-image-build` is a matrix job; its `matrix.xcode` is
      read from `infra/runner-image/profiles.json` (the single source
      of truth) by `check-releases` and expanded via `fromJSON`. One
@@ -309,13 +309,14 @@ CI:
      (`:macos-<dashes>`) tags. `fail-fast: true` — if any profile
      fails, sibling builds abort so the chart pin doesn't move to a
      partially-published set.
-  2. `release-runner-image` (ubuntu) pins `runnersFleet.runnerImage`
-     to the default profile's immutable per-release tag
-     (`:macos-<profile>-<semver>` — constructed from the version, no
-     registry lookup), rewrites the managed-env values files that
-     already carry a pin, generates release notes / `CHANGELOG.md`,
-     uploads artifacts. Downstream tag + GitHub-Release jobs key off
-     this job's `result == 'success'`.
+  2. `release-runner-image` (ubuntu) renders the published image
+     list for the GitHub Release body from `profiles.json`, generates
+     release notes / `CHANGELOG.md`, and uploads artifacts. It
+     rewrites no values file: the `runner-image@<semver>` tag that
+     `tag-infra-releases` creates is what the chart's
+     `runnersFleet.runnerImageSemver` resolves to at deploy time.
+     Downstream tag + GitHub-Release jobs key off this job's
+     `result == 'success'`.
 
   Concurrency scales with builder count: 2 hosts publish 2 profiles
   in parallel, more hosts cut the wall-clock proportionally. No
@@ -366,23 +367,25 @@ Active profiles are the single source of truth in
 file lives under `infra/runner-image/**` — the component's only
 include path in `mise/tasks/release/components.json` — editing the
 list both reshapes the build matrix and triggers a runner-image
-release, with no `release.yml` edit. Unrelated `release.yml` churn no
-longer rebuilds the images.
+release, with no `server-production-deployment.yml` edit. Unrelated
+churn in that workflow no longer rebuilds the images.
 
 - **Active.** Rebuilt on every `release-runner-image` run (every
   `feat(runner-image)` / `fix(runner-image)` commit landing on
   `main`). Each adds ~30 min on a single builder; matrix-fanned across
   the fleet so adding a third builder lets you carry a third profile
   at the same wall-clock cost.
-- **Default profile.** The first matrix entry. The chart's
-  `runnersFleet.runnerImage` pin tracks its immutable
-  `:macos-<dashes>-<semver>` tag, so a new fleet rollout = put the
-  desired profile first.
+- **Default profile.** The first entry, by convention. Which
+  version `runs-on: tuist-macos` actually resolves to is the
+  catalog entry marked `default: true` in
+  `runnersFleet.xcodeVersions`, so moving the default means editing
+  both this list and that catalog.
 - **Out-of-rotation profiles.** Any other `:macos-<dashes>` tag
   that's been published in the past and still exists in GHCR. They
-  don't refresh on `release.yml` runs — customers can keep pinning
-  to them, but new runner-agent / dispatch-loop / launchd changes
-  only land in them when the operator explicitly refreshes via
+  don't refresh on `server-production-deployment.yml` runs —
+  customers can keep pinning to them, but new runner-agent /
+  dispatch-loop / launchd changes only land in them when the
+  operator explicitly refreshes via
 
       gh workflow run runner-image.yml -f xcode_version=26.X.Y
 
@@ -404,8 +407,9 @@ Bumping the Xcode customers see on their runners:
    additional entry (most common — gives customers it alongside the
    existing default), or put it first to make it the newest / default
    profile. **If you move the first entry, also bump
-   `release.yml`'s xcresult-processor `XCODE_VERSION` to match** —
-   that image must be at least as new as the newest runner profile.
+   `server-production-deployment.yml`'s xcresult-processor
+   `XCODE_VERSION` to match** — that image must be at least as new
+   as the newest runner profile.
    Also add the matching `runnersFleet.xcodeVersions` entry in
    `values-managed-common.yaml` so the fleet renders a pool for it.
    Commit with a `feat(runner-image): ...` message so check-releases
