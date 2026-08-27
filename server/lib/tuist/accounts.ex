@@ -219,41 +219,56 @@ defmodule Tuist.Accounts do
     )
   end
 
-  def get_organization_members(%Organization{id: organization_id}, role) do
-    query =
-      from(user_role in UserRole,
-        join: r in Role,
-        on: r.resource_type == "Organization" and r.resource_id == ^organization_id,
-        join: u in User,
-        on: user_role.user_id == u.id,
-        on: user_role.role_id == r.id,
-        where: r.name == ^Atom.to_string(role) and r.resource_type == "Organization",
-        select: u
+  def get_organization_members(%Organization{id: organization_id} = organization, role) do
+    stored_members =
+      Repo.all(
+        from(user_role in UserRole,
+          join: r in Role,
+          on: r.resource_type == "Organization" and r.resource_id == ^organization_id,
+          join: u in User,
+          on: user_role.user_id == u.id,
+          on: user_role.role_id == r.id,
+          where: r.name == ^Atom.to_string(role) and r.resource_type == "Organization",
+          select: u
+        )
       )
 
-    invited_members = Repo.all(query)
+    # A member SSO enrolled without a role row of their own resolves to the
+    # organization's configured enrollment role, the same one
+    # `organization_user?/2` and `organization_viewer?/2` answer with, so they
+    # are listed under that role and no other. Anyone holding a stored role is
+    # already covered by it above, whatever that role is.
+    members =
+      if sso_default_role(organization) == Atom.to_string(role) do
+        stored_members ++ sso_enrolled_members_without_role(organization)
+      else
+        stored_members
+      end
 
-    case role do
-      role when role in [:admin, :viewer] ->
-        Repo.preload(invited_members, :account)
+    Repo.preload(members, :account)
+  end
 
-      :user ->
-        invited_members_ids = Enum.map(invited_members, & &1.id)
-
-        oauth2_identity_query =
-          from(u in User,
-            join: oauth in Oauth2Identity,
-            on: oauth.user_id == u.id,
-            join: org in Organization,
-            on:
-              org.id == ^organization_id and
-                oauth.provider_organization_id == org.sso_organization_id and
-                oauth.provider == org.sso_provider,
-            where: org.id == ^organization_id and u.id not in ^invited_members_ids
-          )
-
-        Repo.preload(invited_members ++ Repo.all(oauth2_identity_query), :account)
-    end
+  defp sso_enrolled_members_without_role(%Organization{id: organization_id}) do
+    Repo.all(
+      from(u in User,
+        join: oauth in Oauth2Identity,
+        on: oauth.user_id == u.id,
+        join: org in Organization,
+        on:
+          org.id == ^organization_id and
+            oauth.provider_organization_id == org.sso_organization_id and
+            oauth.provider == org.sso_provider,
+        left_join: ur in UserRole,
+        on: ur.user_id == u.id,
+        left_join: r in Role,
+        on:
+          r.id == ur.role_id and r.resource_type == "Organization" and
+            r.resource_id == ^organization_id,
+        where: is_nil(r.id),
+        distinct: u.id,
+        select: u
+      )
+    )
   end
 
   @doc """

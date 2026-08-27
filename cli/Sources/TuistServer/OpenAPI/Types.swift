@@ -2601,8 +2601,9 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/OrganizationMember/role`.
             @frozen public enum rolePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case admin = "admin"
                 case user = "user"
+                case admin = "admin"
+                case viewer = "viewer"
             }
             /// The organization member's role
             ///
@@ -9079,6 +9080,18 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Invitation/organization_id`.
             public var organization_id: Swift.Double
+            /// The role the invitee gets when they accept the invitation
+            ///
+            /// - Remark: Generated from `#/components/schemas/Invitation/role`.
+            @frozen public enum rolePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case user = "user"
+                case admin = "admin"
+                case viewer = "viewer"
+            }
+            /// The role the invitee gets when they accept the invitation
+            ///
+            /// - Remark: Generated from `#/components/schemas/Invitation/role`.
+            public var role: Components.Schemas.Invitation.rolePayload
             /// The token to accept the invitation
             ///
             /// - Remark: Generated from `#/components/schemas/Invitation/token`.
@@ -9090,18 +9103,21 @@ public enum Components {
             ///   - invitee_email: The email of the invitee
             ///   - inviter:
             ///   - organization_id: The id of the organization the invitee is invited to
+            ///   - role: The role the invitee gets when they accept the invitation
             ///   - token: The token to accept the invitation
             public init(
                 id: Swift.Double,
                 invitee_email: Swift.String,
                 inviter: Components.Schemas.User,
                 organization_id: Swift.Double,
+                role: Components.Schemas.Invitation.rolePayload,
                 token: Swift.String
             ) {
                 self.id = id
                 self.invitee_email = invitee_email
                 self.inviter = inviter
                 self.organization_id = organization_id
+                self.role = role
                 self.token = token
             }
             public enum CodingKeys: String, CodingKey {
@@ -9109,6 +9125,7 @@ public enum Components {
                 case invitee_email
                 case inviter
                 case organization_id
+                case role
                 case token
             }
         }
@@ -19312,10 +19329,6 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -19324,20 +19337,24 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
-                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
-                    self.git_branch = git_branch
                     self.page = page
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -20370,15 +20387,33 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/requestBody/json/invitee_email`.
                     public var invitee_email: Swift.String
+                    /// The role the invitee gets when they accept the invitation.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/requestBody/json/role`.
+                    @frozen public enum rolePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case user = "user"
+                        case admin = "admin"
+                        case viewer = "viewer"
+                    }
+                    /// The role the invitee gets when they accept the invitation.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/requestBody/json/role`.
+                    public var role: Operations.createInvitation.Input.Body.jsonPayload.rolePayload?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - invitee_email: The email of the invitee.
-                    public init(invitee_email: Swift.String) {
+                    ///   - role: The role the invitee gets when they accept the invitation.
+                    public init(
+                        invitee_email: Swift.String,
+                        role: Operations.createInvitation.Input.Body.jsonPayload.rolePayload? = nil
+                    ) {
                         self.invitee_email = invitee_email
+                        self.role = role
                     }
                     public enum CodingKeys: String, CodingKey {
                         case invitee_email
+                        case role
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/requestBody/content/application\/json`.
@@ -50507,8 +50542,9 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{user_name}/PUT/requestBody/json/role`.
                     @frozen public enum rolePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case admin = "admin"
                         case user = "user"
+                        case admin = "admin"
+                        case viewer = "viewer"
                     }
                     /// The role to update the member to
                     ///

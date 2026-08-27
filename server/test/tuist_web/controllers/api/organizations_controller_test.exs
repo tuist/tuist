@@ -126,6 +126,27 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert response["plan"] == "air"
     end
 
+    test "embedded invitations carry the role they will grant", %{conn: conn, user: user} do
+      # Given — the Invitation schema marks role required, so an embedded
+      # invitation without it fails generated-client decoding.
+      conn = Authentication.put_current_user(conn, user)
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+
+      {:ok, _invitation} =
+        Accounts.invite_user_to_organization(
+          "invited-viewer@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          role: :viewer
+        )
+
+      # When
+      conn = get(conn, ~p"/api/organizations/tuist-org")
+
+      # Then
+      [invitation] = json_response(conn, :ok)["invitations"]
+      assert invitation["role"] == "viewer"
+    end
+
     test "lists viewers alongside admins and users", %{conn: conn, user: user} do
       # Given
       conn = Authentication.put_current_user(conn, user)

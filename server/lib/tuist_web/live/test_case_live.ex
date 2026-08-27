@@ -69,10 +69,19 @@ defmodule TuistWeb.TestCaseLive do
   end
 
   # Reading a test case and changing its state are different permissions: a
-  # read-only viewer reaches this page but must not quarantine anything. The
-  # controls are hidden for them, and every handler that writes re-checks so
-  # that a crafted event cannot bypass the hidden control.
-  defp authorize_test_case_update!(%{assigns: %{can_update_test_case: true}}), do: :ok
+  # read-only viewer reaches this page but must not quarantine anything.
+  #
+  # The permission is resolved again here rather than read off the assign the
+  # mount computed. A socket outlives the role that opened it, so a member
+  # demoted to viewer while the page is open would otherwise keep writing until
+  # they reload.
+  defp authorize_test_case_update!(%{assigns: %{current_user: current_user, selected_project: project}}) do
+    if can_update_test_case?(current_user, project) do
+      :ok
+    else
+      raise UnauthorizedError, dgettext("dashboard_tests", "You are not authorized to update this test case.")
+    end
+  end
 
   defp authorize_test_case_update!(_socket) do
     raise UnauthorizedError, dgettext("dashboard_tests", "You are not authorized to update this test case.")

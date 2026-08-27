@@ -303,7 +303,8 @@ defmodule TuistWeb.API.OrganizationsController do
                   name: &1.inviter.account.name
                 },
                 token: &1.token,
-                organization_id: &1.organization_id
+                organization_id: &1.organization_id,
+                role: &1.role
               }
             )
         })

@@ -1530,6 +1530,17 @@ defmodule Tuist.AuthorizationTest do
              {:error, :forbidden}
   end
 
+  test "can.attach.runners.interactive when the subject is a user of the account" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # Then
+    assert Authorization.authorize(:runners_interactive_access, user, account) == :ok
+  end
+
   test "can.user.read.ops when the environment is :dev" do
     # Given
     stub(Environment, :dev?, fn -> true end)
@@ -1632,6 +1643,19 @@ defmodule Tuist.AuthorizationTest do
       assert Authorization.authorize(:invitation_create, viewer, account) == {:error, :forbidden}
       assert Authorization.authorize(:account_update, viewer, account) == {:error, :forbidden}
       assert Authorization.authorize(:account_delete, viewer, account) == {:error, :forbidden}
+    end
+
+    test "can read runner state but cannot attach an interactive shell or VNC session", %{
+      account: account,
+      viewer: viewer
+    } do
+      # Given — attaching executes commands on the running VM and reaches the
+      # secrets the job was given, so it is withheld even though the runner
+      # dashboards are readable.
+      assert Authorization.authorize(:runners_read, viewer, account) == :ok
+
+      assert Authorization.authorize(:runners_interactive_access, viewer, account) ==
+               {:error, :forbidden}
     end
 
     test "cannot manage automation alerts but can read them", %{project: project, viewer: viewer} do

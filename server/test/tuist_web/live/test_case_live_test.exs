@@ -1117,6 +1117,33 @@ defmodule TuistWeb.TestCaseLiveTest do
       refute html =~ "Unmark as flaky"
     end
 
+    test "demoting a member to viewer stops an open page from writing", %{
+      conn: conn,
+      organization: organization,
+      account: account,
+      project: project,
+      test_case_id: test_case_id
+    } do
+      # Given — a writer with the page already open.
+      member = AccountsFixtures.user_fixture()
+      :ok = Accounts.add_user_to_organization(member, organization, role: :user)
+      conn = ConnCase.log_in_user(conn, member)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      # When — they are demoted without reloading. The socket outlives the role
+      # that opened it, so the permission has to be resolved per write.
+      {:ok, _} = Accounts.update_user_role_in_organization(member, organization, :viewer)
+
+      # Then
+      Process.flag(:trap_exit, true)
+      assert catch_exit(render_hook(lv, "set-state", %{"data" => "muted"}))
+
+      {:ok, test_case} = Tests.get_test_case_by_id(test_case_id)
+      assert test_case.state in [nil, "enabled"]
+    end
+
     test "a viewer cannot quarantine a test case by pushing the event directly", %{
       conn: conn,
       organization: organization,

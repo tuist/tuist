@@ -525,6 +525,57 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "get_organization_members/2 with SSO" do
+    test "lists an SSO member with a stored viewer role only as a viewer" do
+      # Given — the member both matches the organization's SSO and holds an
+      # explicit viewer role.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
+        )
+
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+      :ok = Accounts.add_user_to_organization(user, organization, role: :viewer)
+      {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+
+      # Then
+      viewer_ids = Enum.map(Accounts.get_organization_members(organization, :viewer), & &1.id)
+      user_ids = Enum.map(Accounts.get_organization_members(organization, :user), & &1.id)
+
+      assert user.id in viewer_ids
+      refute user.id in user_ids
+    end
+
+    test "lists a role-less SSO member under the organization's enrollment role" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true,
+          sso_default_role: "viewer"
+        )
+
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+      Tuist.Repo.delete_all(from(ur in UserRole, where: ur.user_id == ^user.id))
+
+      # Then — the enrollment role decides, rather than defaulting to user.
+      viewer_ids = Enum.map(Accounts.get_organization_members(organization, :viewer), & &1.id)
+      user_ids = Enum.map(Accounts.get_organization_members(organization, :user), & &1.id)
+
+      assert user.id in viewer_ids
+      refute user.id in user_ids
+    end
+  end
+
   describe "organization_user?/2" do
     test "organization_user? returns false if the user is not an admin" do
       # Given
