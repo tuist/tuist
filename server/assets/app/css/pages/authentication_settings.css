@@ -77,10 +77,13 @@
         min-width: 0;
 
         /* A select holds one short value out of a fixed set, so it sizes to the
-           control. Free-text fields keep the full column, where the extra room
-           is worth having. */
+           control rather than the column. Aligned to the trailing edge so it
+           still lines up with the free-text fields, which keep the full column
+           because a long value makes the room worth having. */
         & > .noora-dropdown {
-          max-width: 320px;
+          align-self: flex-end;
+          width: 320px;
+          max-width: 100%;
         }
       }
 
