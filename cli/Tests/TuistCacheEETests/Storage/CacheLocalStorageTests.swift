@@ -407,6 +407,57 @@ struct CacheLocalStorageTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func store_keepsTheRemoteUploadWhenTheLocalCacheIsFull() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // A real 2 MB volume, so the copy fails with the ENOSPC the runner cache image raises.
+        let imagePath = temporaryDirectory.appending(component: "cache")
+        let mountPoint = temporaryDirectory.appending(component: "volume")
+        try hdiutil([
+            "create", "-size", "2m", "-fs", "APFS", "-volname", "TuistCache", "-type", "SPARSE",
+            "-quiet", imagePath.pathString,
+        ])
+        try await fileSystem.makeDirectory(at: mountPoint)
+        try hdiutil([
+            "attach", imagePath.pathString + ".sparseimage", "-nobrowse", "-noverify", "-quiet",
+            "-mountpoint", mountPoint.pathString,
+        ])
+        defer { try? hdiutil(["detach", mountPoint.pathString, "-force", "-quiet"]) }
+
+        let binariesDirectory = mountPoint.appending(component: "Binaries")
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.binaries))
+            .willReturn(binariesDirectory)
+
+        let artifact = temporaryDirectory.appending(components: "build", "Big.xcframework")
+        try await fileSystem.makeDirectory(at: artifact)
+        FileManager.default.createFile(
+            atPath: artifact.appending(component: "binary").pathString,
+            contents: Data(repeating: 0x41, count: 5_000_000)
+        )
+
+        let artifactSigner = MockArtifactSigning()
+        given(artifactSigner).sign(.any).willReturn()
+
+        let subject = CacheLocalStorage(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem
+        )
+
+        // When
+        let got = try await subject.store(
+            [.init(name: "Big", hash: "hash"): [artifact]],
+            cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(got.isEmpty)
+        #expect(!(try await fileSystem.exists(binariesDirectory.appending(component: "hash"))))
+    }
+
+    @Test(.inTemporaryDirectory)
     func clean_removesOldEntries() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
@@ -645,4 +696,14 @@ struct CacheLocalStorageTests {
         let timeSinceModification = Date().timeIntervalSince(modificationDate)
         #expect(timeSinceModification < 5)
     }
+}
+
+@discardableResult
+private func hdiutil(_ arguments: [String]) throws -> Int32 {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+    process.arguments = arguments
+    try process.run()
+    process.waitUntilExit()
+    return process.terminationStatus
 }
