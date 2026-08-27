@@ -98,10 +98,11 @@ type ReapiServers = (
     ActionCacheServer<ReapiService>,
     ContentAddressableStorageServer<ReapiService>,
     ByteStreamServer<ReapiService>,
+    super::bep::PublishBuildEventServer,
 );
 
-// The four REAPI gRPC services with their shared decoding limits, all backed by
-// one service and snapshot cache.
+// The four Remote Execution API services and the Build Event Service share the
+// same listener and decoding limits.
 fn reapi_servers(service: ReapiService) -> ReapiServers {
     (
         CapabilitiesServer::new(service.clone())
@@ -110,7 +111,9 @@ fn reapi_servers(service: ReapiService) -> ReapiServers {
             .max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
         ContentAddressableStorageServer::new(service.clone())
             .max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
-        ByteStreamServer::new(service).max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
+        ByteStreamServer::new(service.clone())
+            .max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
+        super::bep::server(service.state.clone()),
     )
 }
 
@@ -129,11 +132,12 @@ pub fn routes(state: SharedState) -> axum::Router {
         state: state.clone(),
     };
     spawn_snapshot_refresh_task(service.clone());
-    let (capabilities, action_cache, cas, byte_stream) = reapi_servers(service);
+    let (capabilities, action_cache, cas, byte_stream, build_events) = reapi_servers(service);
     tonic::service::Routes::new(capabilities)
         .add_service(action_cache)
         .add_service(cas)
         .add_service(byte_stream)
+        .add_service(build_events)
         .into_axum_router()
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -2790,6 +2794,37 @@ fn tenant_id_from_metadata(metadata: &tonic::metadata::MetadataMap) -> Option<St
 // always attributed rather than silently dropped.
 fn usage_tenant_id(metadata: &tonic::metadata::MetadataMap, fallback_tenant_id: &str) -> String {
     tenant_id_from_metadata(metadata).unwrap_or_else(|| fallback_tenant_id.to_owned())
+}
+
+pub(super) async fn authorize_build_event_request(
+    state: &SharedState,
+    metadata: &tonic::metadata::MetadataMap,
+    project_handle: &str,
+    route: &str,
+) -> Result<String, Status> {
+    if state.runtime.is_draining() {
+        return Err(Status::unavailable("server is draining"));
+    }
+
+    let account_handle = usage_tenant_id(metadata, &state.config.tenant_id);
+    let Some(auth) = state.auth.as_ref() else {
+        return Ok(account_handle);
+    };
+
+    let spec = GrpcRequestSpec {
+        route,
+        operation: "build_event_stream",
+        namespace_id: Some(project_handle),
+        producer: None,
+        artifact_key: None,
+        artifact_hash: None,
+    };
+    let context = grpc_request_context(&state.config.tenant_id, &spec, metadata, None);
+
+    match auth.evaluate_access(&context).await {
+        AccessDecision::Allow => Ok(account_handle),
+        AccessDecision::Deny(deny) => Err(grpc_status_from_http_status(deny.status, &deny.message)),
+    }
 }
 
 fn grpc_request_context(

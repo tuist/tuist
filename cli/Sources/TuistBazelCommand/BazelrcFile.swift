@@ -29,6 +29,9 @@ enum BazelrcFile {
         build --remote_header=x-tuist-account-handle=\(accountHandle)
         \(credentialHelperFlag)\(endpoint.host)=\(credentialHelperPath.pathString)
         build --remote_instance_name=\(projectHandle)
+        build --bes_backend=\(endpoint.url)
+        build --bes_header=x-tuist-account-handle=\(accountHandle)
+        build --bes_header=x-tuist-project-handle=\(projectHandle)
 
         """
     }

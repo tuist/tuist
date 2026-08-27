@@ -9,7 +9,7 @@ public struct BazelSetupCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "setup",
             _superCommandName: "bazel",
-            abstract: "Generate a .bazelrc.tuist file that configures Bazel to use the Tuist remote cache."
+            abstract: "Generate a .bazelrc.tuist file that configures Bazel to use Tuist's remote cache and build insights."
         )
     }
 

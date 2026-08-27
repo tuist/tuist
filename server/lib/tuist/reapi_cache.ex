@@ -3,6 +3,7 @@ defmodule Tuist.ReapiCache do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.ReapiCache.CacheEvent
@@ -57,5 +58,66 @@ defmodule Tuist.ReapiCache do
     lookups = summary.hits + summary.misses
 
     Map.put(summary, :hit_rate, if(lookups == 0, do: nil, else: Float.round(summary.hits / lookups * 100, 1)))
+  end
+
+  def list_cache_events(project_id, flop_params \\ %{}) do
+    CacheEvent
+    |> where([event], event.project_id == ^project_id)
+    |> ClickHouseFlop.validate_and_run!(flop_params, for: CacheEvent)
+  end
+
+  def get_cache_event(project_id, cache_event_id) do
+    cache_event =
+      ClickHouseRepo.one(
+        from(event in CacheEvent,
+          where: event.project_id == ^project_id and event.id == ^cache_event_id,
+          limit: 1
+        )
+      )
+
+    case cache_event do
+      nil -> {:error, :not_found}
+      cache_event -> {:ok, cache_event}
+    end
+  end
+
+  def invocation_summary(project_id, invocation_id) do
+    project_id
+    |> invocation_summaries([invocation_id])
+    |> Map.get(invocation_id, empty_summary())
+  end
+
+  def invocation_summaries(_project_id, []), do: %{}
+
+  def invocation_summaries(project_id, invocation_ids) do
+    rows =
+      ClickHouseRepo.all(
+        from(event in CacheEvent,
+          where:
+            event.project_id == ^project_id and event.operation == "action_cache" and
+              event.invocation_id in ^invocation_ids,
+          group_by: event.invocation_id,
+          select: %{
+            invocation_id: event.invocation_id,
+            hits: coalesce(sum(fragment("if(? = 'hit', 1, 0)", event.outcome)), 0),
+            misses: coalesce(sum(fragment("if(? = 'miss', 1, 0)", event.outcome)), 0),
+            download_bytes: coalesce(sum(fragment("if(? = 'hit', ?, 0)", event.outcome, event.size)), 0),
+            upload_bytes: coalesce(sum(fragment("if(? = 'write', ?, 0)", event.outcome, event.size)), 0)
+          }
+        )
+      )
+
+    Map.new(rows, fn row ->
+      lookups = row.hits + row.misses
+
+      {row.invocation_id,
+       row
+       |> Map.delete(:invocation_id)
+       |> Map.put(:hit_rate, if(lookups == 0, do: nil, else: Float.round(row.hits / lookups * 100, 1)))}
+    end)
+  end
+
+  def empty_summary do
+    %{hits: 0, misses: 0, download_bytes: 0, upload_bytes: 0, hit_rate: nil}
   end
 end

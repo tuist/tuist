@@ -92,7 +92,7 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
             .alert(
                 "Generated \(bazelrcPath.pathString)",
                 takeaways: [
-                    "Add 'try-import %workspace%/.bazelrc.tuist' to your .bazelrc to enable the Tuist remote cache",
+                    "Add 'try-import %workspace%/.bazelrc.tuist' to your .bazelrc to enable the Tuist remote cache and invocation insights",
                 ]
             )
         )
