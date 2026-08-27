@@ -1247,17 +1247,33 @@ HOOK
             sleep 1
             waited=$((waited + 1))
           done
-          # The marker alone leaves a narrow race: the hook fires when the
-          # Worker STARTS the job, a second or more after the Listener has
-          # acknowledged the assignment, and an ephemeral runner killed
-          # post-acknowledgment marks the job failed rather than re-queuing
-          # it. The Runner.Worker process exists from the moment the
-          # Listener dispatches, before the hook runs.
-          if [ ! -e "${JOB_STARTED_MARKER}" ] && ! pgrep -f "Runner.Worker" >/dev/null 2>&1 &&
-            kill -0 "${runner_pid}" 2>/dev/null; then
-            echo "$(date -u +%FT%TZ) dispatch-poll: no job assigned within ${idle_timeout}s; terminating idle runner"
-            kill -TERM "${runner_pid}" 2>/dev/null || true
-          fi
+          # Neither latch can see a job GitHub has only just placed. The
+          # Listener acknowledges the assignment, forks Runner.Worker two to
+          # four seconds later, and the hook writes the marker a beat after
+          # that, so a single check at the deadline reads "idle" for a runner
+          # GitHub has already, irrevocably, given work to. An ephemeral
+          # runner killed post-acknowledgment marks that job failed rather
+          # than re-queuing it, and GitHub then spends ten minutes waiting
+          # out the job's lock before anyone learns it died.
+          #
+          # Confirming the idle state across that gap closes it. Both latches
+          # are re-read every round and either one standing down ends the
+          # watchdog for good. The last read is immediately before the
+          # signal, so what stays exposed is the instant between them rather
+          # than the whole multi-second gap.
+          IDLE_CONFIRM_ROUNDS=4
+          IDLE_CONFIRM_SLEEP=2
+          confirmations=0
+          while :; do
+            [ -e "${JOB_STARTED_MARKER}" ] && exit 0
+            pgrep -f "Runner.Worker" >/dev/null 2>&1 && exit 0
+            kill -0 "${runner_pid}" 2>/dev/null || exit 0
+            [ "${confirmations}" -ge "${IDLE_CONFIRM_ROUNDS}" ] && break
+            sleep "${IDLE_CONFIRM_SLEEP}"
+            confirmations=$((confirmations + 1))
+          done
+          echo "$(date -u +%FT%TZ) dispatch-poll: no job assigned within ${idle_timeout}s; terminating idle runner"
+          kill -TERM "${runner_pid}" 2>/dev/null || true
         ) &
         watchdog_pid=$!
         printf '%s' "${watchdog_pid}" >"${WATCHDOG_PID_FILE}" 2>/dev/null || true
