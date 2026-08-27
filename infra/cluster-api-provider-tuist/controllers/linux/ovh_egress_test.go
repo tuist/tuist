@@ -8,10 +8,18 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
 )
 
@@ -681,5 +689,98 @@ func TestLoweringTheBudgetAloneDoesNotReduceTheNode(t *testing.T) {
 	if value != 5000 || source != egressSourceDiscovery {
 		t.Fatalf("after lowering the budget = %d %q, want the node unchanged at 5000: "+
 			"accepting a reduction is pin, lower, unpin", value, source)
+	}
+}
+
+// egressScheme is the minimum for a fake client that carries a Node and a machine.
+func egressScheme(t *testing.T) *runtime.Scheme {
+	t.Helper()
+	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := infrav1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	return scheme
+}
+
+// nodeAdvertising is a Node already carrying an egress budget, which is what the
+// ratchet anchors on.
+func nodeAdvertising(name string, mbps int64) *corev1.Node {
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: name}}
+	node.Status.Capacity = corev1.ResourceList{
+		shared.EgressMbpsResource: *resource.NewQuantity(mbps, resource.DecimalSI),
+	}
+	return node
+}
+
+// unpinnedMachine is the state right after an operator removes a pin: the source
+// still says a human decided the last budget, and the node still carries their
+// number, while a lower reading from OVH sits in status.
+func unpinnedMachine() *infrav1.OVHDedicatedMachine {
+	machine := discoveryMachine() // configured at 3000
+	machine.Name = "ovh-1"
+	machine.Status.EgressSource = egressSourceManual
+	machine.Status.EgressMbps = 5000
+	machine.Status.EgressResolvedServiceName = machine.Status.ServiceName
+	resolved := metav1.NewTime(time.Now())
+	machine.Status.EgressResolvedAt = &resolved
+	return machine
+}
+
+func advertisedNodeMbps(t *testing.T, cl client.Client, name string) int32 {
+	t.Helper()
+	node := &corev1.Node{}
+	if err := cl.Get(context.Background(), types.NamespacedName{Name: name}, node); err != nil {
+		t.Fatalf("get node: %v", err)
+	}
+	return shared.NodeEgressMbps(node)
+}
+
+// The pin release is a one-shot: it fires while status.egressSource says "manual"
+// and ends when the new source is recorded. Recording it on a reconcile whose
+// capacity patch failed would spend the reset without moving the node, and from the
+// next reconcile the ratchet anchors on the pin's value and holds it there for good.
+func TestReconcileNodeEgressKeepsThePinReleaseWhenTheNodeWriteFails(t *testing.T) {
+	scheme := egressScheme(t)
+	machine := unpinnedMachine()
+	node := nodeAdvertising(machine.Name, 8000)
+
+	failing := fake.NewClientBuilder().WithScheme(scheme).WithObjects(node).
+		WithStatusSubresource(node).
+		WithInterceptorFuncs(interceptor.Funcs{
+			SubResourcePatch: func(context.Context, client.Client, string, client.Object, client.Patch, ...client.SubResourcePatchOption) error {
+				return errors.New("apiserver said no")
+			},
+		}).Build()
+	r, _ := discoveryReconciler(&fakeOVHAPI{err: errors.New("not read on this path")})
+	r.Client = failing
+
+	if err := r.reconcileNodeEgress(context.Background(), machine, node.DeepCopy()); err == nil {
+		t.Fatal("a failed capacity patch should surface as an error")
+	}
+	if machine.Status.EgressSource != egressSourceManual {
+		t.Fatalf("EgressSource = %q, want it left at %q so the next reconcile retries the release",
+			machine.Status.EgressSource, egressSourceManual)
+	}
+
+	// The retry, against a working apiserver, lands on the reading rather than the
+	// removed pin's 8000.
+	working := fake.NewClientBuilder().WithScheme(scheme).WithObjects(node).WithStatusSubresource(node).Build()
+	r.Client = working
+	fresh := &corev1.Node{}
+	if err := working.Get(context.Background(), types.NamespacedName{Name: machine.Name}, fresh); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reconcileNodeEgress(context.Background(), machine, fresh); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if got := advertisedNodeMbps(t, working, machine.Name); got != 5000 {
+		t.Fatalf("node advertises %d, want the 5000 reading rather than the removed pin's 8000", got)
+	}
+	if machine.Status.EgressSource != egressSourceDiscovery {
+		t.Fatalf("EgressSource = %q, want %q once the node carries the new budget",
+			machine.Status.EgressSource, egressSourceDiscovery)
 	}
 }

@@ -6,10 +6,12 @@ import (
 	"strings"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 )
 
 // Spec.EgressBudgetMbps is stamped identically onto every machine a
@@ -206,6 +208,38 @@ func egressDiscoveryDue(machine *infrav1.OVHDedicatedMachine, now time.Time) boo
 		return true
 	}
 	return now.Sub(machine.Status.EgressResolvedAt.Time) >= egressDiscoveryRefreshInterval
+}
+
+// reconcileNodeEgress decides the budget the node should advertise, patches it,
+// and records what decided it.
+//
+// The order of the last three statements is load-bearing, which is why they live
+// here rather than inline in reconcileNormal. Everything after the capacity patch
+// describes what the node now carries, so none of it may run on a write that did
+// not land: an event would announce a budget change that never happened, the
+// advertised gauge would report a number the node is not serving, and — the
+// expensive one — Status.EgressSource is what ends the single-reconcile reset that
+// releases a removed pin. Ending that reset on a failed patch leaves the node
+// advertising the pin's value with the reset already spent, and from the next
+// reconcile the ratchet anchors on that value and holds it there for good. The
+// deferred patch in Reconcile persists status whatever this returns, so leaving the
+// source alone is what makes the failure retryable.
+func (r *OVHDedicatedMachineReconciler) reconcileNodeEgress(ctx context.Context, machine *infrav1.OVHDedicatedMachine, node *corev1.Node) error {
+	advertisedMbps := shared.NodeEgressMbps(node)
+	floorMbps := egressFloor(machine, advertisedMbps)
+	r.reconcileEgressDiscovery(ctx, machine, floorMbps)
+	mbps, source := effectiveEgressMbps(egressDiscoveryDisabled(machine),
+		machine.Spec.EgressBudgetMbps, cachedEgressMbps(machine), floorMbps,
+		egressOverrideMbps(machine))
+
+	if err := shared.ReconcileNodeEgressCapacity(ctx, r.Client, node, mbps); err != nil {
+		return err
+	}
+
+	machine.Status.EgressSource = source
+	recordEgressBudgets(machine.Name, machine.Spec.FleetName, machine.Spec.EgressBudgetMbps, mbps, source)
+	r.recordEgressBudgetChange(machine, advertisedMbps, mbps, source)
+	return nil
 }
 
 // reconcileEgressDiscovery records what OVH reports in status, which the

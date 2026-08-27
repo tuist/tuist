@@ -341,7 +341,10 @@ than something an operator moves. `status.egressSource` records what decided the
 budget last time (`discovery` / `manual` / `configured`), which is what makes a pin
 reversible: the ratchet is anchored to what the node advertises, so once a pin is
 removed that anchor is a number a human typed, and the recorded source is how the
-controller knows to ignore it for one reconcile and re-derive from readings.
+controller knows to ignore it for one reconcile and re-derive from readings. That
+source is recorded only once the capacity patch has landed, so a failed write leaves
+the release to be retried rather than spending it on a node that never moved — which
+would strand the node at the pin's value, with the ratchet then anchoring on it.
 
 The pin does not apply to a machine whose configured budget is zero, and that is the
 one place it refines nothing. Such a box is outside egress governance, and the
