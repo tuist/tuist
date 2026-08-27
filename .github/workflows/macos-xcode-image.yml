@@ -13,33 +13,19 @@ name: macOS + Xcode Image
 #   xcode_version=27.0-beta-6  → <registry>/macos-tahoe-xcode:27-0-beta-6
 #                                 plus the :27-0-beta channel tag
 #
-# Prereleases arrive as the slug `mise run xcode-mirror:upload`
-# derived from Apple's version string ("27.0 Beta 6" is
-# 27.0-beta-6), and publish two tags. The exact one is immutable
-# and records which beta an image holds. The channel tag drops the
-# beta number and moves to each new beta, and it is the one
-# `infra/runner-image/profiles.json` names, so a beta bump reaches
-# the fleet through the ordinary release path: republish the
-# channel here, and the next runner-image release rebuilds against
-# it with no repo edit at all. That matters because Apple stops
-# accepting TestFlight uploads built with superseded betas, so the
-# fleet has to track the newest one.
+# Prereleases publish both: the exact tag is immutable and records
+# which beta an image holds, the channel tag moves onto each new
+# one. `profiles.json` and the chart catalog both name the channel,
+# so a beta bump is a republish here plus the next runner-image
+# release, with no repo edit. Naming the exact tag instead would
+# strand every Runner Profile pointing at it once beta 7 landed,
+# and a stranded macOS profile queues its jobs forever. Newest
+# dispatch wins the channel.
 #
-# The channel is also what customers' Runner Profiles store, via
-# the matching `runnersFleet.xcodeVersions` catalog entry. Pinning
-# them to `27.0-beta-6` instead would strand every profile naming
-# it the moment beta 7 replaced it in the catalog, and a stranded
-# macOS profile queues its jobs forever rather than failing them.
-#
-# The newest dispatch wins the channel. Two betas of the same major
-# built concurrently race for it; re-dispatch the one that should
-# hold it.
-#
-# Publishing a tag here does not put it in front of customers. The
-# active set is `infra/runner-image/profiles.json` (what gets a
-# runner image built on every release) crossed with
-# `runnersFleet.xcodeVersions` in the chart (what gets a pool and
-# appears in the Runner Profiles dropdown).
+# Publishing here does not put a tag in front of customers: the
+# active set is `profiles.json` crossed with
+# `runnersFleet.xcodeVersions`. Runbook in
+# `infra/macos-xcode-image/AGENTS.md`.
 #
 # .xip source: pulled from `ghcr.io/tuist/xcode-xips:<version>`,
 # our in-house mirror populated by `mise run xcode-mirror:upload`
