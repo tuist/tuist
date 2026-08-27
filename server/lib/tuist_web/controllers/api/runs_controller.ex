@@ -16,6 +16,7 @@ defmodule TuistWeb.API.RunsController do
   alias Tuist.Builds
   alias Tuist.Builds.CASOutput
   alias Tuist.Tests
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Builds.Build
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Run
@@ -106,7 +107,7 @@ defmodule TuistWeb.API.RunsController do
            required: [:runs]
          }},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -770,7 +771,7 @@ defmodule TuistWeb.API.RunsController do
       },
       unauthorized: {"You need to be authenticated to create a run", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"The request parameters are invalid", "application/json", Error}
     }

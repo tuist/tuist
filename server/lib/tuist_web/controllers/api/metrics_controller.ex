@@ -9,6 +9,7 @@ defmodule TuistWeb.API.MetricsController do
   alias Tuist.Tests
   alias Tuist.Tests.Analytics, as: TestAnalytics
   alias TuistWeb.API.Authorization.AuthorizationPlug
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.DurationMetrics
   alias TuistWeb.API.Schemas.Error
 
@@ -68,7 +69,7 @@ defmodule TuistWeb.API.MetricsController do
       ok: {"Build duration metrics", "application/json", DurationMetrics},
       bad_request: {"The request was invalid", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -122,7 +123,7 @@ defmodule TuistWeb.API.MetricsController do
       ok: {"Test duration metrics", "application/json", DurationMetrics},
       bad_request: {"The request was invalid", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -166,7 +167,7 @@ defmodule TuistWeb.API.MetricsController do
          }},
       bad_request: {"The request was invalid", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -212,7 +213,7 @@ defmodule TuistWeb.API.MetricsController do
          }},
       bad_request: {"The request was invalid", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 

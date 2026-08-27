@@ -10,6 +10,7 @@ defmodule TuistWeb.API.BundlesController do
   alias Tuist.Bundles
   alias Tuist.Bundles.Bundle
   alias Tuist.Projects.Project
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Bundle
   alias TuistWeb.API.Schemas.BundleArtifact
   alias TuistWeb.API.Schemas.Error
@@ -78,7 +79,7 @@ defmodule TuistWeb.API.BundlesController do
          }},
       unauthorized: {"You need to be authenticated to list bundles", "application/json", Error},
       forbidden: {"You are not authorized to list bundles", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -153,7 +154,7 @@ defmodule TuistWeb.API.BundlesController do
       not_found: {"Bundle not found", "application/json", Error},
       unauthorized: {"You need to be authenticated to view this bundle", "application/json", Error},
       forbidden: {"You are not authorized to view this bundle", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -269,7 +270,7 @@ defmodule TuistWeb.API.BundlesController do
       bad_request: {"Validation errors occurred", "application/json", ValidationError},
       unauthorized: {"You need to be authenticated to create a bundle", "application/json", Error},
       forbidden: {"You are not authorized to create a bundle", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 

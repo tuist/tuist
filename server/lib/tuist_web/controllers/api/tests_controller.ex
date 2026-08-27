@@ -6,6 +6,7 @@ defmodule TuistWeb.API.TestsController do
   alias Tuist.Tests
   alias Tuist.Tests.TestRunQuery
   alias Tuist.Tests.XcresultProcessing
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
@@ -124,7 +125,7 @@ defmodule TuistWeb.API.TestsController do
            required: [:test_runs, :pagination_metadata]
          }},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       bad_request: {"The request parameters are invalid", "application/json", Error}
     }
   )
@@ -527,7 +528,7 @@ defmodule TuistWeb.API.TestsController do
       },
       unauthorized: {"You need to be authenticated to create a test run", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"The request parameters are invalid", "application/json", Error},
       service_unavailable: {"The test run could not be scheduled for processing", "application/json", Error}
@@ -726,7 +727,7 @@ defmodule TuistWeb.API.TestsController do
          }},
       not_found: {"Test run not found", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 

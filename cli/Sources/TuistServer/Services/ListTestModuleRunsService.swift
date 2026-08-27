@@ -89,8 +89,10 @@ public struct ListTestModuleRunsService: ListTestModuleRunsServicing {
             case let .json(error):
                 throw ListTestModuleRunsServiceError.notFound(error.message)
             }
-        case .tooManyRequests:
-            throw AuthorizationThrottledError(retryAfterSeconds: nil)
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw ListTestModuleRunsServiceError.unknownError(statusCode)
         }

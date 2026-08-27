@@ -4,6 +4,7 @@ defmodule TuistWeb.API.TestModuleRunsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Tests
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
 
@@ -101,7 +102,7 @@ defmodule TuistWeb.API.TestModuleRunsController do
          }},
       not_found: {"Test run not found", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 

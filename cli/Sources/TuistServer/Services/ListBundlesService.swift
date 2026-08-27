@@ -63,9 +63,9 @@ public struct ListBundlesService: ListBundlesServicing {
                     project_handle: handles.projectHandle
                 ),
                 query: .init(
-                    git_branch: gitBranch,
                     page: page,
-                    page_size: pageSize
+                    page_size: pageSize,
+                    git_branch: gitBranch
                 )
             )
         )
@@ -86,8 +86,10 @@ public struct ListBundlesService: ListBundlesServicing {
             case let .json(error):
                 throw ListBundlesServiceError.forbidden(error.message)
             }
-        case .tooManyRequests:
-            throw AuthorizationThrottledError(retryAfterSeconds: nil)
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw ListBundlesServiceError.unknownError(statusCode)
         }

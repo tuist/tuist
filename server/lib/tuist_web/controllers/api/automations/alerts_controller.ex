@@ -5,6 +5,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
   alias OpenApiSpex.Schema
   alias Tuist.Automations
   alias TuistWeb.API.RequestParams
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.AutomationAlert
   alias TuistWeb.API.Schemas.AutomationAlertAction
   alias TuistWeb.API.Schemas.Error
@@ -50,7 +51,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
            required: [:alerts]
          }},
       forbidden: {"Forbidden", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -89,7 +90,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
       ok: {"Alert details", "application/json", AutomationAlert},
       not_found: {"Not found", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -145,7 +146,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
       unprocessable_entity: {"Validation error", "application/json", Error},
       internal_server_error: {"An internal server error occurred", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -213,7 +214,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
       unprocessable_entity: {"Validation error", "application/json", Error},
       internal_server_error: {"An internal server error occurred", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -273,7 +274,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
       no_content: {"Deleted", "application/json", nil},
       not_found: {"Not found", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 

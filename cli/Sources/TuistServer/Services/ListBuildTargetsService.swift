@@ -89,8 +89,10 @@ public struct ListBuildTargetsService: ListBuildTargetsServicing {
             case let .json(error):
                 throw ListBuildTargetsServiceError.notFound(error.message)
             }
-        case .tooManyRequests:
-            throw AuthorizationThrottledError(retryAfterSeconds: nil)
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw ListBuildTargetsServiceError.unknownError(statusCode)
         }

@@ -88,8 +88,10 @@ public struct MultipartUploadGenerateURLShardsService: MultipartUploadGenerateUR
             case let .json(error):
                 throw MultipartUploadGenerateURLShardsServiceError.unauthorized(error.message)
             }
-        case .tooManyRequests:
-            throw AuthorizationThrottledError(retryAfterSeconds: nil)
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .badRequest(badRequestResponse):
             switch badRequestResponse.body {
             case let .json(error):

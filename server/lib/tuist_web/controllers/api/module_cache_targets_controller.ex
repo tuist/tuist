@@ -5,6 +5,7 @@ defmodule TuistWeb.API.ModuleCacheTargetsController do
   alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
   alias Tuist.Xcode
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
 
@@ -110,7 +111,7 @@ defmodule TuistWeb.API.ModuleCacheTargetsController do
          }},
       not_found: {"Run not found", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 

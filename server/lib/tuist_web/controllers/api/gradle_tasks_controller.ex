@@ -4,6 +4,7 @@ defmodule TuistWeb.API.GradleTasksController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Gradle
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
 
@@ -118,7 +119,7 @@ defmodule TuistWeb.API.GradleTasksController do
          }},
       not_found: {"Build not found", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error}
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 

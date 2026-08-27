@@ -10,6 +10,7 @@ defmodule TuistWeb.API.CacheController do
   alias Tuist.Cache
   alias Tuist.CacheActionItems
   alias Tuist.Storage
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
   alias TuistWeb.API.Schemas.ArtifactUploadId
@@ -287,7 +288,7 @@ defmodule TuistWeb.API.CacheController do
       not_found: {"The item doesn't exist in the actino cache", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
@@ -364,7 +365,7 @@ defmodule TuistWeb.API.CacheController do
          "application/json", CacheArtifactDownloadURL},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -454,7 +455,7 @@ defmodule TuistWeb.API.CacheController do
          }},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found:
         {"The artifact doesn't exist", "application/json",
          %Schema{
@@ -547,7 +548,7 @@ defmodule TuistWeb.API.CacheController do
       bad_request: {"The request has missing or invalid parameters", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -603,7 +604,7 @@ defmodule TuistWeb.API.CacheController do
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -690,7 +691,7 @@ defmodule TuistWeb.API.CacheController do
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -803,7 +804,7 @@ defmodule TuistWeb.API.CacheController do
          }},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       conflict: {"The multipart upload is no longer active", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
@@ -874,7 +875,7 @@ defmodule TuistWeb.API.CacheController do
       no_content: "The cache has been successfully cleaned",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      too_many_requests: {"You've made too many unauthorized requests.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project was not found", "application/json", Error}
     }
   )
