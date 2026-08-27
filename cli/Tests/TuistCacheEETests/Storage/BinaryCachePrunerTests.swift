@@ -86,6 +86,58 @@ struct BinaryCachePrunerTests {
         #expect(remaining.count == 3)
     }
 
+    @Test(.inTemporaryDirectory)
+    func size_measuresARegularFileRatherThanItsEmptyGlob() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        // Macros are cached as `.macro` executables and every entry carries a metadata plist, so
+        // artifacts are not always directories.
+        let macro = temporaryDirectory.appending(component: "Target.macro")
+        FileManager.default.createFile(
+            atPath: macro.pathString,
+            contents: Data(repeating: 0x41, count: 1_000_000)
+        )
+
+        let size = try await subject(binariesDirectory: temporaryDirectory).size(of: macro)
+
+        #expect(size == 1_000_000)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func headroom_isWhatTheBudgetHasLeftAfterTheEntriesTheCacheHolds() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_CACHE_MAX_BYTES"] = "2500000"
+        let binariesDirectory = try await seedEntries(count: 2, in: temporaryDirectory)
+
+        let headroom = try #require(try await subject(binariesDirectory: binariesDirectory).headroom())
+
+        // The two entries hold ~2 MB, plus the inode size of the directories carrying them.
+        #expect(headroom > 490_000 && headroom <= 500_000)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func headroom_isUnboundedWithoutABudget() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let binariesDirectory = try await seedEntries(count: 1, in: temporaryDirectory)
+
+        #expect(try await subject(binariesDirectory: binariesDirectory).headroom() == nil)
+    }
+
+    @Test func admission_claimsAgainstTheRemainingBudget() async throws {
+        let admission = CacheBudgetAdmission(remaining: 1000)
+
+        #expect(await admission.admit(600))
+        #expect(await admission.admit(400))
+        #expect(await admission.admit(1) == false)
+    }
+
+    @Test func admission_admitsEverythingWhenUnbounded() async throws {
+        let admission = CacheBudgetAdmission(remaining: nil)
+
+        #expect(await admission.admit(Int.max))
+        #expect(await admission.admit(Int.max))
+    }
+
     /// `count` ~1 MB entries, staggered so entry 0 is the most recently used.
     private func seedEntries(count: Int, in temporaryDirectory: AbsolutePath) async throws -> AbsolutePath {
         let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
