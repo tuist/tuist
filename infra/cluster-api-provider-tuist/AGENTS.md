@@ -351,6 +351,12 @@ configured value — the over-commit the pin was hiding. Disabling discovery, an
 `spec.egressBudgetMbps: 0`, also apply downward directly: the ratchet only ever holds
 against the controller's own readings, never against an explicit human decision.
 
+A reading is either a number or nothing: there is no plausibility band around it.
+The floor already refuses anything below the configured budget, so a decode that
+starts yielding 1 after a response-shape change is refused and surfaced as a
+reduction rather than silently applied, and a ceiling would only ever be a guess
+that the next faster box trips.
+
 Three gauges publish the numbers behind a node's budget, all labelled `node`:
 `capt_ovh_egress_reported_mbps` (what OVH says, plus `service` and `tier`),
 `capt_ovh_egress_configured_mbps` (the spec value) and

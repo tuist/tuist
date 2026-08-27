@@ -19,19 +19,24 @@ import (
 var (
 	egressReportedGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "capt_ovh_egress_reported_mbps",
-		Help: "Public egress limitation OVH reports for the box (bandwidth.OvhToInternet), in Mbps. Absent until a reading is resolved; 0 when the response carried nothing usable. Labels: node, fleet, service, tier (the bandwidth offer tier: standard|included|improved|...).",
+		Help: "Public egress limitation OVH reports for the box (bandwidth.OvhToInternet), in Mbps.",
 	}, []string{"node", "fleet", "service", "tier"})
 
 	egressConfiguredGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "capt_ovh_egress_configured_mbps",
-		Help: "Egress budget configured on the machine (spec.egressBudgetMbps), in Mbps. 0 means the machine does not participate in egress governance. Labels: node, fleet.",
+		Help: "Egress budget configured on the machine (spec.egressBudgetMbps), in Mbps.",
 	}, []string{"node", "fleet"})
 
 	egressAdvertisedGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "capt_ovh_egress_advertised_mbps",
-		Help: "Egress budget the operator advertised as the node's tuist.dev/egress-mbps capacity, in Mbps. Labels: node, fleet, source (discovery|manual|configured) — `source=\"manual\"` is a machine pinned by the tuist.dev/egress-mbps-override annotation, so a pin left in place is alertable on its age.",
+		Help: "Egress budget advertised as the node's tuist.dev/egress-mbps capacity, in Mbps.",
 	}, []string{"node", "fleet", "source"})
 )
+
+// What the source label carries, for the reader of this file rather than the Help
+// string: "discovery" is a reading from OVH, including one the ratchet is holding;
+// "manual" is a machine pinned by the tuist.dev/egress-mbps-override annotation, so
+// a pin left in place is alertable on its age; "configured" is spec.egressBudgetMbps.
 
 func init() {
 	metrics.Registry.MustRegister(egressReportedGauge, egressConfiguredGauge, egressAdvertisedGauge)

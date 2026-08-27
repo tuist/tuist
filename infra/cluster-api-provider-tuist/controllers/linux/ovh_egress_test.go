@@ -76,7 +76,10 @@ func TestEffectiveEgressMbps(t *testing.T) {
 			spec: 3000, discovered: 0, floor: 3000, want: 3000, wantSource: egressSourceConfigured,
 		},
 		{
-			name: "a reading below the plausibility floor holds the budget too",
+			// No plausibility band: a decode yielding 1 after a response-shape change
+			// is refused by the floor like any other low reading, and surfaced as a
+			// reduction rather than quietly dropped.
+			name: "a nonsense reading is refused by the floor like any other",
 			spec: 3000, discovered: 1, floor: 3000, want: 3000, wantSource: egressSourceConfigured,
 		},
 		{
@@ -582,5 +585,15 @@ func TestReconcileEgressDiscoveryDropsAStaleReadingWhileBackedOff(t *testing.T) 
 	}
 	if got := cachedEgressMbps(machine); got != 0 {
 		t.Fatalf("cached reading = %d, want 0 for a box this machine no longer holds", got)
+	}
+}
+
+func TestResolvedEgressReading(t *testing.T) {
+	// The only question is whether OVH gave us a number; how plausible it is, the
+	// floor decides.
+	for mbps, want := range map[int32]bool{0: false, -1: false, 1: true, 25: true, 5000: true} {
+		if got := resolvedEgressReading(mbps); got != want {
+			t.Errorf("resolvedEgressReading(%d) = %v, want %v", mbps, got, want)
+		}
 	}
 }

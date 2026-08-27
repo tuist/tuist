@@ -41,13 +41,6 @@ const (
 	// This floors the retry at what a healthy node already does, without the day of
 	// blindness that stamping the full refresh interval would buy.
 	egressReadRetryInterval = 10 * time.Minute
-
-	// Guards a decode that starts yielding 0 or 1 after a response-shape change: a
-	// node advertising a couple of Mbps schedules and serves nothing, which is worse
-	// than the stale value it replaced. No ceiling — too high is the failure a spec
-	// value already risks, and any limit would be a guess that the next faster box
-	// trips.
-	minDiscoveredEgressMbps = 100
 )
 
 // Both halves of the feature ask this — whether to call OVH, and whether a reading
@@ -57,8 +50,13 @@ func egressDiscoveryDisabled(machine *infrav1.OVHDedicatedMachine) bool {
 	return set
 }
 
-func usableDiscoveredEgress(mbps int32) bool {
-	return mbps >= minDiscoveredEgressMbps
+// resolvedEgressReading reports whether OVH gave us a number at all. There is no
+// plausibility band around it: the floor already refuses anything below the
+// configured budget, so a decode that starts yielding 1 after a response-shape
+// change is refused and surfaced as a reduction rather than silently applied, and a
+// ceiling would only ever be a guess that the next faster box trips.
+func resolvedEgressReading(mbps int32) bool {
+	return mbps > 0
 }
 
 // EgressOverrideAnnotation pins one machine's advertised budget to a value the
@@ -168,7 +166,7 @@ func effectiveEgressMbps(disabled bool, specMbps, discoveredMbps, floorMbps, ove
 	if disabled || specMbps <= 0 {
 		return specMbps, egressSourceConfigured
 	}
-	if usableDiscoveredEgress(discoveredMbps) && discoveredMbps >= floorMbps {
+	if resolvedEgressReading(discoveredMbps) && discoveredMbps >= floorMbps {
 		return discoveredMbps, egressSourceDiscovery
 	}
 	if floorMbps > specMbps {
@@ -241,10 +239,10 @@ func (r *OVHDedicatedMachineReconciler) reconcileEgressDiscovery(ctx context.Con
 	// above the wire — the over-commit this exists to prevent, arriving as a
 	// successful response. Still stamped as resolved, so it retries daily rather
 	// than every tick.
-	if !usableDiscoveredEgress(discovered.Mbps) {
+	if !resolvedEgressReading(discovered.Mbps) {
 		machine.Status.EgressResolvedAt = &metav1.Time{Time: now}
 		machine.Status.EgressResolvedServiceName = machine.Status.ServiceName
-		logger.Info("OVH reported no usable egress limitation; keeping the last known value",
+		logger.Info("OVH reported no egress limitation we could read; keeping the last known value",
 			"service", machine.Status.ServiceName, "unit", discovered.Unit, "value", discovered.Value,
 			"keeping_mbps", machine.Status.EgressMbps)
 		return
