@@ -101,6 +101,13 @@ defmodule Tuist.Kura.Rollouts do
   # baseline the same way.
   @failure_regression_floor 25
 
+  # The outbox is a queue depth, so a verdict needs more than one sample:
+  # the window is how long after convergence the queue is given to show
+  # whether it drains, and the percentage is how far off its own peak it
+  # has to fall to count as draining.
+  @outbox_drain_window_seconds 5 * 60
+  @outbox_drain_percent 10
+
   @usage_window_days 7
 
   # Bounded per tick: scoping runs inside the rollout's `FOR UPDATE`
@@ -681,6 +688,7 @@ defmodule Tuist.Kura.Rollouts do
     mint_missing_deployments(rollout)
     mark_convergences(rollout)
     recapture_ineligible_baselines(rollout)
+    track_outbox_extremes(rollout)
 
     cond do
       failure = hard_failure(rollout) ->
@@ -723,6 +731,7 @@ defmodule Tuist.Kura.Rollouts do
         mint_missing_deployments(rollout)
         mark_convergences(rollout)
         recapture_ineligible_baselines(rollout)
+        track_outbox_extremes(rollout)
 
         if failure = hard_failure(rollout) do
           pause_rollout(rollout, failure)
@@ -1309,6 +1318,72 @@ defmodule Tuist.Kura.Rollouts do
   # required of them; only the comparative gate is waived.
   defp server_gate_failure(%RolloutServer{soak_eligible: false}), do: nil
 
+  # The outbox is a queue depth, not a cumulative counter like the failure
+  # counters it used to be judged beside. Depth rises and falls with load, so
+  # "deeper than before the upgrade" says nothing about the new image: the
+  # canary carrying the runners cache swings between empty and its max depth
+  # purely on CI traffic, and a baseline sampled anywhere in that range is
+  # arbitrary. Worse, a baseline sampled while the queue happened to be empty
+  # falls back to the absolute floor, so any real traffic reads as a
+  # regression and the wave can never pass.
+  #
+  # What separates a replication regression from a busy mesh is whether the
+  # queue drains at all. A load spike falls back between bursts; a broken
+  # replication path only grows. Depth still decides whether the queue is
+  # worth judging, and the drain decides the verdict. The queue is given a
+  # window after convergence before any verdict, because a restarted pod
+  # necessarily accumulates a backlog while it is down — that is the
+  # rollout's own doing, not evidence against the image.
+  defp outbox_not_draining?(rollout_server, health, threshold) do
+    depth = health.outbox_messages
+
+    cond do
+      is_nil(threshold) or is_nil(depth) -> false
+      depth <= threshold -> false
+      not settled_since_convergence?(rollout_server) -> false
+      true -> not drained?(rollout_server)
+    end
+  end
+
+  defp settled_since_convergence?(%RolloutServer{converged_at: nil}), do: false
+
+  defp settled_since_convergence?(%RolloutServer{converged_at: converged_at}) do
+    DateTime.diff(now(), converged_at, :second) >= @outbox_drain_window_seconds
+  end
+
+  defp drained?(%RolloutServer{outbox_peak: peak, outbox_low_water: low})
+       when is_integer(peak) and is_integer(low) and peak > 0 do
+    low * 100 <= peak * (100 - @outbox_drain_percent)
+  end
+
+  defp drained?(_rollout_server), do: false
+
+  # Recorded every tick from the same memoized aggregate the gate reads, so
+  # tracking costs no extra call, and written only when an extreme actually
+  # moves.
+  defp track_outbox_extremes(rollout) do
+    RolloutServer
+    |> join(:inner, [rs], s in assoc(rs, :kura_server))
+    |> where([rs], rs.kura_rollout_id == ^rollout.id and not is_nil(rs.converged_at))
+    |> where([_rs, s], s.status not in ^@terminal_server_statuses)
+    |> preload([rs, s], kura_server: s)
+    |> Repo.all()
+    |> Enum.each(fn rollout_server ->
+      with {:ok, health} when is_map(health) <- tick_rollout_health(rollout_server.kura_server),
+           depth when is_integer(depth) <- health.outbox_messages do
+        peak = max(rollout_server.outbox_peak || depth, depth)
+        low = min(rollout_server.outbox_low_water || depth, depth)
+
+        if peak != rollout_server.outbox_peak or low != rollout_server.outbox_low_water do
+          {:ok, _} =
+            rollout_server
+            |> RolloutServer.update_changeset(%{outbox_peak: peak, outbox_low_water: low})
+            |> Repo.update()
+        end
+      end
+    end)
+  end
+
   defp health_gate_failure(rollout_server, health) do
     rollout_server
     |> gate_checks(health)
@@ -1343,7 +1418,7 @@ defmodule Tuist.Kura.Rollouts do
       # both are soak resets rather than hard stops.
       {health.backfill_degraded, {:unhealthy, :backfill_degraded}},
       {health.backfill_budget_exhausted_peers > 0, {:unhealthy, :backfill_budget_exhausted}},
-      {counter_regressed?(health.outbox_messages, outbox_threshold), {:unhealthy, :outbox_regressed}},
+      {outbox_not_draining?(rollout_server, health, outbox_threshold), {:unhealthy, :outbox_not_draining}},
       {counter_regressed?(health.fd_timeout_count, failure_threshold(rollout_server.baseline_fd_timeout_count)),
        {:unhealthy, :fd_timeouts_regressed}},
       {counter_regressed?(

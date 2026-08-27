@@ -90,6 +90,17 @@ defmodule Tuist.Kura.RolloutsTest do
     Repo.get_by(RolloutServer, kura_rollout_id: rollout.id, kura_server_id: server.id)
   end
 
+  defp back_date_rollout_server(rollout, server, field, seconds) do
+    value = DateTime.utc_now() |> DateTime.add(-seconds, :second) |> DateTime.truncate(:second)
+
+    {1, _} =
+      RolloutServer
+      |> where([rs], rs.kura_rollout_id == ^rollout.id and rs.kura_server_id == ^server.id)
+      |> Repo.update_all(set: [{field, value}])
+
+    :ok
+  end
+
   defp back_date(rollout, field, seconds) do
     value = DateTime.utc_now() |> DateTime.add(-seconds, :second) |> DateTime.truncate(:second)
 
@@ -635,6 +646,9 @@ defmodule Tuist.Kura.RolloutsTest do
       stub(Provisioner, :rollout_health, fn _server -> {:ok, post_health} end)
 
       assert :ok = Rollouts.sync()
+      # The outbox condition is not judged until the queue has had a window
+      # after convergence to show whether it drains.
+      back_date_rollout_server(rollout, server, :converged_at, 6 * 60)
       rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
       assert :ok = Rollouts.sync()
 
@@ -649,6 +663,87 @@ defmodule Tuist.Kura.RolloutsTest do
 
       assert gate_verdict(healthy_health(%{outbox_messages: 100}), healthy_health(%{outbox_messages: 151})) ==
                :held
+    end
+
+    test "a queue that drains off its peak passes even though it sits above the band" do
+      # The canary carrying the runners cache swings between empty and its
+      # max depth on CI traffic alone. Depth above the band is what makes the
+      # queue worth judging; falling back off its own peak is what says
+      # replication still works.
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health(%{outbox_messages: 100})} end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health(%{outbox_messages: 900})} end)
+      assert :ok = Rollouts.sync()
+
+      # Seen as deep as 1000 and as shallow as 400: the queue moves.
+      {1, _} =
+        RolloutServer
+        |> where([rs], rs.kura_rollout_id == ^rollout.id and rs.kura_server_id == ^canary_server.id)
+        |> Repo.update_all(set: [outbox_peak: 1000, outbox_low_water: 400])
+
+      back_date_rollout_server(rollout, canary_server, :converged_at, 6 * 60)
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+
+      assert Repo.get!(Rollout, rollout.id).current_wave > 0
+    end
+
+    test "a backlog that never drains holds the wave" do
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health(%{outbox_messages: 100})} end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health(%{outbox_messages: 900})} end)
+      assert :ok = Rollouts.sync()
+
+      # Only ever grew: the low-water mark is its own peak.
+      {1, _} =
+        RolloutServer
+        |> where([rs], rs.kura_rollout_id == ^rollout.id and rs.kura_server_id == ^canary_server.id)
+        |> Repo.update_all(set: [outbox_peak: 900, outbox_low_water: 880])
+
+      back_date_rollout_server(rollout, canary_server, :converged_at, 6 * 60)
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+
+      assert Repo.get!(Rollout, rollout.id).current_wave == 0
+    end
+
+    test "a backlog inside the drain window is the rollout's own doing and is not judged" do
+      # A restarted pod necessarily accumulates while it is down.
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health(%{outbox_messages: 100})} end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health(%{outbox_messages: 900})} end)
+      assert :ok = Rollouts.sync()
+
+      {1, _} =
+        RolloutServer
+        |> where([rs], rs.kura_rollout_id == ^rollout.id and rs.kura_server_id == ^canary_server.id)
+        |> Repo.update_all(set: [outbox_peak: 900, outbox_low_water: 880])
+
+      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+
+      assert Repo.get!(Rollout, rollout.id).current_wave > 0
     end
 
     test "failure counters tolerate the rollout's own reconnect churn" do
