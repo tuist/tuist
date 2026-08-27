@@ -196,7 +196,8 @@ defmodule TuistWeb.RemoteIp do
   end
 
   defp cloudflare_address?(address) do
-    Enum.any?(@cloudflare_ranges, &address_in_range?(address, &1))
+    unmapped = unmap_v4(address)
+    Enum.any?(@cloudflare_ranges, &address_in_range?(unmapped, &1))
   end
 
   defp address_in_range?(address, {network, prefix}) do
@@ -220,16 +221,29 @@ defmodule TuistWeb.RemoteIp do
 
   defp address_to_integer(_address), do: :error
 
-  defp private_address?({10, _, _, _}), do: true
-  defp private_address?({127, _, _, _}), do: true
-  defp private_address?({169, 254, _, _}), do: true
-  defp private_address?({172, second, _, _}) when second in 16..31, do: true
-  defp private_address?({192, 168, _, _}), do: true
-  defp private_address?({100, second, _, _}) when second in 64..127, do: true
-  defp private_address?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
-  defp private_address?({first, _, _, _, _, _, _, _}) when first in 0xFC00..0xFDFF, do: true
-  defp private_address?({first, _, _, _, _, _, _, _}) when first in 0xFE80..0xFEBF, do: true
-  defp private_address?(_address), do: false
+  # Bandit listening on `::` reports an IPv4 peer as IPv4-mapped IPv6, so the
+  # ingress hop arrives as `::ffff:192.168.x.x` rather than `192.168.x.x`.
+  # Classifying that shape as written reads a private peer as public and
+  # refuses every request. Only the mapped range is unwrapped, so a mapped
+  # public address stays public.
+  defp unmap_v4({0, 0, 0, 0, 0, 0xFFFF, high, low}) do
+    {high >>> 8, high &&& 0xFF, low >>> 8, low &&& 0xFF}
+  end
+
+  defp unmap_v4(address), do: address
+
+  defp private_address?(address), do: address |> unmap_v4() |> unmapped_private_address?()
+
+  defp unmapped_private_address?({10, _, _, _}), do: true
+  defp unmapped_private_address?({127, _, _, _}), do: true
+  defp unmapped_private_address?({169, 254, _, _}), do: true
+  defp unmapped_private_address?({172, second, _, _}) when second in 16..31, do: true
+  defp unmapped_private_address?({192, 168, _, _}), do: true
+  defp unmapped_private_address?({100, second, _, _}) when second in 64..127, do: true
+  defp unmapped_private_address?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
+  defp unmapped_private_address?({first, _, _, _, _, _, _, _}) when first in 0xFC00..0xFDFF, do: true
+  defp unmapped_private_address?({first, _, _, _, _, _, _, _}) when first in 0xFE80..0xFEBF, do: true
+  defp unmapped_private_address?(_address), do: false
 
   defp format_ip(ip), do: ip |> :inet_parse.ntoa() |> to_string()
 end

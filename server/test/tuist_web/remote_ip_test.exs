@@ -154,6 +154,27 @@ defmodule TuistWeb.RemoteIpTest do
         |> Map.put(:remote_ip, {203, 0, 113, 20})
         |> Plug.Conn.put_req_header("cf-ipcountry", "FR")
 
+      # Bandit listening on `::` reports IPv4 peers as IPv4-mapped IPv6, so this
+      # is the shape the ingress hop actually arrives in. Classifying it as
+      # written makes a private peer read as public and refuses every request.
+      v4_mapped_peer =
+        build_conn()
+        |> Map.put(:remote_ip, {0, 0, 0, 0, 0, 0xFFFF, 0xC0A8, 0x06FC})
+        |> Plug.Conn.put_req_header("x-forwarded-for", "89.24.10.5, 162.159.121.29")
+        |> Plug.Conn.put_req_header("cf-ipcountry", "CZ")
+
+      assert TuistWeb.RemoteIp.attributed_origin(v4_mapped_peer) == {:ok, "CZ"}
+
+      # A mapped *public* address is still public; unmapping must not launder it.
+      v4_mapped_public =
+        build_conn()
+        |> Map.put(:remote_ip, {0, 0, 0, 0, 0, 0xFFFF, 0x1758, 0x2C94})
+        |> Plug.Conn.put_req_header("x-forwarded-for", "89.24.10.5, 162.159.121.29")
+        |> Plug.Conn.put_req_header("cf-ipcountry", "CZ")
+
+      assert TuistWeb.RemoteIp.attributed_origin(v4_mapped_public) ==
+               {:error, :location_from_untrusted_hop}
+
       # The forwarded chain ends at our own load balancer rather than the edge,
       # so the edge address arrives in its own header. Trusted only from a
       # private peer: nginx overwrites any inbound value, so a client that
