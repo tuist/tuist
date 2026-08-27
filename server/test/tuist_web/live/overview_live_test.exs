@@ -180,6 +180,18 @@ defmodule TuistWeb.OverviewLiveTest do
       refute has_element?(lv, "[data-part=analytics]")
     end
 
+    test "hides previews and bundles from the project navigation", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
+
+      refute has_element?(lv, ~s(a[href="/#{organization.account.name}/#{project.name}/previews"]))
+      refute has_element?(lv, ~s(a[href="/#{organization.account.name}/#{project.name}/bundles"]))
+      assert has_element?(lv, "a", "Project Settings")
+    end
+
     test "renders remote action-cache statistics", %{
       conn: conn,
       organization: organization,
