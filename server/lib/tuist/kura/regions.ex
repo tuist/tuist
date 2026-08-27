@@ -128,36 +128,49 @@ defmodule Tuist.Kura.Regions do
   # shares it with the upload staging directory and the RocksDB index, and the
   # provisioner reserves those before deriving the ring budget it hands the pod
   # (see `cas_capacity_bytes/1` in the Kubernetes controller provisioner). The
-  # rings these leave are 40 GiB, 20.5 GiB and 3.4 GiB.
+  # rings these leave are 13.1 GiB for enterprise and 5.3 GiB for the rest.
   #
-  # This is what the region's disk is ordered against, so it is sized from the
-  # working set each plan actually keeps warm rather than from what an instance
-  # would fill given room. A claim is also an admission decision, not just a
-  # ceiling: every replica requests its claim as `ephemeral-storage`, so an
-  # oversized quota does not waste disk, it refuses to place instances that
-  # would have fitted.
+  # These are where an account starts, not what it ends up with:
+  # `Tuist.Kura.ClaimSizing` grows the claim from measured shedding, and it
+  # acts within the hour when a ring is badly undersized. That is what lets
+  # them start this small, and starting small is what a claim being an
+  # admission decision demands — every replica requests its claim as
+  # `ephemeral-storage`, so an oversized quota does not waste disk, it refuses
+  # to place instances that would have fitted.
   #
-  # Measured on 2026-08-20 rather than projected. Every provisioned Kura
-  # instance was enterprise then, and six of the ten held under 2.4 GiB against
-  # a 40 GiB ring. Air's own volume comes from the legacy lane, where 55 air
-  # accounts uploaded anything at all in 30 days: the median moves 0.17 GiB a
-  # day, which a 5.3 GiB ring holds for about a month.
+  # Air and Pro therefore start in the same place, and `Tuist.Kura.ClaimSizing`
+  # gives them the same ceiling too: what a paid plan buys is not a bigger
+  # cache on day one, it is the demand-driven lifecycle and the regional
+  # placement around it. An account that needs more disk gets it by proving so,
+  # whichever plan it is on. Enterprise starts a step higher only because it is
+  # the plan whose accounts predictably arrive with a working set already.
   #
-  # The tier is long-tailed, and the tail is not served here. Its p90 moves
-  # 2.5 GiB a day and its heaviest account 21.7 GiB, roughly what the heaviest
-  # enterprise account moves; both get days or hours out of this ring rather
-  # than weeks. That is the intended shape. Air is what an account gets before
-  # it pays for anything, so it is sized for the account the tier is actually
-  # full of, and volume far past it is a reason to be on another plan rather
-  # than a reason to reserve another account's disk.
+  # They are also powers of two so that growth lands squarely. Sizing clamps a
+  # step at twice the current claim, so a ladder of doubles reaches each plan's
+  # ceiling exactly, where an off-ladder constant spends most of a step being
+  # clamped short of it.
+  #
+  # Measured on 2026-08-20 rather than projected, and the measurement is why
+  # they came down. Every provisioned Kura instance was enterprise then, and
+  # six of the ten held under 2.4 GiB against a 40 GiB ring: the reserve those
+  # instances stood on was refusing neighbours it never used. Air's own volume
+  # comes from the legacy lane, where 55 air accounts uploaded anything at all
+  # in 30 days: the median moves 0.17 GiB a day, which a 5.3 GiB ring holds for
+  # a month.
+  #
+  # The tier is long-tailed, and the tail is no longer left where it lands. Its
+  # p90 moves 2.5 GiB a day and its heaviest account 21.7 GiB, which this ring
+  # holds for hours rather than weeks — so sizing grows those accounts off the
+  # starting value instead, up to the ceiling their plan funds. What the
+  # constant has to serve is the account the tier is actually full of.
   #
   # Air is the floor as well as the default. It is this small because the
   # staging budget scales with the claim rather than staying at Kura's flat
   # 8 GiB default (see `staging_bytes/1` in the Kubernetes controller
   # provisioner); held flat, 8 GiB of reserve would leave an 8Gi claim no ring
   # at all.
-  @enterprise_storage_claim "50Gi"
-  @pro_storage_claim "30Gi"
+  @enterprise_storage_claim "16Gi"
+  @pro_storage_claim "8Gi"
   @air_storage_claim "8Gi"
   @managed_region_specs [
     # US East (Vint Hill VA) and US West (Hillsboro OR) run on OVH bare metal:
@@ -494,7 +507,7 @@ defmodule Tuist.Kura.Regions do
 
   Air's claim, deliberately: the ladder's floor is already the smallest claim we
   are willing to run an instance on, and an operator override
-  (`Tuist.Kura.StorageClaims`) is not a reason to go under it. Tying the two
+  (`Tuist.Kura.PlacerClaims`) is not a reason to go under it. Tying the two
   together rather than repeating a number means the bound follows the ladder if
   the ladder moves, which it has.
 

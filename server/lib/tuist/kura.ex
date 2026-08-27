@@ -23,15 +23,18 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.Kura.ClaimProposal
+  alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.EgressLimits
+  alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Rollouts
   alias Tuist.Kura.Server
-  alias Tuist.Kura.StorageClaims
+  alias Tuist.Kura.StorageTelemetry
   alias Tuist.Repo
 
   require Logger
@@ -42,6 +45,9 @@ defmodule Tuist.Kura do
   # change has nothing to apply to these, and they pick up the current one when
   # they are next built.
   @volumeless_statuses [:destroying, :destroyed, :archived]
+
+  def volumeless_statuses, do: @volumeless_statuses
+
   @create_server_keys %{
     "account_id" => :account_id,
     "region" => :region,
@@ -260,26 +266,26 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  The claim the account's instances are built at: its override when it carries
-  one, the claim its plan gives it otherwise.
+  The claim the account's instances are built at: its operator override when
+  it carries one, then the claim automatic sizing chose, then the claim its
+  plan gives it.
   """
-  defdelegate effective_storage_claim(account), to: StorageClaims, as: :effective_claim_size
+  defdelegate effective_storage_claim(account), to: PlacerClaims, as: :effective_claim_size
 
   @doc """
-  The account's claim override, or `nil` when its plan still decides.
+  The claim automatic sizing chose for the account, or `nil`.
   """
-  defdelegate storage_claim_override(account), to: StorageClaims, as: :override_for
+  defdelegate sized_storage_claim(account), to: PlacerClaims, as: :claim_for
 
   @doc """
-  The claim the account's plan gives it, which is what applies when it carries
-  no override.
+  The account's open claim sizing proposal, or `nil`.
   """
-  defdelegate plan_storage_claim(account), to: StorageClaims, as: :plan_claim_size
+  defdelegate claim_proposal_for(account), to: ClaimProposals, as: :open_proposal_for
 
   @doc """
-  The smallest claim an override may set.
+  The account's recent claim sizing decisions, newest first.
   """
-  defdelegate minimum_storage_claim, to: Regions
+  defdelegate claim_sizing_history(account, limit), to: ClaimProposals, as: :recent_for
 
   @doc """
   The egress floor and ceiling an account's instances in `region` are shaped at,
@@ -341,96 +347,77 @@ defmodule Tuist.Kura do
   defdelegate cast_egress_limits_override(account, region, attrs), to: EgressLimits, as: :cast_override
 
   @doc """
-  Builds a changeset for the ops claim-override form.
+  One page of the account's claim sizing decisions, newest first, with meta.
   """
-  defdelegate change_storage_claim_override(account, attrs \\ %{}), to: StorageClaims, as: :change_override
+  defdelegate paginate_claim_sizing_history(account, options), to: ClaimProposals, as: :paginate_for
 
   @doc """
-  Sets or clears an account's claim override and applies it to the instances it
-  already has running.
-
-  Re-pinning the running rows is the whole of "apply this now". The pinned claim
-  is what renders into the manifest, so an override that only moved the
-  account's default would never reach a cluster: every existing instance would
-  keep serving at the claim it was built with, and the new number would sit in
-  the database describing nothing. Writing it onto the rows puts it in the
-  manifest revision, which carries it to the next reconciler tick.
-
-  What the cluster does with it there depends on which way the claim moved, and
-  only one of the two costs anything.
-
-  Raising it replaces volumes. The bare-metal regions run a storage class that
-  cannot expand a claim and a StatefulSet cannot re-template one, so a volume too
-  small to hold the ring it is now told to budget has to be rebuilt rather than
-  grown. The controller does that one replica at a time behind the standby, so
-  the account's endpoint stays up and each rebuilt replica refills its ring from
-  the sibling that kept serving. What it costs is a rollout, not an outage, and
-  the cache survives it in the ordinary two-replica case. An instance running a
-  single replica has no standby to serve or to refill from, so there it is an
-  interruption and a cold start.
-
-  Lowering it costs nothing. The volume already holds more than the new ring
-  budget, so it is left alone and the ring evicts down into it. The claim is a
-  scheduling reservation rather than a filesystem quota on this storage class,
-  so the room comes back as the ring evicts rather than when the volume is next
-  rebuilt.
-
-  Returns `{:ok, %{claim_size: claim, raised: servers, lowered: servers}}`, where
-  `claim_size` is what the account's instances are now built at: its override,
-  or the claim its plan gives it back when the override is cleared.
-
-  The two lists say which way each instance's *claim* moved, which is not quite
-  the same question as which ones the cluster rebuilds, and the gap is worth
-  being precise about. The controller rebuilds a volume only when the claim
-  exceeds what that volume was actually built at, and this only knows what the
-  row was previously pinned to. A volume is never smaller than the row's pin
-  (lowering the pin leaves the volume alone), so the two agree except after an
-  earlier decrease left a volume oversized: `50Gi` down to `20Gi` and back up to
-  `40Gi` lands here as raised, while the volume is still the original `50Gi` and
-  the controller keeps the cache.
-
-  That makes `:raised` an upper bound rather than a list of casualties, and it
-  errs in the safe direction: nothing lands in `:lowered` that the cluster then
-  rebuilds. Reporting it the other way round would promise a cache that is about
-  to be thrown away. Naming the volumes exactly would mean recording what each
-  one was built at, which is state the control plane does not observe today.
+  Dismisses an open claim sizing proposal without acting on it.
   """
-  def update_storage_claim_override(%Account{} = account, attrs) when is_map(attrs) do
-    with {:ok, override} <- StorageClaims.cast_override(account, attrs),
-         {:ok, result} <- write_storage_claim_override(account, override) do
-      Enum.each(result.raised ++ result.lowered, &broadcast_server(&1, :updated))
-      {:ok, result}
+  defdelegate dismiss_claim_proposal(proposal, resolved_by), to: ClaimProposals, as: :dismiss
+
+  @doc """
+  The latest reported disk state of each of the account's Kura pods.
+  """
+  def latest_storage_snapshots(%Account{id: account_id}), do: StorageTelemetry.latest_snapshots(account_id)
+
+  @doc """
+  Applies an open claim sizing proposal: writes its recommendation as the
+  account's sized claim and re-pins the running instances, exactly like an
+  operator override write. `resolved_by` lands on the proposal's audit trail —
+  an operator's handle from the ops page, or `"automatic"` from the sweep.
+
+  A proposal whose premises no longer hold — resolved meanwhile, or the claim
+  it measured moved since it was written — is marked superseded instead of
+  applied and `{:error, :stale_proposal}` comes back. The sweep writes a fresh
+  proposal on its next pass if the recommendation still stands.
+  """
+  def apply_claim_proposal(%ClaimProposal{} = proposal, resolved_by) when is_binary(resolved_by) do
+    account = Repo.get!(Account, proposal.account_id)
+
+    result =
+      Repo.transaction(fn ->
+        # Same lock as every claim write, and the proposal is re-read under it:
+        # two appliers (an operator click racing the automatic sweep) serialize
+        # here, and the loser sees a proposal that is no longer open.
+        lock_account(account.id)
+        proposal = Repo.get!(ClaimProposal, proposal.id)
+
+        cond do
+          proposal.status != :open ->
+            {:stale, proposal}
+
+          ClaimProposals.measured_claim_size(account) != proposal.current_claim_size ->
+            {:stale, proposal |> ClaimProposal.resolve_changeset(:superseded, "stale_on_apply") |> Repo.update!()}
+
+          true ->
+            :ok = PlacerClaims.put(account, proposal.recommended_claim_size)
+            claim_size = PlacerClaims.effective_claim_size(account)
+
+            proposal
+            |> ClaimProposal.resolve_changeset(:applied, resolved_by)
+            |> Repo.update!()
+
+            outcome =
+              account
+              |> repin_storage_claims(proposal.current_claim_size, claim_size)
+              |> Map.put(:claim_size, claim_size)
+
+            {:applied, outcome}
+        end
+      end)
+
+    case result do
+      {:ok, {:applied, outcome}} ->
+        Enum.each(outcome.raised ++ outcome.lowered, &broadcast_server(&1, :updated))
+        {:ok, outcome}
+
+      {:ok, {:stale, _proposal}} ->
+        {:error, :stale_proposal}
+
+      {:error, reason} ->
+        {:error, reason}
     end
-  end
-
-  defp write_storage_claim_override(account, override) do
-    Repo.transaction(fn ->
-      # Taken before anything is read, and paired with the shared lock every path
-      # that builds volumes takes. Without it the two interleave and never
-      # converge: a provision that resolved the claim before this committed
-      # inserts the old one, and the re-pin below cannot reach a row that did not
-      # exist when it ran. A pinned claim wins from then on, so the instance is
-      # left at a claim nobody asked for and nothing corrects it.
-      lock_account(account.id)
-
-      # Read before the write. A governed region resolves an instance that pins
-      # no claim of its own from its account rather than from a region-wide
-      # constant, so this is what those instances are rendering right now, and
-      # what a change to the override has to be measured against.
-      previous = StorageClaims.effective_claim_size(account)
-
-      case StorageClaims.put_override(account, override) do
-        :ok ->
-          claim_size = StorageClaims.effective_claim_size(account)
-
-          account
-          |> repin_storage_claims(previous, claim_size)
-          |> Map.put(:claim_size, claim_size)
-
-        {:error, changeset} ->
-          Repo.rollback(changeset)
-      end
-    end)
   end
 
   # Only the rows that still hold volumes, and only in the regions that size
@@ -609,7 +596,7 @@ defmodule Tuist.Kura do
   # `Tuist.Kura.Server`.
   defp storage_claim(account, %Regions{} = region) do
     if Regions.storage_governed?(region) do
-      %{storage_claim_size: StorageClaims.effective_claim_size(account)}
+      %{storage_claim_size: PlacerClaims.effective_claim_size(account)}
     else
       %{}
     end
