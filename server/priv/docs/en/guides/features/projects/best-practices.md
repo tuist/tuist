@@ -76,6 +76,33 @@ tuist install --force-resolved-versions
 
 This flag ensures that dependencies are resolved using the exact versions pinned in `Package.resolved`, eliminating issues caused by non-determinism in dependency resolution. This is particularly important on CI where reproducible builds are critical.
 
+#### Warm dependency installation on persistent continuous-integration runners
+
+Tuist uses SwifterPM for `tuist install`. On a persistent continuous-integration runner, keep SwifterPM's source cache between jobs at `~/.cache/swifterpm`, or at `$XDG_CACHE_HOME/swifterpm` when `XDG_CACHE_HOME` is set. A runner with no persistent source cache takes the native Swift Package Manager path for the cold installation.
+
+Continuous-integration installs copy cached package directories by default. On a persistent runner, use symlink materialization instead so that a warm installation links each worktree back to the cache instead of copying every checkout into `.build`:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        installOptions: .options(
+            passthroughSwiftPackageManagerArguments: [
+                "--force-resolved-versions",
+                "--cached-directory-materialization=symlink",
+            ],
+            manifestEnvironmentExcluded: [
+                "CI_JOB_ID",
+                "CI_PIPELINE_ID",
+            ]
+        )
+    )
+)
+```
+
+`manifestEnvironmentExcluded` prevents job-specific values from changing dependency-manifest cache keys. It also hides the values from every evaluated `Package.swift`, so only exclude variables that do not affect dependency declarations. Entries can be exact names or trailing-wildcard prefixes such as `GITHUB_RUN_*`.
+
 ### Agentic coding and worktrees {#agentic-coding-and-worktrees}
 
 Coding agents and human contributors increasingly work in parallel: a developer keeps a worktree open for the feature they are reviewing while one or more agents iterate on their own branches in sibling worktrees. A few project choices make this much smoother.
