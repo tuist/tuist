@@ -5,6 +5,8 @@ import Mockable
 import Path
 import Testing
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 
 @testable import TuistCacheEE
 @testable import TuistSupport
@@ -406,25 +408,62 @@ struct CacheLocalStorageTests {
         #expect(result.first?.hash == hash)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func store_evictsLeastRecentlyUsedEntriesToStayWithinTheByteBudget() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_CACHE_MAX_BYTES"] = "1500000"
+
+        let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
+        try await fileSystem.makeDirectory(at: binariesDirectory)
+        let staleEntry = binariesDirectory.appending(component: "stale")
+        try await fileSystem.makeDirectory(at: staleEntry)
+        FileManager.default.createFile(
+            atPath: staleEntry.appending(component: "binary").pathString,
+            contents: Data(repeating: 0x41, count: 1_000_000)
+        )
+
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.binaries))
+            .willReturn(binariesDirectory)
+
+        let artifact = temporaryDirectory.appending(components: "build", "New.xcframework")
+        try await fileSystem.makeDirectory(at: artifact)
+        FileManager.default.createFile(
+            atPath: artifact.appending(component: "binary").pathString,
+            contents: Data(repeating: 0x41, count: 1_000_000)
+        )
+
+        let artifactSigner = MockArtifactSigning()
+        given(artifactSigner).sign(.any).willReturn()
+
+        let subject = CacheLocalStorage(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem
+        )
+
+        // When: the incoming artifact leaves 0.5 MB of the budget, which the stale entry exceeds.
+        let got = try await subject.store(
+            [.init(name: "New", hash: "new"): [artifact]],
+            cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(got.count == 1)
+        #expect(!(try await fileSystem.exists(staleEntry)))
+        #expect(try await fileSystem.exists(binariesDirectory.appending(components: "new", "New.xcframework")))
+    }
+
     @Test(.inTemporaryDirectory)
     func store_keepsTheRemoteUploadWhenTheLocalCacheIsFull() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
-        // A real 2 MB volume, so the copy fails with the ENOSPC the runner cache image raises.
-        let imagePath = temporaryDirectory.appending(component: "cache")
-        let mountPoint = temporaryDirectory.appending(component: "volume")
-        try hdiutil([
-            "create", "-size", "2m", "-fs", "APFS", "-volname", "TuistCache", "-type", "SPARSE",
-            "-quiet", imagePath.pathString,
-        ])
-        try await fileSystem.makeDirectory(at: mountPoint)
-        try hdiutil([
-            "attach", imagePath.pathString + ".sparseimage", "-nobrowse", "-noverify", "-quiet",
-            "-mountpoint", mountPoint.pathString,
-        ])
-        defer { try? hdiutil(["detach", mountPoint.pathString, "-force", "-quiet"]) }
+        let volume = try TinyVolume.attached()
+        defer { volume.detach() }
 
-        let binariesDirectory = mountPoint.appending(component: "Binaries")
+        let binariesDirectory = volume.mountPoint.appending(component: "Binaries")
         let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.binaries))
@@ -573,119 +612,6 @@ struct CacheLocalStorageTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func clean_evictsEntriesToMakeRoomForIncomingArtifacts() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
-        try await fileSystem.makeDirectory(at: binariesDirectory)
-
-        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
-        given(cacheDirectoriesProvider)
-            .cacheDirectory(for: .value(.binaries))
-            .willReturn(binariesDirectory)
-
-        // Three ~1 MB entries, staggered so entry 0 is most recently used.
-        for i in 0 ..< 3 {
-            let entry = binariesDirectory.appending(component: "hash\(i)")
-            let artifact = entry.appending(component: "framework.xcframework")
-            try await fileSystem.makeDirectory(at: artifact)
-            FileManager.default.createFile(
-                atPath: artifact.appending(component: "binary").pathString,
-                contents: Data(repeating: 0x41, count: 1_000_000)
-            )
-            let date = Calendar.current.date(byAdding: .hour, value: -i, to: Date())!
-            try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: entry.pathString)
-        }
-
-        let incoming = temporaryDirectory.appending(component: "incoming")
-        try await fileSystem.makeDirectory(at: incoming)
-        FileManager.default.createFile(
-            atPath: incoming.appending(component: "binary").pathString,
-            contents: Data(repeating: 0x41, count: 1_000_000)
-        )
-
-        // When: a budget that holds ~2 entries, one of which the incoming artifact claims.
-        let subject = CacheLocalStorage(
-            cacheDirectoriesProvider: cacheDirectoriesProvider,
-            artifactSigner: MockArtifactSigning(),
-            fileSystem: fileSystem
-        )
-        try await subject.clean(maxBytes: 2_500_000, makingRoomFor: [incoming])
-
-        // Then
-        let remaining = try await fileSystem.glob(directory: binariesDirectory, include: ["*"]).collect()
-        #expect(remaining.count == 1)
-        #expect(try await fileSystem.exists(binariesDirectory.appending(component: "hash0")))
-    }
-
-    @Test(.inTemporaryDirectory)
-    func clean_evictsEveryEntryWhenTheIncomingArtifactsNeedTheWholeBudget() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
-        try await fileSystem.makeDirectory(at: binariesDirectory)
-
-        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
-        given(cacheDirectoriesProvider)
-            .cacheDirectory(for: .value(.binaries))
-            .willReturn(binariesDirectory)
-
-        let entry = binariesDirectory.appending(component: "hash0")
-        try await fileSystem.makeDirectory(at: entry)
-        FileManager.default.createFile(
-            atPath: entry.appending(component: "binary").pathString,
-            contents: Data(repeating: 0x41, count: 1_000_000)
-        )
-
-        let incoming = temporaryDirectory.appending(component: "incoming")
-        try await fileSystem.makeDirectory(at: incoming)
-        FileManager.default.createFile(
-            atPath: incoming.appending(component: "binary").pathString,
-            contents: Data(repeating: 0x41, count: 2_000_000)
-        )
-
-        // When: the incoming artifact claims all but 0.5 MB of the budget, which the
-        // cached 1 MB entry does not fit into.
-        let subject = CacheLocalStorage(
-            cacheDirectoriesProvider: cacheDirectoriesProvider,
-            artifactSigner: MockArtifactSigning(),
-            fileSystem: fileSystem
-        )
-        try await subject.clean(maxBytes: 2_500_000, makingRoomFor: [incoming])
-
-        // Then
-        let remaining = try await fileSystem.glob(directory: binariesDirectory, include: ["*"]).collect()
-        #expect(remaining.isEmpty)
-    }
-
-    @Test(.inTemporaryDirectory)
-    func clean_keepsTheMostRecentlyUsedEntryWhenItAloneExceedsTheByteBudget() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
-        try await fileSystem.makeDirectory(at: binariesDirectory)
-
-        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
-        given(cacheDirectoriesProvider)
-            .cacheDirectory(for: .value(.binaries))
-            .willReturn(binariesDirectory)
-
-        let entry = binariesDirectory.appending(component: "hash0")
-        try await fileSystem.makeDirectory(at: entry)
-        FileManager.default.createFile(
-            atPath: entry.appending(component: "binary").pathString,
-            contents: Data(repeating: 0x41, count: 1_000_000)
-        )
-
-        let subject = CacheLocalStorage(
-            cacheDirectoriesProvider: cacheDirectoriesProvider,
-            artifactSigner: MockArtifactSigning(),
-            fileSystem: fileSystem
-        )
-        try await subject.clean(maxBytes: 100)
-
-        // Then: dropping it would only force a full re-pull on the next generate.
-        #expect(try await fileSystem.exists(entry))
-    }
-
-    @Test(.inTemporaryDirectory)
     func clean_keepsRecentEntries() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
@@ -764,14 +690,4 @@ struct CacheLocalStorageTests {
         let timeSinceModification = Date().timeIntervalSince(modificationDate)
         #expect(timeSinceModification < 5)
     }
-}
-
-@discardableResult
-private func hdiutil(_ arguments: [String]) throws -> Int32 {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-    process.arguments = arguments
-    try process.run()
-    process.waitUntilExit()
-    return process.terminationStatus
 }

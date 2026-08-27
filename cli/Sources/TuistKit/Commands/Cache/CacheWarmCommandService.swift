@@ -960,7 +960,6 @@ import XcodeGraph
             cacheStorage: CacheStoring,
             scratchDirectory: AbsolutePath
         ) async throws -> [CacheStorableTarget] {
-            try await pruneLocalCache(makingRoomFor: artifacts.map(\.path))
             try await fileSystem.makeDirectory(at: scratchDirectory.appending(component: "Metadatas"))
             let storableTargets = Dictionary(
                 uniqueKeysWithValues: try await artifacts
@@ -982,13 +981,6 @@ import XcodeGraph
             )
 
             return try await cacheStorage.store(storableTargets, cacheCategory: .binaries)
-        }
-
-        private func pruneLocalCache(makingRoomFor paths: [AbsolutePath]) async throws {
-            guard let maxBytes = Environment.current.variables["TUIST_CACHE_MAX_BYTES"].flatMap({ Int($0) })
-            else { return }
-            try await CacheLocalStorage(cacheDirectoriesProvider: CacheDirectoriesProvider())
-                .clean(maxBytes: maxBytes, makingRoomFor: paths)
         }
 
         private func cacheableTargets(

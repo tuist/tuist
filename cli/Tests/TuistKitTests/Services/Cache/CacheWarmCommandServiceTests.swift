@@ -10,8 +10,6 @@
     import TuistConfig
     import TuistConfigLoader
     import TuistCore
-    import TuistEnvironment
-    import TuistEnvironmentTesting
     import TuistHasher
     import TuistServer
     import TuistSupport
@@ -168,32 +166,6 @@
                     passthroughXcodeBuildArguments: .any
                 )
                 .called(1)
-        }
-
-        @Test(.inTemporaryDirectory, .withMockedEnvironment())
-        func run_evictsLeastRecentlyUsedBinariesPastTheCacheByteBudget() async throws {
-            let environment = try #require(Environment.mocked)
-            environment.variables["TUIST_CACHE_MAX_BYTES"] = "2500000"
-            let binariesDirectory = environment.cacheDirectory.appending(component: "Binaries")
-            try await fileSystem.makeDirectory(at: binariesDirectory)
-
-            // Three ~1 MB entries, staggered so entry 0 is most recently used.
-            for index in 0 ..< 3 {
-                let entry = binariesDirectory.appending(component: "hash\(index)")
-                try await fileSystem.makeDirectory(at: entry)
-                FileManager.default.createFile(
-                    atPath: entry.appending(component: "binary").pathString,
-                    contents: Data(repeating: 0x41, count: 1_000_000)
-                )
-                let date = Calendar.current.date(byAdding: .hour, value: -index, to: Date())!
-                try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: entry.pathString)
-            }
-
-            try await run(noUpload: false)
-
-            #expect(try await fileSystem.exists(binariesDirectory.appending(component: "hash0")))
-            #expect(try await fileSystem.exists(binariesDirectory.appending(component: "hash1")))
-            #expect(!(try await fileSystem.exists(binariesDirectory.appending(component: "hash2"))))
         }
 
         private func run(

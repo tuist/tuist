@@ -254,6 +254,70 @@ struct ModuleCacheRemoteStorageTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
+    func fetch_when_the_local_cache_is_full_is_treated_as_a_cache_miss() async throws {
+        // Given
+        let volume = try TinyVolume.attached()
+        defer { volume.detach() }
+
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.binaries))
+            .willReturn(volume.mountPoint.appending(component: "Binaries"))
+
+        let appleArchiver = MockAppleArchiving()
+        let subject = ModuleCacheRemoteStorage(
+            fullHandle: fullHandle,
+            cacheURL: Constants.URLs.production,
+            serverURL: Constants.URLs.production,
+            serverAuthenticationController: serverAuthenticationController,
+            appleArchiver: appleArchiver,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            multipartUploadService: multipartUploadService,
+            downloadModuleCacheService: downloadModuleCacheService,
+            getCacheActionItemService: getCacheActionItemService,
+            uploadCacheActionItemService: uploadCacheActionItemService,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem,
+            retryProvider: retryProvider,
+            concurrencyLimit: 15,
+            cacheActionItemConcurrencyLimit: 15
+        )
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willReturn(Data("payload".utf8))
+        // The download succeeds and decompresses; only keeping it locally cannot.
+        given(appleArchiver)
+            .decompress(archive: .any, to: .any)
+            .willProduce { _, directory in
+                FileManager.default.createFile(
+                    atPath: directory.appending(component: "target.xcframework").pathString,
+                    contents: Data(repeating: 0x41, count: 5_000_000)
+                )
+            }
+
+        // When
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(got.isEmpty == true)
+        #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } ==
+            ["The local cache ran out of space, so these artifacts were rebuilt from source instead of being cached: target"]
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
     func fetch_when_one_artifact_is_corrupted_still_returns_the_valid_ones() async throws {
         // Given
         // Drive decompression through a mock archiver so the corrupt case is
