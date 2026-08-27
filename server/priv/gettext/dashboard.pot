@@ -2567,11 +2567,6 @@ msgstr ""
 msgid "The proposal no longer applies; the next placement sweep re-evaluates the account."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:74
-#, elixir-autogen, elixir-format
-msgid "Where this account runs follows where its cache traffic comes from. The primary moves when another region has durably carried the majority of its runs; a paid account gains a region when that region's own traffic clears an absolute floor, and gives one up when it falls well below it. Pinning a service region takes the account out of placement's hands entirely."
-msgstr ""
-
 #: lib/tuist_web/live/ops_account_live.ex:880
 #, elixir-autogen, elixir-format
 msgid "add %{region}"
@@ -2630,4 +2625,9 @@ msgstr ""
 #: lib/tuist_web/live/ops_account_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Traffic from"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_live.html.heex:74
+#, elixir-autogen, elixir-format
+msgid "Where this account runs follows where its cache traffic comes from. A first placement is a guess, so it is corrected quickly on a clear majority; after that the primary moves only when another region has durably carried most of its runs. An account gains a region when that region's own traffic clears an absolute floor, and gives one up when it falls well below it. Pinning a service region takes the account out of placement's hands entirely."
 msgstr ""

@@ -56,6 +56,10 @@
     max-width: 480px;
   }
 
+  & [data-part="kura-placement-description"],
+  & [data-part="kura-placement-empty"],
+  & [data-part="kura-traffic-mix-empty"],
+  & [data-part="kura-placement-proposal-evidence"],
   & [data-part="kura-storage-claim-description"],
   & [data-part="kura-sized-claim"],
   & [data-part="kura-disk-usage-empty"],
@@ -67,12 +71,14 @@
     font: var(--noora-font-body-medium);
   }
 
-  & [data-part="kura-claim-proposal-summary"] {
+  & [data-part="kura-claim-proposal-summary"],
+  & [data-part="kura-placement-proposal-summary"] {
     color: var(--noora-surface-label-primary);
     font-weight: var(--noora-font-weight-medium);
   }
 
-  & [data-part="kura-claim-history-section"] {
+  & [data-part="kura-claim-history-section"],
+  & [data-part="kura-placement-history-section"] {
     & > [data-part="header"] {
       display: flex;
       flex-direction: row;
