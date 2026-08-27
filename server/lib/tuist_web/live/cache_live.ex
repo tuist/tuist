@@ -10,8 +10,6 @@ defmodule TuistWeb.CacheLive do
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
   alias Tuist.FeatureFlags
-  alias Tuist.Kura
-  alias Tuist.Kura.Regions
   alias Tuist.Kura.Registrations
   alias Tuist.Kura.SelfHostedClients
 
@@ -26,7 +24,6 @@ defmodule TuistWeb.CacheLive do
     # Self-hosting cache nodes is an Enterprise-only capability, gated by the
     # plan entitlement rather than the (transient) :kura rollout flag.
     self_hosted_enabled = cache_enabled and Entitlements.allows?(selected_account, :self_hosted_cache)
-    if connected?(socket) and cache_enabled, do: Kura.subscribe_to_account(selected_account.id)
 
     socket =
       socket
@@ -35,7 +32,6 @@ defmodule TuistWeb.CacheLive do
       |> assign(:head_title, "#{dgettext("dashboard_account", "Cache")} · #{selected_account.name} · Tuist")
       |> assign(:new_self_hosted_client_form, to_form(%{"name" => ""}, as: :self_hosted_client))
       |> assign(:new_self_hosted_client_secret, nil)
-      |> load_servers_state()
       |> load_self_hosted_state()
 
     {:ok, socket}
@@ -137,50 +133,6 @@ defmodule TuistWeb.CacheLive do
      socket
      |> push_event("close-modal", %{id: "add-self-hosted-client-modal"})
      |> assign(:new_self_hosted_client_form, to_form(%{"name" => ""}, as: :self_hosted_client))}
-  end
-
-  @impl true
-  def handle_info({:kura_server, _event, _server}, %{assigns: %{cache_enabled: true}} = socket) do
-    {:noreply, load_servers_state(socket)}
-  end
-
-  def handle_info({:kura_server, _event, _server}, socket), do: {:noreply, socket}
-
-  defp load_servers_state(%{assigns: %{cache_enabled: false}} = socket) do
-    socket
-    |> assign(:servers, [])
-    |> assign(:managed_cache_visible?, false)
-    |> assign(:serving_state, :absent)
-  end
-
-  defp load_servers_state(socket, _opts \\ []) do
-    account = socket.assigns.selected_account
-
-    # Customer-facing list only. Private runner-cache nodes are
-    # control-plane-managed (provisioned/torn down by the identity rule), so
-    # surfacing them here would report a cache the account cannot use.
-    servers =
-      account.id
-      |> Kura.list_servers_for_account()
-      |> Enum.reject(&Regions.private?(Regions.get(&1.region)))
-
-    socket
-    |> assign(:servers, servers)
-    # A deployment serving no public region runs nobody's cache, so there is
-    # no managed cache to report the state of.
-    |> assign(:managed_cache_visible?, servers != [] or Enum.any?(Regions.available(), &(not Regions.private?(&1))))
-    |> assign(:serving_state, serving_state(servers))
-  end
-
-  # What the account is told, which is whether its cache is working — not where
-  # it runs or how many there are. Naming a region here would invite a request
-  # to change it, and placement is not a request the account can make.
-  defp serving_state(servers) do
-    cond do
-      Enum.any?(servers, &(&1.status == :active)) -> :active
-      Enum.any?(servers, &(&1.status in [:provisioning, :replicating, :failed])) -> :preparing
-      true -> :absent
-    end
   end
 
   defp reset_self_hosted_client_modal(socket) do
@@ -286,66 +238,6 @@ defmodule TuistWeb.CacheLive do
             </span>
           </span>
         </button>
-      </div>
-    </div>
-    """
-  end
-
-  attr(:serving_state, :atom, required: true)
-
-  def cache_servers_section(assigns) do
-    ~H"""
-    <div class="cache-section" data-part="servers-card">
-      <div data-part="header">
-        <div data-part="title-group">
-          <span data-part="title">{dgettext("dashboard_account", "Managed cache")}</span>
-          <span data-part="subtitle">
-            {dgettext(
-              "dashboard_account",
-              "Tuist runs your cache for you and keeps it close to where your builds run, following them if they move."
-            )}
-          </span>
-        </div>
-      </div>
-      <div data-part="serving-status">
-        <%= case @serving_state do %>
-          <% :active -> %>
-            <.badge
-              label={dgettext("dashboard_account", "Active")}
-              color="success"
-              style="light-fill"
-            />
-            <span data-part="serving-description">
-              {dgettext(
-                "dashboard_account",
-                "Your cache is serving builds. Nothing to configure."
-              )}
-            </span>
-          <% :preparing -> %>
-            <.badge
-              label={dgettext("dashboard_account", "Setting up")}
-              color="attention"
-              style="light-fill"
-            />
-            <span data-part="serving-description">
-              {dgettext(
-                "dashboard_account",
-                "Your cache is being set up. Builds keep working while it warms up."
-              )}
-            </span>
-          <% :absent -> %>
-            <.badge
-              label={dgettext("dashboard_account", "Not running yet")}
-              color="neutral"
-              style="light-fill"
-            />
-            <span data-part="serving-description">
-              {dgettext(
-                "dashboard_account",
-                "Your cache starts the first time a build uses it."
-              )}
-            </span>
-        <% end %>
       </div>
     </div>
     """

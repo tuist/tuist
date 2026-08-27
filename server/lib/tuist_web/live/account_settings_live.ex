@@ -11,8 +11,6 @@ defmodule TuistWeb.AccountSettingsLive do
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
-  alias Tuist.Kura
-  alias Tuist.Kura.Regions
   alias Tuist.Locale, as: SharedLocale
 
   @impl true
@@ -30,7 +28,6 @@ defmodule TuistWeb.AccountSettingsLive do
     cache_endpoints = Accounts.list_account_cache_endpoints(selected_account)
     custom_cache_endpoints_available = Accounts.custom_cache_endpoints_available?(selected_account)
     kura_enabled = kura_enabled?(selected_account)
-    if connected?(socket) and kura_enabled, do: Kura.subscribe_to_account(selected_account.id)
 
     preferred_locale_form =
       to_form(%{"preferred_locale" => current_user.preferred_locale || "browser"})
@@ -47,7 +44,6 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(kura_enabled: kura_enabled)
       |> assign(preferred_locale_form: preferred_locale_form)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Settings")} · #{selected_account.name} · Tuist")
-      |> load_kura_state()
 
     {:ok, socket}
   end
@@ -232,50 +228,6 @@ defmodule TuistWeb.AccountSettingsLive do
     {:noreply, assign(socket, selected_account: updated_account)}
   end
 
-  @impl true
-  def handle_info({:kura_server, _event, _server}, %{assigns: %{kura_enabled: true}} = socket) do
-    {:noreply, load_kura_state(socket)}
-  end
-
-  def handle_info({:kura_server, _event, _server}, socket), do: {:noreply, socket}
-
-  defp load_kura_state(%{assigns: %{kura_enabled: false}} = socket) do
-    socket
-    |> assign(:kura_servers, [])
-    |> assign(:managed_kura_visible?, false)
-    |> assign(:kura_serving_state, :absent)
-  end
-
-  defp load_kura_state(socket, _opts \\ []) do
-    account = socket.assigns.selected_account
-
-    # Customer-facing list only. Private runner-cache nodes are
-    # control-plane-managed (provisioned/torn down by the identity rule), so
-    # surfacing them here would report a cache the account cannot use.
-    servers =
-      account.id
-      |> Kura.list_servers_for_account()
-      |> Enum.reject(&Regions.private?(Regions.get(&1.region)))
-
-    socket
-    |> assign(:kura_servers, servers)
-    # A deployment serving no public region runs nobody's cache, so there is
-    # no managed cache to report the state of.
-    |> assign(:managed_kura_visible?, servers != [] or Enum.any?(Regions.available(), &(not Regions.private?(&1))))
-    |> assign(:kura_serving_state, kura_serving_state(servers))
-  end
-
-  # What the account is told, which is whether its cache is working — not where
-  # it runs or how many there are. Naming a region here would invite a request
-  # to change it, and placement is not a request the account can make.
-  defp kura_serving_state(servers) do
-    cond do
-      Enum.any?(servers, &(&1.status == :active)) -> :active
-      Enum.any?(servers, &(&1.status in [:provisioning, :replicating, :failed])) -> :preparing
-      true -> :absent
-    end
-  end
-
   defp kura_enabled?(account) do
     FeatureFlags.kura_enabled?(account)
   end
@@ -290,96 +242,6 @@ defmodule TuistWeb.AccountSettingsLive do
       _ -> :error
     end
   end
-
-  attr(:kura_serving_state, :atom, required: true)
-
-  def kura_servers_section(assigns) do
-    ~H"""
-    <.card_section data-part="kura-serving-card-section">
-      <div data-part="header">
-        <span data-part="title">
-          {dgettext("dashboard_account", "Managed cache")}
-        </span>
-        <span data-part="subtitle">
-          {dgettext(
-            "dashboard_account",
-            "Tuist runs your cache for you and keeps it close to where your builds run, following them if they move."
-          )}
-        </span>
-      </div>
-      <div data-part="content">
-        <%= case @kura_serving_state do %>
-          <% :active -> %>
-            <.badge
-              label={dgettext("dashboard_account", "Active")}
-              color="success"
-              style="light-fill"
-            />
-            <span data-part="kura-serving-description">
-              {dgettext("dashboard_account", "Your cache is serving builds. Nothing to configure.")}
-            </span>
-          <% :preparing -> %>
-            <.badge
-              label={dgettext("dashboard_account", "Setting up")}
-              color="attention"
-              style="light-fill"
-            />
-            <span data-part="kura-serving-description">
-              {dgettext(
-                "dashboard_account",
-                "Your cache is being set up. Builds keep working while it warms up."
-              )}
-            </span>
-          <% :absent -> %>
-            <.badge
-              label={dgettext("dashboard_account", "Not running yet")}
-              color="neutral"
-              style="light-fill"
-            />
-            <span data-part="kura-serving-description">
-              {dgettext("dashboard_account", "Your cache starts the first time a build uses it.")}
-            </span>
-        <% end %>
-      </div>
-    </.card_section>
-    """
-  end
-
-  def kura_display_status_label(server) do
-    if show_deploying?(server),
-      do: dgettext("dashboard_account", "Deploying"),
-      else: kura_server_status_label(server.status)
-  end
-
-  def kura_display_status_color(server) do
-    if show_deploying?(server),
-      do: "information",
-      else: kura_server_status_color(server.status)
-  end
-
-  def kura_server_status_label(:provisioning), do: dgettext("dashboard_account", "Deploying")
-  def kura_server_status_label(:replicating), do: dgettext("dashboard_account", "Replicating")
-  def kura_server_status_label(:active), do: dgettext("dashboard_account", "Active")
-  def kura_server_status_label(:failed), do: dgettext("dashboard_account", "Failed")
-  def kura_server_status_label(:destroying), do: dgettext("dashboard_account", "Destroying")
-  def kura_server_status_label(:destroyed), do: dgettext("dashboard_account", "Destroyed")
-  def kura_server_status_label(:drain_pending), do: dgettext("dashboard_account", "Draining")
-  # Distinct from both "Not deployed" (never had a cache here) and
-  # "Destroyed" (an operator tore it down): the cache was reclaimed after a
-  # full inactivity window, and the next build brings it back on its own.
-  def kura_server_status_label(:archived), do: dgettext("dashboard_account", "Archived (inactive)")
-
-  def kura_server_status_color(:provisioning), do: "information"
-  def kura_server_status_color(:replicating), do: "information"
-  def kura_server_status_color(:active), do: "success"
-  def kura_server_status_color(:failed), do: "destructive"
-  def kura_server_status_color(:destroying), do: "warning"
-  def kura_server_status_color(:destroyed), do: "neutral"
-  def kura_server_status_color(:drain_pending), do: "warning"
-  def kura_server_status_color(:archived), do: "neutral"
-
-  defp show_deploying?(%{status: :provisioning}), do: true
-  defp show_deploying?(_), do: false
 
   attr(:preferred_locale_form, :any, required: true)
 

@@ -126,24 +126,26 @@ defmodule TuistWeb.CacheLiveTest do
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/cache")
 
     refute html =~ "not enabled for this account"
-    assert has_element?(lv, "[data-part=servers-card]")
+    assert has_element?(lv, "[data-part=cache-write-policy-card]")
   end
 
-  test "renders cache servers for cache-enabled accounts", %{conn: conn, account: account} do
+  test "tells the account nothing about where its cache runs", %{conn: conn, account: account} do
+    # Placement is not a request the account can make, and not a status it is
+    # given either: the page carries no managed-cache surface at all.
     enable_cache(account)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/cache")
 
-    assert has_element?(lv, "[data-part=servers-card]")
-    assert html =~ "Managed cache"
+    refute has_element?(lv, "[data-part=servers-card]")
+    refute html =~ "Managed cache"
     # Where servers run is not a question the account is asked or answered, so
     # the surface names no region and offers no control over one.
     refute html =~ "Local Controller (kind)"
     refute html =~ "Deploy server"
     refute html =~ "create_cache_server"
     refute html =~ "destroy_cache_server"
-    assert html =~ "Your cache starts the first time a build uses it."
+    refute html =~ "Your cache starts the first time a build uses it."
   end
 
   test "updates the cache upload access", %{conn: conn, account: account} do
@@ -185,42 +187,6 @@ defmodule TuistWeb.CacheLiveTest do
     assert updated_account.cache_write_policy == :members_and_tokens
   end
 
-  test "reports a serving cache without naming where it runs", %{conn: conn, account: account} do
-    enable_cache(account)
-    stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.3", released_at: DateTime.utc_now(:second)}] end)
-
-    {:ok, server} = Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
-
-    deployment = hd(server.deployments)
-    {:ok, deployment} = Kura.mark_running(deployment)
-    {:ok, _deployment} = Kura.mark_succeeded(deployment)
-    {:ok, server} = Kura.activate_server(server, "0.5.2")
-
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
-
-    assert html =~ "Active"
-    assert html =~ "Your cache is serving builds."
-    # The domain names a region, which is the one thing this surface must not
-    # anchor a region request on.
-    refute html =~ server.url
-  end
-
-  test "renders a replicating server without crashing", %{conn: conn, account: account} do
-    enable_cache(account)
-    stub(Kura, :latest_versions, fn 1 -> [] end)
-
-    {:ok, server} =
-      Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
-
-    {:ok, _server} =
-      Kura.record_observation(server, %{status: :replicating, current_image_tag: "0.5.2"})
-
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
-
-    assert html =~ "Setting up"
-    assert html =~ "Builds keep working while it warms up."
-  end
-
   test "renders the self-hosted sections", %{conn: conn, account: account} do
     enable_cache(account)
     stub(Kura, :latest_versions, fn 1 -> [] end)
@@ -240,7 +206,7 @@ defmodule TuistWeb.CacheLiveTest do
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/cache")
 
-    assert has_element?(lv, "[data-part=servers-card]")
+    assert has_element?(lv, "[data-part=cache-write-policy-card]")
     refute html =~ "Self-hosted servers"
     refute html =~ "create_self_hosted_client"
   end
@@ -293,29 +259,6 @@ defmodule TuistWeb.CacheLiveTest do
 
     refute html =~ "production"
     assert SelfHostedClients.list_self_hosted_clients(account) == []
-  end
-
-  test "names no region however many the account is served from" do
-    # Every region the account holds is one more thing a customer could ask to
-    # change. The serving view answers whether the cache works, and nothing
-    # else, so there is no region word to anchor that request on.
-    html = render_component(&TuistWeb.CacheLive.cache_servers_section/1, %{serving_state: :active})
-
-    assert html =~ "Active"
-    refute html =~ "us-east"
-    refute html =~ "kura.tuist.dev"
-    refute html =~ "Deploy"
-    refute html =~ "Destroy"
-  end
-
-  test "the deploy and destroy controls are gone" do
-    enable_cache_for_component = %{serving_state: :absent}
-
-    html = render_component(&TuistWeb.CacheLive.cache_servers_section/1, enable_cache_for_component)
-
-    refute html =~ "create_cache_server"
-    refute html =~ "destroy_cache_server"
-    refute html =~ "retry_cache_server"
   end
 
   defp enable_cache(account) do
