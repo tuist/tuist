@@ -320,12 +320,14 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 	// re-applied each reconcile so a kubelet re-register can't strand it.
 	egressFloorMbps := egressFloor(machine, shared.NodeEgressMbps(node))
 	r.reconcileEgressDiscovery(ctx, machine, egressFloorMbps)
-	egressMbps := effectiveEgressMbps(egressDiscoveryDisabled(machine),
-		machine.Spec.EgressBudgetMbps, machine.Status.EgressMbps, egressFloorMbps)
-	// Recorded after the floor is computed from it: the ratchet resets when these
-	// disagree, so this must not be updated until the reset has been acted on.
-	machine.Status.EgressConfiguredMbps = machine.Spec.EgressBudgetMbps
-	recordEgressBudgets(machine.Name, machine.Spec.FleetName, machine.Spec.EgressBudgetMbps, egressMbps)
+	egressMbps, egressSource := effectiveEgressMbps(egressDiscoveryDisabled(machine),
+		machine.Spec.EgressBudgetMbps, machine.Status.EgressMbps, egressFloorMbps,
+		egressOverrideMbps(machine))
+	// Written after the floor was computed from the previous value: the reset that
+	// releases a removed pin lasts exactly one reconcile, and recording the new
+	// source is what ends it.
+	machine.Status.EgressSource = egressSource
+	recordEgressBudgets(machine.Name, machine.Spec.FleetName, machine.Spec.EgressBudgetMbps, egressMbps, egressSource)
 	if err := shared.ReconcileNodeEgressCapacity(ctx, r.Client, node, egressMbps); err != nil {
 		return ctrl.Result{}, err
 	}

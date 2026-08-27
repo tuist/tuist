@@ -333,13 +333,23 @@ expensive: the egress-tree agent re-rates the node's HTB root in place, throttli
 live traffic on a box that can carry far more, and the floor only catches garbage.
 A lower reading is therefore recorded and surfaced rather than applied.
 
-An operator accepts a confirmed reduction by lowering `spec.egressBudgetMbps`. That
-resets the ratchet — `status.egressConfiguredMbps` records the configured budget the
-controller last acted on, so a change disagrees with it — and the node follows on the
-next reconcile. Without that reset a node raised by discovery could never come back
-down, since its own advertised value would hold the floor up forever. Disabling
-discovery on a machine also applies downward directly: the ratchet only holds against
-the controller's own readings, never against an explicit human decision.
+`tuist.dev/egress-mbps-override` pins a machine's advertised budget to a value the
+operator chose, in both directions, and is the single lever for changing a live node —
+`spec.egressBudgetMbps` reaches a machine only when it is cloned from its template
+(the MachineDeployment is `OnDelete`), so it is the fleet default and the floor rather
+than something an operator moves. `status.egressSource` records what decided the
+budget last time (`discovery` / `manual` / `configured`), which is what makes a pin
+reversible: the ratchet is anchored to what the node advertises, so once a pin is
+removed that anchor is a number a human typed, and the recorded source is how the
+controller knows to ignore it for one reconcile and re-derive from readings.
+
+Accepting a confirmed reduction is three moves, in order: **pin** (the node drops
+now), **lower the budget** on the machine and in the fleet values (durable, and
+correct for the next machine cloned from the template), then **unpin** (the node lands
+on the reading). Unpinning before lowering the budget springs the node back to the
+configured value — the over-commit the pin was hiding. Disabling discovery, and
+`spec.egressBudgetMbps: 0`, also apply downward directly: the ratchet only ever holds
+against the controller's own readings, never against an explicit human decision.
 
 Three gauges publish the numbers behind a node's budget, all labelled `node`:
 `capt_ovh_egress_reported_mbps` (what OVH says, plus `service` and `tier`),

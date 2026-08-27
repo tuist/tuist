@@ -46,55 +46,85 @@ func TestEffectiveEgressMbps(t *testing.T) {
 		spec       int32
 		discovered int32
 		floor      int32
+		override   int32
 		want       int32
+		wantSource string
 	}{
 		{
 			name: "a reading above the floor is applied",
-			spec: 3000, discovered: 5000, floor: 3000, want: 5000,
+			spec: 3000, discovered: 5000, floor: 3000, want: 5000, wantSource: egressSourceDiscovery,
 		},
 		{
 			// The ratchet: once the node advertises 5000, a later 4000 reading must
 			// not walk it back down on the controller's own authority.
 			name: "a reading below what the node advertises is not applied",
-			spec: 3000, discovered: 4000, floor: 5000, want: 5000,
+			spec: 3000, discovered: 4000, floor: 5000, want: 5000, wantSource: egressSourceDiscovery,
+		},
+		{
+			// A held floor above the configured budget came from an earlier reading,
+			// and must not report as configured or the next reconcile would mistake
+			// it for a stale pin.
+			name: "a held floor still reports discovery",
+			spec: 3000, discovered: 0, floor: 5000, want: 5000, wantSource: egressSourceDiscovery,
 		},
 		{
 			name: "a reading equal to the floor is applied",
-			spec: 3000, discovered: 3000, floor: 3000, want: 3000,
+			spec: 3000, discovered: 3000, floor: 3000, want: 3000, wantSource: egressSourceDiscovery,
 		},
 		{
-			name: "no reading holds the floor",
-			spec: 3000, discovered: 0, floor: 5000, want: 5000,
+			name: "no reading falls back to the configured budget",
+			spec: 3000, discovered: 0, floor: 3000, want: 3000, wantSource: egressSourceConfigured,
 		},
 		{
 			name: "a reading below the plausibility floor holds the budget too",
-			spec: 3000, discovered: 1, floor: 3000, want: 3000,
+			spec: 3000, discovered: 1, floor: 3000, want: 3000, wantSource: egressSourceConfigured,
 		},
 		{
 			// No ceiling: a box faster than anything in the fleet today must be believed.
 			name: "an unusually large reading is still used",
-			spec: 3000, discovered: 500_000, floor: 3000, want: 500_000,
+			spec: 3000, discovered: 500_000, floor: 3000, want: 500_000, wantSource: egressSourceDiscovery,
+		},
+		{
+			name: "a pin wins over a reading, downward",
+			spec: 3000, discovered: 5000, floor: 5000, override: 500, want: 500, wantSource: egressSourceManual,
+		},
+		{
+			// Upward too: the pin is the most deliberate signal there is, and the
+			// raise direction is otherwise only reachable by changing the template.
+			name: "a pin wins over a reading, upward",
+			spec: 3000, discovered: 1000, floor: 3000, override: 8000, want: 8000, wantSource: egressSourceManual,
+		},
+		{
+			name:     "a pin wins over a disabled machine",
+			disabled: true, spec: 3000, discovered: 5000, floor: 3000, override: 500, want: 500, wantSource: egressSourceManual,
+		},
+		{
+			// The one case where the annotation contradicts the spec rather than
+			// refining it: it opts a withdrawn machine back into governance.
+			name: "a pin wins over a withdrawn machine",
+			spec: 0, discovered: 0, floor: 0, override: 500, want: 500, wantSource: egressSourceManual,
 		},
 		{
 			// Explicit human decisions apply directly, downward included — the
 			// ratchet only holds against the controller's own readings.
 			name:     "an annotated machine drops to its configured budget",
-			disabled: true, spec: 3000, discovered: 5000, floor: 5000, want: 3000,
+			disabled: true, spec: 3000, discovered: 5000, floor: 5000, want: 3000, wantSource: egressSourceConfigured,
 		},
 		{
 			name: "an unset spec with no reading advertises nothing",
-			spec: 0, discovered: 0, floor: 0, want: 0,
+			spec: 0, discovered: 0, floor: 0, want: 0, wantSource: egressSourceConfigured,
 		},
 		{
 			name: "an unset spec withdraws the machine even from a held floor",
-			spec: 0, discovered: 5000, floor: 5000, want: 0,
+			spec: 0, discovered: 5000, floor: 5000, want: 0, wantSource: egressSourceConfigured,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := effectiveEgressMbps(tt.disabled, tt.spec, tt.discovered, tt.floor); got != tt.want {
-				t.Fatalf("effectiveEgressMbps = %d, want %d", got, tt.want)
+			got, source := effectiveEgressMbps(tt.disabled, tt.spec, tt.discovered, tt.floor, tt.override)
+			if got != tt.want || source != tt.wantSource {
+				t.Fatalf("effectiveEgressMbps = %d %q, want %d %q", got, source, tt.want, tt.wantSource)
 			}
 		})
 	}
@@ -327,7 +357,7 @@ func TestReconcileEgressDiscoveryReportsAReductionWithoutApplyingIt(t *testing.T
 	if machine.Status.EgressMbps != 1000 {
 		t.Fatalf("status = %d, want the reading recorded as 1000", machine.Status.EgressMbps)
 	}
-	if got := effectiveEgressMbps(false, machine.Spec.EgressBudgetMbps, machine.Status.EgressMbps, 3000); got != 3000 {
+	if got, _ := effectiveEgressMbps(false, machine.Spec.EgressBudgetMbps, machine.Status.EgressMbps, 3000, 0); got != 3000 {
 		t.Fatalf("advertised = %d, want the configured 3000", got)
 	}
 	select {
@@ -341,31 +371,139 @@ func TestReconcileEgressDiscoveryReportsAReductionWithoutApplyingIt(t *testing.T
 }
 
 func TestEgressFloor(t *testing.T) {
-	machine := discoveryMachine() // configured at 3000
-	machine.Status.EgressConfiguredMbps = 3000
+	ratcheted := func() *infrav1.OVHDedicatedMachine {
+		machine := discoveryMachine() // configured at 3000
+		machine.Status.EgressSource = egressSourceDiscovery
+		return machine
+	}
 
-	if got := egressFloor(machine, 0); got != 3000 {
+	if got := egressFloor(ratcheted(), 0); got != 3000 {
 		t.Errorf("floor with nothing advertised = %d, want the configured 3000", got)
 	}
-	if got := egressFloor(machine, 5000); got != 5000 {
+	if got := egressFloor(ratcheted(), 5000); got != 5000 {
 		t.Errorf("floor with 5000 advertised = %d, want 5000: the node must not walk back down", got)
 	}
-	if got := egressFloor(machine, 1000); got != 3000 {
+	if got := egressFloor(ratcheted(), 1000); got != 3000 {
 		t.Errorf("floor with 1000 advertised = %d, want the configured 3000", got)
 	}
 
-	// Changing the configured budget is how a confirmed reduction is accepted: it
-	// disagrees with what the controller last acted on, which resets the ratchet.
-	lowered := discoveryMachine()
-	lowered.Spec.EgressBudgetMbps = 1000
-	lowered.Status.EgressConfiguredMbps = 3000
-	if got := egressFloor(lowered, 5000); got != 1000 {
-		t.Errorf("floor after the operator lowered the budget = %d, want 1000", got)
+	// A pin still in place: the floor is irrelevant (the pin wins outright) but must
+	// not be computed from a value the operator typed either.
+	pinned := ratcheted()
+	pinned.Status.EgressSource = egressSourceManual
+	pinned.Annotations = map[string]string{EgressOverrideAnnotation: "8000"}
+	if got := egressFloor(pinned, 8000); got != 8000 {
+		t.Errorf("floor while pinned = %d, want 8000", got)
 	}
 
-	// A machine the controller has never acted on has no ratchet yet.
-	fresh := discoveryMachine()
-	if got := egressFloor(fresh, 5000); got != 3000 {
-		t.Errorf("floor before the controller has acted = %d, want the configured 3000", got)
+	// The pin has just been removed. Its value is still what the node advertises,
+	// and carrying it into the ratchet would strand the node there forever.
+	unpinned := ratcheted()
+	unpinned.Status.EgressSource = egressSourceManual
+	if got := egressFloor(unpinned, 8000); got != 3000 {
+		t.Errorf("floor after a pin was removed = %d, want the configured 3000", got)
+	}
+
+	// No recorded source — a machine upgraded from a build without the field, or
+	// one the controller has not acted on yet. What the node carries is held rather
+	// than dropped: it cannot be a stale pin, since pins postdate the field, and
+	// holding is the conservative direction.
+	unknown := discoveryMachine()
+	if got := egressFloor(unknown, 5000); got != 5000 {
+		t.Errorf("floor with no recorded source = %d, want the advertised 5000 held", got)
+	}
+	if got := egressFloor(unknown, 0); got != 3000 {
+		t.Errorf("floor with no recorded source and nothing advertised = %d, want 3000", got)
+	}
+}
+
+func TestEgressOverrideMbps(t *testing.T) {
+	for _, tt := range []struct {
+		annotation string
+		set        bool
+		want       int32
+	}{
+		{annotation: "500", set: true, want: 500},
+		{annotation: " 500 ", set: true, want: 500},
+		{want: 0},
+		// Ignored rather than treated as zero: zero would withdraw the machine from
+		// egress governance, a far larger action than the annotation asked for.
+		{annotation: "0", set: true, want: 0},
+		{annotation: "-100", set: true, want: 0},
+		{annotation: "lots", set: true, want: 0},
+		{annotation: "", set: true, want: 0},
+	} {
+		machine := &infrav1.OVHDedicatedMachine{}
+		if tt.set {
+			machine.Annotations = map[string]string{EgressOverrideAnnotation: tt.annotation}
+		}
+		if got := egressOverrideMbps(machine); got != tt.want {
+			t.Errorf("egressOverrideMbps(%q) = %d, want %d", tt.annotation, got, tt.want)
+		}
+	}
+}
+
+// TestEgressLifecycle walks the sequence an operator actually goes through:
+// discovery raises the node, a low reading is held back, a pin takes it down, the
+// budget is lowered to match, and the pin comes off — which must land on the
+// reading rather than springing back to a stale floor.
+func TestEgressLifecycle(t *testing.T) {
+	machine := discoveryMachine() // configured at 3000
+	advertised := int32(0)        // what the node carries between steps
+
+	step := func(name string, discovered int32) (int32, string) {
+		t.Helper()
+		machine.Status.EgressMbps = discovered
+		floor := egressFloor(machine, advertised)
+		value, source := effectiveEgressMbps(egressDiscoveryDisabled(machine),
+			machine.Spec.EgressBudgetMbps, discovered, floor, egressOverrideMbps(machine))
+		machine.Status.EgressSource = source
+		advertised = value
+		t.Logf("%s -> %d (%s)", name, value, source)
+		return value, source
+	}
+
+	if value, source := step("first reading of 5000", 5000); value != 5000 || source != egressSourceDiscovery {
+		t.Fatalf("first reading = %d %q, want 5000 discovery", value, source)
+	}
+	if value, source := step("steady state", 5000); value != 5000 || source != egressSourceDiscovery {
+		t.Fatalf("steady state = %d %q, want 5000 discovery", value, source)
+	}
+	if value, source := step("OVH drops to 4000", 4000); value != 5000 || source != egressSourceDiscovery {
+		t.Fatalf("after a lower reading = %d %q, want the ratchet to hold 5000", value, source)
+	}
+
+	machine.Annotations = map[string]string{EgressOverrideAnnotation: "1000"}
+	if value, source := step("operator pins 1000", 4000); value != 1000 || source != egressSourceManual {
+		t.Fatalf("pinned = %d %q, want 1000 manual", value, source)
+	}
+
+	machine.Spec.EgressBudgetMbps = 1000
+	if value, source := step("budget lowered to match, pin still on", 1000); value != 1000 || source != egressSourceManual {
+		t.Fatalf("pinned after lowering the budget = %d %q, want 1000 manual", value, source)
+	}
+
+	delete(machine.Annotations, EgressOverrideAnnotation)
+	if value, source := step("pin removed", 1000); value != 1000 || source != egressSourceDiscovery {
+		t.Fatalf("unpinned = %d %q, want the node to land on the 1000 reading", value, source)
+	}
+	if value, source := step("steady state again", 1000); value != 1000 || source != egressSourceDiscovery {
+		t.Fatalf("settled = %d %q, want 1000 discovery", value, source)
+	}
+}
+
+// The runbook's order matters: unpinning without lowering the budget first hands
+// the node back to the configured value, which is the over-commit the pin was
+// hiding. Pinned here to keep that documented rather than discovered in an incident.
+func TestEgressUnpinningWithoutLoweringTheBudgetSpringsBack(t *testing.T) {
+	machine := discoveryMachine() // configured at 3000
+	machine.Status.EgressSource = egressSourceManual
+	advertised := int32(1000) // the node is carrying a pin of 1000
+
+	floor := egressFloor(machine, advertised)
+	value, source := effectiveEgressMbps(false, machine.Spec.EgressBudgetMbps, 1000, floor, egressOverrideMbps(machine))
+
+	if value != 3000 || source != egressSourceConfigured {
+		t.Fatalf("unpinned with the budget untouched = %d %q, want the configured 3000", value, source)
 	}
 }

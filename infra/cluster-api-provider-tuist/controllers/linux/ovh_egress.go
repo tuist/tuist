@@ -2,6 +2,8 @@ package linux
 
 import (
 	"context"
+	"strconv"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,6 +61,40 @@ func usableDiscoveredEgress(mbps int32) bool {
 	return mbps >= minDiscoveredEgressMbps
 }
 
+// EgressOverrideAnnotation pins one machine's advertised budget to a value the
+// operator chose, in Mbps, whatever discovery reports. It is the single lever for
+// changing a live node: Spec.EgressBudgetMbps reaches a machine only when it is
+// cloned from its template (the MachineDeployment is OnDelete), so it is the fleet
+// default and the floor rather than something an operator moves.
+//
+// Reversible by removing it — see EgressSource for why that needs the source to be
+// recorded. A value that is not a positive integer is logged and ignored rather
+// than treated as zero, which would withdraw the machine from egress governance
+// entirely: a much larger action than the annotation asked for, and one
+// Spec.EgressBudgetMbps: 0 already expresses deliberately.
+const EgressOverrideAnnotation = "tuist.dev/egress-mbps-override"
+
+// Sources recorded in Status.EgressSource.
+const (
+	egressSourceDiscovery  = "discovery"
+	egressSourceManual     = "manual"
+	egressSourceConfigured = "configured"
+)
+
+// egressOverrideMbps is the operator's pinned budget, or 0 when the annotation is
+// absent or does not carry a positive integer.
+func egressOverrideMbps(machine *infrav1.OVHDedicatedMachine) int32 {
+	raw, set := machine.Annotations[EgressOverrideAnnotation]
+	if !set {
+		return 0
+	}
+	mbps, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 32)
+	if err != nil || mbps <= 0 {
+		return 0
+	}
+	return int32(mbps)
+}
+
 // egressFloor is the budget the node may not fall below on its own: whatever it
 // already advertises, or the configured budget, whichever is higher.
 //
@@ -71,13 +107,13 @@ func usableDiscoveredEgress(mbps int32) bool {
 // far more. The plausibility floor only catches garbage; a wrong 1000 on a 3
 // Gbit/s box clears it.
 //
-// An operator changing the configured budget resets the ratchet, which is how a
-// confirmed reduction is accepted: lower spec.egressBudgetMbps to the real number
-// and the node follows on the next reconcile. Without that reset a node raised by
-// discovery could never be brought back down, since its own advertised value would
-// hold the floor up forever.
+// A pin that has just been removed resets it. The anchor is what the node
+// advertises, and while a pin was in force that number is one a human typed, not
+// one discovery supports — carrying it into the ratchet would strand the node
+// there forever. Ignoring it for exactly one reconcile hands the machine back to
+// its readings; from the next reconcile the anchor is a discovered value again.
 func egressFloor(machine *infrav1.OVHDedicatedMachine, advertisedMbps int32) int32 {
-	if machine.Status.EgressConfiguredMbps != machine.Spec.EgressBudgetMbps {
+	if machine.Status.EgressSource == egressSourceManual && egressOverrideMbps(machine) == 0 {
 		return machine.Spec.EgressBudgetMbps
 	}
 	if advertisedMbps > machine.Spec.EgressBudgetMbps {
@@ -86,24 +122,34 @@ func egressFloor(machine *infrav1.OVHDedicatedMachine, advertisedMbps int32) int
 	return machine.Spec.EgressBudgetMbps
 }
 
-// effectiveEgressMbps is the budget the node should advertise: the discovered
-// reading when it is usable and at or above the floor, the floor otherwise. A
-// reading below the floor is recorded and surfaced (capt_ovh_egress_reported_mbps,
-// and an EgressBudgetReduced event) rather than applied.
+// effectiveEgressMbps is the budget the node should advertise, and what decided it.
 //
-// Disabling discovery or zeroing the budget are explicit human decisions and apply
-// directly, downward included — the ratchet only holds against the controller's own
-// readings. Zero in particular withdraws the machine from egress governance, which
-// is what the chart omitting the field, the capacity helper's no-op and the tree
-// agent's unshaped branch all already mean.
-func effectiveEgressMbps(disabled bool, specMbps, discoveredMbps, floorMbps int32) int32 {
+// A pin wins outright, in both directions: it is the most specific and most
+// deliberate signal there is, including against Spec.EgressBudgetMbps: 0, where it
+// opts a machine back into egress governance. Disabling discovery or zeroing the
+// budget are explicit decisions too and apply directly, downward included — the
+// ratchet only ever holds against the controller's own readings. Otherwise the
+// reading is taken when it is usable and at or above the floor; below it, the floor
+// holds and the reading is recorded and surfaced instead
+// (capt_ovh_egress_reported_mbps, and an EgressBudgetReduced event).
+//
+// A held floor above the configured budget reports "discovery" rather than
+// "configured": it is a reading from an earlier reconcile, and calling it
+// configured would make the next reconcile mistake it for a stale pin.
+func effectiveEgressMbps(disabled bool, specMbps, discoveredMbps, floorMbps, overrideMbps int32) (int32, string) {
+	if overrideMbps > 0 {
+		return overrideMbps, egressSourceManual
+	}
 	if disabled || specMbps <= 0 {
-		return specMbps
+		return specMbps, egressSourceConfigured
 	}
-	if !usableDiscoveredEgress(discoveredMbps) || discoveredMbps < floorMbps {
-		return floorMbps
+	if usableDiscoveredEgress(discoveredMbps) && discoveredMbps >= floorMbps {
+		return discoveredMbps, egressSourceDiscovery
 	}
-	return discoveredMbps
+	if floorMbps > specMbps {
+		return floorMbps, egressSourceDiscovery
+	}
+	return specMbps, egressSourceConfigured
 }
 
 // Bounds a successful read, including one that returned something unusable, so a
@@ -134,7 +180,10 @@ func (r *OVHDedicatedMachineReconciler) reconcileEgressDiscovery(ctx context.Con
 	// from OVH would override that opt-out, and the annotation could not take it
 	// back — the shared helper can lower an advertised capacity but never remove
 	// the key.
-	if egressDiscoveryDisabled(machine) || machine.Spec.EgressBudgetMbps <= 0 || machine.Status.ServiceName == "" {
+	if egressDiscoveryDisabled(machine) || machine.Status.ServiceName == "" {
+		return
+	}
+	if machine.Spec.EgressBudgetMbps <= 0 && egressOverrideMbps(machine) == 0 {
 		return
 	}
 	now := time.Now()

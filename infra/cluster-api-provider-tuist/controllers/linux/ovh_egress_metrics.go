@@ -29,8 +29,8 @@ var (
 
 	egressAdvertisedGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "capt_ovh_egress_advertised_mbps",
-		Help: "Egress budget the operator advertised as the node's tuist.dev/egress-mbps capacity, in Mbps. Labels: node, fleet.",
-	}, []string{"node", "fleet"})
+		Help: "Egress budget the operator advertised as the node's tuist.dev/egress-mbps capacity, in Mbps. Labels: node, fleet, source (discovery|manual|configured) — `source=\"manual\"` is a machine pinned by the tuist.dev/egress-mbps-override annotation, so a pin left in place is alertable on its age.",
+	}, []string{"node", "fleet", "source"})
 )
 
 func init() {
@@ -46,9 +46,12 @@ func recordEgressReported(node, fleet, service, tier string, mbps int32) {
 	egressReportedGauge.WithLabelValues(node, fleet, service, tier).Set(float64(mbps))
 }
 
-func recordEgressBudgets(node, fleet string, configured, advertised int32) {
+func recordEgressBudgets(node, fleet string, configured, advertised int32, source string) {
 	egressConfiguredGauge.WithLabelValues(node, fleet).Set(float64(configured))
-	egressAdvertisedGauge.WithLabelValues(node, fleet).Set(float64(advertised))
+	// Republished rather than updated: `source` is a label, so a node that moves
+	// from a pin back to discovery would otherwise keep both series alive.
+	egressAdvertisedGauge.DeletePartialMatch(prometheus.Labels{"node": node})
+	egressAdvertisedGauge.WithLabelValues(node, fleet, source).Set(float64(advertised))
 }
 
 // forgetEgressMetrics drops a machine's series once its CR is gone, so a released

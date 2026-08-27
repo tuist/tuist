@@ -148,14 +148,19 @@ type OVHDedicatedMachineStatus struct {
 	// +optional
 	EgressTier string `json:"egressTier,omitempty"`
 
-	// EgressConfiguredMbps is the Spec.EgressBudgetMbps the controller last acted
-	// on. A discovered reading may raise the node's advertised budget but never
-	// lower it, and this is what lets an operator undo that: changing the
-	// configured budget makes it disagree with this field, which resets the
-	// ratchet to the new configured value. Without it, a node raised to a
-	// discovered value could never be brought back down.
+	// EgressSource records what decided the node's advertised egress budget last
+	// time: "discovery" (a reading from OVH, including one the ratchet is holding),
+	// "manual" (the tuist.dev/egress-mbps-override annotation) or "configured"
+	// (Spec.EgressBudgetMbps).
+	//
+	// It answers "why is this node at N" without reading logs, and it is what makes
+	// an override reversible. A reading may raise the advertised budget but never
+	// lower it, and the ratchet is anchored to what the node currently advertises —
+	// so once a pin is removed, that anchor is a number a human typed rather than
+	// one discovery supports. Seeing "manual" with the annotation gone is how the
+	// controller knows to ignore it and re-derive from the configured budget.
 	// +optional
-	EgressConfiguredMbps int32 `json:"egressConfiguredMbps,omitempty"`
+	EgressSource string `json:"egressSource,omitempty"`
 
 	// EgressResolvedServiceName is the box the cached reading was taken from. A
 	// reading recorded against a different service is always stale, which is what
