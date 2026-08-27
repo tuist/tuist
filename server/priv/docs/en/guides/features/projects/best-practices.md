@@ -78,9 +78,15 @@ This flag ensures that dependencies are resolved using the exact versions pinned
 
 #### Warm dependency installation on persistent continuous-integration runners
 
-Tuist uses SwifterPM for `tuist install`. On a persistent continuous-integration runner, keep SwifterPM's source cache between jobs at `~/.cache/swifterpm`, or at `$XDG_CACHE_HOME/swifterpm` when `XDG_CACHE_HOME` is set. A runner with no persistent source cache takes the native Swift Package Manager path for the cold installation.
+Tuist uses [SwifterPM](https://github.com/tuist/swifterpm) for `tuist install`. SwifterPM stores downloaded package sources in a shared cache and restores projects from that cache, making repeated installations faster. On a persistent continuous-integration runner, keep its source cache between jobs at `~/.cache/swifterpm`, or at `$XDG_CACHE_HOME/swifterpm` when `XDG_CACHE_HOME` is set. A runner with no persistent source cache takes the native Swift Package Manager path for the cold installation.
 
-Continuous-integration installs copy cached package directories by default. On a persistent runner, use symlink materialization instead so that a warm installation links each worktree back to the cache instead of copying every checkout into `.build`:
+Continuous-integration installations copy cached package directories by default. On a persistent runner, pass `--cached-directory-materialization=symlink` to `tuist install` so that a warm installation links each worktree back to the cache instead of copying every checkout into `.build`:
+
+```bash
+tuist install --cached-directory-materialization=symlink
+```
+
+Package manifests can read process environment variables while declaring dependencies. The package-manager cache therefore accounts for the whole environment when caching a manifest. A new job identifier can make that cache cold even when it does not change the declared dependencies. Use `manifestEnvironmentExcluded` in `Tuist.swift` to remove such variables before Tuist evaluates `Package.swift` and calculates manifest cache keys:
 
 ```swift
 import ProjectDescription
@@ -88,10 +94,6 @@ import ProjectDescription
 let tuist = Tuist(
     project: .tuist(
         installOptions: .options(
-            passthroughSwiftPackageManagerArguments: [
-                "--force-resolved-versions",
-                "--cached-directory-materialization=symlink",
-            ],
             manifestEnvironmentExcluded: [
                 "CI_JOB_ID",
                 "CI_PIPELINE_ID",
@@ -101,7 +103,7 @@ let tuist = Tuist(
 )
 ```
 
-`manifestEnvironmentExcluded` prevents job-specific values from changing dependency-manifest cache keys. It also hides the values from every evaluated `Package.swift`, so only exclude variables that do not affect dependency declarations. Entries can be exact names or trailing-wildcard prefixes such as `GITHUB_RUN_*`.
+`manifestEnvironmentExcluded` hides the listed values from every evaluated `Package.swift`, so only exclude variables that do not affect dependency declarations. Entries can be exact names or trailing-wildcard prefixes such as `GITHUB_RUN_*`.
 
 ### Agentic coding and worktrees {#agentic-coding-and-worktrees}
 
