@@ -627,6 +627,48 @@ enum WorkspaceRestorer {
         return results.sorted { $0.0 < $1.0 }
     }
 
+    /// Makes source-control checkouts created by native SwiftPM available to future SwifterPM
+    /// installations. On the usual same-volume cache layout this is a rename, not a copy.
+    static func cacheNativeSourceCheckouts(
+        scratchDir: URL,
+        cache: Cache,
+        resolved: ResolvedPins
+    ) async throws {
+        let checkouts = scratchDir.appendingPathComponent("checkouts")
+        try await ConcurrentTasks.forEach(resolved.pins.filter { PinKind.isSourceControl($0.kind) }) { pin in
+            let checkout = checkouts.appendingPathComponent(PinKind.checkoutDirectoryName(pin))
+            guard fileSystem.isDirectoryAndNotSymlink(checkout),
+                  try await cachedSourceIsUsable(checkout)
+            else { return }
+
+            let destination = try cache.sourcePath(pin: pin)
+            if try await cachedSourceIsUsable(destination) {
+                return
+            }
+
+            let lock = try await cache.lock(namespace: "sources", key: destination.path)
+            _ = lock
+            if try await cachedSourceIsUsable(destination) {
+                return
+            }
+
+            if try await fileSystem.exists(destination.absolutePath) {
+                try await fileSystem.remove(destination.absolutePath)
+            }
+
+            try await fileSystem.move(from: checkout.absolutePath, to: destination.absolutePath)
+            do {
+                try await fileSystem.createSymbolicLink(
+                    from: checkout.absolutePath,
+                    to: destination.absolutePath
+                )
+            } catch {
+                try? await fileSystem.move(from: destination.absolutePath, to: checkout.absolutePath)
+                throw error
+            }
+        }
+    }
+
     private static func sourceRestoreError(pin: ResolvedPin, error: any Error) -> ToolError {
         let revision = (try? pin.revision()).map { " at \($0)" } ?? ""
         return ToolError.message(
