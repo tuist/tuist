@@ -95,6 +95,9 @@ struct BazelSetupCommandServiceTests {
             build --remote_header=x-tuist-account-handle=my-account
             build --credential_helper=cache.tuist.dev=\(scriptPath.pathString)
             build --remote_instance_name=my-project
+            build --bes_backend=grpcs://cache.tuist.dev
+            build --bes_header=x-tuist-account-handle=my-account
+            build --bes_header=x-tuist-project-handle=my-project
 
             """
         )

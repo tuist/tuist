@@ -28,6 +28,18 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={overview_path}
         selected={overview_path == @current_path}
       />
+      <.sidebar_item
+        :if={Project.bazel_project?(@selected_project)}
+        label={dgettext("dashboard", "Invocations")}
+        icon="versions"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/invocations"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/invocations"
+          )
+        }
+      />
       <.sidebar_group
         :if={Project.xcode_project?(@selected_project)}
         id="sidebar-builds"

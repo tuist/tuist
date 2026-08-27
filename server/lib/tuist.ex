@@ -78,6 +78,8 @@ defmodule Tuist do
       Gradle.Build,
       Gradle.Task,
       Gradle.CacheEvent,
+      Bazel,
+      Bazel.Invocation,
       ReapiCache,
       ReapiCache.CacheEvent,
       CacheActionItems,

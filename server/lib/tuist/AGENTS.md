@@ -22,6 +22,7 @@ This directory contains the core business logic and domain modules for the serve
 - Authentication: `server/lib/tuist/authentication/AGENTS.md`
 - Authorization: `server/lib/tuist/authorization/AGENTS.md`
 - Aws: `server/lib/tuist/aws/AGENTS.md`
+- Bazel: `server/lib/tuist/bazel/AGENTS.md`
 - Billing: `server/lib/tuist/billing/AGENTS.md`
 - Bundles: `server/lib/tuist/bundles/AGENTS.md`
 - Cache: `server/lib/tuist/cache/AGENTS.md`

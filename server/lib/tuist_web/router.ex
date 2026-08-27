@@ -696,6 +696,13 @@ defmodule TuistWeb.Router do
           get "/builds/:build_id", GradleController, :get_build
         end
 
+        scope "/bazel" do
+          get "/invocations", BazelController, :list_invocations
+          get "/invocations/:invocation_id", BazelController, :get_invocation
+          get "/cache-events", BazelController, :list_cache_events
+          get "/cache-events/:cache_event_id", BazelController, :get_cache_event
+        end
+
         scope "/previews" do
           post "/start", PreviewsController, :multipart_start
           post "/generate-url", PreviewsController, :multipart_generate_url
@@ -1181,6 +1188,7 @@ defmodule TuistWeb.Router do
       live "/xcode-cache", XcodeCacheLive
       live "/gradle-cache", GradleCacheLive
       live "/connect", ConnectLive
+      live "/invocations", BazelInvocationsLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
       live "/bundles", BundlesLive

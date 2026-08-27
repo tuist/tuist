@@ -24,7 +24,7 @@ defmodule TuistWeb.BazelOverviewLive do
           <span data-part="description">
             {dgettext(
               "dashboard_projects",
-              "These are remote-cache observations from Kura. They do not include build or test results."
+              "These are remote-cache observations from Kura. Open Invocations for completed Bazel commands and their attributable cache totals."
             )}
           </span>
           <div data-part="widgets">

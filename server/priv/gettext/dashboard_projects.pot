@@ -593,6 +593,7 @@ msgstr ""
 msgid "Build duration"
 msgstr ""
 
+#: lib/tuist_web/live/bazel_invocations_live.ex:143
 #: lib/tuist_web/live/project_notifications_live.ex:632
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
@@ -1832,12 +1833,104 @@ msgstr ""
 msgid "The share of action-cache lookups that Kura served from the remote cache."
 msgstr ""
 
-#: lib/tuist_web/live/bazel_overview_live.ex:25
-#, elixir-autogen, elixir-format
-msgid "These are remote-cache observations from Kura. They do not include build or test results."
-msgstr ""
-
 #: lib/tuist_web/live/bazel_overview_live.ex:84
 #, elixir-autogen, elixir-format
 msgid "Uploaded to remote cache"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:103
+#, elixir-autogen, elixir-format
+msgid "90th percentile duration"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:124
+#, elixir-autogen, elixir-format
+msgid "Command"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:63
+#, elixir-autogen, elixir-format
+msgid "Completed Bazel commands in the retained data window."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:52
+#, elixir-autogen, elixir-format
+msgid "Completed Bazel commands reported through the Build Event Protocol. Cache totals include only remote-cache requests that Bazel attributed to the same invocation."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:137
+#, elixir-autogen, elixir-format
+msgid "Duration"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:132
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:149
+#, elixir-autogen, elixir-format
+msgid "Finished"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:74
+#, elixir-autogen, elixir-format
+msgid "Invocation success rate"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:16
+#: lib/tuist_web/live/bazel_invocations_live.ex:49
+#: lib/tuist_web/live/bazel_invocations_live.ex:61
+#, elixir-autogen, elixir-format
+msgid "Invocations"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:87
+#, elixir-autogen, elixir-format
+msgid "Median duration"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:155
+#, elixir-autogen, elixir-format
+msgid "No Bazel invocations have been received yet. Run tuist bazel setup, then run a Bazel command."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:181
+#, elixir-autogen, elixir-format
+msgid "No cache lookups"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:146
+#, elixir-autogen, elixir-format
+msgid "Remote cache transfer"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:127
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:131
+#, elixir-autogen, elixir-format
+msgid "Succeeded"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:105
+#, elixir-autogen, elixir-format
+msgid "The duration below which 90% of completed commands finished."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:89
+#, elixir-autogen, elixir-format
+msgid "The median duration of completed Bazel commands."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:76
+#, elixir-autogen, elixir-format
+msgid "The share of completed commands with a zero exit code."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_overview_live.ex:25
+#, elixir-autogen, elixir-format
+msgid "These are remote-cache observations from Kura. Open Invocations for completed Bazel commands and their attributable cache totals."
 msgstr ""

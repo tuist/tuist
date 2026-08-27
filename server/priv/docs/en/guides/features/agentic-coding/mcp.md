@@ -251,6 +251,15 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `get_gradle_build` | Get detailed information about a specific Gradle build run. | `build_run_id` |
 | `list_gradle_build_tasks` | List tasks for a specific Gradle build run, including outcome and cache status. | `build_run_id` |
 
+#### Bazel invocations
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_bazel_invocations` | List completed [Bazel Build Event Protocol](https://bazel.build/remote/bep) invocations and their correlated remote-cache totals for a project. | `account_handle`, `project_handle` |
+| `get_bazel_invocation` | Get one completed Bazel invocation and its correlated remote-cache totals. | `account_handle`, `project_handle`, `invocation_id` |
+| `list_bazel_cache_events` | List raw Bazel remote-cache observations, optionally narrowed to an invocation or outcome. | `account_handle`, `project_handle` |
+| `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
+
 #### Tests
 
 | Tool | Description | Required parameters |
