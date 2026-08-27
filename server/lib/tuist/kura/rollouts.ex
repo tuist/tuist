@@ -1113,7 +1113,7 @@ defmodule Tuist.Kura.Rollouts do
     if drifted_ids != [] do
       RolloutServer
       |> where([rs], rs.id in ^drifted_ids)
-      |> Repo.update_all(set: [converged_at: nil, updated_at: timestamp])
+      |> Repo.update_all(set: [converged_at: nil, outbox_peak: nil, outbox_low_water: nil, updated_at: timestamp])
     end
 
     :ok
@@ -1334,14 +1334,29 @@ defmodule Tuist.Kura.Rollouts do
   # window after convergence before any verdict, because a restarted pod
   # necessarily accumulates a backlog while it is down — that is the
   # rollout's own doing, not evidence against the image.
-  defp outbox_not_draining?(rollout_server, health, threshold) do
+  defp outbox_failure(rollout_server, health, threshold) do
     depth = health.outbox_messages
 
     cond do
-      is_nil(threshold) or is_nil(depth) -> false
-      depth <= threshold -> false
-      not settled_since_convergence?(rollout_server) -> false
-      true -> not drained?(rollout_server)
+      is_nil(threshold) or is_nil(depth) ->
+        nil
+
+      depth <= threshold ->
+        nil
+
+      # Deep, but not yet judgeable. This must not read as a pass: a server
+      # scoped into a wave whose soak clock is already running would
+      # otherwise let the wave complete before its queue was ever looked at.
+      # Holding the clock costs at most the window, which is shorter than
+      # any soak.
+      not settled_since_convergence?(rollout_server) ->
+        {:unhealthy, :outbox_unsettled}
+
+      drained?(rollout_server) ->
+        nil
+
+      true ->
+        {:unhealthy, :outbox_not_draining}
     end
   end
 
@@ -1362,26 +1377,84 @@ defmodule Tuist.Kura.Rollouts do
   # tracking costs no extra call, and written only when an extreme actually
   # moves.
   defp track_outbox_extremes(rollout) do
-    RolloutServer
-    |> join(:inner, [rs], s in assoc(rs, :kura_server))
-    |> where([rs], rs.kura_rollout_id == ^rollout.id and not is_nil(rs.converged_at))
-    |> where([_rs, s], s.status not in ^@terminal_server_statuses)
-    |> preload([rs, s], kura_server: s)
-    |> Repo.all()
-    |> Enum.each(fn rollout_server ->
-      with {:ok, health} when is_map(health) <- tick_rollout_health(rollout_server.kura_server),
-           depth when is_integer(depth) <- health.outbox_messages do
-        peak = max(rollout_server.outbox_peak || depth, depth)
-        low = min(rollout_server.outbox_low_water || depth, depth)
+    timestamp = now()
 
-        if peak != rollout_server.outbox_peak or low != rollout_server.outbox_low_water do
-          {:ok, _} =
-            rollout_server
-            |> RolloutServer.update_changeset(%{outbox_peak: peak, outbox_low_water: low})
-            |> Repo.update()
+    changes =
+      RolloutServer
+      |> join(:inner, [rs], s in assoc(rs, :kura_server))
+      |> where([rs], rs.kura_rollout_id == ^rollout.id and not is_nil(rs.converged_at))
+      |> where([_rs, s], s.status not in ^@terminal_server_statuses)
+      |> preload([rs, s], kura_server: s)
+      |> Repo.all()
+      |> Enum.flat_map(fn rollout_server ->
+        case next_outbox_extremes(rollout_server) do
+          :unchanged ->
+            []
+
+          {peak, low} ->
+            [
+              %{
+                id: rollout_server.id,
+                kura_rollout_id: rollout_server.kura_rollout_id,
+                kura_server_id: rollout_server.kura_server_id,
+                wave: rollout_server.wave,
+                attempt: rollout_server.attempt,
+                soak_eligible: rollout_server.soak_eligible,
+                outbox_peak: peak,
+                outbox_low_water: low,
+                inserted_at: rollout_server.inserted_at,
+                updated_at: timestamp
+              }
+            ]
         end
+      end)
+
+    # One round trip regardless of fleet size: this runs inside the rollout's
+    # `FOR UPDATE` transaction, where a write per server would add round
+    # trips exactly when an operator is reaching for pause.
+    if changes != [] do
+      Repo.insert_all(RolloutServer, changes,
+        on_conflict: {:replace, [:outbox_peak, :outbox_low_water, :updated_at]},
+        conflict_target: :id
+      )
+    end
+
+    :ok
+  end
+
+  # The trough only means something after the peak it follows. Tracking them
+  # independently would let a queue that merely grew — 0 up to its ceiling —
+  # keep a low-water mark from before the climb and read as though it had
+  # drained. A new peak therefore resets the trough, so the low-water mark
+  # always measures how far the queue has come back down from its most
+  # recent high. Falling below the band ends the episode outright: that is
+  # the strongest evidence of draining there is.
+  defp next_outbox_extremes(rollout_server) do
+    with {:ok, health} when is_map(health) <- tick_rollout_health(rollout_server.kura_server),
+         depth when is_integer(depth) <- health.outbox_messages do
+      threshold = outbox_threshold(rollout_server)
+
+      desired =
+        cond do
+          is_nil(threshold) or depth <= threshold -> {nil, nil}
+          is_nil(rollout_server.outbox_peak) or depth > rollout_server.outbox_peak -> {depth, depth}
+          true -> {rollout_server.outbox_peak, min(rollout_server.outbox_low_water || depth, depth)}
+        end
+
+      if desired == {rollout_server.outbox_peak, rollout_server.outbox_low_water} do
+        :unchanged
+      else
+        desired
       end
-    end)
+    else
+      _ -> :unchanged
+    end
+  end
+
+  defp outbox_threshold(%RolloutServer{baseline_outbox_messages: nil}), do: nil
+
+  defp outbox_threshold(%RolloutServer{baseline_outbox_messages: baseline}) do
+    baseline + max(ceil(baseline / 10), @outbox_regression_floor)
   end
 
   defp health_gate_failure(rollout_server, health) do
@@ -1393,11 +1466,9 @@ defmodule Tuist.Kura.Rollouts do
   # Ordered so the hard signal (critical memory pressure) wins over
   # soak-clock resets when several conditions fail at once.
   defp gate_checks(rollout_server, health) do
-    outbox_threshold =
-      case rollout_server.baseline_outbox_messages do
-        nil -> nil
-        baseline -> baseline + max(ceil(baseline / 10), @outbox_regression_floor)
-      end
+    outbox_threshold = outbox_threshold(rollout_server)
+
+    outbox_failure = outbox_failure(rollout_server, health, outbox_threshold)
 
     [
       {health.memory_pressure_state >= 2, {:critical, :memory_pressure_critical}},
@@ -1418,7 +1489,7 @@ defmodule Tuist.Kura.Rollouts do
       # both are soak resets rather than hard stops.
       {health.backfill_degraded, {:unhealthy, :backfill_degraded}},
       {health.backfill_budget_exhausted_peers > 0, {:unhealthy, :backfill_budget_exhausted}},
-      {outbox_not_draining?(rollout_server, health, outbox_threshold), {:unhealthy, :outbox_not_draining}},
+      {not is_nil(outbox_failure), outbox_failure},
       {counter_regressed?(health.fd_timeout_count, failure_threshold(rollout_server.baseline_fd_timeout_count)),
        {:unhealthy, :fd_timeouts_regressed}},
       {counter_regressed?(
