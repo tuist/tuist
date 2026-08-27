@@ -11,16 +11,29 @@ name: macOS + Xcode Image
 #   xcode_version=26.4.1       → <registry>/macos-tahoe-xcode:26-4-1
 #   xcode_version=26.0.1       → <registry>/macos-tahoe-xcode:26-0-1
 #   xcode_version=27.0-beta-6  → <registry>/macos-tahoe-xcode:27-0-beta-6
+#                                 plus the :27-0-beta channel tag
 #
-# Prereleases go through unchanged, as the slug `mise run
-# xcode-mirror:upload` derived from Apple's version string
-# ("27.0 Beta 6" → 27.0-beta-6). Every published tag names one
-# exact Xcode, betas included. Nothing here moves once pushed.
-# The beta churn is absorbed one layer up, by the
-# chart's stable `27.0-beta` catalog entry repointing its
-# `xcodeOverrides` imageTag at each new beta's runner image, so a
-# customer's Runner Profile keeps resolving without the fleet ever
-# depending on a mutable tag. See `infra/macos-xcode-image/AGENTS.md`.
+# Prereleases arrive as the slug `mise run xcode-mirror:upload`
+# derived from Apple's version string ("27.0 Beta 6" is
+# 27.0-beta-6), and publish two tags. The exact one is immutable
+# and records which beta an image holds. The channel tag drops the
+# beta number and moves to each new beta, and it is the one
+# `infra/runner-image/profiles.json` names, so a beta bump reaches
+# the fleet through the ordinary release path: republish the
+# channel here, and the next runner-image release rebuilds against
+# it with no repo edit at all. That matters because Apple stops
+# accepting TestFlight uploads built with superseded betas, so the
+# fleet has to track the newest one.
+#
+# The channel is also what customers' Runner Profiles store, via
+# the matching `runnersFleet.xcodeVersions` catalog entry. Pinning
+# them to `27.0-beta-6` instead would strand every profile naming
+# it the moment beta 7 replaced it in the catalog, and a stranded
+# macOS profile queues its jobs forever rather than failing them.
+#
+# The newest dispatch wins the channel. Two betas of the same major
+# built concurrently race for it; re-dispatch the one that should
+# hold it.
 #
 # Publishing a tag here does not put it in front of customers. The
 # active set is `infra/runner-image/profiles.json` (what gets a
@@ -212,6 +225,27 @@ jobs:
           TAG=$(echo "${XCODE_VERSION}" | tr '.' '-')
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
+          # Prereleases also publish a channel tag with the beta
+          # number dropped. That is the tag profiles.json names, so
+          # moving it is what puts a new beta in front of the next
+          # runner-image release. Beta 1 carries no number, so its
+          # slug already IS the channel and the second tag is
+          # skipped rather than pushed twice.
+          #   27.0-beta-6              is 27-0-beta
+          #   27.0-release-candidate-2 is 27-0-release-candidate
+          #   26.4.1                   has none; stable
+          CHANNEL_TAG=""
+          if [[ "$TAG" =~ ^(.+-(beta|rc|release-candidate))-[0-9]+$ ]]; then
+            CHANNEL_TAG="${BASH_REMATCH[1]}"
+          fi
+          echo "channel_tag=${CHANNEL_TAG}" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$CHANNEL_TAG" ]; then
+            echo "Publishing :${TAG} and moving :${CHANNEL_TAG} onto it"
+          else
+            echo "Publishing :${TAG}"
+          fi
+
       # Logging in AFTER the Packer build is intentional: this image's
       # base is the *public* `ghcr.io/cirruslabs/macos-tahoe-base`, so
       # Packer's clone is anonymous (see the credential-dropping step
@@ -230,7 +264,12 @@ jobs:
         uses: ./.github/actions/tart-push
         with:
           local-name: macos-tahoe-xcode
-          remote-names: ghcr.io/tuist/macos-tahoe-xcode:${{ steps.build.outputs.tag }}
+          # `tart push` takes several remote names in one call and
+          # the blobs are shared, so the channel tag costs a manifest
+          # write rather than a second upload of a ~50 GB image.
+          remote-names: |
+            ghcr.io/tuist/macos-tahoe-xcode:${{ steps.build.outputs.tag }}
+            ${{ steps.build.outputs.channel_tag && format('ghcr.io/tuist/macos-tahoe-xcode:{0}', steps.build.outputs.channel_tag) || '' }}
 
       - name: Cleanup
         if: always()

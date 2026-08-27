@@ -27,7 +27,7 @@ Published to `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`:
 | 26.4.1          | `:26-4-1`          | `/Applications/Xcode_26.4.1.app`     | `Xcode_26.4.app` → `Xcode_26.4.1.app` |
 | 26.3            | `:26-3`            | `/Applications/Xcode_26.3.app`       | _(none — already major-minor)_ |
 | 26.0.1          | `:26-0-1`          | `/Applications/Xcode_26.0.1.app`     | `Xcode_26.0.app` → `Xcode_26.0.1.app` |
-| 27.0-beta-6     | `:27-0-beta-6`     | `/Applications/Xcode_27.0-beta-6.app`| `Xcode_27.0.app` → `Xcode_27.0-beta-6.app` |
+| 27.0-beta-6     | `:27-0-beta-6` + `:27-0-beta` | `/Applications/Xcode_27.0-beta-6.app`| `Xcode_27.0.app` → `Xcode_27.0-beta-6.app` |
 
 When `xcode_version` carries a patch component (three-segment
 `X.Y.Z`), the image lays down a symlink at the matching
@@ -169,9 +169,9 @@ auto-download entirely:
    `runnersFleet.xcodeVersions` in
    `infra/helm/tuist/values-managed-common.yaml`, with an
    `xcodeOverrides` entry per env. See "Promoting a new Xcode to
-   customer runners" below. Betas take a different route, because
-   they must reach the fleet on Apple's cadence rather than the
-   server's; see "Promoting an Xcode beta". For the
+   customer runners" below. Betas use the same route, keyed on a
+   channel rather than a version; see "Promoting an Xcode beta".
+   For the
    xcresult-processor, bump the inline `XCODE_VERSION` env var on
    `server-production-deployment.yml`'s
    `release-xcresult-processor-image.Build image` step. It should
@@ -208,13 +208,14 @@ The current Tahoe-era profile set is:
 - `:26-4-1`
 - `:26-3`
 - `:26-0-1`
-- `:27-0-beta-<n>` for the current Xcode 27 beta
+- `:27-0-beta` (channel) and `:27-0-beta-<n>` (each exact beta)
 
-Every tag is immutable, betas included: a new beta or patch bump
-from Apple (26.4.1 → 26.4.2, beta 6 → beta 7) republishes under a
-*new* tag, never over an existing one. The operator promotes by
-editing `infra/runner-image/profiles.json` (stable) or the beta
-pool's `imageTag` (prereleases), per the two sections below.
+Exact tags are immutable: a patch bump from Apple (26.4.1 to
+26.4.2) republishes under a *new* tag, never over an existing one,
+and so does each beta. Prereleases additionally publish a moving
+channel tag (`:27-0-beta`), which is the one `profiles.json` names
+so that a beta bump needs no repo edit. Promotion is covered by the
+two sections below.
 
 ## Promoting a new Xcode to customer runners
 
@@ -251,67 +252,42 @@ automatically roll customer runners to Xcode 26.5. To promote:
 
 ## Promoting an Xcode beta
 
-Betas do not go through `profiles.json`. Apple ships one every
-few weeks and stops accepting TestFlight uploads built with
-superseded ones, so the fleet has to move on Apple's cadence
-rather than wait for whenever `infra/runner-image/**` next changes
-and triggers a runner-image release. They also must not churn the
-catalog: a customer's Runner Profile stores the `xcode_version`
-string, and removing the one it names strands the profile on a
-RunnerPool that no longer renders, and its jobs then queue forever
-rather than failing.
+A beta is an ordinary profile with one twist: `profiles.json` and
+the chart's catalog both name a **channel** (`27.0-beta`), never a
+beta (`27.0-beta-6`), and the base image publishes both tags.
 
-Both fall out of one split. The catalog entry is the channel
-(`27.0-beta`) and never changes across betas; the image behind it
-is pinned exactly, per beta, by `imageTag`:
+The channel has to be the identity because customers' Runner
+Profiles store the `xcode_version` string. Retiring a catalog entry
+a profile still names strands it on a RunnerPool that no longer
+renders, and a stranded macOS profile queues its jobs forever
+rather than failing them. A channel that outlives each individual
+beta avoids that entirely.
 
-```yaml
-# values-managed-common.yaml
-runnersFleet:
-  xcodeVersions:
-    - xcodeVersion: "27.0-beta"
-```
-
-```yaml
-# values-managed-{staging,canary,production}.yaml
-runnersFleet:
-  xcodeOverrides:
-    "27.0-beta":
-      # Xcode 27.0 beta 6 (27A5252f)
-      imageTag: "macos-27-0-beta-6-<sha8>"
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 13   # 1 in staging/canary
-```
-
-Keep `minWarmPoolFloor` at 0. The floors are drawn against the
-fleet's guest-slot budget, and a beta pool holding a warm slot
-parks a whole mini for traffic that is by definition
-experimental.
-
-To move the channel onto a new beta:
+Once wired, a beta bump needs **no repo change**:
 
 1. `mise run xcode-mirror:upload "27.0 Beta 7"` on a maintainer
    Mac. Note the slug it prints (`27.0-beta-7`).
 2. `gh workflow run macos-xcode-image.yml -f xcode_version=27.0-beta-7`.
-   Publishes `macos-tahoe-xcode:27-0-beta-7`. Budget a couple of
-   hours for a fresh major: `-downloadAllPlatforms` pulls
-   simulator runtimes Apple hasn't cached anywhere yet, and the
-   ~50 GB image upload follows.
-3. `gh workflow run runner-image.yml -f xcode_version=27.0-beta-7`.
-   Publishes `tuist-runner:macos-27-0-beta-7-<sha8>`; the run's
-   push step logs the full tag.
-4. Repoint `imageTag` at that tag in the three env values files,
-   with the beta and build number in the comment above it, and
-   merge. The deploy rolls the pool; no customer profile changes.
+   Publishes `macos-tahoe-xcode:27-0-beta-7` and moves
+   `:27-0-beta` onto it. Budget a couple of hours for a fresh
+   major: `-downloadAllPlatforms` pulls simulator runtimes Apple
+   has not cached anywhere yet, and a ~50 GB upload follows.
 
-Steps 1-3 publish only new tags, so they are safe to run ahead of
-the merge and are what makes step 4 a one-line edit that can be
-reverted to the previous beta if the new one misbehaves.
+The next runner-image release rebuilds the `27.0-beta` profile
+against the moved channel and the deploy rolls the pool. Those fire
+every few days, so the beta lands well inside Apple's fortnightly
+cadence. To skip the wait on an urgent beta, `gh workflow run
+runner-image.yml -f xcode_version=27.0-beta` publishes
+`tuist-runner:macos-27-0-beta-<sha8>` immediately; pin it with an
+`xcodeOverrides["27.0-beta"].imageTag` in the env values files and
+drop the pin once the ordinary release has caught up.
+
+The immutable `:27-0-beta-<n>` tags are what make a bad beta
+recoverable: rebuild the runner image from the previous one and
+pin it the same way.
 
 When the major goes stable, promote `27.0` through the normal
-stable path above and leave `27.0-beta` in the catalog until
-accounts have moved their profiles off it. Dropping the entry is
-what strands them, and the entry costs nothing while its pool sits
-at `minWarmPoolFloor: 0`.
+stable path above and leave `27.0-beta` in place until accounts
+have moved their profiles off it. Dropping the entry is what
+strands them, and it costs nothing while its pool sits at
+`minWarmPoolFloor: 0`.

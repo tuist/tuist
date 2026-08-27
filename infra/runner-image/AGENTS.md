@@ -416,30 +416,32 @@ Bumping the Xcode customers see on their runners:
    dispatch path above stays available for a one-off refresh if
    security work needs to land there.
 
-### Betas are not in `profiles.json`
+### Betas enter as a channel
 
-Xcode betas ship as a catalog entry whose pool pins an explicit
-`xcodeOverrides[].imageTag`, built through the `runner-image.yml`
-dispatch path above, and are deliberately absent from
-`profiles.json`. Two reasons, both about cadence:
+Xcode betas sit in `profiles.json` like any other profile, but the
+entry is a **channel** (`27.0-beta`), not a beta (`27.0-beta-6`).
+Two things fall out of that, both wanted:
 
-- Apple replaces a beta every few weeks and stops accepting
-  TestFlight uploads built with superseded ones, so a fleet that
-  can't move the day a beta lands can't ship from it at all. An
-  entry in `profiles.json` only rebuilds when
-  a runner-image release fires, which needs a change under
-  `infra/runner-image/**`, so a beta could sit weeks behind Apple
-  waiting for unrelated work.
-- The catalog entry customers' Runner Profiles store must stay
-  fixed across those bumps, so it is the channel (`27.0-beta`)
-  rather than the beta (`27.0-beta-6`). Retiring a catalog entry a
-  profile still names strands it on a RunnerPool that no longer
-  renders, and a stranded macOS profile queues its jobs forever
-  rather than failing them.
+- The base image `macos-xcode-image` publishes for a beta carries
+  both an exact tag and the channel tag, so moving a beta is a
+  rebuild of `:27-0-beta`. The entry here already points at it,
+  which makes a beta bump a zero-diff change: the next
+  runner-image release rebuilds against whatever the channel now
+  holds. Those fire every few days, comfortably inside Apple's
+  fortnightly beta cadence.
+- The channel is what customers' Runner Profiles store in
+  `xcode_version`. Retiring a catalog entry a profile still names
+  strands it on a RunnerPool that no longer renders, and a
+  stranded macOS profile queues its jobs forever rather than
+  failing them. A channel outlives the betas behind it, so that
+  never comes up.
 
-Keeping betas out also spares every runner-image release the ~30 min
-bake of a profile whose image the pool would ignore in favour of its
-pin. Full runbook: "Promoting an Xcode beta" in
+The cost is one more ~30 min bake per runner-image release, and
+`fail-fast: true` on the matrix means a beta base that cannot take
+the runner layer would abort its siblings. That layer is thin
+(runner agent plus launchd, ~2 min) and the risky Xcode work all
+happens in Layer 1, which fails in `macos-xcode-image` instead, so
+the exposure is small. Full runbook: "Promoting an Xcode beta" in
 [`../macos-xcode-image/AGENTS.md`](../macos-xcode-image/AGENTS.md).
 
 ## Profile tagging
