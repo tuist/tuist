@@ -79,10 +79,22 @@ defmodule TuistWeb.RemoteIp do
   location headers are not turned on for it.
   """
   def attributed_origin(conn) do
+    country = country_code(conn)
+
     cond do
-      not trusted_cloudflare_hop?(conn.remote_ip, header(conn, "x-forwarded-for")) -> {:error, :untrusted_hop}
-      country = country_code(conn) -> {:ok, subdivide(conn, country)}
-      true -> {:error, :no_location}
+      not trusted_cloudflare_hop?(conn.remote_ip, header(conn, "x-forwarded-for")) ->
+        # Whether a location was there at all separates "the edge is not
+        # sending one" from "it is, and we are declining to believe this hop",
+        # which are opposite investigations: one is the zone's configuration,
+        # the other is the list of hops allowed to speak for a client. Reading
+        # the header to say which does not trust it — the value is discarded.
+        if country, do: {:error, :location_from_untrusted_hop}, else: {:error, :untrusted_hop}
+
+      country ->
+        {:ok, subdivide(conn, country)}
+
+      true ->
+        {:error, :no_location}
     end
   end
 

@@ -154,7 +154,12 @@ defmodule TuistWeb.RemoteIpTest do
         |> Map.put(:remote_ip, {203, 0, 113, 20})
         |> Plug.Conn.put_req_header("cf-ipcountry", "FR")
 
-      assert TuistWeb.RemoteIp.attributed_origin(untrusted) == {:error, :untrusted_hop}
+      bare = Map.put(build_conn(), :remote_ip, {203, 0, 113, 20})
+
+      # A location present but disbelieved says the zone is configured and the
+      # hop list is not; neither says the zone is.
+      assert TuistWeb.RemoteIp.attributed_origin(untrusted) == {:error, :location_from_untrusted_hop}
+      assert TuistWeb.RemoteIp.attributed_origin(bare) == {:error, :untrusted_hop}
       assert TuistWeb.RemoteIp.attributed_origin(cloudflare_conn([])) == {:error, :no_location}
       assert TuistWeb.RemoteIp.attributed_origin(cloudflare_conn([{"cf-ipcountry", "FR"}])) == {:ok, "FR"}
     end
