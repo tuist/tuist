@@ -669,7 +669,7 @@ defmodule Tuist.Runners.DispatchTest do
         :matched
       end)
 
-      stub(Claims, :complete_by_runner_name, fn "runner-late", ^account_id, _job -> %{released: 1, requeued: nil} end)
+      stub(Claims, :complete_by_runner_name, fn "runner-late", ^account_id, _job -> %{released: 1, requeued: []} end)
       stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
@@ -692,7 +692,7 @@ defmodule Tuist.Runners.DispatchTest do
         {:error, %Ecto.Changeset{errors: [job_started_at: {"boom", []}]}}
       end)
 
-      stub(Claims, :complete_by_runner_name, fn "runner-broken", ^account_id, _job -> %{released: 1, requeued: nil} end)
+      stub(Claims, :complete_by_runner_name, fn "runner-broken", ^account_id, _job -> %{released: 1, requeued: []} end)
       reject(&Jobs.complete/2)
 
       assert {:error, {:session_execution_write_failed, _}} =
@@ -711,7 +711,7 @@ defmodule Tuist.Runners.DispatchTest do
         :matched
       end)
 
-      stub(Claims, :complete_by_runner_name, fn "runner-window", ^account_id, _job -> %{released: 1, requeued: nil} end)
+      stub(Claims, :complete_by_runner_name, fn "runner-window", ^account_id, _job -> %{released: 1, requeued: []} end)
       stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
@@ -743,7 +743,7 @@ defmodule Tuist.Runners.DispatchTest do
 
       stub(Claims, :complete_by_runner_name, fn runner, acct, _job ->
         send(test_pid, {:released, runner, acct})
-        %{released: 1, requeued: nil}
+        %{released: 1, requeued: []}
       end)
 
       stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)

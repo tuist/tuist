@@ -379,7 +379,7 @@ defmodule Tuist.Runners.ClaimsTest do
       {:ok, _} = Claims.attempt(6001, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(6001, "runner-x")
 
-      assert %{released: 1, requeued: nil} = Claims.complete_by_runner_name("runner-x", account.id, 6001)
+      assert %{released: 1, requeued: []} = Claims.complete_by_runner_name("runner-x", account.id, 6001)
       assert Claims.counts_per_account() == %{}
     end
 
@@ -394,10 +394,29 @@ defmodule Tuist.Runners.ClaimsTest do
       {:ok, _} = Claims.attempt(6010, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(6010, "runner-silent")
 
-      assert %{released: 1, requeued: 6010} =
+      assert %{released: 1, requeued: [6010]} =
                Claims.complete_by_runner_name("runner-silent", account.id, 6011)
 
       assert Repo.get!(WorkflowJob, 6010).status == "queued"
+    end
+
+    # Same collision on the release path: freeing two claims at once must
+    # hand back both their jobs, not just the first.
+    test "re-queues every displaced job when a runner_name frees two claims" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 6030))
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 6031))
+      {:ok, _} = Claims.attempt(6030, account.id, "fleet-a", "pod-1", @linux_resources)
+      {:ok, _} = Claims.attempt(6031, account.id, "fleet-a", "pod-2", @linux_resources)
+      :ok = mark_running!(6030, "runner-both")
+      :ok = mark_running!(6031, "runner-both")
+
+      assert %{released: 2, requeued: requeued} =
+               Claims.complete_by_runner_name("runner-both", account.id, 6032)
+
+      assert Enum.sort(requeued) == [6030, 6031]
+      assert Repo.get!(WorkflowJob, 6030).status == "queued"
+      assert Repo.get!(WorkflowJob, 6031).status == "queued"
     end
 
     test "hands nothing back when the claim was already detached at in_progress" do
@@ -407,7 +426,7 @@ defmodule Tuist.Runners.ClaimsTest do
       :ok = mark_running!(6020, "runner-loud")
       assert {:mismatch, %{requeued: true}} = Claims.record_execution("runner-loud", 6021, account.id)
 
-      assert %{released: 1, requeued: nil} =
+      assert %{released: 1, requeued: []} =
                Claims.complete_by_runner_name("runner-loud", account.id, 6021)
     end
 
@@ -423,7 +442,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
       # J2 (6201) was cancelled while queued: no runner ever ran it, so
       # the payload carries no runner_name and nothing is released.
-      assert %{released: 0, requeued: nil} = Claims.complete_by_runner_name("", account.id, 6201)
+      assert %{released: 0, requeued: []} = Claims.complete_by_runner_name("", account.id, 6201)
 
       # Both runners still counted: both Pods are alive, and B is
       # executing J1.
@@ -436,7 +455,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
     test "is idempotent when the runner's claim is already gone" do
       account = account_fixture()
-      assert %{released: 0, requeued: nil} = Claims.complete_by_runner_name("ghost-runner", account.id, 6300)
+      assert %{released: 0, requeued: []} = Claims.complete_by_runner_name("ghost-runner", account.id, 6300)
     end
 
     test "never releases a colliding runner_name belonging to another account" do
@@ -449,7 +468,7 @@ defmodule Tuist.Runners.ClaimsTest do
       {:ok, _} = Claims.attempt(9100, victim.id, "fleet-a", "victim-pod", @linux_resources)
       :ok = mark_running!(9100, "shared-name")
 
-      assert %{released: 0, requeued: nil} = Claims.complete_by_runner_name("shared-name", attacker.id, 9100)
+      assert %{released: 0, requeued: []} = Claims.complete_by_runner_name("shared-name", attacker.id, 9100)
       assert Claims.counts_per_account() == %{victim.id => 1}
 
       assert %{released: 1} = Claims.complete_by_runner_name("shared-name", victim.id, 9100)
@@ -665,6 +684,34 @@ defmodule Tuist.Runners.ClaimsTest do
 
       assert Repo.one(from(c in Claim, where: c.pod_name == "pod-1")).executed_workflow_job_id == 7097
       assert Repo.get!(WorkflowJob, 7004).status == "queued"
+    end
+
+    # A `runner_name` is only probabilistically unique: the mint truncates
+    # a long service-account prefix, so a stale claim and a live one can
+    # carry the same one. Writing by name would detach the job from both
+    # while re-queueing only the one this call selected, stranding the
+    # other detached from any claim with its lifecycle row still `running`.
+    test "detaches only the claim it selected when a runner_name collides" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7010))
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7011))
+      {:ok, _} = Claims.attempt(7010, account.id, "fleet-a", "pod-1", @linux_resources)
+      {:ok, _} = Claims.attempt(7011, account.id, "fleet-a", "pod-2", @linux_resources)
+      :ok = mark_running!(7010, "runner-collide")
+      :ok = mark_running!(7011, "runner-collide")
+
+      assert {:mismatch, %{workflow_job_id: selected, requeued: true}} =
+               Claims.record_execution("runner-collide", 7099, account.id)
+
+      untouched = Enum.find([7010, 7011], &(&1 != selected))
+
+      # The selected claim gave its job up; the colliding one kept both
+      # halves of its binding, so its job is still owned and recoverable.
+      assert Repo.get!(WorkflowJob, selected).status == "queued"
+      assert Repo.get!(WorkflowJob, untouched).status == "running"
+
+      claims = Repo.all(from(c in Claim, select: {c.workflow_job_id, c.executed_workflow_job_id}))
+      assert Enum.sort(claims) == Enum.sort([{nil, 7099}, {untouched, nil}])
     end
 
     test "reports :unknown_runner when no live claim carries the runner_name" do

@@ -510,7 +510,7 @@ defmodule Tuist.Runners.Claims do
   on `claimed_at`, so a job another Pod has since claimed or completed is
   left alone.
 
-  Idempotent. Returns the number of claims released and the displaced job
+  Idempotent. Returns the number of claims released and the displaced jobs
   handed back, if any.
   """
   def complete_by_runner_name(runner_name, account_id, completed_workflow_job_id)
@@ -525,23 +525,29 @@ defmodule Tuist.Runners.Claims do
             )
           )
 
-        %{released: count, requeued: requeue_unreported_displacement(released || [], completed_workflow_job_id)}
+        %{
+          released: count,
+          requeued: requeue_unreported_displacements(released || [], completed_workflow_job_id)
+        }
       end)
 
     outcome
   end
 
-  def complete_by_runner_name(_runner_name, _account_id, _completed_workflow_job_id), do: %{released: 0, requeued: nil}
+  def complete_by_runner_name(_runner_name, _account_id, _completed_workflow_job_id), do: %{released: 0, requeued: []}
 
-  defp requeue_unreported_displacement([{workflow_job_id, claimed_at}], completed_workflow_job_id)
-       when is_integer(workflow_job_id) and workflow_job_id != completed_workflow_job_id do
-    case WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at) do
-      :ok -> workflow_job_id
-      :noop -> nil
+  # Every claim the delete took, not just the first. A `runner_name` is
+  # only probabilistically unique, so this can free two claims at once;
+  # handing back only one of their jobs would strand the other detached
+  # from any claim with its lifecycle row still `running`.
+  defp requeue_unreported_displacements(released, completed_workflow_job_id) do
+    for {workflow_job_id, claimed_at} <- released,
+        is_integer(workflow_job_id),
+        workflow_job_id != completed_workflow_job_id,
+        WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at) == :ok do
+      workflow_job_id
     end
   end
-
-  defp requeue_unreported_displacement(_released, _completed_workflow_job_id), do: nil
 
   @doc """
   Releases the claim held by `pod_name` — DELETE'd from PG,
@@ -966,8 +972,10 @@ defmodule Tuist.Runners.Claims do
       runner than the one claimed (the claim↔execution mismatch we're
       measuring). `displaced` names the detached job and whether its
       lifecycle row was `requeued` (false when a completion or a newer
-      claim already moved it past the handle guard), or is `nil` on a
-      redelivery that finds it already detached.
+      claim already moved it past the handle guard). `nil` when there is
+      nothing to hand back: a redelivery that finds the job already
+      detached, or a claim whose generation moved on between the read and
+      the write.
     * `:unknown_runner` — no live claim carries this `runner_name`
       (a dropped/late webhook, or the claim already completed). The
       durable session binding is the backstop for this case.
@@ -985,32 +993,57 @@ defmodule Tuist.Runners.Claims do
       nil ->
         :unknown_runner
 
-      %Claim{workflow_job_id: ^executed_workflow_job_id} ->
-        bind_execution(runner_name, account_id, executed_workflow_job_id: executed_workflow_job_id)
+      %Claim{workflow_job_id: ^executed_workflow_job_id} = claim ->
+        bind_execution(claim, executed_workflow_job_id: executed_workflow_job_id)
         :matched
 
-      %Claim{workflow_job_id: claimed_job_id, claimed_at: claimed_at} ->
-        {:ok, displaced} =
-          Repo.transaction(fn ->
-            bind_execution(runner_name, account_id,
-              executed_workflow_job_id: executed_workflow_job_id,
-              workflow_job_id: nil
-            )
-
-            requeue_displaced_job(claimed_job_id, claimed_at)
-          end)
-
-        {:mismatch, displaced}
+      %Claim{} = claim ->
+        {:mismatch, detach_displaced_job(claim, executed_workflow_job_id)}
     end
   end
 
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :unknown_runner
 
-  defp bind_execution(runner_name, account_id, updates) do
-    Repo.update_all(
-      from(c in Claim, where: c.runner_name == ^runner_name and c.account_id == ^account_id),
-      set: updates
-    )
+  defp detach_displaced_job(
+         %Claim{workflow_job_id: claimed_job_id, claimed_at: claimed_at} = claim,
+         executed_workflow_job_id
+       ) do
+    {:ok, displaced} =
+      Repo.transaction(fn ->
+        case bind_execution(claim,
+               executed_workflow_job_id: executed_workflow_job_id,
+               workflow_job_id: nil
+             ) do
+          1 -> requeue_displaced_job(claimed_job_id, claimed_at)
+          0 -> nil
+        end
+      end)
+
+    displaced
+  end
+
+  # Writes the claim that was read, by its primary key, rather than every
+  # claim sharing the `runner_name` it was found by. That name is only
+  # probabilistically unique — the mint truncates a long service-account
+  # prefix — so a stale claim and a live one can carry the same one. A
+  # name-scoped UPDATE would detach the job from both while only the
+  # arbitrarily-selected claim's job is re-queued, stranding the other in
+  # the exact attached-to-nothing-but-still-`running` state the
+  # transaction above exists to prevent.
+  #
+  # Guarded on `claimed_at` as well, so a claim released and its Pod
+  # re-claimed between the read and this write is left to its own
+  # generation. The caller re-queues only when the guard held, since a
+  # `claimed_job_id` read from the previous generation says nothing about
+  # the current one.
+  defp bind_execution(%Claim{pod_name: pod_name, claimed_at: claimed_at}, updates) do
+    {count, _} =
+      Repo.update_all(
+        from(c in Claim, where: c.pod_name == ^pod_name and c.claimed_at == ^claimed_at),
+        set: updates
+      )
+
+    count
   end
 
   # A redelivery finds the job already detached and re-queued by the first
