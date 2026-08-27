@@ -35,10 +35,6 @@ const runtimeProperties = {
   customProperties: {
     // Set by Zag on the date picker positioner, from node_modules.
     "--available-width": "",
-    // Set by Zag on a positioner, from node_modules: the width of the control
-    // the popover is anchored to. noora/css/select.css sizes a select's popover
-    // from it so the menu matches its trigger.
-    "--reference-width": "",
     // Set inline per chart series by noora/js/Chart.js.
     "--color": "",
     // noora/css/sidebar.css expand and collapse keyframes. Nothing sets it

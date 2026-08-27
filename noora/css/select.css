@@ -1,14 +1,3 @@
 [data-part="hidden-select"] {
   display: none;
 }
-
-/* The popover matches the trigger rather than its own content: a select
-   presents one of a fixed set of values, so a menu wider than the control it
-   belongs to reads as misaligned and can overflow a narrow container. Zag sets
-   `min-width: max-content` on the positioner as an inline style, which only
-   `!important` overrides. Scoped to selects through the hidden native control,
-   since a plain dropdown's menu is meant to size to its own content. */
-.noora-dropdown:has(> [data-part="hidden-select"]) [data-part="positioner"] {
-  min-width: var(--reference-width) !important;
-  max-width: var(--reference-width) !important;
-}
