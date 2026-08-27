@@ -212,15 +212,15 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         }
 
         #if DEBUG
-        public static func test(
-            passthroughSwiftPackageManagerArguments: [String] = [],
-            manifestEnvironmentExcluded: [String] = []
-        ) -> Self {
-            .init(
-                passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments,
-                manifestEnvironmentExcluded: manifestEnvironmentExcluded
-            )
-        }
+            public static func test(
+                passthroughSwiftPackageManagerArguments: [String] = [],
+                manifestEnvironmentExcluded: [String] = []
+            ) -> Self {
+                .init(
+                    passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments,
+                    manifestEnvironmentExcluded: manifestEnvironmentExcluded
+                )
+            }
         #endif
     }
 
