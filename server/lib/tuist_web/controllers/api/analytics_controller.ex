@@ -16,6 +16,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.API.Schemas.CommandEvent
   alias TuistWeb.API.Schemas.CommandEventArtifact
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
   alias TuistWeb.Headers
   alias TuistWeb.Plugs.LoaderPlug
@@ -715,8 +716,13 @@ defmodule TuistWeb.API.AnalyticsController do
       ) do
     with {:ok, object_key} <-
            get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
-      upload_id = Storage.multipart_start(object_key, selected_project.account)
-      json(conn, %{status: "success", data: %{upload_id: upload_id}})
+      case Storage.multipart_start(object_key, selected_project.account) do
+        {:ok, upload_id} ->
+          json(conn, %{status: "success", data: %{upload_id: upload_id}})
+
+        {:error, _reason} ->
+          StorageError.render(conn)
+      end
     end
   end
 
@@ -829,19 +835,22 @@ defmodule TuistWeb.API.AnalyticsController do
       ) do
     with {:ok, object_key} <-
            get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
-      :ok =
-        Storage.multipart_complete_upload(
-          object_key,
-          upload_id,
-          Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
-            {part_number, etag}
-          end),
-          selected_project.account
-        )
+      case Storage.multipart_complete_upload(
+             object_key,
+             upload_id,
+             Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
+               {part_number, etag}
+             end),
+             selected_project.account
+           ) do
+        :ok ->
+          conn
+          |> put_status(:no_content)
+          |> json(%{})
 
-      conn
-      |> put_status(:no_content)
-      |> json(%{})
+        {:error, _reason} ->
+          StorageError.render(conn)
+      end
     end
   end
 

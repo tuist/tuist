@@ -8,6 +8,7 @@ defmodule TuistWeb.API.ShardsController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Shards.Shard
   alias TuistWeb.API.Schemas.Shards.ShardPlan
+  alias TuistWeb.API.StorageError
   alias TuistWeb.Headers
 
   @suite_catch_all_minimum_cli_version Version.parse!("4.202.0-canary.21")
@@ -230,6 +231,9 @@ defmodule TuistWeb.API.ShardsController do
         conn
         |> put_status(:bad_request)
         |> json(%{message: "Either shard_plan_id or reference is required."})
+
+      {:error, _reason} ->
+        StorageError.render(conn)
     end
   end
 
@@ -560,6 +564,9 @@ defmodule TuistWeb.API.ShardsController do
         conn
         |> put_status(:bad_request)
         |> json(%{message: "Either shard_plan_id or reference is required."})
+
+      {:error, _reason} ->
+        StorageError.render(conn)
     end
   end
 

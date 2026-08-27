@@ -15,6 +15,7 @@ defmodule TuistWeb.API.BuildsController do
   alias TuistWeb.API.Schemas.Builds.Build
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
+  alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -1040,9 +1041,13 @@ defmodule TuistWeb.API.BuildsController do
       ) do
     object_key = Builds.build_storage_key(selected_project.account.name, selected_project.name, build_id)
 
-    multipart_upload_id = Storage.multipart_start(object_key, selected_project.account)
+    case Storage.multipart_start(object_key, selected_project.account) do
+      {:ok, multipart_upload_id} ->
+        json(conn, %{status: "success", data: %{upload_id: multipart_upload_id}})
 
-    json(conn, %{status: "success", data: %{upload_id: multipart_upload_id}})
+      {:error, _reason} ->
+        StorageError.render(conn)
+    end
   end
 
   operation(:multipart_generate_url,
@@ -1171,16 +1176,19 @@ defmodule TuistWeb.API.BuildsController do
       ) do
     object_key = Builds.build_storage_key(selected_project.account.name, selected_project.name, build_id)
 
-    :ok =
-      Storage.multipart_complete_upload(
-        object_key,
-        multipart_upload_id,
-        Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
-          {part_number, etag}
-        end),
-        selected_project.account
-      )
+    case Storage.multipart_complete_upload(
+           object_key,
+           multipart_upload_id,
+           Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
+             {part_number, etag}
+           end),
+           selected_project.account
+         ) do
+      :ok ->
+        json(conn, %{status: "success", data: %{}})
 
-    json(conn, %{status: "success", data: %{}})
+      {:error, _reason} ->
+        StorageError.render(conn)
+    end
   end
 end
