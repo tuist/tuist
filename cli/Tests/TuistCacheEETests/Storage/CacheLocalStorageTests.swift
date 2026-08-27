@@ -522,6 +522,51 @@ struct CacheLocalStorageTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func clean_evictsEntriesToMakeRoomForIncomingArtifacts() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
+        try await fileSystem.makeDirectory(at: binariesDirectory)
+
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.binaries))
+            .willReturn(binariesDirectory)
+
+        // Three ~1 MB entries, staggered so entry 0 is most recently used.
+        for i in 0 ..< 3 {
+            let entry = binariesDirectory.appending(component: "hash\(i)")
+            let artifact = entry.appending(component: "framework.xcframework")
+            try await fileSystem.makeDirectory(at: artifact)
+            FileManager.default.createFile(
+                atPath: artifact.appending(component: "binary").pathString,
+                contents: Data(repeating: 0x41, count: 1_000_000)
+            )
+            let date = Calendar.current.date(byAdding: .hour, value: -i, to: Date())!
+            try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: entry.pathString)
+        }
+
+        let incoming = temporaryDirectory.appending(component: "incoming")
+        try await fileSystem.makeDirectory(at: incoming)
+        FileManager.default.createFile(
+            atPath: incoming.appending(component: "binary").pathString,
+            contents: Data(repeating: 0x41, count: 1_000_000)
+        )
+
+        // When: a budget that holds ~2 entries, one of which the incoming artifact claims.
+        let subject = CacheLocalStorage(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            artifactSigner: MockArtifactSigning(),
+            fileSystem: fileSystem
+        )
+        try await subject.clean(maxBytes: 2_500_000, makingRoomFor: [incoming])
+
+        // Then
+        let remaining = try await fileSystem.glob(directory: binariesDirectory, include: ["*"]).collect()
+        #expect(remaining.count == 1)
+        #expect(try await fileSystem.exists(binariesDirectory.appending(component: "hash0")))
+    }
+
+    @Test(.inTemporaryDirectory)
     func clean_keepsRecentEntries() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
