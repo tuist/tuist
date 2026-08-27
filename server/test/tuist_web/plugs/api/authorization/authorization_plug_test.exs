@@ -264,6 +264,18 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
       %{conn: conn}
     end
 
+    test "does not consult the limiter when the subject is authorized", %{conn: conn} do
+      # Given
+      stub(Authorization, :authorize, fn _, _, _ -> :ok end)
+      reject(&RateLimit.Authorization.hit/1)
+
+      # When
+      got = AuthorizationPlug.call(conn, AuthorizationPlug.init(:cache))
+
+      # Then
+      refute got.halted
+    end
+
     test "returns 403 while the subject is under the limit", %{conn: conn} do
       # Given
       stub(RateLimit.Authorization, :hit, fn _conn -> {:allow, 1} end)

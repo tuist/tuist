@@ -13,6 +13,7 @@ defmodule TuistWeb.RateLimit.AuthorizationTest do
     test "uses the user key when authenticated as user", %{conn: conn} do
       # Given
       timeout = to_timeout(minute: 1)
+      stub(Tuist.Environment, :authorization_denial_rate_limit_bucket_size, fn -> 300 end)
       stub(Authentication, :authenticated_subject, fn ^conn -> %User{id: 123} end)
 
       expect(RateLimit, :hit, fn
@@ -27,6 +28,7 @@ defmodule TuistWeb.RateLimit.AuthorizationTest do
     test "uses the project key when authenticated as project", %{conn: conn} do
       # Given
       timeout = to_timeout(minute: 1)
+      stub(Tuist.Environment, :authorization_denial_rate_limit_bucket_size, fn -> 300 end)
       stub(Authentication, :authenticated_subject, fn ^conn -> %Project{id: 456} end)
 
       expect(RateLimit, :hit, fn
@@ -41,6 +43,7 @@ defmodule TuistWeb.RateLimit.AuthorizationTest do
     test "uses the account key when authenticated as account", %{conn: conn} do
       # Given
       timeout = to_timeout(minute: 1)
+      stub(Tuist.Environment, :authorization_denial_rate_limit_bucket_size, fn -> 300 end)
 
       stub(Authentication, :authenticated_subject, fn ^conn ->
         %AuthenticatedAccount{account: %{id: 789}, scopes: []}
@@ -58,6 +61,7 @@ defmodule TuistWeb.RateLimit.AuthorizationTest do
     test "uses the IP key when there is no authenticated subject", %{conn: conn} do
       # Given
       timeout = to_timeout(minute: 1)
+      stub(Tuist.Environment, :authorization_denial_rate_limit_bucket_size, fn -> 300 end)
       stub(Authentication, :authenticated_subject, fn ^conn -> nil end)
       stub(TuistWeb.RemoteIp, :get, fn ^conn -> "127.0.0.1" end)
 
