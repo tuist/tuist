@@ -393,7 +393,7 @@ msgstr ""
 msgid "Tuist Icon"
 msgstr ""
 
-#: lib/tuist_web/components/layout_components.ex:64
+#: lib/tuist_web/components/layout_components.ex:36
 #, elixir-autogen, elixir-format
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
 msgstr ""

@@ -34,7 +34,6 @@ TUIST_STRIPE_SECRET_KEY = { provider = "onepass", value = "STRIPE/secret_key" }
 TUIST_STRIPE_PUBLISHABLE_KEY = { provider = "onepass", value = "STRIPE/publishable_key" }
 TUIST_STRIPE_ENDPOINT_SECRET = { provider = "onepass", value = "STRIPE/endpoint_secret" }
 TUIST_MAILGUN_API_KEY = { provider = "onepass", value = "MAILGUN/api_key" }
-TUIST_PLAIN_AUTHENTICATION_SECRET = { provider = "onepass", value = "PLAIN/authentication_secret" }
 TUIST_LOOPS_API_KEY = { provider = "onepass", value = "LOOPS/api_key" }
 TUIST_CACHE_API_KEY = { provider = "onepass", value = "CACHE_API_KEY/password" }
 # Tuist OIDC provider (CLI/agent login). Only the three fields the code reads
