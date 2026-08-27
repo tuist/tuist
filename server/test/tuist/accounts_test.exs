@@ -2176,6 +2176,29 @@ defmodule Tuist.AccountsTest do
       # Then
       assert got
     end
+
+    test "returns nil when the handle is a percent wildcard" do
+      # Given
+      AccountsFixtures.user_fixture(preload: [:account])
+      AccountsFixtures.user_fixture(preload: [:account])
+
+      # When
+      got = Accounts.get_account_by_handle("%")
+
+      # Then
+      assert is_nil(got)
+    end
+
+    test "returns nil when the handle is made of underscore wildcards" do
+      # Given
+      %{account: %{name: handle}} = AccountsFixtures.user_fixture(preload: [:account])
+
+      # When
+      got = Accounts.get_account_by_handle(String.duplicate("_", String.length(handle)))
+
+      # Then
+      assert is_nil(got)
+    end
   end
 
   describe "create_user/1" do

@@ -47,10 +47,9 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
   KuraInstance). The Kura controller itself runs once cluster-wide in the
   `kura` namespace; each preview's `KuraInstance` is created there.
 - `clusters/cluster-pentest.yaml` is the isolated security-assessment cluster.
-  Its Kura controller, credentials, data volumes, and application namespace
-  are not shared with preview or any managed environment. It has no runner or
-  Mac worker pools; `values-pentest.yaml` keeps its embedded data services
-  persistent and places Kura on the dedicated `kura` worker pool.
+  Its data volumes and application namespace are not shared with preview or
+  any managed environment. It has no runner, Mac, or Kura worker pools;
+  `values-pentest.yaml` keeps its embedded data services persistent.
 - `clusters/README.md` — ClusterClass authoring + caph-upstream porting notes.
 - `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access).
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).

@@ -1504,6 +1504,25 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Returns the bucket size for the API authorization denial rate limiter.
+
+  Only denied requests are counted, so this bounds how many rejections a single
+  subject can draw in a minute. In production, ordinary traffic peaks around 20
+  denials a minute per subject while an unauthorized cache fan-out runs into the
+  thousands.
+
+  This can be overridden via:
+  - Environment variable: TUIST_AUTHORIZATION_DENIAL_RATE_LIMIT_BUCKET_SIZE
+  - Secrets configuration: authorization_denial_rate_limit.bucket_size
+  """
+  def authorization_denial_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:authorization_denial_rate_limit, :bucket_size], secrets, default_value: 300) do
+      bucket_size when is_integer(bucket_size) -> bucket_size
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+    end
+  end
+
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 

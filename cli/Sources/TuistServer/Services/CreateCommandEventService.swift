@@ -3,6 +3,7 @@
     import Mockable
     import OpenAPIRuntime
     import TuistCore
+    import TuistHTTP
     import XcodeGraph
 
     @Mockable
@@ -25,6 +26,16 @@
                 return "The organization could not be created due to an unknown Tuist response of \(statusCode)."
             case let .forbidden(message), let .unauthorized(message):
                 return message
+            }
+        }
+    }
+
+    extension CreateCommandEventServiceError: HTTPStatusCodeError {
+        var httpStatusCode: Int {
+            switch self {
+            case let .unknownError(statusCode): return statusCode
+            case .forbidden: return 403
+            case .unauthorized: return 401
             }
         }
     }

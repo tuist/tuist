@@ -3,6 +3,7 @@
     import Mockable
     import OpenAPIRuntime
     import TuistCore
+    import TuistHTTP
 
     @Mockable
     public protocol MultipartUploadCompleteCacheServicing {
@@ -32,6 +33,19 @@
             case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message),
                  let .conflict(message):
                 return message
+            }
+        }
+    }
+
+    extension MultipartUploadCompleteCacheServiceError: HTTPStatusCodeError {
+        public var httpStatusCode: Int {
+            switch self {
+            case let .unknownError(statusCode): return statusCode
+            case .notFound: return 404
+            case .paymentRequired: return 402
+            case .forbidden: return 403
+            case .unauthorized: return 401
+            case .conflict: return 409
             }
         }
     }

@@ -220,10 +220,71 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       # Then - the empty days are gaps, not runs that took no time
       [average | _] = chart_option(lv, "test-case-duration-chart")["series"]
-      values = Enum.map(average["data"], &List.last/1)
+      values = Enum.map(average["data"], &point_value/1)
 
       assert Enum.any?(values, &is_nil/1)
       refute 0 in values
+    end
+
+    test "spans the days it did not run and points the ones it did", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - runs today and three days ago, with empty days between them
+      test_case_id = seed_runs_across_time(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-selected-widget=duration"
+        )
+
+      render_async(lv)
+
+      # Then - one line across the window, with a symbol on each measured day so
+      # the stretches it spans are not mistaken for observations
+      [average | _] = chart_option(lv, "test-case-duration-chart")["series"]
+
+      {measured, empty} = Enum.split_with(average["data"], &(not is_nil(point_value(&1))))
+
+      assert average["connectNulls"] == true
+      # A series that draws no symbol at all would make the sizes below inert
+      assert average["symbol"] == "circle"
+      assert Enum.any?(measured)
+      assert Enum.all?(measured, &(&1["symbolSize"] > 0))
+      assert Enum.all?(empty, &(&1["symbolSize"] == 0))
+    end
+
+    test "leaves a series that measured every day bare, so it reads as a plain line", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - a window whose every day holds runs, so the line spans nothing
+      test_case_id = seed_consecutive_runs(project)
+
+      # A span of one day buckets hourly, so the window covers three whole days
+      query =
+        URI.encode_query(%{
+          "analytics-selected-widget" => "duration",
+          "analytics-date-range" => "custom",
+          "analytics-start-date" => start_of_day_ago(3),
+          "analytics-end-date" => end_of_day_ago(1)
+        })
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, "/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?#{query}")
+
+      render_async(lv)
+
+      # Then - nothing to disambiguate, so no symbols
+      [average | _] = chart_option(lv, "test-case-duration-chart")["series"]
+
+      refute Enum.any?(average["data"], &is_nil(point_value(&1)))
+      assert Enum.all?(average["data"], &(&1["symbolSize"] == 0))
     end
 
     test "replaces the duration chart with an empty state when the period holds no runs", %{
@@ -585,7 +646,7 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       # Then - a day with no runs has no flakiness rate, and 0% would claim otherwise
       [flakiness] = chart_option(lv, "test-case-analytics-chart")["series"]
-      values = Enum.map(flakiness["data"], &List.last/1)
+      values = Enum.map(flakiness["data"], &point_value/1)
 
       assert Enum.any?(values, &is_nil/1)
     end
@@ -655,6 +716,39 @@ defmodule TuistWeb.TestCaseLiveTest do
                lv,
                "[data-part='analytics'] [data-part='analytics-history'] [data-part='timeline-item']"
              )
+    end
+
+    test "fills the column beside the chart with history rather than three entries", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - more history than the column can hold
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      for _event <- 1..12 do
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case_run.test_case_id,
+          event_type: "skipped"
+        )
+      end
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+
+      # Then - the column runs as deep as the analytics beside it, and says so
+      # when there is more
+      items =
+        lv
+        |> render()
+        |> Floki.parse_document!()
+        |> Floki.find("[data-part='analytics-history'] [data-part='timeline-item']")
+
+      assert length(items) == 8
+      assert has_element?(lv, "[data-part='analytics-history'] a", "View more")
     end
 
     test "opens the timeline on the run that introduced the test case", %{
@@ -834,6 +928,23 @@ defmodule TuistWeb.TestCaseLiveTest do
     test_case_run.test_case_id
   end
 
+  defp seed_consecutive_runs(project) do
+    test_case_run = passing_test_case_run(project)
+
+    for days_ago <- [1, 2, 3] do
+      ran_at = DateTime.utc_now() |> DateTime.add(-days_ago, :day) |> DateTime.to_naive()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_run.test_case_id,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      )
+    end
+
+    test_case_run.test_case_id
+  end
+
   defp seed_runs_of_every_outcome(project) do
     test_case_run = passing_test_case_run(project)
 
@@ -871,6 +982,19 @@ defmodule TuistWeb.TestCaseLiveTest do
   # caps its bar.
   defp segment_count(%{"value" => count}), do: count
   defp segment_count(count), do: count
+
+  # A line point is `[date, value]` wrapped in the symbol the bucket draws.
+  defp point_value(%{"value" => [_date, value]}), do: value
+
+  # Whole-day bounds, so a seeded run cannot land a fraction of a second outside
+  # the window it was meant to sit in.
+  defp start_of_day_ago(days) do
+    Date.utc_today() |> Date.add(-days) |> DateTime.new!(~T[00:00:00], "Etc/UTC") |> DateTime.to_iso8601()
+  end
+
+  defp end_of_day_ago(days) do
+    Date.utc_today() |> Date.add(-days) |> DateTime.new!(~T[23:59:59], "Etc/UTC") |> DateTime.to_iso8601()
+  end
 
   defp chart_option(lv, chart_id) do
     lv

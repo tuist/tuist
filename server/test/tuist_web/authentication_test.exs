@@ -540,6 +540,24 @@ defmodule TuistWeb.AuthenticationTest do
       assert conn.halted
       assert redirected_to(conn) == ~p"/users/log_in"
     end
+
+    test "redirects if the account handle is a wildcard matching many accounts", %{conn: conn} do
+      # Given
+      AccountsFixtures.organization_fixture()
+      AccountsFixtures.organization_fixture()
+      conn = %{conn | path_params: %{"account_handle" => "%"}}
+
+      # When
+      conn =
+        conn
+        |> Phoenix.ConnTest.init_test_session(%{})
+        |> fetch_flash()
+        |> Authentication.require_authenticated_user_for_private_accounts([])
+
+      # Then
+      assert conn.halted
+      assert redirected_to(conn) == ~p"/users/log_in"
+    end
   end
 
   describe "require_authenticated_user_for_previews/2" do
