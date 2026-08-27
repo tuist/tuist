@@ -618,8 +618,7 @@ enum CLIRunner {
         if try await PackageResolver.shouldUseNativeColdPath(
             packageDir: package,
             cacheRoot: cacheRoot
-        )
-        {
+        ) {
             let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
                 packageDir: package,
                 scratchDir: scratch,
@@ -632,6 +631,12 @@ enum CLIRunner {
                 writeResolvedFile: shouldWrite(write: write, printOnly: printOnly),
                 forceResolvedVersions: readOnly,
                 forwardOutput: !cli.quiet
+            )
+            let cache = try await Cache(root: cacheRoot)
+            try await WorkspaceRestorer.cacheNativeSourceCheckouts(
+                scratchDir: scratch,
+                cache: cache,
+                resolved: resolved
             )
             if !cli.quiet {
                 ResolvedFile.print(resolved)

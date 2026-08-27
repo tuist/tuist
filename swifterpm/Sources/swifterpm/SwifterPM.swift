@@ -224,8 +224,7 @@ public struct SwifterPM: Sendable {
         if try await PackageResolver.shouldUseNativeColdPath(
             packageDir: package,
             cacheRoot: cacheRoot
-        )
-        {
+        ) {
             let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
                 packageDir: package,
                 scratchDir: scratch,
@@ -238,6 +237,12 @@ public struct SwifterPM: Sendable {
                 writeResolvedFile: request.writeResolvedFile,
                 forceResolvedVersions: request.forceResolvedVersions,
                 forwardOutput: !request.quiet
+            )
+            let cache = try await Cache(root: cacheRoot)
+            try await WorkspaceRestorer.cacheNativeSourceCheckouts(
+                scratchDir: scratch,
+                cache: cache,
+                resolved: resolved
             )
             if !request.quiet {
                 ResolvedFile.print(resolved)

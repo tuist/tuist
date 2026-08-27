@@ -155,7 +155,7 @@ struct ResolveTests {
     }
 
     @Test
-    func coldResolutionUsesSwiftPMWithoutPopulatingTheSwifterPMSourceCache() async throws {
+    func coldResolutionSeedsTheSwifterPMSourceCache() async throws {
         try await withTemporaryDirectory { root in
             let dependency = root.appendingPathComponent("Dependency")
             try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
@@ -176,7 +176,43 @@ struct ResolveTests {
                 ))
 
             #expect(result.pins.map(\.identity) == ["dependency"])
-            #expect(try await !cache.hasCachedSources())
+            #expect(try await cache.hasCachedSources())
+            #expect(
+                try await !PackageResolver.shouldUseNativeColdPath(
+                    packageDir: package,
+                    cacheRoot: cache.root
+                )
+            )
+
+            let pin = try #require(
+                try await ResolvedFile.read(packageDir: package).pins.first
+            )
+            let cachedSource = try cache.sourcePath(pin: pin)
+            try await fileSystem.atomicWrite(
+                "cached\n",
+                to: cachedSource.appendingPathComponent(".swifterpm-cache-marker")
+            )
+
+            let freshScratch = root.appendingPathComponent("fresh-scratch")
+            let warmResult = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: cacheDirectory,
+                    scratchDirectory: freshScratch,
+                    disableSandbox: true,
+                    quiet: true
+                ))
+
+            #expect(warmResult.pins.map(\.identity) == ["dependency"])
+            #expect(
+                try await fileSystem.exists(
+                    freshScratch
+                        .appendingPathComponent("checkouts")
+                        .appendingPathComponent(PinKind.checkoutDirectoryName(pin))
+                        .appendingPathComponent(".swifterpm-cache-marker")
+                        .absolutePath
+                )
+            )
         }
     }
 
