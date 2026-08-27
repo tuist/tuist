@@ -49,7 +49,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   # mistake (xcodebuild never populated the bundle, or the upload was a
   # bare `quarantined_tests.json` skeleton). We mark the run as
   # `failed_processing` once and cancel the job.
-  @unprocessable_input_reasons [:bundle_invalid, :xcresult_not_found]
+  @unprocessable_input_reasons [:bundle_invalid, :xcresult_not_found, :project_not_found]
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"test_run_id" => test_run_id}} = job) do
