@@ -357,6 +357,12 @@ defmodule TuistWeb.Router do
           metadata: @marketing_route_metadata,
           private: private
 
+      get Path.join(locale_path_prefix, "/compute"),
+          MarketingController,
+          :compute,
+          metadata: @marketing_route_metadata,
+          private: private
+
       get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug/iframe.html"),
           TuistWeb.Marketing.MarketingBlogIframeController,
           :show,

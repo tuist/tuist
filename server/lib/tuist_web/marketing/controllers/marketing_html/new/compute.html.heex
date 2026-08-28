@@ -1,0 +1,675 @@
+<%!-- Redesigned compute page (styles in css/new/routes/compute.css). Same
+frame recipe as the cache page: left-aligned hero card, features frame
+(intro text + two full-width showcase cards + 2x2 grid), CTA between
+dithered dividers. --%>
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-compute">
+    <%!-- Hero card: same left-aligned 600px frame as the cache hero. The
+    background blueprint mosaic — a gap-free tiling of 40/80/120/160
+    squares with corner dots, some flickering purple — is drawn on the
+    canvas by the ComputeHeroGrid hook. --%>
+    <header data-part="header">
+      <div
+        data-part="illustration"
+        aria-hidden="true"
+        id="compute-hero-grid"
+        phx-hook="ComputeHeroGrid"
+      >
+        <canvas data-part="canvas"></canvas>
+      </div>
+      <h1 data-part="title">
+        <span data-part="line">{dgettext("marketing", "Stop waiting on the")}</span>
+        <span data-part="line">{dgettext("marketing", "queue.")}</span>
+      </h1>
+      <p data-part="subtitle">
+        {dgettext(
+          "marketing",
+          "Runners that spin up in seconds and scale with your team and your agents."
+        )}
+      </p>
+      <%!-- The one-line migration: swap the runs-on label. Code stays
+      untranslated, like the illustrations' annotations. The added line
+      types out once per page load behind a blinking terminal cursor
+      (ComputeHeroDiff); the typed/cursor spans stay glued together on one
+      line so no whitespace opens between the text and the caret. --%>
+      <div data-part="diff" aria-hidden="true" id="compute-hero-diff" phx-hook="ComputeHeroDiff">
+        <span data-part="line" data-line="removed">
+          <span data-part="sign">-</span>
+          <span data-part="code">runs-on: macos-latest</span>
+        </span>
+        <span data-part="line" data-line="added">
+          <span data-part="sign">+</span>
+          <span data-part="code"><span data-part="typed">runs-on: tuist-macos</span><span data-part="cursor"></span></span>
+        </span>
+      </div>
+      <%!-- First-paint arm for the typewriter: stashes and clears the
+      added line before the browser paints, so the full text never
+      flashes ahead of the hook's typing. Skips under reduced motion.
+      The CSP nonce is required — without it the browser blocks the
+      inline script and the hook's fallback arming takes over. The
+      watchdog restores the line if the hook never takes over (a stale
+      or failed bundle.js) — an empty strip must not outlive the arm. --%>
+      <script nonce={TuistWeb.CSP.get_csp_nonce()}>
+        (() => {
+          if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+          var diff = document.getElementById("compute-hero-diff");
+          var typed = diff && diff.querySelector('[data-part="typed"]');
+          if (!typed) return;
+          typed.dataset.text = typed.textContent;
+          typed.textContent = "";
+          diff.setAttribute("data-armed", "");
+          setTimeout(() => {
+            if (typed.textContent === "" && !diff.hasAttribute("data-typing")) {
+              typed.textContent = typed.dataset.text;
+              diff.removeAttribute("data-armed");
+            }
+          }, 3000);
+        })();
+      </script>
+      <.button
+        href={
+          TuistWeb.Marketing.MarketingHTML.localized_href(
+            "https://tuist.dev/en/docs/guides/features/runners"
+          )
+        }
+        variant="secondary"
+        label={dgettext("marketing", "Read docs")}
+      />
+    </header>
+
+    <section data-part="features" aria-labelledby="compute-features-title">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Features")}</span>
+        <h2 data-part="title" id="compute-features-title">
+          {dgettext("marketing", "Compute without the infrastructure work")}
+        </h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "Fast macOS and Linux runners that scale with your workloads and plug directly into the rest of the Tuist platform."
+          )}
+        </p>
+      </div>
+      <%!-- Two full-width showcase cards, each a full-bleed illustration
+      slot over its text block, stacked flush so the hairlines read as one
+      continuous frame with the grid below. The diagrams are placeholders
+      until the real illustrations land. --%>
+      <div data-part="showcase">
+        <div data-part="cell">
+          <%!-- Pixel rebuild of the comp's 1129x517 scene: HTML cards
+          absolutely positioned over a single wires SVG sharing the same
+          coordinate space (so connectors meet card edges exactly), with
+          Noora badges as the trace/hit/miss/cpu chips. Decorative
+          (aria-hidden), labels untranslated like the other cards'
+          annotations. The whole stage scales as one unit on narrow
+          viewports. --%>
+          <figure data-part="illustration" data-illustration="build-platform" aria-hidden="true">
+            <div data-part="scene" id="compute-build-platform" phx-hook="ComputeBuildPlatform">
+              <div data-part="card" data-box="runner">
+                <span data-part="label">TUIST RUNNER · MAC-M4-PRO</span>
+                <span data-part="status"></span>
+              </div>
+              <div data-part="card" data-box="xcodebuild">
+                <span data-part="label">XCODEBUILD</span>
+              </div>
+              <svg
+                data-part="wires"
+                data-layout="desktop"
+                viewBox="0 0 1129 517"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <g data-wire="solid">
+                  <path d="M170 322H225.5" />
+                  <path d="M331.5 243V257.5" />
+                  <path d="M432 358H464.5" />
+                  <path d="M347.5 407V392.5" />
+                  <path d="M672.5 193H854.5" />
+                  <path d="M672.5 291H854.5" />
+                  <path d="M672.5 389H854.5" />
+                </g>
+                <g data-wire="strong">
+                  <path d="M759.5 291H779.5" />
+                </g>
+                <g data-wire="dashed">
+                  <path d="M656.5 46.5H1100.5V389H1030" data-march="reverse" />
+                  <path d="M1030 193H1100.5" data-march="forward" />
+                  <path d="M1030 291H1100.5" data-march="forward" />
+                  <path d="M432 436H747.5V487H853.5" data-march="forward" />
+                </g>
+                <g data-wire="arrow">
+                  <path d="M225.5 318L229.5 322L225.5 326" />
+                  <path d="M327.5 257.5L331.5 261.5L335.5 257.5" />
+                  <path d="M464.5 354L468.5 358L464.5 362" />
+                  <path d="M343.5 392.5L347.5 388.5L351.5 392.5" />
+                  <path d="M854.5 189L858.5 193L854.5 197" />
+                  <path d="M854.5 287L858.5 291L854.5 295" />
+                  <path d="M854.5 385L858.5 389L854.5 393" />
+                  <path d="M853.5 483L857.5 487L853.5 491" />
+                  <path d="M652.5 42.5L648.5 46.5L652.5 50.5" />
+                </g>
+              </svg>
+              <%!-- Mobile wires: the same scene stacked vertically on a
+              541-wide stage (commit, runner, chips row, stat-card row,
+              Tuist cache, dashboard), with the dashed returns rising from
+              the dashboard back up to the stat cards. CSS swaps this in
+              for the desktop wires at the mobile breakpoint. --%>
+              <svg
+                data-part="wires"
+                data-layout="mobile"
+                viewBox="0 0 541 930"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <g data-wire="solid">
+                  <path d="M270.5 58V116.5" />
+                  <path d="M150.5 246V260.5" />
+                  <path d="M251 361H283.5" />
+                  <path d="M166.5 410V395.5" />
+                  <path d="M85 500V612" />
+                  <path d="M270 500V612" />
+                  <path d="M455 500V612" />
+                </g>
+                <g data-wire="strong">
+                  <path d="M260 556H280" />
+                </g>
+                <g data-wire="dashed">
+                  <path d="M178 500V724" data-march="forward" />
+                  <path d="M270 840V678" data-march="reverse" />
+                  <path d="M189 885H85V678" data-march="reverse" />
+                  <path d="M351 885H455V678" data-march="reverse" />
+                </g>
+                <g data-wire="arrow">
+                  <path d="M266.5 116.5L270.5 120.5L274.5 116.5" />
+                  <path d="M146.5 260.5L150.5 264.5L154.5 260.5" />
+                  <path d="M283.5 357L287.5 361L283.5 365" />
+                  <path d="M162.5 395.5L166.5 391.5L170.5 395.5" />
+                  <path d="M81 614L85 618L89 614" />
+                  <path d="M266 614L270 618L274 614" />
+                  <path d="M451 614L455 618L459 614" />
+                  <path d="M174 724L178 728L182 724" />
+                </g>
+              </svg>
+              <div data-part="box" data-box="commit">
+                <span data-part="title">a3f92e1</span>
+                <span data-part="subtitle">feat: offline sync</span>
+              </div>
+              <div data-part="box" data-box="ci-job">
+                <span data-part="title">CI job #1042</span>
+                <span data-part="subtitle">passed · 4m 12s</span>
+              </div>
+              <div data-part="box" data-box="workspace">
+                <span data-part="title">App.xcworkspace</span>
+                <span data-part="subtitle">scheme App</span>
+              </div>
+              <div data-part="box" data-box="targets">
+                <span data-part="title">24 targets</span>
+                <span data-part="subtitle">compile + link</span>
+              </div>
+              <div data-part="box" data-box="cache-client">
+                <span data-part="title">cache client</span>
+                <span data-part="subtitle">content-addressed</span>
+              </div>
+              <div data-part="box" data-box="dashboard">
+                <span data-part="window-dots"></span>
+                <span data-part="brand">
+                  <svg
+                    data-part="logo"
+                    viewBox="499.5 35.5 18 19.3"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path d="M516.573 48.1072C515.628 48.805 514.618 49.4109 513.556 49.8856C515.157 48.068 516.438 45.883 517.415 43.8575C517.108 43.2574 516.721 42.6865 516.297 42.1659C515.312 44.0301 514.17 45.8371 512.782 47.4332C512.614 47.6225 512.443 47.8109 512.268 47.997C513.32 44.9895 513.968 41.875 514.464 38.7566C513.961 38.3931 513.422 38.0736 512.852 37.8055C512.341 40.2942 511.706 42.7598 510.894 45.1444C510.54 46.1775 510.15 47.1957 509.705 48.1709L509.397 35.5389C509.101 35.5129 508.803 35.5 508.5 35.5C508.198 35.5 507.899 35.5125 507.604 35.5389L507.296 48.1747C506.845 47.1918 506.464 46.1713 506.106 45.1447C505.294 42.7598 504.66 40.2942 504.149 37.8058C503.578 38.0739 503.039 38.3934 502.537 38.7569C503.033 41.8775 503.681 44.9946 504.735 48.0041C504.559 47.8173 504.387 47.6274 504.218 47.4335C502.83 45.8374 501.688 44.0304 500.703 42.1662C500.278 42.6878 499.891 43.2596 499.585 43.86C499.91 44.5398 500.256 45.211 500.63 45.8731C501.427 47.2301 502.353 48.6353 503.45 49.8888C502.386 49.4135 501.374 48.8066 500.427 48.1072C500.072 48.5839 499.76 49.0927 499.5 49.6301C504.317 54.7895 512.682 54.7904 517.5 49.6301C517.239 49.0927 516.928 48.5839 516.573 48.1072Z" />
+                  </svg>
+                  <span data-part="name">Tuist dashboard</span>
+                </span>
+              </div>
+              <div data-part="box" data-box="build-performance">
+                <span data-part="title">Build performance</span>
+                <span data-part="subtitle">per-target timings</span>
+              </div>
+              <div data-part="box" data-box="cache-activity">
+                <span data-part="title">Cache activity</span>
+                <span data-part="subtitle">92% hit ratio</span>
+              </div>
+              <div data-part="box" data-box="machine-metrics">
+                <span data-part="title">Machine metrics</span>
+                <span data-part="subtitle">cpu 71% · mem 18/48</span>
+              </div>
+              <div data-part="box" data-box="tuist-cache">
+                <%!-- Subtle Bayer grain from the page dividers' recipe,
+                behind the text. --%>
+                <canvas
+                  data-part="dither"
+                  id="compute-tuist-cache-dither"
+                  phx-hook="DitherTexture"
+                  data-pitch="2"
+                  data-dot="2"
+                  data-top="0"
+                  data-bottom="0.85"
+                  data-wave="0.3"
+                  data-wave-scale="2.5"
+                  data-levels="0"
+                  data-speed="1"
+                  data-phase="11"
+                  data-dither="on"
+                  data-opacity="0.3"
+                ></canvas>
+                <span data-part="title">Tuist cache</span>
+                <span data-part="subtitle">colocated node</span>
+              </div>
+              <span data-part="chip" data-chip="trace">
+                <.badge label="trace" color="neutral" style="light-fill" size="large" />
+              </span>
+              <span data-part="chip" data-chip="hit">
+                <.badge label="hit · 134" color="success" style="light-fill" size="large" />
+              </span>
+              <span data-part="chip" data-chip="miss">
+                <.badge label="miss · 8" color="destructive" style="light-fill" size="large" />
+              </span>
+              <span data-part="chip" data-chip="cpu">
+                <.badge label="cpu · mem" color="neutral" style="light-fill" size="large" />
+              </span>
+            </div>
+          </figure>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Built into your build platform")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Go from a CI job to the Xcode or Gradle build behind it, with build performance, cache activity, and machine metrics connected in one place."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="cell">
+          <%!-- Pixel rebuild of the cache-ready comp (desktop 901x347,
+          mobile 458x406 stages): two runner nodes writing through their
+          persistent volumes into the colocated cache. Same recipe as the
+          build-platform scene — HTML nodes over per-layout wires SVGs,
+          block grids as CSS grids, icons lifted verbatim from the export.
+          Static for now; animation comes later. --%>
+          <figure data-part="illustration" data-illustration="cache-ready" aria-hidden="true">
+            <div data-part="scene" id="compute-cache-ready" phx-hook="ComputeCacheReady">
+              <svg
+                data-part="wires"
+                data-layout="desktop"
+                viewBox="-80 0 1061 347"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <%!-- Static dashed return: runner A around the left
+                margin into the cache's flank. Not animated. --%>
+                <g data-wire="dashed">
+                  <path d="M0 28H-52Q-60 28 -60 36V301Q-60 309 -52 309H121.5" />
+                  <path d="M890 28H942Q950 28 950 36V301Q950 309 942 309H778" />
+                </g>
+                <g data-wire="solid">
+                  <path d="M152 56V123" />
+                  <path d="M747 56V123" />
+                  <path d="M300 165H375.5Q383.5 165 383.5 173V265.5" data-flow="deposit" />
+                  <path d="M517.5 271.5V173Q517.5 165 525.5 165H584.5" data-flow="serve" />
+                </g>
+                <g data-wire="arrow">
+                  <path d="M148 123L152 127L156 123" />
+                  <path d="M743 123L747 127L751 123" />
+                  <path d="M379.5 265.5L383.5 269.5L387.5 265.5" />
+                  <path d="M584.5 161L588.5 165L584.5 169" />
+                  <path d="M121.5 305L125.5 309L121.5 313" />
+                  <path d="M778 305L774 309L778 313" />
+                </g>
+              </svg>
+              <svg
+                data-part="wires"
+                data-layout="mobile"
+                viewBox="0 0 458 406"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <g data-wire="solid">
+                  <path d="M100.5 92V144.5" />
+                  <path d="M357.5 92V144.5" />
+                  <path d="M200 212H217Q225 212 225 220V327" data-flow="deposit" />
+                  <path d="M233 332V220Q233 212 241 212H253.5" data-flow="serve" />
+                </g>
+                <g data-wire="arrow">
+                  <path d="M96.5 144.5L100.5 148.5L104.5 144.5" />
+                  <path d="M353.5 144.5L357.5 148.5L361.5 144.5" />
+                  <path d="M221 327L225 331L229 327" />
+                  <path d="M253.5 208L257.5 212L253.5 216" />
+                </g>
+              </svg>
+              <%!-- Streak overlay for the deposit/serve loop, drawn by the
+              ComputeCacheReady hook. Above the wires, below the nodes. --%>
+              <canvas data-part="pulses"></canvas>
+              <div data-part="node" data-node="runner-a">
+                <span data-part="machine">
+                  <svg
+                    data-part="os"
+                    viewBox="56.4 20.4 13.5 16.5"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  ><path
+                    d="M57.5 29.696C57.5 27.6785 58.3025 25.256 60.7145 25.256C61.598 25.256 62.5782 26.0638 63.125 26.0638C63.6635 26.0638 64.7863 25.166 65.9375 25.256C66.3785 25.286 67.928 25.6663 68.75 26.8708C68.6825 26.9075 66.7257 27.5405 66.7407 29.2917C66.7632 31.3887 68.7275 31.706 68.75 31.7142C68.75 33.3282 66.7408 35.75 65.5355 35.75C64.3302 35.75 64.1795 35.3465 63.125 35.3465C62.0638 35.3465 61.5883 35.7125 60.7145 35.75C59.1073 35.75 57.5 32.1178 57.5 29.696Z"
+                    stroke-width="1.125"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  /><path
+                    d="M64.5607 22.5607C64.2794 22.842 63.8978 23 63.5 23C63.5 22.6022 63.658 22.2206 63.9393 21.9393C64.2206 21.658 64.6022 21.5 65 21.5C65 21.8978 64.842 22.2794 64.5607 22.5607Z"
+                    stroke-width="1.125"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  /></svg>
+                  <span data-part="mini"></span>
+                </span>
+                <span data-part="name">mac-m4-pro · job #1042</span>
+              </div>
+              <div data-part="node" data-node="runner-b">
+                <span data-part="machine">
+                  <svg
+                    data-part="os"
+                    viewBox="674.1 21.6 15 15"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  ><path
+                    d="M685.792 25.5575C685.023 24.7697 684.053 24.2088 682.987 23.936M680.008 23.936C678.924 24.2139 677.94 24.7897 677.167 25.598M675.756 28.0092C675.585 28.5735 675.499 29.1598 675.499 29.7492C675.499 30.3027 675.574 30.839 675.715 31.3482M677.185 33.9192C677.954 34.7169 678.93 35.2854 680.004 35.5617M683.004 35.5617C684.074 35.2848 685.046 34.7174 685.814 33.9222M687.286 31.3497C687.429 30.8291 687.501 30.2915 687.501 29.7515C687.501 29.1785 687.421 28.6242 687.271 28.0992M679.999 23.75C679.999 24.1478 680.157 24.5294 680.439 24.8107C680.72 25.092 681.101 25.25 681.499 25.25C681.897 25.25 682.279 25.092 682.56 24.8107C682.841 24.5294 682.999 24.1478 682.999 23.75C682.999 23.3522 682.841 22.9706 682.56 22.6893C682.279 22.408 681.897 22.25 681.499 22.25C681.101 22.25 680.72 22.408 680.439 22.6893C680.157 22.9706 679.999 23.3522 679.999 23.75ZM674.75 32.75C674.75 33.1478 674.908 33.5294 675.189 33.8107C675.471 34.092 675.852 34.25 676.25 34.25C676.648 34.25 677.029 34.092 677.311 33.8107C677.592 33.5294 677.75 33.1478 677.75 32.75C677.75 32.3522 677.592 31.9706 677.311 31.6893C677.029 31.408 676.648 31.25 676.25 31.25C675.852 31.25 675.471 31.408 675.189 31.6893C674.908 31.9706 674.75 32.3522 674.75 32.75ZM685.251 32.75C685.251 33.1478 685.409 33.5294 685.69 33.8107C685.971 34.092 686.353 34.25 686.751 34.25C687.149 34.25 687.53 34.092 687.811 33.8107C688.093 33.5294 688.251 33.1478 688.251 32.75C688.251 32.3522 688.093 31.9706 687.811 31.6893C687.53 31.408 687.149 31.25 686.751 31.25C686.353 31.25 685.971 31.408 685.69 31.6893C685.409 31.9706 685.251 32.3522 685.251 32.75Z"
+                    stroke-width="1.125"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  /></svg>
+                  <span data-part="mini"></span>
+                </span>
+                <span data-part="name">linux · job #1057</span>
+              </div>
+              <div data-part="node" data-node="volume-a">
+                <div data-part="text">
+                  <span data-part="heading">
+                    <svg
+                      data-part="glyph"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    ><path d="M19.25 18C19.25 17.6685 19.1182 17.3506 18.8838 17.1162C18.6494 16.8818 18.3315 16.75 18 16.75C17.6685 16.75 17.3506 16.8818 17.1162 17.1162C16.8818 17.3506 16.75 17.6685 16.75 18C16.75 18.3315 16.8818 18.6494 17.1162 18.8838C17.3506 19.1182 17.6685 19.25 18 19.25C18.3315 19.25 18.6494 19.1182 18.8838 18.8838C19.1182 18.6494 19.25 18.3315 19.25 18ZM8.64355 6.75C8.51663 7.19733 8.27897 7.6097 7.94434 7.94434C7.60976 8.27891 7.19723 8.51563 6.75 8.64258V15.3564C7.19733 15.4834 7.6097 15.721 7.94434 16.0557C8.27897 16.3903 8.51663 16.8027 8.64355 17.25H15.3564C15.4834 16.8027 15.721 16.3903 16.0557 16.0557C16.3903 15.721 16.8027 15.4834 17.25 15.3564V8.64258C16.8028 8.51563 16.3902 8.27891 16.0557 7.94434C15.721 7.6097 15.4834 7.19733 15.3564 6.75H8.64355ZM4.75 18C4.75 18.3315 4.88179 18.6494 5.11621 18.8838C5.35063 19.1182 5.66848 19.25 6 19.25C6.33152 19.25 6.64937 19.1182 6.88379 18.8838C7.11821 18.6494 7.25 18.3315 7.25 18C7.25 17.6685 7.11821 17.3506 6.88379 17.1162C6.64937 16.8818 6.33152 16.75 6 16.75C5.66848 16.75 5.35063 16.8818 5.11621 17.1162C4.88179 17.3506 4.75 17.6685 4.75 18ZM19.25 6C19.25 5.66848 19.1182 5.35063 18.8838 5.11621C18.6494 4.88179 18.3315 4.75 18 4.75C17.6685 4.75 17.3506 4.88179 17.1162 5.11621C16.8818 5.35063 16.75 5.66848 16.75 6C16.75 6.33152 16.8818 6.64937 17.1162 6.88379C17.3506 7.11821 17.6685 7.25 18 7.25C18.3315 7.25 18.6494 7.11821 18.8838 6.88379C19.1182 6.64937 19.25 6.33152 19.25 6ZM4.75 6C4.75 6.33152 4.88179 6.64937 5.11621 6.88379C5.35063 7.11821 5.66848 7.25 6 7.25C6.33152 7.25 6.64937 7.11821 6.88379 6.88379C7.11821 6.64937 7.25 6.33152 7.25 6C7.25 5.66848 7.11821 5.35063 6.88379 5.11621C6.64937 4.88179 6.33152 4.75 6 4.75C5.66848 4.75 5.35063 4.88179 5.11621 5.11621C4.88179 5.35063 4.75 5.66848 4.75 6ZM20.75 6C20.75 6.72935 20.4601 7.42861 19.9443 7.94434C19.6098 8.27891 19.1972 8.51563 18.75 8.64258V15.3564C19.1973 15.4834 19.6097 15.721 19.9443 16.0557C20.4601 16.5714 20.75 17.2707 20.75 18C20.75 18.7293 20.4601 19.4286 19.9443 19.9443C19.4286 20.4601 18.7293 20.75 18 20.75C17.2707 20.75 16.5714 20.4601 16.0557 19.9443C15.721 19.6097 15.4834 19.1973 15.3564 18.75H8.64355C8.51663 19.1973 8.27897 19.6097 7.94434 19.9443C7.42861 20.4601 6.72935 20.75 6 20.75C5.27065 20.75 4.57139 20.4601 4.05566 19.9443C3.53994 19.4286 3.25 18.7293 3.25 18C3.25 17.2707 3.53994 16.5714 4.05566 16.0557C4.3903 15.721 4.80267 15.4834 5.25 15.3564V8.64258C4.80277 8.51563 4.39024 8.27891 4.05566 7.94434C3.53994 7.42861 3.25 6.72935 3.25 6C3.25 5.27065 3.53994 4.57139 4.05566 4.05566C4.57139 3.53994 5.27065 3.25 6 3.25C6.72935 3.25 7.42861 3.53994 7.94434 4.05566C8.27897 4.3903 8.51663 4.80267 8.64355 5.25H15.3564C15.4834 4.80267 15.721 4.3903 16.0557 4.05566C16.5714 3.53994 17.2707 3.25 18 3.25C18.7293 3.25 19.4286 3.53994 19.9443 4.05566C20.4601 4.57139 20.75 5.27065 20.75 6Z" /></svg>
+                    <span data-part="title">Persistent volume</span>
+                  </span>
+                  <span data-part="subtitle">local · incremental</span>
+                </div>
+                <div data-part="blocks">
+                  <span :for={_ <- 1..10} data-part="block"></span>
+                </div>
+              </div>
+              <div data-part="node" data-node="volume-b">
+                <div data-part="text">
+                  <span data-part="heading">
+                    <svg
+                      data-part="glyph"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    ><path d="M19.25 18C19.25 17.6685 19.1182 17.3506 18.8838 17.1162C18.6494 16.8818 18.3315 16.75 18 16.75C17.6685 16.75 17.3506 16.8818 17.1162 17.1162C16.8818 17.3506 16.75 17.6685 16.75 18C16.75 18.3315 16.8818 18.6494 17.1162 18.8838C17.3506 19.1182 17.6685 19.25 18 19.25C18.3315 19.25 18.6494 19.1182 18.8838 18.8838C19.1182 18.6494 19.25 18.3315 19.25 18ZM8.64355 6.75C8.51663 7.19733 8.27897 7.6097 7.94434 7.94434C7.60976 8.27891 7.19723 8.51563 6.75 8.64258V15.3564C7.19733 15.4834 7.6097 15.721 7.94434 16.0557C8.27897 16.3903 8.51663 16.8027 8.64355 17.25H15.3564C15.4834 16.8027 15.721 16.3903 16.0557 16.0557C16.3903 15.721 16.8027 15.4834 17.25 15.3564V8.64258C16.8028 8.51563 16.3902 8.27891 16.0557 7.94434C15.721 7.6097 15.4834 7.19733 15.3564 6.75H8.64355ZM4.75 18C4.75 18.3315 4.88179 18.6494 5.11621 18.8838C5.35063 19.1182 5.66848 19.25 6 19.25C6.33152 19.25 6.64937 19.1182 6.88379 18.8838C7.11821 18.6494 7.25 18.3315 7.25 18C7.25 17.6685 7.11821 17.3506 6.88379 17.1162C6.64937 16.8818 6.33152 16.75 6 16.75C5.66848 16.75 5.35063 16.8818 5.11621 17.1162C4.88179 17.3506 4.75 17.6685 4.75 18ZM19.25 6C19.25 5.66848 19.1182 5.35063 18.8838 5.11621C18.6494 4.88179 18.3315 4.75 18 4.75C17.6685 4.75 17.3506 4.88179 17.1162 5.11621C16.8818 5.35063 16.75 5.66848 16.75 6C16.75 6.33152 16.8818 6.64937 17.1162 6.88379C17.3506 7.11821 17.6685 7.25 18 7.25C18.3315 7.25 18.6494 7.11821 18.8838 6.88379C19.1182 6.64937 19.25 6.33152 19.25 6ZM4.75 6C4.75 6.33152 4.88179 6.64937 5.11621 6.88379C5.35063 7.11821 5.66848 7.25 6 7.25C6.33152 7.25 6.64937 7.11821 6.88379 6.88379C7.11821 6.64937 7.25 6.33152 7.25 6C7.25 5.66848 7.11821 5.35063 6.88379 5.11621C6.64937 4.88179 6.33152 4.75 6 4.75C5.66848 4.75 5.35063 4.88179 5.11621 5.11621C4.88179 5.35063 4.75 5.66848 4.75 6ZM20.75 6C20.75 6.72935 20.4601 7.42861 19.9443 7.94434C19.6098 8.27891 19.1972 8.51563 18.75 8.64258V15.3564C19.1973 15.4834 19.6097 15.721 19.9443 16.0557C20.4601 16.5714 20.75 17.2707 20.75 18C20.75 18.7293 20.4601 19.4286 19.9443 19.9443C19.4286 20.4601 18.7293 20.75 18 20.75C17.2707 20.75 16.5714 20.4601 16.0557 19.9443C15.721 19.6097 15.4834 19.1973 15.3564 18.75H8.64355C8.51663 19.1973 8.27897 19.6097 7.94434 19.9443C7.42861 20.4601 6.72935 20.75 6 20.75C5.27065 20.75 4.57139 20.4601 4.05566 19.9443C3.53994 19.4286 3.25 18.7293 3.25 18C3.25 17.2707 3.53994 16.5714 4.05566 16.0557C4.3903 15.721 4.80267 15.4834 5.25 15.3564V8.64258C4.80277 8.51563 4.39024 8.27891 4.05566 7.94434C3.53994 7.42861 3.25 6.72935 3.25 6C3.25 5.27065 3.53994 4.57139 4.05566 4.05566C4.57139 3.53994 5.27065 3.25 6 3.25C6.72935 3.25 7.42861 3.53994 7.94434 4.05566C8.27897 4.3903 8.51663 4.80267 8.64355 5.25H15.3564C15.4834 4.80267 15.721 4.3903 16.0557 4.05566C16.5714 3.53994 17.2707 3.25 18 3.25C18.7293 3.25 19.4286 3.53994 19.9443 4.05566C20.4601 4.57139 20.75 5.27065 20.75 6Z" /></svg>
+                    <span data-part="title">Persistent volume</span>
+                  </span>
+                  <span data-part="subtitle">local · incremental</span>
+                </div>
+                <div data-part="blocks">
+                  <span :for={_ <- 1..10} data-part="block"></span>
+                </div>
+              </div>
+              <div data-part="node" data-node="cache">
+                <div data-part="text">
+                  <span data-part="heading">
+                    <svg
+                      data-part="glyph"
+                      viewBox="142.5 289 18 18"
+                      xmlns="http://www.w3.org/2000/svg"
+                    ><path d="M156.938 299.637C156.648 299.818 156.311 299.978 155.94 300.117C154.735 300.569 153.138 300.812 151.5 300.812C149.862 300.812 148.265 300.569 147.06 300.117C146.689 299.978 146.352 299.818 146.062 299.637V302.5C146.062 302.585 146.106 302.737 146.334 302.944C146.562 303.15 146.931 303.368 147.455 303.564C148.5 303.956 149.956 304.188 151.5 304.188C153.044 304.188 154.5 303.956 155.545 303.564C156.069 303.368 156.438 303.15 156.666 302.944C156.894 302.737 156.938 302.585 156.938 302.5V299.637ZM156.938 295.137C156.648 295.318 156.311 295.478 155.94 295.617C154.735 296.069 153.138 296.312 151.5 296.312C149.862 296.312 148.265 296.069 147.06 295.617C146.689 295.478 146.352 295.318 146.062 295.137V298C146.062 298.085 146.106 298.237 146.334 298.444C146.562 298.65 146.931 298.868 147.455 299.064C148.5 299.456 149.956 299.688 151.5 299.688C153.044 299.688 154.5 299.456 155.545 299.064C156.069 298.868 156.438 298.65 156.666 298.444C156.894 298.237 156.938 298.085 156.938 298V295.137ZM156.938 293.5C156.938 293.415 156.894 293.263 156.666 293.056C156.438 292.85 156.069 292.632 155.545 292.436C154.5 292.044 153.044 291.812 151.5 291.812C149.956 291.812 148.5 292.044 147.455 292.436C146.931 292.632 146.562 292.85 146.334 293.056C146.106 293.263 146.062 293.415 146.062 293.5C146.062 293.585 146.106 293.737 146.334 293.944C146.562 294.15 146.931 294.368 147.455 294.564C148.5 294.956 149.956 295.188 151.5 295.188C153.044 295.188 154.5 294.956 155.545 294.564C156.069 294.368 156.438 294.15 156.666 293.944C156.894 293.737 156.938 293.585 156.938 293.5ZM158.062 302.5C158.062 303.012 157.79 303.444 157.421 303.778C157.052 304.112 156.542 304.392 155.94 304.617C154.735 305.069 153.138 305.312 151.5 305.312C149.862 305.312 148.265 305.069 147.06 304.617C146.458 304.392 145.948 304.112 145.579 303.778C145.21 303.444 144.938 303.012 144.938 302.5V293.5C144.938 292.988 145.21 292.556 145.579 292.222C145.948 291.888 146.458 291.608 147.06 291.383C148.265 290.931 149.862 290.688 151.5 290.688C153.138 290.688 154.735 290.931 155.94 291.383C156.542 291.608 157.052 291.888 157.421 292.222C157.79 292.556 158.062 292.988 158.062 293.5V302.5Z" /></svg>
+                    <span data-part="title">Colocated cache</span>
+                  </span>
+                  <span data-part="subtitle">shared · same network</span>
+                </div>
+                <div data-part="blocks">
+                  <span :for={_ <- 1..24} data-part="block"></span>
+                </div>
+              </div>
+            </div>
+          </figure>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Cache-ready by default")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Persistent volumes and colocated caching keep build data close to your runners for faster reads, writes, and repeat jobs."
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+      <%!-- Band heading introducing the grid (Figma: 1200-wide, 64px gap
+      above and below); its top hairline closes the showcase band. --%>
+      <h3 data-part="subheading" id="compute-grid-title">
+        {dgettext("marketing", "Everything else, built in")}
+      </h3>
+      <%!-- 2x2 feature grid divided by hairlines, same cell recipe as the
+      cache page. Each figure reserves the artwork's slot until the real
+      illustrations land. Card titles are h4 — they sit under the band
+      heading in the outline. --%>
+      <div data-part="grid" aria-labelledby="compute-grid-title">
+        <div data-part="cell">
+          <%!-- Rack of runners: the home page's RunnerGrid hook at the
+          comp's 10x4 / 40px-cell size, churning at a calmer cadence. The
+          stat line's count is written by the hook. --%>
+          <figure data-part="illustration" data-illustration="spin-up" aria-hidden="true">
+            <canvas
+              data-part="rack"
+              id="compute-runner-rack"
+              phx-hook="RunnerGrid"
+              data-fill="none"
+              data-dither="none"
+              data-cols="10"
+              data-rows="4"
+              data-cell="40"
+              data-gap="8"
+              data-grid-x="3"
+              data-grid-top="0"
+              data-target="15"
+              data-min="11"
+              data-max="18"
+              data-swap="4200"
+              data-flicker="1600"
+            ></canvas>
+          </figure>
+          <div data-part="text">
+            <h4 data-part="title">{dgettext("marketing", "Scale without the queue")}</h4>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Spin up runners in seconds and scale with your team and your agents without managing your own fleet."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="cell">
+          <%!-- The Mac dissolving into a dot field (comp: 687x193 stage,
+          cut by the card's right edge). Hardware outline inline from the
+          export; the ~1900-dot field regenerates procedurally on the
+          canvas (ComputeMacDither) with random dots twinkling. --%>
+          <figure data-part="illustration" data-illustration="platforms" aria-hidden="true">
+            <div data-part="mac-stage">
+              <canvas
+                data-part="dots"
+                id="compute-mac-dither"
+                phx-hook="ComputeMacDither"
+                data-edge="506"
+                data-top="2"
+                data-bottom="176"
+              ></canvas>
+              <svg
+                data-part="mac"
+                viewBox="0 0 687 193"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <rect x="288" y="1" width="398" height="175" stroke-width="1.5" />
+                <path d="M319 176H656L636 191.5H339L319 176Z" stroke-width="1.5" />
+                <rect x="350" y="134" width="9" height="20" rx="4.5" stroke-width="1.5" />
+                <rect x="379" y="134" width="9" height="20" rx="4.5" stroke-width="1.5" />
+                <rect x="411" y="141" width="55" height="6" rx="3" stroke-width="1.5" />
+                <rect x="618" y="141" width="6" height="6" rx="3" stroke-width="1.5" />
+              </svg>
+            </div>
+          </figure>
+          <div data-part="text">
+            <h4 data-part="title">{dgettext("marketing", "Powerful compute, ready")}</h4>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Run CI and agent workloads on M4 Pro Macs or Linux machines sized for the job."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="cell">
+          <%!-- Debug session (comp: 512-wide stage): job header over a
+          terminal running ps, the tail rows melting out. Code stays
+          untranslated like the other cards' annotations. --%>
+          <figure data-part="illustration" data-illustration="ephemeral" aria-hidden="true">
+            <div data-part="session">
+              <div data-part="session-head">
+                <span data-part="session-icon">
+                  <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle
+                    cx="8"
+                    cy="8"
+                    r="6"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-dasharray="2.6 2.6"
+                    stroke-linecap="round"
+                  /></svg>
+                </span>
+                <span data-part="session-title">Server deployment · Deploy to tuist-staging</span>
+              </div>
+              <div data-part="terminal">
+                <pre data-part="term-line"><span data-part="term-user">runner@f992d97f ~/work</span> <span data-part="term-sign">$</span> ps aux --sort=-%cpu | head</pre>
+                <pre data-part="term-line" data-line="head">USER          PID %CPU %MEM      VSZ    RSS TTY      STAT START   TIME COMMAND</pre>
+                <pre data-part="term-line">runner         36  1.3  0.8 34903288  89760 ?        Sl   12:18   0:01 /home/runner/…</pre>
+                <pre data-part="term-line">runner         10  0.1  0.0     4924   1232 ?        S    12:18   0:00 bash /usr/loc…</pre>
+                <pre data-part="term-line">runner          1  0.0  0.0     4792    324 ?        S    12:18   0:00 bash /usr/loc…</pre>
+                <pre data-part="term-line">runner          2  0.0  0.0  1231752   5440 ?        Sl   12:18   0:00 /usr/local/bi…</pre>
+                <pre data-part="term-line">runner         16  0.0  0.0     4928    356 ?        S    12:18   0:00 /bin/bash ./r…</pre>
+              </div>
+            </div>
+          </figure>
+          <div data-part="text">
+            <h4 data-part="title">{dgettext("marketing", "Debug where it failed")}</h4>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Connect to a running machine through your terminal or VNC and investigate failures in the environment where they actually happened."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="cell">
+          <%!-- Version pills (comp: 788x156): three staggered rows on
+          24px gaps, the current versions ringed purple near the middle,
+          the rows melting out at the card's edges via the mask. --%>
+          <figure data-part="illustration" data-illustration="scaling" aria-hidden="true">
+            <div data-part="pills">
+              <div data-part="pill-row">
+                <span data-part="pill">macOS 12.6</span>
+                <span data-part="pill">macOS 13</span>
+                <span data-part="pill">macOS 14.5</span>
+                <span data-part="pill">macOS 15</span>
+                <span data-part="pill" data-state="soft">macOS 26.4</span>
+                <span data-part="pill">macOS 26.2</span>
+                <span data-part="pill">macOS 15.6</span>
+                <span data-part="pill">macOS 14.7</span>
+              </div>
+              <div data-part="pill-row">
+                <span data-part="pill">Xcode 14.3</span>
+                <span data-part="pill">Xcode 15</span>
+                <span data-part="pill">Xcode 16</span>
+                <span data-part="pill" data-state="current">Xcode 27</span>
+                <span data-part="pill">Xcode 26.6</span>
+                <span data-part="pill">Xcode 26.4</span>
+                <span data-part="pill">Xcode 16.4</span>
+                <span data-part="pill">Xcode 15.2</span>
+              </div>
+              <div data-part="pill-row">
+                <span data-part="pill">macOS 11</span>
+                <span data-part="pill">macOS 12</span>
+                <span data-part="pill">macOS 13.5</span>
+                <span data-part="pill">macOS 14.2</span>
+                <span data-part="pill" data-state="soft">macOS 26.3</span>
+                <span data-part="pill">macOS 15.2</span>
+                <span data-part="pill">macOS 12.5</span>
+                <span data-part="pill">macOS 13.2</span>
+              </div>
+            </div>
+          </figure>
+          <div data-part="text">
+            <h4 data-part="title">{dgettext("marketing", "Stay current with Apple")}</h4>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Run your workflows on current Xcode and macOS versions without maintaining images or installing toolchains yourself."
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <%!-- CTA framed by dithered divider bands, same recipe as the cache
+    page's closing CTA. --%>
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="compute-cta-divider-top-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="22.1"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
+
+    <section data-part="cta" aria-labelledby="cta-title">
+      <span data-part="eyebrow">{dgettext("marketing", "What are you waiting for?")}</span>
+      <h2 id="cta-title">{dgettext("marketing", "Supercharge your app development")}</h2>
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+      </nav>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="compute-cta-divider-bottom-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="29.6"
+        data-dither="on"
+        data-opacity="0.3"
+      ></canvas>
+    </div>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>
