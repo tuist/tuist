@@ -30,6 +30,16 @@ spec:
         - jsonPath: .status.ready
           name: Ready
           type: boolean
+        - jsonPath: .status.egress.budgetMbps
+          name: Egress
+          type: integer
+        - jsonPath: .status.egress.source
+          name: EgressSource
+          type: string
+        - jsonPath: .status.egress.reportedMbps
+          name: EgressReported
+          priority: 1
+          type: integer
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
@@ -250,6 +260,54 @@ spec:
                       - type
                     type: object
                   type: array
+                egress:
+                  description: |-
+                    Egress is what the controller knows about the box's egress budget: what the
+                    node was set to and why, and what OVH last reported. Nil while the machine
+                    has no configured budget; replaced when the machine moves to another box.
+                  properties:
+                    attemptedAt:
+                      format: date-time
+                      type: string
+                    budgetMbps:
+                      description: |-
+                        BudgetMbps is what the node was last set to advertise. With Source
+                        "configured" or "discovery" it is a promise the controller never lowers;
+                        with Source "manual" it is a temporary pin that leaves no promise behind.
+                      format: int32
+                      type: integer
+                    readFailures:
+                      description: ReadFailures counts consecutive failed reads. Reset on any answer.
+                      format: int32
+                      type: integer
+                    reportedMbps:
+                      description: |-
+                        ReportedMbps is OVH's last usable reading of the box's public egress
+                        limitation (bandwidth.OvhToInternet), and Tier its bandwidth offer.
+                      format: int32
+                      type: integer
+                    resolvedAt:
+                      description: |-
+                        ResolvedAt is when ReportedMbps was read; AttemptedAt is the last read,
+                        successful or not, and bounds the next one.
+                      format: date-time
+                      type: string
+                    serviceName:
+                      description: |-
+                        ServiceName is the box this status describes. A status recorded against
+                        another box is discarded, so a re-adopted machine is never rated from its
+                        predecessor's reading.
+                      type: string
+                    source:
+                      description: |-
+                        Source is what decided BudgetMbps: "configured" (spec.egressBudgetMbps),
+                        "discovery" (OVH's reading) or "manual" (the override annotation).
+                      type: string
+                    tier:
+                      type: string
+                  required:
+                    - serviceName
+                  type: object
                 failureMessage:
                   type: string
                 failureReason:

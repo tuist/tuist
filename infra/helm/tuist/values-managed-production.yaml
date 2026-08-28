@@ -719,7 +719,7 @@ dediboxFleet:
     os: ubuntu_24.04
     # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
     # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-central's
-    # 250-Mbps-floor cache pods against it.
+    # 25-Mbps-floor cache pods against it (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 1000
   scaleway:
     externalSecrets:
@@ -765,7 +765,8 @@ ovhFleets:
       datacenter: vin
       os: ubuntu_24.04
       # Node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
-      # tuist.dev/egress-mbps so the scheduler bin-packs the 750-Mbps-floor pods.
+      # tuist.dev/egress-mbps so the scheduler bin-packs the 25-Mbps-floor pods
+      # (@enterprise_egress_floor_mbps).
       egressBudgetMbps: 3000
     sshExternalSecret:
       enabled: true
@@ -781,7 +782,8 @@ ovhFleets:
       datacenter: hil
       os: ubuntu_24.04
       # Node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
-      # tuist.dev/egress-mbps so the scheduler bin-packs the 750-Mbps-floor pods.
+      # tuist.dev/egress-mbps so the scheduler bin-packs the 25-Mbps-floor pods
+      # (@enterprise_egress_floor_mbps).
       egressBudgetMbps: 3000
     sshExternalSecret:
       enabled: true
