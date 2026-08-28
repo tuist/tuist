@@ -6,6 +6,8 @@ defmodule TuistWeb.UserRegistrationLiveTest do
   import Phoenix.LiveViewTest
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
+
   describe "Registration page" do
     test "renders registration page", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/users/register")
@@ -60,6 +62,35 @@ defmodule TuistWeb.UserRegistrationLiveTest do
   end
 
   describe "Registration with email confirmation" do
+    test "completes registration when confirmation email delivery fails", %{conn: conn} do
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> false end)
+
+      stub(Tuist.Accounts.UserNotifier, :deliver_confirmation_instructions, fn _ ->
+        raise "Mailgun is temporarily unavailable"
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      lv
+      |> form("#login_form",
+        user: %{
+          email: "mail-provider-outage@example.com",
+          password: "StrongP@ssword!2028",
+          username: "mail-provider-outage"
+        }
+      )
+      |> render_submit()
+
+      assert has_element?(lv, "#registration-success")
+      assert {:ok, user} = Tuist.Accounts.get_user_by_email("mail-provider-outage@example.com")
+
+      assert_enqueued(
+        worker: DeliverConfirmationInstructionsWorker,
+        args: %{user_id: user.id}
+      )
+    end
+
     test "trims whitespace from email and username before registration", %{conn: conn} do
       stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
       stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> true end)

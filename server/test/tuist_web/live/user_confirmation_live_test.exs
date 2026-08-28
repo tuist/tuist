@@ -7,6 +7,18 @@ defmodule TuistWeb.UserConfirmationLiveTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
+
+  defp deliver_confirmation_instructions(user, confirmation_url) do
+    :ok =
+      Accounts.deliver_user_confirmation_instructions(%{
+        user: user,
+        confirmation_url: confirmation_url
+      })
+
+    assert [job] = all_enqueued(worker: DeliverConfirmationInstructionsWorker)
+    assert :ok = perform_job(job)
+  end
 
   setup do
     %{user: user_fixture(confirmed_at: nil)}
@@ -16,10 +28,7 @@ defmodule TuistWeb.UserConfirmationLiveTest do
     test "confirms the given token", %{conn: conn, user: user} do
       token =
         extract_user_token(fn url ->
-          Accounts.deliver_user_confirmation_instructions(%{
-            user: user,
-            confirmation_url: url
-          })
+          deliver_confirmation_instructions(user, url)
         end)
 
       {:ok, lv, _html} = live(conn, ~p"/users/confirm/#{token}")
@@ -40,10 +49,7 @@ defmodule TuistWeb.UserConfirmationLiveTest do
     } do
       token =
         extract_user_token(fn url ->
-          Accounts.deliver_user_confirmation_instructions(%{
-            user: user,
-            confirmation_url: url
-          })
+          deliver_confirmation_instructions(user, url)
         end)
 
       {:ok, lv, _html} = live(conn, ~p"/users/confirm/#{token}")
@@ -66,10 +72,7 @@ defmodule TuistWeb.UserConfirmationLiveTest do
 
       token =
         extract_user_token(fn url ->
-          Accounts.deliver_user_confirmation_instructions(%{
-            user: user,
-            confirmation_url: url
-          })
+          deliver_confirmation_instructions(user, url)
         end)
 
       {:ok, lv, _html} = live(conn, ~p"/users/confirm/#{token}")
