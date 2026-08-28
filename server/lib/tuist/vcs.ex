@@ -748,11 +748,13 @@ defmodule Tuist.VCS do
       | - | - |#{if contains_ipas, do: " - |", else: ""}
       #{Enum.map(previews, fn preview ->
         git_commit_sha = preview.git_commit_sha
+        short_sha = if git_commit_sha, do: String.slice(git_commit_sha, 0, 9), else: "N/A"
+        commit_cell = if git_commit_sha, do: "[#{short_sha}](#{git_remote_url_origin}/commit/#{git_commit_sha})", else: short_sha
         preview_url = preview_url.(%{project: project, preview: preview})
         qr_code_image = get_qr_code_image(%{project: project, preview: preview, contains_ipas: contains_ipas, preview_qr_code_url: preview_qr_code_url})
 
         """
-        | [#{preview.display_name}](#{preview_url}) | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |#{qr_code_image}
+        | [#{preview.display_name}](#{preview_url}) | #{commit_cell} |#{qr_code_image}
         """
       end)}
       """
