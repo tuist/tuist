@@ -20,9 +20,10 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
     user: user,
     account: account
   } do
+    account_id = account.id
     stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
-    stub(Jobs, :count_for_account, fn ^account.id, [] -> 1 end)
-    stub(Jobs, :list_for_account, fn ^account.id, [limit: 20, offset: 0] -> [runner_job()] end)
+    stub(Jobs, :count_for_account, fn ^account_id, [] -> 1 end)
+    stub(Jobs, :list_for_account, fn ^account_id, [limit: 20, offset: 0] -> [runner_job()] end)
 
     response =
       conn
@@ -37,9 +38,10 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
   end
 
   test "allows an account token with runner read scope to list its account's jobs", %{conn: conn, account: account} do
+    account_id = account.id
     stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
-    stub(Jobs, :count_for_account, fn ^account.id, [] -> 0 end)
-    stub(Jobs, :list_for_account, fn ^account.id, [limit: 20, offset: 0] -> [] end)
+    stub(Jobs, :count_for_account, fn ^account_id, [] -> 0 end)
+    stub(Jobs, :list_for_account, fn ^account_id, [limit: 20, offset: 0] -> [] end)
 
     response =
       conn
@@ -75,10 +77,11 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
   test "allows authenticated callers to list jobs for a public account", %{conn: conn, account: account} do
     {:ok, account} = Accounts.update_account_visibility(account, :public)
     other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    account_id = account.id
 
     stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
-    stub(Jobs, :count_for_account, fn ^account.id, [] -> 0 end)
-    stub(Jobs, :list_for_account, fn ^account.id, [limit: 20, offset: 0] -> [] end)
+    stub(Jobs, :count_for_account, fn ^account_id, [] -> 0 end)
+    stub(Jobs, :list_for_account, fn ^account_id, [limit: 20, offset: 0] -> [] end)
 
     response =
       conn
@@ -90,6 +93,8 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
   end
 
   test "lists webhook endpoints without their signing secrets", %{conn: conn, user: user, account: account} do
+    account_id = account.id
+
     endpoint = %{
       id: Ecto.UUID.generate(),
       name: "Build notifications",
@@ -101,7 +106,7 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
       updated_at: ~U[2026-08-28 10:00:00Z]
     }
 
-    stub(Webhooks, :list_endpoints, fn ^account.id -> [endpoint] end)
+    stub(Webhooks, :list_endpoints, fn ^account_id -> [endpoint] end)
 
     response =
       conn
