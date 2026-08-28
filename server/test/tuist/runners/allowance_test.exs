@@ -6,6 +6,7 @@ defmodule Tuist.Runners.AllowanceTest do
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
@@ -98,6 +99,31 @@ defmodule Tuist.Runners.AllowanceTest do
         stub(Billing, :effective_plan, fn _account -> plan end)
         refute Allowance.exhausted?(account), "expected #{plan} to keep dispatching"
       end
+    end
+
+    test "an account on a runner trial is never cut off", %{account: account} do
+      # A trial is "uses runners without being billed for them", and a trial
+      # account has no subscription, so effective_plan reports :air. Without
+      # this the account is cut off at the baseline and the trial does not let
+      # it run runners at all — which is the whole thing it grants.
+      stub(Billing, :effective_plan, fn _account -> :air end)
+      stub(Billing, :current_billing_period, fn _account -> nil end)
+      used_minutes(account, Allowance.free_monthly_minutes() * 10)
+
+      {:ok, account} = Trials.start(account)
+
+      refute Allowance.exhausted?(account)
+    end
+
+    test "an account whose trial was cancelled is cut off again", %{account: account} do
+      stub(Billing, :effective_plan, fn _account -> :air end)
+      stub(Billing, :current_billing_period, fn _account -> nil end)
+      used_minutes(account, Allowance.free_monthly_minutes())
+
+      {:ok, account} = Trials.start(account)
+      {:ok, account} = Trials.cancel(account)
+
+      assert Allowance.exhausted?(account)
     end
 
     test "an account that has run nothing is not exhausted", %{account: account} do
