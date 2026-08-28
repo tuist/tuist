@@ -11,6 +11,7 @@ public struct BazelCommand: AsyncParsableCommand {
             shouldDisplay: false,
             subcommands: [
                 BazelSetupCommand.self,
+                BazelInvokeCommand.self,
                 BazelCredentialHelperCommand.self,
             ]
         )

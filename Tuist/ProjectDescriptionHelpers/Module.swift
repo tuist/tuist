@@ -1185,6 +1185,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.logging.targetName),
                     .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.envKey.targetName),
+                    .target(name: Module.git.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.server.targetName),
@@ -1211,7 +1212,9 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.http.targetName),
                     .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.server.targetName),
+                    .target(name: Module.support.targetName),
                     .external(name: "ArgumentParser"),
+                    .external(name: "Command"),
                     .external(name: "FileSystem"),
                     .external(name: "Noora"),
                 ]
@@ -1618,6 +1621,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
+                    .target(name: Module.git.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]

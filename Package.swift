@@ -65,6 +65,7 @@ var tuistDependencies: [Target.Dependency] = [
 var tuistBazelCommandDependencies: [Target.Dependency] = [
     pathDependency,
     argumentParserDependency,
+    commandDependency,
     fileSystemDependency,
     "TuistEnvironment",
     "TuistNooraExtension",
@@ -76,6 +77,8 @@ var tuistBazelCommandDependencies: [Target.Dependency] = [
     "TuistHTTP",
     "TuistAlert",
     "TuistConfigLoader",
+    "TuistGit",
+    "TuistSupport",
 ]
 
 var tuistCacheCommandDependencies: [Target.Dependency] = [

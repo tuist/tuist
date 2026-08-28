@@ -85,9 +85,6 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
         build --remote_header=x-tuist-account-handle=\(accountHandle)
         build --credential_helper=\(endpoint.host)=\(credentialHelperPath.pathString)
         build --remote_instance_name=\(projectHandle)
-        build --bes_backend=\(endpoint.url)
-        build --bes_header=x-tuist-account-handle=\(accountHandle)
-        build --bes_header=x-tuist-project-handle=\(projectHandle)
 
         """
         try await fileSystem.writeText(bazelrcContent, at: bazelrcPath, encoding: .utf8, options: Set([.overwrite]))
@@ -96,7 +93,8 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
             .alert(
                 "Generated \(bazelrcPath.pathString)",
                 takeaways: [
-                    "Add 'try-import %workspace%/.bazelrc.tuist' to your .bazelrc to enable the Tuist remote cache and invocation insights",
+                    "Add 'try-import %workspace%/.bazelrc.tuist' to your .bazelrc to enable the Tuist remote cache",
+                    "Run Bazel through 'tuist bazel invoke' to record build and test insights directly in Tuist",
                 ]
             )
         )
