@@ -44,8 +44,17 @@ defmodule TuistWeb.BundlesLive do
     params = uri |> Query.query_params() |> Query.clear_cursors_on_initial_load(socket.assigns)
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    bundles_sort_order = params["bundles-sort-order"] || "desc"
-    bundles_sort_by = params["bundles-sort-by"] || "created-at"
+    bundles_sort_order =
+      case params["bundles-sort-order"] do
+        order when order in ["asc", "desc"] -> order
+        _ -> "desc"
+      end
+
+    bundles_sort_by =
+      case params["bundles-sort-by"] do
+        sort when sort in ["created-at", "install-size", "download-size"] -> sort
+        _ -> "created-at"
+      end
     bundles_type = params["bundles-type"] || "any"
 
     bundle_size_apps = Bundles.distinct_project_app_bundles(project)
