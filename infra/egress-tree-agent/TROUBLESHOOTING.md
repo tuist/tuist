@@ -117,12 +117,8 @@ Set `egressTreeAgent.enabled: true` and deploy. The agent rebuilds from zero
 host state (trampoline, tree, pins) and re-attaches to every annotated pod
 within a couple of seconds of starting; nothing from the wipe needs undoing.
 
-### Narrower levers
+### One node only
 
-- **One account.** `egressTreeAgent.betaPodPrefix` limits attachment to pods
-  whose name starts with the prefix; excluded pods are detached and cleaned
-  within one reconcile cycle. This needs a healthy agent and a deploy, so it
-  is a rollout lever, not an incident one.
-- **One node.** Run the step-2 debug pod against that node only, after
-  deleting the agent DaemonSet — a running agent re-attaches within the
-  backstop interval (`RECONCILE_INTERVAL`, default 2m).
+Run the step-2 debug pod against that node alone, after deleting the agent
+DaemonSet — a running agent re-attaches within the backstop interval
+(`RECONCILE_INTERVAL`, default 2m).
