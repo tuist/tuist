@@ -2625,7 +2625,7 @@ defmodule Tuist.AccountsTest do
             })
 
           assert [job] = all_enqueued(worker: DeliverConfirmationInstructionsWorker)
-          assert :ok = perform_job(job)
+          assert :ok = perform_job(DeliverConfirmationInstructionsWorker, job.args)
         end)
 
       {:ok, token} = Base.url_decode64(token, padding: false)
@@ -2640,7 +2640,7 @@ defmodule Tuist.AccountsTest do
         :ok = Accounts.deliver_user_confirmation_instructions(%{user: user, confirmation_url: confirmation_url})
 
         assert [job] = all_enqueued(worker: DeliverConfirmationInstructionsWorker)
-        assert :ok = perform_job(job)
+        assert :ok = perform_job(DeliverConfirmationInstructionsWorker, job.args)
       end)
 
       assert Accounts.deliver_user_confirmation_instructions(%{
@@ -2680,7 +2680,7 @@ defmodule Tuist.AccountsTest do
             })
 
           assert [job] = all_enqueued(worker: DeliverConfirmationInstructionsWorker)
-          assert :ok = perform_job(job)
+          assert :ok = perform_job(DeliverConfirmationInstructionsWorker, job.args)
         end)
 
       %{user: user, token: token}

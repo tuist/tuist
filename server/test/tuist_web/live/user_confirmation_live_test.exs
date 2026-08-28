@@ -17,7 +17,7 @@ defmodule TuistWeb.UserConfirmationLiveTest do
       })
 
     assert [job] = all_enqueued(worker: DeliverConfirmationInstructionsWorker)
-    assert :ok = perform_job(job)
+    assert :ok = perform_job(DeliverConfirmationInstructionsWorker, job.args)
   end
 
   setup do

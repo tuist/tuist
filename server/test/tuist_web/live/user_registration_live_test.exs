@@ -77,12 +77,12 @@ defmodule TuistWeb.UserRegistrationLiveTest do
         user: %{
           email: "mail-provider-outage@example.com",
           password: "StrongP@ssword!2028",
-          username: "mail-provider-outage"
+          username: "mailprovideroutage"
         }
       )
       |> render_submit()
 
-      assert has_element?(lv, "#registration-success")
+      assert has_element?(lv, "#signup-success")
       assert {:ok, user} = Tuist.Accounts.get_user_by_email("mail-provider-outage@example.com")
 
       assert_enqueued(
