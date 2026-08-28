@@ -233,13 +233,14 @@ growth is the signal.
 
 ## Rollout state
 
-Ships disabled (`egressTreeAgent.enabled: false`). Enabled on canary and
-production, where it now attaches to **every** annotated pod on the listed
-pools: the `BETA_POD_PREFIX` gate that held the first enforcement step to
-`kura-tuist-*` pods is gone, and with it the
-`kura_egress_tree_beta_excluded_pods` gauge. The annotation is the only
-opt-in left, so an account reaches the tree the moment kura-controller
-renders `tuist.dev/egress-class` onto its pods. Newly matched pods attach
+Ships disabled (`egressTreeAgent.enabled: false`). Enabled on staging,
+canary, and production, where it attaches to **every** annotated pod on the
+listed pools. Staging has run ungated since the agent landed (#12525);
+canary and production now match it, because the `BETA_POD_PREFIX` gate that
+held their first enforcement step to `kura-tuist-*` pods (#12564) is gone,
+and with it the `kura_egress_tree_beta_excluded_pods` gauge. The annotation
+is the only opt-in left, so an account reaches the tree the moment
+kura-controller renders `tuist.dev/egress-class` onto its pods. Newly matched pods attach
 within one reconcile cycle; nothing detaches, so removing the gate only ever
 widens enforcement.
 
